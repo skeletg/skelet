@@ -48,7 +48,9 @@ var (
 
 type Repository interface {
 	WithTx(tx *sql.Tx) Repository
-	CreateGrant(ctx context.Context, in GrantInput) (Grant, error)
+	// Reports false when the order already holds a grant for this file
+	CreateGrant(ctx context.Context, in GrantInput) (bool, error)
+	RevokeForOrder(ctx context.Context, orderID uuid.UUID) (int64, error)
 	GetByToken(ctx context.Context, token string) (Grant, error)
 	// Row-locks the grant so the use-count check is serialized against concurrent downloads
 	GetByTokenForUpdate(ctx context.Context, token string) (Grant, error)

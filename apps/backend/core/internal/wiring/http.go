@@ -205,30 +205,13 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 
 	// consume enforces the grant's use-count + expiry under a row lock before the 302; the per-IP budget is shared with the other token-keyed public endpoints - tokens are unguessable so forgery isn't the threat, replay-flooding is, since each hit costs a token verify plus DB work and doubles as a brute-force oracle
 	tokenLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
-	mux.HandleFunc("/download/", func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.URL.Path, "/download/")
-		if token == "" {
-			http.NotFound(w, r)
-			return
-		}
-		if !tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r)) {
-			http.Error(w, "too many requests", http.StatusTooManyRequests)
-			return
-		}
-		grant, err := s.Download.Consume(r.Context(), token)
-		if err != nil {
-			switch {
-			case errors.Is(err, download.ErrNotFound):
-				http.NotFound(w, r)
-			case errors.Is(err, download.ErrExpired) || errors.Is(err, download.ErrLimitReached):
-				http.Error(w, err.Error(), http.StatusGone)
-			default:
-				http.Error(w, "download error", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, grant.URL, http.StatusFound)
-	})
+	var downloadFiles download.FileStore
+	if s.MediaStorage != nil {
+		downloadFiles = storedDownloads{s.MediaStorage}
+	}
+	mux.Handle("/download/", s.Download.Handler(downloadFiles, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r))
+	}))
 
 	// The suite signs the unsubscribe link over the customer id with the shared key, so it works without auth, and the opt-out lands where consent lives, which is here
 	unsubscribes := emailtrack.NewSigner([]byte(infra.Config.JWTSecret))

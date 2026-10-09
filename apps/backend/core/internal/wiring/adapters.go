@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -632,12 +634,12 @@ type DownloadOrderLookup struct { // adapts order + catalog to download.OrderDow
 	catalogSvc *catalog.Service
 }
 
-func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid.UUID) ([]download.GrantableDownload, error) {
+func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid.UUID) (download.OrderDownloads, error) {
 	o, err := l.orderSvc.GetByID(ctx, orderID)
 	if err != nil {
-		return nil, err
+		return download.OrderDownloads{}, err
 	}
-	var out []download.GrantableDownload
+	out := download.OrderDownloads{Status: o.Status, PaymentStatus: o.PaymentStatus, CustomerID: o.CustomerID, Email: o.Email}
 	for _, line := range o.Lines {
 		if line.ProductSku == "" {
 			continue
@@ -651,7 +653,7 @@ func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid
 			continue
 		}
 		for _, d := range dls {
-			out = append(out, download.GrantableDownload{
+			out.Items = append(out.Items, download.GrantableDownload{
 				ProductID:    p.ID,
 				DownloadID:   d.ID,
 				Title:        d.Title,
@@ -1094,4 +1096,35 @@ func publishedOn(listings []catalog.ProductChannelListing, channelID uuid.UUID) 
 		}
 	}
 	return false
+}
+
+// Adapts objstore to download.FileStore - a grant URL under the bucket's public base is one of ours and streams from its key
+type storedDownloads struct{ st *objstore.Storage }
+
+func (d storedDownloads) KeyFor(u string) (string, bool) {
+	rest, ok := strings.CutPrefix(u, d.st.PublicURL(""))
+	if !ok || rest == "" {
+		return "", false
+	}
+	rest, _, _ = strings.Cut(rest, "?")
+	key, err := url.PathUnescape(rest)
+	if err != nil || key == "" {
+		return "", false
+	}
+	return key, true
+}
+
+func (d storedDownloads) Open(ctx context.Context, key string) (io.ReadCloser, int64, string, error) {
+	size, contentType, found, err := d.st.Head(ctx, key)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	if !found {
+		return nil, 0, "", fmt.Errorf("download file %s is missing from storage", key)
+	}
+	body, err := d.st.GetStream(ctx, key)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return body, size, contentType, nil
 }
