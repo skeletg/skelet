@@ -60,3 +60,22 @@ func TestRegisterDataPatch_Bridge(t *testing.T) {
 		t.Error("bridge did not forward the *sql.Tx to the plugin Apply")
 	}
 }
+
+func TestAPluginPatchWithoutANamespaceIsFiledUnderItsPlugin(t *testing.T) {
+	const id = "bridge-test:no-namespace"
+	if err := (&Host{}).RegisterDataPatch("dp-nons", sdk.DataPatchRegistration{
+		ID:    id,
+		Apply: func(context.Context, *sql.Tx) error { return nil },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range datapatch.Registered() {
+		if p.ID == id {
+			if p.Namespace != "dp-nons" {
+				t.Fatalf("namespace %q, want the plugin's slug", p.Namespace)
+			}
+			return
+		}
+	}
+	t.Fatal("plugin patch did not reach the datapatch registry")
+}
