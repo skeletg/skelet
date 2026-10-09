@@ -25,11 +25,21 @@ type Service struct {
 	blobs Blobs
 	cfg   *config.Service
 	now   func() time.Time
+
+	renewEvery   time.Duration
+	leaseSeconds int32
 }
 
 func New(q *db.Queries, reg *dataio.Registry, blobs Blobs) *Service {
-	return &Service{q: q, reg: reg, blobs: blobs, now: time.Now}
+	return &Service{q: q, reg: reg, blobs: blobs, now: time.Now, renewEvery: defaultRenewEvery, leaseSeconds: defaultLeaseSeconds}
 }
+
+const (
+	defaultListLimit   = 50
+	maxListLimit       = 200
+	defaultErrorsLimit = 100
+	maxErrorsLimit     = 1000
+)
 
 func (s *Service) Registry() *dataio.Registry { return s.reg }
 
@@ -219,9 +229,10 @@ func (v *Visibility) params() (bool, []string, []string) {
 }
 
 func (s *Service) List(ctx context.Context, f ListFilter) ([]Job, int, error) {
-	if f.Limit <= 0 || f.Limit > 200 {
-		f.Limit = 50
+	if f.Limit <= 0 {
+		f.Limit = defaultListLimit
 	}
+	f.Limit = min(f.Limit, maxListLimit)
 	scoped, anyRes, pairs := f.Visibility.params()
 	rows, err := s.q.ListDataJobs(ctx, db.ListDataJobsParams{
 		AllResources:        len(f.Resources) == 0,
@@ -261,9 +272,10 @@ func (s *Service) List(ctx context.Context, f ListFilter) ([]Job, int, error) {
 }
 
 func (s *Service) Errors(ctx context.Context, jobID uuid.UUID, limit, offset int) ([]RowError, int, error) {
-	if limit <= 0 || limit > 1000 {
-		limit = 100
+	if limit <= 0 {
+		limit = defaultErrorsLimit
 	}
+	limit = min(limit, maxErrorsLimit)
 	rows, err := s.q.ListDataJobErrors(ctx, db.ListDataJobErrorsParams{
 		JobID:      jobID,
 		PageSize:   int32(limit),
@@ -336,8 +348,11 @@ const localeOption = "__locale"
 
 func toJob(r db.DataJob) Job {
 	opts := map[string]string{}
+	badOptions := false
 	if len(r.Options) > 0 {
-		_ = json.Unmarshal(r.Options, &opts)
+		if err := json.Unmarshal(r.Options, &opts); err != nil {
+			badOptions = true // the runner fails such a job rather than running it with no options at all
+		}
 	}
 	j := Job{
 		ID:              r.ID,
@@ -363,6 +378,7 @@ func toJob(r db.DataJob) Job {
 		ErrorsTruncated: r.ErrorsTruncated,
 		Attempts:        int(r.Attempts),
 		CreatedAt:       r.CreatedAt,
+		badOptions:      badOptions,
 	}
 	if r.StartedAt.Valid {
 		j.StartedAt = &r.StartedAt.Time
