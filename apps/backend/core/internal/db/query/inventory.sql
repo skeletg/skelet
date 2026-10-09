@@ -35,18 +35,18 @@ SELECT * FROM inventory_locations WHERE id = ANY($1::uuid[]);
 -- Paginated + searched variant of the list - search matches name, slug and city, case-insensitively - the dashboard locations grid drives this server-side once the location count outgrows one payload
 SELECT * FROM inventory_locations
 WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || sqlc.arg(search) || '%'
-   OR slug ILIKE '%' || sqlc.arg(search) || '%'
-   OR city ILIKE '%' || sqlc.arg(search) || '%'
+   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
 ORDER BY name
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountInventoryLocations :one
 SELECT COUNT(*) FROM inventory_locations
 WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || sqlc.arg(search) || '%'
-   OR slug ILIKE '%' || sqlc.arg(search) || '%'
-   OR city ILIKE '%' || sqlc.arg(search) || '%';
+   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%';
 
 -- name: UpdateInventoryLocation :one
 UPDATE inventory_locations

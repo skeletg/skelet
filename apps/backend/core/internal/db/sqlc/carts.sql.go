@@ -87,8 +87,8 @@ WHERE c.channel_id = $1
   AND ($4::timestamptz IS NULL OR c.updated_at < $4::timestamptz)
   AND (
     $5::text IS NULL
-    OR cu.email ILIKE '%' || $5::text || '%'
-    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || $5::text || '%'
+    OR cu.email ILIKE '%' || escape_like($5::text) || '%'
+    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like($5::text) || '%'
   )
 `
 
@@ -328,8 +328,8 @@ FROM (
       AND ($4::timestamptz IS NULL OR c.updated_at < $4::timestamptz)
       AND (
         $5::text IS NULL
-        OR cu.email ILIKE '%' || $5::text || '%'
-        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || $5::text || '%'
+        OR cu.email ILIKE '%' || escape_like($5::text) || '%'
+        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like($5::text) || '%'
       )
     ORDER BY c.updated_at DESC
     LIMIT $7 OFFSET $6

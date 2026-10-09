@@ -46,3 +46,9 @@ func TestAnOverflowingValueIsStringTooLong(t *testing.T) {
 		t.Error("a flattened overflow lost its classification")
 	}
 }
+
+func TestTheTextFallbackReadsOnlyTheDriverSuffix(t *testing.T) {
+	if IsUniqueViolation(errors.New("provider said: SQLSTATE 23505 is their duplicate code")) {
+		t.Error("a bare SQLSTATE mention outside pgx's suffix was classified")
+	}
+}
