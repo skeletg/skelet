@@ -315,28 +315,40 @@ func (q *Queries) CustomerEmailsByIDsInChannel(ctx context.Context, arg Customer
 	return items, nil
 }
 
-const deleteAddress = `-- name: DeleteAddress :exec
-DELETE FROM addresses WHERE id = $1
+const deleteAddress = `-- name: DeleteAddress :execrows
+DELETE FROM addresses WHERE id = $1 AND customer_id = $2
 `
 
-func (q *Queries) DeleteAddress(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAddress, id)
-	return err
+type DeleteAddressParams struct {
+	ID         uuid.UUID `json:"id"`
+	CustomerID uuid.UUID `json:"customer_id"`
 }
 
-const deleteCustomer = `-- name: DeleteCustomer :exec
+func (q *Queries) DeleteAddress(ctx context.Context, arg DeleteAddressParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAddress, arg.ID, arg.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomer = `-- name: DeleteCustomer :execrows
 DELETE FROM customers WHERE id = $1
 `
 
-func (q *Queries) DeleteCustomer(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteCustomer, id)
-	return err
+func (q *Queries) DeleteCustomer(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomer, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteCustomerGroup = `-- name: DeleteCustomerGroup :exec
-DELETE FROM customer_groups WHERE id = $1
+DELETE FROM customer_groups WHERE id = $1 AND NOT is_default
 `
 
+// Only a non-default group goes - a group made default since it was read is left alone
 func (q *Queries) DeleteCustomerGroup(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteCustomerGroup, id)
 	return err
@@ -346,6 +358,7 @@ const getAddressByID = `-- name: GetAddressByID :one
 SELECT id, customer_id, first_name, last_name, company, street_1, street_2, city, state, postal_code, country_code, phone, created_at FROM addresses WHERE id = $1 LIMIT 1
 `
 
+// Owner-blind, for the admin path that resolves the owner before its channel check - everything else reads through GetCustomerAddress
 func (q *Queries) GetAddressByID(ctx context.Context, id uuid.UUID) (Address, error) {
 	row := q.db.QueryRowContext(ctx, getAddressByID, id)
 	var i Address
@@ -367,8 +380,38 @@ func (q *Queries) GetAddressByID(ctx context.Context, id uuid.UUID) (Address, er
 	return i, err
 }
 
+const getCustomerAddress = `-- name: GetCustomerAddress :one
+SELECT id, customer_id, first_name, last_name, company, street_1, street_2, city, state, postal_code, country_code, phone, created_at FROM addresses WHERE id = $1 AND customer_id = $2
+`
+
+type GetCustomerAddressParams struct {
+	ID         uuid.UUID `json:"id"`
+	CustomerID uuid.UUID `json:"customer_id"`
+}
+
+func (q *Queries) GetCustomerAddress(ctx context.Context, arg GetCustomerAddressParams) (Address, error) {
+	row := q.db.QueryRowContext(ctx, getCustomerAddress, arg.ID, arg.CustomerID)
+	var i Address
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Company,
+		&i.Street1,
+		&i.Street2,
+		&i.City,
+		&i.State,
+		&i.PostalCode,
+		&i.CountryCode,
+		&i.Phone,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCustomerByChannelAndEmail = `-- name: GetCustomerByChannelAndEmail :one
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE channel_id = $1 AND email = $2 LIMIT 1
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE channel_id = $1 AND lower(btrim(email)) = $2 LIMIT 1
 `
 
 type GetCustomerByChannelAndEmailParams struct {
@@ -376,6 +419,7 @@ type GetCustomerByChannelAndEmailParams struct {
 	Email     string    `json:"email"`
 }
 
+// Matches the way customers_store_email_lower_key enforces uniqueness, so the lookup rides that index
 func (q *Queries) GetCustomerByChannelAndEmail(ctx context.Context, arg GetCustomerByChannelAndEmailParams) (Customer, error) {
 	row := q.db.QueryRowContext(ctx, getCustomerByChannelAndEmail, arg.ChannelID, arg.Email)
 	var i Customer
@@ -411,6 +455,40 @@ SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_ema
 
 func (q *Queries) GetCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error) {
 	row := q.db.QueryRowContext(ctx, getCustomerByID, id)
+	var i Customer
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.IsActive,
+		&i.IsEmailVerified,
+		&i.Note,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DefaultBillingAddressID,
+		&i.DefaultShippingAddressID,
+		&i.CustomerGroupID,
+		&i.ChannelID,
+		&i.TaxExempt,
+		&i.TaxExemptionNote,
+		&i.VatID,
+		&i.VatIDStatus,
+		&i.VatIDCheckedAt,
+	)
+	return i, err
+}
+
+const getCustomerByIDForUpdate = `-- name: GetCustomerByIDForUpdate :one
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers WHERE id = $1 FOR UPDATE
+`
+
+// Locks the row for a read-merge-write, so two admin edits can't each overwrite the other's fields
+func (q *Queries) GetCustomerByIDForUpdate(ctx context.Context, id uuid.UUID) (Customer, error) {
+	row := q.db.QueryRowContext(ctx, getCustomerByIDForUpdate, id)
 	var i Customer
 	err := row.Scan(
 		&i.ID,
@@ -648,59 +726,12 @@ func (q *Queries) ListCustomerGroupsWithMemberCount(ctx context.Context) ([]List
 	return items, nil
 }
 
-const listCustomers = `-- name: ListCustomers :many
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers ORDER BY created_at DESC
-`
-
-func (q *Queries) ListCustomers(ctx context.Context) ([]Customer, error) {
-	rows, err := q.db.QueryContext(ctx, listCustomers)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Customer{}
-	for rows.Next() {
-		var i Customer
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.PasswordHash,
-			&i.FirstName,
-			&i.LastName,
-			&i.Phone,
-			&i.IsActive,
-			&i.IsEmailVerified,
-			&i.Note,
-			&i.Metadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DefaultBillingAddressID,
-			&i.DefaultShippingAddressID,
-			&i.CustomerGroupID,
-			&i.ChannelID,
-			&i.TaxExempt,
-			&i.TaxExemptionNote,
-			&i.VatID,
-			&i.VatIDStatus,
-			&i.VatIDCheckedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listCustomersInChannels = `-- name: ListCustomersInChannels :many
-SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers
-WHERE $1::boolean OR channel_id = ANY($2::uuid[])
-ORDER BY created_at DESC
+SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, g.id, g.name, g.slug, g.description, g.is_default, g.created_at
+FROM   customers c
+JOIN   customer_groups g ON g.id = c.customer_group_id
+WHERE  $1::boolean OR c.channel_id = ANY($2::uuid[])
+ORDER  BY c.created_at DESC
 `
 
 type ListCustomersInChannelsParams struct {
@@ -708,37 +739,48 @@ type ListCustomersInChannelsParams struct {
 	ChannelIds  []uuid.UUID `json:"channel_ids"`
 }
 
-func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomersInChannelsParams) ([]Customer, error) {
+type ListCustomersInChannelsRow struct {
+	Customer      Customer      `json:"customer"`
+	CustomerGroup CustomerGroup `json:"customer_group"`
+}
+
+func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomersInChannelsParams) ([]ListCustomersInChannelsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCustomersInChannels, arg.AllChannels, pq.Array(arg.ChannelIds))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Customer{}
+	items := []ListCustomersInChannelsRow{}
 	for rows.Next() {
-		var i Customer
+		var i ListCustomersInChannelsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.PasswordHash,
-			&i.FirstName,
-			&i.LastName,
-			&i.Phone,
-			&i.IsActive,
-			&i.IsEmailVerified,
-			&i.Note,
-			&i.Metadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DefaultBillingAddressID,
-			&i.DefaultShippingAddressID,
-			&i.CustomerGroupID,
-			&i.ChannelID,
-			&i.TaxExempt,
-			&i.TaxExemptionNote,
-			&i.VatID,
-			&i.VatIDStatus,
-			&i.VatIDCheckedAt,
+			&i.Customer.ID,
+			&i.Customer.Email,
+			&i.Customer.PasswordHash,
+			&i.Customer.FirstName,
+			&i.Customer.LastName,
+			&i.Customer.Phone,
+			&i.Customer.IsActive,
+			&i.Customer.IsEmailVerified,
+			&i.Customer.Note,
+			&i.Customer.Metadata,
+			&i.Customer.CreatedAt,
+			&i.Customer.UpdatedAt,
+			&i.Customer.DefaultBillingAddressID,
+			&i.Customer.DefaultShippingAddressID,
+			&i.Customer.CustomerGroupID,
+			&i.Customer.ChannelID,
+			&i.Customer.TaxExempt,
+			&i.Customer.TaxExemptionNote,
+			&i.Customer.VatID,
+			&i.Customer.VatIDStatus,
+			&i.Customer.VatIDCheckedAt,
+			&i.CustomerGroup.ID,
+			&i.CustomerGroup.Name,
+			&i.CustomerGroup.Slug,
+			&i.CustomerGroup.Description,
+			&i.CustomerGroup.IsDefault,
+			&i.CustomerGroup.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -754,9 +796,9 @@ func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomers
 }
 
 const listCustomersPaged = `-- name: ListCustomersPaged :many
-SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, COUNT(*) OVER () AS total_count
+SELECT c.id, c.email, c.password_hash, c.first_name, c.last_name, c.phone, c.is_active, c.is_email_verified, c.note, c.metadata, c.created_at, c.updated_at, c.default_billing_address_id, c.default_shipping_address_id, c.customer_group_id, c.channel_id, c.tax_exempt, c.tax_exemption_note, c.vat_id, c.vat_id_status, c.vat_id_checked_at, g.id, g.name, g.slug, g.description, g.is_default, g.created_at, COUNT(*) OVER () AS total_count
 FROM   customers c
-LEFT   JOIN customer_groups g ON g.id = c.customer_group_id
+JOIN   customer_groups g ON g.id = c.customer_group_id
 WHERE  ($1::boolean OR c.channel_id = ANY($2::uuid[]))
   AND  ($3::text = '' OR
         c.email ILIKE '%' || $3::text || '%' OR
@@ -780,31 +822,13 @@ type ListCustomersPagedParams struct {
 }
 
 type ListCustomersPagedRow struct {
-	ID                       uuid.UUID       `json:"id"`
-	Email                    string          `json:"email"`
-	PasswordHash             string          `json:"password_hash"`
-	FirstName                string          `json:"first_name"`
-	LastName                 string          `json:"last_name"`
-	Phone                    sql.NullString  `json:"phone"`
-	IsActive                 bool            `json:"is_active"`
-	IsEmailVerified          bool            `json:"is_email_verified"`
-	Note                     sql.NullString  `json:"note"`
-	Metadata                 json.RawMessage `json:"metadata"`
-	CreatedAt                time.Time       `json:"created_at"`
-	UpdatedAt                time.Time       `json:"updated_at"`
-	DefaultBillingAddressID  uuid.NullUUID   `json:"default_billing_address_id"`
-	DefaultShippingAddressID uuid.NullUUID   `json:"default_shipping_address_id"`
-	CustomerGroupID          uuid.UUID       `json:"customer_group_id"`
-	ChannelID                uuid.UUID       `json:"channel_id"`
-	TaxExempt                bool            `json:"tax_exempt"`
-	TaxExemptionNote         string          `json:"tax_exemption_note"`
-	VatID                    string          `json:"vat_id"`
-	VatIDStatus              string          `json:"vat_id_status"`
-	VatIDCheckedAt           sql.NullTime    `json:"vat_id_checked_at"`
-	TotalCount               int64           `json:"total_count"`
+	Customer      Customer      `json:"customer"`
+	CustomerGroup CustomerGroup `json:"customer_group"`
+	TotalCount    int64         `json:"total_count"`
 }
 
 // Server-side page for the admin list - ListCustomers returns the WHOLE table, which the dashboard then paged and searched in the browser - fine at seed scale, a hung tab and an ~80MB response at 200k customers Channel scoping is applied here rather than post-filtered in the resolver, or LIMIT would be taken before the permission filter and pages would come back short with holes
+// The group rides the same join the slug filter needs, and search is a pattern the caller has already escaped (the trigram indexes back it)
 func (q *Queries) ListCustomersPaged(ctx context.Context, arg ListCustomersPagedParams) ([]ListCustomersPagedRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCustomersPaged,
 		arg.AllChannels,
@@ -824,27 +848,33 @@ func (q *Queries) ListCustomersPaged(ctx context.Context, arg ListCustomersPaged
 	for rows.Next() {
 		var i ListCustomersPagedRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.PasswordHash,
-			&i.FirstName,
-			&i.LastName,
-			&i.Phone,
-			&i.IsActive,
-			&i.IsEmailVerified,
-			&i.Note,
-			&i.Metadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DefaultBillingAddressID,
-			&i.DefaultShippingAddressID,
-			&i.CustomerGroupID,
-			&i.ChannelID,
-			&i.TaxExempt,
-			&i.TaxExemptionNote,
-			&i.VatID,
-			&i.VatIDStatus,
-			&i.VatIDCheckedAt,
+			&i.Customer.ID,
+			&i.Customer.Email,
+			&i.Customer.PasswordHash,
+			&i.Customer.FirstName,
+			&i.Customer.LastName,
+			&i.Customer.Phone,
+			&i.Customer.IsActive,
+			&i.Customer.IsEmailVerified,
+			&i.Customer.Note,
+			&i.Customer.Metadata,
+			&i.Customer.CreatedAt,
+			&i.Customer.UpdatedAt,
+			&i.Customer.DefaultBillingAddressID,
+			&i.Customer.DefaultShippingAddressID,
+			&i.Customer.CustomerGroupID,
+			&i.Customer.ChannelID,
+			&i.Customer.TaxExempt,
+			&i.Customer.TaxExemptionNote,
+			&i.Customer.VatID,
+			&i.Customer.VatIDStatus,
+			&i.Customer.VatIDCheckedAt,
+			&i.CustomerGroup.ID,
+			&i.CustomerGroup.Name,
+			&i.CustomerGroup.Slug,
+			&i.CustomerGroup.Description,
+			&i.CustomerGroup.IsDefault,
+			&i.CustomerGroup.CreatedAt,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -888,9 +918,9 @@ func (q *Queries) MarkCustomerGroupDefault(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
-const setCustomerActive = `-- name: SetCustomerActive :one
+const setCustomerActive = `-- name: SetCustomerActive :execrows
 UPDATE customers SET is_active = $2, updated_at = NOW()
-WHERE id = $1 RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+WHERE id = $1
 `
 
 type SetCustomerActiveParams struct {
@@ -898,37 +928,16 @@ type SetCustomerActiveParams struct {
 	IsActive bool      `json:"is_active"`
 }
 
-func (q *Queries) SetCustomerActive(ctx context.Context, arg SetCustomerActiveParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setCustomerActive, arg.ID, arg.IsActive)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+func (q *Queries) SetCustomerActive(ctx context.Context, arg SetCustomerActiveParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCustomerActive, arg.ID, arg.IsActive)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const setCustomerGroup = `-- name: SetCustomerGroup :one
-UPDATE customers SET customer_group_id = $2, updated_at = NOW() WHERE id = $1 RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+const setCustomerGroup = `-- name: SetCustomerGroup :execrows
+UPDATE customers SET customer_group_id = $2, updated_at = NOW() WHERE id = $1
 `
 
 type SetCustomerGroupParams struct {
@@ -936,40 +945,18 @@ type SetCustomerGroupParams struct {
 	CustomerGroupID uuid.UUID `json:"customer_group_id"`
 }
 
-func (q *Queries) SetCustomerGroup(ctx context.Context, arg SetCustomerGroupParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setCustomerGroup, arg.ID, arg.CustomerGroupID)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+func (q *Queries) SetCustomerGroup(ctx context.Context, arg SetCustomerGroupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCustomerGroup, arg.ID, arg.CustomerGroupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const setCustomerTaxStatus = `-- name: SetCustomerTaxStatus :one
+const setCustomerTaxStatus = `-- name: SetCustomerTaxStatus :execrows
 UPDATE customers
 SET tax_exempt = $2, tax_exemption_note = $3, updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
 type SetCustomerTaxStatusParams struct {
@@ -978,40 +965,18 @@ type SetCustomerTaxStatusParams struct {
 	TaxExemptionNote string    `json:"tax_exemption_note"`
 }
 
-func (q *Queries) SetCustomerTaxStatus(ctx context.Context, arg SetCustomerTaxStatusParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setCustomerTaxStatus, arg.ID, arg.TaxExempt, arg.TaxExemptionNote)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+func (q *Queries) SetCustomerTaxStatus(ctx context.Context, arg SetCustomerTaxStatusParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCustomerTaxStatus, arg.ID, arg.TaxExempt, arg.TaxExemptionNote)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const setCustomerVatID = `-- name: SetCustomerVatID :one
+const setCustomerVatID = `-- name: SetCustomerVatID :execrows
 UPDATE customers
 SET vat_id = $2, vat_id_status = $3, vat_id_checked_at = NOW(), updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
 type SetCustomerVatIDParams struct {
@@ -1020,125 +985,64 @@ type SetCustomerVatIDParams struct {
 	VatIDStatus string    `json:"vat_id_status"`
 }
 
-func (q *Queries) SetCustomerVatID(ctx context.Context, arg SetCustomerVatIDParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setCustomerVatID, arg.ID, arg.VatID, arg.VatIDStatus)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+func (q *Queries) SetCustomerVatID(ctx context.Context, arg SetCustomerVatIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCustomerVatID, arg.ID, arg.VatID, arg.VatIDStatus)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const setDefaultBillingAddress = `-- name: SetDefaultBillingAddress :one
-UPDATE customers SET default_billing_address_id = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+const setDefaultBillingAddress = `-- name: SetDefaultBillingAddress :execrows
+UPDATE customers c SET default_billing_address_id = $1, updated_at = NOW()
+WHERE  c.id = $2
+  AND  EXISTS (SELECT 1 FROM addresses a WHERE a.id = $1 AND a.customer_id = $2)
 `
 
 type SetDefaultBillingAddressParams struct {
-	ID                      uuid.UUID     `json:"id"`
-	DefaultBillingAddressID uuid.NullUUID `json:"default_billing_address_id"`
+	AddressID  uuid.NullUUID `json:"address_id"`
+	CustomerID uuid.UUID     `json:"customer_id"`
 }
 
-func (q *Queries) SetDefaultBillingAddress(ctx context.Context, arg SetDefaultBillingAddressParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setDefaultBillingAddress, arg.ID, arg.DefaultBillingAddressID)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+// Zero rows when the address isn't this customer's - the ownership check and the write are one statement
+func (q *Queries) SetDefaultBillingAddress(ctx context.Context, arg SetDefaultBillingAddressParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setDefaultBillingAddress, arg.AddressID, arg.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const setDefaultShippingAddress = `-- name: SetDefaultShippingAddress :one
-UPDATE customers SET default_shipping_address_id = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+const setDefaultShippingAddress = `-- name: SetDefaultShippingAddress :execrows
+UPDATE customers c SET default_shipping_address_id = $1, updated_at = NOW()
+WHERE  c.id = $2
+  AND  EXISTS (SELECT 1 FROM addresses a WHERE a.id = $1 AND a.customer_id = $2)
 `
 
 type SetDefaultShippingAddressParams struct {
-	ID                       uuid.UUID     `json:"id"`
-	DefaultShippingAddressID uuid.NullUUID `json:"default_shipping_address_id"`
+	AddressID  uuid.NullUUID `json:"address_id"`
+	CustomerID uuid.UUID     `json:"customer_id"`
 }
 
-func (q *Queries) SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, setDefaultShippingAddress, arg.ID, arg.DefaultShippingAddressID)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+func (q *Queries) SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setDefaultShippingAddress, arg.AddressID, arg.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateAddress = `-- name: UpdateAddress :one
 UPDATE addresses
-SET first_name = $2, last_name = $3, company = $4, street_1 = $5, street_2 = $6,
-    city = $7, state = $8, postal_code = $9, country_code = $10, phone = $11
-WHERE id = $1
+SET first_name = $3, last_name = $4, company = $5, street_1 = $6, street_2 = $7,
+    city = $8, state = $9, postal_code = $10, country_code = $11, phone = $12
+WHERE id = $1 AND customer_id = $2
 RETURNING id, customer_id, first_name, last_name, company, street_1, street_2, city, state, postal_code, country_code, phone, created_at
 `
 
 type UpdateAddressParams struct {
 	ID          uuid.UUID      `json:"id"`
+	CustomerID  uuid.UUID      `json:"customer_id"`
 	FirstName   string         `json:"first_name"`
 	LastName    string         `json:"last_name"`
 	Company     sql.NullString `json:"company"`
@@ -1154,6 +1058,7 @@ type UpdateAddressParams struct {
 func (q *Queries) UpdateAddress(ctx context.Context, arg UpdateAddressParams) (Address, error) {
 	row := q.db.QueryRowContext(ctx, updateAddress,
 		arg.ID,
+		arg.CustomerID,
 		arg.FirstName,
 		arg.LastName,
 		arg.Company,
@@ -1184,11 +1089,10 @@ func (q *Queries) UpdateAddress(ctx context.Context, arg UpdateAddressParams) (A
 	return i, err
 }
 
-const updateCustomer = `-- name: UpdateCustomer :one
+const updateCustomer = `-- name: UpdateCustomer :execrows
 UPDATE customers
 SET first_name = $2, last_name = $3, phone = $4, updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
 type UpdateCustomerParams struct {
@@ -1198,41 +1102,20 @@ type UpdateCustomerParams struct {
 	Phone     sql.NullString `json:"phone"`
 }
 
-func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, updateCustomer,
+func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateCustomer,
 		arg.ID,
 		arg.FirstName,
 		arg.LastName,
 		arg.Phone,
 	)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const updateCustomerAdmin = `-- name: UpdateCustomerAdmin :one
+const updateCustomerAdmin = `-- name: UpdateCustomerAdmin :exec
 UPDATE customers
 SET email                       = $2,
     first_name                  = $3,
@@ -1247,7 +1130,6 @@ SET email                       = $2,
     metadata                    = $12,
     updated_at                  = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
 type UpdateCustomerAdminParams struct {
@@ -1266,8 +1148,8 @@ type UpdateCustomerAdminParams struct {
 }
 
 // Admin-side update: all fields, caller pre-merges with current values
-func (q *Queries) UpdateCustomerAdmin(ctx context.Context, arg UpdateCustomerAdminParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, updateCustomerAdmin,
+func (q *Queries) UpdateCustomerAdmin(ctx context.Context, arg UpdateCustomerAdminParams) error {
+	_, err := q.db.ExecContext(ctx, updateCustomerAdmin,
 		arg.ID,
 		arg.Email,
 		arg.FirstName,
@@ -1281,31 +1163,7 @@ func (q *Queries) UpdateCustomerAdmin(ctx context.Context, arg UpdateCustomerAdm
 		arg.DefaultShippingAddressID,
 		arg.Metadata,
 	)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+	return err
 }
 
 const updateCustomerGroup = `-- name: UpdateCustomerGroup :one

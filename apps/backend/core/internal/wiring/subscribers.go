@@ -90,8 +90,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	customer.RegisterOutboxTypes(d.Outbox)
 	consent.RegisterOutboxTypes(d.Outbox)
 	catalog.RegisterOutboxTypes(d.Outbox)
-	d.Payment.SetOutbox(d.Outbox)        // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
-	d.Customer.SetOutbox(d.Outbox, d.Tx) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
+	d.Payment.SetOutbox(d.Outbox)  // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
+	d.Customer.SetOutbox(d.Outbox) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
 	d.Consent.SetOutbox(d.Outbox, d.Tx)
 	d.Catalog.SetOutbox(d.Outbox)                                                                       // a category move re-renders the product URLs under it off the request, and a crash after commit mustn't lose that
 	d.Outbox.SetDropAlert(func(ctx context.Context, eventType string, rowID uuid.UUID, reason string) { // a dropped row means a domain reaction (points, credit, capture) silently never ran - that needs an operator, not a log line

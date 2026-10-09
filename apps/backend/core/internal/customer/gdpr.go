@@ -5,7 +5,6 @@ package customer
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // The DSAR bundle - orders are appended by the caller, which owns order access, so this struct just frames the JSON
@@ -67,7 +68,7 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 	if _, err := rand.Read(buf[:]); err != nil {
 		return err
 	}
-	hash, err := bcrypt.GenerateFromPassword(buf[:], bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword(buf[:], auth.HashCost)
 	if err != nil {
 		return err
 	}
@@ -75,20 +76,19 @@ func (s *Service) anonymize(ctx context.Context, c Customer) error {
 	updated := &CustomerUpdated{
 		CustomerID: c.ID, ChannelID: c.ChannelID,
 		Email: "redacted-" + c.ID.String() + "@anonymized.invalid", FirstName: "Redacted",
-		ChangedFields: []string{"email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "metadata"},
+		ChangedFields: []string{FieldEmail, FieldFirstName, FieldLastName, FieldPhone, FieldIsActive, FieldIsEmailVerified, FieldNote, FieldMetadata},
 		Source:        SourceGDPR,
 	}
-	var enqueue func(*sql.Tx) error
-	if s.outbox != nil {
-		enqueue = func(t *sql.Tx) error { return s.outbox.Enqueue(ctx, t, updated) }
-	}
-	if err := s.repo.Anonymize(ctx, c, string(hash), enqueue); err != nil {
+	err = s.atomically(ctx, func(r *postgresRepository) ([]events.Event, error) {
+		if err := r.Anonymize(ctx, c, string(hash)); err != nil {
+			return nil, err
+		}
+		return []events.Event{updated}, nil
+	})
+	if err != nil {
 		return err
 	}
 	s.revokeEmailLinks(ctx, c.ID)
-	if enqueue == nil && s.bus != nil {
-		s.bus.Publish(ctx, updated)
-	}
 	return nil
 }
 
@@ -108,23 +108,18 @@ func (r *postgresRepository) PurgeSignalsIdentity(ctx context.Context, customerI
 	return nil
 }
 
-func (r *postgresRepository) Anonymize(ctx context.Context, c Customer, passwordHash string, enqueue func(*sql.Tx) error) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
-		if err := scrubPersonalData(ctx, q, c); err != nil {
-			return err
-		}
-		if err := q.AnonymizeCustomerRow(ctx, db.AnonymizeCustomerRowParams{ID: c.ID, PasswordHash: passwordHash}); err != nil {
-			return fmt.Errorf("anonymize customer row: %w", err)
-		}
-		if err := q.DeleteCustomerAddresses(ctx, c.ID); err != nil {
-			return fmt.Errorf("delete addresses: %w", err)
-		}
-		if enqueue != nil {
-			return enqueue(t)
-		}
-		return nil
-	})
+// Several statements, so it runs on a transaction-scoped repository - see Service.atomically
+func (r *postgresRepository) Anonymize(ctx context.Context, c Customer, passwordHash string) error {
+	if err := scrubPersonalData(ctx, r.queries, c); err != nil {
+		return err
+	}
+	if err := r.queries.AnonymizeCustomerRow(ctx, db.AnonymizeCustomerRowParams{ID: c.ID, PasswordHash: passwordHash}); err != nil {
+		return fmt.Errorf("anonymize customer row: %w", err)
+	}
+	if err := r.queries.DeleteCustomerAddresses(ctx, c.ID); err != nil {
+		return fmt.Errorf("delete addresses: %w", err)
+	}
+	return nil
 }
 
 // Everything outside the customer row that names the customer, by id or by address on their channel - shared by

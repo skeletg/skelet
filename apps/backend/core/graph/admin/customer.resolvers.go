@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -381,8 +380,7 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", cust.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	const ttl = 15 * time.Minute
-	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, ttl)
+	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, masqueradeSessionTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +396,7 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 		AccessToken:      token,
 		StorefrontPath:   path,
 		StorefrontURL:    fullURL,
-		ExpiresInSeconds: int32(ttl.Seconds()),
+		ExpiresInSeconds: int32(masqueradeSessionTTL.Seconds()),
 	}, nil
 }
 

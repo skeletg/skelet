@@ -42,7 +42,7 @@ func init() {
 		Type:        customer.EventUpdated,
 		Kind:        KindAsync,
 		Name:        "Customer Updated",
-		Description: "Fires after an admin updates a customer. Response is ignored (async). Payload includes changedFields listing which fields were modified.",
+		Description: "Fires after an admin updates a customer, including the active toggle, group, tax status and VAT id. Response is ignored (async). Payload includes changedFields listing which fields were modified, in camelCase.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        order.EventPlaced,
@@ -141,7 +141,7 @@ func init() {
 		Type:        customer.EventProfileUpdated,
 		Kind:        KindAsync,
 		Name:        "Customer Profile Updated",
-		Description: "Fires after a customer edits their own profile. Payload includes changedFields.",
+		Description: "Fires after a customer edits their own profile. Payload includes changedFields, named in camelCase like customer.updated's (firstName, lastName, phone).",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        customer.EventPasswordChanged,
@@ -153,7 +153,7 @@ func init() {
 		Type:        customer.EventAddressChanged,
 		Kind:        KindAsync,
 		Name:        "Customer Address Changed",
-		Description: "Fires after a customer adds, updates, or deletes an address book entry. Payload includes the action.",
+		Description: "Fires after an address book entry is added, updated or deleted, by the customer or an admin, or made the default. Payload includes the action: add, update, delete, default_billing or default_shipping.",
 	})
 
 	// Subscription lifecycle

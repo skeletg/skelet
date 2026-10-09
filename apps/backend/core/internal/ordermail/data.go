@@ -94,7 +94,7 @@ func StoreName(ctx context.Context, cfg *config.Service, ch channel.Channel) str
 		return ch.Name
 	}
 	scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID}
-	if name, err := cfg.GetString(ctx, "general/branding/store_name", scope); err == nil {
+	if name, err := cfg.GetString(ctx, channel.ConfigStoreName, scope); err == nil {
 		if trimmed := strings.TrimSpace(name); trimmed != "" {
 			return trimmed
 		}
