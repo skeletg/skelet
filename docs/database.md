@@ -42,9 +42,11 @@ declares an `ID`, an optional `DependsOn`, and an `Apply`; the runner topologica
 sorts them and commits each patch together with its `data_patches` marker, so a failure
 rolls back and retries next deploy.
 
-The `migrate` one-shot runs `skelet data-patch up` straight after the schema in all
-three compose files, so patches land before any backend role boots. `skelet data-patch
-status` lists what has run.
+The `migrate` one-shot runs core's migrations, then `skelet plugin migrate up`, then
+`skelet data-patch up` in all three compose files, so a patch can count on every schema
+it touches and lands before any backend role boots. Runs that overlap - a hand-run `up`
+during a deploy - take turns per patch, and the second finds it already applied.
+`skelet data-patch status` lists what has run.
 
 **Reference data does not belong here.** Rows every install needs go in
 `000002_reference_data`, where they arrive without anyone running a command. Core ships

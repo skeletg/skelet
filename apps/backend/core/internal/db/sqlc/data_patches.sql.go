@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const dataPatchApplied = `-- name: DataPatchApplied :one
+SELECT EXISTS (SELECT 1 FROM data_patches WHERE id = $1)
+`
+
+func (q *Queries) DataPatchApplied(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, dataPatchApplied, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertDataPatch = `-- name: InsertDataPatch :exec
 INSERT INTO data_patches (id, namespace) VALUES ($1, $2)
 `
@@ -48,4 +59,13 @@ func (q *Queries) ListAppliedDataPatches(ctx context.Context) ([]string, error) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockDataPatches = `-- name: LockDataPatches :exec
+SELECT pg_advisory_xact_lock($1::int, 0)
+`
+
+func (q *Queries) LockDataPatches(ctx context.Context, class int32) error {
+	_, err := q.db.ExecContext(ctx, lockDataPatches, class)
+	return err
 }
