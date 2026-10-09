@@ -3,6 +3,7 @@ package customer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -209,13 +210,16 @@ func (s *Service) GetByIDWithAddresses(ctx context.Context, id uuid.UUID) (Custo
 	return s.repo.GetByIDWithAddresses(ctx, id)
 }
 
-// found=false for guests with no account, and no error - back-in-stock and form flows use it to route notifications through the flow engine when the address is a known customer
-func (s *Service) CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool) {
+// found=false with no error for guests with no account - a failed lookup is an error, never a miss
+func (s *Service) CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error) {
 	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, NormalizeEmail(email))
-	if err != nil {
-		return uuid.Nil, false
+	if errors.Is(err, ErrCustomerNotFound) {
+		return uuid.Nil, false, nil
 	}
-	return c.ID, true
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	return c.ID, true, nil
 }
 
 // IsActive backs auth.CustomerSessionGuard - a disabled or deleted account stops authenticating on the next request instead of riding out its access-token TTL
@@ -225,10 +229,12 @@ func (s *Service) IsActive(ctx context.Context, id uuid.UUID) (bool, error) {
 
 // The shopper's own edit - every change lands with its event, and the names it lists are only the fields that changed
 func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateCustomerInput) (Customer, error) {
-	if err := validateNames(input.FirstName, input.LastName); err != nil {
-		return Customer{}, err
-	}
-	if err := checkOptLen("phone", input.Phone, MaxPhoneRunes); err != nil {
+	return s.UpdateProfileFrom(ctx, id, input, SourceSelf)
+}
+
+// UpdateProfile with the event stamped by whoever made the change, so a bulk import never reads as the shopper's edit
+func (s *Service) UpdateProfileFrom(ctx context.Context, id uuid.UUID, input UpdateCustomerInput, source string) (Customer, error) {
+	if err := ValidateProfile(input); err != nil {
 		return Customer{}, err
 	}
 	var updated Customer
@@ -254,7 +260,7 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateC
 		if updated, err = r.Update(ctx, id, merged); err != nil {
 			return nil, err
 		}
-		return []events.Event{&CustomerProfileUpdated{CustomerID: id, ChannelID: existing.ChannelID, ChangedFields: changed}}, nil
+		return []events.Event{&CustomerProfileUpdated{CustomerID: id, ChannelID: existing.ChannelID, ChangedFields: changed, Source: source}}, nil
 	})
 	return updated, err
 }

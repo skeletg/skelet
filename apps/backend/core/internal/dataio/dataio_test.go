@@ -586,3 +586,44 @@ func TestImportReadsAnAliasHeaderAsItsColumn(t *testing.T) {
 		t.Fatalf("result %+v, err %v", out, err)
 	}
 }
+
+func TestRegisterRejectsABlankOrRepeatedViewAlsoPermission(t *testing.T) {
+	for name, also := range map[string][]string{"blank": {""}, "same as view": {"test.view"}, "repeated": {"x.view", "x.view"}} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s: registered, want a panic", name)
+				}
+			}()
+			res := testResource(nil)
+			res.ViewAlsoRequires = also
+			NewRegistry().Register(res)
+		}()
+	}
+	res := testResource(nil)
+	res.ViewAlsoRequires = []string{"other.view"}
+	NewRegistry().Register(res)
+	if got := res.ViewPermissions(); len(got) != 2 || got[0] != "test.view" || got[1] != "other.view" {
+		t.Fatalf("view permissions = %v", got)
+	}
+}
+
+func TestAnOptionValidatorRefusesTheRunAsAnInvalidOption(t *testing.T) {
+	res := testResource(nil)
+	res.Options = []OptionDef{{Name: "since", Label: "Since", Type: OptDate, Validate: func(v string) error {
+		if v != "ok" {
+			return errors.New("bad")
+		}
+		return nil
+	}}}
+	reg := newTestRegistry(t, res)
+	if err := reg.ValidateOptions("widgets", NewOpts(map[string]string{"since": "nope"}), DirectionImport); !errors.Is(err, ErrInvalidOption) {
+		t.Fatalf("err = %v, want ErrInvalidOption", err)
+	}
+	if err := reg.ValidateOptions("widgets", NewOpts(map[string]string{"since": "ok"}), DirectionImport); err != nil {
+		t.Fatalf("a valid value was refused: %v", err)
+	}
+	if err := reg.ValidateOptions("widgets", NewOpts(nil), DirectionImport); err != nil {
+		t.Fatalf("a blank optional value reached the validator: %v", err)
+	}
+}

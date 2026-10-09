@@ -364,7 +364,7 @@ func resolveOpts(res Resource, in Opts, dir Direction) (Opts, error) {
 			v = def.Default
 		}
 		if v == "" && def.Required {
-			return Opts{}, fmt.Errorf("option %q is required", def.Name)
+			return Opts{}, fmt.Errorf("%w: %q is required", ErrInvalidOption, def.Name)
 		}
 		if v != "" && len(def.Choices) > 0 {
 			ok := false
@@ -375,7 +375,12 @@ func resolveOpts(res Resource, in Opts, dir Direction) (Opts, error) {
 				}
 			}
 			if !ok {
-				return Opts{}, fmt.Errorf("option %q does not accept %q", def.Name, v)
+				return Opts{}, fmt.Errorf("%w: %q does not accept %q", ErrInvalidOption, def.Name, v)
+			}
+		}
+		if v != "" && def.Validate != nil {
+			if err := def.Validate(v); err != nil {
+				return Opts{}, fmt.Errorf("%w: %s: %w", ErrInvalidOption, def.Label, err)
 			}
 		}
 		values[def.Name] = v

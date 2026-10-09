@@ -6,6 +6,9 @@ import (
 	"unicode/utf8"
 )
 
+// ValidateEmail normalizes and checks addr the same way account creation does
+func ValidateEmail(addr string) error { return validateEmail(NormalizeEmail(addr)) }
+
 // Expects an already-normalized address - the parsed form has to round-trip, so display names and comments are refused
 func validateEmail(addr string) error {
 	if addr == "" || len(addr) > MaxEmailBytes {
@@ -30,6 +33,13 @@ func checkOptLen(field string, value *string, max int) error {
 		return nil
 	}
 	return checkLen(field, *value, max)
+}
+
+func ValidateProfile(in UpdateCustomerInput) error {
+	if err := validateNames(in.FirstName, in.LastName); err != nil {
+		return err
+	}
+	return checkOptLen("phone", in.Phone, MaxPhoneRunes)
 }
 
 func validateNames(first, last string) error {

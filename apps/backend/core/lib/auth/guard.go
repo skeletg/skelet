@@ -167,6 +167,19 @@ func HoldsAnywhere(ctx context.Context, svc ChannelScopeProvider, slug string) b
 	return permitted.Bypass() || len(permitted.IDs()) > 0
 }
 
+// RequireScopedOrGlobal for every slug - an empty list is refused rather than read as nothing to check
+func RequireAllScopedOrGlobal(ctx context.Context, svc ScopeAwareChecker, slugs []string, channelID uuid.UUID, global bool) error {
+	if len(slugs) == 0 {
+		return ErrForbidden
+	}
+	for _, slug := range slugs {
+		if err := RequireScopedOrGlobal(ctx, svc, slug, channelID, global); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RequireScopedOrGlobal is the rule for an operation whose blast radius depends on its target: no channel (or an explicitly global one) means the whole installation and demands the unscoped grant, while a targeted run only needs that channel. One implementation so the GraphQL and HTTP surfaces cannot drift apart
 func RequireScopedOrGlobal(ctx context.Context, svc ScopeAwareChecker, slug string, channelID uuid.UUID, global bool) error {
 	if slug == "" {

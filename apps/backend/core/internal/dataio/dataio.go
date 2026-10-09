@@ -87,6 +87,8 @@ type OptionDef struct {
 	// a segment. Takes priority over Choices, and is what keeps entity pickers out of the frontend
 	Source  string
 	Applies Direction // empty means both
+	// Refuses a malformed value before the run is queued - the error reaches the operator wrapped in ErrInvalidOption
+	Validate func(v string) error
 }
 
 // Loads an option's choices at request time - register by name once the services it reads through exist
@@ -131,7 +133,9 @@ type Resource struct {
 	Group       string
 	Description string
 
-	ViewPermission   string // gates export
+	ViewPermission string // gates export
+	// Further grants an export needs on top of ViewPermission, held over the same channel scope
+	ViewAlsoRequires []string
 	ImportPermission string // gates import - empty means the resource is export-only
 	// Set when a run's blast radius is the whole installation, so a channel-scoped grant must not be enough
 	RequireGlobalPermission bool
@@ -152,6 +156,10 @@ type Resource struct {
 
 func (r Resource) GlobalFor(d Direction) bool {
 	return r.RequireGlobalPermission || (d == DirectionImport && r.RequireGlobalImport)
+}
+
+func (r Resource) ViewPermissions() []string {
+	return append([]string{r.ViewPermission}, r.ViewAlsoRequires...)
 }
 
 func (r Resource) CanImport() bool { return r.NewImporter != nil && r.ImportPermission != "" }
@@ -276,6 +284,7 @@ var (
 	ErrUnknownFormat   = fmt.Errorf("unknown data format")
 	ErrNotImportable   = fmt.Errorf("resource does not support import")
 	ErrNotExportable   = fmt.Errorf("resource does not support export")
+	ErrInvalidOption   = fmt.Errorf("invalid option")
 )
 
 // Wraps a row error that another row of the file may resolve - retried until a round lands nothing, then failed with the cause
