@@ -19,9 +19,28 @@ type GrantableDownload struct {
 	MaxDownloads *int32
 }
 
-// The downloads to grant for a placed order's digital product lines - declared locally so download doesn't import catalog, with the adapter in main.go resolving each line's product downloads
+// What granting needs of an order - the files its digital lines carry, and enough of its state to know whether it's been paid for
+type OrderDownloads struct {
+	Status        string
+	PaymentStatus string
+	CustomerID    *uuid.UUID
+	Email         string
+	Items         []GrantableDownload
+}
+
+// Declared locally so download doesn't import catalog, with the adapter in wiring resolving each line's product downloads
 type OrderDownloadLookup interface {
-	DownloadsForOrder(ctx context.Context, orderID uuid.UUID) ([]GrantableDownload, error)
+	DownloadsForOrder(ctx context.Context, orderID uuid.UUID) (OrderDownloads, error)
+}
+
+// An authorization is the gateway's promise to pay the whole order - unpaid (cash on delivery, bank transfer) isn't, or the file
+// ships for free, and neither is a partial capture, which is how a cash deposit lands
+func paidFor(paymentStatus string) bool {
+	switch paymentStatus {
+	case order.PaymentAuthorized, order.PaymentPaid:
+		return true
+	}
+	return false
 }
 
 const EventAccessed = "download.accessed"
@@ -37,40 +56,64 @@ type Accessed struct {
 
 func (*Accessed) Type() string { return EventAccessed }
 
-// Wires grant-on-purchase - on OrderPlaced, durable through the outbox and at-least-once, create a grant per downloadable line
-// Idempotent under replay, skipping orders that already have grants, and it retains the bus so Consume can publish download.accessed
+// Wires grants to the order lifecycle, durable through the outbox and at-least-once: placement or a payment advance grants a paid-for
+// order its files, and cancellation, a void or a full refund expires them - it retains the bus so Consume can publish download.accessed
 func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
 	if bus == nil {
 		return
 	}
 	s.bus = bus
 	bus.Subscribe(order.EventPlaced, s.onOrderPlaced)
+	bus.Subscribe(order.EventPaymentStatusChanged, s.onPaymentStatusChanged)
+	bus.Subscribe(order.EventCancelled, s.onOrderCancelled)
 }
 
 func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 	placed, ok := e.(*order.OrderPlaced)
-	if !ok || s.orders == nil {
+	if !ok {
 		return nil
 	}
-	// Idempotency - OrderPlaced is at-least-once, so existing grants for this order mean a replay
-	if existing, err := s.repo.ListByOrder(ctx, placed.OrderID); err != nil {
-		log.Printf("[download] check grants for order %s: %v", placed.OrderID, err)
-		return err
-	} else if len(existing) > 0 {
+	return s.grantForOrder(ctx, placed.OrderID)
+}
+
+func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) error {
+	changed, ok := e.(*order.OrderPaymentStatusChanged)
+	if !ok {
 		return nil
 	}
-	items, err := s.orders.DownloadsForOrder(ctx, placed.OrderID)
+	switch {
+	case paidFor(changed.Status):
+		return s.grantForOrder(ctx, changed.OrderID)
+	case changed.Status == order.PaymentVoided || changed.Status == order.PaymentRefunded:
+		return s.revoke(ctx, changed.OrderID)
+	}
+	return nil
+}
+
+func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {
+	cancelled, ok := e.(*order.OrderCancelled)
+	if !ok {
+		return nil
+	}
+	return s.revoke(ctx, cancelled.OrderID)
+}
+
+// Grants each of the order's files once it's paid for and still standing - idempotent, since the unique (order, file) pair absorbs replays and races
+func (s *Service) grantForOrder(ctx context.Context, orderID uuid.UUID) error {
+	if s.orders == nil {
+		return nil
+	}
+	o, err := s.orders.DownloadsForOrder(ctx, orderID)
 	if err != nil {
-		log.Printf("[download] resolve downloads for order %s: %v", placed.OrderID, err)
+		log.Printf("[download] resolve downloads for order %s: %v", orderID, err)
 		return err
 	}
-	if len(items) == 0 {
+	if len(o.Items) == 0 || o.Status == order.OrderStatusCancelled || !paidFor(o.PaymentStatus) {
 		return nil
 	}
-	orderID := placed.OrderID
 	err = s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
-		for _, d := range items {
+		for _, d := range o.Items {
 			token, err := newToken()
 			if err != nil {
 				return err
@@ -78,8 +121,8 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 			if _, err := r.CreateGrant(ctx, GrantInput{
 				Token:        token,
 				OrderID:      &orderID,
-				CustomerID:   placed.CustomerID,
-				Email:        placed.Email,
+				CustomerID:   o.CustomerID,
+				Email:        o.Email,
 				ProductID:    d.ProductID,
 				DownloadID:   d.DownloadID,
 				Title:        d.Title,
@@ -92,8 +135,12 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 		return nil
 	})
 	if err != nil {
-		log.Printf("[download] grant for order %s failed (will retry on replay): %v", placed.OrderID, err)
-		return err
+		log.Printf("[download] grant for order %s failed (will retry on replay): %v", orderID, err)
 	}
-	return nil
+	return err
+}
+
+func (s *Service) revoke(ctx context.Context, orderID uuid.UUID) error {
+	_, err := s.repo.RevokeForOrder(ctx, orderID)
+	return err
 }
