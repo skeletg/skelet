@@ -19,6 +19,19 @@ func (r *Resolver) holdsAnywhere(ctx context.Context, slug string) bool {
 	return auth.HoldsAnywhere(ctx, r.AdminSvc, slug)
 }
 
+func (r *Resolver) holdsViewAnywhere(ctx context.Context, res dataio.Resource) bool {
+	for _, slug := range res.ViewPermissions() {
+		if !r.holdsAnywhere(ctx, slug) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Resolver) requireViewPermission(ctx context.Context, res dataio.Resource, channelID uuid.UUID) error {
+	return auth.RequireAllScopedOrGlobal(ctx, r.AdminSvc, res.ViewPermissions(), channelID, res.RequireGlobalPermission)
+}
+
 func toDataResourceModel(ctx context.Context, reg *dataio.Registry, res dataio.Resource, canImport bool) *model.DataResource {
 	out := &model.DataResource{
 		Slug:             res.Slug,
@@ -30,6 +43,7 @@ func toDataResourceModel(ctx context.Context, reg *dataio.Registry, res dataio.R
 		CanImport:        res.CanImport() && canImport,
 		CanExport:        res.CanExport(),
 		ViewPermission:   res.ViewPermission,
+		ViewAlsoRequires: append([]string{}, res.ViewAlsoRequires...),
 		ImportPermission: res.ImportPermission,
 		DynamicPrefixes:  res.DynamicPrefixes,
 	}
@@ -179,11 +193,10 @@ func (r *Resolver) requireJobAccess(ctx context.Context, job datajob.Job, write 
 	if err != nil {
 		return auth.ErrForbidden // a job for a resource this build no longer registers stays sealed
 	}
-	slug, global := res.ViewPermission, res.RequireGlobalPermission
 	if write && res.ImportPermission != "" {
-		slug, global = res.ImportPermission, res.GlobalFor(job.Direction)
+		return r.requireDataPermission(ctx, res.ImportPermission, job.ChannelID, res.GlobalFor(job.Direction))
 	}
-	return r.requireDataPermission(ctx, slug, job.ChannelID, global)
+	return r.requireViewPermission(ctx, res, job.ChannelID)
 }
 
 // requireJobAccess as a SQL filter, so the total counts only the runs the caller may read
@@ -194,22 +207,55 @@ func (r *Resolver) jobVisibility(ctx context.Context, resources []string) (*data
 		if err != nil {
 			continue
 		}
-		perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, res.ViewPermission)
+		bypass, ids, err := r.viewChannels(ctx, res)
 		if err != nil {
 			return nil, err
 		}
-		if perm.Bypass() {
+		if bypass {
 			v.AnyChannel = append(v.AnyChannel, slug)
 			continue
 		}
 		if res.RequireGlobalPermission {
 			continue
 		}
-		for _, id := range perm.IDs() {
+		for _, id := range ids {
 			v.Pairs = append(v.Pairs, datajob.VisiblePair{Resource: slug, ChannelID: id})
 		}
 	}
 	return v, nil
+}
+
+// The channels where every view grant holds: bypass only when each one bypasses, otherwise the intersection of the scoped ones
+func (r *Resolver) viewChannels(ctx context.Context, res dataio.Resource) (bool, []uuid.UUID, error) {
+	var scoped []auth.PermittedChannels
+	for _, slug := range res.ViewPermissions() {
+		perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, slug)
+		if err != nil {
+			return false, nil, err
+		}
+		if !perm.Bypass() {
+			scoped = append(scoped, perm)
+		}
+	}
+	if len(scoped) == 0 {
+		return true, nil, nil
+	}
+	var ids []uuid.UUID
+	for _, id := range scoped[0].IDs() {
+		if allAllow(scoped[1:], id) {
+			ids = append(ids, id)
+		}
+	}
+	return false, ids, nil
+}
+
+func allAllow(perms []auth.PermittedChannels, id uuid.UUID) bool {
+	for _, p := range perms {
+		if !p.Allows(id) {
+			return false
+		}
+	}
+	return true
 }
 
 // The resources a caller may list jobs for, intersected with whatever filter they asked for
@@ -223,7 +269,7 @@ func (r *Resolver) visibleResources(ctx context.Context, requested []string) []s
 		if len(want) > 0 && !want[res.Slug] {
 			continue
 		}
-		if r.holdsAnywhere(ctx, res.ViewPermission) {
+		if r.holdsViewAnywhere(ctx, res) {
 			out = append(out, res.Slug)
 		}
 	}
@@ -243,6 +289,8 @@ func dataJobError(err error) error {
 	case errors.Is(err, dataio.ErrUnknownResource), errors.Is(err, dataio.ErrUnknownFormat),
 		errors.Is(err, dataio.ErrNotImportable), errors.Is(err, dataio.ErrNotExportable):
 		return apperr.New("DATA_UNSUPPORTED", apperr.ClassValidation, err.Error())
+	case errors.Is(err, dataio.ErrInvalidOption):
+		return apperr.New("DATA_INVALID_OPTION", apperr.ClassValidation, err.Error())
 	}
 	return err
 }

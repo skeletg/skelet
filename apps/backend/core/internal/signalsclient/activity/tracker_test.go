@@ -290,6 +290,18 @@ func TestAnErasureLeavesNoAccountEventBehind(t *testing.T) {
 	}
 }
 
+func TestAnImportedProfileChangeIsNotTheShoppersOwnEdit(t *testing.T) {
+	for source, want := range map[string]string{customer.SourceImport: "account_updated", customer.SourceSelf: "profile_updated"} {
+		tr, fr := newTracker(order.Order{})
+		_ = tr.onProfileUpdated(context.Background(), &customer.CustomerProfileUpdated{
+			CustomerID: uuid.New(), ChannelID: uuid.New(), ChangedFields: []string{"phone"}, Source: source,
+		})
+		if len(fr.calls) != 1 || fr.calls[0].EventName != want {
+			t.Fatalf("source %q recorded %+v, want one %s", source, fr.calls, want)
+		}
+	}
+}
+
 func TestALogoutLandsOnTheChannelItHappenedOn(t *testing.T) {
 	tr, fr := newTracker(order.Order{})
 	ch := uuid.New()

@@ -30,7 +30,7 @@ type salableReader interface { // narrow dependency seams - accepting interfaces
 	Salable(ctx context.Context, productID, channelID uuid.UUID) (float64, error)
 }
 type customerFinder interface {
-	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool)
+	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error)
 }
 type flowEnroller interface {
 	OnBackInStock(ctx context.Context, channelID, customerID uuid.UUID, sku, name, image, url string) int
@@ -146,7 +146,10 @@ func (s *Service) ownsAddress(ctx context.Context, channelID, customerID uuid.UU
 	if s.cust == nil {
 		return false
 	}
-	id, found := s.cust.CustomerIDByEmail(ctx, channelID, email)
+	id, found, err := s.cust.CustomerIDByEmail(ctx, channelID, email)
+	if err != nil {
+		log.Printf("[backinstock] customer lookup: %v", err)
+	}
 	return found && id == customerID
 }
 
@@ -236,7 +239,9 @@ func (s *Service) notifyChannel(ctx context.Context, productID, channelID uuid.U
 		var custID uuid.UUID // the flow path wins for resolved customers with an active flow
 		if r.CustomerID.Valid {
 			custID = r.CustomerID.UUID
-		} else if id, found := s.cust.CustomerIDByEmail(ctx, channelID, r.Email); found {
+		} else if id, found, err := s.cust.CustomerIDByEmail(ctx, channelID, r.Email); err != nil {
+			log.Printf("[backinstock] customer lookup %s: %v", r.Email, err)
+		} else if found {
 			custID = id
 		}
 		enrolled := 0

@@ -3,6 +3,7 @@ package dataio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -81,6 +82,11 @@ func validate(res Resource) error {
 		return fmt.Errorf("an importer needs an import permission")
 	case len(res.Fields) == 0:
 		return fmt.Errorf("at least one field is required")
+	}
+	for i, p := range res.ViewAlsoRequires {
+		if p == "" || p == res.ViewPermission || slices.Contains(res.ViewAlsoRequires[:i], p) {
+			return fmt.Errorf("view-also permission %q must be non-empty and distinct", p)
+		}
 	}
 	seen := map[string]bool{}
 	for _, f := range res.Fields {

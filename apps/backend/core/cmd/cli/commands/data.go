@@ -13,11 +13,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/customerio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/core/internal/orderio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -293,7 +293,7 @@ func newDataServices() (*dataServices, error) {
 	reg := dataio.NewRegistry()
 	reg.Register(catalogio.Resource(queries, catalogSvc))
 	reg.Register(catalogio.CategoryResource(catalogSvc))
-	reg.Register(customerio.OrderLineResource(queries))
+	reg.Register(orderio.OrderLineResource(queries))
 	reg.Register(inventory.LevelResource(queries, inventorySvc, cliSKULookup{catalogSvc}))
 	reg.Register(tax.RateResource(taxSvc))
 

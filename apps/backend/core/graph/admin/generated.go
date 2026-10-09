@@ -1404,6 +1404,7 @@ type ComplexityRoot struct {
 		Label            func(childComplexity int) int
 		Options          func(childComplexity int) int
 		Slug             func(childComplexity int) int
+		ViewAlsoRequires func(childComplexity int) int
 		ViewPermission   func(childComplexity int) int
 	}
 
@@ -10975,6 +10976,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DataResource.Slug(childComplexity), true
+	case "DataResource.viewAlsoRequires":
+		if e.ComplexityRoot.DataResource.ViewAlsoRequires == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DataResource.ViewAlsoRequires(childComplexity), true
 	case "DataResource.viewPermission":
 		if e.ComplexityRoot.DataResource.ViewPermission == nil {
 			break
@@ -32080,6 +32087,8 @@ type DataResource {
   canImport: Boolean!
   canExport: Boolean!
   viewPermission: String!
+  "Further grants an export needs on top of viewPermission, over the same channels"
+  viewAlsoRequires: [String!]!
   importPermission: String!
   "Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes"
   dynamicPrefixes: [String!]!
@@ -39381,6 +39390,8 @@ func (ec *executionContext) childFields_DataResource(ctx context.Context, field 
 		return ec.fieldContext_DataResource_canExport(ctx, field)
 	case "viewPermission":
 		return ec.fieldContext_DataResource_viewPermission(ctx, field)
+	case "viewAlsoRequires":
+		return ec.fieldContext_DataResource_viewAlsoRequires(ctx, field)
 	case "importPermission":
 		return ec.fieldContext_DataResource_importPermission(ctx, field)
 	case "dynamicPrefixes":
@@ -79855,6 +79866,29 @@ func (ec *executionContext) _DataResource_viewPermission(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_DataResource_viewPermission(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DataResource", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DataResource_viewAlsoRequires(ctx context.Context, field graphql.CollectedField, obj *model.DataResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DataResource_viewAlsoRequires(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ViewAlsoRequires, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DataResource_viewAlsoRequires(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DataResource", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -171703,6 +171737,11 @@ func (ec *executionContext) _DataResource(ctx context.Context, sel ast.Selection
 			}
 		case "viewPermission":
 			out.Values[i] = ec._DataResource_viewPermission(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "viewAlsoRequires":
+			out.Values[i] = ec._DataResource_viewAlsoRequires(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -47,6 +47,7 @@ const (
 	SourceAdmin      = "admin"
 	SourceSignupForm = "signup_form"
 	SourceGDPR       = "gdpr"
+	SourceImport     = "import"
 )
 
 // Fires BEFORE a self-registration is persisted - sync handlers abort by returning an error or enrich by mutating exported fields, which the emitting service reads after the chain
@@ -186,11 +187,12 @@ type CustomerEmailVerified struct {
 func (*CustomerEmailVerified) Type() string                { return EventEmailVerified }
 func (c *CustomerEmailVerified) EventChannelID() uuid.UUID { return c.ChannelID }
 
-// Storefront self-service, async-only - ChangedFields lists the fields that actually changed
+// Storefront self-service or a bulk import, async-only - ChangedFields lists the fields that actually changed
 type CustomerProfileUpdated struct {
 	CustomerID    uuid.UUID
 	ChannelID     uuid.UUID
 	ChangedFields []string
+	Source        string
 }
 
 func (*CustomerProfileUpdated) Type() string                { return EventProfileUpdated }

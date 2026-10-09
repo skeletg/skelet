@@ -1004,6 +1004,11 @@ var orderStatusTransitions = map[string][]string{
 	OrderStatusCancelled:          {},
 }
 
+func IsStatus(s string) bool {
+	_, ok := orderStatusTransitions[s]
+	return ok
+}
+
 func validTransition(from, to string) bool {
 	return slices.Contains(orderStatusTransitions[from], to)
 }
