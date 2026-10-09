@@ -57,6 +57,8 @@ type Job struct {
 	StartedAt  *time.Time
 	FinishedAt *time.Time
 	ExpiresAt  *time.Time
+
+	badOptions bool
 }
 
 // Whether the artifact is still downloadable - the row outlives its file, so history stays readable after the sweep

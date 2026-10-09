@@ -101,14 +101,14 @@ func TestFloatCellsRefuseNaNAndInf(t *testing.T) {
 }
 
 func TestRowMessagesAreCutOnACharacter(t *testing.T) {
-	msg := trimMessage("a" + strings.Repeat("ž", maxRowMessageRunes+10)) // the odd byte puts the 400th byte mid-character
+	msg := TrimMessage("a" + strings.Repeat("ž", maxRowMessageRunes+10)) // the odd byte puts the 400th byte mid-character
 	if !utf8.ValidString(msg) {
 		t.Fatal("trimmed message is not valid UTF-8")
 	}
 	if !strings.HasSuffix(msg, "...") {
 		t.Error("a long message lost its ellipsis")
 	}
-	if got := trimMessage("short"); got != "short" {
+	if got := TrimMessage("short"); got != "short" {
 		t.Errorf("a short message changed to %q", got)
 	}
 }

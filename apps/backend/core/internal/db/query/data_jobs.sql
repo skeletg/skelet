@@ -68,8 +68,9 @@ SET status = sqlc.arg(status),
     object_key = sqlc.arg(object_key),
     byte_size = sqlc.arg(byte_size),
     finished_at = NOW(),
-    lease_until = NULL
-WHERE id = sqlc.arg(id)
+    lease_until = NULL,
+    expires_at = NOW() + make_interval(secs => sqlc.arg(retention_seconds)::int)
+WHERE id = sqlc.arg(id) AND status = 'running' AND attempts = sqlc.arg(attempt)
 RETURNING *;
 
 -- name: CancelDataJob :one
@@ -109,12 +110,17 @@ WHERE status = 'running'
   AND lease_until < NOW()
   AND attempts >= sqlc.arg(max_attempts);
 
--- name: ExpireDataJobArtifacts :many
--- Returns the keys to delete from the object store - the row stays so the history survives its artifact
-UPDATE data_jobs
-SET object_key = '', byte_size = 0
-WHERE object_key <> '' AND expires_at IS NOT NULL AND expires_at < NOW()
-RETURNING id, object_key;
+-- name: ListExpiredDataJobArtifacts :many
+-- Finished runs only - a queued or running import still needs its upload, however old the row is
+SELECT id, object_key FROM data_jobs
+WHERE object_key <> '' AND finished_at IS NOT NULL AND expires_at IS NOT NULL AND expires_at < NOW()
+ORDER BY expires_at
+LIMIT sqlc.arg(batch_size);
+
+-- name: ClearDataJobArtifact :exec
+-- After the object is gone - the row stays so the history survives its artifact
+UPDATE data_jobs SET object_key = '', byte_size = 0
+WHERE id = sqlc.arg(id) AND object_key = sqlc.arg(object_key);
 
 -- name: DeleteDataJobsBefore :execrows
 DELETE FROM data_jobs
