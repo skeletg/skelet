@@ -2367,6 +2367,8 @@ export type DataResource = {
   label: Scalars['String']['output'];
   options: Array<DataOption>;
   slug: Scalars['String']['output'];
+  /** Further grants an export needs on top of viewPermission, over the same channels */
+  viewAlsoRequires: Array<Scalars['String']['output']>;
   viewPermission: Scalars['String']['output'];
 };
 

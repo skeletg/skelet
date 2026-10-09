@@ -426,6 +426,12 @@ func (t *Tracker) onProfileUpdated(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
+	if ev.Source == customer.SourceImport {
+		// An operator's bulk write, so it lands as an account change like an admin edit rather than as the shopper's own
+		return t.emit(ctx, sourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
+			"act:account_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
+			map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ","), "source": ev.Source})
+	}
 	return t.emit(ctx, sourceAccount, "profile_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:profile_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ",")})

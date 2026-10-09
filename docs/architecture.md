@@ -123,7 +123,7 @@ contract. Everything below is `apps/backend/core/internal/<name>`.
 | Signals (core's side) | `signalsclient` - the wire contract's client; the suite itself is `apps/backend/signals`, see below |
 | Platform | `admin`, `authstore`, `permission`, `channel`, `country`, `currency`, `locale`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
 | Extension | `plugin`, `pluginset`, `pluginmigrate`, `remoteprovider`, `action` |
-| Data movement | `dataio`, `datajob`, `datapatch`, `catalogio` |
+| Data movement | `dataio`, `datajob`, `datapatch`, `catalogio`, `orderio` |
 | Infrastructure | `db`, `events`, `outbox`, `webhook`, `scheduler`, `media`, `mediahttp`, `configstore`, `cacheinvalidate`, `revalidate`, `circuit`, `graphqlx`, `health`, `wiring` |
 
 `wiring` is the composition root: every service is constructed there, so it is

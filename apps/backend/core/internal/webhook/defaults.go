@@ -141,7 +141,7 @@ func init() {
 		Type:        customer.EventProfileUpdated,
 		Kind:        KindAsync,
 		Name:        "Customer Profile Updated",
-		Description: "Fires after a customer edits their own profile. Payload includes changedFields, named in camelCase like customer.updated's (firstName, lastName, phone).",
+		Description: "Fires after a customer edits their own profile, or a customer import changes one. Payload includes changedFields, named in camelCase like customer.updated's (firstName, lastName, phone), and Source: self or import.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        customer.EventPasswordChanged,

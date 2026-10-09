@@ -190,6 +190,10 @@ func authAttribution(ctx context.Context) (ip, ua string) {
 // The "email = profile" model signup forms need - a newsletter subscriber becomes targetable (segments, flows, consent) without an account created is true only on a fresh record, so the caller fires CustomerRegistered exactly once A random unusable password hash is stored so the row can never be logged into until a reset sets a real one, which is how the contact later claims the account
 // verified marks a fresh contact's address as proven, which only a confirmed double opt-in may claim
 func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool) (Customer, bool, error) {
+	return s.EnsureContactFrom(ctx, channelID, email, firstName, verified, SourceSignupForm)
+}
+
+func (s *Service) EnsureContactFrom(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool, source string) (Customer, bool, error) {
 	email = NormalizeEmail(email)
 	if err := validateEmail(email); err != nil {
 		return Customer{}, false, err
@@ -223,7 +227,7 @@ func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email,
 		}
 		evs := []events.Event{&CustomerRegistered{
 			CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email,
-			FirstName: c.FirstName, LastName: c.LastName, Source: SourceSignupForm,
+			FirstName: c.FirstName, LastName: c.LastName, Source: source,
 		}}
 		if verified {
 			evs = append(evs, &CustomerEmailVerified{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email})

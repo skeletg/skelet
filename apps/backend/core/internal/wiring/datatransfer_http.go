@@ -187,7 +187,7 @@ func dataDownloadHandler(svc *datajob.Service, adminSvc *admin.Service) http.Han
 			forbidden(w)
 			return
 		}
-		if err := requireTransferPermission(r, adminSvc, res.ViewPermission, job.ChannelID, res.RequireGlobalPermission); err != nil {
+		if err := auth.RequireAllScopedOrGlobal(r.Context(), adminSvc, res.ViewPermissions(), job.ChannelID, res.RequireGlobalPermission); err != nil {
 			forbidden(w)
 			return
 		}

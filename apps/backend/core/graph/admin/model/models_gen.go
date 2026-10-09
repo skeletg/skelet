@@ -2073,16 +2073,18 @@ type DataOptionValue struct {
 
 // One importable or exportable thing. `canImport` already accounts for the caller's permissions
 type DataResource struct {
-	Slug             string        `json:"slug"`
-	Label            string        `json:"label"`
-	Group            string        `json:"group"`
-	Description      string        `json:"description"`
-	Fields           []*DataField  `json:"fields"`
-	Options          []*DataOption `json:"options"`
-	CanImport        bool          `json:"canImport"`
-	CanExport        bool          `json:"canExport"`
-	ViewPermission   string        `json:"viewPermission"`
-	ImportPermission string        `json:"importPermission"`
+	Slug           string        `json:"slug"`
+	Label          string        `json:"label"`
+	Group          string        `json:"group"`
+	Description    string        `json:"description"`
+	Fields         []*DataField  `json:"fields"`
+	Options        []*DataOption `json:"options"`
+	CanImport      bool          `json:"canImport"`
+	CanExport      bool          `json:"canExport"`
+	ViewPermission string        `json:"viewPermission"`
+	// Further grants an export needs on top of viewPermission, over the same channels
+	ViewAlsoRequires []string `json:"viewAlsoRequires"`
+	ImportPermission string   `json:"importPermission"`
 	// Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes
 	DynamicPrefixes []string `json:"dynamicPrefixes"`
 }
