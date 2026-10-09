@@ -142,9 +142,9 @@ func (q *Queries) BackfillLevelsFromItemQuantity(ctx context.Context, locationID
 const countInventoryLocations = `-- name: CountInventoryLocations :one
 SELECT COUNT(*) FROM inventory_locations
 WHERE $1::text = ''
-   OR name ILIKE '%' || $1 || '%'
-   OR slug ILIKE '%' || $1 || '%'
-   OR city ILIKE '%' || $1 || '%'
+   OR name ILIKE '%' || escape_like($1::text) || '%'
+   OR slug ILIKE '%' || escape_like($1::text) || '%'
+   OR city ILIKE '%' || escape_like($1::text) || '%'
 `
 
 func (q *Queries) CountInventoryLocations(ctx context.Context, search string) (int64, error) {
@@ -987,9 +987,9 @@ func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uu
 const listInventoryLocationsPage = `-- name: ListInventoryLocationsPage :many
 SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations
 WHERE $1::text = ''
-   OR name ILIKE '%' || $1 || '%'
-   OR slug ILIKE '%' || $1 || '%'
-   OR city ILIKE '%' || $1 || '%'
+   OR name ILIKE '%' || escape_like($1::text) || '%'
+   OR slug ILIKE '%' || escape_like($1::text) || '%'
+   OR city ILIKE '%' || escape_like($1::text) || '%'
 ORDER BY name
 LIMIT $3 OFFSET $2
 `
