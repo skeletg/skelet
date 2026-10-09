@@ -50,7 +50,7 @@ services:
     environment: *db-urls
     depends_on:
       db: { condition: service_healthy }
-    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet data-patch up"]
+    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet plugin migrate up && skelet data-patch up"]
     restart: "no"
     logging: *logging
 

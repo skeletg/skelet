@@ -397,9 +397,13 @@ func (h *Host) RegisterMigrations(pluginSlug string, reg sdk.MigrationsRegistrat
 
 func (h *Host) RegisterDataPatch(pluginSlug string, reg sdk.DataPatchRegistration) error {
 	recordOwnership(&datapatchOwners, reg.ID, pluginSlug, "data patch")
+	namespace := reg.Namespace
+	if namespace == "" {
+		namespace = pluginSlug // left empty, core's registry would file it under "core"
+	}
 	datapatch.Register(datapatch.Patch{
 		ID:        reg.ID,
-		Namespace: reg.Namespace,
+		Namespace: namespace,
 		DependsOn: reg.DependsOn,
 		Apply: func(ctx context.Context, pc *datapatch.Context) error {
 			return reg.Apply(ctx, pc.Tx)
