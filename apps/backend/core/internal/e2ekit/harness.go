@@ -287,6 +287,7 @@ func (h *Harness) Settle(t TB) {
 	ctx, cancel := context.WithTimeout(h.Ctx, 30*time.Second)
 	defer cancel()
 	for range 20 {
+		h.D.Customer.FlushMail()
 		n := h.D.Outbox.DrainPending(ctx)
 		if err := h.D.Bus.WaitIdle(ctx); err != nil {
 			t.Fatalf("settle: %v", err)

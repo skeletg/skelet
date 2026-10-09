@@ -165,7 +165,7 @@ func TestARefreshTokenOnTheWrongStoreIsNotSpent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if tok, terr := h.D.Verify.Create(h.Ctx, c.ID); terr == nil {
+	if tok, terr := h.D.Verify.Create(h.Ctx, c.ID, c.Email); terr == nil {
 		_ = h.D.Customer.VerifyEmail(h.Ctx, tok)
 	}
 	ts := httptest.NewServer(h.D.Root.Handler)

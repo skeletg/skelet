@@ -130,11 +130,11 @@ type Address {
   phone:       String
 }
 
-# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens are nullable because registration withholds the session while require_email_verification is on.
+# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens and customer are nullable because registration can answer without a session.
 type CustomerAuthPayload {
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
+  customer:     Customer
   verificationRequired: Boolean!
 }
 

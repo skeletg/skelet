@@ -2,11 +2,8 @@ package front
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-
-	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
@@ -80,58 +77,7 @@ func (r *mutationResolver) customerAuthPayloadWithRefresh(ctx context.Context, c
 	}, nil
 }
 
-// customerPendingVerificationPayload returns the created account with NO session - the caller registered while the channel requires a verified address, so tokens are withheld until they click the link
-func (r *mutationResolver) customerPendingVerificationPayload(ctx context.Context, c customer.Customer) (*model.CustomerAuthPayload, error) {
-	cWithAddresses, err := r.CustomerSvc.GetByIDWithAddresses(ctx, c.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load customer: %w", err)
-	}
-	return &model.CustomerAuthPayload{
-		Customer:             toCustomerModel(cWithAddresses),
-		VerificationRequired: true,
-	}, nil
-}
-
-func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) error {
-	extra := map[string]any{}
-	if r.ConsentSvc != nil {
-		list, err := r.ConsentSvc.ListForCustomer(ctx, customerID)
-		if err != nil {
-			return fmt.Errorf("export consents: %w", err)
-		}
-		if bundle.Consents, err = json.Marshal(list); err != nil {
-			return fmt.Errorf("export consents: %w", err)
-		}
-		history, err := r.ConsentSvc.History(ctx, customerID, 0)
-		if err != nil {
-			return fmt.Errorf("export consent history: %w", err)
-		}
-		if len(history) > 0 {
-			extra["consentHistory"] = history
-		}
-	}
-	if r.StoreCreditSvc != nil {
-		if entries, err := r.StoreCreditSvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["storeCredit"] = entries
-		}
-		if currency != "" {
-			if bal, err := r.StoreCreditSvc.Balance(ctx, customerID, currency); err == nil {
-				extra["storeCreditBalance"] = map[string]any{"amountCents": bal, "currency": currency}
-			}
-		}
-	}
-	if r.LoyaltySvc != nil {
-		if entries, err := r.LoyaltySvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["loyaltyPoints"] = entries
-		}
-	}
-	if r.WishlistSvc != nil {
-		if ids, err := r.WishlistSvc.ListIDs(ctx, customerID); err == nil && len(ids) > 0 {
-			extra["wishlistProductIds"] = ids
-		}
-	}
-	if len(extra) > 0 {
-		bundle.Extra = extra
-	}
-	return nil
+// No session and no account - the one answer registration gives both when the channel wants a verified address first and when the address was already taken
+func sessionWithheldPayload() *model.CustomerAuthPayload {
+	return &model.CustomerAuthPayload{VerificationRequired: true}
 }

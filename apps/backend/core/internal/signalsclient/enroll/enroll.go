@@ -115,6 +115,15 @@ func (e *Enroller) OnSignupConfirmation(ctx context.Context, channelID uuid.UUID
 		})
 }
 
+// Keyed on the minute as well, so a burst of attempts is one mail and a later one is another
+func (e *Enroller) OnAccountExists(ctx context.Context, channelID, customerID uuid.UUID, signInLink, forgotLink, storeName, firstName string) int {
+	return e.answered(ctx, signalsapi.TriggerAccountExists, moment(signalsapi.TriggerAccountExists, customerID.String(), strconv.FormatInt(time.Now().Unix()/60, 10)),
+		channelID, customerID, "", map[string]any{
+			signalsapi.PayloadSignInLink: signInLink, signalsapi.PayloadForgotLink: forgotLink,
+			signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
+		})
+}
+
 // --- the marketing moments core's domains and jobs raise ---
 // No mail of core's to fall back on, so an unknown answer comes back as the error and the relay or the next tick asks again
 

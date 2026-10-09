@@ -117,7 +117,7 @@ func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 		return dataio.OutcomeCreated, nil
 	}
 
-	c, created, err := im.customers.EnsureContact(ctx, im.opts.ChannelID, email, r.Str(colFirstName))
+	c, created, err := im.customers.EnsureContact(ctx, im.opts.ChannelID, email, r.Str(colFirstName), false)
 	if err != nil {
 		return dataio.OutcomeSkipped, err
 	}

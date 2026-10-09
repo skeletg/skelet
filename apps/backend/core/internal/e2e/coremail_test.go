@@ -118,7 +118,7 @@ func TestStarterContentSeedsOnceAndTakesTheReceipt(t *testing.T) {
 	h.Settle(t)
 
 	blocks, emails, flows := h.SeedStarterContent(t, f.Channel.ID)
-	if blocks == 0 || emails != 7 || flows != 7 {
+	if blocks == 0 || emails != 8 || flows != 8 {
 		t.Fatalf("seeded %d blocks, %d emails, %d flows - want some blocks and one email and one flow per transactional slot", blocks, emails, flows)
 	}
 	if b, e, fl := h.SeedStarterContent(t, f.Channel.ID); b+e+fl != 0 {

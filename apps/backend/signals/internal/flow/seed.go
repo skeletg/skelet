@@ -22,6 +22,7 @@ var transactionalFlowSpecs = []struct {
 	{TriggerEmailVerification, emailtemplate.KeyVerification, "Email verification"},
 	{TriggerPasswordReset, emailtemplate.KeyPasswordReset, "Password reset"},
 	{TriggerSignupConfirmation, emailtemplate.KeySignupConfirmation, "Signup confirmation"},
+	{TriggerAccountExists, emailtemplate.KeyAccountExists, "Account already exists"},
 }
 
 // StarterContent is what one seeding run created - zeros mean the channel had it all already

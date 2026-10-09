@@ -230,15 +230,15 @@ The event picker in Settings shows what your install actually has.
 
 | Event | Kind | What it means |
 |---|---|---|
-| `customer.address_changed` | async | Fires after a customer adds, updates, or deletes an address book entry. Payload includes the action. |
+| `customer.address_changed` | async | Fires after an address book entry is added, updated or deleted, by the customer or an admin, or made the default. Payload includes the action: add, update, delete, default_billing or default_shipping. |
 | `customer.deleted` | async | Fires after an admin deletion commits. Payload includes the customer's last-known email and channel_id so downstream systems can purge. |
 | `customer.deleting` | sync | Fires before an admin customer delete commits. Use to refuse the delete based on external state (open tickets, active subscriptions). Response schema: {"reject": bool, "reason": string}. |
 | `customer.email_verified` | async | Fires after a customer confirms their email via the verification link. Useful for moving the customer to a marketing-opted-in list or granting a welcome incentive. |
 | `customer.password_changed` | async | Fires after a logged-in customer changes their own password (distinct from the reset-token flow). |
-| `customer.profile_updated` | async | Fires after a customer edits their own profile. Payload includes changedFields. |
+| `customer.profile_updated` | async | Fires after a customer edits their own profile. Payload includes changedFields, named in camelCase like customer.updated's (firstName, lastName, phone). |
 | `customer.registered` | async | Fires after a new customer registration commits. Response is ignored (async). |
 | `customer.registering` | sync | Fires before customer registration commits. Blocks the flow until response. Response schema: {"reject": bool, "reason": string, "tags": [string]}. Returned tags are appended to the customer's registration tags. |
-| `customer.updated` | async | Fires after an admin updates a customer. Response is ignored (async). Payload includes changedFields listing which fields were modified. |
+| `customer.updated` | async | Fires after an admin updates a customer, including the active toggle, group, tax status and VAT id. Response is ignored (async). Payload includes changedFields listing which fields were modified, in camelCase. |
 | `customer.updating` | sync | Fires before an admin customer update commits. Blocks the flow until response. Response schema: {"reject": bool, "reason": string, "tags": [string]}. Returned tags are forwarded to the customer.updated async event. |
 
 ### download

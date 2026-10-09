@@ -13,6 +13,7 @@ const (
 	pgUniqueViolation     = "23505"
 	pgForeignKeyViolation = "23503"
 	pgRestrictViolation   = "23001"
+	pgStringTooLong       = "22001"
 )
 
 func sqlState(err error) string {
@@ -44,6 +45,17 @@ func IsForeignKeyViolation(err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "SQLSTATE "+pgForeignKeyViolation) || strings.Contains(msg, "SQLSTATE "+pgRestrictViolation)
+}
+
+// IsStringTooLong reports whether a value overflowed a bounded column such as char(2) or varchar(n) - SQLSTATE 22001
+func IsStringTooLong(err error) bool {
+	if err == nil {
+		return false
+	}
+	if code := sqlState(err); code != "" {
+		return code == pgStringTooLong
+	}
+	return strings.Contains(err.Error(), "SQLSTATE "+pgStringTooLong)
 }
 
 // ConstraintName is the constraint or unique index a violation names, "" when err carries none

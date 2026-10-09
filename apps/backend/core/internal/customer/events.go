@@ -23,6 +23,32 @@ const (
 	EventAddressChanged  = "customer.address_changed"
 )
 
+// The names customer.updated and customer.profile_updated list in ChangedFields - camelCase, like every other event's
+const (
+	FieldEmail                  = "email"
+	FieldFirstName              = "firstName"
+	FieldLastName               = "lastName"
+	FieldPhone                  = "phone"
+	FieldIsActive               = "isActive"
+	FieldIsEmailVerified        = "isEmailVerified"
+	FieldNote                   = "note"
+	FieldCustomerGroup          = "customerGroup"
+	FieldMetadata               = "metadata"
+	FieldDefaultBillingAddress  = "defaultBillingAddress"
+	FieldDefaultShippingAddress = "defaultShippingAddress"
+	FieldTaxExempt              = "taxExempt"
+	FieldTaxExemptionNote       = "taxExemptionNote"
+	FieldVatID                  = "vatId"
+)
+
+// Where a customer.registered or customer.updated came from
+const (
+	SourceSelf       = "self"
+	SourceAdmin      = "admin"
+	SourceSignupForm = "signup_form"
+	SourceGDPR       = "gdpr"
+)
+
 // Fires BEFORE a self-registration is persisted - sync handlers abort by returning an error or enrich by mutating exported fields, which the emitting service reads after the chain
 // Only from Register, never AdminCreateCustomer - admin-created customers are vouched for and bypass the anti-fraud hooks
 type CustomerRegistering struct {
@@ -124,8 +150,6 @@ type CustomerUpdated struct {
 	Tags          []string
 }
 
-const SourceGDPR = "gdpr"
-
 func (*CustomerUpdated) Type() string { return EventUpdated }
 
 func (c *CustomerUpdated) EventChannelID() uuid.UUID { return c.ChannelID }
@@ -181,7 +205,7 @@ type CustomerPasswordChanged struct {
 func (*CustomerPasswordChanged) Type() string                { return EventPasswordChanged }
 func (c *CustomerPasswordChanged) EventChannelID() uuid.UUID { return c.ChannelID }
 
-// Action is "add" | "update" | "delete" - async-only
+// Action is one of the Address* constants - async-only
 type CustomerAddressChanged struct {
 	CustomerID uuid.UUID
 	ChannelID  uuid.UUID

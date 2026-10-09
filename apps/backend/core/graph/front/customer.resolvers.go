@@ -3,6 +3,7 @@ package front
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -62,8 +63,13 @@ func (r *customerResolver) StoreCreditBalance(ctx context.Context, obj *model.Cu
 	return int32(bal), nil
 }
 
+// A taken address answers like a registration that withheld its session, and its owner gets a note instead - the response never says which happened
 func (r *mutationResolver) CustomerRegister(ctx context.Context, input model.CustomerRegisterInput) (*model.CustomerAuthPayload, error) {
 	if err := r.checkAuthRate(ctx, "register"); err != nil {
+		return nil, err
+	}
+	// Per address too, since each attempt on a taken one mails its owner
+	if err := r.checkAuthRateKey(ctx, "register_email", customer.NormalizeEmail(input.Email)); err != nil {
 		return nil, err
 	}
 	store, ok := channel.FromContext(ctx)
@@ -71,6 +77,9 @@ func (r *mutationResolver) CustomerRegister(ctx context.Context, input model.Cus
 		return nil, storeRequired()
 	}
 	c, err := r.CustomerSvc.Register(ctx, store.ID, input.Email, input.Password, input.FirstName, input.LastName, input.MarketingOptIn)
+	if errors.Is(err, customer.ErrEmailTaken) {
+		return sessionWithheldPayload(), nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +91,7 @@ func (r *mutationResolver) CustomerRegister(ctx context.Context, input model.Cus
 	}
 	// Withhold the session when the channel gates on a verified address - Authenticate enforces this, and minting a token here would let anyone register with someone else's address and be signed in as a fresh account on it
 	if r.CustomerSvc.RequiresEmailVerification(ctx, store.ID) {
-		return r.customerPendingVerificationPayload(ctx, c)
+		return sessionWithheldPayload(), nil
 	}
 	return r.customerAuthPayload(ctx, c)
 }
@@ -106,7 +115,10 @@ func (r *mutationResolver) CustomerLogin(ctx context.Context, input model.Custom
 	}
 	c, err := r.CustomerSvc.Authenticate(ctx, store.ID, input.Email, input.Password)
 	if err != nil {
-		r.LoginThrottle.RecordFailure(ctx, throttleScope, email)
+		// Only a wrong password counts toward the lockout - a storage fault or a correct password on a gated account is not a guess
+		if errors.Is(err, customer.ErrInvalidCredentials) {
+			r.LoginThrottle.RecordFailure(ctx, throttleScope, email)
+		}
 		return nil, err
 	}
 	r.LoginThrottle.Clear(ctx, throttleScope, email)
@@ -170,14 +182,26 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, firstName *string,
 	return toCustomerModel(c), nil
 }
 
+// A stolen access token is all it takes to guess at the current password here, so wrong guesses count toward the same lockout login uses
 func (r *mutationResolver) ChangeCustomerPassword(ctx context.Context, currentPassword string, newPassword string) (bool, error) {
 	claims, err := channel.RequireCustomerForCurrentStore(ctx)
 	if err != nil {
 		return false, err
 	}
-	if err := r.CustomerSvc.ChangePassword(ctx, claims.CustomerID, currentPassword, newPassword); err != nil {
+	if err := r.checkAuthRate(ctx, "change_password"); err != nil {
 		return false, err
 	}
+	scope, key := "customer_password:"+claims.ChannelID.String(), claims.CustomerID.String()
+	if r.LoginThrottle.Locked(ctx, scope, key) {
+		return false, auth.ErrAccountLocked
+	}
+	if err := r.CustomerSvc.ChangePassword(ctx, claims.CustomerID, currentPassword, newPassword); err != nil {
+		if errors.Is(err, customer.ErrIncorrectCurrentPassword) {
+			r.LoginThrottle.RecordFailure(ctx, scope, key)
+		}
+		return false, err
+	}
+	r.LoginThrottle.Clear(ctx, scope, key)
 	return true, nil
 }
 
@@ -194,7 +218,28 @@ func (r *mutationResolver) ResendVerificationEmail(ctx context.Context) (bool, e
 	if err != nil {
 		return false, err
 	}
+	if err := r.checkAuthRateKey(ctx, "resend_verification_email", claims.CustomerID.String()); err != nil {
+		return false, err
+	}
 	if err := r.CustomerSvc.ResendVerificationEmail(ctx, claims.CustomerID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Rate-limited per IP and per address like the reset request, since each call can cost an outbound email
+func (r *mutationResolver) ResendVerification(ctx context.Context, email string) (bool, error) {
+	if err := r.checkAuthRate(ctx, "resend_verification"); err != nil {
+		return false, err
+	}
+	if err := r.checkAuthRateKey(ctx, "resend_verification_email", customer.NormalizeEmail(email)); err != nil {
+		return false, err
+	}
+	store, ok := channel.FromContext(ctx)
+	if !ok {
+		return false, storeRequired()
+	}
+	if err := r.CustomerSvc.ResendVerificationByEmail(ctx, store.ID, email); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -228,7 +273,7 @@ func (r *mutationResolver) ResetPassword(ctx context.Context, token string, newP
 	}
 	store, ok := channel.FromContext(ctx)
 	if !ok {
-		return false, apperr.New("RESET_TOKEN_INVALID", apperr.ClassValidation, "invalid or expired reset token")
+		return false, customer.ErrResetLinkInvalid
 	}
 	if err := r.CustomerSvc.ResetPassword(ctx, store.ID, token, newPassword); err != nil {
 		return false, err
@@ -370,20 +415,8 @@ func (r *queryResolver) MyDataExport(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bundle, err := r.CustomerSvc.ExportData(ctx, claims.CustomerID)
+	bundle, err := r.DSAR.Build(ctx, claims.CustomerID)
 	if err != nil {
-		return "", err
-	}
-	if orders, oerr := r.OrderSvc.ListOrdersByCustomer(ctx, claims.CustomerID); oerr == nil {
-		if raw, jerr := json.Marshal(orders); jerr == nil {
-			bundle.Orders = raw
-		}
-	}
-	currency := ""
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, claims.ChannelID); cerr == nil {
-		currency = ch.CurrencyCode
-	}
-	if err := r.enrichDataExport(ctx, claims.CustomerID, currency, &bundle); err != nil {
 		return "", err
 	}
 	out, err := json.MarshalIndent(bundle, "", "  ")

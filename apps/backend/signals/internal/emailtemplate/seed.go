@@ -101,6 +101,8 @@ func SlotLabel(slot string) string {
 		return "Password reset"
 	case KeySignupConfirmation:
 		return "Signup confirmation"
+	case KeyAccountExists:
+		return "Account already exists"
 	default:
 		return slot
 	}

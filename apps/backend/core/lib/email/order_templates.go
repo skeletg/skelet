@@ -105,6 +105,7 @@ const (
 	KeyVerification       = "customer_verification"
 	KeyPasswordReset      = "password_reset"
 	KeySignupConfirmation = "signup_confirmation"
+	KeyAccountExists      = "account_exists"
 )
 
 const greetingFallback = "there"

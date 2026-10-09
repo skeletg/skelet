@@ -112,7 +112,7 @@ func (s *Service) AuthorizeCart(ctx context.Context, cartID uuid.UUID, callerID 
 }
 
 func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, email string) error { // a checkout-entry email makes an abandoned cart recoverable before any account or order exists
-	email = strings.TrimSpace(email)
+	email = strings.ToLower(strings.TrimSpace(email)) // the form customer emails take, so recovery and the guest-order claim match it
 	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
 		return ErrCartEmailInvalid
 	}
