@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strconv"
@@ -166,7 +167,7 @@ func (r *Row) OptFloat(name string) *float64 {
 		return nil
 	}
 	f, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 		r.bad(name, raw, "a number")
 		return nil
 	}

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Export streams the resource straight into w - nothing buffers the whole file, so an all-time
@@ -220,7 +221,10 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 	return out, nil
 }
 
-const progressEvery = 200
+const (
+	progressEvery      = 200
+	maxRowMessageRunes = 400
+)
 
 // A panicking row must not take the other 249,999 down with it - a deferred row's error comes back uncounted while canDefer holds
 func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, canDefer bool) error {
@@ -280,11 +284,10 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, ca
 // Postgres errors arrive with a paragraph of detail and hint appended, which is unreadable in a per-row table
 func trimMessage(msg string) string {
 	msg = strings.TrimSpace(strings.ReplaceAll(msg, "\n", " "))
-	const max = 400
-	if len(msg) > max {
-		return msg[:max] + "..."
+	if utf8.RuneCountInString(msg) <= maxRowMessageRunes {
+		return msg
 	}
-	return msg
+	return string([]rune(msg)[:maxRowMessageRunes]) + "..."
 }
 
 // Declared fields first in declaration order, then whatever the exporter discovered, deduped
