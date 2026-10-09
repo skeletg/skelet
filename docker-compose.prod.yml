@@ -264,7 +264,7 @@ services:
     depends_on:
       db: { condition: service_healthy, required: false }
     # $$ so the container's shell expands DATABASE_URL, not compose
-    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet data-patch up"]
+    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet plugin migrate up && skelet data-patch up"]
     restart: "no"
     logging: *logging
 
