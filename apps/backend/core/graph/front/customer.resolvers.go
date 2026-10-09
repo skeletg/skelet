@@ -415,7 +415,7 @@ func (r *queryResolver) MyDataExport(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bundle, err := r.DSAR.Build(ctx, claims.CustomerID)
+	bundle, err := r.DSAR.BuildSelfServe(ctx, claims.CustomerID)
 	if err != nil {
 		return "", err
 	}
