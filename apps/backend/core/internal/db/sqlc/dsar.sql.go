@@ -18,7 +18,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'createdAt', created_at) ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   back_in_stock_requests
 WHERE  channel_id = $1
-  AND  (customer_id = $2 OR lower(btrim(email)) = $3::text)
+  AND  (customer_id = $2 OR ($3::text <> '' AND lower(btrim(email)) = $3::text))
 `
 
 type DSARBackInStockRequestsParams struct {
@@ -61,7 +61,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'createdAt', g.created_at) ORDER BY g.created_at, g.id), '[]')::jsonb AS doc
 FROM   download_grants g
 WHERE  g.customer_id = $1
-   OR  (lower(btrim(g.email)) = $2::text
+   OR  ($2::text <> '' AND lower(btrim(g.email)) = $2::text
         AND EXISTS (SELECT 1 FROM orders o WHERE o.id = g.order_id AND o.channel_id = $3))
 `
 
@@ -87,18 +87,18 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'expiresAt', expires_at, 'createdAt', created_at) ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   gift_cards
 WHERE  customer_id = $1::uuid
-   OR  (channel_id = $2 AND lower(btrim(recipient_email)) = $3::text)
+   OR  ($2::text <> '' AND channel_id = $3 AND lower(btrim(recipient_email)) = $2::text)
 `
 
 type DSARGiftCardsParams struct {
 	CustomerID uuid.UUID     `json:"customer_id"`
-	ChannelID  uuid.NullUUID `json:"channel_id"`
 	Email      string        `json:"email"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
 }
 
 // Bought by the customer or sent to their address - the code is a bearer credential, so only its tail leaves
 func (q *Queries) DSARGiftCards(ctx context.Context, arg DSARGiftCardsParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, dSARGiftCards, arg.CustomerID, arg.ChannelID, arg.Email)
+	row := q.db.QueryRowContext(ctx, dSARGiftCards, arg.CustomerID, arg.Email, arg.ChannelID)
 	var doc json.RawMessage
 	err := row.Scan(&doc)
 	return doc, err
@@ -142,17 +142,17 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   product_questions
 WHERE  customer_id = $1
-   OR  (channel_id = $2 AND lower(btrim(author_email)) = $3::text)
+   OR  ($2::text <> '' AND channel_id = $3 AND lower(btrim(author_email)) = $2::text)
 `
 
 type DSARProductQuestionsParams struct {
 	CustomerID uuid.NullUUID `json:"customer_id"`
-	ChannelID  uuid.UUID     `json:"channel_id"`
 	Email      string        `json:"email"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
 }
 
 func (q *Queries) DSARProductQuestions(ctx context.Context, arg DSARProductQuestionsParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, dSARProductQuestions, arg.CustomerID, arg.ChannelID, arg.Email)
+	row := q.db.QueryRowContext(ctx, dSARProductQuestions, arg.CustomerID, arg.Email, arg.ChannelID)
 	var doc json.RawMessage
 	err := row.Scan(&doc)
 	return doc, err
@@ -165,17 +165,17 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          ORDER BY submitted_at, id), '[]')::jsonb AS doc
 FROM   reviews
 WHERE  customer_id = $1
-   OR  (channel_id = $2 AND lower(btrim(guest_email)) = $3::text)
+   OR  ($2::text <> '' AND channel_id = $3 AND lower(btrim(guest_email)) = $2::text)
 `
 
 type DSARReviewsParams struct {
 	CustomerID uuid.NullUUID `json:"customer_id"`
-	ChannelID  uuid.UUID     `json:"channel_id"`
 	Email      string        `json:"email"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
 }
 
 func (q *Queries) DSARReviews(ctx context.Context, arg DSARReviewsParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, dSARReviews, arg.CustomerID, arg.ChannelID, arg.Email)
+	row := q.db.QueryRowContext(ctx, dSARReviews, arg.CustomerID, arg.Email, arg.ChannelID)
 	var doc json.RawMessage
 	err := row.Scan(&doc)
 	return doc, err
@@ -187,17 +187,17 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
 FROM   signup_form_submissions s
 JOIN   signup_forms f ON f.id = s.form_id
 WHERE  s.customer_id = $1
-   OR  (s.channel_id = $2 AND lower(btrim(s.email)) = $3::text)
+   OR  ($2::text <> '' AND s.channel_id = $3 AND lower(btrim(s.email)) = $2::text)
 `
 
 type DSARSignupSubmissionsParams struct {
 	CustomerID uuid.NullUUID `json:"customer_id"`
-	ChannelID  uuid.UUID     `json:"channel_id"`
 	Email      string        `json:"email"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
 }
 
 func (q *Queries) DSARSignupSubmissions(ctx context.Context, arg DSARSignupSubmissionsParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, dSARSignupSubmissions, arg.CustomerID, arg.ChannelID, arg.Email)
+	row := q.db.QueryRowContext(ctx, dSARSignupSubmissions, arg.CustomerID, arg.Email, arg.ChannelID)
 	var doc json.RawMessage
 	err := row.Scan(&doc)
 	return doc, err
@@ -214,7 +214,8 @@ WHERE  customer_id = $1
 
 // A data subject's rows outside the customer domain, for the access-request export - each section is one JSON array
 // of the whole set, never a page, since a bundle that silently stops at N rows answers the request wrongly
-// "Theirs" is the customer id, or the address on the customer's channel for rows guests can create too
+// "Theirs" is the customer id, or the address on the customer's channel for rows guests can create too - an empty
+// address matches nothing, which is how the builder leaves out rows it can't tie to a verified owner
 func (q *Queries) DSARStoreCreditEntries(ctx context.Context, customerID uuid.UUID) (json.RawMessage, error) {
 	row := q.db.QueryRowContext(ctx, dSARStoreCreditEntries, customerID)
 	var doc json.RawMessage
@@ -246,17 +247,18 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
 FROM   web_form_submissions s
 JOIN   web_forms f ON f.id = s.form_id
 WHERE  s.customer_id = $1
-   OR  (s.channel_id = $2 AND position($3::text IN lower(s.answers::text)) > 0)
+   OR  ($2::text <> '' AND s.channel_id = $3 AND jsonb_typeof(s.answers) = 'object'
+        AND EXISTS (SELECT 1 FROM jsonb_each_text(s.answers) a WHERE lower(btrim(a.value)) = $2::text))
 `
 
 type DSARWebFormSubmissionsParams struct {
 	CustomerID uuid.NullUUID `json:"customer_id"`
-	ChannelID  uuid.UUID     `json:"channel_id"`
 	Email      string        `json:"email"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
 }
 
 func (q *Queries) DSARWebFormSubmissions(ctx context.Context, arg DSARWebFormSubmissionsParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, dSARWebFormSubmissions, arg.CustomerID, arg.ChannelID, arg.Email)
+	row := q.db.QueryRowContext(ctx, dSARWebFormSubmissions, arg.CustomerID, arg.Email, arg.ChannelID)
 	var doc json.RawMessage
 	err := row.Scan(&doc)
 	return doc, err
