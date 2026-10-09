@@ -51,6 +51,20 @@ var (
 	ErrFieldTooLong = errors.New("value is too long")
 
 	ErrTooManyAddresses = fmt.Errorf("an account can hold at most %d addresses", MaxAddressesPerCustomer)
+
+	// Also what another customer's address reads as, so an id never confirms whose it is
+	ErrAddressNotFound = errors.New("address not found")
+
+	ErrUnknownCountry = errors.New("unknown country code")
+
+	ErrGroupNotFound = errors.New("customer group not found")
+
+	ErrGroupNameRequired = errors.New("customer group name is required")
+
+	ErrInvalidGroupSlug = errors.New("invalid customer group slug")
+
+	// Two default-group swaps raced and this one lost - the other's choice stands
+	ErrDefaultGroupConflict = errors.New("the default customer group was changed at the same time; reload and try again")
 )
 
 // Input caps - the columns are unbounded text, so these keep one request from storing megabytes

@@ -16,7 +16,13 @@ func init() {
 	apperr.RegisterSentinel(ErrFieldTooLong, "FIELD_TOO_LONG", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrTooManyAddresses, "TOO_MANY_ADDRESSES", apperr.ClassValidation)
 
+	apperr.RegisterSentinel(ErrUnknownCountry, "UNKNOWN_COUNTRY", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrGroupNameRequired, "CUSTOMER_GROUP_NAME_REQUIRED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidGroupSlug, "CUSTOMER_GROUP_SLUG_INVALID", apperr.ClassValidation)
+
 	apperr.RegisterSentinel(ErrCustomerNotFound, "CUSTOMER_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrAddressNotFound, "ADDRESS_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrGroupNotFound, "CUSTOMER_GROUP_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrNoDefaultGroup, "CUSTOMER_DEFAULT_GROUP_NOT_FOUND", apperr.ClassNotFound)
 
 	apperr.RegisterSentinel(ErrEmailTaken, "EMAIL_TAKEN", apperr.ClassConflict)
@@ -25,4 +31,5 @@ func init() {
 	apperr.RegisterSentinel(ErrGroupSlugTaken, "CUSTOMER_GROUP_SLUG_TAKEN", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrCannotDeleteDefaultGroup, "CUSTOMER_GROUP_DEFAULT", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrCustomerHasOrders, "CUSTOMER_HAS_ORDERS", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrDefaultGroupConflict, "CUSTOMER_DEFAULT_GROUP_CONFLICT", apperr.ClassConflict)
 }

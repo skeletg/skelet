@@ -219,7 +219,7 @@ func (o *recordingOutbox) types() []string {
 
 func (f *fixture) withOutbox() *recordingOutbox {
 	o := &recordingOutbox{}
-	f.svc.SetOutbox(o, txrunner.New(f.conn))
+	f.svc.SetOutbox(o)
 	return o
 }
 

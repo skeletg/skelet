@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,6 +14,9 @@ import (
 )
 
 // Unknown customer and forbidden both answer FORBIDDEN - saying which would leak the existence of a row the caller can't see
+// How long an operator's masquerade session lasts - short, since it carries the customer's full storefront powers
+const masqueradeSessionTTL = 15 * time.Minute
+
 func (r *Resolver) requireCustomerManage(ctx context.Context, customerID string) error {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
 		return err
