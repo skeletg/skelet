@@ -68,22 +68,22 @@ func (q *Queries) ConfirmMediaAssetUpload(ctx context.Context, arg ConfirmMediaA
 const countSearchMediaAssets = `-- name: CountSearchMediaAssets :one
 SELECT count(*) FROM media_assets
 WHERE
-    ($1 = '' OR object_key LIKE $1 || '%')
-    AND ($2 = '' OR mime_type LIKE $2 || '/%')
+    starts_with(object_key, $1::text)
+    AND ($2::text = '' OR starts_with(mime_type, $2::text || '/'))
     AND (
-        $3 = ''
-        OR filename ILIKE '%' || $3 || '%'
-        OR title ILIKE '%' || $3 || '%'
-        OR alt_text ILIKE '%' || $3 || '%'
-        OR caption ILIKE '%' || $3 || '%'
-        OR notes ILIKE '%' || $3 || '%'
+        $3::text = ''
+        OR filename ILIKE '%' || escape_like($3::text) || '%'
+        OR title ILIKE '%' || escape_like($3::text) || '%'
+        OR alt_text ILIKE '%' || escape_like($3::text) || '%'
+        OR caption ILIKE '%' || escape_like($3::text) || '%'
+        OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
 `
 
 type CountSearchMediaAssetsParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
-	Column3 interface{} `json:"column_3"`
+	Column1 string `json:"column_1"`
+	Column2 string `json:"column_2"`
+	Column3 string `json:"column_3"`
 }
 
 func (q *Queries) CountSearchMediaAssets(ctx context.Context, arg CountSearchMediaAssetsParams) (int64, error) {
@@ -178,10 +178,10 @@ func (q *Queries) DeleteMediaAsset(ctx context.Context, id uuid.UUID) error {
 
 const deleteMediaAssetsByDirectoryPrefix = `-- name: DeleteMediaAssetsByDirectoryPrefix :exec
 DELETE FROM media_assets
-WHERE $1 = '' OR object_key LIKE $1 || '%'
+WHERE starts_with(object_key, $1::text)
 `
 
-func (q *Queries) DeleteMediaAssetsByDirectoryPrefix(ctx context.Context, dollar_1 interface{}) error {
+func (q *Queries) DeleteMediaAssetsByDirectoryPrefix(ctx context.Context, dollar_1 string) error {
 	_, err := q.db.ExecContext(ctx, deleteMediaAssetsByDirectoryPrefix, dollar_1)
 	return err
 }
@@ -218,7 +218,7 @@ func (q *Queries) GetMediaAssetByID(ctx context.Context, id uuid.UUID) (MediaAss
 }
 
 const getMediaAssetByObjectKey = `-- name: GetMediaAssetByObjectKey :one
-SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets WHERE object_key = $1 AND status = 'active'
+SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets WHERE object_key = $1 AND status = 'ready'
 `
 
 func (q *Queries) GetMediaAssetByObjectKey(ctx context.Context, objectKey string) (MediaAsset, error) {
@@ -297,12 +297,11 @@ func (q *Queries) GetMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]M
 
 const listMediaAssetsByDirectory = `-- name: ListMediaAssetsByDirectory :many
 SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
-WHERE
-    ($1::text = '' AND object_key NOT LIKE '%/%') OR
-    ($1::text != '' AND object_key LIKE $1::text || '%' AND object_key NOT LIKE $1::text || '%/%')
+WHERE starts_with(object_key, $1::text) AND strpos(substr(object_key, length($1::text) + 1), '/') = 0
 ORDER BY created_at DESC, filename
 `
 
+// The folder's own files, not its subfolders' - starts_with because a folder name may hold LIKE's _ wildcard
 func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, dollar_1 string) ([]MediaAsset, error) {
 	rows, err := q.db.QueryContext(ctx, listMediaAssetsByDirectory, dollar_1)
 	if err != nil {
@@ -348,11 +347,11 @@ func (q *Queries) ListMediaAssetsByDirectory(ctx context.Context, dollar_1 strin
 
 const listMediaAssetsByPathRecursive = `-- name: ListMediaAssetsByPathRecursive :many
 SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
-WHERE $1 = '' OR object_key LIKE $1 || '%'
+WHERE starts_with(object_key, $1::text)
 ORDER BY object_key, filename
 `
 
-func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, dollar_1 interface{}) ([]MediaAsset, error) {
+func (q *Queries) ListMediaAssetsByPathRecursive(ctx context.Context, dollar_1 string) ([]MediaAsset, error) {
 	rows, err := q.db.QueryContext(ctx, listMediaAssetsByPathRecursive, dollar_1)
 	if err != nil {
 		return nil, err
@@ -401,11 +400,11 @@ WHERE media_assets.object_key LIKE 'product-options/%'
   AND media_assets.created_at < $1
   AND NOT EXISTS (
     SELECT 1 FROM cart_line_options c
-    WHERE c.file_url != '' AND c.file_url LIKE '%' || media_assets.object_key
+    WHERE c.file_url != '' AND c.file_url LIKE '%' || escape_like(media_assets.object_key)
   )
   AND NOT EXISTS (
     SELECT 1 FROM order_line_options o
-    WHERE o.file_url != '' AND o.file_url LIKE '%' || media_assets.object_key
+    WHERE o.file_url != '' AND o.file_url LIKE '%' || escape_like(media_assets.object_key)
   )
 ORDER BY media_assets.created_at
 LIMIT $2
@@ -463,26 +462,26 @@ func (q *Queries) ListOrphanProductOptionAssets(ctx context.Context, arg ListOrp
 const searchMediaAssets = `-- name: SearchMediaAssets :many
 SELECT id, directory_prefix, filename, object_key, mime_type, size_bytes, width, height, status, title, alt_text, caption, notes, created_by, updated_by, created_at, updated_at, focal_x, focal_y FROM media_assets
 WHERE
-    ($1 = '' OR object_key LIKE $1 || '%')
-    AND ($2 = '' OR mime_type LIKE $2 || '/%')
+    starts_with(object_key, $1::text)
+    AND ($2::text = '' OR starts_with(mime_type, $2::text || '/'))
     AND (
-        $3 = ''
-        OR filename ILIKE '%' || $3 || '%'
-        OR title ILIKE '%' || $3 || '%'
-        OR alt_text ILIKE '%' || $3 || '%'
-        OR caption ILIKE '%' || $3 || '%'
-        OR notes ILIKE '%' || $3 || '%'
+        $3::text = ''
+        OR filename ILIKE '%' || escape_like($3::text) || '%'
+        OR title ILIKE '%' || escape_like($3::text) || '%'
+        OR alt_text ILIKE '%' || escape_like($3::text) || '%'
+        OR caption ILIKE '%' || escape_like($3::text) || '%'
+        OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
 ORDER BY updated_at DESC, filename
 LIMIT $4 OFFSET $5
 `
 
 type SearchMediaAssetsParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
-	Column3 interface{} `json:"column_3"`
-	Limit   int32       `json:"limit"`
-	Offset  int32       `json:"offset"`
+	Column1 string `json:"column_1"`
+	Column2 string `json:"column_2"`
+	Column3 string `json:"column_3"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
 }
 
 func (q *Queries) SearchMediaAssets(ctx context.Context, arg SearchMediaAssetsParams) ([]MediaAsset, error) {

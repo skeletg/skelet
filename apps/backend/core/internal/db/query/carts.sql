@@ -39,8 +39,8 @@ FROM (
       AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
       AND (
         sqlc.narg(search)::text IS NULL
-        OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
+        OR cu.email ILIKE '%' || escape_like(sqlc.narg(search)::text) || '%'
+        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like(sqlc.narg(search)::text) || '%'
       )
     ORDER BY c.updated_at DESC
     LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off)
@@ -63,8 +63,8 @@ WHERE c.channel_id = sqlc.arg(channel_id)
   AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
   AND (
     sqlc.narg(search)::text IS NULL
-    OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR cu.email ILIKE '%' || escape_like(sqlc.narg(search)::text) || '%'
+    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like(sqlc.narg(search)::text) || '%'
   );
 
 -- name: UpsertCartLineBySku :one

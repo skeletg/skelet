@@ -10,6 +10,10 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
+func TestMigrationsRoundTrip(t *testing.T) {
+	testdb.MigrationRoundTrip(t, testdb.Require(t), "migrations", 2)
+}
+
 func runFile(t *testing.T, tx *sql.Tx, path string) {
 	t.Helper()
 	raw, err := os.ReadFile(path)

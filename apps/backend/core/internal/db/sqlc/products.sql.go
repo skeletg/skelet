@@ -33,12 +33,12 @@ WITH base AS (
              WHERE $6::text <> ''
                AND mc.locale = $7::text
                AND (mc.search_tsv @@ websearch_to_tsquery('simple', $6::text)
-                    OR mc.name ILIKE '%' || replace(replace(replace($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                    OR mc.name ILIKE '%' || escape_like($6::text) || '%')
             UNION
             SELECT mp.id
               FROM catalog_products mp
              WHERE $6::text <> ''
-               AND mp.sku ILIKE '%' || replace(replace(replace($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'))
+               AND mp.sku ILIKE '%' || escape_like($6::text) || '%'))
       AND (NOT $8::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
             WHERE pc.product_id = p.id AND pc.category_id = $9))
@@ -155,12 +155,12 @@ WHERE l.is_published = TRUE
          WHERE $3::text <> ''
            AND mc.locale = $4::text
            AND (mc.search_tsv @@ websearch_to_tsquery('simple', $3::text)
-                OR mc.name ILIKE '%' || replace(replace(replace($3::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                OR mc.name ILIKE '%' || escape_like($3::text) || '%')
         UNION
         SELECT mp.id
           FROM catalog_products mp
          WHERE $3::text <> ''
-           AND mp.sku ILIKE '%' || replace(replace(replace($3::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'))
+           AND mp.sku ILIKE '%' || escape_like($3::text) || '%'))
   AND (NOT $5::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
         WHERE pc.product_id = p.id AND pc.category_id = $6))
@@ -1931,9 +1931,9 @@ WITH filtered AS (
               SELECT 1 FROM catalog_product_channel_listings l
               WHERE l.product_id = p.id AND l.channel_id = $7))
       AND ($8::text = ''
-           OR p.sku ILIKE '%' || replace(replace(replace($8::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
-           OR p.url ILIKE '%' || replace(replace(replace($8::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
-           OR co.name ILIKE '%' || replace(replace(replace($8::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+           OR p.sku ILIKE '%' || escape_like($8::text) || '%'
+           OR p.url ILIKE '%' || escape_like($8::text) || '%'
+           OR co.name ILIKE '%' || escape_like($8::text) || '%')
       AND (cardinality($9::text[]) = 0 OR p.kind::text = ANY($9::text[]))
       AND (cardinality($10::text[]) = 0 OR pt.slug = ANY($10::text[]))
       -- Published means "has a published listing in scope" - in global mode any
@@ -2119,11 +2119,11 @@ WHERE l.is_published = TRUE
           FROM catalog_product_content mc
          WHERE mc.locale = $3
            AND (mc.search_tsv @@ websearch_to_tsquery('simple', $1::text)
-                OR mc.name ILIKE '%' || replace(replace(replace($1::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                OR mc.name ILIKE '%' || escape_like($1::text) || '%')
         UNION
         SELECT mp.id
           FROM catalog_products mp
-         WHERE mp.sku ILIKE '%' || replace(replace(replace($1::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+         WHERE mp.sku ILIKE '%' || escape_like($1::text) || '%'
   )
 ORDER BY rank DESC, p.created_at DESC, p.id ASC
 LIMIT $5 OFFSET $4
