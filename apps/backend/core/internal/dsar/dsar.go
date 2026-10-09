@@ -55,9 +55,20 @@ func New(customers Customers, orders Orders, consents Consents, channels Channel
 	return &Builder{customers: customers, orders: orders, consents: consents, channels: channels, credit: credit, wishlist: wishlist, q: q}
 }
 
+// The admin's export - the admin vouches for the requester, so rows a guest left under the customer's address come too
 // Every section is the whole set and any read failure fails the export - a bundle missing a section, or cut off at
 // some row count, answers the request wrongly while looking complete
 func (b *Builder) Build(ctx context.Context, customerID uuid.UUID) (customer.DataExport, error) {
+	return b.build(ctx, customerID, true)
+}
+
+// The storefront's export - address-matched rows only once the customer proved the address is theirs, since
+// signing in doesn't require it and anyone could otherwise register a stranger's address and export their guest rows
+func (b *Builder) BuildSelfServe(ctx context.Context, customerID uuid.UUID) (customer.DataExport, error) {
+	return b.build(ctx, customerID, false)
+}
+
+func (b *Builder) build(ctx context.Context, customerID uuid.UUID, vouched bool) (customer.DataExport, error) {
 	bundle, err := b.customers.ExportData(ctx, customerID)
 	if err != nil {
 		return customer.DataExport{}, err
@@ -98,7 +109,11 @@ func (b *Builder) Build(ctx context.Context, customerID uuid.UUID) (customer.Dat
 		"storeCreditBalance": map[string]any{"amountCents": balance, "currency": ch.CurrencyCode},
 		"wishlistProductIds": wished,
 	}
-	if err := b.sections(ctx, c, extra); err != nil {
+	addr := ""
+	if vouched || c.IsEmailVerified {
+		addr = customer.NormalizeEmail(c.Email)
+	}
+	if err := b.sections(ctx, c.ID, c.ChannelID, addr, extra); err != nil {
 		return customer.DataExport{}, err
 	}
 	bundle.Extra = extra
@@ -106,8 +121,7 @@ func (b *Builder) Build(ctx context.Context, customerID uuid.UUID) (customer.Dat
 }
 
 // The rows outside the customer domain, each read as one JSON array
-func (b *Builder) sections(ctx context.Context, c customer.Customer, extra map[string]any) error {
-	id, ch, addr := c.ID, c.ChannelID, customer.NormalizeEmail(c.Email)
+func (b *Builder) sections(ctx context.Context, id, ch uuid.UUID, addr string, extra map[string]any) error {
 	nid := uuid.NullUUID{UUID: id, Valid: true}
 	for _, s := range []struct {
 		key  string

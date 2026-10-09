@@ -1,6 +1,7 @@
 -- A data subject's rows outside the customer domain, for the access-request export - each section is one JSON array
 -- of the whole set, never a page, since a bundle that silently stops at N rows answers the request wrongly
--- "Theirs" is the customer id, or the address on the customer's channel for rows guests can create too
+-- "Theirs" is the customer id, or the address on the customer's channel for rows guests can create too - an empty
+-- address matches nothing, which is how the builder leaves out rows it can't tie to a verified owner
 
 -- name: DSARStoreCreditEntries :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -23,7 +24,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          ORDER BY submitted_at, id), '[]')::jsonb AS doc
 FROM   reviews
 WHERE  customer_id = sqlc.arg(customer_id)
-   OR  (channel_id = sqlc.arg(channel_id) AND lower(btrim(guest_email)) = sqlc.arg(email)::text);
+   OR  (sqlc.arg(email)::text <> '' AND channel_id = sqlc.arg(channel_id) AND lower(btrim(guest_email)) = sqlc.arg(email)::text);
 
 -- name: DSARProductQuestions :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -32,7 +33,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   product_questions
 WHERE  customer_id = sqlc.arg(customer_id)
-   OR  (channel_id = sqlc.arg(channel_id) AND lower(btrim(author_email)) = sqlc.arg(email)::text);
+   OR  (sqlc.arg(email)::text <> '' AND channel_id = sqlc.arg(channel_id) AND lower(btrim(author_email)) = sqlc.arg(email)::text);
 
 -- name: DSARSubscriptions :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -53,7 +54,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'expiresAt', expires_at, 'createdAt', created_at) ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   gift_cards
 WHERE  customer_id = sqlc.arg(customer_id)::uuid
-   OR  (channel_id = sqlc.arg(channel_id) AND lower(btrim(recipient_email)) = sqlc.arg(email)::text);
+   OR  (sqlc.arg(email)::text <> '' AND channel_id = sqlc.arg(channel_id) AND lower(btrim(recipient_email)) = sqlc.arg(email)::text);
 
 -- name: DSARPaymentMethods :one
 -- Display fields only - the provider token never leaves
@@ -83,7 +84,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'createdAt', g.created_at) ORDER BY g.created_at, g.id), '[]')::jsonb AS doc
 FROM   download_grants g
 WHERE  g.customer_id = sqlc.arg(customer_id)
-   OR  (lower(btrim(g.email)) = sqlc.arg(email)::text
+   OR  (sqlc.arg(email)::text <> '' AND lower(btrim(g.email)) = sqlc.arg(email)::text
         AND EXISTS (SELECT 1 FROM orders o WHERE o.id = g.order_id AND o.channel_id = sqlc.arg(channel_id)));
 
 -- name: DSARBackInStockRequests :one
@@ -92,7 +93,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'createdAt', created_at) ORDER BY created_at, id), '[]')::jsonb AS doc
 FROM   back_in_stock_requests
 WHERE  channel_id = sqlc.arg(channel_id)
-  AND  (customer_id = sqlc.arg(customer_id) OR lower(btrim(email)) = sqlc.arg(email)::text);
+  AND  (customer_id = sqlc.arg(customer_id) OR (sqlc.arg(email)::text <> '' AND lower(btrim(email)) = sqlc.arg(email)::text));
 
 -- name: DSARSignupSubmissions :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -100,7 +101,7 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
 FROM   signup_form_submissions s
 JOIN   signup_forms f ON f.id = s.form_id
 WHERE  s.customer_id = sqlc.arg(customer_id)
-   OR  (s.channel_id = sqlc.arg(channel_id) AND lower(btrim(s.email)) = sqlc.arg(email)::text);
+   OR  (sqlc.arg(email)::text <> '' AND s.channel_id = sqlc.arg(channel_id) AND lower(btrim(s.email)) = sqlc.arg(email)::text);
 
 -- name: DSARWebFormSubmissions :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -108,4 +109,5 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
 FROM   web_form_submissions s
 JOIN   web_forms f ON f.id = s.form_id
 WHERE  s.customer_id = sqlc.arg(customer_id)
-   OR  (s.channel_id = sqlc.arg(channel_id) AND position(sqlc.arg(email)::text IN lower(s.answers::text)) > 0);
+   OR  (sqlc.arg(email)::text <> '' AND s.channel_id = sqlc.arg(channel_id) AND jsonb_typeof(s.answers) = 'object'
+        AND EXISTS (SELECT 1 FROM jsonb_each_text(s.answers) a WHERE lower(btrim(a.value)) = sqlc.arg(email)::text));
