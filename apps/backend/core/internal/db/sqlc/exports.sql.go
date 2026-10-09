@@ -16,21 +16,27 @@ import (
 
 const exportCustomerRows = `-- name: ExportCustomerRows :many
 
-SELECT c.email, c.first_name, c.last_name, c.phone, c.is_active,
+SELECT c.id, c.email, c.first_name, c.last_name, c.phone, c.is_active,
        c.is_email_verified, c.created_at, c.channel_id,
        COALESCE(g.slug, '')::text AS group_slug
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 WHERE ($1::boolean OR c.channel_id = ANY($2::uuid[]))
-ORDER BY c.created_at
+  AND (c.created_at, c.id) > ($3::timestamptz, $4::uuid)
+ORDER BY c.created_at, c.id
+LIMIT $5
 `
 
 type ExportCustomerRowsParams struct {
-	AllChannels bool        `json:"all_channels"`
-	ChannelIds  []uuid.UUID `json:"channel_ids"`
+	AllChannels    bool        `json:"all_channels"`
+	ChannelIds     []uuid.UUID `json:"channel_ids"`
+	AfterCreatedAt time.Time   `json:"after_created_at"`
+	AfterID        uuid.UUID   `json:"after_id"`
+	PageSize       int32       `json:"page_size"`
 }
 
 type ExportCustomerRowsRow struct {
+	ID              uuid.UUID      `json:"id"`
 	Email           string         `json:"email"`
 	FirstName       string         `json:"first_name"`
 	LastName        string         `json:"last_name"`
@@ -43,8 +49,15 @@ type ExportCustomerRowsRow struct {
 }
 
 // Back-office CSV export feeds (customers + accounting-shaped order lines)
+// One keyset page: rows strictly after (after_created_at, after_id), so a zero cursor starts at the beginning
 func (q *Queries) ExportCustomerRows(ctx context.Context, arg ExportCustomerRowsParams) ([]ExportCustomerRowsRow, error) {
-	rows, err := q.db.QueryContext(ctx, exportCustomerRows, arg.AllChannels, pq.Array(arg.ChannelIds))
+	rows, err := q.db.QueryContext(ctx, exportCustomerRows,
+		arg.AllChannels,
+		pq.Array(arg.ChannelIds),
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageSize,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +66,7 @@ func (q *Queries) ExportCustomerRows(ctx context.Context, arg ExportCustomerRows
 	for rows.Next() {
 		var i ExportCustomerRowsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Email,
 			&i.FirstName,
 			&i.LastName,
@@ -77,7 +91,7 @@ func (q *Queries) ExportCustomerRows(ctx context.Context, arg ExportCustomerRows
 }
 
 const exportOrderRows = `-- name: ExportOrderRows :many
-SELECT o.number, o.created_at, o.status, o.payment_status,
+SELECT o.id AS order_id, ol.id AS line_id, o.number, o.created_at, o.status, o.payment_status,
        COALESCE(o.payment_provider, '')::text AS payment_provider,
        o.email, o.currency_code,
        o.subtotal_amount, o.discount_amount, o.shipping_amount,
@@ -99,20 +113,28 @@ LEFT JOIN LATERAL (
 WHERE ($1::boolean OR o.channel_id = ANY($2::uuid[]))
   AND ($3::boolean OR o.status = ANY($4::text[]))
   AND o.created_at >= $5
-  AND o.created_at <= $6
-ORDER BY o.created_at, o.number
+  AND o.created_at < $6
+  AND (o.created_at, o.id, ol.id) > ($7::timestamptz, $8::uuid, $9::uuid)
+ORDER BY o.created_at, o.id, ol.id
+LIMIT $10
 `
 
 type ExportOrderRowsParams struct {
-	AllChannels bool        `json:"all_channels"`
-	ChannelIds  []uuid.UUID `json:"channel_ids"`
-	AllStatuses bool        `json:"all_statuses"`
-	Statuses    []string    `json:"statuses"`
-	StartAt     time.Time   `json:"start_at"`
-	EndAt       time.Time   `json:"end_at"`
+	AllChannels    bool        `json:"all_channels"`
+	ChannelIds     []uuid.UUID `json:"channel_ids"`
+	AllStatuses    bool        `json:"all_statuses"`
+	Statuses       []string    `json:"statuses"`
+	StartAt        time.Time   `json:"start_at"`
+	EndAt          time.Time   `json:"end_at"`
+	AfterCreatedAt time.Time   `json:"after_created_at"`
+	AfterOrderID   uuid.UUID   `json:"after_order_id"`
+	AfterLineID    uuid.UUID   `json:"after_line_id"`
+	PageSize       int32       `json:"page_size"`
 }
 
 type ExportOrderRowsRow struct {
+	OrderID         uuid.UUID     `json:"order_id"`
+	LineID          uuid.UUID     `json:"line_id"`
 	Number          string        `json:"number"`
 	CreatedAt       time.Time     `json:"created_at"`
 	Status          string        `json:"status"`
@@ -135,6 +157,7 @@ type ExportOrderRowsRow struct {
 	LineOptions     string        `json:"line_options"`
 }
 
+// end_at is exclusive; paged on (o.created_at, o.id, ol.id) like the customer export
 func (q *Queries) ExportOrderRows(ctx context.Context, arg ExportOrderRowsParams) ([]ExportOrderRowsRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrderRows,
 		arg.AllChannels,
@@ -143,6 +166,10 @@ func (q *Queries) ExportOrderRows(ctx context.Context, arg ExportOrderRowsParams
 		pq.Array(arg.Statuses),
 		arg.StartAt,
 		arg.EndAt,
+		arg.AfterCreatedAt,
+		arg.AfterOrderID,
+		arg.AfterLineID,
+		arg.PageSize,
 	)
 	if err != nil {
 		return nil, err
@@ -152,6 +179,8 @@ func (q *Queries) ExportOrderRows(ctx context.Context, arg ExportOrderRowsParams
 	for rows.Next() {
 		var i ExportOrderRowsRow
 		if err := rows.Scan(
+			&i.OrderID,
+			&i.LineID,
 			&i.Number,
 			&i.CreatedAt,
 			&i.Status,

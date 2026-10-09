@@ -48,6 +48,8 @@ type DataResource {
   canImport: Boolean!
   canExport: Boolean!
   viewPermission: String!
+  "Further grants an export needs on top of viewPermission, over the same channels"
+  viewAlsoRequires: [String!]!
   importPermission: String!
   "Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes"
   dynamicPrefixes: [String!]!

@@ -19,6 +19,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/orderio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -82,7 +83,7 @@ func newDataRegistry(d dataResourceDeps) *dataio.Registry { // registered here r
 	reg.Register(catalogio.Resource(d.Queries, d.Catalog))
 	reg.Register(catalogio.CategoryResource(d.Catalog))
 	reg.Register(customerio.CustomerResource(d.Queries, d.Customer))
-	reg.Register(customerio.OrderLineResource(d.Queries))
+	reg.Register(orderio.OrderLineResource(d.Queries))
 	reg.Register(inventory.LevelResource(d.Queries, d.Inventory, catalogSKULookup{d.Catalog}))
 	reg.Register(tax.RateResource(d.Tax))
 	reg.Register(promotion.CodeResource(d.Promotion))

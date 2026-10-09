@@ -27,9 +27,9 @@ func (noFlows) OnBackInStock(context.Context, uuid.UUID, uuid.UUID, string, stri
 
 type customersByEmail map[string]uuid.UUID
 
-func (c customersByEmail) CustomerIDByEmail(_ context.Context, _ uuid.UUID, email string) (uuid.UUID, bool) {
+func (c customersByEmail) CustomerIDByEmail(_ context.Context, _ uuid.UUID, email string) (uuid.UUID, bool, error) {
 	id, ok := c[email]
-	return id, ok
+	return id, ok, nil
 }
 
 // Safe for concurrent notifiers; onSend runs before each send and may fail it
