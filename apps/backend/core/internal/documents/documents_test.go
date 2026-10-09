@@ -7,14 +7,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
-// fpdf deflates its content streams, so asserting on what a document actually SAYS means inflating
-// them first - without this the tests could only check that some bytes came out
+// fpdf deflates its content streams and writes each string as UTF-16BE inside a (...) Tj literal, so asserting on what a
+// document actually SAYS means inflating the streams and decoding those literals - otherwise the tests could only
+// check that some bytes came out
 func pdfText(t *testing.T, raw []byte) string {
 	t.Helper()
 	var out strings.Builder
@@ -32,16 +34,50 @@ func pdfText(t *testing.T, raw []byte) string {
 		}
 		if r, err := zlib.NewReader(bytes.NewReader(body[:j])); err == nil {
 			if inflated, err := io.ReadAll(r); err == nil {
-				out.Write(inflated)
+				for _, lit := range literals(inflated) {
+					out.WriteString(utf16be(lit))
+					out.WriteByte('\n')
+				}
 			}
 			_ = r.Close()
 		}
 		rest = body[j:]
 	}
 	if out.Len() == 0 {
-		t.Fatalf("no content stream could be inflated out of %d bytes of PDF", len(raw))
+		t.Fatalf("no text could be decoded out of %d bytes of PDF", len(raw))
 	}
 	return out.String()
+}
+
+// The (...) string operands of a content stream, with the PDF escapes undone
+func literals(stream []byte) [][]byte {
+	var out [][]byte
+	for i := 0; i < len(stream); i++ {
+		if stream[i] != '(' {
+			continue
+		}
+		var lit []byte
+		for i++; i < len(stream) && stream[i] != ')'; i++ {
+			if stream[i] == '\\' && i+1 < len(stream) {
+				i++
+				if stream[i] == 'r' {
+					lit = append(lit, '\r')
+					continue
+				}
+			}
+			lit = append(lit, stream[i])
+		}
+		out = append(out, lit)
+	}
+	return out
+}
+
+func utf16be(b []byte) string {
+	units := make([]uint16, 0, len(b)/2)
+	for i := 0; i+1 < len(b); i += 2 {
+		units = append(units, uint16(b[i])<<8|uint16(b[i+1]))
+	}
+	return string(utf16.Decode(units))
 }
 
 func str(s string) *string { return &s }
@@ -65,7 +101,7 @@ func testOrder() order.Order {
 		ShippingAmount: 995,
 		TaxAmount:      1650,
 		GiftCardAmount: 500,
-		TotalAmount:    20645,
+		TotalAmount:    21145, // 20000 - 1500 + 995 + 1650: the gift card pays part of it, it doesn't lower it
 		Lines: []order.OrderLine{
 			{ID: uuid.New(), ProductSku: "TIRE-205", ProductName: "All-Season Tire", Quantity: 4, UnitPrice: 5000, TotalPrice: 20000,
 				Options: []order.OrderLineOption{{ID: uuid.New(), OptionTitle: "Mounting", ValueLabel: "Yes"}}},
@@ -86,7 +122,7 @@ func TestRenderProducesAValidPDFForEveryKind(t *testing.T) {
 		KindPackingSlip: nil,
 		KindCreditMemo:  memo,
 	} {
-		got, err := Render(kind, o, store, m)
+		got, err := Render(Input{Kind: kind, Order: o, Store: store, Memo: m, Decimals: 2})
 		if err != nil {
 			t.Errorf("Render(%s) = %v", kind, err)
 			continue
@@ -103,12 +139,12 @@ func TestRenderProducesAValidPDFForEveryKind(t *testing.T) {
 // The memo carries the numbers - rendering a credit memo without one would silently fall back to the
 // order's own totals and print a full refund for a partial one
 func TestCreditMemoWithoutAMemoIsRefused(t *testing.T) {
-	if _, err := Render(KindCreditMemo, testOrder(), testStore(), nil); err == nil {
+	if _, err := Render(Input{Kind: KindCreditMemo, Order: testOrder(), Store: testStore(), Memo: nil, Decimals: 2}); err == nil {
 		t.Error("Render(credit_memo, nil memo) = nil, want an error")
 	}
 	// the other kinds neither need nor read one
 	for _, kind := range []Kind{KindInvoice, KindPackingSlip} {
-		if _, err := Render(kind, testOrder(), testStore(), nil); err != nil {
+		if _, err := Render(Input{Kind: kind, Order: testOrder(), Store: testStore(), Memo: nil, Decimals: 2}); err != nil {
 			t.Errorf("Render(%s) with no memo = %v, want nil", kind, err)
 		}
 	}
@@ -120,9 +156,11 @@ func TestInvoiceCarriesTheLetterheadOrderAndMoney(t *testing.T) {
 	for _, want := range []string{
 		"INVOICE", "Skelet Tires", "VAT GB123456789",
 		"ORD-1001", "TIRE-205", "All-Season Tire",
-		"Subtotal", "Discount", "Shipping", "Tax", "Gift card", "Total",
+		"Subtotal", "Discount", "Shipping", "Tax", "Gift card", "Total", "Amount due",
 		"USD 200.00", // subtotal
-		"USD 206.45", // total
+		"USD 211.45", // total
+		"USD -5.00",  // gift card
+		"USD 206.45", // amount due
 		"Thank you for your order",
 	} {
 		if !strings.Contains(text, want) {
@@ -374,7 +412,7 @@ func TestQuantityFormattingTrimsTrailingZeros(t *testing.T) {
 func TestRenderHandlesAnEmptyOrder(t *testing.T) {
 	o := order.Order{Number: "ORD-EMPTY", CurrencyCode: "USD", CreatedAt: time.Now()}
 	for _, kind := range []Kind{KindInvoice, KindPackingSlip} {
-		got, err := Render(kind, o, StoreInfo{Name: "Store"}, nil)
+		got, err := Render(Input{Kind: kind, Order: o, Store: StoreInfo{Name: "Store"}, Memo: nil, Decimals: 2})
 		if err != nil {
 			t.Errorf("Render(%s) on an empty order = %v, want a document", kind, err)
 			continue
@@ -387,9 +425,91 @@ func TestRenderHandlesAnEmptyOrder(t *testing.T) {
 
 func mustRender(t *testing.T, kind Kind, o order.Order, store StoreInfo, memo *order.CreditMemo) []byte {
 	t.Helper()
-	got, err := Render(kind, o, store, memo)
+	got, err := Render(Input{Kind: kind, Order: o, Store: store, Memo: memo, Decimals: 2})
 	if err != nil {
 		t.Fatalf("Render(%s): %v", kind, err)
 	}
 	return got
+}
+
+func render(t *testing.T, in Input) string {
+	t.Helper()
+	if in.Store.Name == "" {
+		in.Store = testStore()
+	}
+	return pdfText(t, mustRenderInput(t, in))
+}
+
+func mustRenderInput(t *testing.T, in Input) []byte {
+	t.Helper()
+	got, err := Render(in)
+	if err != nil {
+		t.Fatalf("Render(%s): %v", in.Kind, err)
+	}
+	return got
+}
+
+// The rows have to add up on paper: the total, then what tenders paid of it, then what the card was asked for
+func TestTendersPayTheTotalRatherThanLowerIt(t *testing.T) {
+	o := testOrder()
+	o.StoreCreditAmount = 1000
+	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2})
+	for _, want := range []string{"Total\nUSD 211.45", "Gift card\nUSD -5.00", "Store credit\nUSD -10.00", "Amount due\nUSD 196.45"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the invoice does not carry %q", strings.ReplaceAll(want, "\n", " "))
+		}
+	}
+	o.GiftCardAmount, o.StoreCreditAmount = 0, 0
+	if text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2}); strings.Contains(text, "Amount due") {
+		t.Error("an order paid by its payment method alone repeats its total as an amount due")
+	}
+}
+
+// On a tax-inclusive channel the total already holds the tax - adding a Tax row above it reads as charged twice
+func TestTaxInclusivePricesShowTheTaxAsAPortion(t *testing.T) {
+	o := testOrder()
+	o.TotalAmount = o.SubtotalAmount - o.DiscountAmount + o.ShippingAmount
+	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2, TaxInclusive: true})
+	if strings.Contains(text, "Tax\n") || !strings.Contains(text, "Includes tax\nUSD 16.50") {
+		t.Errorf("a tax-inclusive invoice should print the tax as included, got:\n%s", text)
+	}
+}
+
+func TestAmountsUseTheCurrencysDecimals(t *testing.T) {
+	o := testOrder()
+	o.CurrencyCode, o.SubtotalAmount = "JPY", 5000
+	if text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 0}); !strings.Contains(text, "JPY 5000\n") {
+		t.Errorf("a yen subtotal was not printed whole:\n%s", text)
+	}
+	o.CurrencyCode, o.SubtotalAmount = "KWD", 1234
+	if text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 3}); !strings.Contains(text, "KWD 1.234\n") {
+		t.Errorf("a dinar subtotal lost its third decimal:\n%s", text)
+	}
+}
+
+// The core PDF fonts stop at Windows-1252, which printed every č, đ and Cyrillic letter as mojibake
+func TestNamesOutsideLatin1Survive(t *testing.T) {
+	o := testOrder()
+	o.BillingAddress.FirstName, o.BillingAddress.LastName = "Đorđe", "Čolić"
+	o.ShippingAddress.City = "Ниш"
+	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2})
+	for _, want := range []string{"Đorđe Čolić", "Ниш"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("%q did not survive rendering", want)
+		}
+	}
+}
+
+// A cell never wraps, so a long name ran across the price columns - it has to stop at its own column
+func TestALongNameIsCutToItsColumn(t *testing.T) {
+	o := testOrder()
+	long := strings.Repeat("Extra-wide all-season performance tire ", 4)
+	o.Lines[0].ProductName = long
+	text := render(t, Input{Kind: KindInvoice, Order: o, Decimals: 2})
+	if strings.Contains(text, long) || !strings.Contains(text, "…") {
+		t.Error("a name wider than its column was printed whole")
+	}
+	if !strings.Contains(text, "USD 200.00") {
+		t.Error("the line's price went missing next to a long name")
+	}
 }

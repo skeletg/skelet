@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"html/template"
 	ttemplate "text/template"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
-// money formats integer cents as "12.34 USD" for email bodies - Kept simple
-// (no symbol table) - the currency code is unambiguous and locale-agnostic
-func money(cents int64, currency string) string {
-	return fmt.Sprintf("%.2f %s", float64(cents)/100, currency)
+// formatMoney renders minor units as "12.34 USD" for email bodies, at the currency's ISO decimals so a yen total isn't divided by 100 - no symbol table, since the code is unambiguous and locale-agnostic
+func formatMoney(minor int64, currency string) string {
+	return money.Format(minor, money.ISODecimals(currency)) + " " + currency
 }
 
 var (
-	emailFuncs     = template.FuncMap{"money": money}
-	emailTextFuncs = ttemplate.FuncMap{"money": money}
+	emailFuncs     = template.FuncMap{"money": formatMoney}
+	emailTextFuncs = ttemplate.FuncMap{"money": formatMoney}
 )
 
 // OrderEmailLine is one line item rendered in an order email
