@@ -211,7 +211,7 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 				out.Truncated = true
 				break
 			}
-			re.Message = trimMessage(re.Message)
+			re.Message = TrimMessage(re.Message)
 			out.Errors = append(out.Errors, re)
 		}
 	}
@@ -233,7 +233,7 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, ca
 	if err := row.Err(); err != nil {
 		out.Failed++
 		if len(out.Errors) < MaxRowErrors {
-			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: trimMessage(err.Error())})
+			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: TrimMessage(err.Error())})
 		} else {
 			out.Truncated = true
 		}
@@ -264,7 +264,7 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, ca
 	if err != nil {
 		out.Failed++
 		if len(out.Errors) < MaxRowErrors {
-			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: trimMessage(err.Error())})
+			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: TrimMessage(err.Error())})
 		} else {
 			out.Truncated = true
 		}
@@ -282,7 +282,7 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, ca
 }
 
 // Postgres errors arrive with a paragraph of detail and hint appended, which is unreadable in a per-row table
-func trimMessage(msg string) string {
+func TrimMessage(msg string) string {
 	msg = strings.TrimSpace(strings.ReplaceAll(msg, "\n", " "))
 	if utf8.RuneCountInString(msg) <= maxRowMessageRunes {
 		return msg
