@@ -8648,7 +8648,7 @@ extend type Query {
   myReferral: ReferralInfo!
 }
 `, BuiltIn: false},
-	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted when an order with a downloadable product is placed). downloadUrl is the token-gated link the storefront points at; hitting it consumes one use and redirects to the file.
+	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted once an order with a downloadable product is paid or its card authorized, and expired if it is cancelled, voided or refunded). downloadUrl is the token-gated link the storefront points at; hitting it consumes one use and serves the file - streamed when it lives in our storage, redirected when it is hosted elsewhere.
 
 type DownloadGrant {
   id:            ID!
