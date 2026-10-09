@@ -2,9 +2,8 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,6 +14,9 @@ import (
 )
 
 // Unknown customer and forbidden both answer FORBIDDEN - saying which would leak the existence of a row the caller can't see
+// How long an operator's masquerade session lasts - short, since it carries the customer's full storefront powers
+const masqueradeSessionTTL = 15 * time.Minute
+
 func (r *Resolver) requireCustomerManage(ctx context.Context, customerID string) error {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
 		return err
@@ -93,47 +95,6 @@ func customerMetadataFromInput(in []*model.MetadataInput) *customer.Metadata {
 		m[item.Key] = item.Value
 	}
 	return &m
-}
-
-// SYNC: mirrors the storefront's DSAR assembly in graph/front - an admin-served bundle must carry the same categories the customer could pull themselves
-// Consents fail the export rather than drop out of it - a DSAR answered without them hides the record the subject is most entitled to see
-func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) error {
-	extra := map[string]any{}
-	if r.ConsentSvc != nil {
-		list, err := r.ConsentSvc.ListForCustomer(ctx, customerID)
-		if err != nil {
-			return fmt.Errorf("export consents: %w", err)
-		}
-		if bundle.Consents, err = json.Marshal(list); err != nil {
-			return fmt.Errorf("export consents: %w", err)
-		}
-		history, err := r.ConsentSvc.History(ctx, customerID, 0)
-		if err != nil {
-			return fmt.Errorf("export consent history: %w", err)
-		}
-		if len(history) > 0 {
-			extra["consentHistory"] = history
-		}
-	}
-	if r.StoreCreditSvc != nil {
-		if entries, err := r.StoreCreditSvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["storeCredit"] = entries
-		}
-		if currency != "" {
-			if bal, err := r.StoreCreditSvc.Balance(ctx, customerID, currency); err == nil {
-				extra["storeCreditBalance"] = map[string]any{"amountCents": bal, "currency": currency}
-			}
-		}
-	}
-	if r.LoyaltySvc != nil {
-		if entries, err := r.LoyaltySvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["loyaltyPoints"] = entries
-		}
-	}
-	if len(extra) > 0 {
-		bundle.Extra = extra
-	}
-	return nil
 }
 
 func actingAdminID(ctx context.Context) *uuid.UUID {

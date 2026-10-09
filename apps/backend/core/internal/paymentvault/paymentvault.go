@@ -17,6 +17,7 @@ import (
 // different customer (indistinguishable on purpose)
 var ErrNotFound = apperr.New("PAYMENT_METHOD_NOT_FOUND", apperr.ClassNotFound, "saved payment method not found")
 
+// A GDPR erasure deletes these rows only - the card stays in the provider's vault until removed there
 type Method struct {
 	ID           uuid.UUID
 	CustomerID   uuid.UUID

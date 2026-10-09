@@ -22,6 +22,7 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -73,6 +74,7 @@ func newLoginThrottle(client *redis.Client) *authpkg.LoginThrottle { // nil disa
 }
 
 func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, healthReg *health.Registry) GQL {
+	dsarBuilder := dsar.New(s.Customer, s.Order, s.Consent, s.Channel, s.StoreCredit, s.Wishlist, infra.Queries)
 	adminResolver := &graphadmin.Resolver{
 		DevMode:           infra.Config.IsDev(),
 		CacheClient:       s.RevalidateCli,
@@ -90,6 +92,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		OrderMailSvc:      s.OrderMail,
 		ConfigSvc:         s.Config,
 		ConsentSvc:        s.Consent,
+		DSAR:              dsarBuilder,
 		ActionSvc:         s.Action,
 		DataJobSvc:        s.DataJob,
 		AuditSvc:          s.Audit,
@@ -250,6 +253,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		OrderSvc:             s.Order,
 		ConfigSvc:            s.Config,
 		ConsentSvc:           s.Consent,
+		DSAR:                 dsarBuilder,
 		CatalogSvc:           s.Catalog,
 		RecommendSvc:         s.Recommend,
 		BlogSvc:              s.Blog,

@@ -20,6 +20,7 @@ var publicMutations = map[string]string{
 	"CustomerLogout":       "clears a session, safe without one",
 	"VerifyEmail":          "the emailed token is the credential",
 	"RequestPasswordReset": "silent on whether the address exists",
+	"ResendVerification":   "silent on whether the address exists",
 	"ResetPassword":        "the reset token is the credential",
 
 	// Gateway handshakes - they resolve a cart and return a client token, touching no customer record

@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -61,6 +62,7 @@ type Resolver struct {
 	OrderSvc             *order.Service
 	ConfigSvc            *config.Service
 	ConsentSvc           *consent.Service
+	DSAR                 *dsar.Builder
 	CatalogSvc           *catalog.Service
 	RecommendSvc         *recommend.Service
 	BlogSvc              *blog.Service

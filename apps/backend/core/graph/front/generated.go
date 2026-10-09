@@ -685,6 +685,7 @@ type ComplexityRoot struct {
 		RequestProductOptionFileUpload func(childComplexity int, sku string, optionID string, filename string, mimeType string, sizeBytes int32) int
 		RequestReturn                  func(childComplexity int, input model.RequestReturnInput) int
 		RequestReviewMediaUpload       func(childComplexity int, productID string, filename string, mimeType string, sizeBytes int32) int
+		ResendVerification             func(childComplexity int, email string) int
 		ResendVerificationEmail        func(childComplexity int) int
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
@@ -1322,6 +1323,7 @@ type MutationResolver interface {
 	ChangeCustomerPassword(ctx context.Context, currentPassword string, newPassword string) (bool, error)
 	VerifyEmail(ctx context.Context, token string) (bool, error)
 	ResendVerificationEmail(ctx context.Context) (bool, error)
+	ResendVerification(ctx context.Context, email string) (bool, error)
 	RequestPasswordReset(ctx context.Context, email string) (bool, error)
 	ResetPassword(ctx context.Context, token string, newPassword string) (bool, error)
 	AddAddress(ctx context.Context, input model.AddressInput) (*model.Address, error)
@@ -4407,6 +4409,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequestReviewMediaUpload(childComplexity, args["productId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
+	case "Mutation.resendVerification":
+		if e.ComplexityRoot.Mutation.ResendVerification == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resendVerification_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResendVerification(childComplexity, args["email"].(string)), true
 	case "Mutation.resendVerificationEmail":
 		if e.ComplexityRoot.Mutation.ResendVerificationEmail == nil {
 			break
@@ -8520,11 +8533,12 @@ type Address {
 }
 
 type CustomerAuthPayload {
-  # Null when the account exists but no session was issued - registration withholds the session while require_email_verification is on, so an unverified address can never be used to reach the account.
+  # Null when no session was issued - registration withholds it while require_email_verification is on, and when the address already has an account.
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
-  # True when registration deliberately withheld the session pending verification. Clients should route to a "check your inbox" state rather than treating the missing tokens as an error.
+  # Null whenever the tokens are, so the answer never shows whether the address already had an account.
+  customer:     Customer
+  # True when registration issued no session. Clients should route to a "check your inbox" state - the inbox holds either a verification link or, for an address that already has an account, a note to its owner.
   verificationRequired: Boolean!
 }
 
@@ -8573,6 +8587,8 @@ extend type Mutation {
   changeCustomerPassword(currentPassword: String!, newPassword: String!): Boolean!
   verifyEmail(token: String!):                                  Boolean!
   resendVerificationEmail:                                      Boolean!
+  # Signed-out resend for an account the verification gate keeps from signing in. Always true, so it never shows whether the address has an account.
+  resendVerification(email: String!):                           Boolean!
   requestPasswordReset(email: String!):                         Boolean!
   resetPassword(token: String!, newPassword: String!):          Boolean!
   addAddress(input: AddressInput!):                             Address!
@@ -12376,6 +12392,20 @@ func (ec *executionContext) field_Mutation_requestReviewMediaUpload_args(ctx con
 		return nil, err
 	}
 	args["sizeBytes"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resendVerification_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "email",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["email"] = arg0
 	return args, nil
 }
 
@@ -22103,10 +22133,10 @@ func (ec *executionContext) _CustomerAuthPayload_customer(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_CustomerAuthPayload_customer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24899,6 +24929,50 @@ func (ec *executionContext) _Mutation_resendVerificationEmail(ctx context.Contex
 }
 func (ec *executionContext) fieldContext_Mutation_resendVerificationEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_resendVerification(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resendVerification(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResendVerification(ctx, fc.Args["email"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resendVerification(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resendVerification_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Mutation_requestPasswordReset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -42784,7 +42858,7 @@ func (ec *executionContext) _CustomerAuthPayload(ctx context.Context, sel ast.Se
 			}
 		case "customer":
 			out.Values[i] = ec._CustomerAuthPayload_customer(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "verificationRequired":
@@ -43725,6 +43799,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "resendVerificationEmail":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_resendVerificationEmail(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resendVerification":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resendVerification(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -54073,6 +54154,13 @@ func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._Currency(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Customer(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

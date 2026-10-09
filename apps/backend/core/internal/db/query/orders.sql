@@ -96,10 +96,11 @@ LIMIT 1;
 
 -- name: ClaimGuestOrdersByEmail :execrows
 -- Attach every guest order placed on this channel under the given email to the freshly-registered customer - called from the customer.registered subscriber so the customer's order history on /account/orders shows up immediately after sign-up
+-- Order emails are stored as typed, so the match normalizes them the way customer emails already are
 UPDATE orders
 SET    customer_id = $1, updated_at = NOW()
 WHERE  customer_id IS NULL
-  AND  email = $2
+  AND  lower(btrim(email)) = $2
   AND  channel_id = $3;
 
 -- name: UpdateOrderStatusFrom :one
