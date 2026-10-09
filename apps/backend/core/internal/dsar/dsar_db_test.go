@@ -2,8 +2,10 @@ package dsar
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -45,7 +47,15 @@ func (channels) GetByID(_ context.Context, id uuid.UUID) (channel.Channel, error
 	return channel.Channel{ID: id, CurrencyCode: "USD"}, nil
 }
 
-func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
+type rig struct {
+	conn *sql.DB
+	ch   uuid.UUID
+	b    *Builder
+	c    customer.Customer
+}
+
+func newRig(t *testing.T) rig {
+	t.Helper()
 	conn := testdb.Require(t)
 	q := db.New(conn)
 	ctx := context.Background()
@@ -68,6 +78,13 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	b := New(customers, orders{}, consent.NewService(consent.NewRepository(q)), channels{}, storecredit.NewService(q, txrunner.New(conn)), wishlist.NewService(q), q)
+	return rig{conn: conn, ch: ch, b: b, c: c}
+}
+
+func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
+	r := newRig(t)
+	conn, ch, c, b, ctx := r.conn, r.ch, r.c, r.b, context.Background()
 	// More ledger rows than the old export's 50-row clamp, so a page cap would show
 	if _, err := conn.Exec(`INSERT INTO loyalty_point_entries (customer_id, points, reason) SELECT $1, 1, 'earn' FROM generate_series(1, 60)`, c.ID); err != nil {
 		t.Fatal(err)
@@ -79,7 +96,6 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b := New(customers, orders{}, consent.NewService(consent.NewRepository(q)), channels{}, storecredit.NewService(q, txrunner.New(conn)), wishlist.NewService(q), q)
 	bundle, err := b.Build(ctx, c.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -113,5 +129,65 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 	b.orders = orders{err: errors.New("orders unreadable")}
 	if _, err := b.Build(ctx, c.ID); err == nil {
 		t.Error("an unreadable order history produced a bundle anyway")
+	}
+}
+
+func section(t *testing.T, bundle customer.DataExport, key string) []map[string]any {
+	t.Helper()
+	var rows []map[string]any
+	if err := json.Unmarshal(bundle.Extra[key].(json.RawMessage), &rows); err != nil {
+		t.Fatalf("%s: %v", key, err)
+	}
+	return rows
+}
+
+// Signing in doesn't prove the address, so a stranger's registration under it must not export what a guest left there
+func TestAnUnverifiedAddressExportsNoGuestRows(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	form := uuid.New()
+	if _, err := r.conn.Exec(`INSERT INTO web_forms (id, channel_id, slug, name) VALUES ($1, $2, $3, 'Contact')`, form, r.ch, "contact-"+uuid.NewString()[:8]); err != nil {
+		t.Fatal(err)
+	}
+	for _, answers := range []string{
+		`{"email": "` + strings.ToUpper(r.c.Email) + `", "message": "call me on 555"}`,
+		`{"email": "x` + r.c.Email + `", "message": "a stranger whose address only contains theirs"}`,
+		`{"note": "` + r.c.Email + ` mentioned in passing"}`,
+	} {
+		if _, err := r.conn.Exec(`INSERT INTO web_form_submissions (form_id, channel_id, answers) VALUES ($1, $2, $3)`, form, r.ch, answers); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The second row has no address at all - the unverified export's empty address must not match it either
+	for _, addr := range []string{r.c.Email, ""} {
+		if _, err := r.conn.Exec(`INSERT INTO back_in_stock_requests (channel_id, product_id, sku, email) VALUES ($1, $2, 'sku-1', $3)`, r.ch, uuid.New(), addr); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	self, err := r.b.BuildSelfServe(ctx, r.c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(section(t, self, "webFormSubmissions")) + len(section(t, self, "backInStockRequests")); n != 0 {
+		t.Fatalf("an unverified account exported %d guest rows under its address", n)
+	}
+
+	admin, err := r.b.Build(ctx, r.c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := section(t, admin, "webFormSubmissions"); len(got) != 1 || !strings.Contains(fmt.Sprint(got[0]["answers"]), "555") {
+		t.Fatalf("admin export web forms %v, want only the submission whose answer IS the address", got)
+	}
+
+	if _, err := r.conn.Exec(`UPDATE customers SET is_email_verified = true WHERE id = $1`, r.c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if self, err = r.b.BuildSelfServe(ctx, r.c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(section(t, self, "webFormSubmissions")) != 1 || len(section(t, self, "backInStockRequests")) != 1 {
+		t.Fatal("a verified address did not export its guest rows")
 	}
 }
