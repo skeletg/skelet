@@ -14,7 +14,7 @@ import (
 // Scenario: cancelling a HALF-shipped order prorates every reversal by the unshipped value share - the gift card comes back at half, loyalty revokes toward half, and only the unshipped unit's reservation releases. Every earlier cancel test ran at fraction 1.0; this is the ScaleFraction arithmetic's first execution
 func TestPartialShipCancelProratesReversals(t *testing.T) {
 	h := newHarness(t)
-	f := h.NewStore(t, 10, 1200) // qty 2 keeps the subtotal under ambient promotion thresholds
+	f := h.NewStore(t, 10, 1200)
 	if _, err := h.D.Config.Set(h.Ctx, "sales/loyalty/enabled", "true",
 		config.Scope{Kind: config.ScopeChannel, ChannelID: &f.Channel.ID}); err != nil {
 		t.Fatalf("enable loyalty: %v", err)

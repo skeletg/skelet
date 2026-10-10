@@ -28,7 +28,7 @@ type ClaimGuestOrdersByEmailParams struct {
 	ChannelID  uuid.UUID     `json:"channel_id"`
 }
 
-// Attach every guest order placed on this channel under the given email to the freshly-registered customer - called from the customer.registered subscriber so the customer's order history on /account/orders shows up immediately after sign-up
+// Attach every guest order placed on this channel under the given email to the customer who just verified it - called from the customer.email_verified subscriber, never on registration, which proves nothing about owning the address
 // Order emails are stored as typed, so the match normalizes them the way customer emails already are
 func (q *Queries) ClaimGuestOrdersByEmail(ctx context.Context, arg ClaimGuestOrdersByEmailParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, claimGuestOrdersByEmail, arg.CustomerID, arg.Email, arg.ChannelID)
