@@ -528,3 +528,103 @@ func TestMutationsPublishMenuUpdated(t *testing.T) {
 		}
 	}
 }
+
+func (r *fakeRepo) InTx(_ context.Context, fn func(Repository) error) error { return fn(r) }
+
+func (r *fakeRepo) ListMenuItemsByMenu(_ context.Context, menuID uuid.UUID) ([]MenuItem, error) {
+	var out []MenuItem
+	for _, it := range r.items {
+		if it.MenuID == menuID {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeRepo) DeleteMenuItemTranslation(context.Context, uuid.UUID, string) error { return nil }
+
+// Reorder, store assignment and translations skipped the publish, so the storefront kept serving the old menu until its TTL ran out
+func TestEveryWritePublishesMenuUpdated(t *testing.T) {
+	svc, repo := newTestService()
+	bus := events.NewBus()
+	var seen atomic.Int64
+	bus.Subscribe(EventMenuUpdated, func(context.Context, events.Event) error { seen.Add(1); return nil })
+	svc.SetEventBus(bus)
+	ctx := context.Background()
+	item, err := svc.CreateMenuItem(ctx, CreateMenuItemInput{MenuID: repo.menu.ID, Label: "Shop", URL: "/shop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = bus.Drain(ctx)
+	seen.Store(0)
+
+	for name, op := range map[string]func() error{
+		"reorder": func() error {
+			return svc.ReorderMenuItems(ctx, repo.menu.ID, []ReorderMenuItem{{ID: item.ID, SortOrder: 3}})
+		},
+		"set stores":         func() error { return svc.SetMenuStores(ctx, repo.menu.ID, []uuid.UUID{uuid.New()}) },
+		"upsert translation": func() error { _, err := svc.UpsertMenuItemTranslation(ctx, item.ID, "de", "Laden"); return err },
+		"delete translation": func() error { return svc.DeleteMenuItemTranslation(ctx, item.ID, "de") },
+	} {
+		before := seen.Load()
+		if err := op(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		_ = bus.Drain(ctx)
+		if seen.Load() != before+1 {
+			t.Errorf("%s published %d menuUpdated events, want 1", name, seen.Load()-before)
+		}
+	}
+}
+
+// Only the parent's depth was checked, so a three-level branch could land under a deep parent
+func TestMovingABranchCountsItsOwnDepth(t *testing.T) {
+	svc, repo := newTestService()
+	ctx := context.Background()
+	parent := repo.chain(MaxDepth - 2) // children of this sit at MaxDepth-1
+	branch := repo.chain(1)
+	branch.URL = "/b"
+	repo.items[branch.ID] = branch
+	child := MenuItem{ID: uuid.New(), MenuID: repo.menu.ID, ParentID: &branch.ID, Label: "c", URL: "/c"}
+	repo.items[child.ID] = child
+	grandchild := MenuItem{ID: uuid.New(), MenuID: repo.menu.ID, ParentID: &child.ID, Label: "g", URL: "/g"}
+	repo.items[grandchild.ID] = grandchild
+
+	if _, err := svc.UpdateMenuItem(ctx, UpdateMenuItemInput{ID: branch.ID, ParentID: &parent.ID}); !errors.Is(err, ErrDepthExceeded) {
+		t.Fatalf("a three-level branch under level %d = %v, want ErrDepthExceeded", MaxDepth-2, err)
+	}
+	if _, err := svc.UpdateMenuItem(ctx, UpdateMenuItemInput{ID: grandchild.ID, ParentID: &parent.ID}); err != nil {
+		t.Fatalf("a leaf under level %d = %v, want it accepted", MaxDepth-2, err)
+	}
+}
+
+func TestLinkURLsAreSchemeChecked(t *testing.T) {
+	for url, ok := range map[string]bool{
+		"/sale": true, "sale": true, "#top": true, "?q=1": true, "https://shop.test/x": true, "HTTP://shop.test": true,
+		"mailto:hi@shop.test": true, "tel:+381111": true,
+		"javascript:alert(1)": false, "JavaScript:alert(1)": false, "data:text/html,<script>": false,
+		"vbscript:x": false, "java\tscript:alert(1)": false, " javascript:alert(1)": false,
+	} {
+		err := validateTarget("", nil, url)
+		if (err == nil) != ok {
+			t.Errorf("%q = %v, want accepted %v", url, err, ok)
+		}
+		if !ok && !errors.Is(err, ErrInvalidURL) {
+			t.Errorf("%q refused with %v, want ErrInvalidURL", url, err)
+		}
+	}
+}
+
+func TestValidationErrorsAreTyped(t *testing.T) {
+	svc, repo := newTestService()
+	ctx := context.Background()
+	if _, err := svc.CreateMenu(ctx, CreateMenuInput{Slug: "x", Name: " "}); !errors.Is(err, ErrNameRequired) {
+		t.Errorf("blank name = %v", err)
+	}
+	if _, err := svc.CreateMenuItem(ctx, CreateMenuItemInput{MenuID: repo.menu.ID, Label: " ", URL: "/x"}); !errors.Is(err, ErrLabelRequired) {
+		t.Errorf("blank label = %v", err)
+	}
+	if _, err := svc.UpsertMenuItemTranslation(ctx, uuid.New(), " ", "x"); !errors.Is(err, ErrLocaleRequired) {
+		t.Errorf("blank locale = %v", err)
+	}
+}
