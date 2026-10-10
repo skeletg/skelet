@@ -1388,6 +1388,12 @@ type InventoryChannelLocation struct {
 	Priority   int32     `json:"priority"`
 }
 
+type InventoryFlatRestore struct {
+	OrderID   uuid.UUID `json:"order_id"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type InventoryItem struct {
 	ID                uuid.UUID      `json:"id"`
 	ProductID         uuid.UUID      `json:"product_id"`
