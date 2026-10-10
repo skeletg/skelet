@@ -85,6 +85,15 @@ func int32Or(p *int32, d int32) int32 {
 	return *p
 }
 
+// nil stays nil, so a domain input can tell an absent number from an explicit zero
+func int16Ptr(p *int32) *int16 {
+	if p == nil {
+		return nil
+	}
+	v := int16(*p)
+	return &v
+}
+
 func float64Or(p *float64, d float64) float64 {
 	if p == nil {
 		return d

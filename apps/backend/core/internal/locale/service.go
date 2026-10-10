@@ -2,10 +2,10 @@ package locale
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Pre-validates that a country code exists in the countries table - wired post-construction, and it surfaces ErrCountryNotFound instead of a raw FK violation
@@ -45,7 +45,7 @@ func (s *Service) Create(ctx context.Context, input CreateLocaleInput) (Locale, 
 		return Locale{}, err
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Locale{}, fmt.Errorf("name is required")
+		return Locale{}, ErrNameRequired
 	}
 	if input.NativeName == "" {
 		input.NativeName = input.Name
@@ -56,14 +56,19 @@ func (s *Service) Create(ctx context.Context, input CreateLocaleInput) (Locale, 
 	if input.ThousandsSeparator == "" {
 		input.ThousandsSeparator = ","
 	}
-	if input.FirstDayOfWeek == 0 && input.DefaultCountryCode == "" {
-		// Treat 0 as "no opinion" and pick Monday - the column DEFAULT 1 would kick in anyway if we left the zero, so this only matters for a caller explicitly setting 0 for en-US
-		input.FirstDayOfWeek = 1
+	if err := checkSeparators(input.DecimalSeparator, input.ThousandsSeparator); err != nil {
+		return Locale{}, err
+	}
+	// Only an ABSENT value defaults - collapsing 0 into "no opinion" turned an explicit Sunday into Monday
+	var firstDay int16 = 1
+	if input.FirstDayOfWeek != nil {
+		firstDay = *input.FirstDayOfWeek
 	}
 	// Normalize before validating, the way Update does - validateOptionalFields only cases its inputs, so a padded " at " off an admin form would fail the length check here and pass on the edit screen
 	input.DefaultCountryCode = strings.ToUpper(strings.TrimSpace(input.DefaultCountryCode))
 	input.HreflangValue = strings.ToLower(strings.TrimSpace(input.HreflangValue))
-	if err := validateOptionalFields(input.FirstDayOfWeek, input.DefaultCountryCode, input.HreflangValue); err != nil {
+	input.FirstDayOfWeek = &firstDay
+	if err := validateOptionalFields(firstDay, input.DefaultCountryCode, input.HreflangValue); err != nil {
 		return Locale{}, err
 	}
 	if input.DefaultCountryCode != "" && s.countries != nil {
@@ -88,17 +93,34 @@ func (s *Service) List(ctx context.Context, activeOnly bool) ([]Locale, error) {
 func (s *Service) Update(ctx context.Context, input UpdateLocaleInput) (Locale, error) {
 	input.Code = normalizeCode(input.Code)
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
-		return Locale{}, fmt.Errorf("name is required")
+		return Locale{}, ErrNameRequired
 	}
 	if input.FirstDayOfWeek != nil {
 		if *input.FirstDayOfWeek < 0 || *input.FirstDayOfWeek > 6 {
-			return Locale{}, fmt.Errorf("first_day_of_week must be 0..6 (got %d)", *input.FirstDayOfWeek)
+			return Locale{}, fmt.Errorf("%w (got %d)", ErrInvalidFirstDay, *input.FirstDayOfWeek)
+		}
+	}
+	if input.DecimalSeparator != nil || input.ThousandsSeparator != nil {
+		// The pair is checked as it will stand, so one side changing is compared with the other's stored value
+		current, err := s.repo.GetByCode(ctx, input.Code)
+		if err != nil {
+			return Locale{}, err
+		}
+		dec, thou := current.DecimalSeparator, current.ThousandsSeparator
+		if input.DecimalSeparator != nil {
+			dec = *input.DecimalSeparator
+		}
+		if input.ThousandsSeparator != nil {
+			thou = *input.ThousandsSeparator
+		}
+		if err := checkSeparators(dec, thou); err != nil {
+			return Locale{}, err
 		}
 	}
 	if input.DefaultCountryCode != nil {
 		c := strings.ToUpper(strings.TrimSpace(*input.DefaultCountryCode))
 		if c != "" && !isTwoLetterCountry(c) {
-			return Locale{}, fmt.Errorf("default_country_code must be empty or ISO 3166-1 alpha-2 (got %q)", *input.DefaultCountryCode)
+			return Locale{}, fmt.Errorf("%w (got %q)", ErrInvalidCountry, *input.DefaultCountryCode)
 		}
 		if c != "" && s.countries != nil {
 			if err := s.countries.EnsureExists(ctx, c); err != nil {
@@ -114,18 +136,12 @@ func (s *Service) Update(ctx context.Context, input UpdateLocaleInput) (Locale, 
 		}
 		input.HreflangValue = &v
 	}
-	// Detect an is_active flip BEFORE the write, so the hook fires on a real transition rather than every update that carries the field
-	var statusFlipped bool
-	if input.IsActive != nil {
-		if current, err := s.repo.GetByCode(ctx, input.Code); err == nil {
-			statusFlipped = current.IsActive != *input.IsActive
-		}
-	}
-	out, err := s.repo.Update(ctx, input)
+	out, wasActive, err := s.repo.Update(ctx, input)
 	if err != nil {
 		return Locale{}, err
 	}
-	if statusFlipped && s.onStatusChange != nil {
+	// The prior state comes from the same locked statement, so the hook fires on a real transition and never on a repeat
+	if wasActive != out.IsActive && s.onStatusChange != nil {
 		s.onStatusChange(ctx, out.Code, out.IsActive)
 	}
 	return out, nil
@@ -134,10 +150,10 @@ func (s *Service) Update(ctx context.Context, input UpdateLocaleInput) (Locale, 
 // The shape checks reused between Create and the lower-level update paths
 func validateOptionalFields(firstDayOfWeek int16, countryCode, hreflang string) error {
 	if firstDayOfWeek < 0 || firstDayOfWeek > 6 {
-		return fmt.Errorf("first_day_of_week must be 0..6 (got %d)", firstDayOfWeek)
+		return fmt.Errorf("%w (got %d)", ErrInvalidFirstDay, firstDayOfWeek)
 	}
 	if countryCode != "" && !isTwoLetterCountry(strings.ToUpper(countryCode)) {
-		return fmt.Errorf("default_country_code must be empty or ISO 3166-1 alpha-2 (got %q)", countryCode)
+		return fmt.Errorf("%w (got %q)", ErrInvalidCountry, countryCode)
 	}
 	if hreflang != "" && !bcp47Shape.MatchString(strings.ToLower(hreflang)) {
 		return fmt.Errorf("%w: hreflang_value %q does not look like a BCP 47 code", ErrInvalidCode, hreflang)
@@ -173,13 +189,8 @@ func (s *Service) Delete(ctx context.Context, code string) error {
 
 // A friendlier pre-check for callers who'd otherwise hit a raw FK violation, returning ErrLocaleNotFound when the code is missing - used by channel.Service.SetLocales and the catalog content writers
 func (s *Service) EnsureExists(ctx context.Context, code string) error {
-	if _, err := s.repo.GetByCode(ctx, normalizeCode(code)); err != nil {
-		if errors.Is(err, ErrLocaleNotFound) {
-			return err
-		}
-		return err
-	}
-	return nil
+	_, err := s.repo.GetByCode(ctx, normalizeCode(code))
+	return err
 }
 
 // Reports whether a tag is worth carrying - the same loose shape check validateCode applies, exported so the HTTP middleware can reject junk without a database round trip
@@ -197,6 +208,13 @@ func validateCode(code string) error {
 	}
 	if !bcp47Shape.MatchString(code) {
 		return fmt.Errorf("%w: %q does not look like a BCP 47 code", ErrInvalidCode, code)
+	}
+	return nil
+}
+
+func checkSeparators(decimal, thousands string) error {
+	if decimal == thousands || utf8.RuneCountInString(decimal) > 3 || utf8.RuneCountInString(thousands) > 3 {
+		return ErrInvalidSeparators
 	}
 	return nil
 }
