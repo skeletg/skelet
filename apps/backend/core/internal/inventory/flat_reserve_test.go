@@ -46,6 +46,7 @@ func (v toggle) LedgerEnabled(context.Context) bool   { return bool(v) }
 
 // flatRepo backs the flat-mode item decrement path over a panicking base
 type flatRepo struct {
+	restored map[uuid.UUID]bool
 	Repository
 	items map[uuid.UUID]*Item // keyed by product id
 }
@@ -210,4 +211,15 @@ func TestReleaseForOrderFlatModeSkipsShippedQuantity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (f *flatRepo) LockOrder(context.Context, uuid.UUID) error { return nil }
+
+func (f *flatRepo) MarkFlatRestored(_ context.Context, orderID uuid.UUID, _ Reason) (bool, error) {
+	if f.restored == nil {
+		f.restored = map[uuid.UUID]bool{}
+	}
+	first := !f.restored[orderID]
+	f.restored[orderID] = true
+	return first, nil
 }

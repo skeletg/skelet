@@ -132,7 +132,7 @@ func (s *Service) CreateLocation(ctx context.Context, input CreateLocationInput)
 		return Location{}, err
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Location{}, fmt.Errorf("name is required")
+		return Location{}, ErrLocationNameRequired
 	}
 	input.CountryCode = strings.ToUpper(strings.TrimSpace(input.CountryCode))
 	if err := validateCoords(input.Latitude, input.Longitude); err != nil {
@@ -195,7 +195,7 @@ func (s *Service) SetLocationPickup(ctx context.Context, id uuid.UUID, enabled b
 
 func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput) (Location, error) {
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
-		return Location{}, fmt.Errorf("name is required")
+		return Location{}, ErrLocationNameRequired
 	}
 	if input.CountryCode != nil {
 		v := strings.ToUpper(strings.TrimSpace(*input.CountryCode))
@@ -207,7 +207,15 @@ func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput)
 	return s.repo.UpdateLocation(ctx, input)
 }
 
+// Refused while the location holds anything an order or a shelf depends on - its levels and ledger rows cascade with it, so open orders lost their holds and a later shipment deducted nothing
 func (s *Service) DeleteLocation(ctx context.Context, id uuid.UUID) error {
+	n, err := s.repo.CountLocationCommitments(ctx, id)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w (%d)", ErrLocationInUse, n)
+	}
 	return s.repo.DeleteLocation(ctx, id)
 }
 
@@ -326,13 +334,15 @@ func (s *Service) AdjustLevel(ctx context.Context, input AdjustLevelInput) (Leve
 			productID = item.ProductID
 		}
 
-		// Compute the delta against the current level, or 0 if none
-		var current float64
-		if existing, err := r.GetLevel(ctx, input.InventoryItemID, input.LocationID); err == nil {
-			current = existing.Quantity
-		} else if !errors.Is(err, ErrLevelNotFound) {
+		// The delta is computed against the LOCKED current level - two admins editing one cell each read the old value otherwise, and the audit rows stopped adding up to the change
+		if err := r.EnsureLevel(ctx, input.InventoryItemID, input.LocationID); err != nil {
 			return err
 		}
+		existing, err := r.GetLevelForUpdate(ctx, input.InventoryItemID, input.LocationID)
+		if err != nil {
+			return err
+		}
+		current := existing.Quantity
 		before = current
 		level, err := r.UpsertLevel(ctx, input.InventoryItemID, input.LocationID, input.NewQuantity)
 		if err != nil {
@@ -459,59 +469,14 @@ func (s *Service) NetReservationsForItem(ctx context.Context, itemID uuid.UUID) 
 
 // The per-channel salable quantity for one product - returns -1 ("always in stock") when no inventory item exists, the raw physical sum for untracked items, and the sum minus net reservations for tracked ones
 func (s *Service) Salable(ctx context.Context, productID, channelID uuid.UUID) (float64, error) {
-	// A remote provider is authoritative when it answers, else fail open to native
-	if s.remoteAvail != nil {
-		if m, ok := s.remoteAvail.Salable(ctx, []uuid.UUID{productID}, channelID); ok {
-			if qty, present := m[productID]; present {
-				return qty, nil
-			}
-		}
-	}
-	item, err := s.repo.GetItemByProductID(ctx, productID)
-	if err != nil {
-		if errors.Is(err, ErrItemNotFound) {
-			return -1, nil // always-in-stock sentinel
-		}
-		return 0, err
-	}
-
-	// Flat mode - salability is just item.Quantity, or the sentinel for untracked, and it's channel-agnostic
-	if s.flatModeEnabled(ctx) {
-		if !item.Tracked {
-			return -1, nil
-		}
-		return item.Quantity, nil
-	}
-
-	locations, err := s.repo.ListChannelLocations(ctx, channelID)
+	m, err := s.SalableByProductIDs(ctx, []uuid.UUID{productID}, channelID)
 	if err != nil {
 		return 0, err
 	}
-	if len(locations) == 0 {
-		return 0, nil
+	if qty, ok := m[productID]; ok {
+		return qty, nil
 	}
-	inChannel := make(map[uuid.UUID]bool, len(locations))
-	for _, l := range locations {
-		inChannel[l.ID] = true
-	}
-
-	levels, err := s.repo.ListLevelsByItems(ctx, []uuid.UUID{item.ID})
-	if err != nil {
-		return 0, err
-	}
-	var salable float64
-	for _, lvl := range levels {
-		if !inChannel[lvl.LocationID] {
-			continue
-		}
-		// Tracked subtracts the denormalized reserved counter off the row rather than aggregating the ledger, with clampReserved guarding drift - untracked uses raw physical
-		if item.Tracked {
-			salable += lvl.Quantity - clampReserved(lvl.ReservedQuantity)
-		} else {
-			salable += lvl.Quantity
-		}
-	}
-	return salable, nil
+	return -1, nil
 }
 
 // Floors the reserved counter at 0 so a drifted negative can't inflate salable into an oversell - Reconcile repairs the drift itself
@@ -627,7 +592,7 @@ func (s *Service) SalableByProductIDs(ctx context.Context, productIDs []uuid.UUI
 }
 
 func (s *Service) salableNativeByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error) {
-	if len(productIDs) == 0 || channelID == uuid.Nil {
+	if len(productIDs) == 0 {
 		return map[uuid.UUID]float64{}, nil
 	}
 	out := make(map[uuid.UUID]float64, len(productIDs))
@@ -664,8 +629,7 @@ func (s *Service) salableNativeByProductIDs(ctx context.Context, productIDs []uu
 	}
 	if len(locations) == 0 {
 		// No assigned locations means zero stock for every tracked product - untracked keep the sentinel
-		for pid, item := range items {
-			_ = item
+		for pid := range items {
 			out[pid] = 0
 		}
 		return out, nil
@@ -878,6 +842,14 @@ func (s *Service) releaseForOrderFlat(ctx context.Context, orderID uuid.UUID, re
 	restored := make(map[uuid.UUID]float64)
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
+		if err := r.LockOrder(ctx, orderID); err != nil {
+			return err
+		}
+		// No ledger says what went back, so this marker does - a replayed cancel restored the stock a second time without it
+		first, err := r.MarkFlatRestored(ctx, orderID, reason)
+		if err != nil || !first {
+			return err
+		}
 		for _, line := range lines {
 			restore := line.Quantity - line.FulfilledQuantity
 			if restore <= 0 {
@@ -964,19 +936,12 @@ func (s *Service) allocateLine(ctx context.Context, r Repository, line ReserveLi
 			continue // no level row = nothing to take, and skipping saves the lock + net read on every empty cell
 		}
 		// FOR UPDATE, because the availability check plus InsertReservation is check-then-act - locking the level serializes concurrent reservers of this cell, and the loser blocks then re-reads NetReservation seeing the winner's rows
+		// The locked row's reserved counter is the ledger's hold total kept in the same tx, so the loser of the lock re-reads the winner's holds - summing the cell's whole ledger history under the lock cost every placement more as the ledger grew
 		level, err := r.GetLevelForUpdate(ctx, item.ID, loc.ID)
 		var available float64
 		if err == nil {
-			net, err := r.NetReservation(ctx, item.ID, loc.ID)
-			if err != nil {
-				return nil, err
-			}
 			// Subtract stock promised to earlier lines in this call, not yet in the ledger
-			a := level.Quantity + net - planned[k]
-			if a < 0 {
-				a = 0
-			}
-			available = a
+			available = max(0, level.Quantity-clampReserved(level.ReservedQuantity)-planned[k])
 		} else if !errors.Is(err, ErrLevelNotFound) {
 			return nil, err
 		}
@@ -1047,7 +1012,9 @@ func (s *Service) ReleaseForOrder(ctx context.Context, orderID uuid.UUID, reason
 	freed := make(map[uuid.UUID]float64)
 	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
-		// Read inside the tx so a concurrent duplicate event can't double-compensate off the same snapshot
+		if err := r.LockOrder(ctx, orderID); err != nil {
+			return err
+		}
 		rows, err := r.ListReservationsForOrder(ctx, orderID)
 		if err != nil {
 			return err
@@ -1165,11 +1132,13 @@ func (s *Service) ReReserveForEditTx(ctx context.Context, sqlTx *sql.Tx, channel
 	if !s.ledgerEnabled(ctx) {
 		return nil
 	}
-	if s.flatModeEnabled(ctx) {
-		return s.reReserveForEditFlat(ctx, s.repo.WithTx(sqlTx), orderID, c)
-	}
 	r := s.repo.WithTx(sqlTx)
-	// Read through the edit tx so the release below compensates exactly what this tx sees
+	if err := r.LockOrder(ctx, orderID); err != nil {
+		return err
+	}
+	if s.flatModeEnabled(ctx) {
+		return s.reReserveForEditFlat(ctx, r, orderID, c)
+	}
 	rows, err := r.ListReservationsForOrder(ctx, orderID)
 	if err != nil {
 		return err
@@ -1332,11 +1301,13 @@ func (s *Service) FulfillLines(ctx context.Context, orderID uuid.UUID, lines []F
 	moved := make(map[uuid.UUID]float64)
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
+		if err := r.LockOrder(ctx, orderID); err != nil {
+			return err
+		}
 		ratios, err := s.lineItemRatios(ctx, r, orderID)
 		if err != nil {
 			return err
 		}
-		// Read inside the tx - a redelivered event racing this one must see the winner's comps, not a stale snapshot
 		rows, err := r.ListReservationsForOrder(ctx, orderID)
 		if err != nil {
 			return err
@@ -1485,7 +1456,9 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 	restocked := make(map[uuid.UUID]float64)
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
-		// Read inside the tx so the idempotency-marker check and the restock see one snapshot
+		if err := r.LockOrder(ctx, orderID); err != nil {
+			return err
+		}
 		rows, err := r.ListReservationsForOrder(ctx, orderID)
 		if err != nil {
 			return err
@@ -1617,7 +1590,7 @@ func (s *Service) MigrateToMultiLocationMode(ctx context.Context, locationID uui
 		return 0, 0, err
 	}
 	if !loc.IsActive {
-		return 0, 0, fmt.Errorf("location %s is inactive - stock parked there would be unsellable", loc.Slug)
+		return 0, 0, fmt.Errorf("%w: %s", ErrLocationInactive, loc.Slug)
 	}
 	if dryRun {
 		rows, err := s.repo.PreviewItemQuantityFromLevels(ctx)
@@ -1640,17 +1613,8 @@ func (s *Service) MigrateToMultiLocationMode(ctx context.Context, locationID uui
 
 // Deletes zero-netted reservation chains older than the cutoff, on a periodic cron
 func (s *Service) PruneSettledReservations(ctx context.Context, retention time.Duration) (int, error) {
-	cutoff := time.Now().Add(-retention)
-	orderIDs, err := s.repo.ListSettledOrderIDsBefore(ctx, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	for _, oid := range orderIDs {
-		if err := s.repo.DeleteReservationsForOrder(ctx, oid); err != nil {
-			return 0, err
-		}
-	}
-	return len(orderIDs), nil
+	n, err := s.repo.PruneSettledReservations(ctx, time.Now().Add(-retention))
+	return int(n), err
 }
 
 // ==================== helpers ====================
@@ -1658,10 +1622,10 @@ func (s *Service) PruneSettledReservations(ctx context.Context, retention time.D
 // Either may be nil, and any combination is allowed
 func validateCoords(lat, lng *float64) error {
 	if lat != nil && (*lat < -90 || *lat > 90) {
-		return fmt.Errorf("latitude must be between -90 and 90 (got %v)", *lat)
+		return fmt.Errorf("%w (latitude %v)", ErrInvalidCoordinates, *lat)
 	}
 	if lng != nil && (*lng < -180 || *lng > 180) {
-		return fmt.Errorf("longitude must be between -180 and 180 (got %v)", *lng)
+		return fmt.Errorf("%w (longitude %v)", ErrInvalidCoordinates, *lng)
 	}
 	return nil
 }
