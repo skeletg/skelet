@@ -56,7 +56,7 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	}
 	t.Cleanup(func() {
 		_, _ = conn.Exec(`DELETE FROM store_credit_entries WHERE customer_id = $1`, id)
-		_, _ = conn.Exec(`DELETE FROM loyalty_entries WHERE customer_id = $1`, id)
+		_, _ = conn.Exec(`DELETE FROM loyalty_point_entries WHERE customer_id = $1`, id)
 		_, _ = conn.Exec(`DELETE FROM customers WHERE id = $1`, id)
 	})
 	return id
