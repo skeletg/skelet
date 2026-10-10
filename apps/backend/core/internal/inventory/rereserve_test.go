@@ -253,3 +253,5 @@ func TestReReserveStampsTheEditedOrder(t *testing.T) {
 		t.Errorf("compensation stamped order %v, want %v", repo.inserted[0].OrderID, orderID)
 	}
 }
+
+func (r *rereserveRepo) LockOrder(context.Context, uuid.UUID) error { return nil }

@@ -58,8 +58,16 @@ func (r *remoteAvailabilitySource) Salable(ctx context.Context, productIDs []uui
 	out := make(map[uuid.UUID]float64, len(resp.Salable))
 	for idStr, qty := range resp.Salable {
 		if id, perr := uuid.Parse(idStr); perr == nil {
-			out[id] = qty
+			out[id] = remoteQty(qty)
 		}
 	}
 	return out, true
+}
+
+// Only -1 means unlimited - an ERP reporting an oversold balance like -3 read as "always in stock" and kept selling
+func remoteQty(q float64) float64 {
+	if q < 0 && q != -1 {
+		return 0
+	}
+	return q
 }

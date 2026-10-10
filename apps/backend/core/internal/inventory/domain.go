@@ -263,6 +263,10 @@ var (
 	ErrNoLocationsForChannel = errors.New("channel has no inventory locations assigned")
 	ErrNegativeQuantity      = errors.New("quantity cannot be negative")
 	ErrFlatModePerLocation   = errors.New("per-location adjustments are disabled in flat inventory mode; use syncProductInventory")
+	ErrLocationNameRequired  = errors.New("inventory location name is required")
+	ErrInvalidCoordinates    = errors.New("latitude must be within -90..90 and longitude within -180..180")
+	ErrLocationInactive      = errors.New("inventory location is inactive - stock parked there would be unsellable")
+	ErrLocationInUse         = errors.New("inventory location still holds stock or open order reservations - deactivate it instead")
 )
 
 // Safe for concurrent use - the ledger keeps writes commutative, so only per-row ordering matters
@@ -302,8 +306,8 @@ type Repository interface {
 	GetLevelForUpdate(ctx context.Context, itemID, locationID uuid.UUID) (Level, error)
 	ListLevelsByItem(ctx context.Context, itemID uuid.UUID) ([]Level, error)
 	ListLevelsByItems(ctx context.Context, itemIDs []uuid.UUID) ([]Level, error)
-	// Bumps the denormalized reserved counter, in lockstep with the ledger
-	AdjustLevelReserved(ctx context.Context, itemID, locationID uuid.UUID, delta float64) error
+	// Creates an empty level row when the cell has none, so the caller can lock it
+	EnsureLevel(ctx context.Context, itemID, locationID uuid.UUID) error
 	// Rebuilds every reserved_quantity from the ledger, for reconcile and drift repair
 	RecomputeAllReserved(ctx context.Context) error
 
@@ -314,11 +318,15 @@ type Repository interface {
 	ZeroLevelsOutsideLocation(ctx context.Context, locationID uuid.UUID) (int64, error)
 
 	InsertReservation(ctx context.Context, r Reservation) (Reservation, error)
-	NetReservation(ctx context.Context, itemID, locationID uuid.UUID) (float64, error)
-	NetReservationsByPairs(ctx context.Context, itemIDs, locationIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID]float64, error)
 	ListReservationsForOrder(ctx context.Context, orderID uuid.UUID) ([]Reservation, error)
-	DeleteReservationsForOrder(ctx context.Context, orderID uuid.UUID) error
-	ListSettledOrderIDsBefore(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error)
+	// Holds a transaction-scoped lock on one order's ledger - every read-then-compensate pass takes it first
+	LockOrder(ctx context.Context, orderID uuid.UUID) error
+	// Records that a flat-mode order's stock went back, false when it already had
+	MarkFlatRestored(ctx context.Context, orderID uuid.UUID, reason Reason) (bool, error)
+	// Deletes the chains of every order that nets to zero and has been quiet since the cutoff, returning how many orders
+	PruneSettledReservations(ctx context.Context, cutoff time.Time) (int64, error)
+	// Stock on the location's shelves plus order chains still open there
+	CountLocationCommitments(ctx context.Context, locationID uuid.UUID) (int64, error)
 
 	ListLowStockLevels(ctx context.Context, limit int32) ([]LowStockLevel, error)
 	ListLowStockItemsFlat(ctx context.Context, limit int32) ([]LowStockLevel, error)
