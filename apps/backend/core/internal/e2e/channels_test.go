@@ -159,7 +159,7 @@ func TestGiftCardCurrencyIsScoped(t *testing.T) {
 	}); !errors.Is(err, giftcard.ErrCurrencyMismatch) {
 		t.Errorf("USD card on EUR channel = %v, want ErrCurrencyMismatch", err)
 	}
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, usdCard.Code); bal != 1000 {
+	if bal, _ := h.giftcardBalance(usdCard.Code); bal != 1000 {
 		t.Errorf("USD card drained to %d by a failed placement, want untouched 1000", bal)
 	}
 
