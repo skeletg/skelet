@@ -350,7 +350,9 @@ a disk loss takes every product image with it.
 
 `MEDIA_LIBRARY_ROOT_PREFIX` is OPTIONAL and scopes the media tier's library
 lookups to one key prefix, for a bucket shared with something else. Empty
-means the whole bucket.
+means the whole bucket, minus the prefixes the platform writes itself
+(`catalog/`, `webforms/`, `data/`, `derived/`) - the library won't list,
+upload into, rename or delete those, and won't delete its own root.
 
 Moving a store between buckets, `skelet media-migrate` reads the S3 vars
 above as the source and takes the destination from its own flags, falling back

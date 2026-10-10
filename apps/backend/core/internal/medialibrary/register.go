@@ -16,4 +16,9 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidPath, "MEDIA_INVALID_PATH", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidFilename, "MEDIA_INVALID_FILENAME", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrRootRenameNotAllow, "MEDIA_ROOT_RENAME_NOT_ALLOWED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrRootDeleteNotAllowed, "MEDIA_ROOT_DELETE_NOT_ALLOWED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrReservedPath, "MEDIA_RESERVED_PATH", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidSize, "MEDIA_INVALID_SIZE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidDimensions, "MEDIA_INVALID_DIMENSIONS", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidFocalPoint, "MEDIA_INVALID_FOCAL_POINT", apperr.ClassValidation)
 }
