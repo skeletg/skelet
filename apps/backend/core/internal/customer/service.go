@@ -74,19 +74,9 @@ type authEmailFallback interface {
 
 func (s *Service) SetAuthEmailFallback(f authEmailFallback) { s.authFallback = f }
 
-// What account mail is sent from when the channel names no sender - the flow engine falls back the same way
-const fallbackFromAddress = "no-reply@skelet.local"
-
-// The From header for account mail - mirrors the flow engine's, so a fallback send is indistinguishable from a flow one
+// The From header for account mail - the same builder the flow engine uses, so a fallback send is indistinguishable from a flow one
 func (st StoreSnapshot) fromHeader() string {
-	addr := strings.TrimSpace(st.EmailFromAddress)
-	if addr == "" {
-		addr = fallbackFromAddress
-	}
-	if name := strings.TrimSpace(st.EmailFromName); name != "" {
-		return name + " <" + addr + ">"
-	}
-	return addr
+	return email.FromHeader(st.EmailFromName, st.EmailFromAddress)
 }
 
 func (s *Service) storeName(ctx context.Context, st StoreSnapshot) string {
