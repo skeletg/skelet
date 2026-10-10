@@ -1,9 +1,11 @@
 package linkgraph
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
-	"sort"
+	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -141,25 +143,23 @@ func (s *Service) Audit(ctx context.Context, channelID uuid.UUID, crawlID *uuid.
 		pages = append(pages, p)
 	}
 
+	host := hostOf(crawl.BaseUrl)
 	counts := map[Issue]int{}
 	for i := range pages {
-		pages[i].Issues = flagIssues(&pages[i], titleSeen, metaSeen)
+		pages[i].Issues = flagIssues(&pages[i], titleSeen, metaSeen, host)
 		for _, issue := range pages[i].Issues {
 			counts[issue]++
 		}
 	}
-	sort.SliceStable(pages, func(a, b int) bool {
-		if len(pages[a].Issues) != len(pages[b].Issues) {
-			return len(pages[a].Issues) > len(pages[b].Issues)
-		}
-		return pages[a].Path < pages[b].Path
+	slices.SortStableFunc(pages, func(a, b AuditPage) int {
+		return cmp.Or(cmp.Compare(len(b.Issues), len(a.Issues)), cmp.Compare(a.Path, b.Path))
 	})
 	return Audit{Pages: pages, IssueCounts: counts, Crawl: toCrawlInfo(crawl)}, nil
 }
 
 // A broken or redirecting page gets no content findings - it has no content, and listing ten of them per url buries
 // the one thing that matters
-func flagIssues(p *AuditPage, titleSeen, metaSeen map[string]int) []Issue {
+func flagIssues(p *AuditPage, titleSeen, metaSeen map[string]int, host string) []Issue {
 	out := []Issue{}
 	switch {
 	case p.StatusCode >= 400 || p.StatusCode == 0:
@@ -211,7 +211,7 @@ func flagIssues(p *AuditPage, titleSeen, metaSeen map[string]int) []Issue {
 	switch {
 	case p.Canonical == "":
 		out = append(out, IssueCanonicalNone)
-	case !canonicalPointsHere(p.Canonical, p.Path):
+	case !canonicalPointsHere(p.Canonical, p.Path, host):
 		out = append(out, IssueCanonicalOther)
 	}
 
@@ -244,12 +244,21 @@ func skippedHeadingLevel(headings []Heading) bool {
 	return false
 }
 
-// The tag is usually absolute while the crawl works in paths, so compare the tail rather than the whole string
-func canonicalPointsHere(canonical, path string) bool {
+// The tag is usually absolute while the crawl works in paths, so compare the tail - but only once the host is the crawled site's, since a canonical left pointing at staging or an old domain hands the page's ranking to somewhere else
+func canonicalPointsHere(canonical, path, host string) bool {
 	canonical = strings.TrimSuffix(canonical, "/")
 	if idx := strings.Index(canonical, "://"); idx >= 0 {
-		if slash := strings.Index(canonical[idx+3:], "/"); slash >= 0 {
-			canonical = canonical[idx+3+slash:]
+		rest := canonical[idx+3:]
+		slash := strings.Index(rest, "/")
+		authority := rest
+		if slash >= 0 {
+			authority = rest[:slash]
+		}
+		if host != "" && !strings.EqualFold(authority, host) {
+			return false
+		}
+		if slash >= 0 {
+			canonical = rest[slash:]
 		} else {
 			canonical = "/"
 		}
@@ -258,4 +267,12 @@ func canonicalPointsHere(canonical, path string) bool {
 		canonical = "/"
 	}
 	return canonical == strings.TrimSuffix(path, "/") || (canonical == "/" && path == "/")
+}
+
+func hostOf(base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
