@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 )
 
@@ -47,7 +47,7 @@ func TestSignupFormDoubleOptInAndOneClickUnsubscribe(t *testing.T) {
 	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
-	created, err := h.D.Form.Create(h.Ctx, form.SaveInput{
+	created, err := h.D.Form.Create(h.Ctx, signupform.SaveInput{
 		ChannelID: f.Channel.ID, Slug: "e2e-doi-" + uuid.NewString()[:8], Name: "Newsletter", Status: "active",
 	})
 	if err != nil {

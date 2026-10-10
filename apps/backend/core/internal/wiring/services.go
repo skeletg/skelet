@@ -11,7 +11,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
@@ -28,6 +27,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/sales"
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -138,7 +138,7 @@ func newReviewService(q *db.Queries, txMgr *txrunner.Manager) *review.Service {
 	return review.NewService(review.NewRepository(q, txMgr), txMgr)
 }
 
-func newFormService(q *db.Queries) *form.Service { return form.New(q) } // storefront email capture - contact + consent + segment + form_submitted flow
+func newFormService(q *db.Queries) *signupform.Service { return signupform.New(q) } // storefront email capture - contact + consent + segment + form_submitted flow
 
 func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Service) *webform.Service { // admin-built CMS forms placed on pages via the `form` block
 	return webform.New(webform.NewRepository(q, txMgr), cfg)

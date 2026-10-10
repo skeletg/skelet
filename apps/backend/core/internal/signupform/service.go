@@ -1,6 +1,6 @@
-// Package form powers storefront signup forms (popup / inline / flyout email capture) managed from the dashboard and feeding Pulse
+// Package signupform powers storefront signup forms (popup / inline / flyout email capture) managed from the dashboard and feeding Pulse
 // A submission records the lead and mails a double opt-in link - only following it creates the contact, records consent, adds the subscriber to the form's segment and fires the form_submitted flow
-package form
+package signupform
 
 import (
 	"context"
@@ -14,10 +14,13 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
@@ -44,10 +47,15 @@ type sendLimiter interface {
 	Allow(ctx context.Context, key string) bool
 }
 
-const (
-	ConfirmationTTL     = 7 * 24 * time.Hour
-	confirmationTTLText = "7 days"
-)
+const ConfirmationTTL = 7 * 24 * time.Hour
+
+// What the confirmation mail says about the link's life, read off the TTL so the two can't disagree
+var confirmationTTLText = fmt.Sprintf("%d days", int(ConfirmationTTL.Hours()/24))
+
+// The longest first name a submission keeps - it lands in the confirmation mail and the contact
+const maxNameRunes = 100
+
+const defaultButtonLabel = "Subscribe"
 
 // Service is the signup-form CRUD + submission API
 type Service struct {
@@ -78,6 +86,19 @@ type DisplayConfig struct {
 	DelaySeconds  int    `json:"delaySeconds"`  // for trigger=delay
 	ScrollPercent int    `json:"scrollPercent"` // for trigger=scroll
 	FrequencyDays int    `json:"frequencyDays"` // cookie cap: don't re-show for N days
+}
+
+// Holds the widget to values it can act on - an unknown trigger shows immediately, and a negative delay or a scroll past the page never fires
+func (d DisplayConfig) sanitized() DisplayConfig {
+	switch d.Trigger {
+	case "immediate", "delay", "scroll", "exit_intent":
+	default:
+		d.Trigger = "immediate"
+	}
+	d.DelaySeconds = min(max(d.DelaySeconds, 0), 600)
+	d.ScrollPercent = min(max(d.ScrollPercent, 0), 100)
+	d.FrequencyDays = min(max(d.FrequencyDays, 0), 365)
+	return d
 }
 
 type Form struct {
@@ -147,31 +168,41 @@ func normType(t string) string {
 
 func (s *Service) Create(ctx context.Context, in SaveInput) (Form, error) {
 	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Slug) == "" {
-		return Form{}, fmt.Errorf("name and slug are required")
+		return Form{}, ErrNameAndSlugRequired
 	}
-	dc, _ := json.Marshal(in.Display)
+	dc, _ := json.Marshal(in.Display.sanitized())
 	row, err := s.q.CreateSignupForm(ctx, db.CreateSignupFormParams{
 		ChannelID: in.ChannelID, Slug: slugify(in.Slug), Name: in.Name, Status: normStatus(in.Status),
-		FormType: normType(in.Type), Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
+		FormType: normType(in.Type), Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, defaultButtonLabel),
 		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
 		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
+	if pgdb.IsUniqueViolation(err) {
+		return Form{}, ErrSlugTaken
+	}
 	if err != nil {
 		return Form{}, err
 	}
 	return toForm(row), nil
 }
 
+// The slug stays as created - the storefront and saved embeds address the form by it
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in SaveInput) (Form, error) {
-	dc, _ := json.Marshal(in.Display)
+	if strings.TrimSpace(in.Name) == "" {
+		return Form{}, ErrNameAndSlugRequired
+	}
+	dc, _ := json.Marshal(in.Display.sanitized())
 	row, err := s.q.UpdateSignupForm(ctx, db.UpdateSignupFormParams{
 		ID: id, Name: in.Name, Status: normStatus(in.Status), FormType: normType(in.Type),
-		Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
+		Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, defaultButtonLabel),
 		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
 		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Form{}, ErrFormNotFound
+	}
 	if err != nil {
 		return Form{}, err
 	}
@@ -180,6 +211,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in SaveInput) (Form,
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Form, error) {
 	row, err := s.q.GetSignupForm(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Form{}, ErrFormNotFound
+	}
 	if err != nil {
 		return Form{}, err
 	}
@@ -224,9 +258,16 @@ const DefaultSuccessMessage = "Check your inbox to confirm your subscription."
 
 // Submit records the lead and mails the double opt-in link - consent, segment and flow all wait for Confirm, so an address typed by someone else is never subscribed and an existing opt-out is never touched
 func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID, email, name string) (string, error) {
-	em := strings.ToLower(strings.TrimSpace(email))
+	em := customer.NormalizeEmail(email)
 	if em == "" {
 		return "", ErrEmailRequired
+	}
+	// The address is mailed straight away, so it has to be one address and nothing else - the rule account creation uses
+	if customer.ValidateEmail(em) != nil {
+		return "", ErrEmailInvalid
+	}
+	if utf8.RuneCountInString(name) > maxNameRunes {
+		return "", ErrNameTooLong
 	}
 	f, err := s.resolveActive(ctx, channelID, formSlugOrID)
 	if err != nil {
