@@ -81,6 +81,11 @@ func NewTransformHandler(t *media.Transformer, opts Options) http.Handler {
 			slog.Warn("media transform rejected", "key", key, "err", err)
 			http.Error(w, "source image too large", http.StatusUnprocessableEntity)
 			return
+		case errors.Is(err, media.ErrUnsupportedSource):
+			// HEIC and the like - the original exists, this build just can't draw it, which no retry changes
+			slog.Warn("media transform: unsupported source", "key", key, "err", err)
+			http.Error(w, "image format can't be resized", http.StatusUnsupportedMediaType)
+			return
 		case errors.Is(err, media.ErrBusy):
 			w.Header().Set("Retry-After", "2")
 			http.Error(w, "image render capacity saturated", http.StatusServiceUnavailable)
