@@ -25,7 +25,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
@@ -50,6 +49,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -111,7 +111,7 @@ type Resolver struct {
 	SignalsAPI       *signalsclient.Client
 	NotificationSvc  *notification.Service
 	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
-	FormSvc          *form.Service
+	FormSvc          *signupform.Service
 	WebFormSvc       *webform.Service
 	ChatSvc          *ai.History
 	CacheClient      *revalidate.Client

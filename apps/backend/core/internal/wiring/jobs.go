@@ -22,7 +22,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
@@ -37,6 +36,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -81,7 +81,7 @@ type jobDeps struct {
 	SignalsClient *signalsclient.Client
 	Order         *order.Service
 	Payment       *paymentpkg.Service
-	Form          *form.Service
+	Form          *signupform.Service
 
 	SignalsEnabled SignalsEnabled
 }

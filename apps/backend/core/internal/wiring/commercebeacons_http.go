@@ -11,7 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
@@ -35,7 +35,7 @@ var commerceBeacons = []struct {
 type commerceBeaconDeps struct {
 	Channels    *channel.Service
 	BackInStock *backinstock.Service
-	Forms       *form.Service
+	Forms       *signupform.Service
 	Config      *config.Service
 	Limiter     *ratelimit.RedisLimiter
 	JWTSecret   string
@@ -105,15 +105,15 @@ func (d commerceBeaconDeps) activeForms(w http.ResponseWriter, r *http.Request, 
 	}
 	forms, _ := d.Forms.Active(r.Context(), channelID)
 	type pubForm struct {
-		ID             string             `json:"id"`
-		Slug           string             `json:"slug"`
-		Type           string             `json:"type"`
-		Heading        string             `json:"heading"`
-		Body           string             `json:"body"`
-		ButtonLabel    string             `json:"buttonLabel"`
-		SuccessMessage string             `json:"successMessage"`
-		CollectName    bool               `json:"collectName"`
-		Display        form.DisplayConfig `json:"display"`
+		ID             string                   `json:"id"`
+		Slug           string                   `json:"slug"`
+		Type           string                   `json:"type"`
+		Heading        string                   `json:"heading"`
+		Body           string                   `json:"body"`
+		ButtonLabel    string                   `json:"buttonLabel"`
+		SuccessMessage string                   `json:"successMessage"`
+		CollectName    bool                     `json:"collectName"`
+		Display        signupform.DisplayConfig `json:"display"`
 	}
 	out := make([]pubForm, 0, len(forms))
 	for _, f := range forms {
@@ -144,9 +144,10 @@ func (d commerceBeaconDeps) submitForm(w http.ResponseWriter, r *http.Request, c
 	}
 	msg, err := d.Forms.Submit(r.Context(), channelID, b.Form, b.Email, b.Name)
 	if err != nil {
-		// Only the two shopper-facing sentinels get echoed - any other text would leak internals
+		// Only the shopper-facing sentinels get echoed - any other text would leak internals
 		switch {
-		case errors.Is(err, form.ErrEmailRequired), errors.Is(err, form.ErrFormNotFound):
+		case errors.Is(err, signupform.ErrEmailRequired), errors.Is(err, signupform.ErrEmailInvalid), errors.Is(err, signupform.ErrNameTooLong),
+			errors.Is(err, signupform.ErrFormNotFound):
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		default:
