@@ -1,11 +1,12 @@
 package linkgraph
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -79,8 +80,11 @@ func (s *Service) Diff(ctx context.Context, channelID uuid.UUID, baseID, current
 	var base db.SeoCrawl
 	if baseID != nil {
 		base, err = s.queries.GetSeoCrawl(ctx, *baseID)
-		if err == nil && base.ChannelID != channelID {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
 			err = ErrNoBaseline
+		case err == nil && (base.ChannelID != channelID || base.ID == current.ID):
+			err = ErrNoBaseline // a crawl compared with itself says nothing changed, which is never the question
 		}
 	} else {
 		base, err = s.queries.PreviousSeoCrawl(ctx, db.PreviousSeoCrawlParams{
@@ -112,17 +116,16 @@ func (s *Service) Diff(ctx context.Context, channelID uuid.UUID, baseID, current
 		after[r.Path] = r
 	}
 
-	out := diffPages(before, after, !base.HitBudget && !current.HitBudget)
+	out := diffPages(before, after, crawlComplete(base) && crawlComplete(current))
 	out.Base, out.Current = toCrawlInfo(base), toCrawlInfo(current)
-	sort.SliceStable(out.Changes, func(i, j int) bool {
-		a, b := out.Changes[i], out.Changes[j]
+	slices.SortStableFunc(out.Changes, func(a, b Change) int {
 		if a.Kind.IsRegression() != b.Kind.IsRegression() {
-			return a.Kind.IsRegression()
+			if a.Kind.IsRegression() {
+				return -1
+			}
+			return 1
 		}
-		if a.Kind != b.Kind {
-			return a.Kind < b.Kind
-		}
-		return a.Path < b.Path
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Path, b.Path))
 	})
 	return out, nil
 }
