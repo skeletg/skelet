@@ -87,9 +87,10 @@ func (s *Service) Balance(ctx context.Context, customerID uuid.UUID) (int64, err
 }
 
 func (s *Service) Entries(ctx context.Context, customerID uuid.UUID, limit int32) ([]Entry, error) {
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
 	}
+	limit = min(limit, 200)
 	rows, err := s.queries.ListLoyaltyEntries(ctx, db.ListLoyaltyEntriesParams{
 		CustomerID: customerID,
 		Limit:      limit,
@@ -113,7 +114,7 @@ func (s *Service) Adjust(ctx context.Context, customerID uuid.UUID, points int64
 	var entry Entry
 	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := s.queries.WithTx(t)
-		if err := q.LockCustomerForStoreCredit(ctx, customerID); err != nil {
+		if err := q.LockCustomerForLoyalty(ctx, customerID); err != nil {
 			return fmt.Errorf("lock customer: %w", err)
 		}
 		if points < 0 {
@@ -161,7 +162,7 @@ func (s *Service) Redeem(ctx context.Context, customerID uuid.UUID, points int64
 	}
 	err = s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := s.queries.WithTx(t)
-		if err := q.LockCustomerForStoreCredit(ctx, customerID); err != nil {
+		if err := q.LockCustomerForLoyalty(ctx, customerID); err != nil {
 			return fmt.Errorf("lock customer: %w", err)
 		}
 		bal, err := q.LoyaltyBalance(ctx, customerID)
