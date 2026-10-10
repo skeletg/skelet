@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,9 +40,18 @@ type GiftCard struct {
 	CustomerID     *uuid.UUID
 	ChannelID      *uuid.UUID
 	ExpiresAt      *time.Time
+	IssueRef       string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
+
+// Whether the issuing order bought this card - a refund paid out as a gift card also carries the order, keyed "memo:" or "return:",
+// and cancelling or refunding the order must never take that one back. Purchase cards are keyed "order:", or unkeyed from before the key existed
+func (c GiftCard) Purchased() bool {
+	return c.IssuedOrderID != nil && (c.IssueRef == "" || strings.HasPrefix(c.IssueRef, purchaseRefPrefix))
+}
+
+const purchaseRefPrefix = "order:"
 
 func (c GiftCard) SpendsOn(channelID uuid.UUID) bool {
 	return c.ChannelID == nil || *c.ChannelID == channelID

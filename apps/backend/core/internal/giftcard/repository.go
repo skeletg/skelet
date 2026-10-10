@@ -71,7 +71,7 @@ func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (GiftCar
 }
 
 func (r *postgresRepository) GetByCode(ctx context.Context, code string) (GiftCard, error) {
-	row, err := r.queries.GetGiftCardByCode(ctx, code)
+	row, err := r.queries.GetGiftCardByCode(ctx, NormalizeCode(code))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return GiftCard{}, ErrNotFound
@@ -82,7 +82,7 @@ func (r *postgresRepository) GetByCode(ctx context.Context, code string) (GiftCa
 }
 
 func (r *postgresRepository) GetByCodeForUpdate(ctx context.Context, code string) (GiftCard, error) {
-	row, err := r.queries.GetGiftCardByCodeForUpdate(ctx, code)
+	row, err := r.queries.GetGiftCardByCodeForUpdate(ctx, NormalizeCode(code))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return GiftCard{}, ErrNotFound
@@ -189,6 +189,7 @@ func toGiftCard(row db.GiftCard) GiftCard {
 		Status:         row.Status,
 		RecipientEmail: row.RecipientEmail,
 		Message:        row.Message,
+		IssueRef:       row.IssueRef,
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}
