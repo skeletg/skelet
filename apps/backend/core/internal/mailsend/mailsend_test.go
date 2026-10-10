@@ -3,6 +3,7 @@ package mailsend
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"strings"
 	"testing"
 	"time"
@@ -142,7 +143,7 @@ func TestFromWithoutConfig(t *testing.T) {
 	s := New(&captureSender{}, nil)
 
 	got := s.from(context.Background(), Spec{ChannelID: uuid.New(), FallbackName: "Vetrina"})
-	if got != "Vetrina <no-reply@skelet.local>" {
+	if got != `"Vetrina" <no-reply@skelet.local>` {
 		t.Errorf("From = %q, want the fallback name over the fallback address", got)
 	}
 
@@ -161,5 +162,31 @@ func TestAResolvedFromIsNotSecondGuessed(t *testing.T) {
 	got := s.from(context.Background(), Spec{From: "Store <hi@store.test>", ChannelID: uuid.New(), FallbackName: "Ignored"})
 	if got != "Store <hi@store.test>" {
 		t.Errorf("From = %q, want the caller's own", got)
+	}
+}
+
+// A sender name with a comma read as two addresses, and a non-ASCII one went out unencoded
+func TestFromNamesAreQuotedAndEncoded(t *testing.T) {
+	s := New(&captureSender{}, nil)
+	for name, want := range map[string]string{
+		"Shop, Inc":        `"Shop, Inc" <no-reply@skelet.local>`,
+		"Prodavnica Čačak": "=?utf-8?q?Prodavnica_=C4=8Ca=C4=8Dak?= <no-reply@skelet.local>",
+	} {
+		got := s.from(context.Background(), Spec{FallbackName: name})
+		if got != want {
+			t.Errorf("From for %q = %q, want %q", name, got, want)
+		}
+		if a, err := mail.ParseAddress(got); err != nil || a.Name != name {
+			t.Errorf("From %q doesn't parse back to one mailbox named %q: %v", got, name, err)
+		}
+	}
+}
+
+func TestLogsCarryTheDomainNotTheAddress(t *testing.T) {
+	if got := recipientDomain("ana.markovic@example.test"); got != "*@example.test" {
+		t.Errorf("recipientDomain = %q", got)
+	}
+	if got := recipientDomain("garbage"); got != "*" {
+		t.Errorf("recipientDomain(no @) = %q", got)
 	}
 }
