@@ -12,7 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
 
@@ -168,7 +168,7 @@ func TestSignupConfirmPost(t *testing.T) {
 		want int
 	}{
 		{"confirmed", nil, http.StatusOK},
-		{"dead link", form.ErrConfirmationInvalid, http.StatusBadRequest},
+		{"dead link", signupform.ErrConfirmationInvalid, http.StatusBadRequest},
 		{"write failed", errors.New("db down"), http.StatusInternalServerError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

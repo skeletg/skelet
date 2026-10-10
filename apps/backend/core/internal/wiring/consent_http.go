@@ -12,7 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
 
@@ -113,7 +113,7 @@ func signupConfirmHandler(forms signupConfirmer, allow requestAllower) http.Hand
 			return
 		}
 		if err := forms.Confirm(r.Context(), token); err != nil {
-			if errors.Is(err, form.ErrConfirmationInvalid) {
+			if errors.Is(err, signupform.ErrConfirmationInvalid) {
 				invalid(w)
 				return
 			}
