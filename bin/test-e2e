@@ -87,7 +87,7 @@ docker compose exec -T "${USER_FLAG[@]}" \
     -e SKELET_TESTDB_SHARED=1 \
     -e DATABASE_URL="$E2E_DB_URL" \
     -e SIGNALS_DB_URL= \
-    -e SIGNALS_GRPC_ADDR="127.0.0.1:$SIG_GRPC_PORT" \
+    -e E2E_SIGNALS_GRPC_ADDR="127.0.0.1:$SIG_GRPC_PORT" \
     -e SIGNALS_SERVICE_SECRET="$E2E_SERVICE_SECRET" \
     app go test ./internal/e2e/... ./plugins/... -count=1 -timeout 40m "$@"
 
