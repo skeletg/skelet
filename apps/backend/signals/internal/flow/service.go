@@ -783,18 +783,11 @@ func (s *Service) unsubscribeLink(ch Store, customerID uuid.UUID) string {
 // The channel's configured sender identity as core pushed it, with the store's name when no sender
 // name was ever set - an empty From is refused by every relay
 func (s *Service) fromAddress(ch Store) string {
-	addr := strings.TrimSpace(ch.FromAddress)
-	if addr == "" {
-		addr = "no-reply@skelet.local"
-	}
 	name := strings.TrimSpace(ch.FromName)
 	if name == "" {
 		name = ch.Name
 	}
-	if name != "" {
-		return name + " <" + addr + ">"
-	}
-	return addr
+	return emailpkg.FromHeader(name, ch.FromAddress)
 }
 
 func storefrontURL(ch Store) string {
