@@ -155,7 +155,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		})
 	// The reconciliation half of redirect/BNPL flows - a shopper who closes the tab mid-3DS leaves an unpaid order no webhook will ever settle, so this asks the gateway directly and applies the answer through the same amount-aware settle path the webhooks use
 	jobScheduler.Register("payment-sync-sweep", "@every 15m", "Ask gateways where stuck unpaid gateway payments stand (abandoned redirect/3DS flows) and settle what they report.",
-		func(ctx context.Context) error { return sweepUnsettledPayments(ctx, d.Order, d.Payment) })
+		func(ctx context.Context) error { return SweepUnsettledPayments(ctx, d.Order, d.Payment) })
 	jobScheduler.Register("subscription-billing", "@every 1m", "Bill subscriptions whose next billing date has passed.",
 		func(ctx context.Context) error { _, err := d.Subscription.ProcessDue(ctx, time.Now()); return err })
 	jobScheduler.Register("subscription-collect", "@every 1m", "Charge due subscription invoices against saved payment methods (dunning ladder on failure).",
