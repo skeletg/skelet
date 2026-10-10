@@ -39,6 +39,7 @@ func TestPartialShipCancelProratesReversals(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	earned, _ := h.D.Loyalty.Balance(h.Ctx, c.ID)
 	if earned <= 0 {
 		t.Fatalf("earned %d points, want accrual before proration can mean anything", earned)
