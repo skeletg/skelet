@@ -63,7 +63,7 @@ func TestPartialShipCancelProratesReversals(t *testing.T) {
 	h.Settle(t)
 
 	wantRestore := money.ScaleFraction(spent, 0.5)
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != wantRestore {
+	if bal, _ := h.giftcardBalance(card.Code); bal != wantRestore {
 		t.Errorf("card restored %d, want the prorated %d of %d", bal, wantRestore, spent)
 	}
 	wantPoints := earned - money.ScaleFraction(earned, 0.5)
@@ -77,7 +77,7 @@ func TestPartialShipCancelProratesReversals(t *testing.T) {
 	// Proration must also be replay-stable: revoke targets, restores guard
 	h.RearmOutbox(t, "order.cancelled", o.ID.String(), 1)
 	h.Settle(t)
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != wantRestore {
+	if bal, _ := h.giftcardBalance(card.Code); bal != wantRestore {
 		t.Errorf("card balance after replayed prorated cancel = %d, want still %d", bal, wantRestore)
 	}
 	if bal, _ := h.D.Loyalty.Balance(h.Ctx, c.ID); bal != wantPoints {
