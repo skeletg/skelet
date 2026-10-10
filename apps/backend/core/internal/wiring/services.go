@@ -144,7 +144,9 @@ func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Servi
 	return webform.New(webform.NewRepository(q, txMgr), cfg)
 }
 
-func newMenuService(q *db.Queries) *menu.Service { return menu.NewService(menu.NewRepository(q)) }
+func newMenuService(q *db.Queries, txMgr *txrunner.Manager) *menu.Service {
+	return menu.NewService(menu.NewRepository(q, txMgr))
+}
 
 func newChatHistory(q *db.Queries) *ai.History { return ai.NewHistory(q) }
 

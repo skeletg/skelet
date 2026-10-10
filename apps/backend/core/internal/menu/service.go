@@ -3,6 +3,7 @@ package menu
 import (
 	"context"
 	"fmt"
+	neturl "net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ func (s *Service) SetCache(c *cache.Cache) { s.cache = c }
 // Exposes the underlying cache so the storefront resolver reads from the same Valkey namespace this service invalidates - nil when no cache is configured
 func (s *Service) Cache() *cache.Cache { return s.cache }
 
-// Drops every cached storefront-menu entry, called from publishMenuUpdated so every mutation routes through one invalidation point and a new write method can't forget it
+// Drops every cached storefront-menu entry, called from publishMenuUpdated so every mutation routes through one invalidation point
 func (s *Service) invalidate(ctx context.Context) {
 	s.cache.Flush(ctx)
 }
@@ -50,12 +51,27 @@ func (s *Service) publishMenuUpdated(ctx context.Context, menuID uuid.UUID, slug
 	s.bus.Publish(ctx, &MenuUpdated{MenuID: menuID, Slug: slug})
 }
 
+// For writes that only hold a menu or item id - reorder, store assignment and translations skipped the publish, so the storefront served the old menu until its TTL ran out
+func (s *Service) publishForMenu(ctx context.Context, menuID uuid.UUID) {
+	slug := ""
+	if m, err := s.repo.GetMenuByID(ctx, menuID); err == nil {
+		slug = m.Slug
+	}
+	s.publishMenuUpdated(ctx, menuID, slug)
+}
+
+func (s *Service) publishForItem(ctx context.Context, itemID uuid.UUID) {
+	if it, err := s.repo.GetMenuItemByID(ctx, itemID); err == nil {
+		s.publishForMenu(ctx, it.MenuID)
+	}
+}
+
 func (s *Service) CreateMenu(ctx context.Context, input CreateMenuInput) (Menu, error) {
 	if err := validateSlug(input.Slug); err != nil {
 		return Menu{}, err
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Menu{}, fmt.Errorf("name is required")
+		return Menu{}, ErrNameRequired
 	}
 	m, err := s.repo.CreateMenu(ctx, input)
 	if err != nil {
@@ -84,7 +100,7 @@ func (s *Service) UpdateMenu(ctx context.Context, input UpdateMenuInput) (Menu, 
 		}
 	}
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
-		return Menu{}, fmt.Errorf("name is required")
+		return Menu{}, ErrNameRequired
 	}
 	m, err := s.repo.UpdateMenu(ctx, input)
 	if err != nil {
@@ -106,13 +122,13 @@ func (s *Service) DeleteMenu(ctx context.Context, id uuid.UUID) error {
 // Validates the target/url XOR and depth constraints in the service, rather than letting the DB CHECK catch them with an ugly message
 func (s *Service) CreateMenuItem(ctx context.Context, input CreateMenuItemInput) (MenuItem, error) {
 	if strings.TrimSpace(input.Label) == "" {
-		return MenuItem{}, fmt.Errorf("label is required")
+		return MenuItem{}, ErrLabelRequired
 	}
 	if err := validateTarget(input.TargetType, input.TargetID, input.URL); err != nil {
 		return MenuItem{}, err
 	}
 	if input.ParentID != nil {
-		if err := s.validateParent(ctx, input.MenuID, *input.ParentID, uuid.Nil); err != nil {
+		if err := validateParent(ctx, s.repo, input.MenuID, *input.ParentID, uuid.Nil); err != nil {
 			return MenuItem{}, err
 		}
 	}
@@ -136,7 +152,7 @@ func (s *Service) UpdateMenuItem(ctx context.Context, input UpdateMenuItemInput)
 		return MenuItem{}, err
 	}
 	if input.Label != nil && strings.TrimSpace(*input.Label) == "" {
-		return MenuItem{}, fmt.Errorf("label cannot be empty")
+		return MenuItem{}, ErrLabelRequired
 	}
 	// Recompute the effective {targetType, targetID, url} and validate the XOR - nil inputs mean keep current
 	tt := current.TargetType
@@ -157,7 +173,7 @@ func (s *Service) UpdateMenuItem(ctx context.Context, input UpdateMenuItemInput)
 	// Parent change - validate cycle, same-menu and depth
 	if input.ClearParent {
 	} else if input.ParentID != nil {
-		if err := s.validateParent(ctx, current.MenuID, *input.ParentID, current.ID); err != nil {
+		if err := validateParent(ctx, s.repo, current.MenuID, *input.ParentID, current.ID); err != nil {
 			return MenuItem{}, err
 		}
 	}
@@ -173,32 +189,39 @@ func (s *Service) UpdateMenuItem(ctx context.Context, input UpdateMenuItemInput)
 
 // Re-stamps sort_order, and optionally parent_id, for a batch of items, backing the dashboard's drag-reorder
 // Updates run one-by-one, which is fine at the menu sizes we expect and avoids a multi-row UPDATE Postgres can't always plan well
+// One transaction, so a refusal halfway no longer left the menu half-reordered
 func (s *Service) ReorderMenuItems(ctx context.Context, menuID uuid.UUID, items []ReorderMenuItem) error {
-	for _, it := range items {
-		current, err := s.repo.GetMenuItemByID(ctx, it.ID)
-		if err != nil {
-			return err
-		}
-		if current.MenuID != menuID {
-			return ErrParentInOtherMenu
-		}
-		parentInput := it.ParentID
-		clearParent := it.ParentID == nil && current.ParentID != nil
-		if it.ParentID != nil {
-			if err := s.validateParent(ctx, menuID, *it.ParentID, it.ID); err != nil {
+	err := s.repo.InTx(ctx, func(r Repository) error {
+		for _, it := range items {
+			current, err := r.GetMenuItemByID(ctx, it.ID)
+			if err != nil {
+				return err
+			}
+			if current.MenuID != menuID {
+				return ErrParentInOtherMenu
+			}
+			parentInput := it.ParentID
+			clearParent := it.ParentID == nil && current.ParentID != nil
+			if it.ParentID != nil {
+				if err := validateParent(ctx, r, menuID, *it.ParentID, it.ID); err != nil {
+					return err
+				}
+			}
+			if _, err := r.UpdateMenuItem(ctx, UpdateMenuItemInput{
+				ID:          it.ID,
+				ParentID:    parentInput,
+				ClearParent: clearParent,
+				SortOrder:   &it.SortOrder,
+			}); err != nil {
 				return err
 			}
 		}
-		_, err = s.repo.UpdateMenuItem(ctx, UpdateMenuItemInput{
-			ID:          it.ID,
-			ParentID:    parentInput,
-			ClearParent: clearParent,
-			SortOrder:   &it.SortOrder,
-		})
-		if err != nil {
-			return err
-		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
+	s.publishForMenu(ctx, menuID)
 	return nil
 }
 
@@ -235,23 +258,31 @@ func (s *Service) ListMenuChannelAssignmentsByMenuIDs(ctx context.Context, menuI
 }
 
 // Replaces the entire assignment set in one call, dropping everything then inserting the desired set - the admin UI ships the full list per save, so partial-update semantics aren't needed
+// One transaction - a failed insert after the delete used to take the menu off every store
 func (s *Service) SetMenuStores(ctx context.Context, menuID uuid.UUID, channelIDs []uuid.UUID) error {
 	if _, err := s.repo.GetMenuByID(ctx, menuID); err != nil {
 		return err
 	}
-	if err := s.repo.DeleteAllMenuChannelAssignments(ctx, menuID); err != nil {
-		return err
-	}
-	seen := make(map[uuid.UUID]bool, len(channelIDs))
-	for _, sv := range channelIDs {
-		if seen[sv] {
-			continue
-		}
-		seen[sv] = true
-		if err := s.repo.InsertMenuChannelAssignment(ctx, menuID, sv); err != nil {
+	err := s.repo.InTx(ctx, func(r Repository) error {
+		if err := r.DeleteAllMenuChannelAssignments(ctx, menuID); err != nil {
 			return err
 		}
+		seen := make(map[uuid.UUID]bool, len(channelIDs))
+		for _, sv := range channelIDs {
+			if seen[sv] {
+				continue
+			}
+			seen[sv] = true
+			if err := r.InsertMenuChannelAssignment(ctx, menuID, sv); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
+	s.publishForMenu(ctx, menuID)
 	return nil
 }
 
@@ -265,21 +296,30 @@ func (s *Service) ListMenuItemTranslationsByItemIDs(ctx context.Context, itemIDs
 
 func (s *Service) UpsertMenuItemTranslation(ctx context.Context, itemID uuid.UUID, locale, label string) (MenuItemTranslation, error) {
 	if strings.TrimSpace(locale) == "" {
-		return MenuItemTranslation{}, fmt.Errorf("locale is required")
+		return MenuItemTranslation{}, ErrLocaleRequired
 	}
 	if strings.TrimSpace(label) == "" {
-		return MenuItemTranslation{}, fmt.Errorf("label is required")
+		return MenuItemTranslation{}, ErrLabelRequired
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, locale); err != nil {
 			return MenuItemTranslation{}, err
 		}
 	}
-	return s.repo.UpsertMenuItemTranslation(ctx, itemID, locale, label)
+	t, err := s.repo.UpsertMenuItemTranslation(ctx, itemID, locale, label)
+	if err != nil {
+		return MenuItemTranslation{}, err
+	}
+	s.publishForItem(ctx, itemID)
+	return t, nil
 }
 
 func (s *Service) DeleteMenuItemTranslation(ctx context.Context, itemID uuid.UUID, locale string) error {
-	return s.repo.DeleteMenuItemTranslation(ctx, itemID, locale)
+	if err := s.repo.DeleteMenuItemTranslation(ctx, itemID, locale); err != nil {
+		return err
+	}
+	s.publishForItem(ctx, itemID)
+	return nil
 }
 
 // Picks the locale-specific label when available, else the item's base label - used by the front resolver and any other read site wanting the user-facing label
@@ -310,13 +350,28 @@ func validateTarget(targetType TargetType, targetID *uuid.UUID, url string) erro
 		if !targetType.IsValid() {
 			return ErrInvalidTargetType
 		}
+		return nil
 	}
-	return nil
+	return validateLinkURL(url)
+}
+
+// The scheme allowlist for free-form links - the storefront renders the value straight into an href, so javascript: and data: are script, and a URL that doesn't parse cleanly (control characters, a colon before any slash) is refused rather than guessed at
+func validateLinkURL(raw string) error {
+	u, err := neturl.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidURL, err)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "", "http", "https", "mailto", "tel":
+		return nil
+	}
+	return ErrInvalidURL
 }
 
 // Checks the parent exists, lives in the same menu, wouldn't form a cycle through childID (Nil means a brand-new item, so no cycle is possible), and that the resulting depth is within MaxDepth
-func (s *Service) validateParent(ctx context.Context, menuID, parentID, childID uuid.UUID) error {
-	parent, err := s.repo.GetMenuItemByID(ctx, parentID)
+// The depth counts the moved item's own subtree - checking only the parent's depth let a three-level branch land under a depth-4 parent
+func validateParent(ctx context.Context, r Repository, menuID, parentID, childID uuid.UUID) error {
+	parent, err := r.GetMenuItemByID(ctx, parentID)
 	if err != nil {
 		return ErrMenuItemNotFound
 	}
@@ -336,15 +391,45 @@ func (s *Service) validateParent(ctx context.Context, menuID, parentID, childID 
 		if depth >= MaxDepth {
 			return ErrDepthExceeded
 		}
-		next, err := s.repo.GetMenuItemByID(ctx, *cur.ParentID)
+		next, err := r.GetMenuItemByID(ctx, *cur.ParentID)
 		if err != nil {
 			return ErrMenuItemNotFound
 		}
 		cur = next
 		depth++
 	}
-	if depth >= MaxDepth {
+	height := 1
+	if childID != uuid.Nil {
+		items, err := r.ListMenuItemsByMenu(ctx, menuID)
+		if err != nil {
+			return err
+		}
+		height = subtreeHeight(items, childID)
+	}
+	if depth+height > MaxDepth {
 		return ErrDepthExceeded
 	}
 	return nil
+}
+
+// Levels in the subtree rooted at id, the item itself counting as one
+func subtreeHeight(items []MenuItem, id uuid.UUID) int {
+	children := make(map[uuid.UUID][]uuid.UUID, len(items))
+	for _, it := range items {
+		if it.ParentID != nil {
+			children[*it.ParentID] = append(children[*it.ParentID], it.ID)
+		}
+	}
+	var height func(uuid.UUID, int) int
+	height = func(n uuid.UUID, guard int) int {
+		if guard > MaxDepth*2 {
+			return guard // a stored cycle - report it as too deep rather than recurse forever
+		}
+		best := 0
+		for _, c := range children[n] {
+			best = max(best, height(c, guard+1))
+		}
+		return best + 1
+	}
+	return height(id, 0)
 }
