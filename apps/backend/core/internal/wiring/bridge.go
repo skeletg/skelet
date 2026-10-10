@@ -26,7 +26,6 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -54,6 +53,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -134,7 +134,7 @@ type Svcs struct {
 	Wishlist     *wishlist.Service
 	AI           *ai.Service
 	Review       *review.Service
-	Form         *form.Service
+	Form         *signupform.Service
 	WebForm      *webform.Service
 	Menu         *menu.Service
 	Chat         *ai.History

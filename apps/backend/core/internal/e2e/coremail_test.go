@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
@@ -150,7 +150,7 @@ func TestTheSeededFlowTakesTheSignupConfirmation(t *testing.T) {
 	h.SeedStarterContent(t, f.Channel.ID)
 	flowID := h.FlowIDByTrigger(t, f.Channel.ID, signalsapi.TriggerSignupConfirmation)
 
-	created, err := h.D.Form.Create(h.Ctx, form.SaveInput{ChannelID: f.Channel.ID, Slug: "e2e-seeded-" + uuid.NewString()[:8], Name: "News", Status: "active"})
+	created, err := h.D.Form.Create(h.Ctx, signupform.SaveInput{ChannelID: f.Channel.ID, Slug: "e2e-seeded-" + uuid.NewString()[:8], Name: "News", Status: "active"})
 	if err != nil {
 		t.Fatalf("create form: %v", err)
 	}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -132,11 +132,11 @@ func TestIngestFormsServeAndSubmit(t *testing.T) {
 	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
-	created, err := h.D.Form.Create(h.Ctx, form.SaveInput{
+	created, err := h.D.Form.Create(h.Ctx, signupform.SaveInput{
 		ChannelID: f.Channel.ID, Slug: "e2e-news-" + uuid.NewString()[:8], Name: "Newsletter",
 		Status: "active", Type: "popup", Heading: "Join us", ButtonLabel: "Sign up",
 		SuccessMessage: "Welcome aboard!", CollectName: true,
-		Display: form.DisplayConfig{Trigger: "immediate"},
+		Display: signupform.DisplayConfig{Trigger: "immediate"},
 	})
 	if err != nil {
 		t.Fatalf("create form: %v", err)

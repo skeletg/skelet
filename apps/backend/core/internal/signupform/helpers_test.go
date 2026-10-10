@@ -1,4 +1,4 @@
-package form
+package signupform
 
 import (
 	"testing"
