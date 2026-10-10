@@ -41,6 +41,13 @@ func NewTransformHandler(t *media.Transformer, opts Options) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// The body is always an image this process encoded or cached, so a browser has nothing to second-guess
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if opts.AllowRateLimit != nil && !opts.AllowRateLimit(r) {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
