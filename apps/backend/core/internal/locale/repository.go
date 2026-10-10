@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/sqlc-dev/pqtype"
+
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
@@ -21,6 +23,10 @@ func NewRepository(queries *db.Queries) Repository {
 }
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateLocaleInput) (Locale, error) {
+	firstDay := int16(1)
+	if input.FirstDayOfWeek != nil {
+		firstDay = *input.FirstDayOfWeek
+	}
 	row, err := r.queries.CreateLocale(ctx, db.CreateLocaleParams{
 		Lower:                 input.Code,
 		Name:                  input.Name,
@@ -32,7 +38,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateLocaleInput
 		TimeFormat:            input.TimeFormat,
 		DecimalSeparator:      input.DecimalSeparator,
 		ThousandsSeparator:    input.ThousandsSeparator,
-		FirstDayOfWeek:        input.FirstDayOfWeek,
+		FirstDayOfWeek:        firstDay,
 		Upper:                 nullableUpper(input.DefaultCountryCode),
 		FlagEmoji:             input.FlagEmoji,
 		Lower_2:               input.HreflangValue,
@@ -63,18 +69,11 @@ func (r *postgresRepository) GetByCode(ctx context.Context, code string) (Locale
 }
 
 func (r *postgresRepository) List(ctx context.Context, activeOnly bool) ([]Locale, error) {
+	list := r.queries.ListLocales
 	if activeOnly {
-		rows, err := r.queries.ListActiveLocales(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("list active locales: %w", err)
-		}
-		out := make([]Locale, len(rows))
-		for i, row := range rows {
-			out[i] = toLocale(row)
-		}
-		return out, nil
+		list = r.queries.ListActiveLocales
 	}
-	rows, err := r.queries.ListLocales(ctx)
+	rows, err := list(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list locales: %w", err)
 	}
@@ -85,94 +84,43 @@ func (r *postgresRepository) List(ctx context.Context, activeOnly bool) ([]Local
 	return out, nil
 }
 
-func (r *postgresRepository) Update(ctx context.Context, input UpdateLocaleInput) (Locale, error) {
-	current, err := r.queries.GetLocaleByCode(ctx, input.Code)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Locale{}, ErrLocaleNotFound
-		}
-		return Locale{}, fmt.Errorf("load locale: %w", err)
-	}
+func (r *postgresRepository) Update(ctx context.Context, input UpdateLocaleInput) (Locale, bool, error) {
 	params := db.UpdateLocaleParams{
-		Lower:                 input.Code,
-		Name:                  current.Name,
-		NativeName:            current.NativeName,
-		IsActive:              current.IsActive,
-		IsRtl:                 current.IsRtl,
-		SortOrder:             current.SortOrder,
-		DateFormat:            current.DateFormat,
-		TimeFormat:            current.TimeFormat,
-		DecimalSeparator:      current.DecimalSeparator,
-		ThousandsSeparator:    current.ThousandsSeparator,
-		FirstDayOfWeek:        current.FirstDayOfWeek,
-		Upper:                 sqlnull.StringValue(current.DefaultCountryCode),
-		FlagEmoji:             current.FlagEmoji,
-		Lower_2:               current.HreflangValue,
-		Script:                current.Script,
-		PluralRule:            current.PluralRule,
-		EmailFromNameOverride: current.EmailFromNameOverride,
-		Description:           current.Description,
-		Metadata:              current.Metadata,
-	}
-	if input.Name != nil {
-		params.Name = *input.Name
-	}
-	if input.NativeName != nil {
-		params.NativeName = *input.NativeName
-	}
-	if input.IsActive != nil {
-		params.IsActive = *input.IsActive
-	}
-	if input.IsRTL != nil {
-		params.IsRtl = *input.IsRTL
+		Code:                  input.Code,
+		Name:                  sqlnull.String(input.Name),
+		NativeName:            sqlnull.String(input.NativeName),
+		IsActive:              sqlnull.Bool(input.IsActive),
+		IsRtl:                 sqlnull.Bool(input.IsRTL),
+		DateFormat:            sqlnull.String(input.DateFormat),
+		TimeFormat:            sqlnull.String(input.TimeFormat),
+		DecimalSeparator:      sqlnull.String(input.DecimalSeparator),
+		ThousandsSeparator:    sqlnull.String(input.ThousandsSeparator),
+		SetCountry:            input.DefaultCountryCode != nil,
+		DefaultCountryCode:    sqlnull.String(input.DefaultCountryCode),
+		FlagEmoji:             sqlnull.String(input.FlagEmoji),
+		HreflangValue:         sqlnull.String(input.HreflangValue),
+		Script:                sqlnull.String(input.Script),
+		PluralRule:            sqlnull.String(input.PluralRule),
+		EmailFromNameOverride: sqlnull.String(input.EmailFromNameOverride),
+		Description:           sqlnull.String(input.Description),
 	}
 	if input.SortOrder != nil {
-		params.SortOrder = *input.SortOrder
-	}
-	if input.DateFormat != nil {
-		params.DateFormat = *input.DateFormat
-	}
-	if input.TimeFormat != nil {
-		params.TimeFormat = *input.TimeFormat
-	}
-	if input.DecimalSeparator != nil {
-		params.DecimalSeparator = *input.DecimalSeparator
-	}
-	if input.ThousandsSeparator != nil {
-		params.ThousandsSeparator = *input.ThousandsSeparator
+		params.SortOrder = sql.NullInt32{Int32: *input.SortOrder, Valid: true}
 	}
 	if input.FirstDayOfWeek != nil {
-		params.FirstDayOfWeek = *input.FirstDayOfWeek
-	}
-	if input.DefaultCountryCode != nil {
-		params.Upper = nullableUpper(*input.DefaultCountryCode)
-	}
-	if input.FlagEmoji != nil {
-		params.FlagEmoji = *input.FlagEmoji
-	}
-	if input.HreflangValue != nil {
-		params.Lower_2 = *input.HreflangValue
-	}
-	if input.Script != nil {
-		params.Script = *input.Script
-	}
-	if input.PluralRule != nil {
-		params.PluralRule = *input.PluralRule
-	}
-	if input.EmailFromNameOverride != nil {
-		params.EmailFromNameOverride = *input.EmailFromNameOverride
-	}
-	if input.Description != nil {
-		params.Description = *input.Description
+		params.FirstDayOfWeek = sql.NullInt16{Int16: *input.FirstDayOfWeek, Valid: true}
 	}
 	if input.Metadata != nil {
-		params.Metadata = mapToJSON(*input.Metadata)
+		params.Metadata = pqtype.NullRawMessage{RawMessage: mapToJSON(*input.Metadata), Valid: true}
 	}
 	row, err := r.queries.UpdateLocale(ctx, params)
 	if err != nil {
-		return Locale{}, fmt.Errorf("update locale: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Locale{}, false, ErrLocaleNotFound
+		}
+		return Locale{}, false, fmt.Errorf("update locale: %w", err)
 	}
-	return toLocale(row), nil
+	return toLocale(row.Locale), row.WasActive, nil
 }
 
 func (r *postgresRepository) Delete(ctx context.Context, code string) error {

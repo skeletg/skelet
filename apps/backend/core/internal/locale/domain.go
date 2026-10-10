@@ -71,7 +71,7 @@ type CreateLocaleInput struct {
 	TimeFormat         string
 	DecimalSeparator   string
 	ThousandsSeparator string
-	FirstDayOfWeek     int16
+	FirstDayOfWeek     *int16 // nil = Monday, unless a default country is set; 0 is an explicit Sunday
 
 	DefaultCountryCode string
 	FlagEmoji          string
@@ -117,13 +117,19 @@ var (
 	ErrLocaleCodeTaken = errors.New("locale code already exists")
 	ErrLocaleInUse     = errors.New("locale has references; cannot delete")
 	ErrInvalidCode     = errors.New("invalid BCP 47 locale code")
+	ErrNameRequired    = errors.New("locale name is required")
+	ErrInvalidFirstDay = errors.New("first day of week must be 0 (Sunday) to 6 (Saturday)")
+	ErrInvalidCountry  = errors.New("default country must be empty or an ISO 3166-1 alpha-2 code")
+	// Equal separators make every number with a thousands group unreadable
+	ErrInvalidSeparators = errors.New("decimal and thousands separators must differ and be at most 3 characters")
 )
 
 type Repository interface {
 	Create(ctx context.Context, input CreateLocaleInput) (Locale, error)
 	GetByCode(ctx context.Context, code string) (Locale, error)
 	List(ctx context.Context, activeOnly bool) ([]Locale, error)
-	Update(ctx context.Context, input UpdateLocaleInput) (Locale, error)
+	// Returns the row and whether it was active before, so a real is_active flip can be told from a repeat
+	Update(ctx context.Context, input UpdateLocaleInput) (Locale, bool, error)
 	Delete(ctx context.Context, code string) error
 	CountReferences(ctx context.Context, code string) (int64, error)
 }
