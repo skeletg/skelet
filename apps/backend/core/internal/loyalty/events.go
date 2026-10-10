@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/google/uuid"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	libmoney "github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // The earn subscriber computes merchandise value as subtotal minus discounts - shipping and tax don't earn points
@@ -22,51 +24,89 @@ type OrderLookup interface {
 // Optional - without it, earning on purchase is disabled
 func (s *Service) SetOrderLookup(o OrderLookup) { s.orders = o }
 
-// Durable via the outbox, at-least-once, idempotent under replay via order-linked rows
+// Durable via the outbox, at-least-once, idempotent under replay via order-linked rows - placement or a payment advance earns a paid-for order's points, a void takes them back
 func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
 	if bus == nil {
 		return
 	}
 	bus.Subscribe(order.EventPlaced, s.onOrderPlaced)
+	bus.Subscribe(order.EventPaymentStatusChanged, s.onPaymentStatusChanged)
 	bus.Subscribe(order.EventCancelled, s.onOrderCancelled)
 	bus.Subscribe(order.EventRefunded, s.onOrderRefunded)
 }
 
 func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 	placed, ok := e.(*order.OrderPlaced)
-	if !ok || placed.CustomerID == nil || s.orders == nil {
+	if !ok {
 		return nil
 	}
-	if err := s.earnForOrder(ctx, placed.OrderID, *placed.CustomerID, placed.ChannelID); err != nil {
-		log.Printf("[loyalty] earn for order %s: %v", placed.OrderID, err)
+	return s.earn(ctx, placed.OrderID)
+}
+
+func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) error {
+	changed, ok := e.(*order.OrderPaymentStatusChanged)
+	if !ok {
+		return nil
+	}
+	switch {
+	case paidFor(changed.Status):
+		return s.earn(ctx, changed.OrderID)
+	case changed.Status == order.PaymentVoided:
+		// The authorization that earned the points never turned into money
+		return s.revoke(ctx, changed.OrderID, 1, "payment voided - points revoked")
+	}
+	return nil
+}
+
+// An authorization is the gateway's promise to pay the whole order - unpaid (cash on delivery, bank transfer) isn't, and neither is a partial capture, which is how a cash deposit lands
+func paidFor(paymentStatus string) bool {
+	return paymentStatus == order.PaymentAuthorized || paymentStatus == order.PaymentPaid
+}
+
+func (s *Service) earn(ctx context.Context, orderID uuid.UUID) error {
+	if err := s.earnForOrder(ctx, orderID); err != nil {
+		log.Printf("[loyalty] earn for order %s: %v", orderID, err)
 		return err // points owed - replay is safe, the order-linked entry dedupes
 	}
 	return nil
 }
 
-func (s *Service) earnForOrder(ctx context.Context, orderID, customerID, channelID uuid.UUID) error {
-	prog, err := s.ProgramFor(ctx, channelID)
-	if err != nil {
-		return err
-	}
-	if !prog.Enabled || prog.EarnPointsPerUnit <= 0 {
+// Points earned on placement were redeemable into store credit before the order was paid - spend the credit, never pay, and the cancel clawback could only take back what was left
+func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
+	if s.orders == nil {
 		return nil
 	}
 	o, err := s.orders.GetByID(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("load order: %w", err)
 	}
+	if o.CustomerID == nil || o.Status == order.OrderStatusCancelled || !paidFor(o.PaymentStatus) {
+		return nil
+	}
+	prog, err := s.ProgramFor(ctx, o.ChannelID)
+	if err != nil {
+		return err
+	}
+	if !prog.Enabled || prog.EarnPointsPerUnit <= 0 {
+		return nil
+	}
 	merch := o.SubtotalAmount - o.DiscountAmount
 	if merch <= 0 {
 		return nil
 	}
-	points := merch / 100 * prog.EarnPointsPerUnit
+	// Per whole currency unit of the order's own currency - a flat /100 earned yen at a hundredth of the rate and dinars at ten times it
+	unit := int64(math.Pow10(libmoney.ISODecimals(o.CurrencyCode)))
+	points := merch / unit * prog.EarnPointsPerUnit
 	if points <= 0 {
 		return nil
 	}
+	customerID := *o.CustomerID
 	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := s.queries.WithTx(t)
-		// OrderPlaced is at-least-once - any existing row for this order means the earn already ran
+		// Locked before the dedupe read - concurrent deliveries each saw no row and both earned
+		if err := q.LockCustomerForLoyalty(ctx, customerID); err != nil {
+			return fmt.Errorf("lock customer: %w", err)
+		}
 		rows, err := q.LoyaltyEntriesForOrder(ctx, uuid.NullUUID{UUID: orderID, Valid: true})
 		if err != nil {
 			return fmt.Errorf("check existing entries: %w", err)
@@ -91,8 +131,12 @@ func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	if err := s.revokeForOrder(ctx, cancelled.OrderID, cancelled.RefundableFraction, "order cancelled - points revoked"); err != nil {
-		log.Printf("[loyalty] revoke for cancelled order %s: %v", cancelled.OrderID, err)
+	return s.revoke(ctx, cancelled.OrderID, cancelled.RefundableFraction, "order cancelled - points revoked")
+}
+
+func (s *Service) revoke(ctx context.Context, orderID uuid.UUID, fraction float64, reason string) error {
+	if err := s.revokeForOrder(ctx, orderID, fraction, reason); err != nil {
+		log.Printf("[loyalty] %s for order %s: %v", reason, orderID, err)
 		return err
 	}
 	return nil
@@ -104,22 +148,22 @@ func (s *Service) onOrderRefunded(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	if err := s.revokeForOrder(ctx, refunded.OrderID, refunded.MerchandiseFraction, "order refunded - points revoked"); err != nil {
-		log.Printf("[loyalty] revoke for refunded order %s: %v", refunded.OrderID, err)
-		return err
-	}
-	return nil
+	return s.revoke(ctx, refunded.OrderID, refunded.MerchandiseFraction, "order refunded - points revoked")
 }
 
 // Idempotent - a negative order-linked row means the revoke already ran A negative balance after the revoke means those points already became store credit, so it's clawed back too - else place unpaid, redeem, cancel mints free money on every loop fraction revokes only the points attributable to the UNSHIPPED share - points earned on goods the customer kept stay earned
 func (s *Service) revokeForOrder(ctx context.Context, orderID uuid.UUID, fraction float64, reason string) error {
-	// Read before the tx - only needed for the currency and program, and a lookup failure just means no credit clawback rather than no revoke
+	// Read before the tx for the currency and program - a failed lookup returns so the outbox retries, since skipping the clawback is how spent points turned into free credit
 	var currency string
 	var prog Program
 	if s.orders != nil {
-		if o, err := s.orders.GetByID(ctx, orderID); err == nil {
-			currency = o.CurrencyCode
-			prog, _ = s.ProgramFor(ctx, o.ChannelID)
+		o, err := s.orders.GetByID(ctx, orderID)
+		if err != nil {
+			return fmt.Errorf("load order: %w", err)
+		}
+		currency = o.CurrencyCode
+		if prog, err = s.ProgramFor(ctx, o.ChannelID); err != nil {
+			return err
 		}
 	}
 	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {

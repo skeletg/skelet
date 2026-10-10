@@ -112,8 +112,9 @@ func TestVerificationLinkCannotClaimAnotherAddressesOrders(t *testing.T) {
 	}
 }
 
-// Scenario: the full loyalty cycle - accrual on placement for a registered customer, idempotent
+// Scenario: the full loyalty cycle - accrual once the order is paid for a registered customer, idempotent
 // under replay, revoked in full on cancellation, idempotent again
+// Cash on delivery places unpaid, and points earned then were redeemable before anyone paid
 func TestLoyaltyAccrualAndRevocationCycle(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 5, 990)
@@ -136,10 +137,14 @@ func TestLoyaltyAccrualAndRevocationCycle(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 	h.Settle(t)
+	if bal, _ := h.D.Loyalty.Balance(h.Ctx, c.ID); bal != 0 {
+		t.Errorf("points before payment = %d, want 0", bal)
+	}
+	h.collectCOD(t, o.ID)
 
-	// 990 cents of merchandise at 1 point per unit-of-100 = 9 points (integer division)
+	// 990 cents of merchandise at 1 point per whole dollar = 9 points (integer division)
 	if bal, _ := h.D.Loyalty.Balance(h.Ctx, c.ID); bal != 9 {
-		t.Errorf("points after placement = %d, want 9", bal)
+		t.Errorf("points after payment = %d, want 9", bal)
 	}
 
 	h.RearmOutbox(t, "order.placed", o.ID.String(), 1)
