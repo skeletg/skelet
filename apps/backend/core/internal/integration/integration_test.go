@@ -1,11 +1,13 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -44,7 +47,7 @@ func (r *fakeRepo) GetByHash(_ context.Context, tokenHash string) (Integration, 
 	r.lookups = append(r.lookups, tokenHash)
 	i, ok := r.byHash[tokenHash]
 	if !ok {
-		return Integration{}, sql.ErrNoRows
+		return Integration{}, ErrNotFound
 	}
 	return i, nil
 }
@@ -57,7 +60,7 @@ func (r *fakeRepo) RegenerateTokenHash(_ context.Context, id uuid.UUID, newHash 
 			return i, nil
 		}
 	}
-	return Integration{}, sql.ErrNoRows
+	return Integration{}, ErrNotFound
 }
 
 // Replaces the stored row for an integration, keeping its hash - used to flip IsActive or the expiry
@@ -147,8 +150,8 @@ func TestValidateRejectsUnknownTokens(t *testing.T) {
 		"case flipped":   strings.ToUpper(res.RawToken),
 		"trailing space": res.RawToken + " ",
 	} {
-		if _, err := svc.Validate(context.Background(), token); err == nil {
-			t.Errorf("Validate with a %s token = nil, want it refused", name)
+		if _, err := svc.Validate(context.Background(), token); !errors.Is(err, errTokenRefused) {
+			t.Errorf("Validate with a %s token = %v, want it refused", name, err)
 		}
 	}
 	for _, looked := range repo.lookups {
@@ -318,5 +321,78 @@ func TestMiddlewareDropsClaimsOnceTheIntegrationIsDisabled(t *testing.T) {
 	repo.put(off)
 	if got := call(); got != nil {
 		t.Errorf("claims %v survived disabling, want the request left anonymous", got.TokenID)
+	}
+}
+
+func TestCreateRefusesABlankNameOrAPastExpiry(t *testing.T) {
+	svc := NewService(newFakeRepo())
+	now := time.Now()
+	svc.now = func() time.Time { return now }
+	ctx := context.Background()
+	for name, in := range map[string]CreateIntegrationInput{
+		"blank":     {Name: "   "},
+		"too long":  {Name: strings.Repeat("é", maxNameRunes+1)},
+		"expired":   {Name: "n", ExpiresAt: sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true}},
+		"right now": {Name: "n", ExpiresAt: sql.NullTime{Time: now, Valid: true}},
+	} {
+		if _, err := svc.Create(ctx, in); err == nil {
+			t.Errorf("%s: created, want it refused", name)
+		}
+	}
+	res, err := svc.Create(ctx, CreateIntegrationInput{Name: "  Warehouse  ", ExpiresAt: sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true}})
+	if err != nil || res.Integration.Name != "Warehouse" {
+		t.Fatalf("create = %+v, %v - want the trimmed name accepted", res.Integration, err)
+	}
+	if _, err := svc.Create(ctx, CreateIntegrationInput{Name: strings.Repeat("é", maxNameRunes)}); err != nil {
+		t.Errorf("a name at the cap = %v, want it accepted", err)
+	}
+}
+
+func TestUpdateRefusesABlankNameOrAPastExpiry(t *testing.T) {
+	svc := NewService(newFakeRepo())
+	blank, past := " ", time.Now().Add(-time.Hour)
+	if _, err := svc.Update(context.Background(), UpdateIntegrationInput{Name: &blank}); !errors.Is(err, ErrNameRequired) {
+		t.Errorf("blank name = %v, want ErrNameRequired", err)
+	}
+	if _, err := svc.Update(context.Background(), UpdateIntegrationInput{ExpiresAt: &past}); !errors.Is(err, ErrExpiryInPast) {
+		t.Errorf("past expiry = %v, want ErrExpiryInPast", err)
+	}
+}
+
+type failingRepo struct{ Repository }
+
+func (failingRepo) GetByHash(context.Context, string) (Integration, error) {
+	return Integration{}, errors.New("connection refused")
+}
+
+// A lookup that failed is not a token that was refused - the middleware logs one and not the other
+func TestValidateKeepsALookupFailureApartFromARefusal(t *testing.T) {
+	_, err := NewService(failingRepo{}).Validate(context.Background(), tokenPrefix+strings.Repeat("a", 64))
+	if err == nil || errors.Is(err, errTokenRefused) {
+		t.Fatalf("Validate with the database down = %v, want the lookup error, not a refusal", err)
+	}
+}
+
+// Still anonymous either way, but only a failed lookup is logged - a bad token is the caller's business
+func TestMiddlewareLogsALookupFailureButNotARefusal(t *testing.T) {
+	for name, tc := range map[string]struct {
+		svc    *Service
+		logged bool
+	}{
+		"database down": {NewService(failingRepo{}), true},
+		"unknown token": {NewService(newFakeRepo()), false},
+	} {
+		var buf bytes.Buffer
+		req := httptest.NewRequest(http.MethodPost, "/api/admin/graphql", nil)
+		req = req.WithContext(applog.Into(req.Context(), slog.New(slog.NewTextHandler(&buf, nil))))
+		req.Header.Set(HeaderAPIToken, tokenPrefix+strings.Repeat("a", 64))
+		var seen *auth.ApiTokenClaims
+		Middleware(tc.svc)(handlerRecordingClaims(&seen)).ServeHTTP(httptest.NewRecorder(), req)
+		if seen != nil {
+			t.Errorf("%s: claims attached", name)
+		}
+		if got := strings.Contains(buf.String(), "integration token lookup failed"); got != tc.logged {
+			t.Errorf("%s: logged = %v, want %v (%s)", name, got, tc.logged, buf.String())
+		}
 	}
 }

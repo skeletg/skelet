@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -17,14 +18,17 @@ type postgresRepository struct {
 	tx      *txrunner.Manager
 }
 
-// NewRepository returns a postgres-backed Repository - The txrunner.Manager is used for atomic multi-statement mutations
-// (Create, Update) - Single-statement calls (SetActive, RegenerateTokenHash, Delete) use the unwrapped queries
+// Create and Update write the row and its grant set in one transaction - the rest are single statements
 func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) Repository {
 	return &postgresRepository{queries: queries, tx: txMgr}
 }
 
-func (r *postgresRepository) WithTx(t *sql.Tx) Repository {
-	return &postgresRepository{queries: r.queries.WithTx(t)}
+// A missing row is ErrNotFound, anything else stays the database's error so an outage never reads as "not found"
+func notFound(err error, op string) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateIntegrationInput, tokenHash string) (Integration, error) {
@@ -62,7 +66,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateIntegration
 func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Integration, error) {
 	row, err := r.queries.GetIntegrationByID(ctx, id)
 	if err != nil {
-		return Integration{}, fmt.Errorf("integration not found")
+		return Integration{}, notFound(err, "get integration")
 	}
 	i := toIntegration(row)
 	i.Permissions, err = r.GetPermissions(ctx, id)
@@ -75,12 +79,12 @@ func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Integra
 func (r *postgresRepository) GetByHash(ctx context.Context, tokenHash string) (Integration, error) {
 	row, err := r.queries.GetIntegrationByHash(ctx, tokenHash)
 	if err != nil {
-		return Integration{}, fmt.Errorf("get integration: %w", err)
+		return Integration{}, notFound(err, "get integration by token")
 	}
-	i := toIntegration(row)
-	i.Permissions, err = r.GetPermissions(ctx, i.ID)
-	if err != nil {
-		return Integration{}, err
+	i := toIntegration(row.Integration)
+	i.Permissions = make([]Permission, len(row.PermissionIds))
+	for n, id := range row.PermissionIds {
+		i.Permissions[n] = Permission{ID: id, Slug: row.PermissionSlugs[n], Name: row.PermissionNames[n]}
 	}
 	return i, nil
 }
@@ -90,13 +94,18 @@ func (r *postgresRepository) List(ctx context.Context) ([]Integration, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list integrations: %w", err)
 	}
+	perms, err := r.queries.ListAllIntegrationPermissions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list integration permissions: %w", err)
+	}
+	byIntegration := make(map[uuid.UUID][]Permission, len(rows))
+	for _, p := range perms {
+		byIntegration[p.IntegrationID] = append(byIntegration[p.IntegrationID], Permission{ID: p.ID, Slug: p.Slug, Name: p.Name})
+	}
 	out := make([]Integration, len(rows))
 	for i, row := range rows {
 		out[i] = toIntegration(row)
-		out[i].Permissions, err = r.GetPermissions(ctx, row.ID)
-		if err != nil {
-			return nil, err
-		}
+		out[i].Permissions = byIntegration[row.ID]
 	}
 	return out, nil
 }
@@ -105,9 +114,9 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateIntegration
 	var updated Integration
 	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := r.queries.WithTx(t)
-		current, err := q.GetIntegrationByID(ctx, input.ID)
+		current, err := q.GetIntegrationByIDForUpdate(ctx, input.ID)
 		if err != nil {
-			return fmt.Errorf("integration not found")
+			return notFound(err, "get integration")
 		}
 
 		name := current.Name
@@ -170,7 +179,7 @@ func (r *postgresRepository) SetActive(ctx context.Context, id uuid.UUID, active
 		IsActive: active,
 	})
 	if err != nil {
-		return Integration{}, fmt.Errorf("set integration active: %w", err)
+		return Integration{}, notFound(err, "set integration active")
 	}
 	i := toIntegration(row)
 	i.Permissions, err = r.GetPermissions(ctx, id)
@@ -186,7 +195,7 @@ func (r *postgresRepository) RegenerateTokenHash(ctx context.Context, id uuid.UU
 		TokenHash: newHash,
 	})
 	if err != nil {
-		return Integration{}, fmt.Errorf("regenerate token: %w", err)
+		return Integration{}, notFound(err, "regenerate token")
 	}
 	i := toIntegration(row)
 	i.Permissions, err = r.GetPermissions(ctx, id)
@@ -197,8 +206,12 @@ func (r *postgresRepository) RegenerateTokenHash(ctx context.Context, id uuid.UU
 }
 
 func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.DeleteIntegration(ctx, id); err != nil {
+	n, err := r.queries.DeleteIntegration(ctx, id)
+	if err != nil {
 		return fmt.Errorf("delete integration: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -215,17 +228,6 @@ func (r *postgresRepository) GetPermissions(ctx context.Context, integrationID u
 	return perms, nil
 }
 
-func (r *postgresRepository) HasPermission(ctx context.Context, integrationID uuid.UUID, slug string) (bool, error) {
-	ok, err := r.queries.HasIntegrationPermission(ctx, db.HasIntegrationPermissionParams{
-		IntegrationID: integrationID,
-		Slug:          slug,
-	})
-	if err != nil {
-		return false, fmt.Errorf("check integration permission: %w", err)
-	}
-	return ok, nil
-}
-
 // setPermissionsTx is the tx-local delete-then-insert used by Create and Update - It takes an already-bound *db.Queries
 // so the caller controls the transaction boundary
 func setPermissionsTx(ctx context.Context, q *db.Queries, integrationID uuid.UUID, slugs []string) error {
@@ -234,8 +236,11 @@ func setPermissionsTx(ctx context.Context, q *db.Queries, integrationID uuid.UUI
 	}
 	for _, slug := range slugs {
 		perm, err := q.GetPermissionBySlug(ctx, slug)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: %s", ErrUnknownPermission, slug)
+		}
 		if err != nil {
-			return fmt.Errorf("permission not found: %s", slug)
+			return fmt.Errorf("get permission %s: %w", slug, err)
 		}
 		if err := q.AddIntegrationPermission(ctx, db.AddIntegrationPermissionParams{
 			IntegrationID: integrationID,
