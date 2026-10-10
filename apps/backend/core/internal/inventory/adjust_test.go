@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"slices"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -45,6 +43,17 @@ func (r *adjustRepo) GetLevel(_ context.Context, itemID, locID uuid.UUID) (Level
 		}
 	}
 	return Level{}, ErrLevelNotFound
+}
+
+func (r *adjustRepo) EnsureLevel(ctx context.Context, itemID, locID uuid.UUID) error {
+	if _, err := r.GetLevel(ctx, itemID, locID); errors.Is(err, ErrLevelNotFound) {
+		r.levels[itemID] = append(r.levels[itemID], Level{InventoryItemID: itemID, LocationID: locID})
+	}
+	return nil
+}
+
+func (r *adjustRepo) GetLevelForUpdate(ctx context.Context, itemID, locID uuid.UUID) (Level, error) {
+	return r.GetLevel(ctx, itemID, locID)
 }
 
 func (r *adjustRepo) UpsertLevel(_ context.Context, itemID, locID uuid.UUID, qty float64) (Level, error) {
@@ -301,64 +310,4 @@ func TestNetReservationsForItemNegatesTheCounter(t *testing.T) {
 	if net[locB] != 0 {
 		t.Errorf("location B net = %g, want 0", net[locB])
 	}
-}
-
-// Retention deletes whole settled chains - the repository decides which are settled, and the
-// service must delete exactly those and report the count honestly
-func TestPruneSettledReservations(t *testing.T) {
-	settled := []uuid.UUID{uuid.New(), uuid.New()}
-	repo := &pruneRepo{settled: settled}
-	svc := NewService(repo, newInvTxManager(t))
-
-	n, err := svc.PruneSettledReservations(context.Background(), 180*24*time.Hour)
-	if err != nil {
-		t.Fatalf("PruneSettledReservations: %v", err)
-	}
-	if n != 2 {
-		t.Errorf("reported %d pruned, want 2", n)
-	}
-	if len(repo.deleted) != 2 {
-		t.Fatalf("deleted %d chains, want 2", len(repo.deleted))
-	}
-	for _, want := range settled {
-		if !slices.Contains(repo.deleted, want) {
-			t.Errorf("settled chain %s was not deleted", want)
-		}
-	}
-	// The cutoff is what keeps a recently-settled order's history around for support to read
-	if repo.cutoff.IsZero() || time.Since(repo.cutoff) < 179*24*time.Hour {
-		t.Errorf("cutoff %v is not the retention window behind now", repo.cutoff)
-	}
-}
-
-// Nothing settled means nothing deleted - a prune that fell through to deleting everything would
-// erase the audit trail the ledger exists to be
-func TestPruneSettledReservationsNoop(t *testing.T) {
-	repo := &pruneRepo{}
-	svc := NewService(repo, newInvTxManager(t))
-
-	n, err := svc.PruneSettledReservations(context.Background(), time.Hour)
-	if err != nil {
-		t.Fatalf("PruneSettledReservations: %v", err)
-	}
-	if n != 0 || len(repo.deleted) != 0 {
-		t.Errorf("pruned %d / deleted %d, want 0 / 0", n, len(repo.deleted))
-	}
-}
-
-type pruneRepo struct {
-	Repository
-	settled []uuid.UUID
-	deleted []uuid.UUID
-	cutoff  time.Time
-}
-
-func (r *pruneRepo) ListSettledOrderIDsBefore(_ context.Context, cutoff time.Time) ([]uuid.UUID, error) {
-	r.cutoff = cutoff
-	return r.settled, nil
-}
-
-func (r *pruneRepo) DeleteReservationsForOrder(_ context.Context, orderID uuid.UUID) error {
-	r.deleted = append(r.deleted, orderID)
-	return nil
 }

@@ -41,3 +41,12 @@ func TestRemoteAvailabilityFailOpen(t *testing.T) {
 		t.Fatal("down provider should fall back to native (ok=false)")
 	}
 }
+
+// An ERP that oversold reports a negative balance - only the -1 sentinel means unlimited
+func TestRemoteNegativeBalancesReadAsSoldOut(t *testing.T) {
+	for in, want := range map[float64]float64{-1: -1, -3: 0, -0.5: 0, 0: 0, 7: 7} {
+		if got := remoteQty(in); got != want {
+			t.Errorf("remoteQty(%g) = %g, want %g", in, got, want)
+		}
+	}
+}

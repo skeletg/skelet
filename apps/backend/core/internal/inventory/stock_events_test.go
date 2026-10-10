@@ -334,3 +334,9 @@ func TestOnOrderPlacedFoldsPlacementHolds(t *testing.T) {
 		t.Fatalf("second product delta = %g, want -1", byProduct[other.ProductID])
 	}
 }
+
+func (r *stockEventRepo) LockOrder(context.Context, uuid.UUID) error { return nil }
+
+func (r *stockEventRepo) MarkFlatRestored(context.Context, uuid.UUID, Reason) (bool, error) {
+	return true, nil
+}
