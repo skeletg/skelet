@@ -671,12 +671,13 @@ type GiftcardOrderLookup struct {
 	catalogSvc *catalog.Service
 }
 
-func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUID) ([]giftcard.IssuableLine, error) {
+func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUID) (giftcard.OrderGiftcards, error) {
 	o, err := l.orderSvc.GetByID(ctx, orderID)
 	if err != nil {
-		return nil, err
+		return giftcard.OrderGiftcards{}, err
 	}
-	var out []giftcard.IssuableLine
+	out := giftcard.OrderGiftcards{Status: o.Status, PaymentStatus: o.PaymentStatus, Email: o.Email, CustomerID: o.CustomerID,
+		ChannelID: o.ChannelID, Currency: o.CurrencyCode}
 	for _, line := range o.Lines {
 		if line.ProductSku == "" {
 			continue
@@ -687,7 +688,7 @@ func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUI
 			continue
 		}
 		if kind == string(catalog.KindGiftcard) {
-			out = append(out, giftcard.IssuableLine{UnitPrice: line.UnitPrice, Quantity: line.Quantity})
+			out.Lines = append(out.Lines, giftcard.IssuableLine{UnitPrice: line.UnitPrice, Quantity: line.Quantity})
 		}
 	}
 	return out, nil

@@ -36,3 +36,8 @@ func TestE2EGraphResolves(t *testing.T) {
 		t.Fatalf("e2e graph does not resolve: %v", err)
 	}
 }
+
+func (h *harness) giftcardBalance(code string) (int64, error) {
+	card, err := h.D.Giftcard.GetByCode(h.Ctx, code)
+	return card.Balance, err
+}
