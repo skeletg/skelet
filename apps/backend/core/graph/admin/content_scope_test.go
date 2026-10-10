@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 func TestPublishedContentIsNotReadableAnonymously(t *testing.T) {
@@ -39,7 +40,7 @@ func TestAMenuOnAnotherChannelCannotBeStrippedFromIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	svc := menu.NewService(menu.NewRepository(db.New(conn)))
+	svc := menu.NewService(menu.NewRepository(db.New(conn), txrunner.New(conn)))
 	m, err := svc.CreateMenu(ctx, menu.CreateMenuInput{Slug: "main-" + mine.String()[:8], Name: "Main"})
 	if err != nil {
 		t.Fatal(err)
