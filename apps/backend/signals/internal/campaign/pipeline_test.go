@@ -386,13 +386,13 @@ func TestFromAddressFallsBackToTheStoreName(t *testing.T) {
 	// A channel whose sender identity was never configured still needs a legal From - an empty one is
 	// rejected by every relay, so the campaign would fail per recipient rather than visibly
 	s := composer(&fakeCampaignRepo{})
-	if got, want := s.fromAddress(Store{Name: "Skelet Shop"}), "Skelet Shop <no-reply@skelet.local>"; got != want {
+	if got, want := s.fromAddress(Store{Name: "Skelet Shop"}), `"Skelet Shop" <no-reply@skelet.local>`; got != want {
 		t.Errorf("fromAddress = %q, want %q", got, want)
 	}
 	if got, want := s.fromAddress(Store{}), "no-reply@skelet.local"; got != want {
 		t.Errorf("nameless fromAddress = %q, want %q", got, want)
 	}
-	if got, want := s.fromAddress(Store{Name: "Skelet Shop", FromAddress: "hello@shop.example", FromName: "Skelet"}), "Skelet <hello@shop.example>"; got != want {
+	if got, want := s.fromAddress(Store{Name: "Skelet Shop", FromAddress: "hello@shop.example", FromName: "Skelet"}), `"Skelet" <hello@shop.example>`; got != want {
 		t.Errorf("configured fromAddress = %q, want the roster's identity %q", got, want)
 	}
 }
