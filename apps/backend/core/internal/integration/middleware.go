@@ -1,9 +1,11 @@
 package integration
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -16,11 +18,16 @@ func Middleware(svc *Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := r.Header.Get(HeaderAPIToken)
-			if !strings.HasPrefix(raw, "sk_") {
+			if !strings.HasPrefix(raw, tokenPrefix) {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if i, err := svc.Validate(r.Context(), raw); err == nil {
+			i, err := svc.Validate(r.Context(), raw)
+			if err != nil && !errors.Is(err, errTokenRefused) {
+				// Still anonymous, but a database blip would otherwise surface only as unexplained 403s on the machine API
+				applog.From(r.Context()).Error("integration token lookup failed", "err", err.Error())
+			}
+			if err == nil {
 				perms := make(map[string]struct{}, len(i.Permissions))
 				for _, p := range i.Permissions {
 					perms[p.Slug] = struct{}{}
