@@ -28,16 +28,11 @@ func existingIntegrationGrants(i integration.Integration) []auth.Grant {
 
 // A token is only the caller's to touch when everything it can do, they can too
 func (r *Resolver) requireIntegrationWithinOwn(ctx context.Context, id uuid.UUID) (integration.Integration, error) {
-	list, err := r.IntegrationSvc.List(ctx)
+	i, err := r.IntegrationSvc.Get(ctx, id)
 	if err != nil {
 		return integration.Integration{}, err
 	}
-	for _, i := range list {
-		if i.ID == id {
-			return i, r.requireGrantable(ctx, existingIntegrationGrants(i))
-		}
-	}
-	return integration.Integration{}, errNotFound("integration")
+	return i, r.requireGrantable(ctx, existingIntegrationGrants(i))
 }
 
 func toIntegrationModel(i integration.Integration) *model.Integration {
