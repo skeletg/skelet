@@ -1,6 +1,8 @@
 package wiring
 
 import (
+	"time"
+
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
@@ -37,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -156,8 +159,10 @@ func newPaymentService(q *db.Queries, txMgr *txrunner.Manager, ch *channel.Servi
 	return payment.NewService(payment.NewRepository(q), txMgr, ch)
 }
 
-func newPaymentVaultService(q *db.Queries, pay *payment.Service) *paymentvault.Service {
-	return paymentvault.NewService(q, pay)
+func newPaymentVaultService(q *db.Queries, pay *payment.Service, limits LimitsRedis) *paymentvault.Service {
+	svc := paymentvault.NewService(q, pay)
+	svc.SetSaveBudget(ratelimit.NewRedis(limits.Client, RateLimitPerMin("PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR", 5), time.Hour)) // every save is a gateway vault call - the card-testing surface
+	return svc
 }
 
 func newNotificationHub(vk *redis.Client) *notification.Hub { return notification.NewHub(vk) } // live-pushes to dashboard subscriptions across replicas over Valkey pub/sub - latency layer only, the tables stay authoritative
