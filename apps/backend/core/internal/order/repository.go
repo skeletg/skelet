@@ -56,16 +56,30 @@ func (r *postgresRepository) InsertPaymentTransaction(ctx context.Context, t Pay
 	return toPaymentTransaction(row), nil
 }
 
-func (r *postgresRepository) MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, error) {
+func (r *postgresRepository) MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, bool, error) {
 	row, err := r.queries.MarkOrderPaymentTransaction(ctx, db.MarkOrderPaymentTransactionParams{
 		ID:                id,
 		Status:            status,
 		ProviderReference: providerReference,
 	})
-	if err != nil {
-		return PaymentTransaction{}, fmt.Errorf("mark payment transaction: %w", err)
+	if errors.Is(err, sql.ErrNoRows) {
+		existing, gerr := r.queries.GetOrderPaymentTransaction(ctx, id)
+		if gerr != nil {
+			return PaymentTransaction{}, false, fmt.Errorf("get payment transaction: %w", gerr)
+		}
+		return toPaymentTransaction(existing), false, nil
 	}
-	return toPaymentTransaction(row), nil
+	if err != nil {
+		return PaymentTransaction{}, false, fmt.Errorf("mark payment transaction: %w", err)
+	}
+	return toPaymentTransaction(row), true, nil
+}
+
+func (r *postgresRepository) MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.MarkCreditMemoFailed(ctx, id); err != nil {
+		return fmt.Errorf("mark credit memo failed: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) ListPaymentTransactions(ctx context.Context, orderID uuid.UUID) ([]PaymentTransaction, error) {
@@ -1107,6 +1121,30 @@ func (r *postgresRepository) SetPaymentState(ctx context.Context, id uuid.UUID, 
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("set order payment state: %w", err)
+	}
+	return toOrder(row), nil
+}
+
+func (r *postgresRepository) SetPaymentStateFrom(ctx context.Context, id uuid.UUID, from, paymentStatus, paymentReference string) (Order, bool, error) {
+	row, err := r.queries.SetOrderPaymentStateFrom(ctx, db.SetOrderPaymentStateFromParams{
+		ID:               id,
+		FromStatus:       from,
+		PaymentStatus:    paymentStatus,
+		PaymentReference: paymentReference,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, false, nil
+	}
+	if err != nil {
+		return Order{}, false, fmt.Errorf("set order payment state: %w", err)
+	}
+	return toOrder(row), true, nil
+}
+
+func (r *postgresRepository) SetPaymentReference(ctx context.Context, id uuid.UUID, paymentReference string) (Order, error) {
+	row, err := r.queries.SetOrderPaymentReference(ctx, db.SetOrderPaymentReferenceParams{ID: id, PaymentReference: paymentReference})
+	if err != nil {
+		return Order{}, fmt.Errorf("set order payment reference: %w", err)
 	}
 	return toOrder(row), nil
 }

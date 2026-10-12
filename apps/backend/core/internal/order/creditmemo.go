@@ -264,16 +264,14 @@ func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemo
 func (s *Service) FinalizeCreditMemo(ctx context.Context, txnID uuid.UUID, ok bool, providerReference string) (Order, CreditMemo, error) {
 	var updatedOrder Order
 	var memo CreditMemo
+	var moved bool
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		status := PaymentTxnFailed
-		if ok {
-			status = PaymentTxnSucceeded
-		}
-		txn, err := r.MarkPaymentTransaction(ctx, txnID, status, providerReference)
+		txn, m, err := finalizeTxn(ctx, r, txnID, ok, providerReference)
 		if err != nil {
 			return err
 		}
+		moved = m
 		if txn.CreditMemoID == nil {
 			return fmt.Errorf("transaction %s is not linked to a credit memo", txnID)
 		}
@@ -284,9 +282,13 @@ func (s *Service) FinalizeCreditMemo(ctx context.Context, txnID uuid.UUID, ok bo
 		if err != nil {
 			return err
 		}
-		if !ok {
-			updatedOrder = o
+		updatedOrder = o
+		if !moved {
 			return nil
+		}
+		if !ok {
+			// The memo was written before the money moved - left standing it counted as credited, and the units could never be refunded again
+			return r.MarkCreditMemoFailed(ctx, memo.ID)
 		}
 		totals, err := r.PaymentTotalsByKind(ctx, o.ID)
 		if err != nil {
@@ -301,7 +303,7 @@ func (s *Service) FinalizeCreditMemo(ctx context.Context, txnID uuid.UUID, ok bo
 	if err != nil {
 		return Order{}, CreditMemo{}, err
 	}
-	if s.bus != nil && ok {
+	if s.bus != nil && ok && moved {
 		s.bus.Publish(ctx, &OrderPaymentStatusChanged{
 			OrderID:   updatedOrder.ID,
 			ChannelID: updatedOrder.ChannelID,

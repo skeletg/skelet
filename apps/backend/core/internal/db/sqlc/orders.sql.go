@@ -1300,6 +1300,75 @@ func (q *Queries) SetOrderGiftCardTender(ctx context.Context, arg SetOrderGiftCa
 	return i, err
 }
 
+const setOrderPaymentReference = `-- name: SetOrderPaymentReference :one
+UPDATE orders SET payment_reference = $2, updated_at = NOW() WHERE id = $1
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id
+`
+
+type SetOrderPaymentReferenceParams struct {
+	ID               uuid.UUID `json:"id"`
+	PaymentReference string    `json:"payment_reference"`
+}
+
+// The reference alone - parking a 3DS handle used to write back the status read at placement, over whatever a webhook had set since
+func (q *Queries) SetOrderPaymentReference(ctx context.Context, arg SetOrderPaymentReferenceParams) (Order, error) {
+	row := q.db.QueryRowContext(ctx, setOrderPaymentReference, arg.ID, arg.PaymentReference)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.Number,
+		&i.CustomerID,
+		&i.Status,
+		&i.PaymentStatus,
+		&i.BillingFirstName,
+		&i.BillingLastName,
+		&i.BillingCompany,
+		&i.BillingStreet1,
+		&i.BillingStreet2,
+		&i.BillingCity,
+		&i.BillingState,
+		&i.BillingPostalCode,
+		&i.BillingCountry,
+		&i.BillingPhone,
+		&i.ShippingFirstName,
+		&i.ShippingLastName,
+		&i.ShippingCompany,
+		&i.ShippingStreet1,
+		&i.ShippingStreet2,
+		&i.ShippingCity,
+		&i.ShippingState,
+		&i.ShippingPostalCode,
+		&i.ShippingCountry,
+		&i.ShippingPhone,
+		&i.SubtotalAmount,
+		&i.ShippingAmount,
+		&i.DiscountAmount,
+		&i.TaxAmount,
+		&i.TotalAmount,
+		&i.CurrencyCode,
+		&i.CustomerNote,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ChannelID,
+		&i.Email,
+		&i.Carrier,
+		&i.TrackingNumber,
+		&i.PaymentProvider,
+		&i.GiftCardAmount,
+		&i.PaymentReference,
+		&i.ShippingMethodID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.StoreCreditAmount,
+		&i.PoNumber,
+		&i.HeldFromStatus,
+		&i.ShippingTaxAmount,
+		&i.AnonID,
+	)
+	return i, err
+}
+
 const setOrderPaymentState = `-- name: SetOrderPaymentState :one
 UPDATE orders
 SET    payment_status = $2, payment_reference = $3, updated_at = NOW()
@@ -1316,6 +1385,84 @@ type SetOrderPaymentStateParams struct {
 // Updates payment status + gateway reference together (authorize stores the reference; capture/refund/void transitions re-pass the existing one) - the caller computes the next status idempotently
 func (q *Queries) SetOrderPaymentState(ctx context.Context, arg SetOrderPaymentStateParams) (Order, error) {
 	row := q.db.QueryRowContext(ctx, setOrderPaymentState, arg.ID, arg.PaymentStatus, arg.PaymentReference)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.Number,
+		&i.CustomerID,
+		&i.Status,
+		&i.PaymentStatus,
+		&i.BillingFirstName,
+		&i.BillingLastName,
+		&i.BillingCompany,
+		&i.BillingStreet1,
+		&i.BillingStreet2,
+		&i.BillingCity,
+		&i.BillingState,
+		&i.BillingPostalCode,
+		&i.BillingCountry,
+		&i.BillingPhone,
+		&i.ShippingFirstName,
+		&i.ShippingLastName,
+		&i.ShippingCompany,
+		&i.ShippingStreet1,
+		&i.ShippingStreet2,
+		&i.ShippingCity,
+		&i.ShippingState,
+		&i.ShippingPostalCode,
+		&i.ShippingCountry,
+		&i.ShippingPhone,
+		&i.SubtotalAmount,
+		&i.ShippingAmount,
+		&i.DiscountAmount,
+		&i.TaxAmount,
+		&i.TotalAmount,
+		&i.CurrencyCode,
+		&i.CustomerNote,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ChannelID,
+		&i.Email,
+		&i.Carrier,
+		&i.TrackingNumber,
+		&i.PaymentProvider,
+		&i.GiftCardAmount,
+		&i.PaymentReference,
+		&i.ShippingMethodID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.StoreCreditAmount,
+		&i.PoNumber,
+		&i.HeldFromStatus,
+		&i.ShippingTaxAmount,
+		&i.AnonID,
+	)
+	return i, err
+}
+
+const setOrderPaymentStateFrom = `-- name: SetOrderPaymentStateFrom :one
+UPDATE orders
+SET    payment_status = $1, payment_reference = $2, updated_at = NOW()
+WHERE  id = $3 AND payment_status = $4
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id
+`
+
+type SetOrderPaymentStateFromParams struct {
+	PaymentStatus    string    `json:"payment_status"`
+	PaymentReference string    `json:"payment_reference"`
+	ID               uuid.UUID `json:"id"`
+	FromStatus       string    `json:"from_status"`
+}
+
+// Only when the status is still what the caller read - the sync sweep and a webhook settling at once let the slower one write authorized over paid
+func (q *Queries) SetOrderPaymentStateFrom(ctx context.Context, arg SetOrderPaymentStateFromParams) (Order, error) {
+	row := q.db.QueryRowContext(ctx, setOrderPaymentStateFrom,
+		arg.PaymentStatus,
+		arg.PaymentReference,
+		arg.ID,
+		arg.FromStatus,
+	)
 	var i Order
 	err := row.Scan(
 		&i.ID,

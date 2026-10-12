@@ -1178,6 +1178,7 @@ type CreditMemo struct {
 	Reason                string        `json:"reason"`
 	AdminID               uuid.NullUUID `json:"admin_id"`
 	CreatedAt             time.Time     `json:"created_at"`
+	Status                string        `json:"status"`
 }
 
 type CreditMemoLine struct {

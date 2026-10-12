@@ -703,7 +703,7 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 		// park the provider reference on the order - without it an abandoned redirect/3DS order carries
 		// nothing the payment-sync sweep or finalizeOrderPayment could ask the gateway about
 		if outcome.ProviderReference != "" {
-			if _, perr := s.repo.SetPaymentState(ctx, placed.ID, placed.PaymentStatus, outcome.ProviderReference); perr != nil {
+			if _, perr := s.repo.SetPaymentReference(ctx, placed.ID, outcome.ProviderReference); perr != nil {
 				log.Printf("[order] park provider reference for order %s: %v", placed.ID, perr)
 				// Without the parked reference the sync sweep has nothing to ask the gateway about, so a
 				// customer who completes 3DS is never settled - surface it on the timeline

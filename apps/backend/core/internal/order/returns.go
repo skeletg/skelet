@@ -628,21 +628,20 @@ func (s *Service) FinalizeReturnRefund(ctx context.Context, txnID, returnID uuid
 	var updatedOrder Order
 	var updatedReturn OrderReturn
 	var refundedMemoID uuid.UUID
+	var moved bool
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		status := PaymentTxnFailed
-		if ok {
-			status = PaymentTxnSucceeded
-		}
-		txn, err := r.MarkPaymentTransaction(ctx, txnID, status, providerReference)
+		// A second finalize of a refund that already succeeded - a racing retry whose gateway call was refused as a duplicate - used to mark it failed and reopen the ceiling
+		txn, m, err := finalizeTxn(ctx, r, txnID, ok, providerReference)
 		if err != nil {
 			return err
 		}
+		moved = m
 		o, err := r.GetOrderByID(ctx, txn.OrderID)
 		if err != nil {
 			return err
 		}
-		if !ok {
+		if !ok || !moved {
 			updatedOrder = o
 			updatedReturn, err = r.GetReturn(ctx, returnID)
 			return err
@@ -679,7 +678,7 @@ func (s *Service) FinalizeReturnRefund(ctx context.Context, txnID, returnID uuid
 	if err != nil {
 		return Order{}, OrderReturn{}, err
 	}
-	if s.bus != nil && ok {
+	if s.bus != nil && ok && moved {
 		s.bus.Publish(ctx, &OrderPaymentStatusChanged{
 			OrderID:   updatedOrder.ID,
 			ChannelID: updatedOrder.ChannelID,

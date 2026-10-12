@@ -142,6 +142,18 @@ SET    gift_card_amount = $2, payment_status = $3, updated_at = NOW()
 WHERE  id = $1
 RETURNING *;
 
+-- name: SetOrderPaymentStateFrom :one
+-- Only when the status is still what the caller read - the sync sweep and a webhook settling at once let the slower one write authorized over paid
+UPDATE orders
+SET    payment_status = sqlc.arg(payment_status), payment_reference = sqlc.arg(payment_reference), updated_at = NOW()
+WHERE  id = sqlc.arg(id) AND payment_status = sqlc.arg(from_status)
+RETURNING *;
+
+-- name: SetOrderPaymentReference :one
+-- The reference alone - parking a 3DS handle used to write back the status read at placement, over whatever a webhook had set since
+UPDATE orders SET payment_reference = $2, updated_at = NOW() WHERE id = $1
+RETURNING *;
+
 -- name: SetOrderPaymentState :one
 -- Updates payment status + gateway reference together (authorize stores the reference; capture/refund/void transitions re-pass the existing one) - the caller computes the next status idempotently
 UPDATE orders
