@@ -65,7 +65,7 @@ func TestRefundIntentGuard(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc, repo := newIntentSvc(t, c.totals)
-			_, err := svc.recordPaymentIntent(context.Background(), uuid.New(), PaymentTxnRefund, c.refund, "stripe", "test")
+			_, err := svc.recordPaymentIntent(context.Background(), uuid.New(), PaymentTxnRefund, c.refund, "stripe", "test", "")
 
 			if c.wantOK {
 				if err != nil {
@@ -137,7 +137,7 @@ func TestCaptureIntentGuard(t *testing.T) {
 func TestPaymentIntentRejectsNonPositiveAmounts(t *testing.T) {
 	for _, bad := range []int64{0, -1, -10000} {
 		svc, repo := newIntentSvc(t, PaymentTotals{Authorized: 10000, Captured: 10000})
-		if _, err := svc.recordPaymentIntent(context.Background(), uuid.New(), PaymentTxnRefund, bad, "stripe", "test"); err == nil {
+		if _, err := svc.recordPaymentIntent(context.Background(), uuid.New(), PaymentTxnRefund, bad, "stripe", "test", ""); err == nil {
 			t.Errorf("refund intent for %d was allowed", bad)
 		}
 		if _, err := svc.RecordCaptureIntent(context.Background(), uuid.New(), bad, "stripe", "test"); err == nil {
