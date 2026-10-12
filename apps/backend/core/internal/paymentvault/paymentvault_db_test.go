@@ -242,3 +242,65 @@ func TestDeleteRevokesTheVaultEntryThenDropsTheRow(t *testing.T) {
 		t.Errorf("Get after delete err = %v, want ErrNotFound", err)
 	}
 }
+
+type denyAfter struct{ left int }
+
+func (d *denyAfter) Allow(context.Context, string) bool {
+	d.left--
+	return d.left >= 0
+}
+
+// Each save is a gateway vault call - unbounded, a signed-in account could test stolen cards one at a time
+func TestSavesAreCappedAndThrottled(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	customerID := seedCustomer(t, conn)
+	for i := range maxMethodsPerCustomer {
+		vaulter.vaulted.ProviderToken = "vault_" + uuid.NewString()
+		if _, err := svc.Save(ctx, customerID, "s@example.invalid", testProvider, "nonce", uuid.New()); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
+	}
+	if _, err := svc.Save(ctx, customerID, "s@example.invalid", testProvider, "nonce", uuid.New()); !errors.Is(err, ErrTooManyMethods) {
+		t.Fatalf("save past the cap = %v, want ErrTooManyMethods", err)
+	}
+
+	other := seedCustomer(t, conn)
+	svc.SetSaveBudget(&denyAfter{left: 1})
+	vaulter.vaultErr = errors.New("card declined")
+	if _, err := svc.Save(ctx, other, "o@example.invalid", testProvider, "stolen-1", uuid.New()); err == nil {
+		t.Fatal("the declined card saved")
+	}
+	before := vaulter.sawToken
+	if _, err := svc.Save(ctx, other, "o@example.invalid", testProvider, "stolen-2", uuid.New()); !errors.Is(err, ErrSaveThrottled) {
+		t.Fatalf("a second attempt past the budget = %v, want ErrSaveThrottled", err)
+	}
+	if vaulter.sawToken != before {
+		t.Error("a throttled attempt still reached the gateway")
+	}
+}
+
+// The gateway already held the card when the row failed to write - left there, it was chargeable and nobody could see or remove it
+func TestAFailedRecordRemovesTheVaultedCard(t *testing.T) {
+	svc, _ := newTestService(t)
+	missing := uuid.New() // no such customer, so the insert's foreign key refuses it
+	if _, err := svc.Save(context.Background(), missing, "x@example.invalid", testProvider, "nonce", uuid.New()); err == nil {
+		t.Fatal("a save that could not be recorded reported success")
+	}
+	if vaulter.deletes != 1 || vaulter.deletedToken != vaulter.vaulted.ProviderToken {
+		t.Fatalf("deletes %d of %q, want the just-vaulted token removed", vaulter.deletes, vaulter.deletedToken)
+	}
+}
+
+func TestAnOutageIsNotNotFound(t *testing.T) {
+	testdb.Require(t)
+	dsn, _ := testdb.URL("DATABASE_URL")
+	dead, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = dead.Close()
+	if _, err := NewService(dbsqlc.New(dead), nil).Get(context.Background(), uuid.New(), uuid.New()); err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("a dead database = %v, want the connection error", err)
+	}
+}

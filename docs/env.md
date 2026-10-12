@@ -590,6 +590,7 @@ Once it's on, each surface has its own per-minute budget:
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
+| `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
 Setting one of these does NOT turn the layer on - `RATE_LIMIT_ENABLED`
 gates all of them, so a knob left over in an old env file can't quietly
