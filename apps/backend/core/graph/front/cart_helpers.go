@@ -15,10 +15,10 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // Enforces "a cart belongs to exactly one store" at the front mutation boundary, right after parsing cartID - a mismatch (stale cookie from another store, hand-crafted cartId) is rejected without loading the lines, while a DB failure stays a failure rather than reading as a foreign cart

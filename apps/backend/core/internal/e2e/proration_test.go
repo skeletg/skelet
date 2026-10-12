@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // Scenario: cancelling a HALF-shipped order prorates every reversal by the unshipped value share - the gift card comes back at half, loyalty revokes toward half, and only the unshipped unit's reservation releases. Every earlier cancel test ran at fraction 1.0; this is the ScaleFraction arithmetic's first execution

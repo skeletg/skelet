@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 type AddBundleSelectionInput struct { // SelectionIDs is at most one for radio and dropdown, zero-or-more for checkbox and multiselect
