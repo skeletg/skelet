@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 type fakeOrders struct {
@@ -19,6 +20,7 @@ type fakeOrders struct {
 	intentEr error
 
 	intents   int
+	key       string
 	finalized []bool
 	failures  int
 }
@@ -26,8 +28,9 @@ type fakeOrders struct {
 func (f *fakeOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) {
 	return f.o, f.getErr
 }
-func (f *fakeOrders) RecordCaptureIntent(context.Context, uuid.UUID, int64, string, string) (order.PaymentTransaction, error) {
+func (f *fakeOrders) RecordCaptureIntentKeyed(_ context.Context, _ uuid.UUID, _ int64, _, _, key string) (order.PaymentTransaction, error) {
 	f.intents++
+	f.key = key
 	return f.intent, f.intentEr
 }
 func (f *fakeOrders) FinalizePaymentTransaction(_ context.Context, _ uuid.UUID, ok bool, _ string) (order.Order, error) {
@@ -61,11 +64,11 @@ func authorized() order.Order {
 	}
 }
 
-func fire(t *testing.T, o *fakeOrders, p *fakePayments) {
+func fire(t *testing.T, o *fakeOrders, p *fakePayments) error {
 	t.Helper()
 	bus := events.NewBus()
 	Register(bus, o, p)
-	_ = bus.DispatchAsyncNow(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New()})
+	return bus.DispatchAsyncNow(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New()})
 }
 
 // Only an authorized order with a live provider reference may be captured -
@@ -85,7 +88,7 @@ func TestCaptureGates(t *testing.T) {
 			o := authorized()
 			tc.mutate(&o)
 			orders, payments := &fakeOrders{o: o}, &fakePayments{}
-			fire(t, orders, payments)
+			_ = fire(t, orders, payments)
 			if payments.captures != 0 {
 				t.Errorf("captured %d times, want 0", payments.captures)
 			}
@@ -101,7 +104,7 @@ func TestCaptureGates(t *testing.T) {
 func TestLoadFailureDoesNotCapture(t *testing.T) {
 	orders := &fakeOrders{getErr: errors.New("gone")}
 	payments := &fakePayments{}
-	fire(t, orders, payments)
+	_ = fire(t, orders, payments)
 	if payments.captures != 0 || orders.intents != 0 {
 		t.Fatal("a failed order load must not reach the gateway")
 	}
@@ -114,7 +117,7 @@ func TestCapturePassesIdempotencyKeyFromIntent(t *testing.T) {
 	o.GiftCardAmount, o.StoreCreditAmount = 1000, 500
 	orders := &fakeOrders{o: o, intent: order.PaymentTransaction{ID: uuid.New(), IdempotencyKey: "idem_42"}}
 	payments := &fakePayments{}
-	fire(t, orders, payments)
+	_ = fire(t, orders, payments)
 	if payments.captures != 1 {
 		t.Fatalf("captures = %d, want 1", payments.captures)
 	}
@@ -138,10 +141,12 @@ func TestCapturePassesIdempotencyKeyFromIntent(t *testing.T) {
 // Both failure paths must land on the order timeline - a capture that fails after the goods shipped is money the store
 // never collects, and a log line is not a signal anyone sees
 func TestFailurePathsRecordOnTheOrder(t *testing.T) {
-	t.Run("intent fails", func(t *testing.T) {
-		orders := &fakeOrders{o: authorized(), intentEr: errors.New("db down")}
+	t.Run("intent refused", func(t *testing.T) {
+		orders := &fakeOrders{o: authorized(), intentEr: apperr.New("PAYMENT_OVER_CAPTURE", apperr.ClassConflict, "capture exceeds the authorized remaining")}
 		payments := &fakePayments{}
-		fire(t, orders, payments)
+		if err := fire(t, orders, payments); err != nil {
+			t.Errorf("a refusal asked for a replay (%v) - it gets the same answer every time", err)
+		}
 		if orders.failures != 1 {
 			t.Errorf("failures = %d, want 1", orders.failures)
 		}
@@ -149,10 +154,20 @@ func TestFailurePathsRecordOnTheOrder(t *testing.T) {
 			t.Error("must not reach the gateway without an intent row")
 		}
 	})
+	t.Run("intent fails on infrastructure", func(t *testing.T) {
+		orders := &fakeOrders{o: authorized(), intentEr: errors.New("db down")}
+		payments := &fakePayments{}
+		if err := fire(t, orders, payments); err == nil {
+			t.Error("a database failure returned nil, so the outbox never retried the capture")
+		}
+		if orders.failures != 0 {
+			t.Errorf("a retryable failure wrote %d timeline entries - one per replay", orders.failures)
+		}
+	})
 	t.Run("gateway declines", func(t *testing.T) {
 		orders := &fakeOrders{o: authorized(), intent: order.PaymentTransaction{ID: uuid.New(), IdempotencyKey: "k"}}
 		payments := &fakePayments{err: errors.New("declined")}
-		fire(t, orders, payments)
+		_ = fire(t, orders, payments)
 		if orders.failures != 1 {
 			t.Errorf("failures = %d, want 1", orders.failures)
 		}
@@ -160,4 +175,29 @@ func TestFailurePathsRecordOnTheOrder(t *testing.T) {
 			t.Errorf("finalized = %v, want one failure - the txn must still be closed out", orders.finalized)
 		}
 	})
+}
+
+// One key per order - a replay finds the intent it started and resumes it, rather than minting a second one the pending first blocks
+func TestAReplayResumesItsOwnIntent(t *testing.T) {
+	o := authorized()
+	orders := &fakeOrders{o: o, intent: order.PaymentTransaction{ID: uuid.New(), IdempotencyKey: "capture:fulfill:x", Status: order.PaymentTxnPending}}
+	payments := &fakePayments{}
+	if err := fire(t, orders, payments); err != nil {
+		t.Fatal(err)
+	}
+	if orders.key != "capture:fulfill:"+o.ID.String() {
+		t.Errorf("intent key = %q, want the per-order capture key", orders.key)
+	}
+	if payments.captures != 1 || payments.lastReq.IdempotencyKey != "capture:fulfill:x" {
+		t.Errorf("captures %d with key %q, want the pending intent resumed under its own key", payments.captures, payments.lastReq.IdempotencyKey)
+	}
+
+	done := &fakeOrders{o: o, intent: order.PaymentTransaction{ID: uuid.New(), Status: order.PaymentTxnSucceeded}}
+	again := &fakePayments{}
+	if err := fire(t, done, again); err != nil {
+		t.Fatal(err)
+	}
+	if again.captures != 0 || len(done.finalized) != 0 {
+		t.Error("a capture an earlier delivery finished was charged or finalized again")
+	}
 }
