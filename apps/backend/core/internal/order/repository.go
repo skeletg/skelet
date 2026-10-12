@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -56,16 +57,30 @@ func (r *postgresRepository) InsertPaymentTransaction(ctx context.Context, t Pay
 	return toPaymentTransaction(row), nil
 }
 
-func (r *postgresRepository) MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, error) {
+func (r *postgresRepository) MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, bool, error) {
 	row, err := r.queries.MarkOrderPaymentTransaction(ctx, db.MarkOrderPaymentTransactionParams{
 		ID:                id,
 		Status:            status,
 		ProviderReference: providerReference,
 	})
-	if err != nil {
-		return PaymentTransaction{}, fmt.Errorf("mark payment transaction: %w", err)
+	if errors.Is(err, sql.ErrNoRows) {
+		existing, gerr := r.queries.GetOrderPaymentTransaction(ctx, id)
+		if gerr != nil {
+			return PaymentTransaction{}, false, fmt.Errorf("get payment transaction: %w", gerr)
+		}
+		return toPaymentTransaction(existing), false, nil
 	}
-	return toPaymentTransaction(row), nil
+	if err != nil {
+		return PaymentTransaction{}, false, fmt.Errorf("mark payment transaction: %w", err)
+	}
+	return toPaymentTransaction(row), true, nil
+}
+
+func (r *postgresRepository) MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.MarkCreditMemoFailed(ctx, id); err != nil {
+		return fmt.Errorf("mark credit memo failed: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) ListPaymentTransactions(ctx context.Context, orderID uuid.UUID) ([]PaymentTransaction, error) {
@@ -78,6 +93,10 @@ func (r *postgresRepository) ListPaymentTransactions(ctx context.Context, orderI
 		out[i] = toPaymentTransaction(row)
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) LockOrder(ctx context.Context, orderID uuid.UUID) error {
+	return r.queries.LockOrderForPayment(ctx, orderID)
 }
 
 // LockOrderForPayment takes the order row so concurrent payment intents serialize
@@ -205,6 +224,9 @@ func (r *postgresRepository) ListFulfillments(ctx context.Context, orderID uuid.
 
 func (r *postgresRepository) GetFulfillment(ctx context.Context, id uuid.UUID) (Fulfillment, error) {
 	row, err := r.queries.GetOrderFulfillment(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Fulfillment{}, ErrFulfillmentNotFound
+	}
 	if err != nil {
 		return Fulfillment{}, fmt.Errorf("get fulfillment: %w", err)
 	}
@@ -537,6 +559,9 @@ func (r *postgresRepository) AddReturnLine(ctx context.Context, returnID uuid.UU
 
 func (r *postgresRepository) GetReturn(ctx context.Context, id uuid.UUID) (OrderReturn, error) {
 	row, err := r.queries.GetOrderReturn(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return OrderReturn{}, ErrReturnNotFound
+	}
 	if err != nil {
 		return OrderReturn{}, fmt.Errorf("get return: %w", err)
 	}
@@ -579,8 +604,12 @@ func (r *postgresRepository) ListReturns(ctx context.Context, orderID uuid.UUID)
 	return out, nil
 }
 
-func (r *postgresRepository) UpdateReturnStatus(ctx context.Context, id uuid.UUID, status string) (OrderReturn, error) {
-	row, err := r.queries.UpdateOrderReturnStatus(ctx, db.UpdateOrderReturnStatusParams{ID: id, Status: status})
+func (r *postgresRepository) UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error) {
+	row, err := r.queries.UpdateOrderReturnStatus(ctx, db.UpdateOrderReturnStatusParams{ID: id, FromStatus: from, Status: status})
+	if errors.Is(err, sql.ErrNoRows) {
+		return OrderReturn{}, apperr.New("RETURN_STATUS_RACED", apperr.ClassConflict,
+			fmt.Sprintf("the return left %q before it could move to %q - reload it and try again", from, status))
+	}
 	if err != nil {
 		return OrderReturn{}, fmt.Errorf("update return status: %w", err)
 	}
@@ -928,6 +957,9 @@ func (r *postgresRepository) AddOrderEvent(ctx context.Context, event OrderEvent
 
 func (r *postgresRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error) {
 	row, err := r.queries.GetOrderByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNotFound
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("get order: %w", err)
 	}
@@ -1057,6 +1089,9 @@ func (r *postgresRepository) ListOrdersByCustomer(ctx context.Context, customerI
 
 func (r *postgresRepository) GetGuestOrder(ctx context.Context, id uuid.UUID, email string) (Order, error) {
 	row, err := r.queries.GetGuestOrder(ctx, db.GetGuestOrderParams{ID: id, Email: email})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNotFound
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("get guest order: %w", err)
 	}
@@ -1107,6 +1142,30 @@ func (r *postgresRepository) SetPaymentState(ctx context.Context, id uuid.UUID, 
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("set order payment state: %w", err)
+	}
+	return toOrder(row), nil
+}
+
+func (r *postgresRepository) SetPaymentStateFrom(ctx context.Context, id uuid.UUID, from, paymentStatus, paymentReference string) (Order, bool, error) {
+	row, err := r.queries.SetOrderPaymentStateFrom(ctx, db.SetOrderPaymentStateFromParams{
+		ID:               id,
+		FromStatus:       from,
+		PaymentStatus:    paymentStatus,
+		PaymentReference: paymentReference,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, false, nil
+	}
+	if err != nil {
+		return Order{}, false, fmt.Errorf("set order payment state: %w", err)
+	}
+	return toOrder(row), true, nil
+}
+
+func (r *postgresRepository) SetPaymentReference(ctx context.Context, id uuid.UUID, paymentReference string) (Order, error) {
+	row, err := r.queries.SetOrderPaymentReference(ctx, db.SetOrderPaymentReferenceParams{ID: id, PaymentReference: paymentReference})
+	if err != nil {
+		return Order{}, fmt.Errorf("set order payment reference: %w", err)
 	}
 	return toOrder(row), nil
 }

@@ -32,7 +32,7 @@ type FulfillmentLineInput struct {
 func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status == OrderStatusCancelled || o.Status == OrderStatusFulfilled {
 		return Order{}, apperr.New("FULFILLMENT_ORDER_TERMINAL", apperr.ClassConflict,
@@ -81,6 +81,21 @@ func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInp
 	var fulfillmentID uuid.UUID
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
+		// Re-plan under the order lock - two shipments both planned against the same shipped quantities, and the status guard can't tell partially_fulfilled from itself, so a line of 3 could ship 4
+		if err := r.LockOrder(ctx, o.ID); err != nil {
+			return fmt.Errorf("lock order: %w", err)
+		}
+		lockedShipped, err := r.ShippedByOrderLine(ctx, o.ID)
+		if err != nil {
+			return err
+		}
+		if reqByLine, fully, err = planFulfillment(ordered, lockedShipped, in.Lines); err != nil {
+			return err
+		}
+		newStatus = OrderStatusPartiallyFulfilled
+		if fully {
+			newStatus = OrderStatusFulfilled
+		}
 		count, err := r.CountFulfillments(ctx, o.ID)
 		if err != nil {
 			return err
@@ -188,7 +203,7 @@ func planFulfillment(ordered, shipped map[uuid.UUID]float64, lines []Fulfillment
 func (s *Service) FulfillRemaining(ctx context.Context, orderID uuid.UUID, carrier, trackingNumber string, insuredValueCents int64) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status == OrderStatusCancelled || o.Status == OrderStatusFulfilled {
 		return Order{}, apperr.New("FULFILLMENT_ORDER_TERMINAL", apperr.ClassConflict,
@@ -217,8 +232,8 @@ func (s *Service) FulfillRemaining(ctx context.Context, orderID uuid.UUID, carri
 }
 
 // unshippedFraction is the share of the order's line value that never shipped, used to scale tender reversals on cancellation. 1.0 when nothing shipped (the common case), 0 when everything did. Fails SAFE at 1.0 on a lookup error - over-restoring a customer beats silently under-refunding them, and the operator can still adjust.
-func (s *Service) unshippedFraction(ctx context.Context, o Order) float64 {
-	shipped, err := s.repo.ShippedByOrderLine(ctx, o.ID)
+func unshippedFraction(ctx context.Context, r Repository, o Order) float64 {
+	shipped, err := r.ShippedByOrderLine(ctx, o.ID)
 	if err != nil || len(shipped) == 0 {
 		return 1
 	}

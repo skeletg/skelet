@@ -190,14 +190,21 @@ type Repository interface {
 	SetStoreCreditTender(ctx context.Context, id uuid.UUID, storeCreditAmount int64, paymentStatus string) (Order, error)
 	SetGiftCardTender(ctx context.Context, id uuid.UUID, giftCardAmount int64, paymentStatus string) (Order, error)
 	SetPaymentState(ctx context.Context, id uuid.UUID, paymentStatus, paymentReference string) (Order, error)
+	// SetPaymentState only while the status is still from - false when someone moved it first
+	SetPaymentStateFrom(ctx context.Context, id uuid.UUID, from, paymentStatus, paymentReference string) (Order, bool, error)
+	SetPaymentReference(ctx context.Context, id uuid.UUID, paymentReference string) (Order, error)
 	// The payment-sync sweep's worklist - unpaid gateway orders holding a provider reference, bounded so ancient ones stop polling
 	ListOrdersAwaitingPaymentSync(ctx context.Context, notBefore, olderThan time.Time, maxRows int32) ([]Order, error)
 
 	// The payment ledger - a durable record of every authorize, capture, refund and void - It's the source of truth for amounts, and payment_status derives from the succeeded sums
 	InsertPaymentTransaction(ctx context.Context, t PaymentTransaction) (PaymentTransaction, error)
 	LockOrderForPayment(ctx context.Context, orderID uuid.UUID) error
+	// The same row lock, for the paths that plan against the order's lines - shipping and editing
+	LockOrder(ctx context.Context, orderID uuid.UUID) error
 	PaymentTotalsActiveByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
-	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, error)
+	// Settles a pending row - false with the row as it stands when it was already final
+	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, bool, error)
+	MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error
 	ListPaymentTransactions(ctx context.Context, orderID uuid.UUID) ([]PaymentTransaction, error)
 	PaymentTotalsByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
 	FindPaymentTransactionByKey(ctx context.Context, idempotencyKey string) (PaymentTransaction, bool, error)
@@ -219,7 +226,8 @@ type Repository interface {
 	AddReturnLine(ctx context.Context, returnID uuid.UUID, line OrderReturnLine) (OrderReturnLine, error)
 	GetReturn(ctx context.Context, id uuid.UUID) (OrderReturn, error)
 	ListReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturn, error)
-	UpdateReturnStatus(ctx context.Context, id uuid.UUID, status string) (OrderReturn, error)
+	// Moves a return from one status to another - RETURN_STATUS_RACED when it already left from
+	UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error)
 	MarkReturnRefunded(ctx context.Context, id uuid.UUID, refundAmount int64, giftCardID *uuid.UUID) (OrderReturn, error)
 	ReturnedByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
 

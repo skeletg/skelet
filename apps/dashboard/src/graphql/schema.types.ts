@@ -5001,6 +5001,7 @@ export type MutationGeneratePromotionCodesArgs = {
 
 
 export type MutationGenerateShippingLabelArgs = {
+  force?: InputMaybe<Scalars['Boolean']['input']>;
   fulfillmentId: Scalars['ID']['input'];
 };
 
