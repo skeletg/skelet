@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // returnTransitions is the allowed forward moves of the return lifecycle: requested to approved or rejected, approved to received or rejected, received to refunded

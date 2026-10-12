@@ -1,6 +1,9 @@
 package money
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestLineTotal(t *testing.T) {
 	cases := []struct {
@@ -48,5 +51,22 @@ func TestPerUnit(t *testing.T) {
 				t.Errorf("PerUnit(%d, %v) = %d, want %d", c.total, c.qty, got, c.want)
 			}
 		})
+	}
+}
+
+// int64(NaN) is the minimum int64 on amd64 - a 0/0 share must never turn into a negative fortune
+func TestNonFiniteInputsAreZero(t *testing.T) {
+	nan, inf := math.NaN(), math.Inf(1)
+	if got := ScaleFraction(1000, nan); got != 0 {
+		t.Errorf("ScaleFraction(NaN) = %d", got)
+	}
+	if got := LineTotal(1000, nan); got != 0 {
+		t.Errorf("LineTotal(NaN) = %d", got)
+	}
+	if got := LineTotal(1000, inf); got != 0 {
+		t.Errorf("LineTotal(Inf) = %d", got)
+	}
+	if got := PerUnit(1000, inf); got != 0 {
+		t.Errorf("PerUnit(Inf) = %d", got)
 	}
 }
