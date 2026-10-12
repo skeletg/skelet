@@ -10,12 +10,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // Orders is the order-side surface a capture needs
 type Orders interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
-	RecordCaptureIntent(ctx context.Context, orderID uuid.UUID, amountCents int64, providerSlug, reason string) (order.PaymentTransaction, error)
+	RecordCaptureIntentKeyed(ctx context.Context, orderID uuid.UUID, amountCents int64, providerSlug, reason, key string) (order.PaymentTransaction, error)
 	FinalizePaymentTransaction(ctx context.Context, txnID uuid.UUID, ok bool, providerReference string) (order.Order, error)
 	RecordCaptureFailure(ctx context.Context, orderID uuid.UUID, providerSlug string, cause error)
 }
@@ -45,13 +46,20 @@ func Register(bus *events.Bus, orders Orders, payments Payments) {
 		if amountDue <= 0 {
 			return nil
 		}
-		// Route through the payment-transaction ledger so the auto-capture is recorded + idempotency-keyed (a replayed fulfilled event can't double-capture: the over-capture guard rejects the second intent once the first succeeded), and the order's status
-		// derives from the ledger rather than a blind flip to paid
-		txn, err := orders.RecordCaptureIntent(ctx, o.ID, amountDue, o.PaymentProvider, "capture on fulfillment")
+		// Through the ledger under one key per order - a replay finds the intent it started and resumes it, where a fresh intent each time was refused as an over-capture by the still-pending first and left that one pending forever
+		// The same key reaches the gateway, so resuming can't charge twice
+		txn, err := orders.RecordCaptureIntentKeyed(ctx, o.ID, amountDue, o.PaymentProvider, "capture on fulfillment", captureKey(o.ID))
 		if err != nil {
-			log.Printf("[payment] capture-on-fulfill record intent for order %s: %v", o.ID, err) // Loud: goods are shipping and the money isn't collected, so this needs an operator, not a log line nobody reads
-			orders.RecordCaptureFailure(ctx, o.ID, o.PaymentProvider, err)
-			return err // retrying is safe: the over-capture guard rejects a duplicate intent
+			log.Printf("[payment] capture-on-fulfill record intent for order %s: %v", o.ID, err)
+			// Loud either way - goods are shipping and the money isn't collected - but a refusal (over-capture, nothing authorized) won't change on replay, so only an infrastructure failure is retried
+			if permanent(err) {
+				orders.RecordCaptureFailure(ctx, o.ID, o.PaymentProvider, err)
+				return nil
+			}
+			return err
+		}
+		if txn.Status == order.PaymentTxnSucceeded {
+			return nil // an earlier delivery finished it
 		}
 		res, capErr := payments.Capture(ctx, o.PaymentProvider, payment.CaptureRequest{
 			OrderID:           o.ID,
@@ -74,4 +82,15 @@ func Register(bus *events.Bus, orders Orders, payments Payments) {
 		}
 		return nil // a gateway decline is finalized + surfaced to the operator - replaying would just re-decline
 	})
+}
+
+func captureKey(orderID uuid.UUID) string { return "capture:fulfill:" + orderID.String() }
+
+// A refusal the ledger made on its own rules - replaying the event gets the same answer
+func permanent(err error) bool {
+	switch apperr.ClassOf(err) {
+	case apperr.ClassConflict, apperr.ClassValidation, apperr.ClassNotFound:
+		return true
+	}
+	return false
 }
