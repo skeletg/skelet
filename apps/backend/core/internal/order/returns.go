@@ -327,7 +327,7 @@ func (s *Service) transitionReturn(ctx context.Context, returnID uuid.UUID, to, 
 	var out OrderReturn
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		out, err = r.UpdateReturnStatus(ctx, returnID, to)
+		out, err = r.UpdateReturnStatus(ctx, returnID, ret.Status, to)
 		if err != nil {
 			return err
 		}
@@ -407,7 +407,7 @@ func (s *Service) ReceiveReturn(ctx context.Context, returnID uuid.UUID) (OrderR
 	var out OrderReturn
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		out, err = r.UpdateReturnStatus(ctx, returnID, ReturnReceived)
+		out, err = r.UpdateReturnStatus(ctx, returnID, ret.Status, ReturnReceived)
 		if err != nil {
 			return err
 		}
@@ -444,9 +444,8 @@ func (s *Service) ReceiveReturn(ctx context.Context, returnID uuid.UUID) (OrderR
 				Type:    "exchange_draft_failed",
 				Message: fmt.Sprintf("Exchange draft for return %s could not be created: %v. Create it manually.", ret.RMANumber, xerr),
 			})
-		} else {
+		} else if exch.ID != uuid.Nil {
 			out, _ = s.repo.GetReturn(ctx, returnID)
-			_ = exch
 		}
 	}
 	return out, nil

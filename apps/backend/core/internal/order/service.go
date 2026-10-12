@@ -830,15 +830,15 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, orderID uuid.UUID, 
 			}
 		}
 	}
-	// Read the shipped split BEFORE the tx - the tender reversals scale by it, and reading it inside would hold the order row while querying fulfillments
 	refundable := 1.0
-	if status == OrderStatusCancelled {
-		refundable = s.unshippedFraction(ctx, prior)
-	}
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		if _, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status); err != nil {
 			return err
+		}
+		// Read the shipped split with the order row held - read before, a shipment landing on a partially fulfilled order (whose status doesn't change) slipped in and the reversals refunded tenders for goods that had just left
+		if status == OrderStatusCancelled {
+			refundable = unshippedFraction(ctx, r, prior)
 		}
 		// Stamp tracking only on the fulfilled transition
 		if status == OrderStatusFulfilled && (carrier != "" || trackingNumber != "") {
