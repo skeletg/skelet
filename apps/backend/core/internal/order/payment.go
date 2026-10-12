@@ -471,10 +471,15 @@ func (s *Service) recordSettledTxn(ctx context.Context, orderID uuid.UUID, kind 
 
 // Reserves a capture before the gateway call - validates the amount against the authorized remaining and writes a pending ledger row, which FinalizePaymentTransaction settles once the provider responds
 func (s *Service) RecordCaptureIntent(ctx context.Context, orderID uuid.UUID, amountCents int64, providerSlug, reason string) (PaymentTransaction, error) {
-	return s.recordPaymentIntent(ctx, orderID, PaymentTxnCapture, amountCents, providerSlug, reason)
+	return s.recordPaymentIntent(ctx, orderID, PaymentTxnCapture, amountCents, providerSlug, reason, "")
 }
 
-func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, kind string, amountCents int64, providerSlug, reason string) (PaymentTransaction, error) {
+// RecordCaptureIntent under a caller-chosen key - a key already held by a pending or succeeded row returns that row, so a replay resumes the capture it started instead of minting a second intent the in-flight one then blocks
+func (s *Service) RecordCaptureIntentKeyed(ctx context.Context, orderID uuid.UUID, amountCents int64, providerSlug, reason, key string) (PaymentTransaction, error) {
+	return s.recordPaymentIntent(ctx, orderID, PaymentTxnCapture, amountCents, providerSlug, reason, key)
+}
+
+func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, kind string, amountCents int64, providerSlug, reason, key string) (PaymentTransaction, error) {
 	if amountCents <= 0 {
 		return PaymentTransaction{}, apperr.New("PAYMENT_INVALID_AMOUNT", apperr.ClassValidation, "payment amount must be positive")
 	}
@@ -484,6 +489,14 @@ func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, ki
 		// Lock the order and count money already in flight - without it two concurrent intents read identical succeeded-only totals, both pass, and both reach the gateway
 		if err := r.LockOrderForPayment(ctx, orderID); err != nil {
 			return fmt.Errorf("lock order for payment: %w", err)
+		}
+		if key != "" {
+			if existing, found, err := r.FindPaymentTransactionByKey(ctx, key); err != nil {
+				return err
+			} else if found {
+				txn = existing
+				return nil
+			}
 		}
 		totals, err := r.PaymentTotalsActiveByKind(ctx, orderID)
 		if err != nil {
@@ -499,9 +512,12 @@ func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, ki
 				return apperr.New("PAYMENT_OVER_REFUND", apperr.ClassConflict, "refund exceeds the captured remaining")
 			}
 		}
-		key, err := uuid.NewV7()
-		if err != nil {
-			return err
+		if key == "" {
+			fresh, err := uuid.NewV7()
+			if err != nil {
+				return err
+			}
+			key = fresh.String()
 		}
 		txn, err = r.InsertPaymentTransaction(ctx, PaymentTransaction{
 			OrderID:        orderID,
@@ -509,7 +525,7 @@ func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, ki
 			AmountCents:    amountCents,
 			Status:         PaymentTxnPending,
 			ProviderSlug:   providerSlug,
-			IdempotencyKey: key.String(),
+			IdempotencyKey: key,
 			Reason:         reason,
 		})
 		return err

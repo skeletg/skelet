@@ -166,7 +166,7 @@ func TestADashboardRefundIsNotSwallowedByAnUnrelatedPendingOne(t *testing.T) {
 	svc := moneySvc(conn)
 	ctx := context.Background()
 	orderID, _ := seedPaidOrder(t, conn, OrderStatusFulfilled, PaymentPaid, 2000)
-	if _, err := svc.recordPaymentIntent(ctx, orderID, PaymentTxnRefund, 500, "gw", "memo refund"); err != nil {
+	if _, err := svc.recordPaymentIntent(ctx, orderID, PaymentTxnRefund, 500, "gw", "memo refund", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.SettleGatewayAmount(ctx, orderID, PaymentTxnRefund, 300, "gw", "dash-1"); err != nil {
@@ -191,5 +191,28 @@ func TestParkingAReferenceLeavesTheStatus(t *testing.T) {
 	got, err := NewRepository(dbsqlc.New(conn)).SetPaymentReference(context.Background(), orderID, "pi_3ds")
 	if err != nil || got.PaymentStatus != PaymentPaid || got.PaymentReference != "pi_3ds" {
 		t.Fatalf("after parking: %q %q (%v)", got.PaymentStatus, got.PaymentReference, err)
+	}
+}
+
+// A replayed capture minted a fresh intent each time, and the still-pending first made every later one an over-capture
+func TestAKeyedCaptureIntentResumesThePendingOne(t *testing.T) {
+	conn := statusTestDB(t)
+	svc := moneySvc(conn)
+	ctx := context.Background()
+	orderID, _ := seedPaidOrder(t, conn, OrderStatusProcessing, PaymentAuthorized, 0)
+	if _, err := svc.RecordAuthorization(ctx, orderID, 2000, "gw", "auth-1"); err != nil {
+		t.Fatal(err)
+	}
+	key := "capture:fulfill:" + orderID.String()
+	first, err := svc.RecordCaptureIntentKeyed(ctx, orderID, 2000, "gw", "capture on fulfillment", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := svc.RecordCaptureIntentKeyed(ctx, orderID, 2000, "gw", "capture on fulfillment", key)
+	if err != nil {
+		t.Fatalf("the replay = %v, want the pending intent back", err)
+	}
+	if again.ID != first.ID || again.Status != PaymentTxnPending {
+		t.Fatalf("replay returned %s (%s), want the first intent %s still pending", again.ID, again.Status, first.ID)
 	}
 }
