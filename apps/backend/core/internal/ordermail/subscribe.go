@@ -2,6 +2,7 @@ package ordermail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -14,86 +15,87 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
-// Register attaches the four order-lifecycle events that produce customer mail.
+// Register attaches the four order-lifecycle events that produce customer mail
+// A failed send returns its error so the outbox delivers again - the send log only records mail that left, so the retry can't duplicate it
 func (s *Service) Register(bus *events.Bus) {
 	// All four load the order: a flow has to be handed the snapshot it will render from, since by the
 	// time the engine advances the run the order is not readable from where it runs
 	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
-		evt := e.(*order.OrderPlaced)
-		o, ch, ok := s.context(ctx, evt.OrderID)
+		evt, ok := e.(*order.OrderPlaced)
 		if !ok {
 			return nil
 		}
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
 		// Guests enroll keyed by the order email, so they get a receipt too
-		s.deliver(ctx, evt.OrderID, kindConfirmation, "", func(d FlowDispatcher) int {
+		return s.deliver(ctx, evt.OrderID, kindConfirmation, "", func(d FlowDispatcher) int {
 			return d.OnOrderPlaced(ctx, evt.ChannelID, customerIDOrNil(evt.CustomerID), evt.Email, evt.OrderID, Snapshot(o))
 		}, func() error { return s.sendConfirmation(ctx, o, ch) })
-		return nil
 	})
 
 	bus.Subscribe(order.EventFulfillmentCreated, func(ctx context.Context, e events.Event) error {
-		evt := e.(*order.OrderFulfillmentCreated)
-		o, ch, ok := s.context(ctx, evt.OrderID)
+		evt, ok := e.(*order.OrderFulfillmentCreated)
 		if !ok {
 			return nil
 		}
-		s.deliver(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func(d FlowDispatcher) int {
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
+		return s.deliver(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func(d FlowDispatcher) int {
 			ful, ferr := s.orders.GetFulfillment(ctx, evt.FulfillmentID)
 			if ferr != nil {
 				return 0 // no fulfillment, no tracking to show - the direct send loads it again and reports properly
 			}
 			return d.OnOrderShipped(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, evt.FulfillmentID, ShipmentSnapshot(o, ful))
 		}, func() error { return s.sendShipment(ctx, o, ch, evt.FulfillmentID) })
-		return nil
 	})
 
 	bus.Subscribe(order.EventStatusChanged, func(ctx context.Context, e events.Event) error {
-		evt := e.(*order.OrderStatusChanged)
-		if evt.ToStatus != order.OrderStatusCancelled {
+		evt, ok := e.(*order.OrderStatusChanged)
+		if !ok || evt.ToStatus != order.OrderStatusCancelled {
 			return nil
 		}
-		o, ch, ok := s.context(ctx, evt.OrderID)
-		if !ok {
-			return nil
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
 		}
-		s.deliver(ctx, evt.OrderID, kindCancellation, "", func(d FlowDispatcher) int {
+		return s.deliver(ctx, evt.OrderID, kindCancellation, "", func(d FlowDispatcher) int {
 			return d.OnOrderCancelled(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, Snapshot(o))
 		}, func() error { return s.sendCancellation(ctx, o, ch) })
-		return nil
 	})
 
-	bus.Subscribe(order.EventPaymentStatusChanged, func(ctx context.Context, e events.Event) error {
-		evt := e.(*order.OrderPaymentStatusChanged)
-		if evt.Status != "refunded" && evt.Status != "partially_refunded" {
+	// One email per refund, keyed on its credit memo - keyed on the order's payment reference, which every refund shares, a second partial refund never mailed
+	bus.Subscribe(order.EventRefunded, func(ctx context.Context, e events.Event) error {
+		evt, ok := e.(*order.OrderRefunded)
+		if !ok || evt.CreditMemoID == uuid.Nil {
 			return nil
 		}
-		ref := evt.Reference
-		if ref == "" {
-			ref = evt.Status
+		ref := evt.CreditMemoID.String()
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
 		}
-		o, ch, ok := s.context(ctx, evt.OrderID)
-		if !ok {
-			return nil
-		}
-		s.deliver(ctx, evt.OrderID, kindRefund, ref, func(d FlowDispatcher) int {
+		return s.deliver(ctx, evt.OrderID, kindRefund, ref, func(d FlowDispatcher) int {
 			snap := Snapshot(o)
 			snap.RefundedAmount = RefundedAmount(ctx, s.orders, o.ID)
 			return d.OnPaymentRefunded(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, ref, snap)
 		}, func() error { return s.sendRefund(ctx, o, ch) })
-		return nil
 	})
 }
 
 // The outbox redelivers an event whose handler finished but whose delivery was never marked done, and a second receipt reads to a customer as a second order
 // Core's own log is read before any flow is asked, so a replay of mail core already sent can't hand it to a flow as a second copy
-func (s *Service) deliver(ctx context.Context, orderID uuid.UUID, kind, ref string, enroll func(FlowDispatcher) int, send func() error) {
+func (s *Service) deliver(ctx context.Context, orderID uuid.UUID, kind, ref string, enroll func(FlowDispatcher) int, send func() error) error {
 	if s.alreadySent(ctx, orderID, kind, ref) {
-		return
+		return nil
 	}
 	if s.flowTook(enroll) {
-		return
+		return nil
 	}
-	s.sendAndRecord(ctx, orderID, kind, ref, send)
+	return s.sendAndRecord(ctx, orderID, kind, ref, send)
 }
 
 func (s *Service) alreadySent(ctx context.Context, orderID uuid.UUID, kind, ref string) bool {
@@ -108,24 +110,22 @@ func (s *Service) alreadySent(ctx context.Context, orderID uuid.UUID, kind, ref 
 }
 
 // Recorded after the send, since a row written for mail that never left would suppress the real one
-func (s *Service) sendAndRecord(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) {
+// A send that can never succeed - no address on the order - is logged and dropped; anything else returns so the event is delivered again
+func (s *Service) sendAndRecord(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) error {
 	if err := send(); err != nil {
-		logSend(err)
-		return
+		log.Printf("[ordermail] %v", err)
+		if errors.Is(err, errNoAddress) {
+			return nil
+		}
+		return err
 	}
 	if s.sendLog == nil {
-		return
+		return nil
 	}
 	if err := s.sendLog.RecordSent(ctx, orderID, kind, ref); err != nil {
 		log.Printf("[ordermail] send log write: %v", err)
 	}
-}
-
-// An event-driven send has nobody to report to, so a failure is logged and the subscriber still succeeds
-func logSend(err error) {
-	if err != nil {
-		log.Printf("[ordermail] %v", err)
-	}
+	return nil
 }
 
 // No dispatcher wired means nothing else can be sending, so every order email is ours
