@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -92,6 +93,10 @@ func (r *postgresRepository) ListPaymentTransactions(ctx context.Context, orderI
 		out[i] = toPaymentTransaction(row)
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) LockOrder(ctx context.Context, orderID uuid.UUID) error {
+	return r.queries.LockOrderForPayment(ctx, orderID)
 }
 
 // LockOrderForPayment takes the order row so concurrent payment intents serialize
@@ -593,8 +598,12 @@ func (r *postgresRepository) ListReturns(ctx context.Context, orderID uuid.UUID)
 	return out, nil
 }
 
-func (r *postgresRepository) UpdateReturnStatus(ctx context.Context, id uuid.UUID, status string) (OrderReturn, error) {
-	row, err := r.queries.UpdateOrderReturnStatus(ctx, db.UpdateOrderReturnStatusParams{ID: id, Status: status})
+func (r *postgresRepository) UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error) {
+	row, err := r.queries.UpdateOrderReturnStatus(ctx, db.UpdateOrderReturnStatusParams{ID: id, FromStatus: from, Status: status})
+	if errors.Is(err, sql.ErrNoRows) {
+		return OrderReturn{}, apperr.New("RETURN_STATUS_RACED", apperr.ClassConflict,
+			fmt.Sprintf("the return left %q before it could move to %q - reload it and try again", from, status))
+	}
 	if err != nil {
 		return OrderReturn{}, fmt.Errorf("update return status: %w", err)
 	}
