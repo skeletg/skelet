@@ -74,6 +74,8 @@ var orderFields = []dataio.Field{
 var (
 	errBadDate   = errors.New("want a date (2006-01-02) or an RFC 3339 timestamp")
 	errBadStatus = errors.New("not an order status")
+	// A From after the To exported an empty file with nothing to say why
+	errBadRange = errors.New("the From date is after the To date")
 )
 
 // OrderLineResource is one row per order line, shaped for an accounting hand-off - export only
@@ -117,6 +119,9 @@ func newExporter(queries *db.Queries, o dataio.Opts, now time.Time) (*orderExpor
 	end, err := parseBound(o.Str(optEndDate), now.Add(24*time.Hour), true)
 	if err != nil {
 		return nil, err
+	}
+	if !start.Before(end) {
+		return nil, errBadRange
 	}
 	p := db.ExportOrderRowsParams{
 		AllChannels: o.ChannelID == uuid.Nil,

@@ -78,3 +78,15 @@ func TestColumnNamesStayAccountingStable(t *testing.T) {
 		}
 	}
 }
+
+// A From after the To exported an empty file with nothing to say why
+func TestAnInvertedRangeIsRefused(t *testing.T) {
+	inverted := map[string]string{optStartDate: "2026-03-05", optEndDate: "2026-03-01"}
+	if _, err := newExporter(nil, dataio.NewOpts(inverted), time.Now()); !errors.Is(err, errBadRange) {
+		t.Fatalf("From after To = %v, want errBadRange", err)
+	}
+	sameDay := map[string]string{optStartDate: "2026-03-01", optEndDate: "2026-03-01"}
+	if _, err := newExporter(nil, dataio.NewOpts(sameDay), time.Now()); err != nil {
+		t.Fatalf("a single day = %v, want it accepted", err)
+	}
+}
