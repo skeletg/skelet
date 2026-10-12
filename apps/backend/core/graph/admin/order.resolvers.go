@@ -259,7 +259,7 @@ func (r *mutationResolver) CreateFulfillment(ctx context.Context, input model.Cr
 	return toOrderModel(updated), nil
 }
 
-func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error) {
+func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmentID string, force *bool) (*model.ShippingLabel, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmen
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", o.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	label, err := r.OrderSvc.GenerateLabel(ctx, fID)
+	label, err := r.OrderSvc.GenerateLabel(ctx, fID, boolOrFalse(force))
 	if err != nil {
 		return nil, err
 	}

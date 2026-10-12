@@ -142,7 +142,7 @@ type RequestReturnInput struct {
 func (s *Service) ReturnableByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("order not found")
+		return nil, err
 	}
 	return s.returnableForOrder(ctx, o)
 }
@@ -186,7 +186,7 @@ func (s *Service) returnableFor(ctx context.Context, repo Repository, o Order) (
 func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (OrderReturn, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return OrderReturn{}, fmt.Errorf("order not found")
+		return OrderReturn{}, err
 	}
 	if o.Status != OrderStatusFulfilled && o.Status != OrderStatusPartiallyFulfilled {
 		return OrderReturn{}, apperr.New("RETURN_ORDER_NOT_SHIPPED", apperr.ClassConflict,
@@ -318,7 +318,7 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 func (s *Service) transitionReturn(ctx context.Context, returnID uuid.UUID, to, eventType, message string) (OrderReturn, error) {
 	ret, err := s.repo.GetReturn(ctx, returnID)
 	if err != nil {
-		return OrderReturn{}, fmt.Errorf("return not found")
+		return OrderReturn{}, err
 	}
 	if !validReturnTransition(ret.Status, to) {
 		return OrderReturn{}, apperr.New("RETURN_INVALID_TRANSITION", apperr.ClassConflict,
@@ -341,7 +341,7 @@ func (s *Service) transitionReturn(ctx context.Context, returnID uuid.UUID, to, 
 func (s *Service) ApproveReturn(ctx context.Context, returnID uuid.UUID) (OrderReturn, error) {
 	ret, err := s.repo.GetReturn(ctx, returnID)
 	if err != nil {
-		return OrderReturn{}, fmt.Errorf("return not found")
+		return OrderReturn{}, err
 	}
 	out, err := s.transitionReturn(ctx, returnID, ReturnApproved, "return_approved",
 		fmt.Sprintf("Return %s approved.", ret.RMANumber))
@@ -355,7 +355,7 @@ func (s *Service) ApproveReturn(ctx context.Context, returnID uuid.UUID) (OrderR
 func (s *Service) RejectReturn(ctx context.Context, returnID uuid.UUID) (OrderReturn, error) {
 	ret, err := s.repo.GetReturn(ctx, returnID)
 	if err != nil {
-		return OrderReturn{}, fmt.Errorf("return not found")
+		return OrderReturn{}, err
 	}
 	out, err := s.transitionReturn(ctx, returnID, ReturnRejected, "return_rejected",
 		fmt.Sprintf("Return %s rejected.", ret.RMANumber))
@@ -387,7 +387,7 @@ func (s *Service) publishReturnEvent(ctx context.Context, orderID, returnID uuid
 func (s *Service) ReceiveReturn(ctx context.Context, returnID uuid.UUID) (OrderReturn, error) {
 	ret, err := s.repo.GetReturn(ctx, returnID)
 	if err != nil {
-		return OrderReturn{}, fmt.Errorf("return not found")
+		return OrderReturn{}, err
 	}
 	if !validReturnTransition(ret.Status, ReturnReceived) {
 		return OrderReturn{}, apperr.New("RETURN_INVALID_TRANSITION", apperr.ClassConflict,
@@ -546,7 +546,7 @@ func refundCeiling(target string, totals PaymentTotals, totalTendered int64) int
 func (s *Service) RecordReturnRefundIntent(ctx context.Context, returnID uuid.UUID, reason string) (ReturnRefundIntent, error) {
 	ret, err := s.repo.GetReturn(ctx, returnID)
 	if err != nil {
-		return ReturnRefundIntent{}, fmt.Errorf("return not found")
+		return ReturnRefundIntent{}, err
 	}
 	if ret.Status != ReturnReceived {
 		return ReturnRefundIntent{}, apperr.New("RETURN_NOT_RECEIVED", apperr.ClassConflict,

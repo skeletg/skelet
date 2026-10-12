@@ -32,7 +32,7 @@ type FulfillmentLineInput struct {
 func (s *Service) CreateFulfillment(ctx context.Context, in CreateFulfillmentInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status == OrderStatusCancelled || o.Status == OrderStatusFulfilled {
 		return Order{}, apperr.New("FULFILLMENT_ORDER_TERMINAL", apperr.ClassConflict,
@@ -203,7 +203,7 @@ func planFulfillment(ordered, shipped map[uuid.UUID]float64, lines []Fulfillment
 func (s *Service) FulfillRemaining(ctx context.Context, orderID uuid.UUID, carrier, trackingNumber string, insuredValueCents int64) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status == OrderStatusCancelled || o.Status == OrderStatusFulfilled {
 		return Order{}, apperr.New("FULFILLMENT_ORDER_TERMINAL", apperr.ClassConflict,

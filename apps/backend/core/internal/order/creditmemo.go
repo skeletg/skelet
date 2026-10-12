@@ -84,7 +84,7 @@ func (s *Service) GetCreditMemo(ctx context.Context, id uuid.UUID) (CreditMemo, 
 func (s *Service) CreditableByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("order not found")
+		return nil, err
 	}
 	credited, err := s.repo.CreditedByOrderLine(ctx, orderID)
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Service) CreditableByOrderLine(ctx context.Context, orderID uuid.UUID) 
 func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemoInput) (CreditMemoIntent, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return CreditMemoIntent{}, fmt.Errorf("order not found")
+		return CreditMemoIntent{}, err
 	}
 	if o.Status == OrderStatusDraft {
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_DRAFT_ORDER", apperr.ClassConflict,

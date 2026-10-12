@@ -59,7 +59,7 @@ type EditOrderInput struct {
 func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
@@ -356,7 +356,7 @@ func validEditAddress(a OrderAddress) error {
 func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,

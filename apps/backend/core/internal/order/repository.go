@@ -224,6 +224,9 @@ func (r *postgresRepository) ListFulfillments(ctx context.Context, orderID uuid.
 
 func (r *postgresRepository) GetFulfillment(ctx context.Context, id uuid.UUID) (Fulfillment, error) {
 	row, err := r.queries.GetOrderFulfillment(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Fulfillment{}, ErrFulfillmentNotFound
+	}
 	if err != nil {
 		return Fulfillment{}, fmt.Errorf("get fulfillment: %w", err)
 	}
@@ -556,6 +559,9 @@ func (r *postgresRepository) AddReturnLine(ctx context.Context, returnID uuid.UU
 
 func (r *postgresRepository) GetReturn(ctx context.Context, id uuid.UUID) (OrderReturn, error) {
 	row, err := r.queries.GetOrderReturn(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return OrderReturn{}, ErrReturnNotFound
+	}
 	if err != nil {
 		return OrderReturn{}, fmt.Errorf("get return: %w", err)
 	}
@@ -951,6 +957,9 @@ func (r *postgresRepository) AddOrderEvent(ctx context.Context, event OrderEvent
 
 func (r *postgresRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error) {
 	row, err := r.queries.GetOrderByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNotFound
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("get order: %w", err)
 	}
@@ -1080,6 +1089,9 @@ func (r *postgresRepository) ListOrdersByCustomer(ctx context.Context, customerI
 
 func (r *postgresRepository) GetGuestOrder(ctx context.Context, id uuid.UUID, email string) (Order, error) {
 	row, err := r.queries.GetGuestOrder(ctx, db.GetGuestOrderParams{ID: id, Email: email})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Order{}, ErrOrderNotFound
+	}
 	if err != nil {
 		return Order{}, fmt.Errorf("get guest order: %w", err)
 	}
