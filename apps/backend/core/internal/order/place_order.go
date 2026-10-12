@@ -524,9 +524,9 @@ func (s *Service) applyGiftCardTenders(ctx context.Context, sqlTx *sql.Tx, order
 		remaining -= applied
 	}
 	if giftCardApplied > 0 {
-		paymentStatus := "unpaid"
+		paymentStatus := PaymentUnpaid
 		if giftCardApplied >= total {
-			paymentStatus = "paid"
+			paymentStatus = PaymentPaid
 		}
 		if _, err := orderR.SetGiftCardTender(ctx, orderID, giftCardApplied, paymentStatus); err != nil {
 			return 0, fmt.Errorf("record gift card tender: %w", err)
@@ -551,9 +551,9 @@ func (s *Service) applyStoreCreditTender(ctx context.Context, sqlTx *sql.Tx, ord
 	if applied <= 0 {
 		return 0, nil
 	}
-	paymentStatus := "unpaid"
+	paymentStatus := PaymentUnpaid
 	if alreadyTendered+applied >= total {
-		paymentStatus = "paid"
+		paymentStatus = PaymentPaid
 	}
 	if _, err := orderR.SetStoreCreditTender(ctx, orderID, applied, paymentStatus); err != nil {
 		return 0, fmt.Errorf("record store credit tender: %w", err)
