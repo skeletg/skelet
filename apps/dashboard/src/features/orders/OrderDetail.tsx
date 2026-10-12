@@ -619,17 +619,17 @@ export function OrderDetail() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={labelState.loading}
+                          disabled={labelState.loading || f.status === 'cancelled'}
                           onClick={async () => {
                             setActionError(null)
                             try {
-                              await generateLabel({ variables: { fulfillmentId: f.id } })
+                              await generateLabel({ variables: { fulfillmentId: f.id, force: f.labels.length > 0 } })
                             } catch (e) {
                               setActionError(e instanceof Error ? e.message : 'Label generation failed.')
                             }
                           }}
                         >
-                          {labelState.loading ? 'Generating…' : 'Generate label'}
+                          {labelState.loading ? 'Generating…' : f.labels.length > 0 ? 'Buy another label' : 'Generate label'}
                         </Button>
                         {f.labels.map((lbl) => (
                           <a

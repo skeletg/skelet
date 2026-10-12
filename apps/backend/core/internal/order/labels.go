@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/google/uuid"
@@ -14,17 +13,29 @@ import (
 
 // GenerateLabel makes and persists a shipping label for a fulfillment via the order's carrier, stamping the returned tracking number on the
 // order when it has none - Errors when the order has no carrier, shipping isn't wired, or the carrier has no Labeler
-func (s *Service) GenerateLabel(ctx context.Context, fulfillmentID uuid.UUID) (ShippingLabel, error) {
-	if s.shipping == nil {
-		return ShippingLabel{}, apperr.New("LABEL_UNAVAILABLE", apperr.ClassUnavailable, "shipping is not configured")
-	}
-	f, err := s.repo.GetFulfillment(ctx, fulfillmentID)
-	if err != nil {
-		return ShippingLabel{}, fmt.Errorf("fulfillment not found")
-	}
-	o, err := s.repo.GetOrderByID(ctx, f.OrderID)
+// Every call buys a label from the carrier, so a second one for the same shipment needs force
+func (s *Service) GenerateLabel(ctx context.Context, fulfillmentID uuid.UUID, force bool) (ShippingLabel, error) {
+	shell, err := s.repo.GetFulfillment(ctx, fulfillmentID)
 	if err != nil {
 		return ShippingLabel{}, err
+	}
+	o, err := s.repo.GetOrderByID(ctx, shell.OrderID)
+	if err != nil {
+		return ShippingLabel{}, err
+	}
+	f, err := s.fulfillmentWithLines(ctx, o.ID, fulfillmentID)
+	if err != nil {
+		return ShippingLabel{}, err
+	}
+	if f.Status == FulfillmentCancelled {
+		return ShippingLabel{}, apperr.New("LABEL_FULFILLMENT_CANCELLED", apperr.ClassConflict, "a cancelled shipment can't get a label")
+	}
+	if len(f.Labels) > 0 && !force {
+		return ShippingLabel{}, apperr.New("LABEL_EXISTS", apperr.ClassConflict,
+			"this shipment already has a label - buying another one charges the carrier again")
+	}
+	if s.shipping == nil {
+		return ShippingLabel{}, apperr.New("LABEL_UNAVAILABLE", apperr.ClassUnavailable, "shipping is not configured")
 	}
 	slug := ""
 	if o.ShippingCarrierSlug != nil {
@@ -41,7 +52,7 @@ func (s *Service) GenerateLabel(ctx context.Context, fulfillmentID uuid.UUID) (S
 		CarrierSlug:       slug,
 		MethodCode:        ptr.Deref(o.ShippingMethodCode),
 		ShipTo:            orderAddressToShipping(o.ShippingAddress),
-		Items:             rateItemsFromLines(o.Lines),
+		Items:             shipmentItems(o, f),
 		InsuredValueCents: f.InsuredValueCents,
 	})
 	if err != nil {
@@ -87,4 +98,32 @@ func orderAddressToShipping(a OrderAddress) shippingpkg.Address {
 		CountryCode: a.CountryCode,
 		Phone:       ptr.Deref(a.Phone),
 	}
+}
+
+func (s *Service) fulfillmentWithLines(ctx context.Context, orderID, fulfillmentID uuid.UUID) (Fulfillment, error) {
+	all, err := s.repo.ListFulfillments(ctx, orderID)
+	if err != nil {
+		return Fulfillment{}, err
+	}
+	for _, f := range all {
+		if f.ID == fulfillmentID {
+			return f, nil
+		}
+	}
+	return Fulfillment{}, ErrFulfillmentNotFound
+}
+
+// What is actually in this box - listing every order line declared and weighed goods a partial shipment never carried
+func shipmentItems(o Order, f Fulfillment) []shippingpkg.RateItem {
+	byID := make(map[uuid.UUID]OrderLine, len(o.Lines))
+	for _, l := range o.Lines {
+		byID[l.ID] = l
+	}
+	out := make([]shippingpkg.RateItem, 0, len(f.Lines))
+	for _, fl := range f.Lines {
+		if l, ok := byID[fl.OrderLineID]; ok {
+			out = append(out, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: fl.Quantity, UnitPriceCents: l.UnitPrice})
+		}
+	}
+	return out
 }

@@ -2364,7 +2364,7 @@ type ComplexityRoot struct {
 		GenerateMediaAltText              func(childComplexity int, assetID string) int
 		GenerateProductReviewSummary      func(childComplexity int, productID string) int
 		GeneratePromotionCodes            func(childComplexity int, ruleID string, pattern string, count int32, prefix *string, suffix *string) int
-		GenerateShippingLabel             func(childComplexity int, fulfillmentID string) int
+		GenerateShippingLabel             func(childComplexity int, fulfillmentID string, force *bool) int
 		HoldOrder                         func(childComplexity int, id string, reason *string) int
 		IssueCreditMemo                   func(childComplexity int, input model.IssueCreditMemoInput) int
 		IssueGiftCard                     func(childComplexity int, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time, channelID *string) int
@@ -4781,7 +4781,7 @@ type MutationResolver interface {
 	EditOrder(ctx context.Context, input model.EditOrderInput) (*model.Order, error)
 	EditOrderAddress(ctx context.Context, input model.EditOrderAddressInput) (*model.Order, error)
 	CreateFulfillment(ctx context.Context, input model.CreateFulfillmentInput) (*model.Order, error)
-	GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error)
+	GenerateShippingLabel(ctx context.Context, fulfillmentID string, force *bool) (*model.ShippingLabel, error)
 	ResendOrderEmail(ctx context.Context, orderID string, message model.OrderEmailMessage, fulfillmentID *string) (bool, error)
 	CapturePayment(ctx context.Context, orderID string, amount *int32) (*model.Order, error)
 	RefundPayment(ctx context.Context, orderID string, amount *int32, reason *string) (*model.Order, error)
@@ -16537,7 +16537,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.GenerateShippingLabel(childComplexity, args["fulfillmentId"].(string)), true
+		return e.ComplexityRoot.Mutation.GenerateShippingLabel(childComplexity, args["fulfillmentId"].(string), args["force"].(*bool)), true
 	case "Mutation.holdOrder":
 		if e.ComplexityRoot.Mutation.HoldOrder == nil {
 			break
@@ -33803,8 +33803,8 @@ extend type Mutation {
   # Record a shipment covering a subset of the order's line quantities. Each line ships ` + "`" + `quantity` + "`" + ` of an order line; the sum across shipments may not exceed the ordered quantity. The order settles to PARTIALLY_FULFILLED, or FULFILLED once every line is fully shipped. Carrier/tracking seed the OrderFulfilling sync hook (a shipping-API plugin may override them). Inventory decrements the shipped quantities; the first shipment captures payment when the order is still authorized.
   createFulfillment(input: CreateFulfillmentInput!): Order!
 
-  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Requires orders.update.
-  generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
+  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Each label is charged, so a second one for the same shipment needs force. Requires orders.update.
+  generateShippingLabel(fulfillmentId: ID!, force: Boolean): ShippingLabel!
 
   # ---------- Customer mail ---------- Send one of the order's lifecycle emails again: the receipt, a shipment notice, the cancellation or the refund.
   resendOrderEmail(orderId: ID!, message: OrderEmailMessage!, fulfillmentId: ID): Boolean!
@@ -47895,6 +47895,14 @@ func (ec *executionContext) field_Mutation_generateShippingLabel_args(ctx contex
 		return nil, err
 	}
 	args["fulfillmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "force",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["force"] = arg1
 	return args, nil
 }
 
@@ -107448,7 +107456,7 @@ func (ec *executionContext) _Mutation_generateShippingLabel(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().GenerateShippingLabel(ctx, fc.Args["fulfillmentId"].(string))
+			return ec.Resolvers.Mutation().GenerateShippingLabel(ctx, fc.Args["fulfillmentId"].(string), fc.Args["force"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ShippingLabel) graphql.Marshaler {

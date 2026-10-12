@@ -172,7 +172,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			Email:               in.Email,
 			ChannelID:           store.ID,
 			Status:              OrderStatusDraft,
-			PaymentStatus:       "unpaid",
+			PaymentStatus:       PaymentUnpaid,
 			BillingAddress:      billing,
 			ShippingAddress:     shipping,
 			SubtotalAmount:      subtotal,
@@ -225,7 +225,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 func (s *Service) PlaceDraftOrder(ctx context.Context, orderID uuid.UUID) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status != OrderStatusDraft {
 		return Order{}, apperr.New("ORDER_NOT_DRAFT", apperr.ClassConflict, "only draft orders can be placed")

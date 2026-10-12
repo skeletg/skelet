@@ -316,18 +316,20 @@ func (q *Queries) SumReturnedQtyByOrderLine(ctx context.Context, orderID uuid.UU
 
 const updateOrderReturnStatus = `-- name: UpdateOrderReturnStatus :one
 UPDATE order_returns
-SET status = $2, updated_at = NOW()
-WHERE id = $1
+SET status = $1, updated_at = NOW()
+WHERE id = $2 AND status = $3
 RETURNING id, order_id, rma_number, status, reason, restock, refund_target, refund_amount_cents, issued_gift_card_id, admin_id, created_at, updated_at, resolution, exchange_order_id
 `
 
 type UpdateOrderReturnStatusParams struct {
-	ID     uuid.UUID `json:"id"`
-	Status string    `json:"status"`
+	Status     string    `json:"status"`
+	ID         uuid.UUID `json:"id"`
+	FromStatus string    `json:"from_status"`
 }
 
+// Only from the status the caller validated - Receive racing Reject left a restocked return rejected, which made its units returnable again
 func (q *Queries) UpdateOrderReturnStatus(ctx context.Context, arg UpdateOrderReturnStatusParams) (OrderReturn, error) {
-	row := q.db.QueryRowContext(ctx, updateOrderReturnStatus, arg.ID, arg.Status)
+	row := q.db.QueryRowContext(ctx, updateOrderReturnStatus, arg.Status, arg.ID, arg.FromStatus)
 	var i OrderReturn
 	err := row.Scan(
 		&i.ID,

@@ -1,0 +1,1 @@
+ALTER TABLE credit_memos DROP COLUMN IF EXISTS status;

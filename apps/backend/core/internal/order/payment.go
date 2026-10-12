@@ -85,32 +85,58 @@ func (s *Service) ListAwaitingPaymentSync(ctx context.Context, notBefore, olderT
 	return s.repo.ListOrdersAwaitingPaymentSync(ctx, notBefore, olderThan, maxRows)
 }
 
+// The write is conditional on the status read - the sync sweep and a webhook can settle the same order at once, and the slower one used to write authorized over paid - so a lost race re-reads and re-applies the event to what's there now
 func (s *Service) SettlePayment(ctx context.Context, orderID uuid.UUID, event, providerReference string) (Order, error) {
-	o, err := s.repo.GetOrderByID(ctx, orderID)
-	if err != nil {
-		return Order{}, err
+	for range settleAttempts {
+		o, err := s.repo.GetOrderByID(ctx, orderID)
+		if err != nil {
+			return Order{}, err
+		}
+		next, changed := nextPaymentStatus(o.PaymentStatus, event)
+		ref := o.PaymentReference
+		if providerReference != "" {
+			ref = providerReference
+		}
+		if !changed && ref == o.PaymentReference {
+			return o, nil
+		}
+		updated, applied, err := s.repo.SetPaymentStateFrom(ctx, orderID, o.PaymentStatus, next, ref)
+		if err != nil {
+			return Order{}, err
+		}
+		if !applied {
+			continue
+		}
+		if s.bus != nil && changed {
+			s.publishDurable(ctx, &OrderPaymentStatusChanged{
+				OrderID:   orderID,
+				ChannelID: o.ChannelID,
+				Status:    next,
+				Reference: ref,
+			})
+		}
+		return updated, nil
 	}
-	next, changed := nextPaymentStatus(o.PaymentStatus, event)
-	ref := o.PaymentReference
-	if providerReference != "" {
-		ref = providerReference
+	return Order{}, apperr.New("PAYMENT_STATUS_RACED", apperr.ClassConflict, "the order's payment status kept changing - try again")
+}
+
+const settleAttempts = 3
+
+// Settles a pending ledger row - moved is false when the row was already final with this same outcome, so a repeat finalize changes nothing, and a different final outcome is refused rather than flipped
+func finalizeTxn(ctx context.Context, r Repository, txnID uuid.UUID, ok bool, providerReference string) (PaymentTransaction, bool, error) {
+	status := PaymentTxnFailed
+	if ok {
+		status = PaymentTxnSucceeded
 	}
-	if !changed && ref == o.PaymentReference {
-		return o, nil
+	txn, moved, err := r.MarkPaymentTransaction(ctx, txnID, status, providerReference)
+	if err != nil || moved {
+		return txn, moved, err
 	}
-	updated, err := s.repo.SetPaymentState(ctx, orderID, next, ref)
-	if err != nil {
-		return Order{}, err
+	if txn.Status == status {
+		return txn, false, nil
 	}
-	if s.bus != nil && changed {
-		s.publishDurable(ctx, &OrderPaymentStatusChanged{
-			OrderID:   orderID,
-			ChannelID: o.ChannelID,
-			Status:    next,
-			Reference: ref,
-		})
-	}
-	return updated, nil
+	return txn, false, apperr.New("PAYMENT_ALREADY_SETTLED", apperr.ClassConflict,
+		fmt.Sprintf("this payment transaction is already %s", txn.Status))
 }
 
 const OfflineProviderSlug = "offline" // the ledger was gateway-only, so COD / bank transfer / PO / pickup sat at Captured=0 forever and every refund guard read "nothing collected"
@@ -131,16 +157,6 @@ type RecordOfflinePaymentInput struct {
 // Records money taken outside a gateway as a real capture row, then lets the status derive from the ledger
 // Partial payments are the point - demanding UNPAID and recording the whole balance makes a deposit then the rest impossible
 func (s *Service) RecordOfflinePayment(ctx context.Context, in RecordOfflinePaymentInput) (Order, error) {
-	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
-	if err != nil {
-		return Order{}, err
-	}
-	switch o.PaymentStatus {
-	case PaymentUnpaid, PaymentPartiallyCaptured, PaymentAuthorized, "":
-	default:
-		return Order{}, apperr.New("PAYMENT_NOT_COLLECTABLE", apperr.ClassConflict,
-			fmt.Sprintf("an order that is %s cannot take another payment", o.PaymentStatus))
-	}
 	if in.AmountCents < 0 {
 		return Order{}, apperr.New("PAYMENT_INVALID_AMOUNT", apperr.ClassValidation, "payment amount cannot be negative")
 	}
@@ -157,11 +173,19 @@ func (s *Service) RecordOfflinePayment(ctx context.Context, in RecordOfflinePaym
 	}
 
 	var updated Order
-	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		// Two operators recording the same transfer would otherwise both see the full balance owed
 		if err := r.LockOrderForPayment(ctx, in.OrderID); err != nil {
 			return fmt.Errorf("lock order for payment: %w", err)
+		}
+		// Re-read under the lock - an edit committed since the first read changed what's owed, and a cancelled order takes no cash
+		o, err := r.GetOrderByID(ctx, in.OrderID)
+		if err != nil {
+			return err
+		}
+		if err := collectable(o); err != nil {
+			return err
 		}
 		totals, err := r.PaymentTotalsActiveByKind(ctx, in.OrderID)
 		if err != nil {
@@ -234,6 +258,19 @@ func (s *Service) RecordOfflinePayment(ctx context.Context, in RecordOfflinePaym
 		})
 	}
 	return updated, nil
+}
+
+func collectable(o Order) error {
+	if o.Status == OrderStatusCancelled || o.Status == OrderStatusDraft {
+		return apperr.New("PAYMENT_NOT_COLLECTABLE", apperr.ClassConflict,
+			fmt.Sprintf("a %s order cannot take a payment", o.Status))
+	}
+	switch o.PaymentStatus {
+	case PaymentUnpaid, PaymentPartiallyCaptured, PaymentAuthorized, "":
+		return nil
+	}
+	return apperr.New("PAYMENT_NOT_COLLECTABLE", apperr.ClassConflict,
+		fmt.Sprintf("an order that is %s cannot take another payment", o.PaymentStatus))
 }
 
 func (s *Service) TaxLines(ctx context.Context, orderID uuid.UUID) ([]TaxLine, error) {
@@ -311,7 +348,8 @@ func (s *Service) SettleGatewayAmount(ctx context.Context, orderID uuid.UUID, ki
 			if p.Kind != kind || p.Status == PaymentTxnFailed {
 				continue
 			}
-			if p.ProviderReference == providerReference || p.Status == PaymentTxnPending {
+			// A pending row is the twin only when it is the same money - any pending refund used to swallow an unrelated one typed into the gateway's dashboard
+			if p.ProviderReference == providerReference || (p.Status == PaymentTxnPending && p.AmountCents == amountCents) {
 				return nil
 			}
 		}
@@ -395,9 +433,13 @@ func (s *Service) RecordVoid(ctx context.Context, orderID uuid.UUID, amountCents
 	return s.recordSettledTxn(ctx, orderID, PaymentTxnVoid, amountCents, providerSlug, providerReference, "authorization voided")
 }
 
-// recordSettledTxn inserts an already-final ledger row under a deterministic per-order key, returning the existing row on replay
+// recordSettledTxn inserts an already-final ledger row under a deterministic key, returning the existing row on replay
+// The key carries the gateway's reference when there is one - a per-order key turned a re-authorization after an expired hold into a replay of the first, so the new hold was never recorded and its capture read as an over-capture
 func (s *Service) recordSettledTxn(ctx context.Context, orderID uuid.UUID, kind string, amountCents int64, providerSlug, providerReference, reason string) (PaymentTransaction, error) {
 	key := kind + ":" + orderID.String()
+	if providerReference != "" {
+		key += ":" + providerReference
+	}
 	var txn PaymentTransaction
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
@@ -478,13 +520,10 @@ func (s *Service) recordPaymentIntent(ctx context.Context, orderID uuid.UUID, ki
 // Marks a pending row succeeded or failed and, on success, recomputes the order's payment status from the ledger totals
 func (s *Service) FinalizePaymentTransaction(ctx context.Context, txnID uuid.UUID, ok bool, providerReference string) (Order, error) {
 	var updated Order
+	var before string
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		status := PaymentTxnFailed
-		if ok {
-			status = PaymentTxnSucceeded
-		}
-		txn, err := r.MarkPaymentTransaction(ctx, txnID, status, providerReference)
+		txn, moved, err := finalizeTxn(ctx, r, txnID, ok, providerReference)
 		if err != nil {
 			return err
 		}
@@ -492,8 +531,8 @@ func (s *Service) FinalizePaymentTransaction(ctx context.Context, txnID uuid.UUI
 		if err != nil {
 			return err
 		}
-		if !ok {
-			updated = o
+		updated, before = o, o.PaymentStatus
+		if !ok || !moved {
 			return nil
 		}
 		totals, err := r.PaymentTotalsByKind(ctx, txn.OrderID)
@@ -507,7 +546,8 @@ func (s *Service) FinalizePaymentTransaction(ctx context.Context, txnID uuid.UUI
 	if err != nil {
 		return Order{}, err
 	}
-	if s.bus != nil {
+	// Only a real change - a failed capture or a repeat finalize published a status change that wasn't one
+	if s.bus != nil && updated.PaymentStatus != before {
 		s.publishDurable(ctx, &OrderPaymentStatusChanged{
 			OrderID:   updated.ID,
 			ChannelID: updated.ChannelID,
