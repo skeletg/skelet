@@ -20,7 +20,8 @@ SELECT * FROM credit_memos WHERE id = $1;
 SELECT * FROM credit_memos WHERE return_id = $1;
 
 -- name: ListCreditMemosByOrder :many
-SELECT * FROM credit_memos WHERE order_id = $1 ORDER BY created_at, number;
+-- A failed memo stays for the audit trail but is not a credit the order carries
+SELECT * FROM credit_memos WHERE order_id = $1 AND status = 'issued' ORDER BY created_at, number;
 
 -- name: ListCreditMemoLines :many
 SELECT * FROM credit_memo_lines WHERE credit_memo_id = $1 ORDER BY created_at;
@@ -37,9 +38,12 @@ ORDER BY credit_memo_id, created_at;
 SELECT ml.order_line_id, COALESCE(SUM(ml.quantity), 0)::NUMERIC(14,4) AS credited
 FROM credit_memo_lines ml
 JOIN credit_memos m ON m.id = ml.credit_memo_id
-WHERE m.order_id = $1
+WHERE m.order_id = $1 AND m.status = 'issued'
 GROUP BY ml.order_line_id;
 
 -- name: SetPaymentTransactionCreditMemo :exec
 -- Point the money row at the memo that explains it
 UPDATE order_payment_transactions SET credit_memo_id = $2 WHERE id = $1;
+
+-- name: MarkCreditMemoFailed :exec
+UPDATE credit_memos SET status = 'failed' WHERE id = $1;

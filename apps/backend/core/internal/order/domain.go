@@ -190,6 +190,9 @@ type Repository interface {
 	SetStoreCreditTender(ctx context.Context, id uuid.UUID, storeCreditAmount int64, paymentStatus string) (Order, error)
 	SetGiftCardTender(ctx context.Context, id uuid.UUID, giftCardAmount int64, paymentStatus string) (Order, error)
 	SetPaymentState(ctx context.Context, id uuid.UUID, paymentStatus, paymentReference string) (Order, error)
+	// SetPaymentState only while the status is still from - false when someone moved it first
+	SetPaymentStateFrom(ctx context.Context, id uuid.UUID, from, paymentStatus, paymentReference string) (Order, bool, error)
+	SetPaymentReference(ctx context.Context, id uuid.UUID, paymentReference string) (Order, error)
 	// The payment-sync sweep's worklist - unpaid gateway orders holding a provider reference, bounded so ancient ones stop polling
 	ListOrdersAwaitingPaymentSync(ctx context.Context, notBefore, olderThan time.Time, maxRows int32) ([]Order, error)
 
@@ -197,7 +200,9 @@ type Repository interface {
 	InsertPaymentTransaction(ctx context.Context, t PaymentTransaction) (PaymentTransaction, error)
 	LockOrderForPayment(ctx context.Context, orderID uuid.UUID) error
 	PaymentTotalsActiveByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
-	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, error)
+	// Settles a pending row - false with the row as it stands when it was already final
+	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, bool, error)
+	MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error
 	ListPaymentTransactions(ctx context.Context, orderID uuid.UUID) ([]PaymentTransaction, error)
 	PaymentTotalsByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
 	FindPaymentTransactionByKey(ctx context.Context, idempotencyKey string) (PaymentTransaction, bool, error)
