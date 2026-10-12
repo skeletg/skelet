@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // The mutation surface for actions - methods rather than fields, so the engine can audit each plugin's contributions and the concrete struct's allocation strategy can change without touching action implementations

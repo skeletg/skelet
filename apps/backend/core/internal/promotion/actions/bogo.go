@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // bogo (buy N, get M) discounts every Mth unit of matching lines, pooling eligible units across every line matching target_condition before computing clusters
