@@ -1,4 +1,4 @@
-// Package money formats integer minor units for people to read - never through a float, which is how cents get lost
+// Package money is integer minor-unit money - rounding arithmetic for price times quantity, and formatting for people to read, never through a float that loses cents
 package money
 
 import (

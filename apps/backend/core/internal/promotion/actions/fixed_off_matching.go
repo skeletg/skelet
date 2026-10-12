@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // fixedOffMatching applies a fixed cents-per-unit discount to lines matching a nested condition. max_qty caps the number of discounted

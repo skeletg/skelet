@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // These actions decide what a shopper pays, and every one of them takes params an operator typed into the dashboard. So there are two jobs: ValidateParams has to refuse a rule that would misprice a cart, and Apply has to stay inside the cart's own subtotal however the numbers read

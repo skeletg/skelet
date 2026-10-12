@@ -11,9 +11,8 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
-	libmoney "github.com/skeletg/skelet/apps/backend/core/lib/money"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // The earn subscriber computes merchandise value as subtotal minus discounts - shipping and tax don't earn points
@@ -95,7 +94,7 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 		return nil
 	}
 	// Per whole currency unit of the order's own currency - a flat /100 earned yen at a hundredth of the rate and dinars at ten times it
-	unit := int64(math.Pow10(libmoney.ISODecimals(o.CurrencyCode)))
+	unit := int64(math.Pow10(money.ISODecimals(o.CurrencyCode)))
 	points := merch / unit * prog.EarnPointsPerUnit
 	if points <= 0 {
 		return nil
