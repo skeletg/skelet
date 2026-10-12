@@ -115,3 +115,20 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, markOutboxDelivered, id)
 	return err
 }
+
+const rescheduleOutboxEvent = `-- name: RescheduleOutboxEvent :exec
+UPDATE event_outbox
+SET next_attempt_at = NOW() + make_interval(secs => $1::int)
+WHERE id = $2 AND delivered_at IS NULL
+`
+
+type RescheduleOutboxEventParams struct {
+	DelaySeconds int32     `json:"delay_seconds"`
+	ID           uuid.UUID `json:"id"`
+}
+
+// Shortens the claim lease after a subscriber failure, so the retry comes on a backoff rather than when the full lease runs out
+func (q *Queries) RescheduleOutboxEvent(ctx context.Context, arg RescheduleOutboxEventParams) error {
+	_, err := q.db.ExecContext(ctx, rescheduleOutboxEvent, arg.DelaySeconds, arg.ID)
+	return err
+}
