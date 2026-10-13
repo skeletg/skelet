@@ -68,6 +68,11 @@ func NewInvoker(svc *Service, transport http.RoundTripper) *Invoker {
 }
 
 // POSTs the payload to the provider and decodes the JSON response into out Transport errors, timeouts, non-2xx, undecodable bodies and an open circuit all come back as errors, and the CALLER decides what the provider's failure policy means - fall back or abort Successful responses cache for the provider's CacheTTLs, keyed by the exact request payload
+func (i *Invoker) InvokeUncached(ctx context.Context, p Provider, payload any, out any) error {
+	p.CacheTTLs = 0
+	return i.Invoke(ctx, p, payload, out)
+}
+
 func (i *Invoker) Invoke(ctx context.Context, p Provider, payload any, out any) error {
 	body, err := json.Marshal(invocationEnvelope{
 		Kind:            string(p.Kind),

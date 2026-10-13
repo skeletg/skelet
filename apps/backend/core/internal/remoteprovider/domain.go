@@ -28,6 +28,7 @@ const (
 	KindReturnsPolicy      Kind = "returns_policy"
 	KindInventoryAvail     Kind = "inventory_availability"
 	KindShippingTracking   Kind = "shipping_tracking"
+	KindDeliveryPoints     Kind = "delivery_points"
 )
 
 // No payment kind on purpose - the roles above are near-pure functions, but an authorization needs a client secret reaching the browser for 3DS, a vault token contract, and verification of the gateway's own inbound webhooks, so proxying it would put the merchant's endpoint in PCI scope and leave core unable to verify what the gateway sent
@@ -39,6 +40,7 @@ var AllKinds = []Kind{
 	KindRecommendation, KindReviews, KindSearch,
 	KindCustomerSegments, KindReturnsPolicy,
 	KindInventoryAvail, KindShippingTracking,
+	KindDeliveryPoints,
 }
 
 func (k Kind) Valid() bool {

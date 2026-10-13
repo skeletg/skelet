@@ -1,0 +1,21 @@
+{
+  "channelId": "00000000-0000-0000-0000-000000000000",
+  "id": "00000000-0000-0000-0000-000000000000",
+  "items": [
+    {
+      "quantity": 1,
+      "sku": "EXAMPLE-SKU"
+    }
+  ],
+  "kind": "example",
+  "limit": 10,
+  "near": {
+    "city": "New York",
+    "countryCode": "US",
+    "postalCode": "10001",
+    "region": "example",
+    "street1": "1 Example St"
+  },
+  "op": "example",
+  "search": "example"
+}

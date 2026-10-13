@@ -59,6 +59,8 @@ var ops = []op{
 		"Report salable quantity per product. -1 means unlimited."},
 	{"shipping_tracking", "shipping_tracking", "internal/shipping", "remoteTrackRequest", "remoteTrackResponse",
 		"Report carrier tracking status for a shipment."},
+	{"delivery_points", "delivery_points", "internal/delivery", "remotePointRequest", "remotePointResponse",
+		"Find delivery points - lockers, PO boxes, parcel shops - for a delivery option. op is \"search\" (near a destination, optionally filtered by text) or \"get\" (re-read one point by id; return it alone, or none when it closed)."},
 }
 
 func main() {
