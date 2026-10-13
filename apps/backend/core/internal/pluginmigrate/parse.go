@@ -24,11 +24,7 @@ func loadMigrations(reg Registration) ([]Migration, error) {
 		return nil, fmt.Errorf("read %s: %w", root, err)
 	}
 
-	type partial struct {
-		Migration
-		hasUp, hasDown bool
-	}
-	by := map[int]*partial{}
+	by := map[int]*Migration{}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -43,41 +39,34 @@ func loadMigrations(reg Registration) ([]Migration, error) {
 		}
 		entry, ok := by[version]
 		if !ok {
-			entry = &partial{Version: version, Name: m[2]}
+			entry = &Migration{Version: version}
 			by[version] = entry
 		}
 		full := path.Join(root, e.Name())
-		switch m[3] {
-		case "up":
-			body, err := fs.ReadFile(reg.FS, full)
-			if err != nil {
-				return nil, fmt.Errorf("read %s: %w", full, err)
-			}
-			entry.UpSQL = string(body)
-			entry.UpPath = full
-			entry.hasUp = true
-		case "down":
-			body, err := fs.ReadFile(reg.FS, full)
-			if err != nil {
-				return nil, fmt.Errorf("read %s: %w", full, err)
-			}
-			entry.DownSQL = string(body)
-			entry.DownPath = full
-			entry.hasDown = true
+		body, err := fs.ReadFile(reg.FS, full)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", full, err)
 		}
-		// Names may differ between the up and down halves - keep the up version's, since that's what `bin/cli plugin-migrate status` reports
-		if entry.Name == "" || (m[3] == "up" && entry.Name != m[2]) {
-			entry.Name = m[2]
+		if m[3] == "up" {
+			if entry.UpPath != "" {
+				return nil, fmt.Errorf("version %d has two .up.sql files: %s and %s", version, entry.UpPath, full)
+			}
+			// the up half names the migration - that's what `plugin migrate status` reports
+			entry.Name, entry.UpSQL, entry.UpPath = m[2], string(body), full
+			continue
 		}
+		if entry.DownPath != "" {
+			return nil, fmt.Errorf("version %d has two .down.sql files: %s and %s", version, entry.DownPath, full)
+		}
+		entry.DownSQL, entry.DownPath = string(body), full
 	}
 
 	var out []Migration
 	for v, p := range by {
-		if !p.hasUp {
-			// A down without a paired up - skip for now, since the runner shouldn't half-apply a migration whose forward half is missing
+		if p.UpPath == "" {
 			return nil, fmt.Errorf("migration %d has %s but no .up.sql", v, p.DownPath)
 		}
-		out = append(out, p.Migration)
+		out = append(out, *p)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Version < out[j].Version })
 

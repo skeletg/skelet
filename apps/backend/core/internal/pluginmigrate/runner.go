@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"unicode/utf8"
 )
 
 // The canonical SHA256-hex of a migration's up SQL - stored at apply time and re-compared on later runs to detect edits to already-applied migrations
@@ -163,10 +164,9 @@ func (r *Runner) Down(ctx context.Context, namespace string, steps int) error {
 	if err != nil {
 		return err
 	}
-	// Roll back highest first
 	sort.Sort(sort.Reverse(sort.IntSlice(applied)))
-	for i := 0; i < steps && i < len(applied); i++ {
-		v := applied[i]
+	plan := make([]Migration, 0, min(steps, len(applied)))
+	for _, v := range applied[:min(steps, len(applied))] {
 		m, ok := migByVersion[v]
 		if !ok {
 			return fmt.Errorf("plugin %s: cannot roll back version %d - file missing from FS", namespace, v)
@@ -174,6 +174,10 @@ func (r *Runner) Down(ctx context.Context, namespace string, steps int) error {
 		if m.DownSQL == "" {
 			return fmt.Errorf("plugin %s: migration %d has no .down.sql; refusing to roll back", namespace, v)
 		}
+		plan = append(plan, m)
+	}
+	// every step is checked before the first runs, so an uninstall never stops halfway with a mix of rolled-back and live schema
+	for _, m := range plan {
 		if err := r.rollbackOne(ctx, namespace, m); err != nil {
 			return err
 		}
@@ -183,8 +187,9 @@ func (r *Runner) Down(ctx context.Context, namespace string, steps int) error {
 
 // One row per registered plugin, for `bin/cli plugin-migrate status`
 func (r *Runner) Status(ctx context.Context) ([]Status, error) {
-	out := make([]Status, 0, len(AllRegistrations()))
-	for _, reg := range AllRegistrations() {
+	regs := AllRegistrations()
+	out := make([]Status, 0, len(regs))
+	for _, reg := range regs {
 		s := Status{Namespace: reg.Namespace}
 		migrations, err := loadMigrations(reg)
 		if err != nil {
@@ -269,6 +274,10 @@ func (r *Runner) rollbackOne(ctx context.Context, namespace string, m Migration)
 	if err := lockNamespace(ctx, tx, namespace); err != nil {
 		return err
 	}
+	// a concurrent down may have rolled this version back while we waited on the lock
+	if applied, err := r.versionApplied(ctx, tx, namespace, m.Version); err != nil || !applied {
+		return err
+	}
 
 	if _, err := tx.ExecContext(ctx, m.DownSQL); err != nil {
 		return fmt.Errorf("plugin %s rollback %04d_%s: %w\nSQL: %s",
@@ -347,5 +356,9 @@ func truncateForLog(s string) string {
 	if len(s) <= limit {
 		return s
 	}
-	return s[:limit] + "…(truncated)"
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…(truncated)"
 }
