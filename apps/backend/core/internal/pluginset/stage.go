@@ -41,7 +41,7 @@ func Stage(root string) error {
 				continue // this plugin extends that surface with nothing
 			}
 			dst := filepath.Join(stageRoot, slug, "graphql", surface)
-			if err := copyDirSQL(src, dst); err != nil {
+			if err := copyDirSDL(src, dst); err != nil {
 				return fmt.Errorf("plugin %s: stage %s SDL: %w", slug, surface, err)
 			}
 		}
@@ -78,7 +78,7 @@ func moduleDir(root, module string) (string, error) {
 }
 
 // Only .graphqls, so nothing else a plugin happens to keep under graphql/ lands in the schema glob
-func copyDirSQL(src, dst string) error {
+func copyDirSDL(src, dst string) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
@@ -113,7 +113,9 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
