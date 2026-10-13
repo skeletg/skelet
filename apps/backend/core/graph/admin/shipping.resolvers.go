@@ -92,19 +92,41 @@ func (r *mutationResolver) CreateShippingMethod(ctx context.Context, input model
 	if _, err := r.requireZoneScope(ctx, zoneID, "settings.manage"); err != nil {
 		return nil, err
 	}
-	method, err := r.ShippingSvc.Repo().CreateMethod(ctx, shipping.Method{
-		ZoneID:         zoneID,
-		Code:           input.Code,
-		Name:           ptr.Deref(input.Name),
-		CalcType:       shippingCalcTypeFromModel(input.CalcType),
-		FlatCents:      int64(intDeref(input.FlatCents, 0)),
-		FreeAboveCents: int64(intDeref(input.FreeAboveCents, 0)),
-		SortOrder:      intDeref(input.SortOrder, 0),
-		IsActive:       boolDeref(input.IsActive, true),
-		CountryMode:    ptr.Deref(input.CountryMode),
-	})
+	in := shipping.Method{
+		ZoneID:             zoneID,
+		Code:               input.Code,
+		Name:               ptr.Deref(input.Name),
+		CalcType:           shippingCalcTypeFromModel(input.CalcType),
+		FlatCents:          int64(intDeref(input.FlatCents, 0)),
+		FreeAboveCents:     int64(intDeref(input.FreeAboveCents, 0)),
+		SortOrder:          intDeref(input.SortOrder, 0),
+		IsActive:           boolDeref(input.IsActive, true),
+		CountryMode:        ptr.Deref(input.CountryMode),
+		DeliveryKind:       ptr.Deref(input.DeliveryKind),
+		UnitsPerCharge:     intDeref(input.UnitsPerCharge, 0),
+		EstimatedDays:      intDeref(input.EstimatedDays, 0),
+		DeliversOnWeekends: boolDeref(input.DeliversOnWeekends, false),
+	}
+	if err := shipping.CheckMethodPricing(in); err != nil {
+		return nil, err
+	}
+	var rates []shipping.TypeRate
+	if input.TypeRates != nil {
+		if rates, err = typeRatesFromModel(input.TypeRates); err != nil {
+			return nil, err
+		}
+	}
+	method, err := r.ShippingSvc.Repo().CreateMethod(ctx, in)
 	if err != nil {
 		return nil, err
+	}
+	if input.TypeRates != nil {
+		if err := r.ShippingSvc.ReplaceMethodTypeRates(ctx, method.ID, rates); err != nil {
+			return nil, err
+		}
+		if method, err = r.ShippingSvc.Repo().GetMethod(ctx, method.ID); err != nil {
+			return nil, err
+		}
 	}
 	if input.AllowedCountries != nil {
 		if err := r.ShippingSvc.ReplaceMethodCountries(ctx, method.ID, input.AllowedCountries); err != nil {
@@ -148,9 +170,38 @@ func (r *mutationResolver) UpdateShippingMethod(ctx context.Context, input model
 	if input.CountryMode != nil {
 		existing.CountryMode = *input.CountryMode
 	}
+	if input.DeliveryKind != nil {
+		existing.DeliveryKind = *input.DeliveryKind
+	}
+	if input.UnitsPerCharge != nil {
+		existing.UnitsPerCharge = *input.UnitsPerCharge
+	}
+	if input.EstimatedDays != nil {
+		existing.EstimatedDays = *input.EstimatedDays
+	}
+	if input.DeliversOnWeekends != nil {
+		existing.DeliversOnWeekends = *input.DeliversOnWeekends
+	}
+	if err := shipping.CheckMethodPricing(existing); err != nil {
+		return nil, err
+	}
+	var rates []shipping.TypeRate
+	if input.TypeRates != nil {
+		if rates, err = typeRatesFromModel(input.TypeRates); err != nil {
+			return nil, err
+		}
+	}
 	updated, err := r.ShippingSvc.Repo().UpdateMethod(ctx, existing)
 	if err != nil {
 		return nil, err
+	}
+	if input.TypeRates != nil {
+		if err := r.ShippingSvc.ReplaceMethodTypeRates(ctx, updated.ID, rates); err != nil {
+			return nil, err
+		}
+		if updated, err = r.ShippingSvc.Repo().GetMethod(ctx, updated.ID); err != nil {
+			return nil, err
+		}
 	}
 	if input.AllowedCountries != nil {
 		if err := r.ShippingSvc.ReplaceMethodCountries(ctx, updated.ID, input.AllowedCountries); err != nil {
@@ -247,6 +298,21 @@ func (r *mutationResolver) SetShippingCarrierCountries(ctx context.Context, chan
 		return nil, err
 	}
 	if err := r.ShippingSvc.SetCarrierCountries(ctx, chID, carrierSlug, mode, countries); err != nil {
+		return nil, err
+	}
+	return r.shippingCarrierModel(ctx, chID, carrierSlug)
+}
+
+func (r *mutationResolver) SetShippingCarrierWeekendDelivery(ctx context.Context, channelID string, carrierSlug string, deliversOnWeekends bool) (*model.ShippingCarrierAdmin, error) {
+	chID, err := uuid.Parse(channelID)
+	if err != nil {
+		return nil, err
+	}
+	// Carrier settings are stored per channel - gate on the one being changed
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "settings.manage", chID, nil); err != nil {
+		return nil, err
+	}
+	if _, err := r.ShippingSvc.SetCarrierWeekendDelivery(ctx, chID, carrierSlug, deliversOnWeekends); err != nil {
 		return nil, err
 	}
 	return r.shippingCarrierModel(ctx, chID, carrierSlug)

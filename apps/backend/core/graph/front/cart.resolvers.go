@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
@@ -395,10 +396,64 @@ func (r *mutationResolver) SetCartShippingMethod(ctx context.Context, cartID str
 		if co.QuoteDestination().IsZero() {
 			return errCheckoutNeedsDestination
 		}
-		co.ShippingCarrierSlug, co.ShippingMethodCode = strings.TrimSpace(carrierSlug), strings.TrimSpace(code)
-		if r.offeredShippingMethod(ctx, c, *co) == nil {
-			return errShippingMethodOffered
+		v := r.checkoutView(ctx, c)
+		if len(v.groups) != 1 {
+			return errDeliveryGroupUnknown
 		}
+		g := v.groups[0]
+		for _, ch := range g.choices {
+			if ch.carrierSlug == strings.TrimSpace(carrierSlug) && ch.methodCode == strings.TrimSpace(code) {
+				r.selectDelivery(ctx, c, co, g, ch)
+				return nil
+			}
+		}
+		return errShippingMethodOffered
+	})
+}
+
+func (r *mutationResolver) SetCartSplitDelivery(ctx context.Context, cartID string, split bool) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(_ cart.Cart, co *cart.Checkout) error {
+		co.SplitDelivery = split
+		return nil
+	})
+}
+
+func (r *mutationResolver) SetCartDelivery(ctx context.Context, cartID string, groupKey string, optionID string, carrierSlug string, methodCode string) (*model1.Cart, error) {
+	oid, err := uuid.Parse(optionID)
+	if err != nil {
+		return nil, invalidID("delivery option")
+	}
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		g := r.checkoutView(ctx, c).group(groupKey)
+		if g == nil {
+			return errDeliveryGroupUnknown
+		}
+		for _, ch := range g.choices {
+			if ch.option.ID == oid && ch.carrierSlug == strings.TrimSpace(carrierSlug) && ch.methodCode == strings.TrimSpace(methodCode) {
+				r.selectDelivery(ctx, c, co, g, ch)
+				return nil
+			}
+		}
+		return errDeliveryChoice
+	})
+}
+
+func (r *mutationResolver) SetCartDeliveryPoint(ctx context.Context, cartID string, groupKey string, pointID string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		g, err := r.chosenGroup(ctx, c, groupKey)
+		if err != nil {
+			return err
+		}
+		if !g.kind.Needs(delivery.BlockPoint) {
+			return errDeliveryNoPoint
+		}
+		p, err := r.DeliverySvc.GetPoint(ctx, *g.option, strings.TrimSpace(pointID))
+		if err != nil {
+			return err
+		}
+		sel := g.sel
+		sel.Point = &p
+		co.SetDelivery(g.Key, sel)
 		return nil
 	})
 }
@@ -411,11 +466,11 @@ func (r *mutationResolver) SetCartDetails(ctx context.Context, cartID string, in
 
 func (r *mutationResolver) SetCartPaymentMethod(ctx context.Context, cartID string, providerSlug string) (*model1.Cart, error) {
 	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
-		if co.QuoteDestination().IsZero() {
+		if paymentCountry(*co) == "" {
 			return errCheckoutNeedsDestination
 		}
 		slug := strings.TrimSpace(providerSlug)
-		if !r.paymentMethodOffered(ctx, c.ChannelID, slug, co.ShippingCountry()) {
+		if !r.paymentMethodOffered(ctx, c.ChannelID, slug, paymentCountry(*co)) {
 			return errPaymentMethodOffered
 		}
 		co.PaymentProviderSlug = slug
@@ -524,9 +579,10 @@ func (r *queryResolver) ShippingQuotes(ctx context.Context, countryCode string, 
 	if err != nil {
 		return nil, err
 	}
+	today := r.storeToday(ctx, sv.ID)
 	out := make([]*model1.ShippingQuote, len(quotes))
 	for i, q := range quotes {
-		out[i] = toShippingQuoteModel(q)
+		out[i] = toShippingQuoteModel(q, today)
 	}
 	return out, nil
 }
@@ -551,6 +607,29 @@ func (r *queryResolver) PickupLocations(ctx context.Context) ([]*model1.PickupLo
 			CountryCode:  l.CountryCode,
 			Instructions: l.PickupInstructions,
 		}
+	}
+	return out, nil
+}
+
+func (r *queryResolver) DeliveryPoints(ctx context.Context, cartID string, groupKey string, search *string) ([]*model1.DeliveryPoint, error) {
+	c, err := r.storeCart(ctx, cartID)
+	if err != nil {
+		return nil, err
+	}
+	g, err := r.chosenGroup(ctx, c, groupKey)
+	if err != nil {
+		return nil, err
+	}
+	if !g.kind.Needs(delivery.BlockPoint) {
+		return []*model1.DeliveryPoint{}, nil
+	}
+	pts, err := r.DeliverySvc.SearchPoints(ctx, *g.option, delivery.PointQuery{Near: deliveryNear(c.Checkout), Search: ptr.Deref(search), Items: deliveryItems(g.Lines)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model1.DeliveryPoint, len(pts))
+	for i, p := range pts {
+		out[i] = toDeliveryPointModel(p)
 	}
 	return out, nil
 }
@@ -581,8 +660,9 @@ func (r *queryResolver) CartEstimate(ctx context.Context, cartID string, country
 		if qerr != nil {
 			return nil, qerr
 		}
+		today := r.storeToday(ctx, sv.ID)
 		for _, q := range quotes {
-			out = append(out, toShippingQuoteModel(q))
+			out = append(out, toShippingQuoteModel(q, today))
 			if !haveShip || q.Method.PriceCents < cheapest {
 				cheapest = q.Method.PriceCents
 				haveShip = true

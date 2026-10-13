@@ -25,6 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
@@ -110,6 +111,7 @@ type Resolver struct {
 	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
 	FormSvc          *form.Service
 	WebFormSvc       *webform.Service
+	DeliverySvc      *delivery.Service
 	ChatSvc          *chat.Service
 	CacheClient      *revalidate.Client
 	CacheQueue       *revalidate.Queue

@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -84,6 +85,8 @@ type Resolver struct {
 	ReviewSvc            *review.Service       // storefront-readable on the PDP AND writable via submit
 	MediaLibrarySvc      *medialibrary.Service // backs review photo + video uploads through the same presign/confirm pair the admin uses for product media
 	WebFormSvc           *webform.Service
+	DeliverySvc          *delivery.Service // delivery options, groups and requirements - nil leaves checkout on the implicit defaults
+	OriginPlanner        OriginPlanner     // where each line ships from, for the packages a delivery group splits into - nil puts every line in one package
 	DownloadSvc          *download.Service
 	SubscriptionSvc      *subscription.Service
 	JWTSecret            string

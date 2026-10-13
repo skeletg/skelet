@@ -20,10 +20,24 @@ type CartCheckout {
   email: String!
   # Where the order is headed - saved by the first step from a postcode, then kept in step with the shipping address. Null until the first step is saved.
   destination: CheckoutDestination
-  # The chosen method, priced for this cart at the destination. Null when none is chosen, or when the chosen one is no longer offered (the destination or the lines changed) - the shopper picks again.
+  # The chosen method of a cart delivered as one, priced for this cart at the destination. Null when none is chosen, when the chosen one is no longer offered, or when the cart is split into several deliveries - read deliveryGroups then.
   shippingMethod: ShippingQuote
-  # True when the chosen method is collection from a store - the order then needs pickupContact rather than a shipping address.
+  # True when the cart is delivered as one and its delivery is a store pickup.
   isPickup: Boolean!
+  # What the order has to deliver - NONE for a digital-only cart, which asks no delivery and no shipping address.
+  fulfillment: FulfillmentNeed!
+  # The cart lines delivered digitally (download, licence, gift card email) - no delivery is chosen for them.
+  digitalLineIds: [ID!]!
+  # The shopper asked to choose a delivery per group although one option could cover everything.
+  splitDelivery: Boolean!
+  # More than one group of lines allows different deliveries and one option could still cover all - offer "deliver everything together" vs "choose per item group".
+  canSplit: Boolean!
+  # The groups of lines that each take one delivery choice, in the order to ask them. One group unless the lines allow different delivery kinds and the shopper split.
+  deliveryGroups: [DeliveryGroup!]!
+  # Everything the checkout still asks, from the store's delivery options and settings - render the checkout from this, and placeOrder refuses while any is MISSING or INVALID.
+  requirements: [CheckoutRequirement!]!
+  # Every requirement is met - placeOrder will accept the cart.
+  ready: Boolean!
   phone: String!
   purchaseType: PurchaseType!
   company: String!
@@ -40,6 +54,124 @@ type CartCheckout {
   giftCards: [CartGiftCard!]!
   useStoreCredit: Boolean!
   totals: CheckoutTotals!
+}
+
+enum FulfillmentNeed {
+  NONE
+  PHYSICAL
+  MIXED
+}
+
+enum DeliveryShipTo {
+  # The shopper's own address - asked once and shared by every group that ships to them.
+  CUSTOMER
+  # The address of the point the shopper picks - a store, a locker, a parcel shop or a PO box.
+  POINT
+}
+
+# Lines that travel together and take one delivery choice.
+type DeliveryGroup {
+  key: String!
+  lineIds: [ID!]!
+  # The delivery kinds every line in the group allows and the store offers.
+  kinds: [String!]!
+  # What the shopper can choose - one per delivery option and carrier method, priced across the group's shipments.
+  choices: [DeliveryChoice!]!
+  # The shopper's choice. Null until chosen, or when the chosen option or method is no longer offered.
+  selection: DeliverySelection
+  # The packages the group leaves as - one per origin (warehouse, store, seller), each quoted on its own.
+  shipments: [DeliveryShipment!]!
+}
+
+type DeliveryChoice {
+  optionId: ID!
+  optionName: String!
+  description: String!
+  kind: String!
+  kindLabel: String!
+  shipTo: DeliveryShipTo!
+  # What a point is called for this kind - "Store", "Pickup point". Null when the kind asks for none.
+  pointLabel: String
+  carrierSlug: String!
+  carrierName: String!
+  methodCode: String!
+  methodName: String!
+  # Summed over the group's shipments.
+  priceCents: Int!
+  # The slowest shipment's estimate.
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+type DeliverySelection {
+  optionId: ID!
+  optionName: String!
+  kind: String!
+  shipTo: DeliveryShipTo!
+  pointLabel: String
+  carrierSlug: String!
+  methodCode: String!
+  methodName: String!
+  priceCents: Int!
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+  point: DeliveryPoint
+}
+
+type DeliveryPoint {
+  id: String!
+  name: String!
+  street1: String!
+  street2: String
+  city: String!
+  region: String
+  postalCode: String!
+  countryCode: String!
+  lat: Float
+  lng: Float
+  distanceKm: Float
+  hours: String
+  instructions: String
+  phone: String
+}
+
+type DeliveryShipment {
+  # Where the package leaves from - null when the store keeps no locations.
+  originName: String
+  originCity: String
+  lineIds: [ID!]!
+  # This package's share of the selection's price. Null until a choice is made.
+  priceCents: Int
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+enum RequirementMode {
+  REQUIRED
+  OPTIONAL
+}
+
+enum RequirementStatus {
+  SATISFIED
+  MISSING
+  INVALID
+  # Asked, not required, and not given.
+  OPTIONAL
+}
+
+# One thing the checkout asks. scope is "order" or the key of the delivery group it belongs to; type is email, phone, shipping_address, billing_address, delivery_option, point, collector or payment.
+type CheckoutRequirement {
+  scope: String!
+  type: String!
+  label: String!
+  mode: RequirementMode!
+  status: RequirementStatus!
+  # The error placeOrder refuses with while this is missing.
+  code: String!
+  message: String!
 }
 
 type CheckoutDestination {
@@ -188,8 +320,10 @@ type ShippingQuote {
   code:        String!
   name:        String!
   priceCents:  Int!
-  # Business days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
+  # Delivery days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
   estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
 }
 
 # A save-for-later item parked off the cart. imageUrl is hydrated like a line.
@@ -287,6 +421,8 @@ extend type Query {
   shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
   # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
   pickupLocations: [PickupLocation!]!
+  # Points for the delivery chosen for a group - stores, lockers, parcel shops, PO boxes - near the cart's destination, optionally filtered by a search string.
+  deliveryPoints(cartId: ID!, groupKey: String!, search: String): [DeliveryPoint!]!
   # Pre-checkout estimate for a cart at a destination: shipping options + the tax placement would charge with the cheapest option (goods and shipping, tax classes, customer group and exemption) + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
   cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
   # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
@@ -337,8 +473,14 @@ extend type Mutation {
   # Checkout steps. Each saves one choice to the cart, validated against the store, and returns the whole cart so a reload resumes where the shopper was. placeOrder reads all of it from the cart.
   # Step 1 - where the order is headed. Delivery and pickup are quoted from this alone, so no address is needed yet. A saved shipping address in another country or postcode is cleared, and a shipping or payment method the new destination doesn't support is dropped.
   setCartDestination(cartId: ID!, countryCode: String!, regionCode: String, postalCode: String!): Cart!
-  # One of the shippingQuotes offered for the destination, delivery or pickup. Needs a destination first.
+  # One of the shippingQuotes offered for the destination, for a cart delivered as one - the shorthand for setCartDelivery on its single group, taking the first delivery option of the method's kind. Needs a destination first.
   setCartShippingMethod(cartId: ID!, carrierSlug: String!, code: String!): Cart!
+  # Deliver everything together (false) or choose per group of lines (true) - only meaningful while canSplit. Selections of groups that no longer exist are kept, so toggling back restores them.
+  setCartSplitDelivery(cartId: ID!, split: Boolean!): Cart!
+  # One of a group's choices. Changing the option clears its point.
+  setCartDelivery(cartId: ID!, groupKey: String!, optionId: ID!, carrierSlug: String!, methodCode: String!): Cart!
+  # One of deliveryPoints for the group - re-read from its source, so a point that closed is refused.
+  setCartDeliveryPoint(cartId: ID!, groupKey: String!, pointId: String!): Cart!
   # Step 2 - contact, business details and the addresses or pickup contact, in one write. A shipping address in another country or postcode moves the destination, which can drop the chosen method - the shopper then picks again.
   setCartDetails(cartId: ID!, input: CheckoutDetailsInput!): Cart!
   # One of the paymentMethods offered for the destination country. Needs a destination first.

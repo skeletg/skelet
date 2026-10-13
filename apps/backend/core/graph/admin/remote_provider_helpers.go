@@ -97,6 +97,8 @@ func remoteProviderKindToGQL(k remoteprovider.Kind) model.RemoteProviderKind {
 		return model.RemoteProviderKindInventoryAvailability
 	case remoteprovider.KindShippingTracking:
 		return model.RemoteProviderKindShippingTracking
+	case remoteprovider.KindDeliveryPoints:
+		return model.RemoteProviderKindDeliveryPoints
 	default:
 		return model.RemoteProviderKindShippingCarrier
 	}
@@ -134,6 +136,8 @@ func remoteProviderKindFromGQL(k model.RemoteProviderKind) remoteprovider.Kind {
 		return remoteprovider.KindInventoryAvail
 	case model.RemoteProviderKindShippingTracking:
 		return remoteprovider.KindShippingTracking
+	case model.RemoteProviderKindDeliveryPoints:
+		return remoteprovider.KindDeliveryPoints
 	default:
 		return remoteprovider.KindShippingCarrier
 	}
