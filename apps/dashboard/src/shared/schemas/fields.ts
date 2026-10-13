@@ -96,7 +96,7 @@ export const dollarsToCents = (v: string) => Math.round((parseNumberText(v) ?? 0
 
 // ---------- Slugs ----------
 
-// The backend's content slug rule (internal/content.ValidateSlug) - pages, posts, categories,
+// The backend's content slug rule (internal/slug.Validate) - pages, posts, categories,
 // collections, snippets
 export const contentSlug = () =>
   z

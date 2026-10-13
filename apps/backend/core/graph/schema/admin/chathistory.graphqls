@@ -28,6 +28,6 @@ extend type Query {
 extend type Mutation {
   # Upsert: omit id to create, pass it to update the caller's own row. Returns
   # the conversation id. Title auto-derives from the first user message if blank.
-  saveChatConversation(id: ID, channelId: ID, title: String, messages: [SignalsChatMessage!]!): ID!
+  saveChatConversation(id: ID, title: String, messages: [SignalsChatMessage!]!): ID!
   deleteChatConversation(id: ID!): Boolean!
 }

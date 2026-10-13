@@ -25,7 +25,7 @@ func (h *harness) newRule(t *testing.T, in promotion.CreateRuleInput) promotion.
 func TestPromotionAutoApplyDiscountsPlacement(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 10, 2500)
-	baseline := h.PlaceGuestCOD(t, f, 1) // ambient storewide rules may exist on a shared dev DB - assert the delta
+	baseline := h.PlaceGuestCOD(t, f, 1) // the delta against a rule-free placement is what the rule added
 	h.newRule(t, promotion.CreateRuleInput{
 		Rule: promotion.Rule{
 			Slug: "e2e-" + uuid.NewString()[:8], Name: "E2E $5 off",
@@ -81,7 +81,7 @@ func TestPromotionCouponPercentOff(t *testing.T) {
 		t.Fatalf("create code: %v", err)
 	}
 
-	// Without the code the rule must not fire - the codeless placement is also the ambient baseline
+	// Without the code the rule must not fire - the codeless placement is also the baseline
 	dark := h.PlaceGuestCOD(t, f, 1)
 
 	cartID := h.NewGuestCart(t, f, 1)

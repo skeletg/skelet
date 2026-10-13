@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"slices"
@@ -15,7 +14,6 @@ import (
 
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginmigrate"
-	"github.com/skeletg/skelet/apps/backend/core/internal/pluginpath"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginset"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -256,7 +254,7 @@ func printManifestList(label string, values []string) {
 	}
 }
 
-var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`) // same shape as URL slugs elsewhere in the codebase
+var slugPattern = pluginset.SlugPattern
 
 func runPluginNew(cmd *cobra.Command, args []string) error {
 	slug := strings.TrimSpace(args[0])
@@ -468,7 +466,7 @@ func titleizeSlug(s string) string { // "payment-stripe" -> "Payment Stripe"
 }
 
 func pluginPackageName(slug string) string { // "payment-stripe" -> "paymentstripe"
-	return pluginpath.PackageName(slug)
+	return strings.NewReplacer("-", "", "_", "").Replace(slug)
 }
 
 // File content is interpolated rather than run through text/template - the templates double as documentation of plugin shape, and that only reads well when they look like the file they produce

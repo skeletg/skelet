@@ -106,7 +106,11 @@ func (e *Engine) Evaluate(ctx context.Context, env Environment) (EvalResult, err
 	pendingSeenGroups := map[string]bool{}
 	haltAfterTier := false
 
-	codeIndex, codeRejected := buildCodeIndex(ctx, e.repo, env)
+	codeIndex, codeRejected, codeLimits := buildCodeIndex(ctx, e.repo, env)
+	limitReached, err := e.shopperLimitsReached(ctx, env, rules, codeIndex, codeLimits)
+	if err != nil {
+		return EvalResult{}, err
+	}
 	traceOn := tracing(ctx)
 	var trace []TraceEntry
 	if traceOn {
@@ -173,6 +177,10 @@ func (e *Engine) Evaluate(ctx context.Context, env Environment) (EvalResult, err
 				continue
 			}
 		}
+		if reason, reached := limitReached[rule.ID]; reached {
+			addTrace(rule, false, reason, 0)
+			continue
+		}
 		if anyActionSkipped(rule.Actions, skipActionTypes) {
 			addTrace(rule, false, "action_type_shadowed", 0)
 			continue
@@ -234,6 +242,15 @@ func (e *Engine) loadCandidates(ctx context.Context, env Environment) ([]Rule, e
 	if err != nil {
 		return nil, fmt.Errorf("load active rules: %w", err)
 	}
+	// the cache can hold a rule past its window by up to the TTL - the query's NOW() filter was applied when it was loaded
+	now := nowFunc()
+	live := rules[:0]
+	for _, r := range rules {
+		if (r.ValidFrom == nil || !now.Before(*r.ValidFrom)) && (r.ValidTo == nil || !now.After(*r.ValidTo)) {
+			live = append(live, r)
+		}
+	}
+	rules = live
 	if len(rules) == 0 {
 		return nil, nil
 	}
@@ -267,9 +284,10 @@ func (e *Engine) loadCandidates(ctx context.Context, env Environment) ([]Rule, e
 }
 
 // Maps rule_id to code_id for the codes the cart has applied, which the engine consults for code-gated rules An unknown code (typo, deleted) silently misses - the applyCoupon mutation's earlier validation is what surfaces the failure This is the only place a code is consumed at eval time, so the code-level window and email restriction are enforced here rather than only at apply time - reconcileAppliedCodes turns the miss into shopper-facing copy The second return maps rule_id to the gate a resolved-but-rejected code tripped, so the trace says "code_expired" instead of the misleading "code_not_applied"
-func buildCodeIndex(ctx context.Context, repo Repository, env Environment) (map[uuid.UUID]*uuid.UUID, map[uuid.UUID]string) {
+func buildCodeIndex(ctx context.Context, repo Repository, env Environment) (map[uuid.UUID]*uuid.UUID, map[uuid.UUID]string, map[uuid.UUID]int32) {
 	out := make(map[uuid.UUID]*uuid.UUID)
 	rejected := map[uuid.UUID]string{}
+	limits := map[uuid.UUID]int32{}
 	now := nowFunc()
 	email := env.CustomerEmail()
 	for _, code := range env.AppliedCodes() {
@@ -292,8 +310,48 @@ func buildCodeIndex(ctx context.Context, repo Repository, env Environment) (map[
 		}
 		id := row.ID
 		out[row.RuleID] = &id
+		if row.PerCustomerLimit != nil {
+			limits[id] = *row.PerCustomerLimit
+		}
 	}
-	return out, rejected
+	return out, rejected, limits
+}
+
+// Rules this shopper has already used up, with the trace reason - an auto-apply rule has no code to remove, so letting it discount the cart and fail at Redeem would leave a returning customer unable to check out at all
+func (e *Engine) shopperLimitsReached(ctx context.Context, env Environment, rules []Rule, codeIndex map[uuid.UUID]*uuid.UUID, codeLimits map[uuid.UUID]int32) (map[uuid.UUID]string, error) {
+	sh := NewShopper(env.CustomerID(), env.CustomerEmail())
+	if !sh.known() {
+		return nil, nil
+	}
+	var ruleIDs, codeIDs []uuid.UUID
+	for _, r := range rules {
+		if r.PerCustomerLimit != nil {
+			ruleIDs = append(ruleIDs, r.ID)
+		}
+	}
+	for id := range codeLimits {
+		codeIDs = append(codeIDs, id)
+	}
+	if len(ruleIDs)+len(codeIDs) == 0 {
+		return nil, nil
+	}
+	byRule, byCode, err := e.repo.ShopperRedemptions(ctx, sh, ruleIDs, codeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("per-customer limits: %w", err)
+	}
+	out := map[uuid.UUID]string{}
+	for _, r := range rules {
+		if r.PerCustomerLimit != nil && byRule[r.ID] >= *r.PerCustomerLimit {
+			out[r.ID] = "per_customer_limit_reached"
+			continue
+		}
+		if codeID := codeIndex[r.ID]; codeID != nil {
+			if limit, ok := codeLimits[*codeID]; ok && byCode[*codeID] >= limit {
+				out[r.ID] = "code_per_customer_limit_reached"
+			}
+		}
+	}
+	return out, nil
 }
 
 // Scales each rule's recorded contribution so the per-rule sum matches the (possibly clamped) aggregate

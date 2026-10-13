@@ -6,6 +6,8 @@ import (
 )
 
 // Editorial-workflow policy in the config registry, so admins flip it on /settings without a redeploy, read at request time by the publish path
+const CacheSurface = "cms"
+
 func init() {
 	config.RegisterSection(config.Section{Slug: "cms", Label: "CMS", SortOrder: 11})
 	config.RegisterGroup(config.Group{
@@ -21,5 +23,5 @@ func init() {
 		Label:   "Require approval before publishing",
 	})
 
-	revalidate.RegisterSurface(revalidate.Surface{Key: "cms", Label: "CMS pages", AllTag: "cms:all", DefaultEnabled: true})
+	revalidate.RegisterSurface(revalidate.Surface{Key: CacheSurface, Label: "CMS pages", AllTag: "cms:all", DefaultEnabled: true})
 }

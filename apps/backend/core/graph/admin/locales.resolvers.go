@@ -23,7 +23,7 @@ func (r *mutationResolver) CreateLocale(ctx context.Context, input model.CreateL
 		TimeFormat:            stringOr(input.TimeFormat, ""),
 		DecimalSeparator:      stringOr(input.DecimalSeparator, ""),
 		ThousandsSeparator:    stringOr(input.ThousandsSeparator, ""),
-		FirstDayOfWeek:        int16(int32Or(input.FirstDayOfWeek, 0)),
+		FirstDayOfWeek:        int16Ptr(input.FirstDayOfWeek),
 		DefaultCountryCode:    stringOr(input.DefaultCountryCode, ""),
 		FlagEmoji:             stringOr(input.FlagEmoji, ""),
 		HreflangValue:         stringOr(input.HreflangValue, ""),

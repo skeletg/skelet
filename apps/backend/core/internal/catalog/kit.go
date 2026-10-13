@@ -40,4 +40,5 @@ var (
 	ErrKitComponentNotSimple = errors.New("kit components must reference SIMPLE products")
 	ErrKitComponentIsParent  = errors.New("a kit cannot include itself as a component")
 	ErrKitComponentNotFound  = errors.New("kit component not found")
+	ErrKitComponentDuplicate = errors.New("this product is already a component of the kit")
 )

@@ -4,6 +4,7 @@ package documents
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"strings"
 	"time"
@@ -12,7 +13,20 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
+
+// The PDF core fonts only cover Windows-1252, so Đorđe, Čačak or any Cyrillic name printed as mojibake - fpdf subsets these into each document
+var (
+	//go:embed fonts/DejaVuSansCondensed.ttf
+	fontRegular []byte
+	//go:embed fonts/DejaVuSansCondensed-Bold.ttf
+	fontBold []byte
+	//go:embed fonts/DejaVuSansCondensed-Oblique.ttf
+	fontItalic []byte
+)
+
+const family = "DejaVu"
 
 // StoreInfo is the letterhead block (channel name + contact lines)
 type StoreInfo struct {
@@ -29,162 +43,202 @@ const (
 	KindCreditMemo  Kind = "credit_memo"
 )
 
+type Input struct {
+	Kind  Kind
+	Order order.Order
+	Store StoreInfo
+	Memo  *order.CreditMemo // required for KindCreditMemo, ignored otherwise
+	// The order currency's minor-unit digits - amounts are minor units, so a yen total isn't divided by 100
+	Decimals int
+	// The channel's prices carry their tax, so the tax is a portion of the total rather than added on top of it
+	TaxInclusive bool
+}
+
+type doc struct {
+	pdf *fpdf.Fpdf
+	in  Input
+}
+
 // Render produces the PDF bytes for one order document
-func Render(kind Kind, o order.Order, store StoreInfo, memo *order.CreditMemo) ([]byte, error) {
-	if kind == KindCreditMemo && memo == nil {
+func Render(in Input) ([]byte, error) {
+	if in.Kind == KindCreditMemo && in.Memo == nil {
 		return nil, fmt.Errorf("credit memo document requires a memo")
 	}
 	pdf := fpdf.New("P", "mm", "A4", "")
+	pdf.AddUTF8FontFromBytes(family, "", fontRegular)
+	pdf.AddUTF8FontFromBytes(family, "B", fontBold)
+	pdf.AddUTF8FontFromBytes(family, "I", fontItalic)
 	pdf.SetMargins(18, 16, 18)
 	pdf.AddPage()
+	d := doc{pdf: pdf, in: in}
 
-	title := map[Kind]string{
-		KindInvoice:     "INVOICE",
-		KindPackingSlip: "PACKING SLIP",
-		KindCreditMemo:  "CREDIT MEMO",
-	}[kind]
+	d.letterhead()
+	d.addresses()
+	switch in.Kind {
+	case KindCreditMemo:
+		d.memoLines()
+		d.memoTotals()
+	case KindPackingSlip:
+		d.orderLines()
+		d.footer("Contents checked by: ____________    Date: ____________")
+	default:
+		d.orderLines()
+		d.orderTotals()
+		d.footer("Thank you for your order.")
+	}
 
-	// Letterhead
-	pdf.SetFont("Helvetica", "B", 16)
-	pdf.CellFormat(0, 8, store.Name, "", 1, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 9)
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, fmt.Errorf("render %s: %w", in.Kind, err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (d doc) money(minor int64) string {
+	return d.in.Order.CurrencyCode + " " + money.Format(minor, d.in.Decimals)
+}
+
+func quantity(q float64) string {
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", q), "0"), ".")
+}
+
+// Cuts s to what fits a cell w wide, ending in an ellipsis - CellFormat never wraps, so a long name ran over the next column
+func (d doc) fit(s string, w float64) string {
+	if w == 0 { // fpdf's "to the right margin"
+		pageW, _ := d.pdf.GetPageSize()
+		_, _, right, _ := d.pdf.GetMargins()
+		w = pageW - right - d.pdf.GetX()
+	}
+	room := w - 2*d.pdf.GetCellMargin()
+	if d.pdf.GetStringWidth(s) <= room {
+		return s
+	}
+	r := []rune(s)
+	for len(r) > 0 && d.pdf.GetStringWidth(string(r)+"…") > room {
+		r = r[:len(r)-1]
+	}
+	return string(r) + "…"
+}
+
+func (d doc) cell(w, h float64, s, border string, ln int, align string, fill bool) {
+	d.pdf.CellFormat(w, h, d.fit(s, w), border, ln, align, fill, 0, "")
+}
+
+func (d doc) letterhead() {
+	pdf, o := d.pdf, d.in.Order
+	pdf.SetFont(family, "B", 16)
+	d.cell(0, 8, d.in.Store.Name, "", 1, "L", false)
+	pdf.SetFont(family, "", 9)
 	pdf.SetTextColor(90, 90, 90)
-	for _, l := range store.Lines {
-		pdf.CellFormat(0, 4.5, l, "", 1, "L", false, 0, "")
+	for _, l := range d.in.Store.Lines {
+		d.cell(0, 4.5, l, "", 1, "L", false)
 	}
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(4)
 
-	// Title + order meta
-	pdf.SetFont("Helvetica", "B", 13)
-	pdf.CellFormat(0, 7, title, "", 1, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 9)
-	if kind == KindCreditMemo {
-		pdf.CellFormat(0, 5, fmt.Sprintf("%s   -   %s", memo.Number, memo.CreatedAt.Format("2 Jan 2006")), "", 1, "L", false, 0, "")
+	pdf.SetFont(family, "B", 13)
+	d.cell(0, 7, map[Kind]string{KindInvoice: "INVOICE", KindPackingSlip: "PACKING SLIP", KindCreditMemo: "CREDIT MEMO"}[d.in.Kind], "", 1, "L", false)
+	pdf.SetFont(family, "", 9)
+	if m := d.in.Memo; d.in.Kind == KindCreditMemo {
+		d.cell(0, 5, fmt.Sprintf("%s   -   %s", m.Number, m.CreatedAt.Format("2 Jan 2006")), "", 1, "L", false)
 	}
-	pdf.CellFormat(0, 5, fmt.Sprintf("Order %s   -   %s", o.Number, o.CreatedAt.Format("2 Jan 2006")), "", 1, "L", false, 0, "")
-	pdf.CellFormat(0, 5, fmt.Sprintf("Generated %s", time.Now().UTC().Format("2 Jan 2006 15:04 MST")), "", 1, "L", false, 0, "")
+	d.cell(0, 5, fmt.Sprintf("Order %s   -   %s", o.Number, o.CreatedAt.Format("2 Jan 2006")), "", 1, "L", false)
+	d.cell(0, 5, fmt.Sprintf("Generated %s", time.Now().UTC().Format("2 Jan 2006 15:04 MST")), "", 1, "L", false)
 	pdf.Ln(3)
+}
 
-	// Addresses side by side
+func addressLines(label string, a order.OrderAddress) []string {
 	deref := func(p *string) string {
 		if p == nil {
 			return ""
 		}
 		return *p
 	}
-	writeAddr := func(label string, a order.OrderAddress) []string {
-		lines := []string{label, strings.TrimSpace(a.FirstName + " " + a.LastName)}
-		if c := deref(a.Company); c != "" {
-			lines = append(lines, c)
-		}
-		lines = append(lines, a.Street1)
-		if s2 := deref(a.Street2); s2 != "" {
-			lines = append(lines, s2)
-		}
-		cityLine := strings.TrimSpace(a.City + " " + a.PostalCode)
-		if st := deref(a.State); st != "" {
-			cityLine += ", " + st
-		}
-		lines = append(lines, cityLine, a.CountryCode)
-		return lines
+	lines := []string{label, strings.TrimSpace(a.FirstName + " " + a.LastName)}
+	if c := deref(a.Company); c != "" {
+		lines = append(lines, c)
 	}
-	left := writeAddr("BILL TO", o.BillingAddress)
-	right := writeAddr("SHIP TO", o.ShippingAddress)
-	if kind == KindPackingSlip {
-		left = right
-		right = nil
+	lines = append(lines, a.Street1)
+	if s2 := deref(a.Street2); s2 != "" {
+		lines = append(lines, s2)
 	}
-	startY := pdf.GetY()
-	pdf.SetFont("Helvetica", "", 9)
-	for i, l := range left {
-		if i == 0 {
-			pdf.SetFont("Helvetica", "B", 8)
-			pdf.SetTextColor(120, 120, 120)
-		} else {
-			pdf.SetFont("Helvetica", "", 9)
-			pdf.SetTextColor(0, 0, 0)
-		}
-		pdf.CellFormat(90, 4.6, l, "", 1, "L", false, 0, "")
+	cityLine := strings.TrimSpace(a.City + " " + a.PostalCode)
+	if st := deref(a.State); st != "" {
+		cityLine += ", " + st
 	}
-	if right != nil {
-		endY := pdf.GetY()
+	return append(lines, cityLine, a.CountryCode)
+}
+
+// The slip ships the parcel, so it carries only SHIP TO
+func (d doc) addresses() {
+	pdf, o := d.pdf, d.in.Order
+	columns := [][]string{addressLines("BILL TO", o.BillingAddress), addressLines("SHIP TO", o.ShippingAddress)}
+	if d.in.Kind == KindPackingSlip {
+		columns = columns[1:]
+	}
+	startY, endY := pdf.GetY(), pdf.GetY()
+	for i, lines := range columns {
 		pdf.SetY(startY)
-		for i, l := range right {
-			if i == 0 {
-				pdf.SetFont("Helvetica", "B", 8)
+		x, w := 18.0, 90.0
+		if i == 1 {
+			x, w = 108, 84
+		}
+		for j, l := range lines {
+			if j == 0 {
+				pdf.SetFont(family, "B", 8)
 				pdf.SetTextColor(120, 120, 120)
 			} else {
-				pdf.SetFont("Helvetica", "", 9)
+				pdf.SetFont(family, "", 9)
 				pdf.SetTextColor(0, 0, 0)
 			}
-			pdf.SetX(108)
-			pdf.CellFormat(84, 4.6, l, "", 1, "L", false, 0, "")
+			pdf.SetX(x)
+			d.cell(w, 4.6, l, "", 1, "L", false)
 		}
-		if pdf.GetY() < endY {
-			pdf.SetY(endY)
-		}
+		endY = max(endY, pdf.GetY())
 	}
+	pdf.SetY(endY)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(5)
+}
 
-	money := func(cents int64) string {
-		return fmt.Sprintf("%s %.2f", o.CurrencyCode, float64(cents)/100)
-	}
-
-	// Line table
-	pdf.SetFont("Helvetica", "B", 8)
-	pdf.SetFillColor(243, 243, 243)
-	if kind == KindPackingSlip {
-		pdf.CellFormat(36, 6, "SKU", "B", 0, "L", true, 0, "")
-		pdf.CellFormat(118, 6, "Item", "B", 0, "L", true, 0, "")
-		pdf.CellFormat(20, 6, "Qty", "B", 1, "R", true, 0, "")
+func (d doc) tableHeader(priced bool) {
+	d.pdf.SetFont(family, "B", 8)
+	d.pdf.SetFillColor(243, 243, 243)
+	if !priced {
+		d.cell(36, 6, "SKU", "B", 0, "L", true)
+		d.cell(118, 6, "Item", "B", 0, "L", true)
+		d.cell(20, 6, "Qty", "B", 1, "R", true)
 	} else {
-		pdf.CellFormat(30, 6, "SKU", "B", 0, "L", true, 0, "")
-		pdf.CellFormat(76, 6, "Item", "B", 0, "L", true, 0, "")
-		pdf.CellFormat(16, 6, "Qty", "B", 0, "R", true, 0, "")
-		pdf.CellFormat(26, 6, "Unit", "B", 0, "R", true, 0, "")
-		pdf.CellFormat(26, 6, "Total", "B", 1, "R", true, 0, "")
+		d.cell(30, 6, "SKU", "B", 0, "L", true)
+		d.cell(76, 6, "Item", "B", 0, "L", true)
+		d.cell(16, 6, "Qty", "B", 0, "R", true)
+		d.cell(26, 6, "Unit", "B", 0, "R", true)
+		d.cell(26, 6, "Total", "B", 1, "R", true)
 	}
-	pdf.SetFont("Helvetica", "", 9)
-	// A credit memo lists what it credited, at the quantities and unit basis it
-	// credited them at - never the order's own lines
-	if kind == KindCreditMemo {
-		byLineID := make(map[uuid.UUID]order.OrderLine, len(o.Lines))
-		for _, l := range o.Lines {
-			byLineID[l.ID] = l
-		}
-		for _, ml := range memo.Lines {
-			src := byLineID[ml.OrderLineID]
-			qty := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", ml.Quantity), "0"), ".")
-			pdf.CellFormat(30, 6, src.ProductSku, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(76, 6, src.ProductName, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(16, 6, qty, "B", 0, "R", false, 0, "")
-			pdf.CellFormat(26, 6, money(ml.UnitCents), "B", 0, "R", false, 0, "")
-			pdf.CellFormat(26, 6, money(ml.TotalCents), "B", 1, "R", false, 0, "")
-		}
-		if len(memo.Lines) == 0 {
-			pdf.SetTextColor(120, 120, 120)
-			pdf.CellFormat(0, 6, "No items credited - this memo is an adjustment only.", "B", 1, "L", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
-		}
-		return renderMemoTotals(pdf, memo, money, o.CurrencyCode)
-	}
-	for _, l := range o.Lines {
-		qty := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", l.Quantity), "0"), ".")
-		if kind == KindPackingSlip {
-			pdf.CellFormat(36, 6, l.ProductSku, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(118, 6, l.ProductName, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(20, 6, qty, "B", 1, "R", false, 0, "")
+	d.pdf.SetFont(family, "", 9)
+}
+
+func (d doc) pricedRow(sku, name string, qty float64, unit, total int64) {
+	d.cell(30, 6, sku, "B", 0, "L", false)
+	d.cell(76, 6, name, "B", 0, "L", false)
+	d.cell(16, 6, quantity(qty), "B", 0, "R", false)
+	d.cell(26, 6, d.money(unit), "B", 0, "R", false)
+	d.cell(26, 6, d.money(total), "B", 1, "R", false)
+}
+
+func (d doc) orderLines() {
+	pdf := d.pdf
+	priced := d.in.Kind != KindPackingSlip
+	d.tableHeader(priced)
+	for _, l := range d.in.Order.Lines {
+		if priced {
+			d.pricedRow(l.ProductSku, l.ProductName, l.Quantity, l.UnitPrice, l.TotalPrice)
 		} else {
-			pdf.CellFormat(30, 6, l.ProductSku, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(76, 6, l.ProductName, "B", 0, "L", false, 0, "")
-			pdf.CellFormat(16, 6, qty, "B", 0, "R", false, 0, "")
-			pdf.CellFormat(26, 6, money(l.UnitPrice), "B", 0, "R", false, 0, "")
-			pdf.CellFormat(26, 6, money(l.TotalPrice), "B", 1, "R", false, 0, "")
+			d.cell(36, 6, l.ProductSku, "B", 0, "L", false)
+			d.cell(118, 6, l.ProductName, "B", 0, "L", false)
+			d.cell(20, 6, quantity(l.Quantity), "B", 1, "R", false)
 		}
-		// Custom-option picks: essential on the packing slip (the picker
-		// needs size/engraving/uploaded-file), informative on invoices
+		// Custom-option picks: essential on the packing slip (the picker needs size/engraving/uploaded-file), informative on invoices
 		for _, opt := range l.Options {
 			v := opt.ValueLabel
 			if v == "" {
@@ -196,102 +250,105 @@ func Render(kind Kind, o order.Order, store StoreInfo, memo *order.CreditMemo) (
 			if v == "" {
 				continue
 			}
-			pdf.SetFont("Helvetica", "I", 8)
+			pdf.SetFont(family, "I", 8)
 			pdf.SetTextColor(90, 90, 90)
-			pdf.CellFormat(36, 4.5, "", "", 0, "L", false, 0, "")
-			pdf.CellFormat(138, 4.5, "- "+opt.OptionTitle+": "+v, "", 1, "L", false, 0, "")
-			pdf.SetFont("Helvetica", "", 9)
+			d.cell(36, 4.5, "", "", 0, "L", false)
+			d.cell(138, 4.5, "- "+opt.OptionTitle+": "+v, "", 1, "L", false)
+			pdf.SetFont(family, "", 9)
 			pdf.SetTextColor(0, 0, 0)
 		}
 	}
 	pdf.Ln(3)
-
-	// Money summary (invoice + credit memo only)
-	if kind != KindPackingSlip {
-		row := func(label string, cents int64, bold bool) {
-			if bold {
-				pdf.SetFont("Helvetica", "B", 10)
-			} else {
-				pdf.SetFont("Helvetica", "", 9)
-			}
-			pdf.SetX(120)
-			pdf.CellFormat(40, 5.5, label, "", 0, "L", false, 0, "")
-			pdf.CellFormat(34, 5.5, money(cents), "", 1, "R", false, 0, "")
-		}
-		row("Subtotal", o.SubtotalAmount, false)
-		if o.DiscountAmount > 0 {
-			row("Discount", -o.DiscountAmount, false)
-		}
-		row("Shipping", o.ShippingAmount, false)
-		row("Tax", o.TaxAmount, false)
-		if o.GiftCardAmount > 0 {
-			row("Gift card", -o.GiftCardAmount, false)
-		}
-		row("Total", o.TotalAmount, true)
-	}
-
-	// Footer note
-	pdf.Ln(6)
-	pdf.SetFont("Helvetica", "", 8)
-	pdf.SetTextColor(120, 120, 120)
-	note := map[Kind]string{
-		KindInvoice:     "Thank you for your order.",
-		KindPackingSlip: "Contents checked by: ____________    Date: ____________",
-	}[kind]
-	pdf.CellFormat(0, 5, note, "", 1, "L", false, 0, "")
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		return nil, fmt.Errorf("render %s: %w", kind, err)
-	}
-	return buf.Bytes(), nil
 }
 
-// renderMemoTotals closes out a credit memo with its own arithmetic - the order's
-// totals belong on the invoice, not here
-func renderMemoTotals(pdf *fpdf.Fpdf, memo *order.CreditMemo, money func(int64) string, currency string) ([]byte, error) {
-	pdf.Ln(3)
-	row := func(label string, cents int64, bold bool) {
-		if bold {
-			pdf.SetFont("Helvetica", "B", 10)
-		} else {
-			pdf.SetFont("Helvetica", "", 9)
-		}
-		pdf.SetX(120)
-		pdf.CellFormat(40, 5.5, label, "", 0, "L", false, 0, "")
-		pdf.CellFormat(34, 5.5, money(cents), "", 1, "R", false, 0, "")
+// A credit memo lists what it credited, at the quantities and unit basis it credited them at - never the order's own lines
+func (d doc) memoLines() {
+	byLineID := make(map[uuid.UUID]order.OrderLine, len(d.in.Order.Lines))
+	for _, l := range d.in.Order.Lines {
+		byLineID[l.ID] = l
 	}
-	row("Items", memo.LinesTotalCents, false)
-	if memo.ShippingRefundCents > 0 {
-		row("Shipping", memo.ShippingRefundCents, false)
+	d.tableHeader(true)
+	for _, ml := range d.in.Memo.Lines {
+		src := byLineID[ml.OrderLineID]
+		d.pricedRow(src.ProductSku, src.ProductName, ml.Quantity, ml.UnitCents, ml.TotalCents)
 	}
-	if memo.AdjustmentRefundCents > 0 {
-		row("Adjustment", memo.AdjustmentRefundCents, false)
+	if len(d.in.Memo.Lines) == 0 {
+		d.pdf.SetTextColor(120, 120, 120)
+		d.cell(0, 6, "No items credited - this memo is an adjustment only.", "B", 1, "L", false)
+		d.pdf.SetTextColor(0, 0, 0)
 	}
-	if memo.AdjustmentFeeCents > 0 {
-		row("Fee", -memo.AdjustmentFeeCents, false)
-	}
-	row("Refunded", memo.TotalCents, true)
+	d.pdf.Ln(3)
+}
 
-	pdf.Ln(6)
-	pdf.SetFont("Helvetica", "", 8)
-	pdf.SetTextColor(120, 120, 120)
+func (d doc) totalRow(label string, minor int64, bold bool) {
+	if bold {
+		d.pdf.SetFont(family, "B", 10)
+	} else {
+		d.pdf.SetFont(family, "", 9)
+	}
+	d.pdf.SetX(120)
+	d.cell(40, 5.5, label, "", 0, "L", false)
+	d.cell(34, 5.5, d.money(minor), "", 1, "R", false)
+}
+
+// Gift cards and store credit pay part of the total rather than lowering it - tax was charged on the full price - so they come after it
+func (d doc) orderTotals() {
+	o := d.in.Order
+	d.totalRow("Subtotal", o.SubtotalAmount, false)
+	if o.DiscountAmount > 0 {
+		d.totalRow("Discount", -o.DiscountAmount, false)
+	}
+	d.totalRow("Shipping", o.ShippingAmount, false)
+	if !d.in.TaxInclusive {
+		d.totalRow("Tax", o.TaxAmount, false)
+	}
+	d.totalRow("Total", o.TotalAmount, true)
+	if d.in.TaxInclusive {
+		d.totalRow("Includes tax", o.TaxAmount, false)
+	}
+	if o.GiftCardAmount > 0 || o.StoreCreditAmount > 0 {
+		if o.GiftCardAmount > 0 {
+			d.totalRow("Gift card", -o.GiftCardAmount, false)
+		}
+		if o.StoreCreditAmount > 0 {
+			d.totalRow("Store credit", -o.StoreCreditAmount, false)
+		}
+		d.totalRow("Amount due", o.AmountDue(), true)
+	}
+}
+
+// A credit memo closes out with its own arithmetic - the order's totals belong on the invoice, not here
+func (d doc) memoTotals() {
+	m := d.in.Memo
+	d.totalRow("Items", m.LinesTotalCents, false)
+	if m.ShippingRefundCents > 0 {
+		d.totalRow("Shipping", m.ShippingRefundCents, false)
+	}
+	if m.AdjustmentRefundCents > 0 {
+		d.totalRow("Adjustment", m.AdjustmentRefundCents, false)
+	}
+	if m.AdjustmentFeeCents > 0 {
+		d.totalRow("Fee", -m.AdjustmentFeeCents, false)
+	}
+	d.totalRow("Refunded", m.TotalCents, true)
+
 	where := "refunded to the original payment method"
 	switch {
-	case memo.RefundTarget == order.RefundTargetGiftCard:
+	case m.RefundTarget == order.RefundTargetGiftCard:
 		where = "issued as a gift card"
-	case memo.Offline:
+	case m.Offline:
 		where = "refunded outside the payment gateway"
 	}
-	note := fmt.Sprintf("Credit memo %s - %s.", memo.Number, where)
-	if memo.Reason != "" {
-		note += " " + memo.Reason
+	note := fmt.Sprintf("Credit memo %s - %s.", m.Number, where)
+	if m.Reason != "" {
+		note += " " + m.Reason
 	}
-	pdf.CellFormat(0, 5, note, "", 1, "L", false, 0, "")
+	d.footer(note)
+}
 
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		return nil, fmt.Errorf("render credit memo: %w", err)
-	}
-	return buf.Bytes(), nil
+func (d doc) footer(note string) {
+	d.pdf.Ln(6)
+	d.pdf.SetFont(family, "", 8)
+	d.pdf.SetTextColor(120, 120, 120)
+	d.cell(0, 5, note, "", 1, "L", false)
 }

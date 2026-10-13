@@ -41,6 +41,13 @@ func NewTransformHandler(t *media.Transformer, opts Options) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// The body is always an image this process encoded or cached, so a browser has nothing to second-guess
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if opts.AllowRateLimit != nil && !opts.AllowRateLimit(r) {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
@@ -80,6 +87,11 @@ func NewTransformHandler(t *media.Transformer, opts Options) http.Handler {
 			// Not retryable - the original itself is out of bounds
 			slog.Warn("media transform rejected", "key", key, "err", err)
 			http.Error(w, "source image too large", http.StatusUnprocessableEntity)
+			return
+		case errors.Is(err, media.ErrUnsupportedSource):
+			// HEIC and the like - the original exists, this build just can't draw it, which no retry changes
+			slog.Warn("media transform: unsupported source", "key", key, "err", err)
+			http.Error(w, "image format can't be resized", http.StatusUnsupportedMediaType)
 			return
 		case errors.Is(err, media.ErrBusy):
 			w.Header().Set("Retry-After", "2")

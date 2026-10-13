@@ -39,7 +39,7 @@ func (s *variantSpy) ListConfigurableParentByChildIDs(_ context.Context, ids []u
 	return out, nil
 }
 
-func (s *variantSpy) ListProductMediaByProductIDs(context.Context, []uuid.UUID) (map[uuid.UUID][]catalog.ProductMedia, error) {
+func (s *variantSpy) ListReadyProductMediaByProductIDs(context.Context, []uuid.UUID) (map[uuid.UUID][]catalog.ProductMedia, error) {
 	return nil, nil
 }
 

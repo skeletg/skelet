@@ -2,13 +2,27 @@ package ordermail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 )
+
+var (
+	ErrNotResendable         = errors.New("not a resendable order email")
+	ErrNoShipment            = errors.New("this order has no shipment to notify about")
+	ErrFulfillmentNotOnOrder = errors.New("that shipment is not on this order")
+)
+
+func init() {
+	apperr.RegisterSentinel(ErrNotResendable, "ORDER_EMAIL_NOT_RESENDABLE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNoShipment, "ORDER_EMAIL_NO_SHIPMENT", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrFulfillmentNotOnOrder, "ORDER_EMAIL_FULFILLMENT_NOT_ON_ORDER", apperr.ClassNotFound)
+}
 
 // The order emails an operator can send again - the same four the lifecycle subscribers deliver
 var resendable = map[string]bool{
@@ -21,7 +35,7 @@ var resendable = map[string]bool{
 // Resend sends one of an order's lifecycle emails again, skipping the flow engine deliberately - enrolling would restart a journey or hand delivery back to the flow that lost the original
 func (s *Service) Resend(ctx context.Context, orderID uuid.UUID, messageKey string, fulfillmentID *uuid.UUID) error {
 	if !resendable[messageKey] {
-		return fmt.Errorf("%q is not a resendable order email", messageKey)
+		return fmt.Errorf("%w: %q", ErrNotResendable, messageKey)
 	}
 	o, err := s.orders.GetByID(ctx, orderID)
 	if err != nil {
@@ -54,7 +68,7 @@ func (s *Service) resendTarget(ctx context.Context, o order.Order, want *uuid.UU
 		return uuid.Nil, fmt.Errorf("load fulfillments for order %s: %w", o.Number, err)
 	}
 	if len(fs) == 0 {
-		return uuid.Nil, fmt.Errorf("order %s has no shipment to notify about", o.Number)
+		return uuid.Nil, fmt.Errorf("%w: order %s", ErrNoShipment, o.Number)
 	}
 	if want == nil {
 		newest := fs[0]
@@ -70,5 +84,5 @@ func (s *Service) resendTarget(ctx context.Context, o order.Order, want *uuid.UU
 			return f.ID, nil
 		}
 	}
-	return uuid.Nil, fmt.Errorf("fulfillment %s is not on order %s", *want, o.Number)
+	return uuid.Nil, fmt.Errorf("%w: %s on order %s", ErrFulfillmentNotOnOrder, *want, o.Number)
 }

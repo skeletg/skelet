@@ -20,3 +20,8 @@ DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 -- name: DeleteAdminPreference :exec
 DELETE FROM admin_preferences
 WHERE admin_id = sqlc.arg(admin_id) AND key = sqlc.arg(key);
+
+-- name: CountOtherAdminPreferences :one
+-- Keys the admin holds besides this one, so the cap blocks a new key without blocking an update to an existing one
+SELECT count(*) FROM admin_preferences
+WHERE admin_id = sqlc.arg(admin_id) AND key <> sqlc.arg(key);

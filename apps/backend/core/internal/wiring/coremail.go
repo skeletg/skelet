@@ -51,6 +51,22 @@ func (c CoreAccountMail) SendPasswordReset(ctx context.Context, channelID uuid.U
 	return c.send(ctx, channelID, from, to, email.KeyPasswordReset, subject, html, text)
 }
 
+func (c CoreAccountMail) SendSignupConfirmation(ctx context.Context, channelID uuid.UUID, from, to, _ string, d email.SignupConfirmationEmailData) error {
+	subject, html, text, err := email.RenderSignupConfirmationEmail(d)
+	if err != nil {
+		return err
+	}
+	return c.send(ctx, channelID, from, to, email.KeySignupConfirmation, subject, html, text)
+}
+
+func (c CoreAccountMail) SendAccountExists(ctx context.Context, channelID uuid.UUID, from, to, _ string, d email.AccountExistsEmailData) error {
+	subject, html, text, err := email.RenderAccountExistsEmail(d)
+	if err != nil {
+		return err
+	}
+	return c.send(ctx, channelID, from, to, email.KeyAccountExists, subject, html, text)
+}
+
 func (c CoreAccountMail) send(ctx context.Context, channelID uuid.UUID, from, to, key, subject, html, text string) error {
 	return c.sender.Send(ctx, mailsend.Spec{
 		ChannelID: channelID, From: from, To: to, MessageKey: key,

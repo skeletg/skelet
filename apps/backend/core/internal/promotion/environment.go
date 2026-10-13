@@ -3,7 +3,7 @@ package promotion
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // The read-only view conditions and actions receive at evaluation time - an interface so plugins talk through accessor methods instead of importing internal/cart and other domain packages, matching the SDK's pattern for the PaymentProvider config reader

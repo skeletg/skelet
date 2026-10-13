@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
@@ -228,10 +229,10 @@ func (a *remoteAction) Apply(ctx context.Context, env Environment, raw json.RawM
 		if p.FailurePolicy == remoteprovider.FailClosed {
 			return fmt.Errorf("remote action %q: %w", p.Slug, err)
 		}
-		log.Printf("[promotion] remote action %q failed (no discount): %v", p.Slug, err)
+		slog.WarnContext(ctx, "promotion: remote action failed, no discount", "provider", p.Slug, "err", err)
 		return nil
 	}
-	// Fold the response into the ledger - the ledger clamps non-positive values itself, so a malformed response can't add a negative discount
+	// Fold the response into the ledger - it drops non-positive values and, at Finalize, line ids the cart doesn't hold and amounts past a line's total
 	if resp.SubtotalDiscountCents > 0 {
 		ledger.AddSubtotalDiscount(resp.SubtotalDiscountCents)
 	}

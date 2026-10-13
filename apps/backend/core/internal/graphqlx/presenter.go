@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -39,7 +38,7 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 			}
 		}
 		if class == apperr.ClassUnknown {
-			if pc := protocolCode(err); pc != "" {
+			if refused, pc := protocolRefusal(ctx, err); refused {
 				class = apperr.ClassValidation
 				if code == "" {
 					code = pc
@@ -139,14 +138,13 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 	}
 }
 
-// gqlgen's own parse and validation errors - a missing variable, a misspelt field - are the caller's mistake and describe the caller's own operation, so they must not read as "internal error" on the storefront
-func protocolCode(err error) string {
+// gqlgen's own refusals - a parse or validation failure, an unknown persisted-query hash, a query over the complexity limit - describe the caller's request, so they must not read as "internal error", and a client retrying a persisted query keys on their code
+// They are raised before any field runs, which is what tells them apart from a gqlerror a resolver built
+func protocolRefusal(ctx context.Context, err error) (bool, string) {
 	var ge *gqlerror.Error
-	if !errors.As(err, &ge) {
-		return ""
+	if !errors.As(err, &ge) || graphql.GetFieldContext(ctx) != nil {
+		return false, ""
 	}
-	if c, _ := ge.Extensions["code"].(string); c == errcode.ValidationFailed || c == errcode.ParseFailed {
-		return c
-	}
-	return ""
+	c, _ := ge.Extensions["code"].(string)
+	return true, c
 }

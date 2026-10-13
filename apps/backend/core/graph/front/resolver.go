@@ -11,12 +11,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
@@ -61,9 +62,11 @@ type Resolver struct {
 	OrderSvc             *order.Service
 	ConfigSvc            *config.Service
 	ConsentSvc           *consent.Service
+	DSAR                 *dsar.Builder
 	CatalogSvc           *catalog.Service
+	RecommendSvc         *recommend.Service
 	BlogSvc              *blog.Service
-	CMSSvc               *cms.Service
+	CMSSvc               CMSReader
 	ChannelSvc           *channel.Service
 	InventorySvc         *inventory.Service
 	LocaleSvc            *locale.Service
@@ -106,10 +109,8 @@ func (r *Resolver) activeLocale(ctx context.Context) string {
 type defaultChannelLocale struct{ channels *channel.Service } // last resort when no Locale header and no channel resolved: the DEFAULT channel's default_locale, falling to "en" only when nothing is flagged default - GetDefault is Valkey-cached so it stays cheap
 
 func (c defaultChannelLocale) DefaultLocale(ctx context.Context) (string, error) {
-	if c.channels != nil {
-		if sv, err := c.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if c.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return c.channels.InstallDefaultLocale(ctx), nil
 }

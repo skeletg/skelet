@@ -13,8 +13,9 @@ import (
 // fakeRepo implements Repository for authorization tests - Only the two lookups exercised by authorizeCart /
 // verifyLineInCart are backed by func fields; the rest are inert stubs so the fake satisfies the interface
 type fakeRepo struct {
-	getCart func(id uuid.UUID) (Cart, error)
-	getLine func(id uuid.UUID) (CartLine, error)
+	getCart  func(id uuid.UUID) (Cart, error)
+	getLine  func(id uuid.UUID) (CartLine, error)
+	setEmail func(email string)
 }
 
 func (f fakeRepo) GetCartByID(_ context.Context, id uuid.UUID) (Cart, error) {
@@ -63,20 +64,26 @@ func (f fakeRepo) ListAbandoned(context.Context, uuid.UUID, time.Time, time.Time
 	return nil, nil
 }
 func (f fakeRepo) MarkAbandonedNotified(context.Context, []uuid.UUID) error { return nil }
-func (f fakeRepo) SetEmail(context.Context, uuid.UUID, string) error        { return nil }
-func (f fakeRepo) SetNote(context.Context, uuid.UUID, string) error         { return nil }
-func (f fakeRepo) PruneStale(context.Context, time.Time) (int64, error)     { return 0, nil }
+func (f fakeRepo) SetEmail(_ context.Context, _ uuid.UUID, email string) error {
+	if f.setEmail != nil {
+		f.setEmail(email)
+	}
+	return nil
+}
+func (f fakeRepo) SetNote(context.Context, uuid.UUID, string) error     { return nil }
+func (f fakeRepo) PruneStale(context.Context, time.Time) (int64, error) { return 0, nil }
 func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) (SavedItem, error) {
 	return SavedItem{}, nil
 }
 func (f fakeRepo) GetSavedItem(context.Context, uuid.UUID) (SavedItem, error) {
 	return SavedItem{}, nil
 }
-func (f fakeRepo) DeleteSavedItem(context.Context, uuid.UUID, uuid.UUID) error    { return nil }
-func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error) { return nil, nil }
-func (f fakeRepo) WithTx(*sql.Tx) Repository                                      { return f }
-
-func ptr(u uuid.UUID) *uuid.UUID { return &u }
+func (f fakeRepo) DeleteSavedItem(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return false, nil
+}
+func (f fakeRepo) SetBundleLineQuantity(context.Context, uuid.UUID, float64) error { return nil }
+func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error)  { return nil, nil }
+func (f fakeRepo) WithTx(*sql.Tx) Repository                                       { return f }
 
 func TestAuthorizeCart(t *testing.T) {
 	owner := uuid.New()
@@ -94,19 +101,19 @@ func TestAuthorizeCart(t *testing.T) {
 		{
 			name:    "a missing cart is forbidden, not not-found", // telling them apart would let anyone enumerate cart UUIDs
 			cartErr: sql.ErrNoRows,
-			caller:  ptr(owner),
+			caller:  new(owner),
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:    "a repo failure propagates rather than reading as forbidden", // masking it told a shopper their own cart was gone whenever the DB blipped
 			cartErr: dbDown,
-			caller:  ptr(owner),
+			caller:  new(owner),
 			wantErr: dbDown,
 		},
 		{
 			name:    "non-active cart rejected",
-			cart:    Cart{ID: cartID, Status: "converted", CustomerID: ptr(owner)},
-			caller:  ptr(owner),
+			cart:    Cart{ID: cartID, Status: "converted", CustomerID: new(owner)},
+			caller:  new(owner),
 			wantErr: ErrCartNotActive,
 		},
 		{
@@ -117,24 +124,24 @@ func TestAuthorizeCart(t *testing.T) {
 		{
 			name:   "guest cart allows any caller (some customer)",
 			cart:   Cart{ID: cartID, Status: "active", CustomerID: nil},
-			caller: ptr(other),
+			caller: new(other),
 		},
 		{
 			name:    "customer cart rejects anonymous caller",
-			cart:    Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
+			cart:    Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
 			caller:  nil,
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:    "customer cart rejects a different customer",
-			cart:    Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
-			caller:  ptr(other),
+			cart:    Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
+			caller:  new(other),
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:   "customer cart allows its owner",
-			cart:   Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
-			caller: ptr(owner),
+			cart:   Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
+			caller: new(owner),
 		},
 	}
 	for _, tc := range tests {

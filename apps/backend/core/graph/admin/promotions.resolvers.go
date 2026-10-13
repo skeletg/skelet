@@ -350,26 +350,17 @@ func (r *queryResolver) PromotionRules(ctx context.Context, limit *int32, offset
 	if err != nil {
 		return nil, err
 	}
-	rules, total, err := r.PromotionSvc.ListRules(ctx, derefInt32Default(limit, 25), derefInt32Default(offset, 0))
+	// Rules with ChannelID = nil ("global" - applies to every store) are hidden from scoped admins, who couldn't deactivate them against their own channel anyway - filtered in SQL so the page and its total match what they may see
+	filter := promotion.RuleFilter{AllChannels: perm.Bypass(), ChannelIDs: perm.IDs()}
+	rules, total, err := r.PromotionSvc.ListRules(ctx, filter, derefInt32Default(limit, 25), derefInt32Default(offset, 0))
 	if err != nil {
 		return nil, err
 	}
-	// Rules with ChannelID = nil ("global" - applies to every store) are hidden from scoped admins. Their per-channel
-	// admins shouldn't see or muck with cross-channel rules they couldn't deactivate against their own channel anyway
-	visible := make([]promotion.Rule, 0, len(rules))
-	for _, rule := range rules {
-		if perm.AllowsOptional(rule.ChannelID) {
-			visible = append(visible, rule)
-		}
-	}
-	items := make([]*model.PromotionRule, len(visible))
-	for i, rule := range visible {
+	items := make([]*model.PromotionRule, len(rules))
+	for i, rule := range rules {
 		items[i] = promotionRuleToModel(rule)
 	}
 	displayTotal := total
-	if !perm.Bypass() {
-		displayTotal = int32(len(visible))
-	}
 	return &model.PromotionRuleList{Items: items, TotalCount: displayTotal}, nil
 }
 

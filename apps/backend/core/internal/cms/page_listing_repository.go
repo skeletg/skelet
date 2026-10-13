@@ -20,6 +20,9 @@ func (r *postgresRepository) UpsertPageChannelListing(ctx context.Context, in Se
 		IsHomepage:  in.IsHomepage,
 	})
 	if err != nil {
+		if isForeignKeyViolation(err) {
+			return PageChannelListing{}, ErrChannelNotFound
+		}
 		return PageChannelListing{}, fmt.Errorf("upsert cms page store listing: %w", err)
 	}
 	return toPageChannelListing(row), nil

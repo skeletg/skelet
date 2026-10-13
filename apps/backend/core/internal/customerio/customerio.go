@@ -1,11 +1,9 @@
-// Package customerio is the customers and order-lines entries in the data registry - mirrors internal/catalogio's role for products
-// Customers round-trip both ways (upsert by channel + email); order lines are an accounting-shaped export only, since orders are never created from a spreadsheet
+// Package customerio is the customers entry in the data registry - mirrors internal/catalogio's role for products
+// Customers round-trip both ways, upserting by channel + email
 package customerio
 
 import (
 	"context"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -36,6 +34,15 @@ var customerFields = []dataio.Field{
 	{Name: colCreatedAt, Label: "Created", Type: dataio.FieldDate, ReadOnly: true},
 }
 
+// Rows per query, so an all-time export holds one page in memory rather than the table
+const exportPageSize = 500
+
+type contacts interface {
+	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error)
+	EnsureContactFrom(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool, source string) (customer.Customer, bool, error)
+	UpdateProfileFrom(ctx context.Context, id uuid.UUID, input customer.UpdateCustomerInput, source string) (customer.Customer, error)
+}
+
 // CustomerResource upserts by (channel, email) - a new customer is created with an unusable password and resets to claim the account
 func CustomerResource(queries *db.Queries, customers *customer.Service) dataio.Resource {
 	return dataio.Resource{
@@ -47,7 +54,7 @@ func CustomerResource(queries *db.Queries, customers *customer.Service) dataio.R
 		ImportPermission: "customers.manage",
 		Fields:           customerFields,
 		NewExporter: func(_ context.Context, o dataio.Opts) (dataio.Exporter, error) {
-			return &customerExporter{queries: queries, opts: o}, nil
+			return &customerExporter{queries: queries, opts: o, pageSize: exportPageSize}, nil
 		},
 		NewImporter: func(_ context.Context, o dataio.Opts) (dataio.Importer, error) {
 			return &customerImporter{customers: customers, opts: o}, nil
@@ -56,82 +63,94 @@ func CustomerResource(queries *db.Queries, customers *customer.Service) dataio.R
 }
 
 type customerExporter struct {
-	queries *db.Queries
-	opts    dataio.Opts
-	rows    []db.ExportCustomerRowsRow
+	queries  *db.Queries
+	opts     dataio.Opts
+	pageSize int
 }
 
-func (e *customerExporter) Columns(ctx context.Context) ([]dataio.Field, error) {
-	var channels []uuid.UUID
-	if e.opts.ChannelID != uuid.Nil {
-		channels = []uuid.UUID{e.opts.ChannelID}
-	}
-	rows, err := e.queries.ExportCustomerRows(ctx, db.ExportCustomerRowsParams{
-		AllChannels: len(channels) == 0,
-		ChannelIds:  channels,
-	})
-	if err != nil {
-		return nil, err
-	}
-	e.rows = rows
-	return nil, nil
-}
+func (e *customerExporter) Columns(context.Context) ([]dataio.Field, error) { return nil, nil }
 
-func (e *customerExporter) Stream(_ context.Context, emit func(*dataio.Row) error) error {
-	for _, src := range e.rows {
-		r := dataio.NewRow()
-		r.Ref = src.Email
-		r.Set(colEmail, src.Email)
-		r.Set(colFirstName, src.FirstName)
-		r.Set(colLastName, src.LastName)
-		r.Set(colPhone, src.Phone.String)
-		r.Set(colGroup, src.GroupSlug)
-		r.Set(colIsActive, src.IsActive)
-		r.Set(colEmailVerified, src.IsEmailVerified)
-		r.Set(colCreatedAt, src.CreatedAt)
-		if err := emit(r); err != nil {
+func (e *customerExporter) Stream(ctx context.Context, emit func(*dataio.Row) error) error {
+	params := db.ExportCustomerRowsParams{AllChannels: e.opts.ChannelID == uuid.Nil, PageSize: int32(e.pageSize)}
+	if !params.AllChannels {
+		params.ChannelIds = []uuid.UUID{e.opts.ChannelID}
+	}
+	for {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
+		rows, err := e.queries.ExportCustomerRows(ctx, params)
+		if err != nil {
+			return err
+		}
+		for _, src := range rows {
+			if err := emit(customerRow(src)); err != nil {
+				return err
+			}
+		}
+		if len(rows) < e.pageSize {
+			return nil
+		}
+		last := rows[len(rows)-1]
+		params.AfterCreatedAt, params.AfterID = last.CreatedAt, last.ID
 	}
-	return nil
+}
+
+func customerRow(src db.ExportCustomerRowsRow) *dataio.Row {
+	r := dataio.NewRow()
+	r.Ref = src.Email
+	r.Set(colEmail, src.Email)
+	r.Set(colFirstName, src.FirstName)
+	r.Set(colLastName, src.LastName)
+	r.Set(colPhone, src.Phone.String)
+	r.Set(colGroup, src.GroupSlug)
+	r.Set(colIsActive, src.IsActive)
+	r.Set(colEmailVerified, src.IsEmailVerified)
+	r.Set(colCreatedAt, src.CreatedAt)
+	return r
 }
 
 type customerImporter struct {
-	customers *customer.Service
+	customers contacts
 	opts      dataio.Opts
 }
 
 func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome, error) {
-	email := strings.ToLower(r.Str(colEmail))
+	email := customer.NormalizeEmail(r.Str(colEmail))
 	r.Ref = email
-	if email == "" || !strings.Contains(email, "@") {
+	if customer.ValidateEmail(email) != nil {
 		return dataio.OutcomeSkipped, errInvalidEmail
 	}
 	if im.opts.ChannelID == uuid.Nil {
 		return dataio.OutcomeSkipped, errChannelRequired
 	}
+	first, last, phone := r.Str(colFirstName), r.Str(colLastName), r.Str(colPhone)
+	upd := customer.UpdateCustomerInput{FirstName: first, LastName: last}
+	if phone != "" {
+		upd.Phone = &phone
+	}
+	if err := customer.ValidateProfile(upd); err != nil {
+		return dataio.OutcomeSkipped, err
+	}
 	if im.opts.DryRun {
-		if _, exists := im.customers.CustomerIDByEmail(ctx, im.opts.ChannelID, email); exists {
+		_, exists, err := im.customers.CustomerIDByEmail(ctx, im.opts.ChannelID, email)
+		if err != nil {
+			return dataio.OutcomeSkipped, err
+		}
+		if exists {
 			return dataio.OutcomeUpdated, nil
 		}
 		return dataio.OutcomeCreated, nil
 	}
 
-	c, created, err := im.customers.EnsureContact(ctx, im.opts.ChannelID, email, r.Str(colFirstName))
+	c, created, err := im.customers.EnsureContactFrom(ctx, im.opts.ChannelID, email, first, false, customer.SourceImport)
 	if err != nil {
 		return dataio.OutcomeSkipped, err
 	}
 	// The file is the operator's source of truth for these three, so they fill in on both paths
-	first, last, phone := r.Str(colFirstName), r.Str(colLastName), r.Str(colPhone)
 	if first != "" || last != "" || phone != "" {
-		upd := customer.UpdateCustomerInput{
-			FirstName: firstNonEmpty(first, c.FirstName),
-			LastName:  firstNonEmpty(last, c.LastName),
-		}
-		if phone != "" {
-			upd.Phone = &phone
-		}
-		if _, err := im.customers.UpdateProfile(ctx, c.ID, upd); err != nil {
+		upd.FirstName, upd.LastName = firstNonEmpty(first, c.FirstName), firstNonEmpty(last, c.LastName)
+		if _, err := im.customers.UpdateProfileFrom(ctx, c.ID, upd, customer.SourceImport); err != nil {
 			return dataio.OutcomeSkipped, err
 		}
 	}
@@ -146,131 +165,4 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
-}
-
-const (
-	optStatuses  = "statuses"
-	optStartDate = "start_date"
-	optEndDate   = "end_date"
-)
-
-var orderFields = []dataio.Field{
-	{Name: "order_number", Label: "Order", Type: dataio.FieldText, Identifier: true, ReadOnly: true},
-	{Name: "created_at", Label: "Placed", Type: dataio.FieldDate, ReadOnly: true},
-	{Name: "status", Label: "Status", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "payment_status", Label: "Payment status", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "payment_provider", Label: "Payment provider", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "email", Label: "Customer email", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "currency", Label: "Currency", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "sku", Label: "SKU", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "product_name", Label: "Product", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "quantity", Label: "Quantity", Type: dataio.FieldNumber, ReadOnly: true},
-	{Name: "unit_price_cents", Label: "Unit price", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "line_total_cents", Label: "Line total", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "line_cost_cents", Label: "Line cost", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "line_options", Label: "Options", Type: dataio.FieldText, ReadOnly: true},
-	{Name: "order_subtotal_cents", Label: "Order subtotal", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "order_discount_cents", Label: "Order discount", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "order_shipping_cents", Label: "Order shipping", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "order_tax_cents", Label: "Order tax", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "order_giftcard_cents", Label: "Order gift card", Type: dataio.FieldMoney, ReadOnly: true},
-	{Name: "order_total_cents", Label: "Order total", Type: dataio.FieldMoney, ReadOnly: true},
-}
-
-// OrderLineResource is one row per order line, shaped for an accounting hand-off - export only
-func OrderLineResource(queries *db.Queries) dataio.Resource {
-	return dataio.Resource{
-		Slug:           "order_lines",
-		Label:          "Order lines",
-		Group:          "Sales",
-		Description:    "One row per line on every order in range, with the order totals repeated on each - the shape an accounting system wants.",
-		ViewPermission: "orders.view",
-		Fields:         orderFields,
-		Options: []dataio.OptionDef{
-			{Name: optStatuses, Label: "Statuses", Type: dataio.OptString, Description: "Comma-separated order statuses, blank for all", Applies: dataio.DirectionExport},
-			{Name: optStartDate, Label: "From", Type: dataio.OptDate, Applies: dataio.DirectionExport},
-			{Name: optEndDate, Label: "To", Type: dataio.OptDate, Applies: dataio.DirectionExport},
-		},
-		NewExporter: func(_ context.Context, o dataio.Opts) (dataio.Exporter, error) {
-			return &orderExporter{queries: queries, opts: o}, nil
-		},
-	}
-}
-
-type orderExporter struct {
-	queries *db.Queries
-	opts    dataio.Opts
-	rows    []db.ExportOrderRowsRow
-}
-
-func (e *orderExporter) Columns(ctx context.Context) ([]dataio.Field, error) {
-	var channels []uuid.UUID
-	if e.opts.ChannelID != uuid.Nil {
-		channels = []uuid.UUID{e.opts.ChannelID}
-	}
-	var statuses []string
-	for s := range strings.SplitSeq(strings.ToLower(e.opts.Str(optStatuses)), ",") {
-		if s = strings.TrimSpace(s); s != "" {
-			statuses = append(statuses, s)
-		}
-	}
-	start := parseDate(e.opts.Str(optStartDate), time.Time{})
-	// An open-ended range still needs an upper bound the query can compare against
-	end := parseDate(e.opts.Str(optEndDate), time.Now().Add(24*time.Hour))
-
-	rows, err := e.queries.ExportOrderRows(ctx, db.ExportOrderRowsParams{
-		AllChannels: len(channels) == 0,
-		ChannelIds:  channels,
-		AllStatuses: len(statuses) == 0,
-		Statuses:    statuses,
-		StartAt:     start,
-		EndAt:       end,
-	})
-	if err != nil {
-		return nil, err
-	}
-	e.rows = rows
-	return nil, nil
-}
-
-func (e *orderExporter) Stream(_ context.Context, emit func(*dataio.Row) error) error {
-	for _, src := range e.rows {
-		r := dataio.NewRow()
-		r.Ref = src.Number
-		r.Set("order_number", src.Number)
-		r.Set("created_at", src.CreatedAt)
-		r.Set("status", src.Status)
-		r.Set("payment_status", src.PaymentStatus)
-		r.Set("payment_provider", src.PaymentProvider)
-		r.Set("email", src.Email)
-		r.Set("currency", src.CurrencyCode)
-		r.Set("sku", src.ProductSku)
-		r.Set("product_name", src.ProductName)
-		r.Set("quantity", src.Quantity)
-		r.Set("unit_price_cents", src.UnitPrice)
-		r.Set("line_total_cents", src.TotalPrice)
-		if src.CostCents.Valid {
-			r.Set("line_cost_cents", src.CostCents.Int64)
-		}
-		r.Set("line_options", src.LineOptions)
-		r.Set("order_subtotal_cents", src.SubtotalAmount)
-		r.Set("order_discount_cents", src.DiscountAmount)
-		r.Set("order_shipping_cents", src.ShippingAmount)
-		r.Set("order_tax_cents", src.TaxAmount)
-		r.Set("order_giftcard_cents", src.GiftCardAmount)
-		r.Set("order_total_cents", src.TotalAmount)
-		if err := emit(r); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func parseDate(raw string, fallback time.Time) time.Time {
-	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
-		if t, err := time.Parse(layout, raw); err == nil {
-			return t
-		}
-	}
-	return fallback
 }

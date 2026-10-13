@@ -375,7 +375,7 @@ services:
     # will actually open - not a second copy of the DSN
     env_file:
       - env/go.env
-    command: sh -c 'migrate -path internal/db/migrations -database "$$DATABASE_URL" up && go run ./cmd/cli data-patch up'
+    command: sh -c 'migrate -path internal/db/migrations -database "$$DATABASE_URL" up && go run ./cmd/cli plugin migrate up && go run ./cmd/cli data-patch up'
     depends_on:
       db:
         condition: service_healthy

@@ -43,7 +43,7 @@ var allowedSVGCommonAttrs = map[string]bool{
 	"font-family": true, "font-size": true, "font-style": true, "font-weight": true,
 	"text-anchor": true, "letter-spacing": true, "word-spacing": true,
 	"dominant-baseline": true, "alignment-baseline": true,
-	"paint-order": true, "vector-effect": true, "shape-rendering": true, "fill-opacity-x": false,
+	"paint-order": true, "vector-effect": true, "shape-rendering": true,
 }
 
 // Geometry, per element - keeps a `cx` off a <rect> where it means nothing
@@ -199,28 +199,32 @@ func sanitizeSVGAttr(element string, a xml.Attr) (string, string, bool) {
 		return "", "", false
 	}
 	if name == "style" {
-		clean, ok := sanitizeSVGStyle(a.Value)
+		clean, ok := sanitizeSVGStyle(element, a.Value)
 		return "style", clean, ok
 	}
 	// A URL can hide in any paint attribute via url(...), e.g. fill="url(http://evil/x)"
-	if v := strings.ToLower(a.Value); strings.Contains(v, "javascript:") || hasExternalURLRef(v) {
+	if v := strings.ToLower(a.Value); unsafeCSSValue(v) {
 		return "", "", false
 	}
 	return name, a.Value, true
 }
 
-// Inline CSS is kept, minus anything that fetches or executes. Declarations are checked one at a
-// time so a single bad rule costs its own declaration rather than the element's whole style
-func sanitizeSVGStyle(style string) (string, bool) {
+// Inline CSS keeps only the properties the attribute allowlist would - any other property was kept before, and
+// background-image: image-set("https://evil/x" 1x) fetched off the document with no url( in sight
+// Declarations are checked one at a time so a single bad rule costs its own declaration rather than the element's whole style
+func sanitizeSVGStyle(element, style string) (string, bool) {
 	var kept []string
 	for decl := range strings.SplitSeq(style, ";") {
 		d := strings.TrimSpace(decl)
 		if d == "" {
 			continue
 		}
-		low := strings.ToLower(d)
-		if strings.Contains(low, "javascript:") || strings.Contains(low, "expression(") ||
-			strings.Contains(low, "@import") || hasExternalURLRef(low) {
+		prop, value, ok := strings.Cut(d, ":")
+		prop = strings.TrimSpace(prop)
+		if !ok || (!allowedSVGCommonAttrs[prop] && !allowedSVGElementAttrs[element][prop]) {
+			continue
+		}
+		if unsafeCSSValue(strings.ToLower(value)) {
 			continue
 		}
 		kept = append(kept, d)
@@ -229,6 +233,12 @@ func sanitizeSVGStyle(style string) (string, bool) {
 		return "", false
 	}
 	return strings.Join(kept, ";"), true
+}
+
+// A CSS escape (u\72l, \75rl) spells url( without the letters a substring check looks for, and nothing a drawing needs uses a backslash
+func unsafeCSSValue(lowered string) bool {
+	return strings.Contains(lowered, "\\") || strings.Contains(lowered, "javascript:") || strings.Contains(lowered, "expression(") ||
+		strings.Contains(lowered, "@import") || hasExternalURLRef(lowered)
 }
 
 // url(#gradient) is an internal reference and fine; url(anything-else) reaches off the document, so

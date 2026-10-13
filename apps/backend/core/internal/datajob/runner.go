@@ -2,6 +2,7 @@ package datajob
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -18,14 +19,19 @@ import (
 
 const (
 	tickInterval = time.Second
-	// How often the runner renews its lease, which is also how quickly a cancellation is noticed
-	renewEvery = 2 * time.Second
-	// Long enough that a slow 250k-row import isn't stolen mid-run - the runner renews as rows land, so a crash still frees it within this
-	leaseSeconds = 120
-	claimBatch   = 2
+	// How often the heartbeat renews the lease, which is also how quickly a cancellation is noticed
+	defaultRenewEvery = 2 * time.Second
+	// The heartbeat renews on a timer whatever the rows are doing, so this only bounds how long a crashed runner holds a job
+	defaultLeaseSeconds = 120
+	// One at a time - a second claimed job would wait out the first with nothing renewing its lease, and be claimed again elsewhere
+	claimBatch = 1
 	// A job that kills the process on every attempt must stop being retried, or it takes the runner down forever
 	maxAttempts = 3
+	sweepBatch  = 500
 )
+
+// The lease went to another runner, or the job was cancelled, before this one finished - its result is dropped rather than written over theirs
+var errLostLease = errors.New("data job is no longer held by this runner")
 
 // Run is the claim loop - one process or twenty, SKIP LOCKED keeps them off each other's rows
 func (s *Service) Run(ctx context.Context) {
@@ -45,7 +51,7 @@ func (s *Service) Run(ctx context.Context) {
 
 func (s *Service) tick(ctx context.Context) error {
 	rows, err := s.q.ClaimDueDataJobs(ctx, db.ClaimDueDataJobsParams{
-		LeaseSeconds: leaseSeconds,
+		LeaseSeconds: s.leaseSeconds,
 		MaxAttempts:  maxAttempts,
 		BatchSize:    claimBatch,
 	})
@@ -58,6 +64,10 @@ func (s *Service) tick(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return err // shutting down - the lease lapses and another process picks it up
 			}
+			if errors.Is(err, errLostLease) {
+				slog.Warn("data job finished after losing its lease, result dropped", "job", job.ID, "resource", job.Resource)
+				continue
+			}
 			slog.Error("data job failed", "job", job.ID, "resource", job.Resource, "direction", job.Direction, "error", err)
 			s.fail(ctx, job, err)
 		}
@@ -69,23 +79,41 @@ func (s *Service) execute(ctx context.Context, job Job) error {
 	if s.blobs == nil {
 		return ErrNoStorage
 	}
+	if job.badOptions {
+		return errors.New("the job's stored options could not be read")
+	}
 	// Its own cancel so a cancellation noticed mid-run unwinds the driver without touching the tick's ctx
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	var cancelled atomic.Bool
+	var processed, total atomic.Int64
+	beatDone := make(chan struct{})
+	go func() {
+		defer close(beatDone)
+		s.heartbeat(runCtx, job.ID, &processed, &total, stop, &cancelled)
+	}()
 
 	run := dataio.Run{
 		Resource: job.Resource,
 		Format:   job.Format,
 		Opts:     s.opts(job),
-		Progress: s.progress(runCtx, job.ID, stop, &cancelled),
+		Progress: func(p, t int) { processed.Store(int64(p)); total.Store(int64(t)) },
 	}
-	var err error
-	if job.Direction == dataio.DirectionExport {
-		err = s.runExport(runCtx, job, run)
-	} else {
-		err = s.runImport(runCtx, job, run)
-	}
+	err := func() (err error) {
+		// a panic in a resource's setup or finish would otherwise take the whole process down, once per attempt
+		defer func() {
+			if rec := recover(); rec != nil {
+				err = fmt.Errorf("data job panicked: %v", rec)
+				slog.Error("datajob panicked", "job", job.ID, "resource", job.Resource, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
+			}
+		}()
+		if job.Direction == dataio.DirectionExport {
+			return s.runExport(runCtx, job, run)
+		}
+		return s.runImport(runCtx, job, run)
+	}()
+	stop()
+	<-beatDone
 	// CancelDataJob already wrote the terminal row, so a run that stopped because of it is not a failure
 	if cancelled.Load() {
 		slog.Info("data job cancelled mid-run", "job", job.ID, "resource", job.Resource)
@@ -109,28 +137,32 @@ func (s *Service) opts(job Job) dataio.Opts {
 	return o
 }
 
-// Doubles as the lease renewal AND the cancellation check - the renewal is scoped to status='running', so a
-// cancelled job renews 0 rows and that is the stop signal. Cancelling therefore lands within one interval
-func (s *Service) progress(ctx context.Context, id uuid.UUID, stop context.CancelFunc, cancelled *atomic.Bool) func(processed, total int) {
-	var last time.Time
-	return func(processed, total int) {
-		if s.now().Sub(last) < renewEvery {
+// Renews the lease on a timer for as long as the run lasts, whatever the rows are doing, and doubles as the cancellation check - the renewal is scoped to status='running', so a cancelled job renews 0 rows and that stops the run within one interval
+func (s *Service) heartbeat(ctx context.Context, id uuid.UUID, processed, total *atomic.Int64, stop context.CancelFunc, cancelled *atomic.Bool) {
+	t := time.NewTicker(s.renewEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
 			return
+		case <-t.C:
 		}
-		last = s.now()
 		n, err := s.q.RenewDataJobLease(ctx, db.RenewDataJobLeaseParams{
 			ID:            id,
-			LeaseSeconds:  leaseSeconds,
-			ProcessedRows: int32(processed),
-			TotalRows:     int32(total),
+			LeaseSeconds:  s.leaseSeconds,
+			ProcessedRows: int32(processed.Load()),
+			TotalRows:     int32(total.Load()),
 		})
 		if err != nil {
-			slog.Warn("data job lease renewal failed", "job", id, "error", err)
-			return
+			if ctx.Err() == nil {
+				slog.Warn("data job lease renewal failed", "job", id, "error", err)
+			}
+			continue
 		}
 		if n == 0 {
 			cancelled.Store(true)
 			stop()
+			return
 		}
 	}
 }
@@ -188,8 +220,7 @@ func (s *Service) runExport(ctx context.Context, job Job, run dataio.Run) error 
 		return fmt.Errorf("store export: %w", uploadErr)
 	}
 
-	_, err = s.q.FinishDataJob(ctx, db.FinishDataJobParams{
-		ID:            job.ID,
+	err = s.finish(ctx, job, db.FinishDataJobParams{
 		Status:        string(StatusSucceeded),
 		TotalRows:     int32(out.res.Rows),
 		ProcessedRows: int32(out.res.Rows),
@@ -197,7 +228,24 @@ func (s *Service) runExport(ctx context.Context, job Job, run dataio.Run) error 
 		ObjectKey:     key,
 		ByteSize:      counted.n, // counted on the way past, so the size costs nothing extra
 	})
+	if errors.Is(err, errLostLease) {
+		_ = s.blobs.Delete(ctx, key) // the run that owns the job writes its own file
+	}
 	return err
+}
+
+// Writes the terminal row only while this runner still holds the job - a run whose lease was taken over, or that was cancelled, must not overwrite the current owner's result
+func (s *Service) finish(ctx context.Context, job Job, p db.FinishDataJobParams) error {
+	p.ID = job.ID
+	p.Attempt = int32(job.Attempts)
+	p.RetentionSeconds = int32(s.retention() / time.Second)
+	if _, err := s.q.FinishDataJob(ctx, p); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errLostLease
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Service) runImport(ctx context.Context, job Job, run dataio.Run) error {
@@ -224,8 +272,7 @@ func (s *Service) runImport(ctx context.Context, job Job, run dataio.Run) error 
 	if warnings == nil {
 		warnings = []string{}
 	}
-	_, err = s.q.FinishDataJob(ctx, db.FinishDataJobParams{
-		ID:              job.ID,
+	return s.finish(ctx, job, db.FinishDataJobParams{
 		Status:          string(status),
 		TotalRows:       int32(res.Total),
 		ProcessedRows:   int32(res.Total),
@@ -239,7 +286,6 @@ func (s *Service) runImport(ctx context.Context, job Job, run dataio.Run) error 
 		ObjectKey:       job.ObjectKey,
 		ByteSize:        job.ByteSize,
 	})
-	return err
 }
 
 func (s *Service) saveErrors(ctx context.Context, jobID uuid.UUID, errs []dataio.RowError) error {
@@ -262,14 +308,14 @@ func (s *Service) saveErrors(ctx context.Context, jobID uuid.UUID, errs []dataio
 
 // A failure still writes whatever counts the run reached - "it died at row 40,000" is the useful part
 func (s *Service) fail(ctx context.Context, job Job, cause error) {
-	if _, err := s.q.FinishDataJob(ctx, db.FinishDataJobParams{
-		ID:           job.ID,
+	err := s.finish(ctx, job, db.FinishDataJobParams{
 		Status:       string(StatusFailed),
-		ErrorSummary: cause.Error(),
+		ErrorSummary: dataio.TrimMessage(cause.Error()),
 		Warnings:     []string{},
 		ObjectKey:    job.ObjectKey,
 		ByteSize:     job.ByteSize,
-	}); err != nil {
+	})
+	if err != nil && !errors.Is(err, errLostLease) {
 		slog.Error("could not mark data job failed", "job", job.ID, "error", err)
 	}
 }
@@ -279,13 +325,18 @@ func (s *Service) Sweep(ctx context.Context) error {
 	if s.blobs == nil {
 		return nil
 	}
-	expired, err := s.q.ExpireDataJobArtifacts(ctx)
+	expired, err := s.q.ListExpiredDataJobArtifacts(ctx, sweepBatch)
 	if err != nil {
 		return err
 	}
+	// The object goes first and the key is cleared only once it's gone, so a failed delete is retried on the next sweep instead of orphaning the file
 	for _, row := range expired {
 		if err := s.blobs.Delete(ctx, row.ObjectKey); err != nil {
 			slog.Warn("could not delete an expired data job artifact", "job", row.ID, "key", row.ObjectKey, "error", err)
+			continue
+		}
+		if err := s.q.ClearDataJobArtifact(ctx, db.ClearDataJobArtifactParams(row)); err != nil {
+			return err
 		}
 	}
 	// A job whose runner died past its retry budget would otherwise read as running forever

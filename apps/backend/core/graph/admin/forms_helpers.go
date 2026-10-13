@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 )
 
-func formToModel(f form.Form, submissions int) *model.SignupForm {
+func formToModel(f signupform.Form, submissions int) *model.SignupForm {
 	var seg *string
 	if f.TargetSegmentID != nil {
 		s := f.TargetSegmentID.String()
@@ -34,18 +34,18 @@ func orStr(s, def string) string {
 	return s
 }
 
-func saveInputToForm(in model.SaveSignupFormInput, channelID uuid.UUID) form.SaveInput {
+func saveInputToForm(in model.SaveSignupFormInput, channelID uuid.UUID) signupform.SaveInput {
 	var seg *uuid.UUID
 	if in.TargetSegmentID != nil && *in.TargetSegmentID != "" {
 		if id, err := uuid.Parse(*in.TargetSegmentID); err == nil {
 			seg = &id
 		}
 	}
-	return form.SaveInput{
+	return signupform.SaveInput{
 		ChannelID: channelID, Slug: in.Slug, Name: in.Name, Status: in.Status, Type: in.Type,
 		Heading: in.Heading, Body: in.Body, ButtonLabel: in.ButtonLabel, SuccessMessage: in.SuccessMessage,
 		CollectName: in.CollectName, ConsentKind: in.ConsentKind, TargetSegmentID: seg, TriggerFlow: in.TriggerFlow,
-		Display: form.DisplayConfig{
+		Display: signupform.DisplayConfig{
 			Trigger: in.Display.Trigger, DelaySeconds: int(in.Display.DelaySeconds),
 			ScrollPercent: int(in.Display.ScrollPercent), FrequencyDays: int(in.Display.FrequencyDays),
 		},

@@ -39,19 +39,32 @@ func (s *pageWorkflowService) SubmitPageForReview(ctx context.Context, id uuid.U
 	return s.repo.GetPageByID(ctx, id)
 }
 
-// Moves a page to approved, stamping the approver - the resolver gates this on cms.approve
+// Moves a page under review to approved, stamping the approver - the resolver gates this on cms.approve, and the approver must be someone other than the submitter
 func (s *pageWorkflowService) ApprovePage(ctx context.Context, id uuid.UUID) (Page, error) {
-	if _, err := s.repo.ApprovePageWorkflow(ctx, id, adminPtr(ctx)); err != nil {
+	p, err := s.repo.GetPageByID(ctx, id)
+	if err != nil {
+		return Page{}, err
+	}
+	if p.WorkflowState != WorkflowInReview {
+		return Page{}, ErrNotInReview
+	}
+	by := adminPtr(ctx)
+	if p.SubmittedBy != nil && (by == nil || *by == *p.SubmittedBy) {
+		return Page{}, ErrSelfApproval
+	}
+	if _, err := s.repo.ApprovePageWorkflow(ctx, id, by); err != nil {
 		return Page{}, err
 	}
 	return s.repo.GetPageByID(ctx, id)
 }
 
 // The reason is saved first, so a rejection never lands without one
+const rejectionPrefix = "Rejected: "
+
 func (s *pageWorkflowService) RejectPage(ctx context.Context, id uuid.UUID, note string) (Page, error) {
 	if n := strings.TrimSpace(note); n != "" {
 		if by := adminPtr(ctx); by != nil {
-			if _, err := s.repo.CreateComment(ctx, CommentInput{PageID: id, Body: "Rejected: " + n}, *by); err != nil {
+			if _, err := s.repo.CreateComment(ctx, CommentInput{PageID: id, Body: rejectionPrefix + n}, *by); err != nil {
 				return Page{}, fmt.Errorf("save rejection reason: %w", err)
 			}
 		}
@@ -79,11 +92,11 @@ func (s *pageWorkflowService) AssignPage(ctx context.Context, id uuid.UUID, to *
 
 func (s *pageWorkflowService) AddComment(ctx context.Context, in CommentInput) (PageComment, error) {
 	if strings.TrimSpace(in.Body) == "" {
-		return PageComment{}, fmt.Errorf("comment body is required")
+		return PageComment{}, fmt.Errorf("%w: comment body", ErrRequiredFieldMissing)
 	}
 	by := adminPtr(ctx)
 	if by == nil {
-		return PageComment{}, fmt.Errorf("an authenticated admin is required to comment")
+		return PageComment{}, ErrAdminRequired
 	}
 	return s.repo.CreateComment(ctx, in, *by)
 }

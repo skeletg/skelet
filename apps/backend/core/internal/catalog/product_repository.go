@@ -131,8 +131,7 @@ func (r *postgresRepository) ListProductSelectableValuesByIDs(ctx context.Contex
 // ==================== Configurable Options ====================
 
 func (r *postgresRepository) SetConfigurableOptions(ctx context.Context, productID uuid.UUID, options []AssignAttributeInput) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.SetConfigurableOptions(ctx, productID); err != nil {
 			return fmt.Errorf("clear configurable options: %w", err)
 		}
@@ -331,6 +330,11 @@ func (r *postgresRepository) GetProductWithAttributes(ctx context.Context, id uu
 	if err != nil {
 		return Product{}, err
 	}
+	return r.HydrateProductGraph(ctx, p)
+}
+
+func (r *postgresRepository) HydrateProductGraph(ctx context.Context, p Product) (Product, error) {
+	id := p.ID
 	selections, err := r.ListProductAttributeSelections(ctx, id)
 	if err != nil {
 		return Product{}, err
@@ -460,6 +464,18 @@ func (r *postgresRepository) ListProducts(ctx context.Context, rowLimit int32) (
 	return out, nil
 }
 
+func (r *postgresRepository) ListProductsForChannel(ctx context.Context, channelID uuid.UUID, rowLimit int32) ([]Product, error) {
+	rows, err := r.queries.ListProductsForChannel(ctx, db.ListProductsForChannelParams{ChannelID: channelID, RowLimit: rowLimit})
+	if err != nil {
+		return nil, fmt.Errorf("list products for channel: %w", err)
+	}
+	out := make([]Product, len(rows))
+	for i, row := range rows {
+		out[i] = toProduct(row)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) GetPublishedProductForChannel(ctx context.Context, id, channelID uuid.UUID) (Product, error) {
 	row, err := r.queries.GetPublishedProductForChannel(ctx, db.GetPublishedProductForChannelParams{
 		ID:        id,
@@ -492,14 +508,31 @@ func (r *postgresRepository) FilterPublishedProductIDsForChannel(ctx context.Con
 	return out, nil
 }
 
+// Read, merge and write run in one tx under a row lock, so two concurrent edits can't drop each other's fields
 func (r *postgresRepository) UpdateProduct(ctx context.Context, input UpdateProductInput) (Product, error) {
-	current, err := r.queries.GetProductByID(ctx, input.ID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Product{}, ErrProductNotFound
+	var out Product
+	err := r.atomic(ctx, func(q *db.Queries) error {
+		current, err := q.GetProductByIDForUpdate(ctx, input.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrProductNotFound
+			}
+			return fmt.Errorf("load product: %w", err)
 		}
-		return Product{}, fmt.Errorf("load product: %w", err)
-	}
+		row, err := q.UpdateProduct(ctx, mergeProductUpdate(current, input))
+		if err != nil {
+			if isUniqueViolation(err) {
+				return ErrSKUTaken // the only unique column an update can collide on
+			}
+			return fmt.Errorf("update product: %w", err)
+		}
+		out = toProduct(row)
+		return nil
+	})
+	return out, err
+}
+
+func mergeProductUpdate(current db.Product, input UpdateProductInput) db.UpdateProductParams {
 
 	defaultPrice := current.DefaultPrice
 	if input.DefaultPrice != nil {
@@ -598,17 +631,14 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, input UpdateProd
 		}
 		return sql.NullFloat64{Float64: *in, Valid: true}
 	}
-	costCol := func(cur sql.NullInt64, in *int64) sql.NullInt64 {
-		if in == nil {
-			return cur
-		}
-		if *in <= 0 {
-			return sql.NullInt64{}
-		}
-		return sql.NullInt64{Int64: *in, Valid: true}
+	costCents := current.CostCents
+	if input.ClearCostCents {
+		costCents = sql.NullInt64{}
+	} else if input.CostCents != nil {
+		costCents = sql.NullInt64{Int64: *input.CostCents, Valid: true}
 	}
 
-	row, err := r.queries.UpdateProduct(ctx, db.UpdateProductParams{
+	return db.UpdateProductParams{
 		ID:                      input.ID,
 		DefaultPrice:            defaultPrice,
 		DefaultCurrencyCode:     defaultCurrencyCode,
@@ -633,15 +663,16 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, input UpdateProd
 		HeightMm:                dimCol(current.HeightMm, input.HeightMm),
 		MinOrderQty:             qtyCol(current.MinOrderQty, input.MinOrderQty),
 		MaxOrderQty:             qtyCol(current.MaxOrderQty, input.MaxOrderQty),
-		CostCents:               costCol(current.CostCents, input.CostCents),
-	})
-	if err != nil {
-		if isUniqueViolation(err) {
-			return Product{}, ErrSKUTaken // the only unique column an update can collide on
-		}
-		return Product{}, fmt.Errorf("update product: %w", err)
+		CostCents:               costCents,
 	}
-	return toProduct(row), nil
+}
+
+func (r *postgresRepository) CountActiveCartReferencesToSKU(ctx context.Context, sku string) (int64, error) {
+	n, err := r.queries.CountActiveCartReferencesToSKU(ctx, sku)
+	if err != nil {
+		return 0, fmt.Errorf("count active cart references to sku: %w", err)
+	}
+	return n, nil
 }
 
 // UpdateProductURL replaces only the url column - Used by the service layer's
@@ -694,8 +725,7 @@ func (r *postgresRepository) ListProductIDsByAttributeValue(ctx context.Context,
 // SetProductAttributes atomically replaces the products.attributes JSONB blob with the fully-resolved scalars and re-writes the junction rows for each touched attribute
 // Delete-then-insert, so the write is idempotent whatever was there before - the service hands it pre-validated input
 func (r *postgresRepository) SetProductAttributes(ctx context.Context, productID uuid.UUID, scalars ProductScalarAttributes, selections []ProductAttributeSelection) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 
 		// Rewrite scalars blob
 		scalarsJSON, err := json.Marshal(scalars)
@@ -785,8 +815,7 @@ func (r *postgresRepository) LoadProductsAttributeSelections(ctx context.Context
 // SetProductAttributeReferences replaces every reference value for one (product, attribute) pair with refs, atomically - the same
 // full-replace contract as SetProductAttributes' selections - Label/Path on the input are ignored (read-path only)
 func (r *postgresRepository) SetProductAttributeReferences(ctx context.Context, productID, attributeID uuid.UUID, refs []ProductAttributeReference) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.DeleteProductAttributeReferences(ctx, db.DeleteProductAttributeReferencesParams{
 			ProductID:   productID,
 			AttributeID: attributeID,

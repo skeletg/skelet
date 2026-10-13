@@ -23,7 +23,7 @@ func (s *bundleService) AddBundleOption(ctx context.Context, input AddBundleOpti
 		return BundleOption{}, fmt.Errorf("%w: %q", ErrInvalidBundleInputType, string(input.InputType))
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return BundleOption{}, fmt.Errorf("title is required")
+		return BundleOption{}, ErrTitleRequired
 	}
 	parent, err := s.repo.GetProductByID(ctx, input.ProductID)
 	if err != nil {
@@ -33,7 +33,7 @@ func (s *bundleService) AddBundleOption(ctx context.Context, input AddBundleOpti
 		return BundleOption{}, fmt.Errorf("%w: product %q is kind %q", ErrBundleParentNotBundle, parent.SKU, string(parent.Kind))
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return BundleOption{}, fmt.Errorf("locale is required")
+		return BundleOption{}, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
 		return BundleOption{}, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
@@ -101,17 +101,46 @@ func (s *bundleService) UpdateBundleOption(ctx context.Context, input UpdateBund
 		return BundleOption{}, err
 	}
 
-	if finalInputType.IsSingleSelect() && current.InputType.IsMultiSelect() { // toggling to single-select, so at most one default may already exist
-		n, err := s.repo.CountBundleSelectionDefaultsForOption(ctx, current.ID)
+	var updated BundleOption
+	err = s.inTx(ctx, func(r Repository) error {
+		if _, err := r.GetBundleOptionByIDForUpdate(ctx, current.ID); err != nil {
+			return err
+		}
+		n, err := r.CountBundleSelectionDefaultsForOption(ctx, current.ID)
 		if err != nil {
-			return BundleOption{}, err
+			return err
 		}
-		if n > 1 {
-			return BundleOption{}, fmt.Errorf("%w: option has %d default selections", ErrBundleMultiDefaultOnSingle, n)
+		if err := bundleDefaultsFit(finalInputType, finalMax, n); err != nil {
+			return err
 		}
-	}
+		updated, err = r.UpdateBundleOption(ctx, current.ID, finalInputType, finalRequired, finalSortOrder, finalMin, finalMax)
+		return err
+	})
+	return updated, err
+}
 
-	return s.repo.UpdateBundleOption(ctx, current.ID, finalInputType, finalRequired, finalSortOrder, finalMin, finalMax)
+// A default is pre-picked, so an option can't start with more of them than it lets a shopper pick
+func bundleDefaultsFit(t BundleInputType, max *int32, defaults int64) error {
+	if t.IsSingleSelect() && defaults > 1 {
+		return fmt.Errorf("%w: option has %d default selections", ErrBundleMultiDefaultOnSingle, defaults)
+	}
+	if max != nil && defaults > int64(*max) {
+		return fmt.Errorf("%w: %d defaults, max_selections %d", ErrBundleDefaultsExceedMax, defaults, *max)
+	}
+	return nil
+}
+
+// One more default on optionID must still fit - the option row lock serializes concurrent default flips
+func addingBundleDefault(ctx context.Context, r BundleRepository, optionID uuid.UUID) error {
+	option, err := r.GetBundleOptionByIDForUpdate(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	n, err := r.CountBundleSelectionDefaultsForOption(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	return bundleDefaultsFit(option.InputType, option.MaxSelections, n+1)
 }
 
 func (s *bundleService) DeleteBundleOption(ctx context.Context, id uuid.UUID) error { // content and selections go with it via FK CASCADE
@@ -123,15 +152,13 @@ func (s *bundleService) DeleteBundleOption(ctx context.Context, id uuid.UUID) er
 
 func (s *bundleService) UpsertBundleOptionContent(ctx context.Context, input UpsertBundleOptionContentInput) (BundleOptionContent, error) { // keyed on (option, locale)
 	if strings.TrimSpace(input.Locale) == "" {
-		return BundleOptionContent{}, fmt.Errorf("locale is required")
+		return BundleOptionContent{}, ErrLocaleRequired
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return BundleOptionContent{}, fmt.Errorf("title is required")
+		return BundleOptionContent{}, ErrTitleRequired
 	}
-	if s.locales != nil {
-		if err := s.locales.EnsureExists(ctx, input.Locale); err != nil {
-			return BundleOptionContent{}, err
-		}
+	if err := s.ensureLocale(ctx, input.Locale); err != nil {
+		return BundleOptionContent{}, err
 	}
 	if _, err := s.repo.GetBundleOptionByID(ctx, input.OptionID); err != nil {
 		return BundleOptionContent{}, err
@@ -140,22 +167,11 @@ func (s *bundleService) UpsertBundleOptionContent(ctx context.Context, input Ups
 }
 
 func (s *bundleService) DeleteBundleOptionContent(ctx context.Context, optionID uuid.UUID, locale string) error { // dropping the default-locale row while translations remain is rejected - same rule as ProductContent and CategoryContent
-	def := s.resolveDefaultLocale(ctx)
-	if def != "" && locale == def {
-		others, err := s.repo.ListBundleOptionContent(ctx, optionID)
-		if err != nil {
-			return err
-		}
-		hasTranslations := false
-		for _, c := range others {
-			if c.Locale != def {
-				hasTranslations = true
-				break
-			}
-		}
-		if hasTranslations {
-			return ErrCannotDeleteDefaultLocale
-		}
+	if err := s.refuseDefaultLocaleDelete(ctx, locale, func() ([]string, error) {
+		rows, err := s.repo.ListBundleOptionContent(ctx, optionID)
+		return localesOf(rows, bundleContentLocale), err
+	}); err != nil {
+		return err
 	}
 	return s.repo.DeleteBundleOptionContent(ctx, optionID, locale)
 }
@@ -163,8 +179,8 @@ func (s *bundleService) DeleteBundleOptionContent(ctx context.Context, optionID 
 // ==================== Bundle selections ====================
 
 func (s *bundleService) AddBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error) { // the parent must be a BUNDLE and the linked product SIMPLE (no nested bundles in v1) and not the bundle itself
-	if input.Quantity <= 0 {
-		return BundleSelection{}, fmt.Errorf("quantity must be positive")
+	if err := validPositiveQuantity(input.Quantity); err != nil {
+		return BundleSelection{}, err
 	}
 	option, err := s.repo.GetBundleOptionByID(ctx, input.OptionID)
 	if err != nil {
@@ -188,17 +204,17 @@ func (s *bundleService) AddBundleSelection(ctx context.Context, input AddBundleS
 		return BundleSelection{}, fmt.Errorf("%w: product %q is kind %q", ErrBundleSelectionNotSimple, child.SKU, string(child.Kind))
 	}
 
-	if input.IsDefault && option.InputType.IsSingleSelect() {
-		n, err := s.repo.CountBundleSelectionDefaultsForOption(ctx, option.ID)
-		if err != nil {
-			return BundleSelection{}, err
+	var created BundleSelection
+	err = s.inTx(ctx, func(r Repository) error {
+		if input.IsDefault {
+			if err := addingBundleDefault(ctx, r, option.ID); err != nil {
+				return err
+			}
 		}
-		if n > 0 {
-			return BundleSelection{}, fmt.Errorf("%w: option already has a default selection", ErrBundleMultiDefaultOnSingle)
-		}
-	}
-
-	return s.repo.CreateBundleSelection(ctx, input)
+		created, err = r.CreateBundleSelection(ctx, input)
+		return err
+	})
+	return created, err
 }
 
 func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateBundleSelectionInput) (BundleSelection, error) { // pointer fields, "no change" = nil - same single-select default-cardinality guard as AddBundleSelection
@@ -208,8 +224,8 @@ func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateB
 	}
 	finalQuantity := current.Quantity
 	if input.Quantity != nil {
-		if *input.Quantity <= 0 {
-			return BundleSelection{}, fmt.Errorf("quantity must be positive")
+		if err := validPositiveQuantity(*input.Quantity); err != nil {
+			return BundleSelection{}, err
 		}
 		finalQuantity = *input.Quantity
 	}
@@ -222,23 +238,17 @@ func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateB
 		finalSortOrder = *input.SortOrder
 	}
 
-	if finalIsDefault && !current.IsDefault { // turning the default ON is only rejected when a single-select option already has one
-		option, err := s.repo.GetBundleOptionByID(ctx, current.OptionID)
-		if err != nil {
-			return BundleSelection{}, err
-		}
-		if option.InputType.IsSingleSelect() {
-			n, err := s.repo.CountBundleSelectionDefaultsForOption(ctx, option.ID)
-			if err != nil {
-				return BundleSelection{}, err
-			}
-			if n > 0 {
-				return BundleSelection{}, fmt.Errorf("%w: option already has a default selection", ErrBundleMultiDefaultOnSingle)
+	var updated BundleSelection
+	err = s.inTx(ctx, func(r Repository) error {
+		if finalIsDefault && !current.IsDefault {
+			if err := addingBundleDefault(ctx, r, current.OptionID); err != nil {
+				return err
 			}
 		}
-	}
-
-	return s.repo.UpdateBundleSelection(ctx, current.ID, finalQuantity, finalIsDefault, finalSortOrder)
+		updated, err = r.UpdateBundleSelection(ctx, current.ID, finalQuantity, finalIsDefault, finalSortOrder)
+		return err
+	})
+	return updated, err
 }
 
 func (s *bundleService) DeleteBundleSelection(ctx context.Context, id uuid.UUID) error { // no "required option must keep ≥1 selection" check - that invariant is enforced at add-to-cart time, so admins can hold a half-built bundle in draft
@@ -282,50 +292,22 @@ func (s *bundleService) GetBundleOptions(ctx context.Context, productID uuid.UUI
 		return nil, err
 	}
 
-	var selectedProductIDs []uuid.UUID // collected so the content load below is batched
-	seen := make(map[uuid.UUID]struct{})
-	for _, sels := range selectionsByOption {
-		for _, sel := range sels {
-			if _, ok := seen[sel.ProductID]; ok {
-				continue
-			}
-			seen[sel.ProductID] = struct{}{}
-			selectedProductIDs = append(selectedProductIDs, sel.ProductID)
-		}
+	var sels []BundleSelection
+	for _, os := range selectionsByOption {
+		sels = append(sels, os...)
 	}
-	productByID := make(map[uuid.UUID]Product)
-	contentByProduct := map[uuid.UUID]ProductContent{}
-	if len(selectedProductIDs) > 0 {
-		if productByID, err = s.repo.ListProductRowsByIDs(ctx, selectedProductIDs); err != nil {
-			return nil, fmt.Errorf("load bundle selection products: %w", err)
-		}
-		for _, pid := range selectedProductIDs {
-			if _, ok := productByID[pid]; !ok {
-				return nil, fmt.Errorf("load bundle selection product %s: %w", pid, ErrProductNotFound)
-			}
-		}
-		contentByProduct, err = s.repo.ListProductContentByScope(ctx, selectedProductIDs, locale) // default-locale fallback fills the gaps below
-		if err != nil {
-			return nil, fmt.Errorf("load bundle selection content: %w", err)
-		}
-		if locale != defLocale && defLocale != "" {
-			fallback, err := s.repo.ListProductContentByScope(ctx, selectedProductIDs, defLocale)
-			if err != nil {
-				return nil, fmt.Errorf("load bundle selection fallback content: %w", err)
-			}
-			for pid, c := range fallback {
-				if _, ok := contentByProduct[pid]; !ok {
-					contentByProduct[pid] = c
-				}
-			}
-		}
+	ids := uniqueIDs(len(sels), func(i int) uuid.UUID { return sels[i].ProductID })
+	productByID, contentByProduct, err := s.loadProductsWithContent(ctx, ids, locale, true)
+	if err != nil {
+		return nil, fmt.Errorf("bundle selections: %w", err)
 	}
 
 	for i := range options {
 		opt := &options[i]
 
 		opt.AllContent = contentByOption[opt.ID]
-		opt.Title = resolveBundleOptionTitle(opt.AllContent, locale, defLocale)
+		c, _ := pickLocalized(opt.AllContent, bundleContentLocale, locale, defLocale)
+		opt.Title = c.Title
 
 		sels := selectionsByOption[opt.ID]
 		for j := range sels {
@@ -346,21 +328,4 @@ func (s *bundleService) GetBundleOptions(ctx context.Context, productID uuid.UUI
 	return options, nil
 }
 
-func resolveBundleOptionTitle(all []BundleOptionContent, locale, defLocale string) string {
-	for _, c := range all {
-		if c.Locale == locale {
-			return c.Title
-		}
-	}
-	if defLocale != "" && defLocale != locale {
-		for _, c := range all {
-			if c.Locale == defLocale {
-				return c.Title
-			}
-		}
-	}
-	if len(all) > 0 {
-		return all[0].Title
-	}
-	return ""
-}
+func bundleContentLocale(c BundleOptionContent) string { return c.Locale }

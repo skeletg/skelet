@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 
 	"github.com/google/uuid"
@@ -69,12 +72,10 @@ type CatalogDefaultLocaleProvider struct {
 }
 
 func (p CatalogDefaultLocaleProvider) DefaultLocale(ctx context.Context) (string, error) {
-	if p.channels != nil {
-		if sv, err := p.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if p.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return p.channels.InstallDefaultLocale(ctx), nil
 }
 
 type CatalogInventoryEnsurer struct { // adapts inventory.Service to the slim catalog.InventoryEnsurer - drops the returned Item value the catalog doesn't need
@@ -114,6 +115,7 @@ func (a AuditURLCollisions) RecordURLCollision(ctx context.Context, entityType, 
 type CartCatalogAdapter struct {
 	svc       *catalog.Service
 	customers *customer.Service // resolves a customer's group for tier pricing - nil in contexts without customer access (then group tiers don't apply)
+	channels  *channel.Service  // the channel's currency decides which FIXED option surcharges can be charged
 }
 
 // CartFileAdapter resolves an uploaded media asset for a FILE-type product option pick - it reads the asset row (filename, mime, public URL) and HEADs object storage for the authoritative byte size + existence, so the cart validates against the real upload rather than client-claimed values
@@ -122,14 +124,14 @@ type CartFileAdapter struct {
 	storage *objstore.Storage
 }
 
-func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, id uuid.UUID) (cart.FileAsset, error) {
+func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, productID, id uuid.UUID) (cart.FileAsset, error) {
 	asset, err := a.media.GetAsset(ctx, id)
 	if err != nil {
 		return cart.FileAsset{}, err
 	}
-	// Scope fence: option picks may only reference assets minted by the product-option presign flow - a caller can't attach arbitrary media-library assets (admin catalog images, other uploads) to a line
-	if !strings.HasPrefix(asset.ObjectKey, "product-options/") {
-		return cart.FileAsset{}, fmt.Errorf("asset is not a product-option upload")
+	// Scope fence: a pick may only reference an upload the product-option presign flow minted for THIS product - not arbitrary media-library assets (admin catalog images, other uploads), and not another product's option upload
+	if asset.DirectoryPrefix != "product-options/"+productID.String() {
+		return cart.FileAsset{}, fmt.Errorf("asset is not an option upload for this product")
 	}
 	size, _, exists, err := a.storage.Head(ctx, asset.ObjectKey)
 	if err != nil {
@@ -255,26 +257,21 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 			return out, nil
 		}
 	}
-	// Tier (quantity-break) prices, pre-filtered to this channel and the caller's customer group so the cart can apply BestTier scope-free
-	if tiers, terr := a.svc.ListGroupPrices(ctx, p.ID); terr == nil && len(tiers) > 0 {
-		var groupID *uuid.UUID
-		if customerID != nil && a.customers != nil {
-			if c, cerr := a.customers.GetByID(ctx, *customerID); cerr == nil && c.CustomerGroupID != uuid.Nil {
-				g := c.CustomerGroupID
-				groupID = &g
-			}
+	// Tier (quantity-break) prices, pre-filtered to this channel and the caller's customer group so the cart applies them scope-free
+	var groupID *uuid.UUID
+	if customerID != nil && a.customers != nil {
+		if c, cerr := a.customers.GetByID(ctx, *customerID); cerr == nil && c.CustomerGroupID != uuid.Nil {
+			g := c.CustomerGroupID
+			groupID = &g
 		}
-		for _, t := range tiers {
-			if t.ChannelID != nil && *t.ChannelID != channelID {
-				continue
-			}
-			if t.CustomerGroupID != nil {
-				if groupID == nil || *t.CustomerGroupID != *groupID {
-					continue
-				}
-			}
-			out.Tiers = append(out.Tiers, pricing.Tier{MinQty: t.MinQty, Price: t.Price})
-		}
+	}
+	tiers, terr := a.svc.ApplicableGroupPrices(ctx, p.ID, &channelID, groupID)
+	if terr != nil {
+		// list price still sells the line, but a buyer losing their quantity break has to be visible
+		applog.From(ctx).Warn("cart: tier price lookup failed, pricing at list", "sku", sku, "err", terr)
+	}
+	for _, t := range tiers {
+		out.Tiers = append(out.Tiers, pricing.Tier{MinQty: t.MinQty, Price: t.Price})
 	}
 	return out, nil
 }
@@ -284,12 +281,19 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 	if err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
-	if string(p.Kind) != "simple" {
+	if p.Kind != catalog.KindSimple {
 		// Sentinel, not a plain error - AddToCart's required-options gate fails closed on real resolve errors and must be able to tell "this kind never has options" apart from a catalog hiccup
 		return cart.ProductOptionsResolution{}, fmt.Errorf("sku %q is kind %q, not simple: %w", sku, p.Kind, cart.ErrOptionsUnsupportedKind)
 	}
 	// Reuse the simple-pricing path for the published-on-store check + the channel price / display name - the customer has to ride along or a configured line is priced at list while every other cart mutation prices it at the buyer's contract/group rate
 	pricing, err := a.ResolveSimplePricing(ctx, channelID, sku, customerID)
+	if err != nil {
+		return cart.ProductOptionsResolution{}, err
+	}
+	if a.channels == nil {
+		return cart.ProductOptionsResolution{}, errors.New("resolve product options: no channel lookup wired")
+	}
+	ch, err := a.channels.GetByID(ctx, channelID)
 	if err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
@@ -302,10 +306,12 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		ProductID:   p.ID,
 		ProductName: pricing.ProductName,
 		UnitPrice:   pricing.UnitPrice,
-		BasePrice:   p.DefaultPrice, // percent adjustments are of default_price
+		BasePrice:   pricing.UnitPrice,
 		Options:     make([]cart.ProductOptionConfig, 0, len(opts)),
 	}
-	a.appendCartOptions(ctx, channelID, &res, opts)
+	if err := a.appendCartOptions(ctx, ch, &res, opts); err != nil {
+		return cart.ProductOptionsResolution{}, err
+	}
 
 	// A variant of a configurable also carries its parent's product-wide options (e.g. a gift message that applies to every variant) - merge them in so buildConfiguredLineOptions accepts and prices both sets - a variant belongs to at most one configurable (UNIQUE(child_id)) so this is a single extra lookup, and option IDs are globally unique so appending never collides with the variant's own
 	parents, err := a.svc.ListConfigurableParentByChildIDs(ctx, []uuid.UUID{p.ID})
@@ -317,7 +323,9 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		if err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
-		a.appendCartOptions(ctx, channelID, &res, parentOpts)
+		if err := a.appendCartOptions(ctx, ch, &res, parentOpts); err != nil {
+			return cart.ProductOptionsResolution{}, err
+		}
 		// The merged set displays and snapshots in walk order - stable-sort so parent and variant options interleave by their authored sort_order like the PDP shows them, while same-product relative order (the visible_if evaluation invariant) is preserved
 		sort.SliceStable(res.Options, func(i, j int) bool {
 			return res.Options[i].SortOrder < res.Options[j].SortOrder
@@ -327,22 +335,28 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 }
 
 // appendCartOptions maps catalog product options into the cart's option-config shape and appends them to res - shared so a variant's own options and its configurable parent's options funnel through the same conversion
-func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uuid.UUID, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) {
-	// Channel-priced source products, deduped - a linked value charges what its source costs on THIS channel (listing override/special), not the raw default_price, mirroring the bundle component BILLING rule - fall back to default_price when the source has no channel listing
+func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, ch channel.Channel, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) error {
+	channelID := ch.ID
+	// Channel-priced source products, deduped - a linked value charges what its source costs on THIS channel (listing override/special), mirroring the bundle component BILLING rule; a source this channel doesn't sell makes the value unpickable
 	srcPrice := map[string]int64{}
+	unavailable := map[string]bool{}
 	for _, o := range opts {
 		for _, v := range o.Values {
 			if v.SourceProductID == nil || v.SourceProductSKU == "" {
 				continue
 			}
-			if _, done := srcPrice[v.SourceProductSKU]; done {
+			if _, done := srcPrice[v.SourceProductSKU]; done || unavailable[v.SourceProductSKU] {
 				continue
 			}
-			price := v.SourceProductDefaultPrice
-			if sp, err := a.ResolveSimplePricing(ctx, channelID, v.SourceProductSKU, nil); err == nil {
-				price = sp.UnitPrice
+			sp, err := a.ResolveSimplePricing(ctx, channelID, v.SourceProductSKU, nil)
+			switch {
+			case errors.Is(err, cart.ErrProductNotPublished), errors.Is(err, cart.ErrProductNotPurchasable):
+				unavailable[v.SourceProductSKU] = true
+			case err != nil:
+				return fmt.Errorf("price option source %q: %w", v.SourceProductSKU, err)
+			default:
+				srcPrice[v.SourceProductSKU] = sp.UnitPrice
 			}
-			srcPrice[v.SourceProductSKU] = price
 		}
 	}
 	for _, o := range opts {
@@ -355,32 +369,37 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uui
 			MaxChars:       o.MaxChars,
 			MaxFileBytes:   o.MaxFileBytes,
 			FileExtensions: o.FileExtensions,
-			PriceValue:     o.PriceValue,
 		}
+		var priced bool
+		cfg.PriceValue, priced = o.ChannelPriceValue(channelID, ch.CurrencyCode)
+		cfg.PriceUnavailable = !priced
 		if o.PriceType != nil {
 			cfg.PriceType = string(*o.PriceType)
 		}
 		cfg.VisibleIf = toCartVisibilityGroup(o.VisibleIf)
 		for _, v := range o.Values {
+			price, priced := v.ChannelPriceValue(channelID, ch.CurrencyCode, o.Currency)
 			vc := cart.ProductOptionValueConfig{
-				ID:         v.ID,
-				Title:      v.Title,
-				PriceValue: v.PriceValue,
-				PriceType:  string(v.PriceType),
-				Quantity:   v.Quantity,
+				ID:               v.ID,
+				Title:            v.Title,
+				PriceValue:       price,
+				PriceType:        string(v.PriceType),
+				Quantity:         v.Quantity,
+				PriceUnavailable: !priced,
 			}
 			if v.SourceProductID != nil {
 				vc.HasSource = true
-				vc.SourceProductPrice = v.SourceProductDefaultPrice
-				if p, ok := srcPrice[v.SourceProductSKU]; ok {
-					vc.SourceProductPrice = p
-				}
+				vc.SourceProductID = *v.SourceProductID
+				p, ok := srcPrice[v.SourceProductSKU]
+				vc.SourceProductPrice = p
+				vc.SourceUnavailable = !ok
 			}
 			vc.ForcedLineQty = v.ForcedLineQty
 			cfg.Values = append(cfg.Values, vc)
 		}
 		res.Options = append(res.Options, cfg)
 	}
+	return nil
 }
 
 func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibilityGroup {
@@ -407,7 +426,7 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 	if err != nil {
 		return cart.BundleSnapshot{}, err
 	}
-	if string(p.Kind) != "bundle" {
+	if p.Kind != catalog.KindBundle {
 		return cart.BundleSnapshot{}, fmt.Errorf("product %q is kind %q, not bundle", p.SKU, string(p.Kind))
 	}
 	listings, err := a.svc.ListProductChannelListings(ctx, p.ID)
@@ -475,7 +494,7 @@ func (l CatalogProductLookup) KitComponents(ctx context.Context, productID uuid.
 	return out, nil
 }
 
-// OrderLineLookup adapts order.Service + catalog.Service for the inventory service's flat-mode cancellation path - mirrors the cart-to-ReserveLine projection in inventory/events.go: simple lines resolve their SKU to a product id, bundle lines expand into one entry per component (with the component's product id + total qty)
+// OrderLineLookup adapts order.Service + catalog.Service for the inventory service's flat-mode cancellation path - mirrors the cart-to-ReserveLine projection in inventory/events.go: simple lines resolve their SKU to a product id, bundle and kit lines expand into one entry per component (with the component's product id + total qty)
 type OrderLineLookup struct {
 	orderSvc   *order.Service
 	catalogSvc *catalog.Service
@@ -512,14 +531,47 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 			}
 			continue
 		}
-		if line.ProductSku == "" {
+		parts := line.StockParts
+		if len(parts) == 0 && line.ProductSku == "" {
 			continue
 		}
-		p, err := l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
-		if err != nil {
-			// Best-effort: log and skip so a stale SKU doesn't strand a cancellation - same posture as the Reserve-time linesFromCart
-			log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+		var p catalog.Product
+		if len(parts) == 0 {
+			p, err = l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
+			if err != nil {
+				// Best-effort: log and skip so a stale SKU doesn't strand a cancellation - same posture as the Reserve-time linesFromCart
+				log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+				continue
+			}
+			// Orders placed before kit lines were snapshotted took today's recipe, the best record there is
+			if p.Kind == catalog.KindKit {
+				refs, err := l.catalogSvc.KitComponentRefs(ctx, p.ID)
+				if err != nil {
+					return nil, fmt.Errorf("kit components for %q: %w", line.ProductSku, err)
+				}
+				for _, r := range refs {
+					parts = append(parts, order.OrderLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit})
+				}
+			}
+		}
+		for _, part := range parts {
+			out = append(out, inventory.OrderLine{
+				ProductID:         part.ProductID,
+				Quantity:          part.Quantity * line.Quantity,
+				FulfilledQuantity: part.Quantity * done,
+				LineID:            line.ID,
+				LineQuantity:      line.Quantity,
+				LineFulfilled:     done,
+			})
+		}
+		if !ownsStock(parts) || line.ProductSku == "" {
 			continue
+		}
+		if p.ID == uuid.Nil {
+			if p, err = l.catalogSvc.GetProductBySKU(ctx, line.ProductSku); err != nil {
+				log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+				continue
+			}
 		}
 		out = append(out, inventory.OrderLine{
 			ProductID:         p.ID,
@@ -529,6 +581,40 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 			LineQuantity:      line.Quantity,
 			LineFulfilled:     done,
 		})
+	}
+	return out, nil
+}
+
+func ownsStock(parts []order.OrderLineStockPart) bool {
+	for _, p := range parts {
+		if p.Source == cart.StockPartKit {
+			return false
+		}
+	}
+	return true
+}
+
+// OrderKitLookup gives order placement a kit's per-unit recipe to snapshot onto the line
+type OrderKitLookup struct{ svc *catalog.Service }
+
+func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error) {
+	p, err := l.svc.GetProductBySKU(ctx, sku)
+	if err != nil {
+		if errors.Is(err, catalog.ErrProductNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if p.Kind != catalog.KindKit {
+		return nil, nil
+	}
+	refs, err := l.svc.KitComponentRefs(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]cart.CartLineStockPart, len(refs))
+	for i, r := range refs {
+		out[i] = cart.CartLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit}
 	}
 	return out, nil
 }
@@ -552,12 +638,12 @@ type DownloadOrderLookup struct { // adapts order + catalog to download.OrderDow
 	catalogSvc *catalog.Service
 }
 
-func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid.UUID) ([]download.GrantableDownload, error) {
+func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid.UUID) (download.OrderDownloads, error) {
 	o, err := l.orderSvc.GetByID(ctx, orderID)
 	if err != nil {
-		return nil, err
+		return download.OrderDownloads{}, err
 	}
-	var out []download.GrantableDownload
+	out := download.OrderDownloads{Status: o.Status, PaymentStatus: o.PaymentStatus, CustomerID: o.CustomerID, Email: o.Email}
 	for _, line := range o.Lines {
 		if line.ProductSku == "" {
 			continue
@@ -571,7 +657,7 @@ func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid
 			continue
 		}
 		for _, d := range dls {
-			out = append(out, download.GrantableDownload{
+			out.Items = append(out.Items, download.GrantableDownload{
 				ProductID:    p.ID,
 				DownloadID:   d.ID,
 				Title:        d.Title,
@@ -589,12 +675,13 @@ type GiftcardOrderLookup struct {
 	catalogSvc *catalog.Service
 }
 
-func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUID) ([]giftcard.IssuableLine, error) {
+func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUID) (giftcard.OrderGiftcards, error) {
 	o, err := l.orderSvc.GetByID(ctx, orderID)
 	if err != nil {
-		return nil, err
+		return giftcard.OrderGiftcards{}, err
 	}
-	var out []giftcard.IssuableLine
+	out := giftcard.OrderGiftcards{Status: o.Status, PaymentStatus: o.PaymentStatus, Email: o.Email, CustomerID: o.CustomerID,
+		ChannelID: o.ChannelID, Currency: o.CurrencyCode}
 	for _, line := range o.Lines {
 		if line.ProductSku == "" {
 			continue
@@ -605,7 +692,7 @@ func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUI
 			continue
 		}
 		if kind == string(catalog.KindGiftcard) {
-			out = append(out, giftcard.IssuableLine{UnitPrice: line.UnitPrice, Quantity: line.Quantity})
+			out.Lines = append(out.Lines, giftcard.IssuableLine{UnitPrice: line.UnitPrice, Quantity: line.Quantity})
 		}
 	}
 	return out, nil
@@ -768,6 +855,15 @@ func (t InventoryDeductionStep) DeductAtPlacement(ctx context.Context) bool {
 	return err == nil && v == "placement"
 }
 
+// InventoryDefaultLocation reads the location new channels are assigned to
+type InventoryDefaultLocation struct {
+	cfg *config.Service
+}
+
+func (d InventoryDefaultLocation) DefaultLocationSlug(ctx context.Context) (string, error) {
+	return d.cfg.GetString(ctx, inventory.ConfigDefaultLocation, config.DefaultScope)
+}
+
 type InventoryPickupLister struct{ svc *inventory.Service } // adapts inventory.Service to shipping.PickupLocationLister for the builtin click-and-collect carrier
 
 func (l InventoryPickupLister) PickupLocations(ctx context.Context) ([]shipping.PickupLocation, error) {
@@ -839,8 +935,8 @@ func NewAuditURLCollisions(auditSvc *audit.Service) AuditURLCollisions {
 	return AuditURLCollisions{audit: auditSvc}
 }
 
-func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service) CartCatalogAdapter {
-	return CartCatalogAdapter{svc: cat, customers: customers}
+func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service, channels *channel.Service) CartCatalogAdapter {
+	return CartCatalogAdapter{svc: cat, customers: customers, channels: channels}
 }
 
 func NewCartFileAdapter(lib *medialibrary.Service, store *objstore.Storage) CartFileAdapter {
@@ -905,6 +1001,10 @@ func NewInventoryDeductionStep(cfg *config.Service) InventoryDeductionStep {
 	return InventoryDeductionStep{cfg: cfg}
 }
 
+func NewInventoryDefaultLocation(cfg *config.Service) InventoryDefaultLocation {
+	return InventoryDefaultLocation{cfg: cfg}
+}
+
 // Same shape as the toggles above - a per-channel config read the order service can call without importing config
 func NewRiskHoldThreshold(cfg *config.Service) func(context.Context, uuid.UUID) int {
 	return func(ctx context.Context, channelID uuid.UUID) int {
@@ -951,8 +1051,8 @@ func NewSalesVelocitySource(q *db.Queries) SalesVelocitySource {
 // ContactAdapter narrows customer.Service.EnsureContact to the id-returning shape the signup-form service depends on (composition-root glue)
 type ContactAdapter struct{ svc *customer.Service }
 
-func (a ContactAdapter) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string) (uuid.UUID, error) {
-	c, _, err := a.svc.EnsureContact(ctx, channelID, email, firstName)
+func (a ContactAdapter) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool) (uuid.UUID, error) {
+	c, _, err := a.svc.EnsureContact(ctx, channelID, email, firstName, verified)
 	return c.ID, err
 }
 
@@ -1001,4 +1101,35 @@ func publishedOn(listings []catalog.ProductChannelListing, channelID uuid.UUID) 
 		}
 	}
 	return false
+}
+
+// Adapts objstore to download.FileStore - a grant URL under the bucket's public base is one of ours and streams from its key
+type storedDownloads struct{ st *objstore.Storage }
+
+func (d storedDownloads) KeyFor(u string) (string, bool) {
+	rest, ok := strings.CutPrefix(u, d.st.PublicURL(""))
+	if !ok || rest == "" {
+		return "", false
+	}
+	rest, _, _ = strings.Cut(rest, "?")
+	key, err := url.PathUnescape(rest)
+	if err != nil || key == "" {
+		return "", false
+	}
+	return key, true
+}
+
+func (d storedDownloads) Open(ctx context.Context, key string) (io.ReadCloser, int64, string, error) {
+	size, contentType, found, err := d.st.Head(ctx, key)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	if !found {
+		return nil, 0, "", fmt.Errorf("download file %s is missing from storage", key)
+	}
+	body, err := d.st.GetStream(ctx, key)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return body, size, contentType, nil
 }

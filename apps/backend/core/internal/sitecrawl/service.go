@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 var ErrAlreadyRunning = errors.New("a crawl is already running for this channel")
@@ -107,7 +108,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) (db.SeoCrawl, error)
 		MaxPages:      int32(in.MaxPages),
 		MaxDepth:      int32(in.MaxDepth),
 		RespectRobots: in.RespectRobots,
-		AdminID:       uuid.NullUUID{UUID: derefID(in.AdminID), Valid: in.AdminID != nil},
+		AdminID:       sqlnull.UUID(in.AdminID),
 	})
 	if err != nil {
 		return db.SeoCrawl{}, err
@@ -258,13 +259,6 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, limit int32) ([
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (db.SeoCrawl, error) {
 	return s.queries.GetSeoCrawl(ctx, id)
-}
-
-func derefID(id *uuid.UUID) uuid.UUID {
-	if id == nil {
-		return uuid.UUID{}
-	}
-	return *id
 }
 
 // hostOverride returns the public host to announce when the crawl dials a different address, and "" when they agree

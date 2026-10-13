@@ -337,6 +337,7 @@ type ComplexityRoot struct {
 		CreatedAt   func(childComplexity int) int
 		DisplayName func(childComplexity int) int
 		Email       func(childComplexity int) int
+		EmailPublic func(childComplexity int) int
 		ID          func(childComplexity int) int
 		LinkedAdmin func(childComplexity int) int
 		Metadata    func(childComplexity int) int
@@ -1191,6 +1192,15 @@ type ComplexityRoot struct {
 		UpdatedAt  func(childComplexity int) int
 	}
 
+	CustomerConsentEvent struct {
+		AdminID   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		OptedIn   func(childComplexity int) int
+		Source    func(childComplexity int) int
+	}
+
 	CustomerEventCount struct {
 		Count func(childComplexity int) int
 		Name  func(childComplexity int) int
@@ -1404,6 +1414,7 @@ type ComplexityRoot struct {
 		Label            func(childComplexity int) int
 		Options          func(childComplexity int) int
 		Slug             func(childComplexity int) int
+		ViewAlsoRequires func(childComplexity int) int
 		ViewPermission   func(childComplexity int) int
 	}
 
@@ -2363,7 +2374,7 @@ type ComplexityRoot struct {
 		GenerateMediaAltText              func(childComplexity int, assetID string) int
 		GenerateProductReviewSummary      func(childComplexity int, productID string) int
 		GeneratePromotionCodes            func(childComplexity int, ruleID string, pattern string, count int32, prefix *string, suffix *string) int
-		GenerateShippingLabel             func(childComplexity int, fulfillmentID string) int
+		GenerateShippingLabel             func(childComplexity int, fulfillmentID string, force *bool) int
 		HoldOrder                         func(childComplexity int, id string, reason *string) int
 		IssueCreditMemo                   func(childComplexity int, input model.IssueCreditMemoInput) int
 		IssueGiftCard                     func(childComplexity int, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time, channelID *string) int
@@ -2437,7 +2448,7 @@ type ComplexityRoot struct {
 		RunAdminAction                    func(childComplexity int, slug string, args interface{}) int
 		RunChatAction                     func(childComplexity int, action string, argsJSON string) int
 		RunScheduledJobNow                func(childComplexity int, id string) int
-		SaveChatConversation              func(childComplexity int, id *string, channelID *string, title *string, messages []*model.SignalsChatMessage) int
+		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
 		SaveLibraryEmail                  func(childComplexity int, input model.SaveLibraryEmailInput) int
 		ScheduleBlogPost                  func(childComplexity int, id string, publishedAt time.Time) int
@@ -2490,6 +2501,8 @@ type ComplexityRoot struct {
 		SetProductLinks                   func(childComplexity int, productID string, kind model.ProductLinkKind, linkedProductIds []string) int
 		SetProductListing                 func(childComplexity int, input model.SetProductListingInput) int
 		SetProductMediaRole               func(childComplexity int, productID string, role model.ProductMediaRole, mediaID string) int
+		SetProductOptionChannelPrice      func(childComplexity int, optionID string, channelID string, priceValue *int32) int
+		SetProductOptionValueChannelPrice func(childComplexity int, valueID string, channelID string, priceValue *int32) int
 		SetProductPrimaryCategory         func(childComplexity int, productID string, categoryID string) int
 		SetProductTaxClass                func(childComplexity int, productID string, taxClass string) int
 		SetProductTypeURLPathTemplate     func(childComplexity int, productTypeID string, template string) int
@@ -2605,6 +2618,11 @@ type ComplexityRoot struct {
 		UpsertSearchRedirect              func(childComplexity int, channelID string, query string, targetURL string) int
 		UpsertShippingBox                 func(childComplexity int, input model.ShippingBoxInput) int
 		VoidPayment                       func(childComplexity int, orderID string) int
+	}
+
+	OptionChannelPrice struct {
+		ChannelID  func(childComplexity int) int
+		PriceValue func(childComplexity int) int
 	}
 
 	Order struct {
@@ -2939,6 +2957,7 @@ type ComplexityRoot struct {
 	}
 
 	ProductOption struct {
+		ChannelPrices  func(childComplexity int) int
 		Content        func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
 		FileExtensions func(childComplexity int) int
@@ -2964,6 +2983,7 @@ type ComplexityRoot struct {
 	}
 
 	ProductOptionValue struct {
+		ChannelPrices func(childComplexity int) int
 		Content       func(childComplexity int) int
 		CreatedAt     func(childComplexity int) int
 		ForcedLineQty func(childComplexity int) int
@@ -3247,6 +3267,7 @@ type ComplexityRoot struct {
 		Customer                     func(childComplexity int, id string) int
 		CustomerAudiences            func(childComplexity int, customerID string) int
 		CustomerCommerce             func(childComplexity int, customerID string) int
+		CustomerConsentHistory       func(childComplexity int, customerID string, limit *int32) int
 		CustomerGroup                func(childComplexity int, id string) int
 		CustomerGroups               func(childComplexity int) int
 		CustomerProfile              func(childComplexity int, customerID string, sinceDays *int32) int
@@ -4549,6 +4570,8 @@ type MutationResolver interface {
 	UpsertProductOptionValueContent(ctx context.Context, valueID string, locale string, title string) (*model.Product, error)
 	DeleteProductOptionValueContent(ctx context.Context, valueID string, locale string) (*model.Product, error)
 	DeleteProductOptionValue(ctx context.Context, id string) (*model.Product, error)
+	SetProductOptionChannelPrice(ctx context.Context, optionID string, channelID string, priceValue *int32) (*model.Product, error)
+	SetProductOptionValueChannelPrice(ctx context.Context, valueID string, channelID string, priceValue *int32) (*model.Product, error)
 	AddBundleOption(ctx context.Context, input model.AddBundleOptionInput) (*model.Product, error)
 	UpdateBundleOption(ctx context.Context, input model.UpdateBundleOptionInput) (*model.Product, error)
 	UpsertBundleOptionContent(ctx context.Context, optionID string, locale string, title string) (*model.Product, error)
@@ -4600,7 +4623,7 @@ type MutationResolver interface {
 	DeleteChannel(ctx context.Context, id string) (bool, error)
 	SetChannelLocales(ctx context.Context, channelID string, codes []string) (*model.Channel, error)
 	SetChannelAsDefault(ctx context.Context, channelID string) (*model.Channel, error)
-	SaveChatConversation(ctx context.Context, id *string, channelID *string, title *string, messages []*model.SignalsChatMessage) (string, error)
+	SaveChatConversation(ctx context.Context, id *string, title *string, messages []*model.SignalsChatMessage) (string, error)
 	DeleteChatConversation(ctx context.Context, id string) (bool, error)
 	CreateCMSSnippet(ctx context.Context, input model.CreateCMSSnippetInput) (*model.CMSSnippet, error)
 	UpdateCMSSnippet(ctx context.Context, input model.UpdateCMSSnippetInput) (*model.CMSSnippet, error)
@@ -4769,7 +4792,7 @@ type MutationResolver interface {
 	EditOrder(ctx context.Context, input model.EditOrderInput) (*model.Order, error)
 	EditOrderAddress(ctx context.Context, input model.EditOrderAddressInput) (*model.Order, error)
 	CreateFulfillment(ctx context.Context, input model.CreateFulfillmentInput) (*model.Order, error)
-	GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error)
+	GenerateShippingLabel(ctx context.Context, fulfillmentID string, force *bool) (*model.ShippingLabel, error)
 	ResendOrderEmail(ctx context.Context, orderID string, message model.OrderEmailMessage, fulfillmentID *string) (bool, error)
 	CapturePayment(ctx context.Context, orderID string, amount *int32) (*model.Order, error)
 	RefundPayment(ctx context.Context, orderID string, amount *int32, reason *string) (*model.Order, error)
@@ -5000,6 +5023,7 @@ type QueryResolver interface {
 	Customer(ctx context.Context, id string) (*model.Customer, error)
 	CustomerGroups(ctx context.Context) ([]*model.CustomerGroup, error)
 	CustomerGroup(ctx context.Context, id string) (*model.CustomerGroup, error)
+	CustomerConsentHistory(ctx context.Context, customerID string, limit *int32) ([]*model.CustomerConsentEvent, error)
 	ExportCustomerData(ctx context.Context, customerID string) (string, error)
 	StoreCredit(ctx context.Context, customerID string) (*model.StoreCreditSummary, error)
 	Loyalty(ctx context.Context, customerID string) (*model.LoyaltySummary, error)
@@ -6359,6 +6383,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BlogAuthor.Email(childComplexity), true
+	case "BlogAuthor.emailPublic":
+		if e.ComplexityRoot.BlogAuthor.EmailPublic == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BlogAuthor.EmailPublic(childComplexity), true
 	case "BlogAuthor.id":
 		if e.ComplexityRoot.BlogAuthor.ID == nil {
 			break
@@ -10010,6 +10040,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CustomerConsent.UpdatedAt(childComplexity), true
 
+	case "CustomerConsentEvent.adminId":
+		if e.ComplexityRoot.CustomerConsentEvent.AdminID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.AdminID(childComplexity), true
+	case "CustomerConsentEvent.createdAt":
+		if e.ComplexityRoot.CustomerConsentEvent.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.CreatedAt(childComplexity), true
+	case "CustomerConsentEvent.id":
+		if e.ComplexityRoot.CustomerConsentEvent.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.ID(childComplexity), true
+	case "CustomerConsentEvent.kind":
+		if e.ComplexityRoot.CustomerConsentEvent.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.Kind(childComplexity), true
+	case "CustomerConsentEvent.optedIn":
+		if e.ComplexityRoot.CustomerConsentEvent.OptedIn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.OptedIn(childComplexity), true
+	case "CustomerConsentEvent.source":
+		if e.ComplexityRoot.CustomerConsentEvent.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.Source(childComplexity), true
+
 	case "CustomerEventCount.count":
 		if e.ComplexityRoot.CustomerEventCount.Count == nil {
 			break
@@ -10964,6 +11031,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DataResource.Slug(childComplexity), true
+	case "DataResource.viewAlsoRequires":
+		if e.ComplexityRoot.DataResource.ViewAlsoRequires == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DataResource.ViewAlsoRequires(childComplexity), true
 	case "DataResource.viewPermission":
 		if e.ComplexityRoot.DataResource.ViewPermission == nil {
 			break
@@ -16519,7 +16592,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.GenerateShippingLabel(childComplexity, args["fulfillmentId"].(string)), true
+		return e.ComplexityRoot.Mutation.GenerateShippingLabel(childComplexity, args["fulfillmentId"].(string), args["force"].(*bool)), true
 	case "Mutation.holdOrder":
 		if e.ComplexityRoot.Mutation.HoldOrder == nil {
 			break
@@ -17328,7 +17401,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.SaveChatConversation(childComplexity, args["id"].(*string), args["channelId"].(*string), args["title"].(*string), args["messages"].([]*model.SignalsChatMessage)), true
+		return e.ComplexityRoot.Mutation.SaveChatConversation(childComplexity, args["id"].(*string), args["title"].(*string), args["messages"].([]*model.SignalsChatMessage)), true
 	case "Mutation.saveEmailBlock":
 		if e.ComplexityRoot.Mutation.SaveEmailBlock == nil {
 			break
@@ -17901,6 +17974,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetProductMediaRole(childComplexity, args["productId"].(string), args["role"].(model.ProductMediaRole), args["mediaId"].(string)), true
+	case "Mutation.setProductOptionChannelPrice":
+		if e.ComplexityRoot.Mutation.SetProductOptionChannelPrice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setProductOptionChannelPrice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetProductOptionChannelPrice(childComplexity, args["optionId"].(string), args["channelId"].(string), args["priceValue"].(*int32)), true
+	case "Mutation.setProductOptionValueChannelPrice":
+		if e.ComplexityRoot.Mutation.SetProductOptionValueChannelPrice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setProductOptionValueChannelPrice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetProductOptionValueChannelPrice(childComplexity, args["valueId"].(string), args["channelId"].(string), args["priceValue"].(*int32)), true
 	case "Mutation.setProductPrimaryCategory":
 		if e.ComplexityRoot.Mutation.SetProductPrimaryCategory == nil {
 			break
@@ -19166,6 +19261,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.VoidPayment(childComplexity, args["orderId"].(string)), true
+
+	case "OptionChannelPrice.channelId":
+		if e.ComplexityRoot.OptionChannelPrice.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OptionChannelPrice.ChannelID(childComplexity), true
+	case "OptionChannelPrice.priceValue":
+		if e.ComplexityRoot.OptionChannelPrice.PriceValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OptionChannelPrice.PriceValue(childComplexity), true
 
 	case "Order.appliedPromotions":
 		if e.ComplexityRoot.Order.AppliedPromotions == nil {
@@ -20721,6 +20829,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProductMemberships.GroupedProducts(childComplexity), true
 
+	case "ProductOption.channelPrices":
+		if e.ComplexityRoot.ProductOption.ChannelPrices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOption.ChannelPrices(childComplexity), true
 	case "ProductOption.content":
 		if e.ComplexityRoot.ProductOption.Content == nil {
 			break
@@ -20837,6 +20951,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProductOptionContent.Title(childComplexity), true
 
+	case "ProductOptionValue.channelPrices":
+		if e.ComplexityRoot.ProductOptionValue.ChannelPrices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOptionValue.ChannelPrices(childComplexity), true
 	case "ProductOptionValue.content":
 		if e.ComplexityRoot.ProductOptionValue.Content == nil {
 			break
@@ -22357,6 +22477,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CustomerCommerce(childComplexity, args["customerId"].(string)), true
+	case "Query.customerConsentHistory":
+		if e.ComplexityRoot.Query.CustomerConsentHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerConsentHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerConsentHistory(childComplexity, args["customerId"].(string), args["limit"].(*int32)), true
 	case "Query.customerGroup":
 		if e.ComplexityRoot.Query.CustomerGroup == nil {
 			break
@@ -28519,6 +28650,8 @@ type BlogAuthor {
   slug:         String!
   displayName:  String!
   email:        String
+  # Whether the storefront may show the email - off unless the author opted in
+  emailPublic:  Boolean!
   avatarAsset:  MediaAsset
   linkedAdmin:  AdminUser
   metadata:     [MetadataItem!]!
@@ -28542,6 +28675,7 @@ input CreateBlogAuthorInput {
   slug:          String!
   displayName:   String!
   email:         String
+  emailPublic:   Boolean
   avatarAssetId: ID
   linkedAdminId: ID
   metadata:      [MetadataInput!]
@@ -28557,6 +28691,7 @@ input UpdateBlogAuthorInput {
   displayName:      String
   email:            String
   clearEmail:       Boolean
+  emailPublic:      Boolean
   avatarAssetId:    ID
   clearAvatar:      Boolean
   linkedAdminId:    ID
@@ -29789,6 +29924,8 @@ type ProductOption {
   maxChars:       Int
   maxFileBytes:   Int
   fileExtensions: String
+  # Per-channel FIXED surcharges replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the option can't be filled elsewhere.
+  channelPrices:  [OptionChannelPrice!]!
   # Values for select-family options. Empty for text/date/file.
   values:         [ProductOptionValue!]!
   # Visibility condition group gating this option on EARLIER options' picks (null = always visible). Shape: { logic: "and"|"or", rules: [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }], groups: [...] }. Rules may only reference options with strictly lower sortOrder.
@@ -29821,8 +29958,15 @@ type ProductOptionValue {
   content:    [ProductOptionValueContent!]!
   # Optional reference to an existing SIMPLE product. When set, the value inherits the product's display data (name, SKU, default price, image) for storefront rendering; priceValue stays a markup on top of the source product's default_price (FIXED only).
   sourceProduct: Product
+  # Per-channel FIXED amounts (the markup for a linked value) replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the value can't be picked elsewhere.
+  channelPrices: [OptionChannelPrice!]!
   createdAt:  Time!
   updatedAt:  Time!
+}
+
+type OptionChannelPrice {
+  channelId:  ID!
+  priceValue: Int!
 }
 
 type ProductOptionValueContent {
@@ -29921,6 +30065,9 @@ extend type Mutation {
   upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): Product!
   deleteProductOptionValueContent(valueId: ID!, locale: String!): Product!
   deleteProductOptionValue(id: ID!): Product!
+  # Set (or, with a null priceValue, clear) a FIXED surcharge for one channel the product is listed on. Gated like every option write, and on the named channel too.
+  setProductOptionChannelPrice(optionId: ID!, channelId: ID!, priceValue: Int): Product!
+  setProductOptionValueChannelPrice(valueId: ID!, channelId: ID!, priceValue: Int): Product!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/catalog_product_structure.graphqls", Input: `# ==================== Bundle structure ====================
@@ -30148,7 +30295,7 @@ extend type Mutation {
   createProductType(input: CreateProductTypeInput!): ProductType!
   updateProductType(input: UpdateProductTypeInput!): ProductType!
   deleteProductType(id: ID!):                        Boolean!
-  # Focused mutation for setting just the URL path template. Pre-flights every affected product (auto + no override) and rejects the change if any can't render against the new template.
+  # Focused mutation for setting just the URL path template. Validates it against the type's attributes, saves it, and recomputes every affected product (auto + no override) asynchronously - a product whose data can't fill the template falls back to a safe slug.
   setProductTypeURLPathTemplate(productTypeId: ID!, template: String!): ProductType!
 
   assignAttribute(
@@ -30436,8 +30583,9 @@ input UpdateProductInput {
   # Order quantity bounds. null = no change; 0 clears.
   minOrderQty:          Float
   maxOrderQty:          Float
-  # Unit cost. null = no change; 0 clears.
+  # Unit cost. null = no change; 0 is a real cost (a free sample); clearCostCents removes it.
   costCents:            Int
+  clearCostCents:       Boolean
   sku:                  String
   seoNoindex:           Boolean
   canonicalUrl:         String
@@ -30742,7 +30890,7 @@ extend type Query {
 extend type Mutation {
   # Upsert: omit id to create, pass it to update the caller's own row. Returns
   # the conversation id. Title auto-derives from the first user message if blank.
-  saveChatConversation(id: ID, channelId: ID, title: String, messages: [SignalsChatMessage!]!): ID!
+  saveChatConversation(id: ID, title: String, messages: [SignalsChatMessage!]!): ID!
   deleteChatConversation(id: ID!): Boolean!
 }
 `, BuiltIn: false},
@@ -30909,9 +31057,7 @@ input CreateCMSPageInput {
   parentId:        ID
   slug:            String!
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
@@ -30933,10 +31079,7 @@ input UpdateCMSPageInput {
   clearParent:     Boolean
   slug:            String
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
-  clearPublished:  Boolean
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
@@ -31219,7 +31362,6 @@ type CMSPageTypeAttribute {
 input CreateCMSPageTypeInput {
   slug:        String!
   icon:        String
-  isSystem:    Boolean
   position:    Int
   locale:      String!
   name:        String!
@@ -31670,6 +31812,16 @@ type CustomerConsent {
   isDefault:  Boolean!
 }
 
+# One recorded consent change, append-only. adminId is set when a dashboard user made the change and cleared if that admin is later deleted.
+type CustomerConsentEvent {
+  id:        ID!
+  kind:      String!
+  optedIn:   Boolean!
+  source:    String!
+  adminId:   ID
+  createdAt: Time!
+}
+
 type CustomerGroup {
   id:          ID!
   name:        String!
@@ -31737,11 +31889,11 @@ type Address {
   phone:       String
 }
 
-# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens are nullable because registration withholds the session while require_email_verification is on.
+# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens and customer are nullable because registration can answer without a session.
 type CustomerAuthPayload {
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
+  customer:     Customer
   verificationRequired: Boolean!
 }
 
@@ -31786,6 +31938,8 @@ extend type Query {
   customer(id: ID!):           Customer!
   customerGroups:              [CustomerGroup!]!
   customerGroup(id: ID!):      CustomerGroup!
+  # Every consent change for the customer, newest first (default and max 500). Requires customers.view on the customer's channel.
+  customerConsentHistory(customerId: ID!, limit: Int): [CustomerConsentEvent!]!
 }
 
 extend type Mutation {
@@ -31805,7 +31959,7 @@ extend type Mutation {
   adminDeleteAddress(id: ID!):                                    Boolean!
   deleteCustomer(id: ID!):                                        Boolean!
   setCustomerActive(id: ID!, active: Boolean!):                   Customer!
-  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
+  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" and the acting admin in the consent history, so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
   adminSetCustomerConsent(
     customerId: ID!,
     kind: String!,
@@ -32016,6 +32170,8 @@ type DataResource {
   canImport: Boolean!
   canExport: Boolean!
   viewPermission: String!
+  "Further grants an export needs on top of viewPermission, over the same channels"
+  viewAlsoRequires: [String!]!
   importPermission: String!
   "Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes"
   dynamicPrefixes: [String!]!
@@ -32379,7 +32535,7 @@ extend type Mutation {
   setFlowStatus(id: ID!, status: String!): Flow!
 }
 `, BuiltIn: false},
-	{Name: "../schema/admin/forms.graphqls", Input: `# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records marketing consent, optionally adds the subscriber to a segment, and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
+	{Name: "../schema/admin/forms.graphqls", Input: `# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records the lead and emails a double opt-in link; only confirming it records marketing consent (source signup_form), adds the subscriber to the target segment and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
 
 type SignupFormDisplay {
   trigger:       String!   # immediate | delay | scroll | exit_intent
@@ -33730,8 +33886,8 @@ extend type Mutation {
   # Record a shipment covering a subset of the order's line quantities. Each line ships ` + "`" + `quantity` + "`" + ` of an order line; the sum across shipments may not exceed the ordered quantity. The order settles to PARTIALLY_FULFILLED, or FULFILLED once every line is fully shipped. Carrier/tracking seed the OrderFulfilling sync hook (a shipping-API plugin may override them). Inventory decrements the shipped quantities; the first shipment captures payment when the order is still authorized.
   createFulfillment(input: CreateFulfillmentInput!): Order!
 
-  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Requires orders.update.
-  generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
+  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Each label is charged, so a second one for the same shipment needs force. Requires orders.update.
+  generateShippingLabel(fulfillmentId: ID!, force: Boolean): ShippingLabel!
 
   # ---------- Customer mail ---------- Send one of the order's lifecycle emails again: the receipt, a shipment notice, the cancellation or the refund.
   resendOrderEmail(orderId: ID!, message: OrderEmailMessage!, fulfillmentId: ID): Boolean!
@@ -37195,6 +37351,8 @@ func (ec *executionContext) childFields_BlogAuthor(ctx context.Context, field gr
 		return ec.fieldContext_BlogAuthor_displayName(ctx, field)
 	case "email":
 		return ec.fieldContext_BlogAuthor_email(ctx, field)
+	case "emailPublic":
+		return ec.fieldContext_BlogAuthor_emailPublic(ctx, field)
 	case "avatarAsset":
 		return ec.fieldContext_BlogAuthor_avatarAsset(ctx, field)
 	case "linkedAdmin":
@@ -38893,6 +39051,24 @@ func (ec *executionContext) childFields_CustomerConsent(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type CustomerConsent", field.Name)
 }
 
+func (ec *executionContext) childFields_CustomerConsentEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerConsentEvent_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_CustomerConsentEvent_kind(ctx, field)
+	case "optedIn":
+		return ec.fieldContext_CustomerConsentEvent_optedIn(ctx, field)
+	case "source":
+		return ec.fieldContext_CustomerConsentEvent_source(ctx, field)
+	case "adminId":
+		return ec.fieldContext_CustomerConsentEvent_adminId(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CustomerConsentEvent_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerConsentEvent", field.Name)
+}
+
 func (ec *executionContext) childFields_CustomerEventCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "name":
@@ -39317,6 +39493,8 @@ func (ec *executionContext) childFields_DataResource(ctx context.Context, field 
 		return ec.fieldContext_DataResource_canExport(ctx, field)
 	case "viewPermission":
 		return ec.fieldContext_DataResource_viewPermission(ctx, field)
+	case "viewAlsoRequires":
+		return ec.fieldContext_DataResource_viewAlsoRequires(ctx, field)
 	case "importPermission":
 		return ec.fieldContext_DataResource_importPermission(ctx, field)
 	case "dynamicPrefixes":
@@ -40767,6 +40945,16 @@ func (ec *executionContext) childFields_MetadataItem(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type MetadataItem", field.Name)
 }
 
+func (ec *executionContext) childFields_OptionChannelPrice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "channelId":
+		return ec.fieldContext_OptionChannelPrice_channelId(ctx, field)
+	case "priceValue":
+		return ec.fieldContext_OptionChannelPrice_priceValue(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OptionChannelPrice", field.Name)
+}
+
 func (ec *executionContext) childFields_Order(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -41455,6 +41643,8 @@ func (ec *executionContext) childFields_ProductOption(ctx context.Context, field
 		return ec.fieldContext_ProductOption_maxFileBytes(ctx, field)
 	case "fileExtensions":
 		return ec.fieldContext_ProductOption_fileExtensions(ctx, field)
+	case "channelPrices":
+		return ec.fieldContext_ProductOption_channelPrices(ctx, field)
 	case "values":
 		return ec.fieldContext_ProductOption_values(ctx, field)
 	case "visibleIf":
@@ -41501,6 +41691,8 @@ func (ec *executionContext) childFields_ProductOptionValue(ctx context.Context, 
 		return ec.fieldContext_ProductOptionValue_content(ctx, field)
 	case "sourceProduct":
 		return ec.fieldContext_ProductOptionValue_sourceProduct(ctx, field)
+	case "channelPrices":
+		return ec.fieldContext_ProductOptionValue_channelPrices(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_ProductOptionValue_createdAt(ctx, field)
 	case "updatedAt":
@@ -47806,6 +47998,14 @@ func (ec *executionContext) field_Mutation_generateShippingLabel_args(ctx contex
 		return nil, err
 	}
 	args["fulfillmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "force",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["force"] = arg1
 	return args, nil
 }
 
@@ -49108,30 +49308,22 @@ func (ec *executionContext) field_Mutation_saveChatConversation_args(ctx context
 		return nil, err
 	}
 	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOID2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "title",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "title",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["title"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "messages",
+	args["title"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "messages",
 		func(ctx context.Context, v any) ([]*model.SignalsChatMessage, error) {
 			return ec.unmarshalNSignalsChatMessage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSignalsChatMessageᚄ(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["messages"] = arg3
+	args["messages"] = arg2
 	return args, nil
 }
 
@@ -50364,6 +50556,66 @@ func (ec *executionContext) field_Mutation_setProductMediaRole_args(ctx context.
 		return nil, err
 	}
 	args["mediaId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setProductOptionChannelPrice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "optionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["optionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "priceValue",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["priceValue"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setProductOptionValueChannelPrice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "valueId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["valueId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "priceValue",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["priceValue"] = arg2
 	return args, nil
 }
 
@@ -53566,6 +53818,28 @@ func (ec *executionContext) field_Query_customerCommerce_args(ctx context.Contex
 		return nil, err
 	}
 	args["customerId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_customerConsentHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
 	return args, nil
 }
 
@@ -61250,6 +61524,29 @@ func (ec *executionContext) _BlogAuthor_email(ctx context.Context, field graphql
 }
 func (ec *executionContext) fieldContext_BlogAuthor_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BlogAuthor_emailPublic(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BlogAuthor_emailPublic(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailPublic, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BlogAuthor_emailPublic(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _BlogAuthor_avatarAsset(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
@@ -75491,10 +75788,10 @@ func (ec *executionContext) _CustomerAuthPayload_customer(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_CustomerAuthPayload_customer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -75894,6 +76191,144 @@ func (ec *executionContext) _CustomerConsent_isDefault(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_CustomerConsent_isDefault(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CustomerConsent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_kind(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_optedIn(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_optedIn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptedIn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_optedIn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_source(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_adminId(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_adminId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AdminID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_adminId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _CustomerEventCount_name(ctx context.Context, field graphql.CollectedField, obj *model.CustomerEventCount) (ret graphql.Marshaler) {
@@ -79717,6 +80152,29 @@ func (ec *executionContext) _DataResource_viewPermission(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_DataResource_viewPermission(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DataResource", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DataResource_viewAlsoRequires(ctx context.Context, field graphql.CollectedField, obj *model.DataResource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DataResource_viewAlsoRequires(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ViewAlsoRequires, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DataResource_viewAlsoRequires(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DataResource", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -97507,6 +97965,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteProductOptionValue(ctx c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setProductOptionChannelPrice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setProductOptionChannelPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetProductOptionChannelPrice(ctx, fc.Args["optionId"].(string), fc.Args["channelId"].(string), fc.Args["priceValue"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setProductOptionChannelPrice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setProductOptionChannelPrice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setProductOptionValueChannelPrice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setProductOptionValueChannelPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetProductOptionValueChannelPrice(ctx, fc.Args["valueId"].(string), fc.Args["channelId"].(string), fc.Args["priceValue"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setProductOptionValueChannelPrice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setProductOptionValueChannelPrice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_addBundleOption(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -99761,7 +100307,7 @@ func (ec *executionContext) _Mutation_saveChatConversation(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SaveChatConversation(ctx, fc.Args["id"].(*string), fc.Args["channelId"].(*string), fc.Args["title"].(*string), fc.Args["messages"].([]*model.SignalsChatMessage))
+			return ec.Resolvers.Mutation().SaveChatConversation(ctx, fc.Args["id"].(*string), fc.Args["title"].(*string), fc.Args["messages"].([]*model.SignalsChatMessage))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -107188,7 +107734,7 @@ func (ec *executionContext) _Mutation_generateShippingLabel(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().GenerateShippingLabel(ctx, fc.Args["fulfillmentId"].(string))
+			return ec.Resolvers.Mutation().GenerateShippingLabel(ctx, fc.Args["fulfillmentId"].(string), fc.Args["force"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ShippingLabel) graphql.Marshaler {
@@ -112248,6 +112794,52 @@ func (ec *executionContext) fieldContext_Mutation_redeliverWebhookDelivery(ctx c
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _OptionChannelPrice_channelId(ctx context.Context, field graphql.CollectedField, obj *model.OptionChannelPrice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OptionChannelPrice_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OptionChannelPrice_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OptionChannelPrice", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _OptionChannelPrice_priceValue(ctx context.Context, field graphql.CollectedField, obj *model.OptionChannelPrice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OptionChannelPrice_priceValue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceValue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OptionChannelPrice_priceValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OptionChannelPrice", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Order_id(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
@@ -118801,6 +119393,38 @@ func (ec *executionContext) fieldContext_ProductOption_fileExtensions(_ context.
 	return graphql.NewScalarFieldContext("ProductOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _ProductOption_channelPrices(ctx context.Context, field graphql.CollectedField, obj *model.ProductOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOption_channelPrices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelPrices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+			return ec.marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOption_channelPrices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProductOption",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OptionChannelPrice(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProductOption_values(ctx context.Context, field graphql.CollectedField, obj *model.ProductOption) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -119214,6 +119838,38 @@ func (ec *executionContext) fieldContext_ProductOptionValue_sourceProduct(_ cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Product(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProductOptionValue_channelPrices(ctx context.Context, field graphql.CollectedField, obj *model.ProductOptionValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOptionValue_channelPrices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelPrices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+			return ec.marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOptionValue_channelPrices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProductOptionValue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OptionChannelPrice(ctx, field)
 		},
 	}
 	return fc, nil
@@ -125799,6 +126455,50 @@ func (ec *executionContext) fieldContext_Query_customerGroup(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_customerGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_customerConsentHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerConsentHistory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerConsentHistory(ctx, fc.Args["customerId"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerConsentEvent) graphql.Marshaler {
+			return ec.marshalNCustomerConsentEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEventᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerConsentHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerConsentEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerConsentHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -150002,7 +150702,7 @@ func (ec *executionContext) unmarshalInputCreateBlogAuthorInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "displayName", "email", "avatarAssetId", "linkedAdminId", "metadata", "locale", "name", "bio"}
+	fieldsInOrder := [...]string{"slug", "displayName", "email", "emailPublic", "avatarAssetId", "linkedAdminId", "metadata", "locale", "name", "bio"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -150030,6 +150730,13 @@ func (ec *executionContext) unmarshalInputCreateBlogAuthorInput(ctx context.Cont
 				return it, err
 			}
 			it.Email = data
+		case "emailPublic":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailPublic"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailPublic = data
 		case "avatarAssetId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarAssetId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -150567,7 +151274,7 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"pageTypeId", "parentId", "slug", "position", "isPublished", "seoNoindex", "publishedAt", "data", "metadata", "privateMetadata", "locale", "title", "body", "metaTitle", "metaDescription", "metaKeywords", "contentData", "selections", "relationships"}
+	fieldsInOrder := [...]string{"pageTypeId", "parentId", "slug", "position", "seoNoindex", "data", "metadata", "privateMetadata", "locale", "title", "body", "metaTitle", "metaDescription", "metaKeywords", "contentData", "selections", "relationships"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -150602,13 +151309,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.Position = data
-		case "isPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsPublished = data
 		case "seoNoindex":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seoNoindex"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -150616,13 +151316,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.SeoNoindex = data
-		case "publishedAt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedAt"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PublishedAt = data
 		case "data":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
 			data, err := ec.unmarshalOJSON2interface(ctx, v)
@@ -150723,7 +151416,7 @@ func (ec *executionContext) unmarshalInputCreateCMSPageTypeInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "icon", "isSystem", "position", "locale", "name", "description"}
+	fieldsInOrder := [...]string{"slug", "icon", "position", "locale", "name", "description"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -150744,13 +151437,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageTypeInput(ctx context.Con
 				return it, err
 			}
 			it.Icon = data
-		case "isSystem":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isSystem"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsSystem = data
 		case "position":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
@@ -157199,7 +157885,7 @@ func (ec *executionContext) unmarshalInputUpdateBlogAuthorInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "slug", "displayName", "email", "clearEmail", "avatarAssetId", "clearAvatar", "linkedAdminId", "clearLinkedAdmin", "metadata"}
+	fieldsInOrder := [...]string{"id", "slug", "displayName", "email", "clearEmail", "emailPublic", "avatarAssetId", "clearAvatar", "linkedAdminId", "clearLinkedAdmin", "metadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -157241,6 +157927,13 @@ func (ec *executionContext) unmarshalInputUpdateBlogAuthorInput(ctx context.Cont
 				return it, err
 			}
 			it.ClearEmail = data
+		case "emailPublic":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailPublic"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailPublic = data
 		case "avatarAssetId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarAssetId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -157761,7 +158454,7 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "publishedAt", "clearPublished", "data", "metadata", "privateMetadata", "tags"}
+	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "seoNoindex", "data", "metadata", "privateMetadata", "tags"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -157803,13 +158496,6 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.Position = data
-		case "isPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsPublished = data
 		case "seoNoindex":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seoNoindex"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -157817,20 +158503,6 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.SeoNoindex = data
-		case "publishedAt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedAt"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PublishedAt = data
-		case "clearPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ClearPublished = data
 		case "data":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
 			data, err := ec.unmarshalOJSON2interface(ctx, v)
@@ -159243,7 +159915,7 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -159362,6 +160034,13 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 				return it, err
 			}
 			it.CostCents = data
+		case "clearCostCents":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearCostCents"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearCostCents = data
 		case "sku":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -163679,6 +164358,11 @@ func (ec *executionContext) _BlogAuthor(ctx context.Context, sel ast.SelectionSe
 		case "email":
 			out.Values[i] = ec._BlogAuthor_email(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "emailPublic":
+			out.Values[i] = ec._BlogAuthor_emailPublic(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "avatarAsset":
@@ -169779,7 +170463,7 @@ func (ec *executionContext) _CustomerAuthPayload(ctx context.Context, sel ast.Se
 			}
 		case "customer":
 			out.Values[i] = ec._CustomerAuthPayload_customer(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "verificationRequired":
@@ -169925,6 +170609,69 @@ func (ec *executionContext) _CustomerConsent(ctx context.Context, sel ast.Select
 			}
 		case "isDefault":
 			out.Values[i] = ec._CustomerConsent_isDefault(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerConsentEventImplementors = []string{"CustomerConsentEvent"}
+
+func (ec *executionContext) _CustomerConsentEvent(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerConsentEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerConsentEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerConsentEvent")
+		case "id":
+			out.Values[i] = ec._CustomerConsentEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._CustomerConsentEvent_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optedIn":
+			out.Values[i] = ec._CustomerConsentEvent_optedIn(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._CustomerConsentEvent_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminId":
+			out.Values[i] = ec._CustomerConsentEvent_adminId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CustomerConsentEvent_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -171388,6 +172135,11 @@ func (ec *executionContext) _DataResource(ctx context.Context, sel ast.Selection
 			}
 		case "viewPermission":
 			out.Values[i] = ec._DataResource_viewPermission(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "viewAlsoRequires":
+			out.Values[i] = ec._DataResource_viewAlsoRequires(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -177409,6 +178161,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setProductOptionChannelPrice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setProductOptionChannelPrice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setProductOptionValueChannelPrice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setProductOptionValueChannelPrice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addBundleOption":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addBundleOption(ctx, field)
@@ -179751,6 +180517,49 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_redeliverWebhookDelivery(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var optionChannelPriceImplementors = []string{"OptionChannelPrice"}
+
+func (ec *executionContext) _OptionChannelPrice(ctx context.Context, sel ast.SelectionSet, obj *model.OptionChannelPrice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, optionChannelPriceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OptionChannelPrice")
+		case "channelId":
+			out.Values[i] = ec._OptionChannelPrice_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceValue":
+			out.Values[i] = ec._OptionChannelPrice_priceValue(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -182465,6 +183274,11 @@ func (ec *executionContext) _ProductOption(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "channelPrices":
+			out.Values[i] = ec._ProductOption_channelPrices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "values":
 			out.Values[i] = ec._ProductOption_values(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -182614,6 +183428,11 @@ func (ec *executionContext) _ProductOptionValue(ctx context.Context, sel ast.Sel
 		case "sourceProduct":
 			out.Values[i] = ec._ProductOptionValue_sourceProduct(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "channelPrices":
+			out.Values[i] = ec._ProductOptionValue_channelPrices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "createdAt":
@@ -186002,6 +186821,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_customerGroup(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerConsentHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerConsentHistory(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -199808,6 +200649,32 @@ func (ec *executionContext) marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._CustomerConsent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCustomerConsentEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerConsentEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerConsentEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerConsentEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEvent(ctx context.Context, sel ast.SelectionSet, v *model.CustomerConsentEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerConsentEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCustomerEventCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerEventCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerEventCount) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -202399,6 +203266,32 @@ func (ec *executionContext) unmarshalNMintBlogPostPreviewTokenInput2githubᚗcom
 func (ec *executionContext) unmarshalNMintCMSPagePreviewTokenInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMintCMSPagePreviewTokenInput(ctx context.Context, v any) (model.MintCMSPagePreviewTokenInput, error) {
 	res, err := ec.unmarshalInputMintCMSPagePreviewTokenInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOptionChannelPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPrice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOptionChannelPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPrice(ctx context.Context, sel ast.SelectionSet, v *model.OptionChannelPrice) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OptionChannelPrice(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOrder2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v model.Order) graphql.Marshaler {
@@ -207737,6 +208630,13 @@ func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._Currency(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Customer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {

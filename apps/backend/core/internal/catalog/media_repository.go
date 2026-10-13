@@ -67,6 +67,22 @@ func (r *postgresRepository) ListProductMediaByProductIDs(ctx context.Context, p
 	return out, nil
 }
 
+func (r *postgresRepository) ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error) {
+	out := make(map[uuid.UUID][]ProductMedia, len(productIDs))
+	if len(productIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListReadyProductMediaByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("batch list ready product media: %w", err)
+	}
+	for _, row := range rows {
+		m := toProductMedia(row)
+		out[m.ProductID] = append(out[m.ProductID], m)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) UpdateProductMediaMetadata(ctx context.Context, input UpdateProductMediaInput) (ProductMedia, error) {
 	current, err := r.queries.GetProductMediaByID(ctx, input.ID)
 	if err != nil {

@@ -130,7 +130,7 @@ function ClientBlocks({
         return (
           <SelectableBlock key={block.id} blockId={block.id}>
             {Renderer ? (
-              Renderer({ block })
+              <Renderer block={block} />
             ) : (
               <ServerDynamicBlock block={block} pageId={pageId} token={token} />
             )}

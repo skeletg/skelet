@@ -13,6 +13,9 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	gqlast "github.com/vektah/gqlparser/v2/ast"
+	gqlparser "github.com/vektah/gqlparser/v2/parser"
 )
 
 // Surfaces gqlgen builds, and the sdk constant each one is reached through
@@ -38,16 +41,14 @@ type method struct {
 	args    string // ctx, amountCents, ...
 	results string // (*model.KlarnaSession, error)
 	slug    string
-	pkgs    []string // packages the signature refers to, so imports can be narrowed
+	imports map[string]string // name to path for each package the signature refers to, read from gqlgen's own imports
 }
 
 var (
 	// gqlgen writes "// KlarnaCreateSession is the resolver for the klarnaCreateSession field." - the exact
 	// GraphQL name, which beats guessing at its capitalisation rules
 	fieldDoc = regexp.MustCompile(`is the resolver for the (\w+) field`)
-	// A field line inside an extend block: two spaces, a lowercase name, then args or a colon
-	sdlFieldLine = regexp.MustCompile(`^\s{2}([a-z]\w*)\s*[(:]`)
-	pkgRef       = regexp.MustCompile(`\b([a-z][a-zA-Z0-9_]*)\.`)
+	pkgRef   = regexp.MustCompile(`\b([a-z][a-zA-Z0-9_]*)\.`)
 )
 
 // GenerateGraph rewrites every plugin-owned resolver file and the plugin_resolvers.go beside it, so adding a GraphQL surface to a plugin means writing SDL and a resolver in the plugin, and touching no core Go at all gqlgen must have run first - it owns the signatures, this owns the bodies
@@ -65,7 +66,7 @@ func GenerateGraph(root string) error {
 		if err != nil {
 			return err
 		}
-		if err := writePluginResolvers(root, s.name, s.pkg, methods); err != nil {
+		if err := writePluginResolvers(root, s.name, s.sdkConst, s.pkg, methods); err != nil {
 			return err
 		}
 	}
@@ -89,25 +90,19 @@ func sdlFields(root string, set *Set, surface string) (map[string]sdlField, erro
 			if err != nil {
 				return nil, err
 			}
-			inExtend := false
-			for line := range strings.SplitSeq(string(src), "\n") {
-				trimmed := strings.TrimSpace(line)
-				switch {
-				case strings.HasPrefix(trimmed, "extend type Query") || strings.HasPrefix(trimmed, "extend type Mutation"):
-					inExtend = true
-					continue
-				case trimmed == "}":
-					inExtend = false
+			doc, err := gqlparser.ParseSchema(&gqlast.Source{Name: f, Input: string(src)})
+			if err != nil {
+				return nil, fmt.Errorf("parse %s: %w", f, err)
+			}
+			for _, ext := range doc.Extensions {
+				if ext.Name != "Query" && ext.Name != "Mutation" {
 					continue
 				}
-				if !inExtend {
-					continue
-				}
-				if m := sdlFieldLine.FindStringSubmatch(line); m != nil {
-					if prev, dup := owned[m[1]]; dup {
-						return nil, fmt.Errorf("%s field %q claimed by both %s and %s", surface, m[1], prev.slug, slug)
+				for _, fd := range ext.Fields {
+					if prev, dup := owned[fd.Name]; dup {
+						return nil, fmt.Errorf("%s field %q claimed by both %s and %s", surface, fd.Name, prev.slug, slug)
 					}
-					owned[m[1]] = sdlField{slug: slug, field: m[1], enabled: set.Enabled(slug)}
+					owned[fd.Name] = sdlField{slug: slug, field: fd.Name, enabled: set.Enabled(slug)}
 				}
 			}
 		}
@@ -160,7 +155,7 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 				continue
 			}
 			mine++
-			m, err := describe(fset, fn, recv, field, o.slug)
+			m, err := describe(fset, fn, recv, field, o.slug, imports)
 			if err != nil {
 				return nil, err
 			}
@@ -178,7 +173,7 @@ func rewriteResolverFiles(root, surface, sdkConst, pkg string, owned map[string]
 		if foreign > 0 {
 			return nil, fmt.Errorf("%s mixes %d plugin-owned and %d core resolvers - rename the plugin's schema file so gqlgen gives it its own", path, mine, foreign)
 		}
-		src, err := renderResolvers(pkg, sdkConst, ms, imports)
+		src, err := renderResolvers(pkg, sdkConst, ms)
 		if err != nil {
 			return nil, fmt.Errorf("render %s: %w", path, err)
 		}
@@ -221,7 +216,7 @@ func fieldName(fn *ast.FuncDecl) string {
 	return string(r)
 }
 
-func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string) (method, error) {
+func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string, avail map[string]string) (method, error) {
 	params, args, err := paramList(fset, fn.Type.Params)
 	if err != nil {
 		return method{}, err
@@ -230,11 +225,17 @@ func describe(fset *token.FileSet, fn *ast.FuncDecl, recv, field, slug string) (
 	if err != nil {
 		return method{}, err
 	}
-	sig := params + " " + results
+	imports := map[string]string{}
+	for _, p := range pkgRefs(params + " " + results) {
+		path, ok := avail[p]
+		if !ok {
+			return method{}, fmt.Errorf("%s refers to package %q with no import in its file", fn.Name.Name, p)
+		}
+		imports[p] = path
+	}
 	return method{
 		recv: recv, name: fn.Name.Name, field: field, slug: slug,
-		params: params, args: args, results: results,
-		pkgs: pkgRefs(sig),
+		params: params, args: args, results: results, imports: imports,
 	}, nil
 }
 

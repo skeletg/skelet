@@ -66,7 +66,7 @@ func TestWritePluginResolversEmptySetGeneratesStub(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "graph", "front"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writePluginResolvers(dir, "front", "front", nil); err != nil {
+	if err := writePluginResolvers(dir, "front", "sdk.GraphFront", "front", nil); err != nil {
 		t.Fatalf("empty set: %v", err)
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "graph", "front", "plugin_resolvers.go"))
@@ -82,13 +82,13 @@ func TestWritePluginResolversEmptySetGeneratesStub(t *testing.T) {
 	}
 	// idempotent when the file is already the stub, and when it was never written at all it must not
 	// error either - the pre-fix code returned os.Remove's ENOENT here
-	if err := writePluginResolvers(dir, "front", "front", nil); err != nil {
+	if err := writePluginResolvers(dir, "front", "sdk.GraphFront", "front", nil); err != nil {
 		t.Errorf("second empty-set write: %v", err)
 	}
 	if err := os.Remove(filepath.Join(dir, "graph", "front", "plugin_resolvers.go")); err != nil {
 		t.Fatal(err)
 	}
-	if err := writePluginResolvers(dir, "front", "front", nil); err != nil {
+	if err := writePluginResolvers(dir, "front", "sdk.GraphFront", "front", nil); err != nil {
 		t.Errorf("empty-set write with no prior file: %v", err)
 	}
 }

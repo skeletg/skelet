@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -48,7 +49,7 @@ func (h *harness) gqlPostAs(t *testing.T, ts *httptest.Server, channelID, token,
 		t.Fatalf("build request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Channel-Id", channelID)
+	req.Header.Set(channel.HeaderChannelID, channelID)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := ts.Client().Do(req)
 	if err != nil {

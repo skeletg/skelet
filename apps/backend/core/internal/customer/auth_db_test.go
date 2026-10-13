@@ -88,7 +88,7 @@ func TestEmailVerificationGateHoldsUntilTheLinkIsRedeemed(t *testing.T) {
 		t.Fatalf("unverified login with the gate on = %v, want ErrEmailNotVerified", err)
 	}
 
-	token, err := f.verify.Create(f.ctx, c.ID)
+	token, err := f.verify.Create(f.ctx, c.ID, c.Email)
 	if err != nil {
 		t.Fatalf("mint verification token: %v", err)
 	}
@@ -120,6 +120,7 @@ func TestRequestPasswordResetRevealsNothing(t *testing.T) {
 	if err := f.svc.RequestPasswordReset(f.ctx, ch, strings.ToUpper(addr)); err != nil {
 		t.Fatalf("known address: %v", err)
 	}
+	f.svc.FlushMail()
 	if after := f.authTokens(t, c.ID); after != before+1 {
 		t.Errorf("tokens for the customer went %d -> %d, want one reset token minted", before, after)
 	}
@@ -251,11 +252,11 @@ func TestEnsureContactIsIdempotentAndCannotSignIn(t *testing.T) {
 	ch := f.newChannel(t)
 	addr := randomEmail()
 
-	c, created, err := f.svc.EnsureContact(f.ctx, ch, addr, "Newsletter")
+	c, created, err := f.svc.EnsureContact(f.ctx, ch, addr, "Newsletter", false)
 	if err != nil || !created {
 		t.Fatalf("first EnsureContact = created %v, err %v", created, err)
 	}
-	again, created, err := f.svc.EnsureContact(f.ctx, ch, strings.ToUpper(addr), "Different")
+	again, created, err := f.svc.EnsureContact(f.ctx, ch, strings.ToUpper(addr), "Different", false)
 	if err != nil {
 		t.Fatalf("second EnsureContact: %v", err)
 	}

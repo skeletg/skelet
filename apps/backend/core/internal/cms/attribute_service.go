@@ -24,6 +24,7 @@ type attributeStore interface {
 	ListAttributeGroups(ctx context.Context) ([]AttributeGroup, error)
 	ListAttributes(ctx context.Context) ([]Attribute, error)
 	ListPageTypesUsingAttribute(ctx context.Context, attributeID uuid.UUID) ([]uuid.UUID, error)
+	CountRelationshipsForAttribute(ctx context.Context, attributeID uuid.UUID) (int64, error)
 	UnassignAttributeFromPageType(ctx context.Context, pageTypeID, attributeID uuid.UUID) error
 	UpdateAttribute(ctx context.Context, in UpdateAttributeInput) (Attribute, error)
 	UpdateAttributeGroup(ctx context.Context, id uuid.UUID, slug string, position int32) (AttributeGroup, error)
@@ -64,6 +65,24 @@ func (s *attributeService) ListAttributes(ctx context.Context) ([]Attribute, err
 }
 
 func (s *attributeService) UpdateAttribute(ctx context.Context, in UpdateAttributeInput) (Attribute, error) {
+	if in.RelationshipTarget != nil {
+		current, err := s.repo.GetAttributeByID(ctx, in.ID)
+		if err != nil {
+			return Attribute{}, err
+		}
+		if !current.InputType.IsRelationship() || !in.RelationshipTarget.IsValid() {
+			return Attribute{}, ErrInvalidRelationship
+		}
+		if current.RelationshipTarget == nil || *current.RelationshipTarget != *in.RelationshipTarget {
+			n, err := s.repo.CountRelationshipsForAttribute(ctx, in.ID)
+			if err != nil {
+				return Attribute{}, err
+			}
+			if n > 0 {
+				return Attribute{}, fmt.Errorf("%w: %d page references use the current target", ErrAttributeInUse, n)
+			}
+		}
+	}
 	return s.repo.UpdateAttribute(ctx, in)
 }
 
@@ -79,11 +98,8 @@ func (s *attributeService) DeleteAttribute(ctx context.Context, id uuid.UUID) er
 }
 
 func (s *attributeService) UpsertAttributeContent(ctx context.Context, attributeID uuid.UUID, in AttributeContentInput) (Attribute, error) {
-	if strings.TrimSpace(in.Locale) == "" {
-		return Attribute{}, fmt.Errorf("locale is required")
-	}
-	if strings.TrimSpace(in.Name) == "" {
-		return Attribute{}, fmt.Errorf("name is required")
+	if strings.TrimSpace(in.Locale) == "" || strings.TrimSpace(in.Name) == "" {
+		return Attribute{}, fmt.Errorf("%w: locale and name", ErrRequiredFieldMissing)
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, in.Locale); err != nil {
@@ -124,7 +140,7 @@ func (s *attributeService) DeleteAttributeValue(ctx context.Context, id uuid.UUI
 // Returns the parent attribute with values and content, for the caller
 func (s *attributeService) UpsertAttributeValueContent(ctx context.Context, valueID uuid.UUID, locale, name string) (Attribute, error) {
 	if strings.TrimSpace(locale) == "" || strings.TrimSpace(name) == "" {
-		return Attribute{}, fmt.Errorf("locale and name are required")
+		return Attribute{}, fmt.Errorf("%w: locale and name", ErrRequiredFieldMissing)
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, locale); err != nil {
@@ -169,6 +185,11 @@ func (s *attributeService) AssignAttribute(ctx context.Context, in AssignAttribu
 	}
 	if _, err := s.repo.GetAttributeByID(ctx, in.AttributeID); err != nil {
 		return PageType{}, err
+	}
+	if in.ConditionAttributeID != nil {
+		if _, err := s.repo.GetAttributeByID(ctx, *in.ConditionAttributeID); err != nil {
+			return PageType{}, err
+		}
 	}
 	if err := s.repo.AssignAttributeToPageType(ctx, in); err != nil {
 		return PageType{}, err

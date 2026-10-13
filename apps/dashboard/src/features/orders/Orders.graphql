@@ -165,8 +165,8 @@ query Order($id: ID!) {
   }
 }
 
-mutation GenerateShippingLabel($fulfillmentId: ID!) {
-  generateShippingLabel(fulfillmentId: $fulfillmentId) {
+mutation GenerateShippingLabel($fulfillmentId: ID!, $force: Boolean) {
+  generateShippingLabel(fulfillmentId: $fulfillmentId, force: $force) {
     id
     format
     trackingNumber

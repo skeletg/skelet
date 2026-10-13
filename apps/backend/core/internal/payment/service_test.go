@@ -18,6 +18,8 @@ type fakeProvider struct {
 	authorizeRes   AuthorizeResult
 	authorizeErr   error
 	captureRes     CaptureResult
+	captureErr     error
+	lastCapture    CaptureRequest
 	refundRes      RefundResult
 	voidRes        VoidResult
 	webhookRes     WebhookResult
@@ -33,9 +35,10 @@ func (p *fakeProvider) Authorize(_ context.Context, _ AuthorizeRequest) (Authori
 	p.authorizeCalls++
 	return p.authorizeRes, p.authorizeErr
 }
-func (p *fakeProvider) Capture(_ context.Context, _ CaptureRequest) (CaptureResult, error) {
+func (p *fakeProvider) Capture(_ context.Context, req CaptureRequest) (CaptureResult, error) {
 	p.captureCalls++
-	return p.captureRes, nil
+	p.lastCapture = req
+	return p.captureRes, p.captureErr
 }
 func (p *fakeProvider) Refund(_ context.Context, _ RefundRequest) (RefundResult, error) {
 	p.refundCalls++
@@ -317,4 +320,47 @@ func TestRegisterProvider_NilProviderPanics(t *testing.T) {
 		}
 	}()
 	RegisterProvider(Registration{Slug: "stripe", Provider: nil})
+}
+
+func offSessionFixture(t *testing.T) (*Service, *fakeProvider, uuid.UUID) {
+	t.Helper()
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	prov := &fakeProvider{authorizeRes: AuthorizeResult{ProviderReference: "auth_1"}}
+	RegisterProvider(Registration{Slug: "stripe", Provider: prov})
+	repo := newFakeRepo()
+	ch := uuid.New()
+	repo.setMethod(PaymentMethod{ChannelID: ch, ProviderSlug: "stripe", IsEnabled: true})
+	return NewService(repo, nil, nil), prov, ch
+}
+
+// A renewal capture carried no amount and a key that only named the invoice - dunning retries reused the first attempt's key against a new authorization
+func TestAnOffSessionChargeCapturesTheAmountUnderThisAuthorizationsKey(t *testing.T) {
+	svc, prov, ch := offSessionFixture(t)
+	inv := uuid.New()
+	if _, err := svc.ChargeOffSession(context.Background(), "stripe", AuthorizeRequest{OrderID: inv, ChannelID: ch, AmountCents: 1999, CurrencyCode: "USD"}); err != nil {
+		t.Fatal(err)
+	}
+	if prov.lastCapture.AmountCents != 1999 {
+		t.Errorf("captured %d, want the invoice's 1999", prov.lastCapture.AmountCents)
+	}
+	first := prov.lastCapture.IdempotencyKey
+	prov.authorizeRes.ProviderReference = "auth_2"
+	if _, err := svc.ChargeOffSession(context.Background(), "stripe", AuthorizeRequest{OrderID: inv, ChannelID: ch, AmountCents: 1999}); err != nil {
+		t.Fatal(err)
+	}
+	if prov.lastCapture.IdempotencyKey == first {
+		t.Errorf("a retry under a new authorization reused capture key %q", first)
+	}
+}
+
+func TestAFailedOffSessionCaptureReleasesTheHold(t *testing.T) {
+	svc, prov, ch := offSessionFixture(t)
+	prov.captureErr = errors.New("capture declined")
+	if _, err := svc.ChargeOffSession(context.Background(), "stripe", AuthorizeRequest{OrderID: uuid.New(), ChannelID: ch, AmountCents: 500}); err == nil {
+		t.Fatal("a failed capture reported success")
+	}
+	if prov.voidCalls != 1 {
+		t.Errorf("voided %d times, want the uncaptured authorization released once", prov.voidCalls)
+	}
 }

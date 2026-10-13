@@ -4,6 +4,7 @@ package front
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,17 +15,20 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
-// Enforces "a cart belongs to exactly one store" at the front mutation boundary, right after parsing cartID - a mismatch (stale cookie from another store, hand-crafted cartId) is rejected without touching the cart row
+// Enforces "a cart belongs to exactly one store" at the front mutation boundary, right after parsing cartID - a mismatch (stale cookie from another store, hand-crafted cartId) is rejected without loading the lines, while a DB failure stays a failure rather than reading as a foreign cart
 func (r *Resolver) assertCartOnCurrentStore(ctx context.Context, cid uuid.UUID) error {
-	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
-	if err != nil {
+	c, err := r.CartSvc.AuthorizeCart(ctx, cid, channel.OptionalCustomerID(ctx))
+	if errors.Is(err, cart.ErrCartForbidden) || errors.Is(err, cart.ErrCartNotActive) {
 		return cart.ErrCartStoreMismatch
+	}
+	if err != nil {
+		return err
 	}
 	sv, ok := channel.FromContext(ctx)
 	if !ok || sv == nil || c.ChannelID != sv.ID {
@@ -39,31 +43,27 @@ func (r *Resolver) fullCartModel(ctx context.Context, c cart.Cart) *frontmodel.C
 	r.HydrateCartLineNames(ctx, m)
 	r.HydrateCartPromotions(ctx, m, c, "")
 	r.HydrateCartSavedItems(ctx, m, channel.OptionalCustomerID(ctx))
-	r.HydrateCartLineIssues(ctx, m, channel.OptionalCustomerID(ctx))
+	r.HydrateCartLineIssues(ctx, m, c)
 	return m
 }
 
 // Drift since add-time: availableQuantity only for tracked non-backorderable products, currentUnitPrice only when it differs from the snapshot, and any lookup miss just leaves them unset
-func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart, callerID *uuid.UUID) {
+// c is the already-authorized cart m was built from
+func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart, c cart.Cart) {
 	if m == nil || len(m.Lines) == 0 {
-		return
-	}
-	cid, err := uuid.Parse(m.ID)
-	if err != nil {
 		return
 	}
 
 	if r.CartSvc != nil { // price drift on simple lines, via the cart's own pricing path
-		if prices, err := r.CartSvc.CurrentSimpleLinePrices(ctx, cid, callerID); err == nil {
-			for _, line := range m.Lines {
-				lid, perr := uuid.Parse(line.ID)
-				if perr != nil {
-					continue
-				}
-				if cur, ok := prices[lid]; ok && cur != int64(line.UnitPrice) {
-					v := int32(cur)
-					line.CurrentUnitPrice = &v
-				}
+		prices := r.CartSvc.CurrentSimpleLinePrices(ctx, c)
+		for _, line := range m.Lines {
+			lid, perr := uuid.Parse(line.ID)
+			if perr != nil {
+				continue
+			}
+			if cur, ok := prices[lid]; ok && cur != int64(line.UnitPrice) {
+				v := int32(cur)
+				line.CurrentUnitPrice = &v
 			}
 		}
 	}
@@ -246,7 +246,7 @@ func (r *Resolver) batchLineImages(ctx context.Context, bySKU map[string]catalog
 	if len(ids) == 0 {
 		return out
 	}
-	mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
+	mediaByID, err := r.CatalogSvc.ListReadyProductMediaByProductIDs(ctx, ids)
 	if err != nil || len(mediaByID) == 0 {
 		return out
 	}

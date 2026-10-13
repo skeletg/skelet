@@ -2,7 +2,7 @@ package media
 
 import "slices"
 
-// SVG is deliberately excluded, because its ability to include scripts makes it a common XSS vector unless sanitized, which v1 doesn't do
+// SVG is deliberately off the presigned-upload list - it can carry scripts, so it goes through the server and SanitizeSVG instead (medialibrary.UploadSVG)
 // HEIC and HEIF are accepted because iPhones default to them, and rejecting them would block almost every phone photo uploaded alongside a review
 var AllowedImageMimeTypes = []string{
 	"image/jpeg",

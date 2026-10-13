@@ -41,11 +41,17 @@ var (
 	ErrMenuNotFound      = errors.New("menu not found")
 	ErrMenuSlugTaken     = errors.New("menu slug already in use")
 	ErrMenuItemNotFound  = errors.New("menu item not found")
+	ErrInvalidSlug       = errors.New("menu slug must be lowercase letters, digits, hyphens or underscores")
 	ErrInvalidTargetType = errors.New("invalid menu item target type")
 	ErrTargetXorURL      = errors.New("menu item must specify either a target entity or a URL, not both")
 	ErrDepthExceeded     = errors.New("menu nesting exceeds the configured maximum depth")
 	ErrParentInOtherMenu = errors.New("menu item parent belongs to a different menu")
 	ErrParentCycle       = errors.New("menu item parent would create a cycle")
+	ErrNameRequired      = errors.New("menu name is required")
+	ErrLabelRequired     = errors.New("menu item label is required")
+	ErrLocaleRequired    = errors.New("translation locale is required")
+	// A javascript: or data: link renders straight into the storefront's href
+	ErrInvalidURL = errors.New("menu link must be a relative path or an http(s), mailto or tel URL")
 )
 
 type Menu struct {
@@ -120,6 +126,9 @@ type ReorderMenuItem struct {
 }
 
 type Repository interface {
+	// Runs fn against a repository bound to one transaction
+	InTx(ctx context.Context, fn func(Repository) error) error
+
 	CreateMenu(ctx context.Context, input CreateMenuInput) (Menu, error)
 	GetMenuByID(ctx context.Context, id uuid.UUID) (Menu, error)
 	GetMenuBySlug(ctx context.Context, slug string) (Menu, error)

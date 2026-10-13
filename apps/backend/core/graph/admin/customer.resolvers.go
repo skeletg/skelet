@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -296,7 +294,7 @@ func (r *mutationResolver) SetCustomerActive(ctx context.Context, id string, act
 	return toCustomerModel(c), nil
 }
 
-// Stored with source="admin" so the audit trail can tell an override from a registration, profile or checkout action
+// Stored with source="admin" and the acting admin, so the audit trail can tell an override from a registration, profile or checkout action and name who made it
 func (r *mutationResolver) AdminSetCustomerConsent(ctx context.Context, customerID string, kind string, optedIn bool) (*model.CustomerConsent, error) {
 	if err := r.requireCustomerManage(ctx, customerID); err != nil {
 		return nil, err
@@ -305,7 +303,7 @@ func (r *mutationResolver) AdminSetCustomerConsent(ctx context.Context, customer
 	if err != nil {
 		return nil, err
 	}
-	stored, err := r.ConsentSvc.SetConsent(ctx, cid, kind, optedIn, consent.SourceAdmin)
+	stored, err := r.ConsentSvc.SetConsentByAdmin(ctx, cid, kind, optedIn, actingAdminID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -382,14 +380,13 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", cust.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	const ttl = 15 * time.Minute
-	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, ttl)
+	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, masqueradeSessionTTL)
 	if err != nil {
 		return nil, err
 	}
 	// Loud trail: masquerade hands an operator the customer's storefront powers, and the order
 	// timeline is not enough on its own - anything they do arrives looking like the customer did it
-	log.Printf("[masquerade] admin %s (%s) minted a session for customer %s (%s)", claims.AdminID, claims.Email, cust.ID, cust.Email)
+	log.Printf("[masquerade] admin %s (%s) minted a session for customer %s", claims.AdminID, claims.Email, cust.ID)
 	path := "/masquerade?token=" + token
 	fullURL := ""
 	if ch, chErr := r.ChannelSvc.GetByID(ctx, cust.ChannelID); chErr == nil && ch.PublicURL != "" {
@@ -399,7 +396,7 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 		AccessToken:      token,
 		StorefrontPath:   path,
 		StorefrontURL:    fullURL,
-		ExpiresInSeconds: int32(ttl.Seconds()),
+		ExpiresInSeconds: int32(masqueradeSessionTTL.Seconds()),
 	}, nil
 }
 
@@ -565,6 +562,36 @@ func (r *queryResolver) CustomerGroup(ctx context.Context, id string) (*model.Cu
 	return toCustomerGroupModel(g), nil
 }
 
+func (r *queryResolver) CustomerConsentHistory(ctx context.Context, customerID string, limit *int32) ([]*model.CustomerConsentEvent, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
+		return nil, err
+	}
+	cid, err := parseID(customerID, "customer")
+	if err != nil {
+		return nil, err
+	}
+	c, err := r.CustomerSvc.GetByID(ctx, cid)
+	if err != nil {
+		return nil, auth.ErrForbidden
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", c.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	var lim int32
+	if limit != nil {
+		lim = *limit
+	}
+	events, err := r.ConsentSvc.History(ctx, cid, lim)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.CustomerConsentEvent, len(events))
+	for i, e := range events {
+		out[i] = toCustomerConsentEventModel(e)
+	}
+	return out, nil
+}
+
 func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID string) (string, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
 		return "", err
@@ -580,20 +607,10 @@ func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID strin
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", c.ChannelID, nil); err != nil {
 		return "", err
 	}
-	bundle, err := r.CustomerSvc.ExportData(ctx, cid)
+	bundle, err := r.DSAR.Build(ctx, cid)
 	if err != nil {
 		return "", err
 	}
-	if orders, oerr := r.OrderSvc.ListOrdersByCustomer(ctx, cid); oerr == nil {
-		if raw, jerr := json.Marshal(orders); jerr == nil {
-			bundle.Orders = raw
-		}
-	}
-	currency := ""
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, c.ChannelID); cerr == nil {
-		currency = ch.CurrencyCode
-	}
-	r.enrichDataExport(ctx, cid, currency, &bundle)
 	out, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return "", err

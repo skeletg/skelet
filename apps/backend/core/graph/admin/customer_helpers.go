@@ -2,17 +2,21 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Unknown customer and forbidden both answer FORBIDDEN - saying which would leak the existence of a row the caller can't see
+// How long an operator's masquerade session lasts - short, since it carries the customer's full storefront powers
+const masqueradeSessionTTL = 15 * time.Minute
+
 func (r *Resolver) requireCustomerManage(ctx context.Context, customerID string) error {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
 		return err
@@ -93,32 +97,21 @@ func customerMetadataFromInput(in []*model.MetadataInput) *customer.Metadata {
 	return &m
 }
 
-// SYNC: mirrors the storefront's DSAR assembly in graph/front - an admin-served bundle must carry the same categories the customer could pull themselves
-func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) {
-	if r.ConsentSvc != nil {
-		if list, err := r.ConsentSvc.ListForCustomer(ctx, customerID); err == nil {
-			if raw, jerr := json.Marshal(list); jerr == nil {
-				bundle.Consents = raw
-			}
-		}
+func actingAdminID(ctx context.Context) *uuid.UUID {
+	if claims, ok := auth.AdminFromContext(ctx); ok && claims.AdminID != uuid.Nil {
+		id := claims.AdminID
+		return &id
 	}
-	extra := map[string]any{}
-	if r.StoreCreditSvc != nil {
-		if entries, err := r.StoreCreditSvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["storeCredit"] = entries
-		}
-		if currency != "" {
-			if bal, err := r.StoreCreditSvc.Balance(ctx, customerID, currency); err == nil {
-				extra["storeCreditBalance"] = map[string]any{"amountCents": bal, "currency": currency}
-			}
-		}
+	return nil
+}
+
+func toCustomerConsentEventModel(e consent.Event) *model.CustomerConsentEvent {
+	m := &model.CustomerConsentEvent{
+		ID: e.ID.String(), Kind: e.Kind, OptedIn: e.OptedIn, Source: e.Source, CreatedAt: e.CreatedAt,
 	}
-	if r.LoyaltySvc != nil {
-		if entries, err := r.LoyaltySvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
-			extra["loyaltyPoints"] = entries
-		}
+	if e.AdminID != nil {
+		id := e.AdminID.String()
+		m.AdminID = &id
 	}
-	if len(extra) > 0 {
-		bundle.Extra = extra
-	}
+	return m
 }

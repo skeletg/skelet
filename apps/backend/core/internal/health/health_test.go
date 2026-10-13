@@ -2,7 +2,9 @@ package health
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -17,16 +19,17 @@ func TestRunOrdersAndSummarises(t *testing.T) {
 	// Registered out of order on purpose - the panel's reading order is the
 	// registration's Order, not whatever sequence wiring happened to run in
 	r.Register(Check{Group: "second", Key: "b", Label: "B", Order: 2, Run: static(OK("fine"))})
-	r.Register(Check{Group: "first", Key: "z", Label: "Z", Order: 2, Run: static(Off("not configured", ""))})
-	r.Register(Check{Group: "first", Key: "a", Label: "A", Order: 1, Run: static(Warn("slow", "look at it"))})
+	r.Register(Check{Group: "first", Key: "a", Label: "A", Order: 2, Run: static(Off("not configured", ""))})
+	r.Register(Check{Group: "first", Key: "z", Label: "Z", Order: 1, Run: static(Warn("slow", "look at it"))})
+	r.Register(Check{Group: "first", Key: "m", Label: "M", Order: 1, Run: static(OK("fine"))})
 
 	rep := r.Run(context.Background(), fixed())
 
 	if len(rep.Groups) != 2 || rep.Groups[0].Key != "first" || rep.Groups[1].Key != "second" {
 		t.Fatalf("groups out of order: %+v", rep.Groups)
 	}
-	if got := rep.Groups[0].Checks; len(got) != 2 || got[0].Key != "a" || got[1].Key != "z" {
-		t.Fatalf("checks out of order: %+v", got)
+	if got := rep.Groups[0].Checks; len(got) != 3 || got[0].Key != "m" || got[1].Key != "z" || got[2].Key != "a" {
+		t.Fatalf("checks out of order, want Order then key: %+v", got)
 	}
 	if rep.Status != StatusWarn {
 		t.Fatalf("overall = %s, want WARN (worst of OK/OFF/WARN)", rep.Status)
@@ -59,34 +62,34 @@ func TestOffNeverEscalates(t *testing.T) {
 // An operator opens this page precisely when something is already wrong, so one
 // broken subject must not take the panel with it
 func TestOneBadProbeCannotBreakThePanel(t *testing.T) {
-	r := NewRegistry()
-	r.Register(Check{Group: "g", Key: "panics", Run: func(context.Context) Result { panic("boom") }})
-	r.Register(Check{Group: "g", Key: "hangs", Run: func(ctx context.Context) Result {
-		<-ctx.Done() // outlives its probe budget, as a wedged dependency would
-		return OK("never gets here")
-	}})
-	r.Register(Check{Group: "g", Key: "healthy", Run: static(OK("fine"))})
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRegistry()
+		r.Register(Check{Group: "g", Key: "panics", Run: func(context.Context) Result { panic("boom") }})
+		r.Register(Check{Group: "g", Key: "hangs", Run: func(ctx context.Context) Result {
+			<-ctx.Done() // outlives its probe budget, as a wedged dependency would
+			return OK("never gets here")
+		}})
+		r.Register(Check{Group: "g", Key: "healthy", Run: static(OK("fine"))})
 
-	done := make(chan Report, 1)
-	go func() { done <- r.Run(context.Background(), fixed()) }()
-	select {
-	case rep := <-done:
+		start := time.Now()
+		rep := r.Run(context.Background(), fixed())
+		if waited := time.Since(start); waited != probeTimeout {
+			t.Errorf("Run took %v, want exactly the probe budget %v", waited, probeTimeout)
+		}
 		byKey := map[string]Result{}
 		for _, c := range rep.Groups[0].Checks {
 			byKey[c.Key] = c.Result
 		}
-		if byKey["panics"].Status != StatusBad {
-			t.Fatalf("panicking probe = %+v, want BAD", byKey["panics"])
+		if p := byKey["panics"]; p.Status != StatusBad || !strings.Contains(p.Hint, "bug in the panics check") {
+			t.Errorf("panicking probe = %+v, want BAD naming the check as the bug", p)
 		}
-		if byKey["hangs"].Status != StatusBad {
-			t.Fatalf("hanging probe = %+v, want BAD", byKey["hangs"])
+		if byKey["hangs"].Status != StatusBad || byKey["hangs"].Detail != "timed out" {
+			t.Errorf("hanging probe = %+v, want BAD timed out", byKey["hangs"])
 		}
 		if byKey["healthy"].Status != StatusOK {
-			t.Fatalf("healthy probe was collateral damage: %+v", byKey["healthy"])
+			t.Errorf("healthy probe was collateral damage: %+v", byKey["healthy"])
 		}
-	case <-time.After(probeTimeout + 5*time.Second):
-		t.Fatal("Run never returned - a wedged probe blocked the whole panel")
-	}
+	})
 }
 
 // Every open admin tab polls at 5s - without the memo each tab fires every probe

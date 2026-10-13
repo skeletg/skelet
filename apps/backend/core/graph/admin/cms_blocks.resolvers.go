@@ -2,8 +2,10 @@ package admin
 
 import (
 	"context"
+	"errors"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -27,7 +29,7 @@ func (r *mutationResolver) UpdateCMSSnippet(ctx context.Context, input model.Upd
 	if err != nil {
 		return nil, err
 	}
-	sn, err := r.CMSSvc.UpdateSnippet(ctx, id, ptr.Deref(input.Name), rawJSON(input.Blocks))
+	sn, err := r.CMSSvc.UpdateSnippet(ctx, id, input.Name, rawJSON(input.Blocks))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +69,9 @@ func (r *mutationResolver) UpdateCMSBlockType(ctx context.Context, input model.U
 	if err != nil {
 		return nil, err
 	}
-	bt, err := r.CMSSvc.UpdateBlockType(ctx, id, ptr.Deref(input.Name), ptr.Deref(input.Icon), rawJSON(input.Fields), ptr.Deref(input.HTMLTemplate))
+	bt, err := r.CMSSvc.UpdateBlockType(ctx, id, cms.BlockTypePatch{
+		Name: input.Name, Icon: input.Icon, Fields: rawJSON(input.Fields), HTMLTemplate: input.HTMLTemplate,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +116,11 @@ func (r *queryResolver) CmsSnippet(ctx context.Context, id string) (*model.CMSSn
 		return nil, err
 	}
 	s, err := r.CMSSvc.GetSnippet(ctx, uid)
-	if err != nil {
+	if errors.Is(err, cms.ErrSnippetNotFound) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	return toCMSSnippetModel(s), nil
 }
@@ -142,8 +149,11 @@ func (r *queryResolver) CmsBlockType(ctx context.Context, id string) (*model.CMS
 		return nil, err
 	}
 	b, err := r.CMSSvc.GetBlockType(ctx, uid)
-	if err != nil {
+	if errors.Is(err, cms.ErrBlockTypeNotFound) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	return toCMSBlockTypeModel(b), nil
 }

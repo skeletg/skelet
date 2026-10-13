@@ -1,6 +1,8 @@
 package wiring
 
 import (
+	"time"
+
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
@@ -9,10 +11,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/sales"
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -38,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -65,7 +67,7 @@ var Services = fx.Module("services",
 		newFormService,
 		newWebFormService,
 		newMenuService,
-		newChatService,
+		newChatHistory,
 		newActionService,
 		newPaymentService,
 		newPaymentVaultService,
@@ -87,10 +89,12 @@ func newShippingService(q *db.Queries) *shipping.Service {
 }
 
 // The built-in rule types install here rather than from an entrypoint's blank import - without them the engine has no conditions and no actions, so a promotion silently matches nothing
-func newPromotionService(q *db.Queries) *promotion.Service {
+func newPromotionService(q *db.Queries, txMgr *txrunner.Manager) *promotion.Service {
 	actions.Register(promotion.DefaultRegistry)
 	conditions.Register(promotion.DefaultRegistry)
-	return promotion.NewService(promotion.NewRepository(q))
+	svc := promotion.NewService(promotion.NewRepository(q))
+	svc.SetTx(txMgr)
+	return svc
 }
 
 func newSalesService(q *db.Queries) *sales.Service { return sales.NewService(sales.NewRepository(q)) }
@@ -139,15 +143,17 @@ func newReviewService(q *db.Queries, txMgr *txrunner.Manager) *review.Service {
 	return review.NewService(review.NewRepository(q, txMgr), txMgr)
 }
 
-func newFormService(q *db.Queries) *form.Service { return form.New(q) } // storefront email capture - contact + consent + segment + form_submitted flow
+func newFormService(q *db.Queries) *signupform.Service { return signupform.New(q) } // storefront email capture - contact + consent + segment + form_submitted flow
 
 func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Service) *webform.Service { // admin-built CMS forms placed on pages via the `form` block
 	return webform.New(webform.NewRepository(q, txMgr), cfg)
 }
 
-func newMenuService(q *db.Queries) *menu.Service { return menu.NewService(menu.NewRepository(q)) }
+func newMenuService(q *db.Queries, txMgr *txrunner.Manager) *menu.Service {
+	return menu.NewService(menu.NewRepository(q, txMgr))
+}
 
-func newChatService(q *db.Queries) *chat.Service { return chat.NewService(q) }
+func newChatHistory(q *db.Queries) *ai.History { return ai.NewHistory(q) }
 
 func newActionService() *adminaction.Service { return adminaction.NewService() }
 
@@ -155,8 +161,10 @@ func newPaymentService(q *db.Queries, txMgr *txrunner.Manager, ch *channel.Servi
 	return payment.NewService(payment.NewRepository(q), txMgr, ch)
 }
 
-func newPaymentVaultService(q *db.Queries, pay *payment.Service) *paymentvault.Service {
-	return paymentvault.NewService(q, pay)
+func newPaymentVaultService(q *db.Queries, pay *payment.Service, limits LimitsRedis) *paymentvault.Service {
+	svc := paymentvault.NewService(q, pay)
+	svc.SetSaveBudget(ratelimit.NewRedis(limits.Client, RateLimitPerMin("PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR", 5), time.Hour)) // every save is a gateway vault call - the card-testing surface
+	return svc
 }
 
 func newNotificationHub(vk *redis.Client) *notification.Hub { return notification.NewHub(vk) } // live-pushes to dashboard subscriptions across replicas over Valkey pub/sub - latency layer only, the tables stay authoritative

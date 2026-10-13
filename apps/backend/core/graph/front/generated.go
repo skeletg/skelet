@@ -30,6 +30,7 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	BlogAuthor() BlogAuthorResolver
 	CMSPage() CMSPageResolver
 	Category() CategoryResolver
 	Channel() ChannelResolver
@@ -117,8 +118,8 @@ type ComplexityRoot struct {
 	BlogAuthor struct {
 		Content     func(childComplexity int) int
 		DisplayName func(childComplexity int) int
-		Email       func(childComplexity int) int
 		ID          func(childComplexity int) int
+		PublicEmail func(childComplexity int) int
 		Slug        func(childComplexity int) int
 	}
 
@@ -684,6 +685,7 @@ type ComplexityRoot struct {
 		RequestProductOptionFileUpload func(childComplexity int, sku string, optionID string, filename string, mimeType string, sizeBytes int32) int
 		RequestReturn                  func(childComplexity int, input model.RequestReturnInput) int
 		RequestReviewMediaUpload       func(childComplexity int, productID string, filename string, mimeType string, sizeBytes int32) int
+		ResendVerification             func(childComplexity int, email string) int
 		ResendVerificationEmail        func(childComplexity int) int
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
@@ -1270,6 +1272,9 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type BlogAuthorResolver interface {
+	PublicEmail(ctx context.Context, obj *model.BlogAuthor) (*string, error)
+}
 type CMSPageResolver interface {
 	OgImage(ctx context.Context, obj *model.CMSPage) (*string, error)
 	CanonicalURL(ctx context.Context, obj *model.CMSPage) (*string, error)
@@ -1318,6 +1323,7 @@ type MutationResolver interface {
 	ChangeCustomerPassword(ctx context.Context, currentPassword string, newPassword string) (bool, error)
 	VerifyEmail(ctx context.Context, token string) (bool, error)
 	ResendVerificationEmail(ctx context.Context) (bool, error)
+	ResendVerification(ctx context.Context, email string) (bool, error)
 	RequestPasswordReset(ctx context.Context, email string) (bool, error)
 	ResetPassword(ctx context.Context, token string, newPassword string) (bool, error)
 	AddAddress(ctx context.Context, input model.AddressInput) (*model.Address, error)
@@ -1798,18 +1804,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BlogAuthor.DisplayName(childComplexity), true
-	case "BlogAuthor.email":
-		if e.ComplexityRoot.BlogAuthor.Email == nil {
-			break
-		}
-
-		return e.ComplexityRoot.BlogAuthor.Email(childComplexity), true
 	case "BlogAuthor.id":
 		if e.ComplexityRoot.BlogAuthor.ID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.BlogAuthor.ID(childComplexity), true
+	case "BlogAuthor.publicEmail":
+		if e.ComplexityRoot.BlogAuthor.PublicEmail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BlogAuthor.PublicEmail(childComplexity), true
 	case "BlogAuthor.slug":
 		if e.ComplexityRoot.BlogAuthor.Slug == nil {
 			break
@@ -4403,6 +4409,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequestReviewMediaUpload(childComplexity, args["productId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
+	case "Mutation.resendVerification":
+		if e.ComplexityRoot.Mutation.ResendVerification == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resendVerification_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResendVerification(childComplexity, args["email"].(string)), true
 	case "Mutation.resendVerificationEmail":
 		if e.ComplexityRoot.Mutation.ResendVerificationEmail == nil {
 			break
@@ -7419,7 +7436,8 @@ type BlogAuthor {
   id:           ID!
   slug:         String!
   displayName:  String!
-  email:        String
+  # Only for authors who chose to publish their email - null otherwise
+  publicEmail:  String
   content:      BlogAuthorContent
 }
 
@@ -7965,7 +7983,7 @@ type GroupedMember {
   sortOrder:       Int!
 }
 
-# A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent").
+# A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent"), resolved to this channel's surcharge - an option whose fixed surcharge has no amount in this channel's currency is left out.
 type ProductCustomOption {
   id:         ID!
   inputType:  String!
@@ -7984,7 +8002,7 @@ type ProductCustomOption {
   visibleIf:  JSON
 }
 
-# One pre-defined choice on a select-family product option. priceValue is a per-unit adjustment in cents (or percent points when priceType is "percent"); quantity is the units this value represents.
+# One pre-defined choice on a select-family product option. priceValue is a per-unit adjustment in the channel's minor units (or percent points when priceType is "percent"), already resolved to this channel's own surcharge - a choice with no surcharge in this channel's currency is left out of values, as the cart would refuse it; quantity is the units this value represents.
 type ProductCustomOptionValue {
   id:         ID!
   title:      String!
@@ -7994,7 +8012,7 @@ type ProductCustomOptionValue {
   isDefault:  Boolean!
   # Picking this value forces the cart line quantity to this amount and locks it (qty edits fail with PRODUCT_OPTION_QTY_FORCED). The PDP should submit this quantity and tell the customer.
   forcedLineQty: Float
-  # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values. priceValue stays a markup on top of the source product's default price.
+  # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values and for sources this channel doesn't sell. priceValue stays a markup on top of the source product's channel price.
   sourceProduct: Product
 }
 
@@ -8515,11 +8533,12 @@ type Address {
 }
 
 type CustomerAuthPayload {
-  # Null when the account exists but no session was issued - registration withholds the session while require_email_verification is on, so an unverified address can never be used to reach the account.
+  # Null when no session was issued - registration withholds it while require_email_verification is on, and when the address already has an account.
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
-  # True when registration deliberately withheld the session pending verification. Clients should route to a "check your inbox" state rather than treating the missing tokens as an error.
+  # Null whenever the tokens are, so the answer never shows whether the address already had an account.
+  customer:     Customer
+  # True when registration issued no session. Clients should route to a "check your inbox" state - the inbox holds either a verification link or, for an address that already has an account, a note to its owner.
   verificationRequired: Boolean!
 }
 
@@ -8568,6 +8587,8 @@ extend type Mutation {
   changeCustomerPassword(currentPassword: String!, newPassword: String!): Boolean!
   verifyEmail(token: String!):                                  Boolean!
   resendVerificationEmail:                                      Boolean!
+  # Signed-out resend for an account the verification gate keeps from signing in. Always true, so it never shows whether the address has an account.
+  resendVerification(email: String!):                           Boolean!
   requestPasswordReset(email: String!):                         Boolean!
   resetPassword(token: String!, newPassword: String!):          Boolean!
   addAddress(input: AddressInput!):                             Address!
@@ -8627,7 +8648,7 @@ extend type Query {
   myReferral: ReferralInfo!
 }
 `, BuiltIn: false},
-	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted when an order with a downloadable product is placed). downloadUrl is the token-gated link the storefront points at; hitting it consumes one use and redirects to the file.
+	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted once an order with a downloadable product is paid or its card authorized, and expired if it is cancelled, voided or refunded). downloadUrl is the token-gated link the storefront points at; hitting it consumes one use and serves the file - streamed when it lives in our storage, redirected when it is hosted elsewhere.
 
 type DownloadGrant {
   id:            ID!
@@ -9580,8 +9601,8 @@ func (ec *executionContext) childFields_BlogAuthor(ctx context.Context, field gr
 		return ec.fieldContext_BlogAuthor_slug(ctx, field)
 	case "displayName":
 		return ec.fieldContext_BlogAuthor_displayName(ctx, field)
-	case "email":
-		return ec.fieldContext_BlogAuthor_email(ctx, field)
+	case "publicEmail":
+		return ec.fieldContext_BlogAuthor_publicEmail(ctx, field)
 	case "content":
 		return ec.fieldContext_BlogAuthor_content(ctx, field)
 	}
@@ -12374,6 +12395,20 @@ func (ec *executionContext) field_Mutation_requestReviewMediaUpload_args(ctx con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_resendVerification_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "email",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["email"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_resetPassword_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -14942,16 +14977,16 @@ func (ec *executionContext) fieldContext_BlogAuthor_displayName(_ context.Contex
 	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _BlogAuthor_email(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
+func (ec *executionContext) _BlogAuthor_publicEmail(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_BlogAuthor_email(ctx, field)
+			return ec.fieldContext_BlogAuthor_publicEmail(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Email, nil
+			return ec.Resolvers.BlogAuthor().PublicEmail(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -14961,8 +14996,8 @@ func (ec *executionContext) _BlogAuthor_email(ctx context.Context, field graphql
 		false,
 	)
 }
-func (ec *executionContext) fieldContext_BlogAuthor_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
+func (ec *executionContext) fieldContext_BlogAuthor_publicEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BlogAuthor", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _BlogAuthor_content(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
@@ -22098,10 +22133,10 @@ func (ec *executionContext) _CustomerAuthPayload_customer(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_CustomerAuthPayload_customer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24894,6 +24929,50 @@ func (ec *executionContext) _Mutation_resendVerificationEmail(ctx context.Contex
 }
 func (ec *executionContext) fieldContext_Mutation_resendVerificationEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_resendVerification(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resendVerification(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResendVerification(ctx, fc.Args["email"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resendVerification(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resendVerification_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Mutation_requestPasswordReset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -39462,27 +39541,60 @@ func (ec *executionContext) _BlogAuthor(ctx context.Context, sel ast.SelectionSe
 		case "id":
 			out.Values[i] = ec._BlogAuthor_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "slug":
 			out.Values[i] = ec._BlogAuthor_slug(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._BlogAuthor_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "email":
-			out.Values[i] = ec._BlogAuthor_email(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+		case "publicEmail":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._BlogAuthor_publicEmail(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "content":
 			out.Values[i] = ec._BlogAuthor_content(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -42746,7 +42858,7 @@ func (ec *executionContext) _CustomerAuthPayload(ctx context.Context, sel ast.Se
 			}
 		case "customer":
 			out.Values[i] = ec._CustomerAuthPayload_customer(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "verificationRequired":
@@ -43687,6 +43799,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "resendVerificationEmail":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_resendVerificationEmail(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resendVerification":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resendVerification(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -54035,6 +54154,13 @@ func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._Currency(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Customer(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

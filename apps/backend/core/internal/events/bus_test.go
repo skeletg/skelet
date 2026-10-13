@@ -216,3 +216,106 @@ func TestDrainCancelsStragglers(t *testing.T) {
 		}
 	})
 }
+
+// The outbox keeps publishing while Drain or a test's Settle waits - with a WaitGroup that race could panic the process
+func TestWaitingWhilePublishingIsSafe(t *testing.T) {
+	bus := NewBus()
+	bus.Subscribe("track.busy", func(context.Context, Event) error { return nil })
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					bus.Publish(context.Background(), &testEvent{name: "track.busy"})
+				}
+			}
+		})
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+					_ = bus.WaitIdle(ctx)
+					cancel()
+				}
+			}
+		})
+	}
+	time.Sleep(200 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+	if err := bus.WaitIdle(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheTrackerClosesOnlyAtZero(t *testing.T) {
+	var tr tracker
+	select {
+	case <-tr.idle():
+	default:
+		t.Fatal("an empty tracker is not idle")
+	}
+	tr.add()
+	tr.add()
+	first := tr.idle()
+	tr.done()
+	select {
+	case <-first:
+		t.Fatal("idle closed with work still in flight")
+	default:
+	}
+	tr.done()
+	<-first
+	tr.add()
+	select {
+	case <-tr.idle():
+		t.Fatal("new work reused the closed channel")
+	default:
+	}
+	tr.done()
+}
+
+// A stuck handler would hold its slot until shutdown - the ceiling cancels it so the slot comes back
+func TestAHungHandlerIsCancelledAtTheCeiling(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bus := NewBus()
+		bus.handlerTimeout = time.Minute
+		var sawDeadline atomic.Bool
+		bus.Subscribe("hung", func(ctx context.Context, _ Event) error {
+			<-ctx.Done()
+			sawDeadline.Store(errors.Is(ctx.Err(), context.DeadlineExceeded))
+			return ctx.Err()
+		})
+		bus.Publish(context.Background(), &testEvent{name: "hung"})
+		if err := bus.WaitIdle(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if !sawDeadline.Load() {
+			t.Fatal("the hung handler was never cancelled")
+		}
+		if len(bus.sem) != 0 {
+			t.Fatalf("%d dispatch slots still held", len(bus.sem))
+		}
+	})
+}
+
+// At the cap Publish runs the handlers on the caller rather than dropping the event or spawning past the bound
+func TestAtTheCapPublishRunsInline(t *testing.T) {
+	bus := NewBus()
+	for range cap(bus.sem) {
+		bus.sem <- struct{}{}
+	}
+	var ran atomic.Bool
+	bus.Subscribe("capped", func(context.Context, Event) error { ran.Store(true); return nil })
+	bus.Publish(context.Background(), &testEvent{name: "capped"})
+	if !ran.Load() {
+		t.Fatal("a publish at the cap returned before its handler ran")
+	}
+}

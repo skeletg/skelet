@@ -3,6 +3,7 @@ package dataio
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -10,6 +11,10 @@ import (
 )
 
 func init() { registerCodec(jsonlCodec{}) }
+
+const maxJSONLLineBytes = 8 << 20
+
+var errNestedObject = errors.New("a nested object can't be a cell - flatten it into its own columns")
 
 // One JSON object per line - what a pipeline wants when a spreadsheet isn't in the loop, and the only format that survives a value containing newlines untouched
 type jsonlCodec struct{}
@@ -55,7 +60,7 @@ func (w *jsonlWriter) Close() error { return w.w.Flush() }
 // The header is discovered from the first object, so a JSONL import must be homogeneous in its first line at least
 func (jsonlCodec) Reader(r io.Reader) (RowReader, error) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024) // a row with a long description blows the 64k default
+	sc.Buffer(make([]byte, 0, 64*1024), maxJSONLLineBytes) // a row with a long description blows the 64k default
 	return &jsonlReader{sc: sc}, nil
 }
 
@@ -81,13 +86,19 @@ func (r *jsonlReader) Next() (*Row, error) {
 			continue
 		}
 		var obj map[string]any
-		if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		dec := json.NewDecoder(strings.NewReader(raw))
+		dec.UseNumber() // a numeric SKU or a large minor-unit amount must not round through float64
+		if err := dec.Decode(&obj); err != nil {
 			return nil, fmt.Errorf("line %d: %w", r.line, err)
 		}
 		row := NewRow()
 		row.Line = r.line
 		for k, v := range obj {
-			row.values[k] = strings.TrimSpace(stringify(v))
+			cell, err := jsonCell(v)
+			if err != nil {
+				return nil, fmt.Errorf("line %d: %q: %w", r.line, k, err)
+			}
+			row.values[k] = strings.TrimSpace(cell)
 			row.present[k] = true
 			if !slices.Contains(r.headers, k) {
 				r.headers = append(r.headers, k)
@@ -95,4 +106,23 @@ func (r *jsonlReader) Next() (*Row, error) {
 		}
 		return row, nil
 	}
+}
+
+// An array is a list column, joined the way a CSV cell carries one - a nested object has no flat reading, so it's refused rather than stringified into noise
+func jsonCell(v any) (string, error) {
+	switch t := v.(type) {
+	case map[string]any:
+		return "", errNestedObject
+	case []any:
+		parts := make([]string, 0, len(t))
+		for _, e := range t {
+			switch e.(type) {
+			case map[string]any, []any:
+				return "", errNestedObject
+			}
+			parts = append(parts, stringify(e))
+		}
+		return strings.Join(parts, "|"), nil
+	}
+	return stringify(v), nil
 }

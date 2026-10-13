@@ -16,7 +16,7 @@ import (
 )
 
 // Notifier turns selected domain events into inbox notifications - It subscribes async (post-commit) on the event bus,
-// mirroring ordermail/activity - Creates are deduped by key, so at-least-once redelivery is harmless
+// mirroring ordermail/activity - Creates are deduped by key, so a failed one returns its error and the redelivery that follows is harmless
 type Notifier struct{ svc *Service }
 
 func NewNotifier(svc *Service) *Notifier { return &Notifier{svc: svc} }
@@ -56,8 +56,7 @@ func (n *Notifier) onThrottleTripped(ctx context.Context, e events.Event) error 
 		c := ev.ChannelID
 		input.ChannelID = &c
 	}
-	_ = n.svc.Create(ctx, input)
-	return nil
+	return n.svc.Create(ctx, input)
 }
 
 func (n *Notifier) onReturnRequested(ctx context.Context, e events.Event) error {
@@ -66,7 +65,7 @@ func (n *Notifier) onReturnRequested(ctx context.Context, e events.Event) error 
 		return nil
 	}
 	ch := ev.ChannelID
-	_ = n.svc.Create(ctx, Input{
+	return n.svc.Create(ctx, Input{
 		Category:           CategoryReturn,
 		Severity:           SeverityWarning,
 		Title:              "Return requested",
@@ -78,7 +77,6 @@ func (n *Notifier) onReturnRequested(ctx context.Context, e events.Event) error 
 		ActionURL:          "/orders/" + ev.OrderID.String(),
 		DedupeKey:          "return_requested:" + ev.ReturnID.String(),
 	})
-	return nil
 }
 
 func (n *Notifier) onReviewSubmitted(ctx context.Context, e events.Event) error {
@@ -87,7 +85,7 @@ func (n *Notifier) onReviewSubmitted(ctx context.Context, e events.Event) error 
 		return nil // only pending reviews need moderation
 	}
 	ch := ev.ChannelID
-	_ = n.svc.Create(ctx, Input{
+	return n.svc.Create(ctx, Input{
 		Category:           CategoryReview,
 		Severity:           SeverityWarning,
 		Title:              "Review awaiting moderation",
@@ -99,7 +97,6 @@ func (n *Notifier) onReviewSubmitted(ctx context.Context, e events.Event) error 
 		ActionURL:          "/reviews/" + ev.ReviewID.String(),
 		DedupeKey:          "review_pending:" + ev.ReviewID.String(),
 	})
-	return nil
 }
 
 func (n *Notifier) onWebFormSubmitted(ctx context.Context, e events.Event) error {
@@ -108,7 +105,7 @@ func (n *Notifier) onWebFormSubmitted(ctx context.Context, e events.Event) error
 		return nil
 	}
 	ch := ev.ChannelID
-	_ = n.svc.Create(ctx, Input{
+	return n.svc.Create(ctx, Input{
 		Category:           CategoryForm,
 		Severity:           SeverityInfo,
 		Title:              "New form submission",
@@ -120,7 +117,6 @@ func (n *Notifier) onWebFormSubmitted(ctx context.Context, e events.Event) error
 		ActionURL:          "/cms/forms/" + ev.FormID.String() + "/submissions",
 		DedupeKey:          "webform_submission:" + ev.SubmissionID.String(),
 	})
-	return nil
 }
 
 func (n *Notifier) onStockLow(ctx context.Context, e events.Event) error {
@@ -129,7 +125,7 @@ func (n *Notifier) onStockLow(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	// Inventory is cross-channel (location-based) → global notification
-	_ = n.svc.Create(ctx, Input{
+	return n.svc.Create(ctx, Input{
 		Category:           CategoryInventory,
 		Severity:           SeverityWarning,
 		Title:              "Low stock",
@@ -138,9 +134,8 @@ func (n *Notifier) onStockLow(ctx context.Context, e events.Event) error {
 		EntityType:         "product",
 		EntityID:           ev.ProductID.String(),
 		ActionURL:          "/products/" + ev.ProductID.String(),
-		DedupeKey:          fmt.Sprintf("stock_low:%s:%s", ev.InventoryItemID, ev.LocationID),
+		DedupeKey:          fmt.Sprintf("stock_low:%s:%s:%s", ev.InventoryItemID, ev.LocationID, n.svc.day()),
 	})
-	return nil
 }
 
 func (n *Notifier) onStockOut(ctx context.Context, e events.Event) error {
@@ -148,7 +143,7 @@ func (n *Notifier) onStockOut(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	_ = n.svc.Create(ctx, Input{
+	return n.svc.Create(ctx, Input{
 		Category:           CategoryInventory,
 		Severity:           SeverityCritical,
 		Title:              "Out of stock",
@@ -157,7 +152,6 @@ func (n *Notifier) onStockOut(ctx context.Context, e events.Event) error {
 		EntityType:         "product",
 		EntityID:           ev.ProductID.String(),
 		ActionURL:          "/products/" + ev.ProductID.String(),
-		DedupeKey:          fmt.Sprintf("stock_out:%s:%s", ev.InventoryItemID, ev.LocationID),
+		DedupeKey:          fmt.Sprintf("stock_out:%s:%s:%s", ev.InventoryItemID, ev.LocationID, n.svc.day()),
 	})
-	return nil
 }

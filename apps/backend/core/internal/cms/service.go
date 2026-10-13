@@ -2,12 +2,14 @@ package cms
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/google/uuid"
 
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -16,7 +18,16 @@ import (
 // Only what more than one sub-service reaches through *core
 type coreStore interface {
 	ListBlockTypes(ctx context.Context) ([]BlockType, error)
-	UpdatePagePaths(ctx context.Context, id uuid.UUID, basePath, urlPath string) error
+	WithTx(t *sql.Tx) *postgresRepository
+}
+
+func (s *core) txRepo(t *sql.Tx) *postgresRepository { return s.repo.WithTx(t) }
+
+func (s *core) announceChanged(ctx context.Context, p Page, oldPaths ...string) {
+	if s.bus == nil || !p.IsPublished {
+		return
+	}
+	s.bus.Publish(ctx, &PageChanged{PageID: p.ID, Paths: oldPaths})
 }
 
 type LocaleValidator interface {
@@ -44,7 +55,7 @@ type UrlRewriteSyncer interface {
 	DeleteCanonicalForChannel(ctx context.Context, entityType string, entityID uuid.UUID, channelID *uuid.UUID) error
 }
 
-const entityCMSPage = "cms_page"
+const entityCMSPage = string(urlrewrite.EntityTypeCMSPage)
 
 // Dependencies and cross-cutting helpers shared by every cms sub-service
 // Sub-services embed *core, and the facade Service embeds *core plus every sub-service, so cmsSvc.X() call sites stay unchanged through method promotion
@@ -180,8 +191,8 @@ func adminPtr(ctx context.Context) *uuid.UUID {
 	return nil
 }
 
-func validateSlug(slug string) error {
-	return contentpkg.ValidateSlug(slug, ErrInvalidSlug)
+func validateSlug(s string) error {
+	return slug.Validate(s, ErrInvalidSlug)
 }
 
 // Validates a possibly multi-segment URL root like "help" or "help/articles" - each "/"-separated segment must be a valid slug

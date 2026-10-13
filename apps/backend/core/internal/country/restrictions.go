@@ -24,7 +24,11 @@ func (s *Service) ValidateAddress(ctx context.Context, scope config.Scope, count
 	if !c.IsActive {
 		return fmt.Errorf("%w: %s", ErrCountryNotAllowed, code)
 	}
-	if allowed := s.AllowedCountries(ctx, scope); allowed != nil && !allowed[code] {
+	allowed, err := s.strictCodeSet(ctx, scope, CfgAllowedCountries) // a settings read failure refuses rather than letting every country through
+	if err != nil {
+		return err
+	}
+	if allowed != nil && !allowed[code] {
 		return fmt.Errorf("%w: %s", ErrCountryNotAllowed, code)
 	}
 
@@ -32,7 +36,11 @@ func (s *Service) ValidateAddress(ctx context.Context, scope config.Scope, count
 	if region != nil {
 		regionVal = strings.TrimSpace(*region)
 	}
-	if s.RequiredRegionCountries(ctx, scope)[code] && regionVal == "" {
+	required, err := s.strictCodeSet(ctx, scope, CfgRequiredRegion)
+	if err != nil {
+		return err
+	}
+	if required[code] && regionVal == "" {
 		return fmt.Errorf("%w: %s", ErrRegionRequired, code)
 	}
 	if regionVal != "" {

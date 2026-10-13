@@ -35,18 +35,18 @@ SELECT * FROM inventory_locations WHERE id = ANY($1::uuid[]);
 -- Paginated + searched variant of the list - search matches name, slug and city, case-insensitively - the dashboard locations grid drives this server-side once the location count outgrows one payload
 SELECT * FROM inventory_locations
 WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || sqlc.arg(search) || '%'
-   OR slug ILIKE '%' || sqlc.arg(search) || '%'
-   OR city ILIKE '%' || sqlc.arg(search) || '%'
+   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
 ORDER BY name
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountInventoryLocations :one
 SELECT COUNT(*) FROM inventory_locations
 WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || sqlc.arg(search) || '%'
-   OR slug ILIKE '%' || sqlc.arg(search) || '%'
-   OR city ILIKE '%' || sqlc.arg(search) || '%';
+   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%';
 
 -- name: UpdateInventoryLocation :one
 UPDATE inventory_locations
@@ -186,37 +186,10 @@ INSERT INTO inventory_reservations
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
--- name: SumReservationsForItemLocation :one
--- Returns the net reservation total (positive = restocked, negative = held) Excludes manual_adjustment audit rows - their quantity change lives on the level row, so summing them double-counted every admin adjustment into the allocation availability math
-SELECT COALESCE(SUM(quantity_delta), 0)::numeric AS net_delta
-FROM inventory_reservations
-WHERE inventory_item_id = $1 AND location_id = $2
-  AND reason <> 'manual_adjustment';
-
--- name: SumReservationsByItemLocations :many
--- Batch version: returns net reservation per (item, location) pair
-SELECT inventory_item_id, location_id, COALESCE(SUM(quantity_delta), 0)::numeric AS net_delta
-FROM inventory_reservations
-WHERE inventory_item_id = ANY($1::uuid[]) AND location_id = ANY($2::uuid[])
-  AND reason <> 'manual_adjustment'
-GROUP BY inventory_item_id, location_id;
-
 -- name: ListReservationsForOrder :many
 SELECT * FROM inventory_reservations
 WHERE order_id = $1
 ORDER BY created_at;
-
--- name: DeleteSettledReservationsForOrder :exec
--- Used by retention cron once an order's reservation chain nets to zero
-DELETE FROM inventory_reservations WHERE order_id = $1;
-
--- name: ListSettledOrderIDsBefore :many
--- Find order IDs whose reservation chains are net-zero AND whose most-recent reservation row is older than the retention cutoff - cron uses this to pick chains safe to delete
-SELECT order_id
-FROM inventory_reservations
-WHERE order_id IS NOT NULL
-GROUP BY order_id
-HAVING SUM(quantity_delta) = 0 AND MAX(created_at) < $1::timestamptz;
 
 -- ==================== Low-stock dashboard ====================
 
@@ -400,3 +373,44 @@ UPDATE inventory_levels
 SET quantity = 0, updated_at = NOW()
 WHERE location_id <> $1
   AND quantity <> 0;
+
+-- name: PruneSettledReservations :one
+-- Deletes every order's chain that nets to zero and has been quiet since the cutoff, in one statement, so the settled check and the delete read the same snapshot
+WITH settled AS (
+    SELECT order_id
+    FROM inventory_reservations
+    WHERE order_id IS NOT NULL
+    GROUP BY order_id
+    HAVING SUM(quantity_delta) = 0 AND MAX(created_at) < sqlc.arg(cutoff)::timestamptz
+), gone AS (
+    DELETE FROM inventory_reservations r
+    USING settled
+    WHERE r.order_id = settled.order_id
+    RETURNING r.order_id
+)
+SELECT count(DISTINCT order_id)::bigint FROM gone;
+
+-- name: LockOrderLedger :exec
+-- Serialises every read-then-compensate pass over one order's ledger - a replayed or racing event must see the winner's rows, which READ COMMITTED alone does not promise
+SELECT pg_advisory_xact_lock(hashtextextended('inventory-order:' || sqlc.arg(order_id)::uuid::text, 0));
+
+-- name: MarkFlatRestored :execrows
+INSERT INTO inventory_flat_restores (order_id, reason) VALUES ($1, $2)
+ON CONFLICT (order_id) DO NOTHING;
+
+-- name: EnsureInventoryLevel :exec
+INSERT INTO inventory_levels (inventory_item_id, location_id, quantity) VALUES ($1, $2, 0)
+ON CONFLICT (inventory_item_id, location_id) DO NOTHING;
+
+-- name: CountLocationCommitments :one
+-- What deleting a location would silently destroy: stock on its shelves, and order holds whose chains are still open there
+SELECT (
+    (SELECT count(*) FROM inventory_levels l
+     WHERE l.location_id = sqlc.arg(location_id)::uuid AND (l.quantity <> 0 OR l.reserved_quantity <> 0)) +
+    (SELECT count(*) FROM (
+        SELECT 1 FROM inventory_reservations r
+        WHERE r.location_id = sqlc.arg(location_id)::uuid AND r.order_id IS NOT NULL AND r.reason <> 'manual_adjustment'
+        GROUP BY r.order_id, r.inventory_item_id, r.order_line_id
+        HAVING SUM(r.quantity_delta) <> 0
+    ) open_chains)
+)::bigint AS total;

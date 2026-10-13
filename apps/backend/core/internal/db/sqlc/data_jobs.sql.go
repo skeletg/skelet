@@ -134,6 +134,22 @@ func (q *Queries) ClaimDueDataJobs(ctx context.Context, arg ClaimDueDataJobsPara
 	return items, nil
 }
 
+const clearDataJobArtifact = `-- name: ClearDataJobArtifact :exec
+UPDATE data_jobs SET object_key = '', byte_size = 0
+WHERE id = $1 AND object_key = $2
+`
+
+type ClearDataJobArtifactParams struct {
+	ID        uuid.UUID `json:"id"`
+	ObjectKey string    `json:"object_key"`
+}
+
+// After the object is gone - the row stays so the history survives its artifact
+func (q *Queries) ClearDataJobArtifact(ctx context.Context, arg ClearDataJobArtifactParams) error {
+	_, err := q.db.ExecContext(ctx, clearDataJobArtifact, arg.ID, arg.ObjectKey)
+	return err
+}
+
 const countDataJobErrors = `-- name: CountDataJobErrors :one
 SELECT COUNT(*)::int FROM data_job_errors WHERE job_id = $1
 `
@@ -265,42 +281,6 @@ func (q *Queries) DeleteDataJobsBefore(ctx context.Context, before time.Time) (i
 	return result.RowsAffected()
 }
 
-const expireDataJobArtifacts = `-- name: ExpireDataJobArtifacts :many
-UPDATE data_jobs
-SET object_key = '', byte_size = 0
-WHERE object_key <> '' AND expires_at IS NOT NULL AND expires_at < NOW()
-RETURNING id, object_key
-`
-
-type ExpireDataJobArtifactsRow struct {
-	ID        uuid.UUID `json:"id"`
-	ObjectKey string    `json:"object_key"`
-}
-
-// Returns the keys to delete from the object store - the row stays so the history survives its artifact
-func (q *Queries) ExpireDataJobArtifacts(ctx context.Context) ([]ExpireDataJobArtifactsRow, error) {
-	rows, err := q.db.QueryContext(ctx, expireDataJobArtifacts)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ExpireDataJobArtifactsRow{}
-	for rows.Next() {
-		var i ExpireDataJobArtifactsRow
-		if err := rows.Scan(&i.ID, &i.ObjectKey); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const finishDataJob = `-- name: FinishDataJob :one
 UPDATE data_jobs
 SET status = $1,
@@ -316,25 +296,28 @@ SET status = $1,
     object_key = $11,
     byte_size = $12,
     finished_at = NOW(),
-    lease_until = NULL
-WHERE id = $13
+    lease_until = NULL,
+    expires_at = NOW() + make_interval(secs => $13::int)
+WHERE id = $14 AND status = 'running' AND attempts = $15
 RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at
 `
 
 type FinishDataJobParams struct {
-	Status          string    `json:"status"`
-	TotalRows       int32     `json:"total_rows"`
-	ProcessedRows   int32     `json:"processed_rows"`
-	CreatedRows     int32     `json:"created_rows"`
-	UpdatedRows     int32     `json:"updated_rows"`
-	SkippedRows     int32     `json:"skipped_rows"`
-	FailedRows      int32     `json:"failed_rows"`
-	ErrorSummary    string    `json:"error_summary"`
-	Warnings        []string  `json:"warnings"`
-	ErrorsTruncated bool      `json:"errors_truncated"`
-	ObjectKey       string    `json:"object_key"`
-	ByteSize        int64     `json:"byte_size"`
-	ID              uuid.UUID `json:"id"`
+	Status           string    `json:"status"`
+	TotalRows        int32     `json:"total_rows"`
+	ProcessedRows    int32     `json:"processed_rows"`
+	CreatedRows      int32     `json:"created_rows"`
+	UpdatedRows      int32     `json:"updated_rows"`
+	SkippedRows      int32     `json:"skipped_rows"`
+	FailedRows       int32     `json:"failed_rows"`
+	ErrorSummary     string    `json:"error_summary"`
+	Warnings         []string  `json:"warnings"`
+	ErrorsTruncated  bool      `json:"errors_truncated"`
+	ObjectKey        string    `json:"object_key"`
+	ByteSize         int64     `json:"byte_size"`
+	RetentionSeconds int32     `json:"retention_seconds"`
+	ID               uuid.UUID `json:"id"`
+	Attempt          int32     `json:"attempt"`
 }
 
 func (q *Queries) FinishDataJob(ctx context.Context, arg FinishDataJobParams) (DataJob, error) {
@@ -351,7 +334,9 @@ func (q *Queries) FinishDataJob(ctx context.Context, arg FinishDataJobParams) (D
 		arg.ErrorsTruncated,
 		arg.ObjectKey,
 		arg.ByteSize,
+		arg.RetentionSeconds,
 		arg.ID,
+		arg.Attempt,
 	)
 	var i DataJob
 	err := row.Scan(
@@ -568,6 +553,42 @@ func (q *Queries) ListDataJobs(ctx context.Context, arg ListDataJobsParams) ([]D
 			&i.FinishedAt,
 			&i.ExpiresAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredDataJobArtifacts = `-- name: ListExpiredDataJobArtifacts :many
+SELECT id, object_key FROM data_jobs
+WHERE object_key <> '' AND finished_at IS NOT NULL AND expires_at IS NOT NULL AND expires_at < NOW()
+ORDER BY expires_at
+LIMIT $1
+`
+
+type ListExpiredDataJobArtifactsRow struct {
+	ID        uuid.UUID `json:"id"`
+	ObjectKey string    `json:"object_key"`
+}
+
+// Finished runs only - a queued or running import still needs its upload, however old the row is
+func (q *Queries) ListExpiredDataJobArtifacts(ctx context.Context, batchSize int32) ([]ListExpiredDataJobArtifactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredDataJobArtifacts, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpiredDataJobArtifactsRow{}
+	for rows.Next() {
+		var i ListExpiredDataJobArtifactsRow
+		if err := rows.Scan(&i.ID, &i.ObjectKey); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

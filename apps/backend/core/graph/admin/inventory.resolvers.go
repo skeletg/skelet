@@ -7,6 +7,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -32,21 +33,21 @@ func (r *mutationResolver) CreateInventoryLocation(ctx context.Context, input mo
 		Slug:              input.Slug,
 		Name:              input.Name,
 		IsActive:          boolOrDefault(input.IsActive, true),
-		Type:              stringOrEmpty(input.Type),
-		Line1:             stringOrEmpty(input.Line1),
-		Line2:             stringOrEmpty(input.Line2),
-		City:              stringOrEmpty(input.City),
-		Region:            stringOrEmpty(input.Region),
-		PostalCode:        stringOrEmpty(input.PostalCode),
-		CountryCode:       stringOrEmpty(input.CountryCode),
+		Type:              ptr.Deref(input.Type),
+		Line1:             ptr.Deref(input.Line1),
+		Line2:             ptr.Deref(input.Line2),
+		City:              ptr.Deref(input.City),
+		Region:            ptr.Deref(input.Region),
+		PostalCode:        ptr.Deref(input.PostalCode),
+		CountryCode:       ptr.Deref(input.CountryCode),
 		Latitude:          input.Latitude,
 		Longitude:         input.Longitude,
-		Timezone:          stringOrEmpty(input.Timezone),
+		Timezone:          ptr.Deref(input.Timezone),
 		Hours:             marshalJSON(input.Hours),
-		Email:             stringOrEmpty(input.Email),
-		Phone:             stringOrEmpty(input.Phone),
-		ContactName:       stringOrEmpty(input.ContactName),
-		ExternalReference: stringOrEmpty(input.ExternalReference),
+		Email:             ptr.Deref(input.Email),
+		Phone:             ptr.Deref(input.Phone),
+		ContactName:       ptr.Deref(input.ContactName),
+		ExternalReference: ptr.Deref(input.ExternalReference),
 		Metadata:          invMetadataFromInput(input.Metadata),
 	})
 	if err != nil {
@@ -196,7 +197,7 @@ func (r *mutationResolver) AdjustInventoryLevel(ctx context.Context, input model
 		InventoryItemID: item.ID,
 		LocationID:      lid,
 		NewQuantity:     input.NewQuantity,
-		Note:            stringOrEmpty(input.Note),
+		Note:            ptr.Deref(input.Note),
 	}
 	if claims, err := auth.RequireAuth(ctx); err == nil {
 		domainInput.AdminID = &claims.AdminID
@@ -324,7 +325,7 @@ func (r *queryResolver) InventoryLocations(ctx context.Context, search *string, 
 	if search == nil && limit == nil && offset == nil {
 		locs, err = r.InventorySvc.ListLocations(ctx) // the bare query stays the full list, so pickers and existing clients keep working
 	} else {
-		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, stringOrEmpty(search), int32Or(limit, 0), int32Or(offset, 0))
+		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, ptr.Deref(search), int32Or(limit, 0), int32Or(offset, 0))
 	}
 	if err != nil {
 		return nil, err
@@ -340,7 +341,7 @@ func (r *queryResolver) InventoryLocationsCount(ctx context.Context, search *str
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
 		return 0, err
 	}
-	n, err := r.InventorySvc.CountLocations(ctx, stringOrEmpty(search))
+	n, err := r.InventorySvc.CountLocations(ctx, ptr.Deref(search))
 	if err != nil {
 		return 0, err
 	}

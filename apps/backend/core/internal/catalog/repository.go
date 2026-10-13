@@ -18,6 +18,7 @@ import (
 type postgresRepository struct {
 	queries *db.Queries
 	tx      *txrunner.Manager
+	inTx    bool // set by WithTx: atomic joins the caller's tx instead of opening one
 }
 
 // NewRepository returns the concrete repository - It is deliberately a struct, not an interface (Go idiom: return structs, accept narrow interfaces)
@@ -26,7 +27,16 @@ func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) *postgresReposi
 }
 
 func (r *postgresRepository) WithTx(t *sql.Tx) Repository {
-	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx}
+	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx, inTx: true}
+}
+
+func (r *postgresRepository) atomic(ctx context.Context, fn func(q *db.Queries) error) error {
+	if r.inTx {
+		return fn(r.queries)
+	}
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		return fn(r.queries.WithTx(t))
+	})
 }
 
 // ==================== ProductType ====================
@@ -62,22 +72,6 @@ func (r *postgresRepository) GetProductTypeByID(ctx context.Context, id uuid.UUI
 	return toProductType(row), nil
 }
 
-// GetProductTypesByIDs is the batched form - Returns rows keyed by id; missing ids are absent from the map - No attribute hydration - the storefront DataLoader path only needs the type's identity fields (name, slug) - Callers that need the full attribute graph keep using GetProductTypeWithAttributes for one id
-func (r *postgresRepository) GetProductTypesByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]ProductType, error) {
-	if len(ids) == 0 {
-		return map[uuid.UUID]ProductType{}, nil
-	}
-	rows, err := r.queries.GetProductTypesByIDs(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("get product types by ids: %w", err)
-	}
-	out := make(map[uuid.UUID]ProductType, len(rows))
-	for _, row := range rows {
-		out[row.ID] = toProductType(row)
-	}
-	return out, nil
-}
-
 // GetProductTypeWithAttributes loads the product type plus its assigned attributes and each attribute's values (where applicable) - Uses four queries: 1 product_type, 1 junction+attributes join, 1 values-by-ids (only for attributes whose input type accepts values) - No N+1
 func (r *postgresRepository) GetProductTypeWithAttributes(ctx context.Context, id uuid.UUID) (ProductType, error) {
 	pt, err := r.GetProductTypeByID(ctx, id)
@@ -99,27 +93,7 @@ func (r *postgresRepository) GetProductTypeWithAttributes(ctx context.Context, i
 	var valueAttrIDs []uuid.UUID
 	assignments := make([]ProductTypeAttribute, len(rows))
 	for i, row := range rows {
-		attr := Attribute{
-			ID:                 row.ID,
-			Slug:               row.Slug,
-			Name:               row.Name,
-			InputType:          InputType(row.InputType),
-			RelationshipTarget: ReferenceTarget(row.RelationshipTarget.String),
-			Unit:               row.Unit,
-			ValueRequired:      row.ValueRequired,
-			Filterable:         row.Filterable,
-			Searchable:         row.Searchable,
-			IsPublic:           row.IsPublic,
-			FacetCollapsed:     row.FacetCollapsed,
-			IsIndexable:        row.IsIndexable,
-			H1Position:         H1Position(row.H1Position),
-			SortOrder:          row.AttributeSortOrder,
-			Metadata:           metadataFromJSON(row.Metadata),
-			PrivateMetadata:    metadataFromJSON(row.PrivateMetadata),
-			DefaultValue:       sqlnull.RawMessage(row.DefaultValue),
-			CreatedAt:          row.CreatedAt,
-			UpdatedAt:          row.UpdatedAt,
-		}
+		attr := toAttribute(row.Attribute)
 		var groupID *uuid.UUID
 		if row.GroupID.Valid {
 			id := row.GroupID.UUID
@@ -212,27 +186,8 @@ func (r *postgresRepository) ListProductTypes(ctx context.Context) ([]ProductTyp
 			groupID = &id
 		}
 		pt.Attributes = append(pt.Attributes, ProductTypeAttribute{
-			Attribute: Attribute{
-				ID:                 row.ID,
-				Slug:               row.Slug,
-				Name:               row.Name,
-				InputType:          InputType(row.InputType),
-				RelationshipTarget: ReferenceTarget(row.RelationshipTarget.String),
-				Unit:               row.Unit,
-				ValueRequired:      row.ValueRequired,
-				Filterable:         row.Filterable,
-				Searchable:         row.Searchable,
-				IsPublic:           row.IsPublic,
-				FacetCollapsed:     row.FacetCollapsed,
-				IsIndexable:        row.IsIndexable,
-				H1Position:         H1Position(row.H1Position),
-				SortOrder:          row.AttributeSortOrder,
-				Metadata:           metadataFromJSON(row.Metadata),
-				PrivateMetadata:    metadataFromJSON(row.PrivateMetadata),
-				DefaultValue:       sqlnull.RawMessage(row.DefaultValue),
-				CreatedAt:          row.CreatedAt,
-				UpdatedAt:          row.UpdatedAt,
-			},
+			Attribute: toAttribute(row.Attribute),
+
 			SortOrder: row.AssignmentSortOrder,
 			GroupID:   groupID,
 		})
@@ -308,8 +263,7 @@ func (r *postgresRepository) DeleteProductType(ctx context.Context, id uuid.UUID
 
 func (r *postgresRepository) CreateAttribute(ctx context.Context, input CreateAttributeInput) (Attribute, error) {
 	var created Attribute
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateAttribute(ctx, db.CreateAttributeParams{
 			Slug:               input.Slug,
 			Name:               input.Name,
@@ -527,11 +481,40 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, input UpdateAt
 	return toAttribute(row), nil
 }
 
+// The JSONB strip shares the delete's tx - FKs cascade the junction rows, but nothing cascades scalar keys
 func (r *postgresRepository) DeleteAttribute(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.DeleteAttribute(ctx, id); err != nil {
-		return fmt.Errorf("delete attribute: %w", err)
+	return r.atomic(ctx, func(q *db.Queries) error {
+		attr, err := q.GetAttributeByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrAttributeNotFound
+			}
+			return fmt.Errorf("load attribute: %w", err)
+		}
+		if err := q.StripProductAttributeKey(ctx, attr.Slug); err != nil {
+			return fmt.Errorf("strip attribute values: %w", err)
+		}
+		if err := q.DeleteAttribute(ctx, id); err != nil {
+			return fmt.Errorf("delete attribute: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *postgresRepository) ListProductIDsCarryingAttribute(ctx context.Context, attributeID uuid.UUID, slug string) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListProductIDsCarryingAttribute(ctx, db.ListProductIDsCarryingAttributeParams{AttributeID: attributeID, Slug: slug})
+	if err != nil {
+		return nil, fmt.Errorf("list products carrying attribute: %w", err)
 	}
-	return nil
+	return ids, nil
+}
+
+func (r *postgresRepository) ListProductIDsCarryingAttributeValue(ctx context.Context, valueID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListProductIDsCarryingAttributeValue(ctx, valueID)
+	if err != nil {
+		return nil, fmt.Errorf("list products carrying attribute value: %w", err)
+	}
+	return ids, nil
 }
 
 // SetAttributeValuesIndexable flips a hand-picked set of values in one statement - the SEO
@@ -549,8 +532,7 @@ func (r *postgresRepository) SetAttributeValuesIndexable(ctx context.Context, va
 
 func (r *postgresRepository) CascadeAttributeIndexable(ctx context.Context, attributeID uuid.UUID, isIndexable bool) (CascadeAttributeIndexableResult, error) {
 	var out CascadeAttributeIndexableResult
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 
 		// Snapshot the affected-row counts before we update so the number reported in the admin "cascaded to N values" toast matches what was actually touched, even when most rows were already in the target state - AffectedProductsCount is now purely informational - it reports how many scalar slug overrides exist under the attribute, not an indexability cascade (scalar facets follow the attribute flag directly)
 		valCount, err := q.CountAttributeValues(ctx, attributeID)
@@ -803,20 +785,6 @@ func (r *postgresRepository) ListProductAttributeSlugsByProductIDs(ctx context.C
 	return out, nil
 }
 
-func (r *postgresRepository) GetProductAttributeSlug(ctx context.Context, productID, attributeID uuid.UUID) (ProductAttributeSlug, error) {
-	row, err := r.queries.GetProductAttributeSlug(ctx, db.GetProductAttributeSlugParams{
-		ProductID:   productID,
-		AttributeID: attributeID,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ProductAttributeSlug{}, ErrProductAttributeSlugNotFound
-		}
-		return ProductAttributeSlug{}, fmt.Errorf("get product attribute slug: %w", err)
-	}
-	return toProductAttributeSlug(row), nil
-}
-
 func (r *postgresRepository) UpsertProductAttributeSlug(ctx context.Context, input UpsertProductAttributeSlugInput) (ProductAttributeSlug, error) {
 	// Global and channel rows live under different partial unique indexes, so each needs its own ON CONFLICT target
 	if input.ChannelID == nil {
@@ -984,6 +952,9 @@ func (r *postgresRepository) UpsertAttributeValueChannelSlug(ctx context.Context
 		Slug:        slug,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return AttributeValueChannelSlug{}, ErrSlugTaken
+		}
 		return AttributeValueChannelSlug{}, fmt.Errorf("upsert attribute value channel slug: %w", err)
 	}
 	return toAttributeValueChannelSlug(row), nil
@@ -1033,12 +1004,16 @@ func (r *postgresRepository) MoveAttributeToGroup(ctx context.Context, productTy
 	if groupID != nil {
 		gid = uuid.NullUUID{UUID: *groupID, Valid: true}
 	}
-	if err := r.queries.MoveAttributeToGroup(ctx, db.MoveAttributeToGroupParams{
+	n, err := r.queries.MoveAttributeToGroup(ctx, db.MoveAttributeToGroupParams{
 		ProductTypeID: productTypeID,
 		AttributeID:   attributeID,
 		GroupID:       gid,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("move attribute to group: %w", err)
+	}
+	if n == 0 {
+		return ErrAssignmentNotFound
 	}
 	return nil
 }
@@ -1050,6 +1025,9 @@ func (r *postgresRepository) CreateAttributeGroup(ctx context.Context, input Cre
 		SortOrder:     input.SortOrder,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return AttributeGroup{}, ErrAttributeGroupNameTaken
+		}
 		return AttributeGroup{}, fmt.Errorf("create attribute group: %w", err)
 	}
 	return toAttributeGroup(row), nil
@@ -1058,7 +1036,10 @@ func (r *postgresRepository) CreateAttributeGroup(ctx context.Context, input Cre
 func (r *postgresRepository) GetAttributeGroupByID(ctx context.Context, id uuid.UUID) (AttributeGroup, error) {
 	row, err := r.queries.GetAttributeGroupByID(ctx, id)
 	if err != nil {
-		return AttributeGroup{}, ErrAttributeGroupNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return AttributeGroup{}, ErrAttributeGroupNotFound
+		}
+		return AttributeGroup{}, fmt.Errorf("get attribute group: %w", err)
 	}
 	return toAttributeGroup(row), nil
 }
@@ -1094,6 +1075,9 @@ func (r *postgresRepository) UpdateAttributeGroup(ctx context.Context, input Upd
 		SortOrder: sortOrder,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return AttributeGroup{}, ErrAttributeGroupNameTaken
+		}
 		return AttributeGroup{}, fmt.Errorf("update attribute group: %w", err)
 	}
 	return toAttributeGroup(row), nil

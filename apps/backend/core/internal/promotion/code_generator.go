@@ -46,6 +46,27 @@ func (g *CodeGenerator) Validate() error {
 	return nil
 }
 
+// How many distinct codes the pattern can produce - float64 since a long pattern overflows any int
+func (g *CodeGenerator) Space() float64 {
+	space := 1.0
+	runes := []rune(g.pattern)
+	for i := 0; i+2 < len(runes); i++ {
+		if runes[i] != '[' || runes[i+2] != ']' {
+			continue
+		}
+		switch runes[i+1] {
+		case 'A':
+			space *= 26
+		case 'N':
+			space *= 10
+		case '*':
+			space *= 36
+		}
+		i += 2
+	}
+	return space
+}
+
 // One generated code - codes are uppercased on output
 func (g *CodeGenerator) One() (string, error) {
 	var b strings.Builder
@@ -55,7 +76,8 @@ func (g *CodeGenerator) One() (string, error) {
 	runes := []rune(g.pattern)
 	for i := 0; i < len(runes); i++ {
 		if runes[i] != '[' {
-			b.WriteRune(runes[i])
+			// literals too - ApplyCode uppercases what the shopper types, so a lowercase code could never match
+			b.WriteString(strings.ToUpper(string(runes[i])))
 			continue
 		}
 		if i+2 >= len(runes) || runes[i+2] != ']' {

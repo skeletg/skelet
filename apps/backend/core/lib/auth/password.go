@@ -22,10 +22,20 @@ func CompareDummyPassword(password string) {
 	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 }
 
-var ErrWeakPassword = errors.New("password must be at least 8 characters")
+var (
+	ErrWeakPassword    = errors.New("password must be at least 8 characters")
+	ErrPasswordTooLong = fmt.Errorf("password must be at most %d bytes", MaxPasswordBytes)
+
+	// What a spent, expired, revoked or foreign one-time link reads as - one message, so a link never says which
+	ErrResetLinkInvalid        = errors.New("invalid or expired reset link")
+	ErrVerificationLinkInvalid = errors.New("invalid or expired verification link")
+)
 
 func init() {
 	apperr.RegisterSentinel(ErrWeakPassword, "WEAK_PASSWORD", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrPasswordTooLong, "PASSWORD_TOO_LONG", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrResetLinkInvalid, "RESET_LINK_INVALID", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrVerificationLinkInvalid, "VERIFICATION_LINK_INVALID", apperr.ClassValidation)
 }
 
 func ValidatePasswordStrength(pw string) error { // the one policy shared by customer registration and reset and by admin password set and change
@@ -33,7 +43,7 @@ func ValidatePasswordStrength(pw string) error { // the one policy shared by cus
 		return ErrWeakPassword
 	}
 	if len(pw) > MaxPasswordBytes {
-		return fmt.Errorf("%w: too long (max %d bytes)", ErrWeakPassword, MaxPasswordBytes)
+		return ErrPasswordTooLong
 	}
 	return nil
 }

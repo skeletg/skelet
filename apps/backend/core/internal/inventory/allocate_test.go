@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Embeds Repository (nil) so it satisfies the interface without 29 methods - allocateLine only calls GetLevelForUpdate and NetReservation, so any other call panics loudly
+// Embeds Repository (nil) so it satisfies the interface without 29 methods - allocateLine only calls GetLevelForUpdate, so any other call panics loudly
 type fakeAllocRepo struct {
 	Repository
 	item    Item
@@ -40,11 +40,7 @@ func (f fakeAllocRepo) GetLevelForUpdate(_ context.Context, _ uuid.UUID, locatio
 	if !ok {
 		return Level{}, ErrLevelNotFound
 	}
-	return Level{InventoryItemID: f.item.ID, LocationID: locationID, Quantity: q}, nil
-}
-
-func (f fakeAllocRepo) NetReservation(_ context.Context, _ uuid.UUID, locationID uuid.UUID) (float64, error) {
-	return f.nets[locationID], nil
+	return Level{InventoryItemID: f.item.ID, LocationID: locationID, Quantity: q, ReservedQuantity: -f.nets[locationID]}, nil
 }
 
 func tracked(backorderable bool) Item {

@@ -17,6 +17,10 @@ func DefaultSubject(key string) string {
 		return "Verify your email address"
 	case KeyPasswordReset:
 		return "Reset your password"
+	case KeySignupConfirmation:
+		return "Confirm your subscription"
+	case KeyAccountExists:
+		return "You already have an account"
 	default:
 		return ""
 	}
@@ -63,6 +67,19 @@ func DefaultBlocks(key string) []Block {
 			{Type: "heading", Text: "Reset your password"},
 			{Type: "text", Content: "We received a request to reset your {{store.name}} password. This link expires in {{reset.expiresIn}}."},
 			{Type: "button", Label: "Reset password", URL: "{{reset.link}}"},
+		}
+	case KeySignupConfirmation:
+		return []Block{
+			{Type: "heading", Text: "Confirm your subscription"},
+			{Type: "text", Content: "Please confirm you'd like to receive emails from {{store.name}}. This link expires in {{confirm.expiresIn}} - if you didn't sign up, ignore this email and you won't be subscribed."},
+			{Type: "button", Label: "Confirm my subscription", URL: "{{confirm.link}}"},
+		}
+	case KeyAccountExists:
+		return []Block{
+			{Type: "heading", Text: "You already have an account"},
+			{Type: "text", Content: "Someone just tried to create a {{store.name}} account with this email address, but you already have one. If this wasn't you, ignore this email - nothing about your account has changed."},
+			{Type: "button", Label: "Sign in", URL: "{{signin.link}}"},
+			{Type: "text", Content: "Forgotten your password? You can reset it here: {{forgot.link}}"},
 		}
 	case KeyHeader:
 		return []Block{{Type: "image", URL: "{{store.logoUrl}}", Alt: "{{store.name}}"}}

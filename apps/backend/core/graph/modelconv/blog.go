@@ -46,6 +46,7 @@ func BlogAuthorModel(a blog.Author) *model.BlogAuthor {
 		Slug:        a.Slug,
 		DisplayName: a.DisplayName,
 		Email:       a.Email,
+		EmailPublic: a.EmailPublic,
 		Metadata:    BlogMetadataItems(a.Metadata),
 		AllContent:  BlogAuthorContentModels(a.AllContent),
 		CreatedAt:   a.CreatedAt,

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Link } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
 
@@ -16,13 +17,32 @@ import { displayName } from "@/app/lib/display";
 import { formatPrice } from "@/app/lib/format";
 import { RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { Slots } from "@/app/plugins/Slots";
-import { CouponForm } from "./coupon-form";
+import { Skeleton, SkeletonRegion } from "@/app/components/Skeleton";
 import { SaveForLaterButton, SavedForLater } from "./SavedForLater";
 import { CartEstimator } from "./CartEstimator";
 import { CartNote } from "./CartNote";
 import { mediaThumb } from "@/app/lib/media-thumb";
 
 const FALLBACK_CURRENCY = "USD";
+
+// The coupon form carries zod and Conform, which otherwise double this page's JavaScript. The cart hydrates in the
+// browser, so the form never rendered on the server anyway - it now loads once the lines are in, behind a
+// skeleton the same size as the section so nothing shifts when it lands
+const CouponForm = dynamic(() => import("./coupon-form").then((m) => m.CouponForm), {
+  loading: CouponFormSkeleton,
+});
+
+function CouponFormSkeleton() {
+  return (
+    <SkeletonRegion className="glass mt-8 rounded-xl p-5">
+      <Skeleton className="h-3 w-24" />
+      <div className="mt-3 flex gap-2">
+        <Skeleton className="h-[38px] flex-1 rounded-lg" />
+        <Skeleton className="h-[38px] w-20" />
+      </div>
+    </SkeletonRegion>
+  );
+}
 
 export function CartView({
   freeShipThreshold,

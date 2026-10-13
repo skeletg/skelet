@@ -8,6 +8,9 @@ RETURNING *;
 -- name: GetBundleOptionByID :one
 SELECT * FROM catalog_product_bundle_options WHERE id = $1;
 
+-- name: GetBundleOptionByIDForUpdate :one
+SELECT * FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE;
+
 -- name: ListBundleOptionsByProductID :many
 SELECT * FROM catalog_product_bundle_options
 WHERE product_id = $1
@@ -57,11 +60,6 @@ RETURNING *;
 
 -- name: GetBundleSelectionByID :one
 SELECT * FROM catalog_product_bundle_selections WHERE id = $1;
-
--- name: ListBundleSelectionsByOptionID :many
-SELECT * FROM catalog_product_bundle_selections
-WHERE option_id = $1
-ORDER BY sort_order, id;
 
 -- name: ListBundleSelectionsByOptionIDs :many
 SELECT * FROM catalog_product_bundle_selections

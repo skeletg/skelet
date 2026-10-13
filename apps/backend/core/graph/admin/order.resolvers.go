@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 func (r *mutationResolver) CreateDraftOrder(ctx context.Context, input model.CreateDraftOrderInput) (*model.Order, error) {
@@ -258,7 +259,7 @@ func (r *mutationResolver) CreateFulfillment(ctx context.Context, input model.Cr
 	return toOrderModel(updated), nil
 }
 
-func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error) {
+func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmentID string, force *bool) (*model.ShippingLabel, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
 		return nil, err
 	}
@@ -277,7 +278,7 @@ func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmen
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", o.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	label, err := r.OrderSvc.GenerateLabel(ctx, fID)
+	label, err := r.OrderSvc.GenerateLabel(ctx, fID, boolOrFalse(force))
 	if err != nil {
 		return nil, err
 	}
@@ -889,15 +890,19 @@ func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, ki
 		memo = &loaded
 	}
 
-	store := documents.StoreInfo{Name: "Store"} // letterhead comes from the order's channel
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, o.ChannelID); cerr == nil {
-		store.Name = ch.Name
+	in := documents.Input{Kind: docKind, Order: o, Memo: memo, Store: documents.StoreInfo{Name: "Store"}, Decimals: money.ISODecimals(o.CurrencyCode)}
+	if ch, cerr := r.ChannelSvc.GetByID(ctx, o.ChannelID); cerr == nil { // letterhead comes from the order's channel
+		in.Store.Name = ch.Name
 		if ch.PublicURL != "" {
-			store.Lines = append(store.Lines, ch.PublicURL)
+			in.Store.Lines = append(in.Store.Lines, ch.PublicURL)
 		}
+		in.TaxInclusive = ch.TaxInclusivePricing
+	}
+	if cur, cerr := r.CurrencySvc.GetByCode(ctx, o.CurrencyCode); cerr == nil {
+		in.Decimals = int(cur.Decimals)
 	}
 
-	pdf, err := documents.Render(docKind, o, store, memo)
+	pdf, err := documents.Render(in)
 	if err != nil {
 		return "", err
 	}

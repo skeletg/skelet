@@ -107,7 +107,7 @@ func createInputToRule(in model.CreatePromotionRuleInput) (promotion.Rule, error
 		Description:      ptr.Deref(in.Description),
 		PublicLabel:      ptr.Deref(in.PublicLabel),
 		ChannelID:        channelID,
-		RequiresCode:     derefBoolDefault(in.RequiresCode, true),
+		RequiresCode:     ptr.DerefOr(in.RequiresCode, true),
 		Priority:         ptr.Deref(in.Priority),
 		StopAfterApply:   stopModeFromGQLPtr(in.StopAfterApply),
 		ExclusivityGroup: ptr.Deref(in.ExclusivityGroup),
@@ -115,7 +115,7 @@ func createInputToRule(in model.CreatePromotionRuleInput) (promotion.Rule, error
 		ValidTo:          in.ValidTo,
 		MaxUses:          in.MaxUses,
 		PerCustomerLimit: in.PerCustomerLimit,
-		IsActive:         derefBoolDefault(in.IsActive, true),
+		IsActive:         ptr.DerefOr(in.IsActive, true),
 	}
 	if in.ScheduleJSON != nil {
 		raw, err := anyToRawMessage(in.ScheduleJSON)
@@ -319,13 +319,6 @@ func optionalUUID(s *string) (*uuid.UUID, error) {
 		return nil, err
 	}
 	return &id, nil
-}
-
-func derefBoolDefault(b *bool, def bool) bool {
-	if b == nil {
-		return def
-	}
-	return *b
 }
 
 func derefInt32Default(i *int32, def int32) int32 {

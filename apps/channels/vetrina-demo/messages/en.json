@@ -7,6 +7,7 @@
       "passwordMismatch": "Passwords do not match.",
       "countryCode": "Country must be a 2-letter code (e.g. US, DE, RS).",
       "signInFailed": "Sign in failed.",
+      "emailNotVerified": "Confirm your email address before signing in.",
       "registrationFailed": "Registration failed.",
       "resetLinkMissing": "Reset link is missing.",
       "resetLinkInvalid": "Reset link is invalid or expired.",
@@ -99,7 +100,9 @@
     "login": {
       "title": "Sign in",
       "description": "Welcome back. Sign in to view your orders and addresses.",
-      "verifyBanner": "Account created. Check your inbox and confirm your email address, then sign in.",
+      "verifyBanner": "Thanks - check your inbox. We've emailed you the next step.",
+      "verifySentBanner": "If that address has an account waiting for confirmation, a new link is on its way.",
+      "resendVerification": "Send a new confirmation link",
       "resetBanner": "Password updated. Sign in with your new password to continue.",
       "submit": "Sign in",
       "submitting": "Signing in…",

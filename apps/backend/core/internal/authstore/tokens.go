@@ -20,34 +20,41 @@ func NewPostgresTokenBackend(q *db.Queries) auth.TokenBackend { // auth_tokens, 
 	return pgTokenBackend{q: q}
 }
 
-func (b pgTokenBackend) Put(ctx context.Context, key string, id uuid.UUID, ttl time.Duration) error {
+func (b pgTokenBackend) Put(ctx context.Context, key string, t auth.Token, ttl time.Duration) error {
 	return b.q.PutAuthToken(ctx, db.PutAuthTokenParams{
 		TokenKey:  key,
-		SubjectID: id,
+		SubjectID: t.Subject,
+		Binding:   t.Binding,
 		ExpiresAt: time.Now().Add(ttl),
 	})
 }
 
-func (b pgTokenBackend) Get(ctx context.Context, key string) (uuid.UUID, error) {
-	return tokenSubject(b.q.GetAuthToken(ctx, key)) // the query filters expires_at > now(), so an expired row reads as no rows
+func (b pgTokenBackend) Get(ctx context.Context, key string) (auth.Token, error) {
+	row, err := b.q.GetAuthToken(ctx, key) // the query filters expires_at > now(), so an expired row reads as no rows
+	return tokenRow(row.SubjectID, row.Binding, err)
 }
 
-func (b pgTokenBackend) Consume(ctx context.Context, key string) (uuid.UUID, error) {
-	return tokenSubject(b.q.ConsumeAuthToken(ctx, key))
+func (b pgTokenBackend) Consume(ctx context.Context, key string) (auth.Token, error) {
+	row, err := b.q.ConsumeAuthToken(ctx, key)
+	return tokenRow(row.SubjectID, row.Binding, err)
 }
 
-func tokenSubject(id uuid.UUID, err error) (uuid.UUID, error) {
+func tokenRow(id uuid.UUID, binding string, err error) (auth.Token, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, auth.ErrTokenNotFound
+			return auth.Token{}, auth.ErrTokenNotFound
 		}
-		return uuid.Nil, err
+		return auth.Token{}, err
 	}
-	return id, nil
+	return auth.Token{Subject: id, Binding: binding}, nil
 }
 
 func (b pgTokenBackend) Delete(ctx context.Context, key string) error {
 	return b.q.DeleteAuthToken(ctx, key)
+}
+
+func (b pgTokenBackend) DeleteSubject(ctx context.Context, namespace string, subjectID uuid.UUID) error {
+	return b.q.DeleteSubjectAuthTokens(ctx, db.DeleteSubjectAuthTokensParams{SubjectID: subjectID, Namespace: namespace})
 }
 
 func NewTokenBackend(client *redis.Client, q *db.Queries) auth.TokenBackend { // Valkey when a client is wired, Postgres otherwise

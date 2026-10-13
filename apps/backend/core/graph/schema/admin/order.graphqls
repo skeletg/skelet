@@ -303,8 +303,8 @@ extend type Mutation {
   # Record a shipment covering a subset of the order's line quantities. Each line ships `quantity` of an order line; the sum across shipments may not exceed the ordered quantity. The order settles to PARTIALLY_FULFILLED, or FULFILLED once every line is fully shipped. Carrier/tracking seed the OrderFulfilling sync hook (a shipping-API plugin may override them). Inventory decrements the shipped quantities; the first shipment captures payment when the order is still authorized.
   createFulfillment(input: CreateFulfillmentInput!): Order!
 
-  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Requires orders.update.
-  generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
+  # Generate a shipping label for a fulfillment through the order's carrier (if it supports labels). Stores the label and, when the carrier books the shipment, stamps the returned tracking number on the order. Each label is charged, so a second one for the same shipment needs force. Requires orders.update.
+  generateShippingLabel(fulfillmentId: ID!, force: Boolean): ShippingLabel!
 
   # ---------- Customer mail ---------- Send one of the order's lifecycle emails again: the receipt, a shipment notice, the cancellation or the refund.
   resendOrderEmail(orderId: ID!, message: OrderEmailMessage!, fulfillmentId: ID): Boolean!

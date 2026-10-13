@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 const (
@@ -37,8 +39,7 @@ func (e *Submitting) ApplyWebhookResponse(body []byte) (bool, string, error) {
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
+		syncveto.Response
 		Status string   `json:"status"`
 		Tags   []string `json:"tags"`
 	}

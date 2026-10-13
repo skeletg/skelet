@@ -1,5 +1,5 @@
-// Package audienceio exports a segment's membership as hashed email identifiers, for a manual upload into an ad platform
-// The addresses are core's, so the hashing happens here - and a hash cannot be turned back into a customer
+// Package audienceio turns a segment's membership into hashed email identifiers for an ad platform - exported for a manual upload, or pushed by the live audience sync.
+// The addresses are core's, so the hashing happens here. A hash can't be reversed, but it still identifies a person to the platform it's matched against.
 package audienceio
 
 import (
@@ -19,6 +19,10 @@ const (
 	optSegmentID = "segment_id"
 	// Resolved by a provider registered at wiring time, same as the promotion-rule picker
 	SourceSegments = "customer_segments"
+	// Hashed emails are still personal data leaving the system, so both the export and the live sync take the grant the customer export does
+	Permission = "customers.manage"
+
+	emailBatch = 5000 // addresses are fetched this many ids at a time, so a large segment isn't one enormous query
 )
 
 // Members answers a segment's customer ids - satisfied by the Signals client, since membership is the
@@ -35,7 +39,7 @@ func HashIdentifier(v string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Hashes resolves a segment to the hashed identifiers an ad platform takes, skipping anyone with no address
+// Hashes resolves a segment to the hashed identifiers an ad platform takes, once each, skipping anyone with no address - one person can hold several customer records
 func Hashes(ctx context.Context, members Members, emails Emails, actorID, segmentID uuid.UUID) ([]string, error) {
 	ids, err := members(ctx, actorID, segmentID)
 	if err != nil {
@@ -44,16 +48,24 @@ func Hashes(ctx context.Context, members Members, emails Emails, actorID, segmen
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	addrs, err := emails(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("audience: addresses: %w", err)
-	}
-	out := make([]string, 0, len(addrs))
-	for _, a := range addrs {
-		if strings.TrimSpace(a) == "" {
-			continue
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for start := 0; start < len(ids); start += emailBatch {
+		addrs, err := emails(ctx, ids[start:min(start+emailBatch, len(ids))])
+		if err != nil {
+			return nil, fmt.Errorf("audience: addresses: %w", err)
 		}
-		out = append(out, HashIdentifier(a))
+		for _, a := range addrs {
+			if strings.TrimSpace(a) == "" {
+				continue
+			}
+			h := HashIdentifier(a)
+			if _, dup := seen[h]; dup {
+				continue
+			}
+			seen[h] = struct{}{}
+			out = append(out, h)
+		}
 	}
 	return out, nil
 }
@@ -64,7 +76,7 @@ func Resource(members Members, emails Emails) dataio.Resource {
 		Label:          "Audience (hashed)",
 		Group:          "Marketing",
 		Description:    "One segment's members as hashed email identifiers, the format ad platforms accept for custom audiences.",
-		ViewPermission: "promotions.manage",
+		ViewPermission: Permission,
 		Fields: []dataio.Field{
 			{Name: "hashed_email", Label: "Hashed email", Type: dataio.FieldText, Identifier: true, ReadOnly: true, Description: "Lowercased, trimmed, then SHA-256"},
 		},

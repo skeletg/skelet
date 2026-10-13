@@ -3,7 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -210,7 +210,6 @@ func (r *mutationResolver) CreateCMSPageType(ctx context.Context, input model.Cr
 	in := cms.CreatePageTypeInput{
 		Slug:        input.Slug,
 		Icon:        ptr.Deref(input.Icon),
-		IsSystem:    boolDeref(input.IsSystem, false),
 		Position:    intDeref(input.Position, 0),
 		Locale:      input.Locale,
 		Name:        input.Name,
@@ -423,7 +422,7 @@ func (r *queryResolver) CmsAttribute(ctx context.Context, slug *string, id *stri
 		}
 		return nil, nil
 	}
-	return nil, fmt.Errorf("slug or id is required")
+	return nil, errInvalidInput("slug or id", errors.New("one is required"))
 }
 
 func (r *queryResolver) CmsAttributes(ctx context.Context) ([]*model.CMSAttribute, error) {
@@ -482,7 +481,7 @@ func (r *queryResolver) CmsPageType(ctx context.Context, slug *string, id *strin
 		}
 		return toCMSPageTypeModel(pt), nil
 	}
-	return nil, fmt.Errorf("slug or id is required")
+	return nil, errInvalidInput("slug or id", errors.New("one is required"))
 }
 
 func (r *queryResolver) CmsPageTypes(ctx context.Context) ([]*model.CMSPageType, error) {

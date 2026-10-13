@@ -24,8 +24,8 @@ func (r *postgresRepository) WithTx(tx *sql.Tx) Repository {
 	return &postgresRepository{queries: r.queries.WithTx(tx)}
 }
 
-func (r *postgresRepository) CreateGrant(ctx context.Context, in GrantInput) (Grant, error) {
-	row, err := r.queries.CreateDownloadGrant(ctx, db.CreateDownloadGrantParams{
+func (r *postgresRepository) CreateGrant(ctx context.Context, in GrantInput) (bool, error) {
+	n, err := r.queries.CreateDownloadGrant(ctx, db.CreateDownloadGrantParams{
 		Token:        in.Token,
 		OrderID:      sqlnull.UUID(in.OrderID),
 		CustomerID:   sqlnull.UUID(in.CustomerID),
@@ -38,9 +38,17 @@ func (r *postgresRepository) CreateGrant(ctx context.Context, in GrantInput) (Gr
 		ExpiresAt:    sqlnull.Time(in.ExpiresAt),
 	})
 	if err != nil {
-		return Grant{}, fmt.Errorf("create download grant: %w", err)
+		return false, fmt.Errorf("create download grant: %w", err)
 	}
-	return toGrant(row), nil
+	return n == 1, nil
+}
+
+func (r *postgresRepository) RevokeForOrder(ctx context.Context, orderID uuid.UUID) (int64, error) {
+	n, err := r.queries.RevokeOrderDownloadGrants(ctx, uuid.NullUUID{UUID: orderID, Valid: true})
+	if err != nil {
+		return 0, fmt.Errorf("revoke download grants: %w", err)
+	}
+	return n, nil
 }
 
 func (r *postgresRepository) GetByToken(ctx context.Context, token string) (Grant, error) {

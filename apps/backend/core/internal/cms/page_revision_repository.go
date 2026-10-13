@@ -77,7 +77,7 @@ func (r *postgresRepository) GetRevision(ctx context.Context, id uuid.UUID) (Pag
 	row, err := r.queries.GetCMSPageRevisionByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return PageRevision{}, ErrPageNotFound
+			return PageRevision{}, ErrRevisionNotFound
 		}
 		return PageRevision{}, fmt.Errorf("get cms page revision: %w", err)
 	}
@@ -95,6 +95,9 @@ func (r *postgresRepository) SetScheduledAt(ctx context.Context, pageID uuid.UUI
 	}
 	row, err := r.queries.SetCMSPageScheduledAt(ctx, db.SetCMSPageScheduledAtParams{ID: pageID, ScheduledAt: st})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Page{}, ErrPageNotFound
+		}
 		return Page{}, fmt.Errorf("set cms page scheduled_at: %w", err)
 	}
 	return toPage(row), nil

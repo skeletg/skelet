@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,29 +65,6 @@ func (s *Service) Issue(ctx context.Context, in IssueInput) (GiftCard, error) {
 	return card, nil
 }
 
-// Applies `amount` cents of the card to an order, debiting the balance under a row lock so concurrent redemptions can't overdraw - a non-empty currency must match the card
-func (s *Service) Redeem(ctx context.Context, code string, amount int64, currency string, orderID *uuid.UUID) (GiftCard, error) {
-	var card GiftCard
-	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
-		var err error
-		card, err = redeemTx(ctx, r, code, amount, currency, s.now(), orderID)
-		return err
-	})
-	if err != nil {
-		return GiftCard{}, err
-	}
-	s.publish(ctx, &Redeemed{
-		GiftCardID: card.ID,
-		Code:       card.Code,
-		Currency:   card.CurrencyCode,
-		Amount:     amount,
-		Balance:    card.Balance,
-		OrderID:    orderID,
-	})
-	return card, nil
-}
-
 // Applies the card as a TENDER against an order, joining the caller's placement transaction - it spends min(balance, amountDue), so a gift card pays what it can and the remainder is owed elsewhere
 // Validates active state, expiry and currency, and applies nothing with no ledger row when the card is empty or nothing is due
 func (s *Service) RedeemUpToTx(ctx context.Context, tx *sql.Tx, code string, channelID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (int64, error) {
@@ -97,24 +75,24 @@ func (s *Service) GetByCode(ctx context.Context, code string) (GiftCard, error) 
 	return s.repo.GetByCode(ctx, code)
 }
 
-func (s *Service) Balance(ctx context.Context, code string) (int64, error) {
-	c, err := s.repo.GetByCode(ctx, code)
-	if err != nil {
-		return 0, err
-	}
-	return c.Balance, nil
-}
-
 // Marks a card inactive so it can no longer be redeemed, for loss or fraud - idempotent, so disabling an already-disabled card is a no-op
+// Locks the card first - the balance is written back with the status, and a checkout spending the card meanwhile would have its debit undone
 func (s *Service) Disable(ctx context.Context, id uuid.UUID) (GiftCard, error) {
-	c, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return GiftCard{}, err
-	}
-	if c.Status == StatusDisabled {
-		return c, nil
-	}
-	return s.repo.UpdateBalance(ctx, id, c.Balance, StatusDisabled)
+	var out GiftCard
+	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.repo.WithTx(t)
+		c, err := r.GetByIDForUpdate(ctx, id)
+		if err != nil {
+			return err
+		}
+		if c.Status == StatusDisabled {
+			out = c
+			return nil
+		}
+		out, err = r.UpdateBalance(ctx, id, c.Balance, StatusDisabled)
+		return err
+	})
+	return out, err
 }
 
 // Applies a signed balance correction for an admin top-up, goodwill or chargeback with an 'adjust' ledger row - rejects anything that would drive the balance negative, and the update and ledger are atomic
@@ -122,7 +100,7 @@ func (s *Service) Adjust(ctx context.Context, id uuid.UUID, delta int64, note st
 	var out GiftCard
 	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
-		c, err := r.GetByID(ctx, id)
+		c, err := r.GetByIDForUpdate(ctx, id) // a concurrent spend would otherwise be overwritten by this read-modify-write
 		if err != nil {
 			return err
 		}
@@ -169,9 +147,10 @@ func (s *Service) List(ctx context.Context, limit, offset int32) ([]GiftCard, er
 }
 
 func (s *Service) ListForChannels(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error) {
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
 	}
+	limit = min(limit, 200)
 	if channelIDs != nil && len(channelIDs) == 0 {
 		return []GiftCard{}, nil
 	}
@@ -217,31 +196,6 @@ func issueTx(ctx context.Context, r Repository, in IssueInput) (GiftCard, error)
 	return card, nil
 }
 
-// Redemption against a transaction-bound repository - factored out so the lock, validate, debit and ledger sequence is testable with a fake
-func redeemTx(ctx context.Context, r Repository, code string, amount int64, currency string, now time.Time, orderID *uuid.UUID) (GiftCard, error) {
-	c, err := r.GetByCodeForUpdate(ctx, code)
-	if err != nil {
-		return GiftCard{}, err
-	}
-	newBalance, newStatus, err := applyRedemption(c, amount, currency, now)
-	if err != nil {
-		return GiftCard{}, err
-	}
-	card, err := r.UpdateBalance(ctx, c.ID, newBalance, newStatus)
-	if err != nil {
-		return GiftCard{}, err
-	}
-	if _, err := r.InsertTransaction(ctx, Transaction{
-		GiftCardID: c.ID,
-		Amount:     -amount,
-		Reason:     ReasonRedeem,
-		OrderID:    orderID,
-	}); err != nil {
-		return GiftCard{}, err
-	}
-	return card, nil
-}
-
 // A tender redemption against a transaction-bound repository, spending min(balance, amountDue) - factored out so it's testable with a fake
 func redeemUpToTx(ctx context.Context, r Repository, code string, channelID uuid.UUID, amountDue int64, currency string, now time.Time, orderID *uuid.UUID) (int64, error) {
 	c, err := r.GetByCodeForUpdate(ctx, code)
@@ -273,7 +227,7 @@ func redeemUpToTx(ctx context.Context, r Repository, code string, channelID uuid
 }
 
 // Validates a card as a tender and computes how much of amountDue it covers, plus the resulting balance and status - pure, no I/O
-// Unlike applyRedemption, which takes a fixed amount and errors when short, a tender never errors on insufficient balance and just applies what it has
+// A tender never errors on insufficient balance - it applies what the card has and leaves the rest owed
 func tenderAmount(card GiftCard, amountDue int64, currency string, now time.Time) (applied, newBalance int64, newStatus string, err error) {
 	if card.Status != StatusActive {
 		return 0, 0, "", ErrInactive
@@ -294,31 +248,6 @@ func tenderAmount(card GiftCard, amountDue int64, currency string, now time.Time
 		newStatus = StatusDepleted
 	}
 	return applied, newBalance, newStatus, nil
-}
-
-// Validates a redemption and computes the resulting balance and status - pure, so the rules are unit-tested directly, with now as the expiry reference
-func applyRedemption(card GiftCard, amount int64, currency string, now time.Time) (newBalance int64, newStatus string, err error) {
-	if amount <= 0 {
-		return 0, "", ErrInvalidAmount
-	}
-	if card.Status != StatusActive {
-		return 0, "", ErrInactive
-	}
-	if card.ExpiresAt != nil && !card.ExpiresAt.After(now) {
-		return 0, "", ErrExpired
-	}
-	if currency != "" && card.CurrencyCode != currency {
-		return 0, "", ErrCurrencyMismatch
-	}
-	if amount > card.Balance {
-		return 0, "", ErrInsufficient
-	}
-	newBalance = card.Balance - amount
-	newStatus = StatusActive
-	if newBalance == 0 {
-		newStatus = StatusDepleted
-	}
-	return newBalance, newStatus, nil
 }
 
 // Excludes visually ambiguous characters - I, O, 0, 1
@@ -357,4 +286,15 @@ func newCode() (string, error) {
 		}
 	}
 	return string(out), nil
+}
+
+// NormalizeCode reads a code the way a customer types it - any case, with or without the dashes, stray spaces - back into the canonical
+// GC-XXXX-XXXX-XXXX the cards are stored under; anything else comes back trimmed and uppercased
+func NormalizeCode(code string) string {
+	up := strings.ToUpper(strings.TrimSpace(code))
+	bare := strings.NewReplacer("-", "", " ", "").Replace(up)
+	if len(bare) != 14 || !strings.HasPrefix(bare, "GC") {
+		return up
+	}
+	return "GC-" + bare[2:6] + "-" + bare[6:10] + "-" + bare[10:]
 }

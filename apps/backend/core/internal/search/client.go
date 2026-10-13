@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"io"
 	"net/http"
 	"strings"
@@ -183,7 +184,7 @@ func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 			}
 			failed++
 			if firstReason == "" {
-				firstID, firstReason = deref(r.ID), deref(r.Error.Reason)
+				firstID, firstReason = ptr.Deref(r.ID), ptr.Deref(r.Error.Reason)
 			}
 		}
 	}
@@ -338,14 +339,6 @@ func (c *Client) Refresh(ctx context.Context, index string) error {
 	return nil
 }
 
-// v5 returns optional strings as pointers and the hit total as a union - these keep the call sites flat
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func totalHits(t *opensearchapi.SearchHitsMetadataTotal) int64 {
 	if t == nil {
 		return 0
@@ -389,7 +382,7 @@ func (c *Client) ListDocIDsByField(ctx context.Context, index, field, value stri
 	}
 	out := make([]string, 0, len(resp.Hits.Hits))
 	for _, h := range resp.Hits.Hits {
-		out = append(out, deref(h.ID))
+		out = append(out, ptr.Deref(h.ID))
 	}
 	return out, nil
 }
@@ -467,7 +460,7 @@ func (c *Client) SearchHits(ctx context.Context, index string, body any) (int64,
 	}
 	hits := make([]RawHit, 0, len(resp.Hits.Hits))
 	for _, h := range resp.Hits.Hits {
-		hits = append(hits, RawHit{ID: deref(h.ID), Source: h.Source})
+		hits = append(hits, RawHit{ID: ptr.Deref(h.ID), Source: h.Source})
 	}
 	// Aggregations ride along raw for the same reason SearchRawResponse keeps them
 	// raw - only the query's author knows each agg's shape

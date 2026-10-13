@@ -44,7 +44,7 @@ func TestGiftCardRedemptionRaceNeverOverspends(t *testing.T) {
 			applied += r.o.GiftCardAmount
 		}
 	}
-	bal, err := h.D.Giftcard.Balance(h.Ctx, card.Code)
+	bal, err := h.giftcardBalance(card.Code)
 	if err != nil {
 		t.Fatalf("balance: %v", err)
 	}

@@ -140,7 +140,19 @@ func newSearchTier(d searchDeps) SearchTier {
 }
 
 // All subscriptions are async and best-effort - a failed reindex logs and continues so the mutation that triggered it still succeeds, and operators recover from indexer downtime with `bin/cli search reindex`
-func registerSearchSubscribers(root context.Context, bus *events.Bus, products *search.ProductIndexer, posts *search.BlogPostIndexer) {
+type productIndex interface {
+	Upsert(ctx context.Context, productID uuid.UUID) error
+	Delete(ctx context.Context, productID uuid.UUID) error
+	ReindexChannel(ctx context.Context, channelID uuid.UUID) (int, error)
+	DeleteChannel(ctx context.Context, channelID uuid.UUID) error
+}
+
+type postIndex interface {
+	Upsert(ctx context.Context, postID uuid.UUID) error
+	Delete(ctx context.Context, postID uuid.UUID) error
+}
+
+func registerSearchSubscribers(root context.Context, bus *events.Bus, products productIndex, posts postIndex) {
 	upsertProduct := func(ctx context.Context, productID uuid.UUID) {
 		if err := products.Upsert(ctx, productID); err != nil {
 			log.Printf("[search] product upsert %s: %v", productID, err)
@@ -165,6 +177,20 @@ func registerSearchSubscribers(root context.Context, bus *events.Bus, products *
 	})
 	bus.Subscribe(catalog.EventProductListingChanged, func(ctx context.Context, e events.Event) error {
 		upsertProduct(ctx, e.(*catalog.ProductListingChanged).ProductID)
+		return nil
+	})
+
+	// Attribute edits change the attr_* fields of every product carrying the attribute; a delete leaves them holding a field that no longer exists
+	bus.Subscribe(catalog.EventAttributeUpdated, func(ctx context.Context, e events.Event) error {
+		for _, id := range e.(*catalog.AttributeUpdated).ProductIDs {
+			upsertProduct(ctx, id)
+		}
+		return nil
+	})
+	bus.Subscribe(catalog.EventAttributeDeleted, func(ctx context.Context, e events.Event) error {
+		for _, id := range e.(*catalog.AttributeDeleted).ProductIDs {
+			upsertProduct(ctx, id)
+		}
 		return nil
 	})
 

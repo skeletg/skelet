@@ -13,10 +13,14 @@ RETURNING *;
 -- name: MarkOrderPaymentTransaction :one
 -- Flip a pending transaction to succeeded/failed and stamp the provider's
 -- reference for the action (e.g. a Stripe refund id)
+-- Pending rows only - a second finalize flipped a succeeded refund to failed, which freed its ceiling for the same units to be refunded again
 UPDATE order_payment_transactions
 SET status = $2, provider_reference = $3
-WHERE id = $1
+WHERE id = $1 AND status = 'pending'
 RETURNING *;
+
+-- name: GetOrderPaymentTransaction :one
+SELECT * FROM order_payment_transactions WHERE id = $1;
 
 -- name: ListOrderPaymentTransactions :many
 SELECT * FROM order_payment_transactions

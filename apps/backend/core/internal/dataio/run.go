@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Export streams the resource straight into w - nothing buffers the whole file, so an all-time
@@ -118,7 +119,13 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 
 	out := ImportResult{Total: len(rows)}
 	// Header checks come after decoding because JSONL only knows its columns once a row is read
-	header := rr.Header()
+	header := make([]string, 0, len(rr.Header()))
+	for _, h := range rr.Header() {
+		header = append(header, res.canonical(h))
+	}
+	for _, row := range rows {
+		row.renameAliases(res)
+	}
 	for _, id := range res.identifiers() {
 		if !slices.Contains(header, id) {
 			return ImportResult{}, fmt.Errorf("missing required column %q", id)
@@ -159,17 +166,39 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 	sort.Ints(passes)
 
 	done := 0
+	var waiting []*Row
 	for _, p := range passes {
 		for _, row := range byPass[p] {
 			if err := ctx.Err(); err != nil {
 				return out, err
 			}
-			applyRow(ctx, imp, row, &out)
+			if applyRow(ctx, imp, row, &out, true) != nil {
+				waiting = append(waiting, row)
+			}
 			done++
 			if run.Progress != nil && done%progressEvery == 0 {
 				run.Progress(done, out.Total)
 			}
 		}
+	}
+	// Fixed point: each round must land at least one deferred row, so a dependency cycle ends instead of spinning
+	for len(waiting) > 0 {
+		if err := ctx.Err(); err != nil {
+			return out, err
+		}
+		var still []*Row
+		for _, row := range waiting {
+			if applyRow(ctx, imp, row, &out, true) != nil {
+				still = append(still, row)
+			}
+		}
+		if len(still) == len(waiting) {
+			for _, row := range still {
+				_ = applyRow(ctx, imp, row, &out, false)
+			}
+			break
+		}
+		waiting = still
 	}
 
 	if fin, ok := imp.(Finisher); ok {
@@ -182,7 +211,7 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 				out.Truncated = true
 				break
 			}
-			re.Message = trimMessage(re.Message)
+			re.Message = TrimMessage(re.Message)
 			out.Errors = append(out.Errors, re)
 		}
 	}
@@ -192,20 +221,23 @@ func (reg *Registry) Import(ctx context.Context, run Run, src io.Reader) (Import
 	return out, nil
 }
 
-const progressEvery = 200
+const (
+	progressEvery      = 200
+	maxRowMessageRunes = 400
+)
 
-// A panicking row must not take the other 249,999 down with it
-func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult) {
+// A panicking row must not take the other 249,999 down with it - a deferred row's error comes back uncounted while canDefer holds
+func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult, canDefer bool) error {
 	// Declared enums are checked before the handler, so a resource never sees an out-of-set value
 	row.validateEnums()
 	if err := row.Err(); err != nil {
 		out.Failed++
 		if len(out.Errors) < MaxRowErrors {
-			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: trimMessage(err.Error())})
+			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: TrimMessage(err.Error())})
 		} else {
 			out.Truncated = true
 		}
-		return
+		return nil
 	}
 
 	var (
@@ -226,14 +258,17 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult) {
 	if err == nil {
 		err = row.Err()
 	}
+	if err != nil && canDefer && isDeferred(err) {
+		return err
+	}
 	if err != nil {
 		out.Failed++
 		if len(out.Errors) < MaxRowErrors {
-			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: trimMessage(err.Error())})
+			out.Errors = append(out.Errors, RowError{Line: row.Line, Ref: row.Ref, Message: TrimMessage(err.Error())})
 		} else {
 			out.Truncated = true
 		}
-		return
+		return nil
 	}
 	switch outcome {
 	case OutcomeCreated:
@@ -243,16 +278,16 @@ func applyRow(ctx context.Context, imp Importer, row *Row, out *ImportResult) {
 	default:
 		out.Skipped++
 	}
+	return nil
 }
 
 // Postgres errors arrive with a paragraph of detail and hint appended, which is unreadable in a per-row table
-func trimMessage(msg string) string {
+func TrimMessage(msg string) string {
 	msg = strings.TrimSpace(strings.ReplaceAll(msg, "\n", " "))
-	const max = 400
-	if len(msg) > max {
-		return msg[:max] + "..."
+	if utf8.RuneCountInString(msg) <= maxRowMessageRunes {
+		return msg
 	}
-	return msg
+	return string([]rune(msg)[:maxRowMessageRunes]) + "..."
 }
 
 // Declared fields first in declaration order, then whatever the exporter discovered, deduped
@@ -332,7 +367,7 @@ func resolveOpts(res Resource, in Opts, dir Direction) (Opts, error) {
 			v = def.Default
 		}
 		if v == "" && def.Required {
-			return Opts{}, fmt.Errorf("option %q is required", def.Name)
+			return Opts{}, fmt.Errorf("%w: %q is required", ErrInvalidOption, def.Name)
 		}
 		if v != "" && len(def.Choices) > 0 {
 			ok := false
@@ -343,7 +378,12 @@ func resolveOpts(res Resource, in Opts, dir Direction) (Opts, error) {
 				}
 			}
 			if !ok {
-				return Opts{}, fmt.Errorf("option %q does not accept %q", def.Name, v)
+				return Opts{}, fmt.Errorf("%w: %q does not accept %q", ErrInvalidOption, def.Name, v)
+			}
+		}
+		if v != "" && def.Validate != nil {
+			if err := def.Validate(v); err != nil {
+				return Opts{}, fmt.Errorf("%w: %s: %w", ErrInvalidOption, def.Label, err)
 			}
 		}
 		values[def.Name] = v

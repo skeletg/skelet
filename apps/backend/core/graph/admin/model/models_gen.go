@@ -449,6 +449,7 @@ type BlogAuthor struct {
 	Slug        string               `json:"slug"`
 	DisplayName string               `json:"displayName"`
 	Email       *string              `json:"email,omitempty"`
+	EmailPublic bool                 `json:"emailPublic"`
 	AvatarAsset *MediaAsset          `json:"avatarAsset,omitempty"`
 	LinkedAdmin *AdminUser           `json:"linkedAdmin,omitempty"`
 	Metadata    []*MetadataItem      `json:"metadata"`
@@ -1258,6 +1259,7 @@ type CreateBlogAuthorInput struct {
 	Slug          string           `json:"slug"`
 	DisplayName   string           `json:"displayName"`
 	Email         *string          `json:"email,omitempty"`
+	EmailPublic   *bool            `json:"emailPublic,omitempty"`
 	AvatarAssetID *string          `json:"avatarAssetId,omitempty"`
 	LinkedAdminID *string          `json:"linkedAdminId,omitempty"`
 	Metadata      []*MetadataInput `json:"metadata,omitempty"`
@@ -1338,9 +1340,7 @@ type CreateCMSPageInput struct {
 	ParentID        *string                     `json:"parentId,omitempty"`
 	Slug            string                      `json:"slug"`
 	Position        *int32                      `json:"position,omitempty"`
-	IsPublished     *bool                       `json:"isPublished,omitempty"`
 	SeoNoindex      *bool                       `json:"seoNoindex,omitempty"`
-	PublishedAt     *time.Time                  `json:"publishedAt,omitempty"`
 	Data            any                         `json:"data,omitempty"`
 	Metadata        []*MetadataInput            `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput            `json:"privateMetadata,omitempty"`
@@ -1358,7 +1358,6 @@ type CreateCMSPageInput struct {
 type CreateCMSPageTypeInput struct {
 	Slug        string  `json:"slug"`
 	Icon        *string `json:"icon,omitempty"`
-	IsSystem    *bool   `json:"isSystem,omitempty"`
 	Position    *int32  `json:"position,omitempty"`
 	Locale      string  `json:"locale"`
 	Name        string  `json:"name"`
@@ -1819,7 +1818,7 @@ type CustomerActivityItem struct {
 type CustomerAuthPayload struct {
 	AccessToken          *string   `json:"accessToken,omitempty"`
 	RefreshToken         *string   `json:"refreshToken,omitempty"`
-	Customer             *Customer `json:"customer"`
+	Customer             *Customer `json:"customer,omitempty"`
 	VerificationRequired bool      `json:"verificationRequired"`
 }
 
@@ -1842,6 +1841,15 @@ type CustomerConsent struct {
 	Source     string             `json:"source"`
 	UpdatedAt  *time.Time         `json:"updatedAt,omitempty"`
 	IsDefault  bool               `json:"isDefault"`
+}
+
+type CustomerConsentEvent struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	OptedIn   bool      `json:"optedIn"`
+	Source    string    `json:"source"`
+	AdminID   *string   `json:"adminId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type CustomerEventCount struct {
@@ -2075,16 +2083,18 @@ type DataOptionValue struct {
 
 // One importable or exportable thing. `canImport` already accounts for the caller's permissions
 type DataResource struct {
-	Slug             string        `json:"slug"`
-	Label            string        `json:"label"`
-	Group            string        `json:"group"`
-	Description      string        `json:"description"`
-	Fields           []*DataField  `json:"fields"`
-	Options          []*DataOption `json:"options"`
-	CanImport        bool          `json:"canImport"`
-	CanExport        bool          `json:"canExport"`
-	ViewPermission   string        `json:"viewPermission"`
-	ImportPermission string        `json:"importPermission"`
+	Slug           string        `json:"slug"`
+	Label          string        `json:"label"`
+	Group          string        `json:"group"`
+	Description    string        `json:"description"`
+	Fields         []*DataField  `json:"fields"`
+	Options        []*DataOption `json:"options"`
+	CanImport      bool          `json:"canImport"`
+	CanExport      bool          `json:"canExport"`
+	ViewPermission string        `json:"viewPermission"`
+	// Further grants an export needs on top of viewPermission, over the same channels
+	ViewAlsoRequires []string `json:"viewAlsoRequires"`
+	ImportPermission string   `json:"importPermission"`
 	// Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes
 	DynamicPrefixes []string `json:"dynamicPrefixes"`
 }
@@ -2926,6 +2936,11 @@ type MintCMSPagePreviewTokenInput struct {
 type Mutation struct {
 }
 
+type OptionChannelPrice struct {
+	ChannelID  string `json:"channelId"`
+	PriceValue int32  `json:"priceValue"`
+}
+
 type Order struct {
 	ID                  string                `json:"id"`
 	ChannelID           string                `json:"channelId"`
@@ -3277,6 +3292,7 @@ type ProductOption struct {
 	MaxChars       *int32                  `json:"maxChars,omitempty"`
 	MaxFileBytes   *int32                  `json:"maxFileBytes,omitempty"`
 	FileExtensions *string                 `json:"fileExtensions,omitempty"`
+	ChannelPrices  []*OptionChannelPrice   `json:"channelPrices"`
 	Values         []*ProductOptionValue   `json:"values"`
 	VisibleIf      any                     `json:"visibleIf,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
@@ -3300,6 +3316,7 @@ type ProductOptionValue struct {
 	Title         string                       `json:"title"`
 	Content       []*ProductOptionValueContent `json:"content"`
 	SourceProduct *Product                     `json:"sourceProduct,omitempty"`
+	ChannelPrices []*OptionChannelPrice        `json:"channelPrices"`
 	CreatedAt     time.Time                    `json:"createdAt"`
 	UpdatedAt     time.Time                    `json:"updatedAt"`
 }
@@ -4728,6 +4745,7 @@ type UpdateBlogAuthorInput struct {
 	DisplayName      *string          `json:"displayName,omitempty"`
 	Email            *string          `json:"email,omitempty"`
 	ClearEmail       *bool            `json:"clearEmail,omitempty"`
+	EmailPublic      *bool            `json:"emailPublic,omitempty"`
 	AvatarAssetID    *string          `json:"avatarAssetId,omitempty"`
 	ClearAvatar      *bool            `json:"clearAvatar,omitempty"`
 	LinkedAdminID    *string          `json:"linkedAdminId,omitempty"`
@@ -4806,10 +4824,7 @@ type UpdateCMSPageInput struct {
 	ClearParent     *bool            `json:"clearParent,omitempty"`
 	Slug            *string          `json:"slug,omitempty"`
 	Position        *int32           `json:"position,omitempty"`
-	IsPublished     *bool            `json:"isPublished,omitempty"`
 	SeoNoindex      *bool            `json:"seoNoindex,omitempty"`
-	PublishedAt     *time.Time       `json:"publishedAt,omitempty"`
-	ClearPublished  *bool            `json:"clearPublished,omitempty"`
 	Data            any              `json:"data,omitempty"`
 	Metadata        []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput `json:"privateMetadata,omitempty"`
@@ -5023,6 +5038,7 @@ type UpdateProductInput struct {
 	MinOrderQty                  *float64         `json:"minOrderQty,omitempty"`
 	MaxOrderQty                  *float64         `json:"maxOrderQty,omitempty"`
 	CostCents                    *int32           `json:"costCents,omitempty"`
+	ClearCostCents               *bool            `json:"clearCostCents,omitempty"`
 	Sku                          *string          `json:"sku,omitempty"`
 	SeoNoindex                   *bool            `json:"seoNoindex,omitempty"`
 	CanonicalURL                 *string          `json:"canonicalUrl,omitempty"`

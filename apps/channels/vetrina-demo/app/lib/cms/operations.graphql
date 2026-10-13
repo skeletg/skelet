@@ -61,3 +61,19 @@ query CmsPagesForSitemap($limit: Int, $offset: Int) {
     publishedAt
   }
 }
+
+# Token-gated draft fetch shared by the CMS preview page and its render action
+query PreviewCMSPage($token: String!) {
+  previewCMSPage(token: $token) {
+    id
+    slug
+    urlPath
+    content {
+      locale
+      title
+      body
+      metaTitle
+      metaDescription
+    }
+  }
+}

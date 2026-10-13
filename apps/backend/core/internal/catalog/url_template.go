@@ -195,7 +195,7 @@ func resolveAttrTokenValue(attr Attribute, sels []ProductAttributeSelection, sca
 	return slugifyScalar(raw), nil
 }
 
-// Same algorithm as slugifyForSKU
+// Same algorithm as Slugify
 func slugifyScalar(v any) string {
 	var s string
 	switch x := v.(type) {
@@ -215,5 +215,5 @@ func slugifyScalar(v any) string {
 	default:
 		s = fmt.Sprint(v)
 	}
-	return slugifyForSKU(s)
+	return Slugify(s)
 }

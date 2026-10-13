@@ -14,6 +14,21 @@ SELECT * FROM cart_line_components
 WHERE cart_line_id = ANY(sqlc.arg(cart_line_ids)::uuid[])
 ORDER BY cart_line_id, sort_order, created_at;
 
+-- Component rows hold the line's TOTAL per component (per-bundle quantity x line quantity), and reservation reads them as-is, so a bundle line's quantity change rescales them by new/old in the same statement - the locked read keeps two concurrent edits from scaling off a stale old quantity
+-- name: SetBundleLineQuantity :execrows
+WITH old AS (
+    SELECT cl.id, cl.quantity FROM cart_lines cl WHERE cl.id = sqlc.arg(line_id) FOR UPDATE
+), scaled AS (
+    UPDATE cart_line_components c
+    SET quantity = ROUND(c.quantity * sqlc.arg(quantity)::numeric / old.quantity, 4)
+    FROM old
+    WHERE c.cart_line_id = old.id
+)
+UPDATE cart_lines l
+SET quantity = sqlc.arg(quantity)::numeric, updated_at = NOW()
+FROM old
+WHERE l.id = old.id;
+
 -- name: DeleteCartLineComponentsByLine :exec
 DELETE FROM cart_line_components WHERE cart_line_id = $1;
 

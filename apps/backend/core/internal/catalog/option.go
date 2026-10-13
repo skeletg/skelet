@@ -63,7 +63,7 @@ func (t ProductOptionInputType) IsFile() bool {
 	return t == OptionInputFile
 }
 
-// FIXED stores cents, PERCENT stores integer percent points (10 = 10% of the product's default_price)
+// FIXED stores cents, PERCENT stores integer percent points (10 = 10% of the product's resolved channel unit price)
 type ProductOptionPriceType string
 
 const (
@@ -89,7 +89,16 @@ type OptionConditionGroup struct {
 	Groups []OptionConditionGroup `json:"groups,omitempty"`
 }
 
-var OptionRuleOps = map[string]bool{"anyOf": true, "noneOf": true, "filled": true, "empty": true}
+const (
+	OptionRuleAnyOf  = "anyOf"
+	OptionRuleNoneOf = "noneOf"
+	OptionRuleFilled = "filled"
+	OptionRuleEmpty  = "empty"
+	OptionLogicAnd   = "and"
+	OptionLogicOr    = "or"
+)
+
+var OptionRuleOps = map[string]bool{OptionRuleAnyOf: true, OptionRuleNoneOf: true, OptionRuleFilled: true, OptionRuleEmpty: true}
 
 type ProductOption struct {
 	ID         uuid.UUID
@@ -110,8 +119,16 @@ type ProductOption struct {
 	Values         []ProductOptionValue
 	// Gates the option on choices made for EARLIER options (strictly lower sort_order) - nil = always visible
 	VisibleIf *OptionConditionGroup
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// The owning product's default currency, which a bare FIXED amount is in - resolved only by GetProductOptions, like ChannelPrices on the option and its values
+	Currency      string
+	ChannelPrices []OptionChannelPrice
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type OptionChannelPrice struct {
+	ChannelID  uuid.UUID
+	PriceValue int32
 }
 
 // HelpText renders under the input on the storefront - usage hints, constraints
@@ -123,6 +140,7 @@ type ProductOptionContent struct {
 
 // One pre-defined choice on a select-family option, optionally backed by an existing SIMPLE product
 // When SourceProductID is set the cart contribution is that product's price plus PriceValue as a delta, and PriceType is forced to FIXED since PERCENT has no unambiguous base
+// A linked value does not reserve the source product's stock - the line reserves only its own product
 type ProductOptionValue struct {
 	ID         uuid.UUID
 	OptionID   uuid.UUID
@@ -143,6 +161,7 @@ type ProductOptionValue struct {
 	SourceProductName         string
 	SourceProductDefaultPrice int64
 	SourceProductCurrency     string
+	ChannelPrices             []OptionChannelPrice
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time
 }
@@ -203,7 +222,7 @@ type AddProductOptionValueInput struct {
 	PriceValue int32
 	PriceType  ProductOptionPriceType
 	IsDefault  bool
-	// Defaults to 1 when zero or negative
+	// Units the value represents, at least 1
 	Quantity        float64
 	SourceProductID *uuid.UUID
 	ForcedLineQty   *float64
@@ -245,4 +264,17 @@ var (
 	ErrOptionValueSourceNotSimple     = errors.New("option value source product must be of kind 'simple'")
 	ErrOptionVisibilityInvalid        = errors.New("invalid option visibility condition")
 	ErrOptionValuePercentOnLinked     = errors.New("PERCENT price type is not allowed on values linked to a source product")
+	ErrOptionPriceIncomplete          = errors.New("price_value and price_type must be set together")
+	ErrInvalidForcedLineQty           = errors.New("forced line quantity must be a whole number between 1 and the line cap")
+	ErrOptionHasNoContent             = errors.New("product option has no content rows")
+	ErrOptionChannelPriceNotFixed     = errors.New("only a FIXED surcharge takes a per-channel amount - a PERCENT one already follows the channel price")
+	ErrOptionChannelPriceRange        = errors.New("per-channel surcharge is out of range")
+	ErrOptionChannelNotListed         = errors.New("the product is not listed on this channel")
+)
+
+// Percent adjustments outside this range are typos, not prices - below -100 the line goes negative by definition
+const (
+	MinOptionPercent          = -100
+	MaxOptionPercent          = 1000
+	MaxOptionChannelSurcharge = 1_000_000_000
 )

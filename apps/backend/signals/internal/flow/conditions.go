@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
@@ -84,8 +85,8 @@ type engagementReader interface {
 
 // The consent kinds a split can test, as core names them on the roster
 const (
-	consentMarketingEmail = "marketing_email"
-	consentMarketingSMS   = "marketing_sms"
+	consentMarketingEmail = consentkind.MarketingEmail
+	consentMarketingSMS   = consentkind.MarketingSMS
 )
 
 // --- consent: read off the roster entry, which carries both kinds as core last pushed them ---

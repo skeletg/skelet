@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
@@ -88,6 +89,21 @@ func (schedule) ValidateParams(raw json.RawMessage) error {
 	return nil
 }
 
+// LoadLocation reads tzdata from disk, and this runs on every cart evaluation
+var locations sync.Map
+
+func cachedLocation(name string) (*time.Location, error) {
+	if l, ok := locations.Load(name); ok {
+		return l.(*time.Location), nil
+	}
+	l, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, err
+	}
+	locations.Store(name, l)
+	return l, nil
+}
+
 func (schedule) Evaluate(ctx context.Context, env promotion.Environment, raw json.RawMessage) (bool, error) {
 	var p scheduleParams
 	if err := unmarshalParams(raw, &p); err != nil {
@@ -95,8 +111,7 @@ func (schedule) Evaluate(ctx context.Context, env promotion.Environment, raw jso
 	}
 	loc := time.Local
 	if p.Timezone != "" {
-		l, err := time.LoadLocation(p.Timezone)
-		if err == nil {
+		if l, err := cachedLocation(p.Timezone); err == nil {
 			loc = l
 		}
 	}

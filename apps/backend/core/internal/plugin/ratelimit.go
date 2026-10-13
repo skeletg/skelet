@@ -20,8 +20,28 @@ var (
 	rateBuckets   = map[string]*rateBucket{}
 )
 
+// A sliding-window counter - this minute's count plus last minute's weighted by how much of it the window still overlaps
+// Two ints per plugin however high the limit, where a log of call times grew with it
 type rateBucket struct {
-	calls []time.Time
+	windowStart time.Time
+	prev, cur   int
+}
+
+func (b *rateBucket) admit(now time.Time, limit int) bool {
+	if elapsed := now.Sub(b.windowStart); elapsed >= rateLimitWindow {
+		b.prev = 0
+		if elapsed < 2*rateLimitWindow {
+			b.prev = b.cur
+		}
+		b.cur = 0
+		b.windowStart = now.Truncate(rateLimitWindow)
+	}
+	overlap := 1 - float64(now.Sub(b.windowStart))/float64(rateLimitWindow)
+	if float64(b.prev)*overlap+float64(b.cur) >= float64(limit) {
+		return false
+	}
+	b.cur++
+	return true
 }
 
 // Fail-open - a config-read error or an unset limit returns nil without consuming a slot
@@ -31,9 +51,6 @@ func CheckRateLimit(ctx context.Context, slug string) error {
 	if limit <= 0 {
 		return nil
 	}
-	now := time.Now()
-	cutoff := now.Add(-rateLimitWindow)
-
 	rateBucketsMu.Lock()
 	defer rateBucketsMu.Unlock()
 	b, ok := rateBuckets[slug]
@@ -41,19 +58,9 @@ func CheckRateLimit(ctx context.Context, slug string) error {
 		b = &rateBucket{}
 		rateBuckets[slug] = b
 	}
-	keep := 0
-	for ; keep < len(b.calls); keep++ {
-		if b.calls[keep].After(cutoff) {
-			break
-		}
-	}
-	if keep > 0 {
-		b.calls = b.calls[keep:]
-	}
-	if len(b.calls) >= limit {
+	if !b.admit(time.Now(), limit) {
 		return ErrPluginRateLimited
 	}
-	b.calls = append(b.calls, now)
 	return nil
 }
 

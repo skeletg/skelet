@@ -10,8 +10,8 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // SubscribeToOrderEvents wires cancel-restore: when an order that spent store credit is cancelled (durable via the outbox, at-least-once),

@@ -360,21 +360,19 @@ type AuthToken struct {
 	SubjectID uuid.UUID `json:"subject_id"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+	Binding   string    `json:"binding"`
 }
 
 type BackInStockRequest struct {
-	ID           uuid.UUID     `json:"id"`
-	ChannelID    uuid.UUID     `json:"channel_id"`
-	ProductID    uuid.UUID     `json:"product_id"`
-	Sku          string        `json:"sku"`
-	Email        string        `json:"email"`
-	CustomerID   uuid.NullUUID `json:"customer_id"`
-	AnonID       string        `json:"anon_id"`
-	ProductName  string        `json:"product_name"`
-	ProductImage string        `json:"product_image"`
-	ProductUrl   string        `json:"product_url"`
-	NotifiedAt   sql.NullTime  `json:"notified_at"`
-	CreatedAt    time.Time     `json:"created_at"`
+	ID         uuid.UUID     `json:"id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	ProductID  uuid.UUID     `json:"product_id"`
+	Sku        string        `json:"sku"`
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	AnonID     string        `json:"anon_id"`
+	NotifiedAt sql.NullTime  `json:"notified_at"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 type BlogAuthor struct {
@@ -387,6 +385,7 @@ type BlogAuthor struct {
 	Metadata      json.RawMessage `json:"metadata"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
+	EmailPublic   bool            `json:"email_public"`
 }
 
 type BlogAuthorContent struct {
@@ -575,6 +574,7 @@ type CartLineOption struct {
 	SortOrder       int32         `json:"sort_order"`
 	CreatedAt       time.Time     `json:"created_at"`
 	FileUrl         string        `json:"file_url"`
+	SourceProductID uuid.NullUUID `json:"source_product_id"`
 }
 
 type CartSavedItem struct {
@@ -787,6 +787,14 @@ type CatalogProductOption struct {
 	VisibleIf      pqtype.NullRawMessage             `json:"visible_if"`
 }
 
+type CatalogProductOptionChannelPrice struct {
+	OptionID   uuid.UUID `json:"option_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type CatalogProductOptionContent struct {
 	OptionID uuid.UUID `json:"option_id"`
 	Locale   string    `json:"locale"`
@@ -806,6 +814,14 @@ type CatalogProductOptionValue struct {
 	SourceProductID uuid.NullUUID                 `json:"source_product_id"`
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
+}
+
+type CatalogProductOptionValueChannelPrice struct {
+	ValueID    uuid.UUID `json:"value_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type CatalogProductOptionValueContent struct {
@@ -842,6 +858,7 @@ type Channel struct {
 	Metadata            json.RawMessage `json:"metadata"`
 	IsDefault           bool            `json:"is_default"`
 	TaxInclusivePricing bool            `json:"tax_inclusive_pricing"`
+	StorefrontHost      string          `json:"storefront_host"`
 }
 
 type ChannelLocale struct {
@@ -853,7 +870,6 @@ type ChannelLocale struct {
 type ChatConversation struct {
 	ID        uuid.UUID       `json:"id"`
 	AdminID   uuid.UUID       `json:"admin_id"`
-	ChannelID uuid.UUID       `json:"channel_id"`
 	Title     string          `json:"title"`
 	Messages  json.RawMessage `json:"messages"`
 	CreatedAt time.Time       `json:"created_at"`
@@ -1162,6 +1178,7 @@ type CreditMemo struct {
 	Reason                string        `json:"reason"`
 	AdminID               uuid.NullUUID `json:"admin_id"`
 	CreatedAt             time.Time     `json:"created_at"`
+	Status                string        `json:"status"`
 }
 
 type CreditMemoLine struct {
@@ -1219,6 +1236,16 @@ type CustomerConsent struct {
 	OptedIn    bool      `json:"opted_in"`
 	Source     string    `json:"source"`
 	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type CustomerConsentEvent struct {
+	ID         uuid.UUID     `json:"id"`
+	CustomerID uuid.UUID     `json:"customer_id"`
+	Kind       string        `json:"kind"`
+	OptedIn    bool          `json:"opted_in"`
+	Source     string        `json:"source"`
+	AdminID    uuid.NullUUID `json:"admin_id"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 type CustomerGroup struct {
@@ -1360,6 +1387,12 @@ type InventoryChannelLocation struct {
 	ChannelID  uuid.UUID `json:"channel_id"`
 	LocationID uuid.UUID `json:"location_id"`
 	Priority   int32     `json:"priority"`
+}
+
+type InventoryFlatRestore struct {
+	OrderID   uuid.UUID `json:"order_id"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type InventoryItem struct {
@@ -1656,6 +1689,16 @@ type OrderLineOption struct {
 	SortOrder       int32         `json:"sort_order"`
 	CreatedAt       time.Time     `json:"created_at"`
 	FileUrl         string        `json:"file_url"`
+}
+
+type OrderLineStockPart struct {
+	ID          uuid.UUID `json:"id"`
+	OrderLineID uuid.UUID `json:"order_line_id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Quantity    float64   `json:"quantity"`
+	SortOrder   int32     `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	Source      string    `json:"source"`
 }
 
 type OrderPaymentTransaction struct {
@@ -2334,6 +2377,20 @@ type ShippingZone struct {
 type ShippingZoneCountry struct {
 	ZoneID      uuid.UUID `json:"zone_id"`
 	CountryCode string    `json:"country_code"`
+}
+
+type SignupConfirmation struct {
+	ID          uuid.UUID     `json:"id"`
+	TokenHash   []byte        `json:"token_hash"`
+	FormID      uuid.UUID     `json:"form_id"`
+	ChannelID   uuid.UUID     `json:"channel_id"`
+	Email       string        `json:"email"`
+	FirstName   string        `json:"first_name"`
+	ConsentKind string        `json:"consent_kind"`
+	CustomerID  uuid.NullUUID `json:"customer_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	ExpiresAt   time.Time     `json:"expires_at"`
+	ConfirmedAt sql.NullTime  `json:"confirmed_at"`
 }
 
 type SignupForm struct {

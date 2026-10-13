@@ -25,6 +25,9 @@ type renderCache struct {
 	categoryContent   map[uuid.UUID][]catalog.CategoryContent
 	productContent    map[uuid.UUID][]catalog.ProductContent
 	collectionContent map[uuid.UUID][]catalog.CollectionContent
+	// Every category a list rendered, so the first productCount asked for counts them all in one query
+	categoryListIDs       []uuid.UUID
+	categoryProductCounts map[uuid.UUID]int64
 }
 
 type renderCacheCtxKey struct{}
@@ -55,6 +58,8 @@ func newRenderCache() *renderCache {
 		categoryContent:   map[uuid.UUID][]catalog.CategoryContent{},
 		productContent:    map[uuid.UUID][]catalog.ProductContent{},
 		collectionContent: map[uuid.UUID][]catalog.CollectionContent{},
+
+		categoryProductCounts: map[uuid.UUID]int64{},
 	}
 }
 
@@ -231,6 +236,38 @@ func (r *Resolver) getCategoryContent(ctx context.Context, id uuid.UUID) ([]cata
 		c.mu.Unlock()
 	}
 	return byID[id], nil
+}
+
+// Remembers a rendered category list without querying - the counts load only if productCount is selected
+func (r *Resolver) noteCategoryList(ctx context.Context, ids []uuid.UUID) {
+	if c := getRenderCache(ctx); c != nil {
+		c.mu.Lock()
+		c.categoryListIDs = append(c.categoryListIDs, ids...)
+		c.mu.Unlock()
+	}
+}
+
+// A category's direct member count - the first miss counts every noted category at once, so a tree costs one grouped COUNT
+func (r *Resolver) getCategoryProductCount(ctx context.Context, id uuid.UUID) (int64, error) {
+	c := getRenderCache(ctx)
+	if c == nil {
+		return r.CatalogSvc.CountProductsInCategory(ctx, id)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if n, ok := c.categoryProductCounts[id]; ok {
+		return n, nil
+	}
+	ids := append(c.categoryListIDs, id)
+	c.categoryListIDs = nil
+	counts, err := r.CatalogSvc.CountProductsInCategories(ctx, ids)
+	if err != nil {
+		return 0, err
+	}
+	for _, cid := range ids {
+		c.categoryProductCounts[cid] = counts[cid]
+	}
+	return counts[id], nil
 }
 
 // The product counterpart of primeCategoryContent

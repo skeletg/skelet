@@ -13,6 +13,7 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 )
 
 // bare returns a Service with nil queries, so any code path reaching the database panics - the recover in guarded turns that into a named failure
@@ -31,12 +32,13 @@ func guarded(t *testing.T, what string, fn func()) {
 func TestSubmitRefusesOutOfBoundsQuestions(t *testing.T) { // the PDP form is public, and validation is authoritative here rather than in the resolver
 	ctx := context.Background()
 	for name, q := range map[string]string{
-		"empty":              "",
-		"whitespace":         "         ",
-		"too short":          "why?",
-		"nine chars":         strings.Repeat("a", 9),
-		"padding is trimmed": "   why?   ",
-		"over the cap":       strings.Repeat("a", 1001),
+		"empty":                 "",
+		"whitespace":            "         ",
+		"too short":             "why?",
+		"nine chars":            strings.Repeat("a", 9),
+		"padding is trimmed":    "   why?   ",
+		"over the cap":          strings.Repeat("a", 1001),
+		"over the cap in runes": strings.Repeat("я", 1001),
 	} {
 		var err error
 		guarded(t, name, func() { _, err = bare().Submit(ctx, uuid.New(), uuid.New(), nil, "A", "a@b.test", q) })
@@ -105,8 +107,20 @@ func TestQnaEventShapes(t *testing.T) { // the bus routes on Type() and channel-
 	}
 }
 
-func TestPublishWithoutABusIsANoOp(t *testing.T) { // SetEventBus is optional, and Submit publishes unconditionally after the insert
-	guarded(t, "publish", func() { bare().publish(context.Background(), &QuestionSubmitted{}) })
+func TestWriteWithoutABusIsANoOp(t *testing.T) { // SetEventBus is optional, and Submit publishes unconditionally after the insert
+	guarded(t, "write", func() {
+		_ = bare().write(context.Background(), func(*db.Queries) (events.Event, error) { return &QuestionSubmitted{}, nil })
+	})
+}
+
+func TestAnswerRefusesAnOversizedAnswer(t *testing.T) {
+	var err error
+	guarded(t, "oversized", func() {
+		_, err = bare().Answer(context.Background(), uuid.New(), uuid.New(), strings.Repeat("a", 5001))
+	})
+	if !errors.Is(err, ErrInvalidAnswer) {
+		t.Errorf("err = %v, want ErrInvalidAnswer", err)
+	}
 }
 
 func TestToQuestionMapsTheNullables(t *testing.T) { // a pending question has no answer metadata, and a shared pointer bug here would attribute one admin's answer to every row

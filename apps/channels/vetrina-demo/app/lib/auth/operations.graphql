@@ -34,6 +34,10 @@ mutation ResendVerificationEmail {
   resendVerificationEmail
 }
 
+mutation ResendVerification($email: String!) {
+  resendVerification(email: $email)
+}
+
 mutation RequestPasswordReset($email: String!) {
   requestPasswordReset(email: $email)
 }

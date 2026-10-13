@@ -26,10 +26,10 @@ const insertCartLineOption = `-- name: InsertCartLineOption :one
 INSERT INTO cart_line_options (
     cart_line_id, product_option_id, option_value_id, input_type,
     option_title, value_label, text_value, price_delta, quantity, sort_order,
-    file_url
+    file_url, source_product_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, cart_line_id, product_option_id, option_value_id, input_type, option_title, value_label, text_value, price_delta, quantity, sort_order, created_at, file_url
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, cart_line_id, product_option_id, option_value_id, input_type, option_title, value_label, text_value, price_delta, quantity, sort_order, created_at, file_url, source_product_id
 `
 
 type InsertCartLineOptionParams struct {
@@ -44,6 +44,7 @@ type InsertCartLineOptionParams struct {
 	Quantity        float64       `json:"quantity"`
 	SortOrder       int32         `json:"sort_order"`
 	FileUrl         string        `json:"file_url"`
+	SourceProductID uuid.NullUUID `json:"source_product_id"`
 }
 
 // Cart line options capture the customer's product custom-option picks on
@@ -61,6 +62,7 @@ func (q *Queries) InsertCartLineOption(ctx context.Context, arg InsertCartLineOp
 		arg.Quantity,
 		arg.SortOrder,
 		arg.FileUrl,
+		arg.SourceProductID,
 	)
 	var i CartLineOption
 	err := row.Scan(
@@ -77,12 +79,13 @@ func (q *Queries) InsertCartLineOption(ctx context.Context, arg InsertCartLineOp
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.FileUrl,
+		&i.SourceProductID,
 	)
 	return i, err
 }
 
 const listCartLineOptionsByLineIDs = `-- name: ListCartLineOptionsByLineIDs :many
-SELECT id, cart_line_id, product_option_id, option_value_id, input_type, option_title, value_label, text_value, price_delta, quantity, sort_order, created_at, file_url FROM cart_line_options
+SELECT id, cart_line_id, product_option_id, option_value_id, input_type, option_title, value_label, text_value, price_delta, quantity, sort_order, created_at, file_url, source_product_id FROM cart_line_options
 WHERE cart_line_id = ANY($1::uuid[])
 ORDER BY cart_line_id, sort_order, created_at
 `
@@ -110,6 +113,7 @@ func (q *Queries) ListCartLineOptionsByLineIDs(ctx context.Context, cartLineIds 
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.FileUrl,
+			&i.SourceProductID,
 		); err != nil {
 			return nil, err
 		}

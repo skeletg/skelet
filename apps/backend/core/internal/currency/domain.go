@@ -36,6 +36,14 @@ const (
 	SymbolPositionSuffix SymbolPosition = "suffix"
 )
 
+const (
+	MinDecimals = 0
+	MaxDecimals = 4
+
+	maxMetadataKeys        = 50
+	maxMetadataValueLength = 1024
+)
+
 type Currency struct {
 	Code           string
 	Name           string
@@ -79,6 +87,15 @@ var (
 	ErrCurrencyCodeTaken = errors.New("currency code already exists")
 	ErrCurrencyInUse     = errors.New("currency has references; cannot delete")
 	ErrInvalidCode       = errors.New("invalid ISO 4217 currency code")
+
+	ErrNameRequired          = errors.New("currency name is required")
+	ErrInvalidSymbolPosition = errors.New(`currency symbol position must be "prefix" or "suffix"`)
+	ErrInvalidDecimals       = errors.New("currency decimals out of range")
+	ErrInvalidRate           = errors.New("exchange rate must be positive")
+	ErrMetadataTooLarge      = errors.New("currency metadata is too large")
+	ErrDecimalsLocked        = errors.New("currency decimals can't change once amounts are stored in it")
+	ErrCurrencyUsedByChannel = errors.New("currency is a channel's currency; cannot deactivate")
+	ErrRateBaseMismatch      = errors.New("rate feed answered for a different base currency")
 )
 
 type Repository interface {
@@ -88,6 +105,9 @@ type Repository interface {
 	Update(ctx context.Context, input UpdateCurrencyInput) (Currency, error)
 	Delete(ctx context.Context, code string) error
 	CountReferences(ctx context.Context, code string) (int64, error)
-	// Stores a refreshed exchange rate and stamps rate_updated_at
+	// Whether any stored amount, historical orders included, is denominated in the currency
+	HasAmounts(ctx context.Context, code string) (bool, error)
+	CountChannels(ctx context.Context, code string) (int64, error)
+	// Stores a refreshed exchange rate and stamps rate_updated_at - ErrCurrencyNotFound for an unknown code
 	SetRate(ctx context.Context, code string, rate float64) error
 }

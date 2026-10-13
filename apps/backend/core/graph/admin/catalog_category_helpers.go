@@ -122,6 +122,7 @@ func (r *Resolver) renderCategoryList(ctx context.Context, cats []catalog.Catego
 	if err := r.primeCategoryContent(ctx, ids); err != nil {
 		return nil, err
 	}
+	r.noteCategoryList(ctx, ids)
 	out := make([]*model.Category, len(cats))
 	for i, c := range cats {
 		out[i] = toCategoryModel(c)
@@ -146,4 +147,22 @@ func toCategoryOptionModel(o catalog.CategoryOption) *model.CategoryOption {
 		m.Name = &name
 	}
 	return m
+}
+
+// A rename or move rewrites URLs and breadcrumbs on every channel the subtree is listed on, held or not, so only a global grant may make one
+func (r *mutationResolver) requireCategoryMoveScope(ctx context.Context, in catalog.UpdateCategoryInput) error {
+	if in.Slug == nil && in.ParentID == nil && !in.ClearParent {
+		return nil
+	}
+	current, err := r.CatalogSvc.GetCategory(ctx, in.ID, "")
+	if err != nil {
+		return err
+	}
+	slugChanged := in.Slug != nil && *in.Slug != current.Slug
+	parentChanged := (in.ClearParent && current.ParentID != nil) ||
+		(!in.ClearParent && in.ParentID != nil && (current.ParentID == nil || *current.ParentID != *in.ParentID))
+	if slugChanged || parentChanged {
+		return r.requireGlobal(ctx, "catalog.manage")
+	}
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -26,17 +27,24 @@ type Bus struct {
 	asyncSubs map[string][]AsyncHandler
 	syncSubs  map[string][]syncEntry
 
-	// Tracks detached async goroutines so Drain can wait for them at shutdown instead of racing the DB and Valkey closes
-	inflight sync.WaitGroup
+	// Tracks detached async goroutines so Drain can wait for them at shutdown instead of racing the DB and Valkey closes - not a WaitGroup, whose Add
+	// from zero may not race a Wait, and here the outbox keeps publishing while Drain or a test's WaitIdle waits
+	inflight tracker
 	// Bounds concurrent async goroutines - unbounded, a stalled subscriber (a slow analytics spine, say) grows goroutines and memory without limit, exactly the failure the Signals split guards against
 	// At the cap Publish runs handlers inline instead, applying backpressure to the emitter rather than dropping a committed-state event
 	sem chan struct{}
-	// Closed by Drain after the grace window - handler contexts watch it so long backoffs like webhook retries cancel instead of pinning shutdown
+	// Closed by Drain after the grace window - handler contexts watch it so a handler parked on slow I/O cancels instead of pinning shutdown
 	stop     chan struct{}
 	stopOnce sync.Once
+	// asyncHandlerTimeout outside tests
+	handlerTimeout time.Duration
 }
 
 const maxAsyncDispatch = 512
+
+// A detached handler has no request deadline, so without one a hung handler holds its dispatch slot until shutdown - and once every slot is held, Publish runs inline and blocks its callers
+// Generous on purpose: webhooks queue their deliveries and Signals calls carry their own timeouts, so only a genuinely stuck handler reaches it
+const asyncHandlerTimeout = 5 * time.Minute
 
 func NewBus() *Bus {
 	return &Bus{
@@ -44,6 +52,8 @@ func NewBus() *Bus {
 		syncSubs:  make(map[string][]syncEntry),
 		sem:       make(chan struct{}, maxAsyncDispatch),
 		stop:      make(chan struct{}),
+
+		handlerTimeout: asyncHandlerTimeout,
 	}
 }
 
@@ -78,31 +88,35 @@ func (b *Bus) Publish(ctx context.Context, e Event) {
 	detached := stopCtx{Context: context.WithoutCancel(ctx), stop: b.stop}
 	select {
 	case b.sem <- struct{}{}:
-		b.inflight.Go(func() {
+		b.inflight.add()
+		go func() {
+			defer b.inflight.done()
 			defer func() { <-b.sem }()
-			for _, h := range handlers {
-				if err := runAsyncWithRecover(detached, e, h); err != nil {
-					log.Printf("[events] async handler for %q failed (fire-and-forget path, no retry): %v", e.Type(), err)
-				}
-			}
-		})
+			b.runDetached(detached, e, handlers)
+		}()
 	default:
 		// At the cap - run inline on the caller so a stalled subscriber applies backpressure instead of spawning unbounded goroutines - Committed-state events are never dropped
-		for _, h := range handlers {
-			if err := runAsyncWithRecover(detached, e, h); err != nil {
-				log.Printf("[events] async handler for %q failed (fire-and-forget path, no retry): %v", e.Type(), err)
-			}
+		b.runDetached(detached, e, handlers)
+	}
+}
+
+func (b *Bus) runDetached(ctx context.Context, e Event, handlers []AsyncHandler) {
+	for _, h := range handlers {
+		hctx, cancel := context.WithTimeout(ctx, b.handlerTimeout)
+		err := runAsyncWithRecover(hctx, e, h)
+		if errors.Is(hctx.Err(), context.DeadlineExceeded) {
+			log.Printf("[events] async handler for %q ran past %s and was cancelled", e.Type(), b.handlerTimeout)
+		}
+		cancel()
+		if err != nil {
+			log.Printf("[events] async handler for %q failed (fire-and-forget path, no retry): %v", e.Type(), err)
 		}
 	}
 }
 
 // Phase one is a short grace window; after it the stop channel closes, cancelling every handler context (aborting retry backoffs and in-flight HTTP), and Drain waits until they return or ctx expires
 func (b *Bus) Drain(ctx context.Context) error {
-	done := make(chan struct{})
-	go func() {
-		b.inflight.Wait()
-		close(done)
-	}()
+	done := b.inflight.idle()
 
 	grace := 5 * time.Second
 	if d, ok := ctx.Deadline(); ok {
@@ -130,13 +144,8 @@ func (b *Bus) Drain(ctx context.Context) error {
 
 // WaitIdle blocks until every detached async handler has returned, leaving the bus alive - unlike Drain it can be called repeatedly, which is what a test needs between act and assert Quiescence is only meaningful once the caller has stopped emitting - a concurrent Publish can re-raise the count the moment this returns
 func (b *Bus) WaitIdle(ctx context.Context) error {
-	done := make(chan struct{})
-	go func() {
-		b.inflight.Wait()
-		close(done)
-	}()
 	select {
-	case <-done:
+	case <-b.inflight.idle():
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -195,7 +204,7 @@ func (b *Bus) PublishSync(ctx context.Context, e Event) error {
 func callSyncWithRecover(ctx context.Context, e Event, h SyncHandler) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[events:panic] sync handler for %q: %v", e.Type(), r)
+			log.Printf("[events:panic] sync handler for %q: %v\n%s", e.Type(), r, debug.Stack())
 			err = fmt.Errorf("sync handler for %q panicked: %v", e.Type(), r)
 		}
 	}()
@@ -205,9 +214,47 @@ func callSyncWithRecover(ctx context.Context, e Event, h SyncHandler) (err error
 func runAsyncWithRecover(ctx context.Context, e Event, h AsyncHandler) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[events:panic] async handler for %q: %v", e.Type(), r)
+			log.Printf("[events:panic] async handler for %q: %v\n%s", e.Type(), r, debug.Stack())
 			err = fmt.Errorf("async handler for %q panicked: %v", e.Type(), r)
 		}
 	}()
 	return h(ctx, e)
+}
+
+// Counts in-flight handlers and hands out a channel that closes when the count reaches zero - any number of waiters may
+// watch it while new work starts, which a WaitGroup forbids once its counter has been zero
+type tracker struct {
+	mu   sync.Mutex
+	n    int
+	zero chan struct{} // open while n > 0, replaced each time n leaves zero
+}
+
+var closedChan = func() chan struct{} { c := make(chan struct{}); close(c); return c }()
+
+func (t *tracker) add() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.n == 0 {
+		t.zero = make(chan struct{})
+	}
+	t.n++
+}
+
+func (t *tracker) done() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.n--
+	if t.n == 0 {
+		close(t.zero)
+	}
+}
+
+// Closes once nothing is in flight - the snapshot is of this moment, so work added later gets a new channel
+func (t *tracker) idle() <-chan struct{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.n == 0 {
+		return closedChan
+	}
+	return t.zero
 }

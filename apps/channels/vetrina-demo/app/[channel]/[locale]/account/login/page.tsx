@@ -29,8 +29,9 @@ export default async function LoginPage({
   const returnTo = safeReturnTo(sp.returnTo);
   const justReset =
     (Array.isArray(sp.reset) ? sp.reset[0] : sp.reset) === "ok";
-  const needsVerify =
-    (Array.isArray(sp.verify) ? sp.verify[0] : sp.verify) === "required";
+  const verify = Array.isArray(sp.verify) ? sp.verify[0] : sp.verify;
+  const needsVerify = verify === "required";
+  const verifySent = verify === "sent";
 
   const customer = await getCustomerOrNull();
   if (customer) redirect(await withLocalePrefix(returnTo ?? "/account", locale));
@@ -42,6 +43,8 @@ export default async function LoginPage({
       banner={
         needsVerify ? (
           <FormSuccess>{t("verifyBanner")}</FormSuccess>
+        ) : verifySent ? (
+          <FormSuccess>{t("verifySentBanner")}</FormSuccess>
         ) : justReset ? (
           <FormSuccess>{t("resetBanner")}</FormSuccess>
         ) : undefined

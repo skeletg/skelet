@@ -17,13 +17,15 @@ type tagStore interface {
 
 var tagSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
 
+const maxTagSlugLen = 64
+
 // Derives the stable slug pages actually store from a display name
 func slugifyTag(name string) string {
 	s := strings.ToLower(strings.TrimSpace(name))
 	s = tagSlugRe.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
-	if len(s) > 64 {
-		s = s[:64]
+	if len(s) > maxTagSlugLen {
+		s = s[:maxTagSlugLen]
 	}
 	return strings.Trim(s, "-")
 }
@@ -38,7 +40,7 @@ func (s *tagService) TagUsageCounts(ctx context.Context) (map[string]int, error)
 func (s *tagService) CreateTag(ctx context.Context, name string) (Tag, error) {
 	slug := slugifyTag(name)
 	if slug == "" {
-		return Tag{}, fmt.Errorf("tag name must contain a letter or number")
+		return Tag{}, fmt.Errorf("%w: a tag name needs a letter or number", ErrInvalidSlug)
 	}
 	return s.repo.UpsertTag(ctx, slug, strings.TrimSpace(name))
 }
@@ -47,12 +49,12 @@ func (s *tagService) CreateTag(ctx context.Context, name string) (Tag, error) {
 func (s *tagService) RenameTag(ctx context.Context, slug, name string) (Tag, error) {
 	display := strings.TrimSpace(name)
 	if display == "" {
-		return Tag{}, fmt.Errorf("tag name is required")
+		return Tag{}, fmt.Errorf("%w: tag name", ErrRequiredFieldMissing)
 	}
-	return s.repo.RenameTag(ctx, slug, display)
+	return s.repo.RenameTag(ctx, slugifyTag(slug), display)
 }
 
 // Removes a tag from the vocabulary and from every page using it
 func (s *tagService) DeleteTag(ctx context.Context, slug string) error {
-	return s.repo.DeleteTag(ctx, slug)
+	return s.repo.DeleteTag(ctx, slugifyTag(slug))
 }

@@ -33,13 +33,13 @@ func (r *channelResolver) InventoryLocations(ctx context.Context, obj *model.Cha
 }
 
 func (r *mutationResolver) CreateChannel(ctx context.Context, input model.CreateChannelInput) (*model.Channel, error) {
-	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "channels.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, channel.PermManage); err != nil {
 		return nil, err
 	}
 	domainInput := channel.CreateChannelInput{
 		Slug:          input.Slug,
 		Name:          input.Name,
-		DefaultLocale: stringOr(input.DefaultLocale, "en"),
+		DefaultLocale: stringOr(input.DefaultLocale, ""),
 		Locales:       input.Locales,
 		CurrencyCode:  stringOr(input.CurrencyCode, ""),
 		PublicURL:     stringOr(input.PublicURL, ""),
@@ -57,7 +57,11 @@ func (r *mutationResolver) UpdateChannel(ctx context.Context, input model.Update
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "channels.manage", id, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, channel.PermManage, id, nil); err != nil {
+		return nil, err
+	}
+	publicURL, err := r.publicURLChange(ctx, id, input.PublicURL)
+	if err != nil {
 		return nil, err
 	}
 	domainInput := channel.UpdateChannelInput{
@@ -67,7 +71,7 @@ func (r *mutationResolver) UpdateChannel(ctx context.Context, input model.Update
 		Locales:       input.Locales,
 		IsActive:      input.IsActive,
 		CurrencyCode:  input.CurrencyCode,
-		PublicURL:     input.PublicURL,
+		PublicURL:     publicURL,
 	}
 	if input.Metadata != nil {
 		m := channel.Metadata(metadataInputToStringMap(input.Metadata))
@@ -80,12 +84,13 @@ func (r *mutationResolver) UpdateChannel(ctx context.Context, input model.Update
 	return toChannelModel(sv), nil
 }
 
+// Install-wide - removing a storefront is not a channel-scoped action
 func (r *mutationResolver) DeleteChannel(ctx context.Context, id string) (bool, error) {
 	svID, err := parseID(id, "channel")
 	if err != nil {
 		return false, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "channels.manage", svID, nil); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, channel.PermManage); err != nil {
 		return false, err
 	}
 	if err := r.ChannelSvc.Delete(ctx, svID); err != nil {
@@ -100,7 +105,7 @@ func (r *mutationResolver) SetChannelLocales(ctx context.Context, channelID stri
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "channels.manage", id, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, channel.PermManage, id, nil); err != nil {
 		return nil, err
 	}
 	sv, err := r.ChannelSvc.SetLocales(ctx, id, codes)
@@ -110,13 +115,13 @@ func (r *mutationResolver) SetChannelLocales(ctx context.Context, channelID stri
 	return toChannelModel(sv), nil
 }
 
-// A unique partial index on is_default=TRUE means setting the new default and clearing the old one have to share a transaction - the service does that
+// Install-wide - every request naming no channel lands on the default, so only a global admin moves it
 func (r *mutationResolver) SetChannelAsDefault(ctx context.Context, channelID string) (*model.Channel, error) {
 	id, err := parseID(channelID, "channel")
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "channels.manage", id, nil); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, channel.PermManage); err != nil {
 		return nil, err
 	}
 	sv, err := r.ChannelSvc.SetDefault(ctx, id)
@@ -127,7 +132,7 @@ func (r *mutationResolver) SetChannelAsDefault(ctx context.Context, channelID st
 }
 
 func (r *queryResolver) Channels(ctx context.Context) ([]*model.Channel, error) {
-	global, err := hasGlobalPermission(ctx, r.AdminSvc, "channels.view")
+	global, err := hasGlobalPermission(ctx, r.AdminSvc, channel.PermView)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +146,7 @@ func (r *queryResolver) Channels(ctx context.Context) ([]*model.Channel, error) 
 		if err != nil {
 			return nil, err
 		}
-		ids, err := r.AdminSvc.ListPermittedChannelIDs(ctx, claims.AdminID, "channels.view")
+		ids, err := r.AdminSvc.ListPermittedChannelIDs(ctx, claims.AdminID, channel.PermView)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +188,7 @@ func (r *queryResolver) Channel(ctx context.Context, id string) (*model.Channel,
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "channels.view", svID, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, channel.PermView, svID, nil); err != nil {
 		return nil, err
 	}
 	sv, err := r.ChannelSvc.GetByID(ctx, svID)
