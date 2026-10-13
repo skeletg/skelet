@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
@@ -46,6 +47,10 @@ func (r *mutationResolver) SubmitProductQuestion(ctx context.Context, productID 
 		}
 	} else if name == "" {
 		return false, apperr.New("QNA_NAME_REQUIRED", apperr.ClassValidation, "a display name is required")
+	} else if email != "" {
+		if err := customer.ValidateEmail(email); err != nil {
+			return false, err
+		}
 	}
 
 	if _, err := r.QnaSvc.Submit(ctx, pid, *storeID, customerID, name, email, question); err != nil {
@@ -61,6 +66,14 @@ func (r *queryResolver) ProductQuestions(ctx context.Context, productID string, 
 	}
 	storeID := channelIDFromContext(ctx)
 	if storeID == nil {
+		return []*model.ProductQuestion{}, nil
+	}
+	// a product hidden from this store keeps its questions hidden too
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, []uuid.UUID{pid}, *storeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(visible) == 0 {
 		return []*model.ProductQuestion{}, nil
 	}
 	lim := int32(20)
