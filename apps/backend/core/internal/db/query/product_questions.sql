@@ -20,10 +20,15 @@ LIMIT  $1 OFFSET $2;
 SELECT * FROM product_questions WHERE id = $1;
 
 -- name: AnswerProductQuestion :one
-UPDATE product_questions
+-- prev_status is read under the row lock, so of two racing answers only one sees the question unpublished and announces it
+WITH prev AS (
+  SELECT p.id, p.status FROM product_questions p WHERE p.id = $1 FOR UPDATE
+)
+UPDATE product_questions q
 SET    answer = $2, answered_by = $3, answered_at = now(), status = 'published'
-WHERE  id = $1
-RETURNING *;
+FROM   prev
+WHERE  q.id = prev.id
+RETURNING sqlc.embed(q), prev.status AS prev_status;
 
 -- name: SetProductQuestionStatus :one
 UPDATE product_questions
