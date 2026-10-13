@@ -30,6 +30,8 @@ type fakeRepo struct {
 	cartEmails map[uuid.UUID]string
 	// lineAttrs keys by sku - the catalog facts EvaluateCart enriches cart lines with
 	lineAttrs map[string]promotion.LineProductAttrs
+	// the shopper's past redemptions, for per-customer limits
+	usedByRule, usedByCode map[uuid.UUID]int32
 }
 
 func newFakeRepo() *fakeRepo {
@@ -100,6 +102,17 @@ func (f *fakeRepo) UpdateRule(context.Context, promotion.Rule) (promotion.Rule, 
 	return promotion.Rule{}, nil
 }
 func (f *fakeRepo) DeleteRule(context.Context, uuid.UUID) error { return nil }
+func (f *fakeRepo) GetRulesByIDs(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]promotion.Rule, error) {
+	out := map[uuid.UUID]promotion.Rule{}
+	for _, r := range f.rules {
+		for _, id := range ids {
+			if r.ID == id {
+				out[id] = r
+			}
+		}
+	}
+	return out, nil
+}
 func (f *fakeRepo) GetRule(_ context.Context, id uuid.UUID) (promotion.Rule, error) {
 	for _, r := range f.rules {
 		if r.ID == id {
@@ -108,10 +121,7 @@ func (f *fakeRepo) GetRule(_ context.Context, id uuid.UUID) (promotion.Rule, err
 	}
 	return promotion.Rule{}, promotion.ErrRuleNotFound
 }
-func (f *fakeRepo) GetRuleBySlug(context.Context, string) (promotion.Rule, error) {
-	return promotion.Rule{}, nil
-}
-func (f *fakeRepo) ListRules(context.Context, int32, int32) ([]promotion.Rule, int32, error) {
+func (f *fakeRepo) ListRules(context.Context, promotion.RuleFilter, int32, int32) ([]promotion.Rule, int32, error) {
 	return nil, 0, nil
 }
 func (f *fakeRepo) IncrementRuleUsage(context.Context, uuid.UUID) error { return nil }
@@ -158,15 +168,15 @@ func (f *fakeRepo) GetCode(_ context.Context, id uuid.UUID) (promotion.Code, err
 func (f *fakeRepo) ListCodesByRule(context.Context, uuid.UUID, int32, int32) ([]promotion.Code, int32, error) {
 	return nil, 0, nil
 }
-func (f *fakeRepo) BulkInsertCodes(context.Context, uuid.UUID, []string) (int, error) {
-	return 0, nil
+func (f *fakeRepo) BulkInsertCodes(_ context.Context, _ uuid.UUID, codes []string) ([]string, error) {
+	return codes, nil
 }
 func (f *fakeRepo) IncrementCodeUsage(context.Context, uuid.UUID) error { return nil }
-func (f *fakeRepo) CountCodeUsageByCustomer(context.Context, uuid.UUID, uuid.UUID) (int32, error) {
-	return 0, nil
-}
-func (f *fakeRepo) CountRuleUsageByCustomer(context.Context, uuid.UUID, uuid.UUID) (int32, error) {
-	return 0, nil
+func (f *fakeRepo) ShopperRedemptions(_ context.Context, sh promotion.Shopper, _, _ []uuid.UUID) (map[uuid.UUID]int32, map[uuid.UUID]int32, error) {
+	if sh.CustomerID == nil && sh.Email == "" {
+		return nil, nil, nil
+	}
+	return f.usedByRule, f.usedByCode, nil
 }
 
 func (f *fakeRepo) ReplaceRuleConditions(context.Context, uuid.UUID, []promotion.Condition) error {
@@ -186,9 +196,8 @@ func (f *fakeRepo) ListActionsByRule(context.Context, uuid.UUID) ([]promotion.Ac
 func (f *fakeRepo) ApplyCodeToCart(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID) error {
 	return nil
 }
-func (f *fakeRepo) RemoveCodeFromCartByCode(context.Context, uuid.UUID, string) error    { return nil }
-func (f *fakeRepo) RemoveCodeFromCartByRule(context.Context, uuid.UUID, uuid.UUID) error { return nil }
-func (f *fakeRepo) ClearCartAppliedCodes(context.Context, uuid.UUID) error               { return nil }
+func (f *fakeRepo) RemoveCodeFromCartByCode(context.Context, uuid.UUID, string) error { return nil }
+func (f *fakeRepo) ClearCartAppliedCodes(context.Context, uuid.UUID) error            { return nil }
 func (f *fakeRepo) ListCartAppliedCodes(_ context.Context, cartID uuid.UUID) ([]promotion.AppliedCodeRecord, error) {
 	return f.applied[cartID], nil
 }

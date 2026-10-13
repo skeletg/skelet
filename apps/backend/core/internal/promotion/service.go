@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // Order placement talks to Engine directly; admin resolvers come here for CRUD, storefront resolvers for apply/remove and to Engine for eval
@@ -22,6 +23,7 @@ type Service struct {
 	// Optional enrichment capabilities EvaluateCart applies so no caller has to remember to - nil means the corresponding conditions just don't match
 	productAttrs ProductAttrsLookup
 	segments     CustomerSegmentsLookup
+	tx           *txrunner.Manager
 }
 
 func NewService(repo Repository) *Service {
@@ -49,6 +51,17 @@ type LineProductAttrs struct {
 // Resolves a customer's active segment slugs for core.customer_in_segment
 type CustomerSegmentsLookup interface {
 	SlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+}
+
+// Rule edits write the row, its conditions and its actions together - nil (unit tests) writes them one by one
+func (s *Service) SetTx(txm *txrunner.Manager) { s.tx = txm }
+
+// A rule is read by every cart evaluation, so a half-written edit (conditions deleted, not yet re-inserted) would price carts with the gate missing
+func (s *Service) inTx(ctx context.Context, fn func(Repository) error) error {
+	if s.tx == nil {
+		return fn(s.repo)
+	}
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(s.repo.WithTx(t)) })
 }
 
 // Optional, nil leaves the product-scoped conditions unable to match
@@ -79,14 +92,18 @@ func (s *Service) CreateRule(ctx context.Context, in CreateRuleInput) (Rule, err
 		return Rule{}, err
 	}
 	normalizeRule(&in.Rule)
-	created, err := s.repo.CreateRule(ctx, in.Rule)
+	var created Rule
+	err := s.inTx(ctx, func(repo Repository) error {
+		var err error
+		if created, err = repo.CreateRule(ctx, in.Rule); err != nil {
+			return err
+		}
+		if err := repo.ReplaceRuleConditions(ctx, created.ID, in.Conditions); err != nil {
+			return err
+		}
+		return repo.ReplaceRuleActions(ctx, created.ID, in.Actions)
+	})
 	if err != nil {
-		return Rule{}, err
-	}
-	if err := s.repo.ReplaceRuleConditions(ctx, created.ID, in.Conditions); err != nil {
-		return Rule{}, err
-	}
-	if err := s.repo.ReplaceRuleActions(ctx, created.ID, in.Actions); err != nil {
 		return Rule{}, err
 	}
 	s.engine.InvalidateCache()
@@ -121,18 +138,22 @@ func (s *Service) UpdateRule(ctx context.Context, in UpdateRuleInput) (Rule, err
 	if err := s.validateRuleInputs(conds, acts); err != nil {
 		return Rule{}, err
 	}
-	if _, err := s.repo.UpdateRule(ctx, in.Rule); err != nil {
+	err := s.inTx(ctx, func(repo Repository) error {
+		if _, err := repo.UpdateRule(ctx, in.Rule); err != nil {
+			return err
+		}
+		if in.Conditions != nil {
+			if err := repo.ReplaceRuleConditions(ctx, in.Rule.ID, conds); err != nil {
+				return err
+			}
+		}
+		if in.Actions != nil {
+			return repo.ReplaceRuleActions(ctx, in.Rule.ID, acts)
+		}
+		return nil
+	})
+	if err != nil {
 		return Rule{}, err
-	}
-	if in.Conditions != nil {
-		if err := s.repo.ReplaceRuleConditions(ctx, in.Rule.ID, conds); err != nil {
-			return Rule{}, err
-		}
-	}
-	if in.Actions != nil {
-		if err := s.repo.ReplaceRuleActions(ctx, in.Rule.ID, acts); err != nil {
-			return Rule{}, err
-		}
 	}
 	s.engine.InvalidateCache()
 	return s.GetRuleHydrated(ctx, in.Rule.ID)
@@ -174,8 +195,8 @@ func (s *Service) GetRuleHydrated(ctx context.Context, id uuid.UUID) (Rule, erro
 }
 
 // Doesn't hydrate conditions or actions - list rows only show a summary
-func (s *Service) ListRules(ctx context.Context, limit, offset int32) ([]Rule, int32, error) {
-	return s.repo.ListRules(ctx, limit, offset)
+func (s *Service) ListRules(ctx context.Context, f RuleFilter, limit, offset int32) ([]Rule, int32, error) {
+	return s.repo.ListRules(ctx, f, limit, offset)
 }
 
 // Asks each registered implementation to validate its own params - built-ins and plugin types both pass through here, so a malformed rule never reaches Evaluate
@@ -214,24 +235,27 @@ func (s *Service) GenerateCodes(ctx context.Context, ruleID uuid.UUID, pattern s
 	if err := gen.Validate(); err != nil {
 		return nil, err
 	}
-	// The bulk insert's ON CONFLICT DO NOTHING only commits unique codes, so generate a surplus and retry the shortfall
-	want := count
-	all := make([]string, 0, want)
-	for attempt := 0; attempt < 5 && want > 0; attempt++ {
-		batch := gen.Batch(want)
-		inserted, err := s.repo.BulkInsertCodes(ctx, ruleID, batch)
+	// A pattern that can barely produce count distinct codes both collides into a short batch and is guessable - SALE-[N] holds ten
+	if gen.Space() < float64(count)*minCodeSpaceFactor {
+		return nil, &ValidationError{Reason: fmt.Sprintf("pattern %q can produce about %.0f codes - too few to keep %d unguessable; add placeholders", pattern, gen.Space(), count)}
+	}
+	// The bulk insert's ON CONFLICT DO NOTHING only commits unique codes, so retry the shortfall
+	all := make([]string, 0, count)
+	for attempt := 0; attempt < 5 && len(all) < count; attempt++ {
+		inserted, err := s.repo.BulkInsertCodes(ctx, ruleID, gen.Batch(count-len(all)))
 		if err != nil {
 			return nil, err
 		}
-		// We don't know WHICH codes inserted - collisions are vanishingly rare for any reasonable pattern
-		all = append(all, batch[:inserted]...)
-		want -= inserted
+		all = append(all, inserted...)
 	}
 	if len(all) == 0 {
 		return nil, fmt.Errorf("generate codes: 0 inserted after retries; check pattern uniqueness")
 	}
 	return all, nil
 }
+
+// How many times the requested count a pattern's code space must hold
+const minCodeSpaceFactor = 100
 
 // ---- Cart code apply / remove (storefront) ----
 
@@ -287,24 +311,13 @@ func (s *Service) ApplyCode(ctx context.Context, cartID, channelID uuid.UUID, co
 			return ApplyCodeResult{}, ErrCodeEmailRestricted
 		}
 	}
-	if customerID != nil {
-		if rule.PerCustomerLimit != nil {
-			used, err := s.repo.CountRuleUsageByCustomer(ctx, rule.ID, *customerID)
-			if err != nil {
-				return ApplyCodeResult{}, err
-			}
-			if used >= *rule.PerCustomerLimit {
-				return ApplyCodeResult{}, ErrPerCustomerLimitRule
-			}
+	if rule.PerCustomerLimit != nil || code.PerCustomerLimit != nil {
+		email, err := s.repo.GetCartEmail(ctx, cartID)
+		if err != nil {
+			return ApplyCodeResult{}, err
 		}
-		if code.PerCustomerLimit != nil {
-			used, err := s.repo.CountCodeUsageByCustomer(ctx, code.ID, *customerID)
-			if err != nil {
-				return ApplyCodeResult{}, err
-			}
-			if used >= *code.PerCustomerLimit {
-				return ApplyCodeResult{}, ErrPerCustomerLimitCode
-			}
+		if err := checkShopperLimits(ctx, s.repo, NewShopper(customerID, email), rule, code); err != nil {
+			return ApplyCodeResult{}, err
 		}
 	}
 	// ApplyCode only handles gates that don't depend on cart contents - per-rule conditions including min subtotal are evaluated inside the engine, which the cart UI calls right after this returns
@@ -364,26 +377,9 @@ func (s *Service) Redeem(ctx context.Context, tx *sql.Tx, env Environment, appli
 			return err
 		}
 	}
-	// ApplyCode checked per-customer limits already, but that's read-then-act - re-check inside the redemption tx, where the counts land after the locking UPDATEs above
-	if customerID != nil {
-		if rule.PerCustomerLimit != nil {
-			used, err := repo.CountRuleUsageByCustomer(ctx, applied.RuleID, *customerID)
-			if err != nil {
-				return err
-			}
-			if used >= *rule.PerCustomerLimit {
-				return ErrPerCustomerLimitRule
-			}
-		}
-		if applied.CodeID != nil && code.PerCustomerLimit != nil {
-			used, err := repo.CountCodeUsageByCustomer(ctx, *applied.CodeID, *customerID)
-			if err != nil {
-				return err
-			}
-			if used >= *code.PerCustomerLimit {
-				return ErrPerCustomerLimitCode
-			}
-		}
+	// ApplyCode and the engine checked per-customer limits already, but that's read-then-act - re-check inside the redemption tx, where the counts land after the locking UPDATEs above
+	if err := checkShopperLimits(ctx, repo, NewShopper(customerID, env.CustomerEmail()), rule, code); err != nil {
+		return err
 	}
 	if err := repo.RecordRedemption(ctx, applied.RuleID, applied.CodeID, customerID, orderID, applied.DiscountCents); err != nil {
 		return err
@@ -401,6 +397,29 @@ func (s *Service) Redeem(ctx context.Context, tx *sql.Tx, env Environment, appli
 		}); err != nil {
 			return fmt.Errorf("hook %s: %w", action.Type, err)
 		}
+	}
+	return nil
+}
+
+// Refuses once the shopper - account or order email - has used up the rule's or the code's per-customer allowance - code is zero for an auto-apply rule
+func checkShopperLimits(ctx context.Context, repo Repository, sh Shopper, rule Rule, code Code) error {
+	codeLimited := code.ID != uuid.Nil && code.PerCustomerLimit != nil
+	if !sh.known() || (rule.PerCustomerLimit == nil && !codeLimited) {
+		return nil
+	}
+	var codeIDs []uuid.UUID
+	if codeLimited {
+		codeIDs = []uuid.UUID{code.ID}
+	}
+	byRule, byCode, err := repo.ShopperRedemptions(ctx, sh, []uuid.UUID{rule.ID}, codeIDs)
+	if err != nil {
+		return err
+	}
+	if rule.PerCustomerLimit != nil && byRule[rule.ID] >= *rule.PerCustomerLimit {
+		return ErrPerCustomerLimitRule
+	}
+	if codeLimited && byCode[code.ID] >= *code.PerCustomerLimit {
+		return ErrPerCustomerLimitCode
 	}
 	return nil
 }
@@ -756,15 +775,27 @@ type FreeGiftOffer struct {
 // A rule that fails to look up is dropped silently - rare, and it shouldn't break the rest of the display
 func (s *Service) BuildAppliedSummary(ctx context.Context, in CartEvalResult) []AppliedRuleSummary {
 	ruleDiscount := map[uuid.UUID]int64{}
+	ids := make([]uuid.UUID, 0, len(in.ManuallyApplied)+len(in.Result.Applied))
 	for _, ar := range in.Result.Applied {
 		ruleDiscount[ar.RuleID] = ar.DiscountCents
+		ids = append(ids, ar.RuleID)
 	}
+	for _, a := range in.ManuallyApplied {
+		ids = append(ids, a.RuleID)
+	}
+	// one query each for the rules and their actions - this runs on every cart render
+	rules, err := s.repo.GetRulesByIDs(ctx, ids)
+	if err != nil {
+		slog.WarnContext(ctx, "promotion: load applied rules", "err", err)
+		return nil
+	}
+	gifts := s.freeGiftOffersForRules(ctx, ids)
 	freeShip := in.Result.Ledger.FreeShipping()
 	seen := map[uuid.UUID]bool{}
 	out := make([]AppliedRuleSummary, 0, len(in.Result.Applied))
 	for _, a := range in.ManuallyApplied {
-		rule, err := s.repo.GetRule(ctx, a.RuleID)
-		if err != nil {
+		rule, ok := rules[a.RuleID]
+		if !ok {
 			continue
 		}
 		seen[rule.ID] = true
@@ -777,15 +808,12 @@ func (s *Service) BuildAppliedSummary(ctx context.Context, in CartEvalResult) []
 			FreeShipping:      freeShip,
 			InvalidatedReason: a.InvalidatedReason,
 			RequiresCode:      rule.RequiresCode,
-			FreeGiftOffers:    s.freeGiftOffersForRule(ctx, rule.ID),
+			FreeGiftOffers:    gifts[rule.ID],
 		})
 	}
 	for _, ar := range in.Result.Applied {
-		if seen[ar.RuleID] {
-			continue
-		}
-		rule, err := s.repo.GetRule(ctx, ar.RuleID)
-		if err != nil {
+		rule, ok := rules[ar.RuleID]
+		if seen[ar.RuleID] || !ok {
 			continue
 		}
 		out = append(out, AppliedRuleSummary{
@@ -795,19 +823,21 @@ func (s *Service) BuildAppliedSummary(ctx context.Context, in CartEvalResult) []
 			SubtotalDiscount: ar.DiscountCents,
 			FreeShipping:     freeShip,
 			RequiresCode:     rule.RequiresCode,
-			FreeGiftOffers:   s.freeGiftOffersForRule(ctx, rule.ID),
+			FreeGiftOffers:   gifts[rule.ID],
 		})
 	}
 	return out
 }
 
-// Other action types are ignored, and a lookup error returns an empty slice - a missing action listing only costs the offer text, PlaceOrder still picks it up from the engine's ledger
-func (s *Service) freeGiftOffersForRule(ctx context.Context, ruleID uuid.UUID) []FreeGiftOffer {
-	actions, err := s.repo.ListActionsByRule(ctx, ruleID)
+func (s *Service) freeGiftOffersForRules(ctx context.Context, ruleIDs []uuid.UUID) map[uuid.UUID][]FreeGiftOffer {
+	if len(ruleIDs) == 0 {
+		return nil
+	}
+	actions, err := s.repo.ListActionsByRules(ctx, ruleIDs)
 	if err != nil {
 		return nil
 	}
-	var out []FreeGiftOffer
+	out := map[uuid.UUID][]FreeGiftOffer{}
 	for _, a := range actions {
 		if a.Type != "core.add_free_gift" {
 			continue
@@ -822,14 +852,14 @@ func (s *Service) freeGiftOffersForRule(ctx context.Context, ruleID uuid.UUID) [
 		if p.ProductSKU == "" || p.Qty <= 0 {
 			continue
 		}
-		out = append(out, FreeGiftOffer{ProductSKU: p.ProductSKU, Quantity: p.Qty})
+		out[a.RuleID] = append(out[a.RuleID], FreeGiftOffer{ProductSKU: p.ProductSKU, Quantity: p.Qty})
 	}
 	return out
 }
 
 // ---- Display ----
 
-// Rules whose product-level conditions match the candidate AND that carry a label or banner, priority ascending - the storefront's PLP/PDP promotional creative Cart-level conditions are NOT evaluated: badges are informational, not enforcement - Validity windows and is_active ARE honoured so expired or paused rules stay hidden Hits the engine's active-rules cache, so after the first request warms it the per-product call is essentially free
+// Rules whose product-level conditions match the candidate AND that carry a label or banner, priority ascending - the storefront's PLP/PDP promotional creative Cart-level conditions are NOT evaluated: badges are informational, not enforcement - Validity windows and is_active ARE honoured so expired or paused rules stay hidden The rule list comes from the engine's cache but conditions are queried per call - listing pages go through the batched dataloader path instead
 func (s *Service) DisplaysForProduct(ctx context.Context, channelID *uuid.UUID, p ProductCandidate) ([]Rule, error) {
 	rules, err := loadCachedActiveRules(ctx, s.engine.cache, s.repo, channelID)
 	if err != nil {

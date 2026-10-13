@@ -151,9 +151,35 @@ func TestBogoPoolsUnitsAcrossLines(t *testing.T) {
 	if total != 1000 {
 		t.Errorf("pooled discount = %d, want 1000 (two eligible units = one free)", total)
 	}
-	// Cart order decides which unit is free, so the first line takes it
+	// Equal prices keep cart order, so the first line takes it
 	if got := ledger.LineAdjustment(a); got != 1000 {
 		t.Errorf("line A adjustment = %d, want 1000 (units are spent in cart order)", got)
+	}
+}
+
+// The cheapest unit goes free - in cart order, adding a $100 item and then a $5 one made the $100 one free
+func TestBogoFreesTheCheapestUnit(t *testing.T) {
+	params, err := json.Marshal(map[string]any{
+		"buy_qty": 1.0, "get_qty": 1.0, "get_kind": "free",
+		"target_condition": matchAll,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dear, cheap := uuid.New(), uuid.New()
+	env := promotion.BuildEnvironment(promotion.EnvironmentInput{
+		Currency: "USD",
+		Lines: []promotion.CartLineView{
+			{LineID: dear, ProductSKU: "COAT", UnitPriceCents: 10000, Quantity: 1},
+			{LineID: cheap, ProductSKU: "SOCKS", UnitPriceCents: 500, Quantity: 1},
+		},
+	})
+	ledger := newRecordingLedger()
+	if err := (bogo{}).Apply(context.Background(), env, params, ledger, promotion.AppliedRuleContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if ledger.LineAdjustment(cheap) != 500 || ledger.LineAdjustment(dear) != 0 {
+		t.Errorf("coat %d, socks %d - want the socks free", ledger.LineAdjustment(dear), ledger.LineAdjustment(cheap))
 	}
 }
 

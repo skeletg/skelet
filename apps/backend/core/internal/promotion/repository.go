@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,8 +34,8 @@ type Repository interface {
 	UpdateRule(ctx context.Context, r Rule) (Rule, error)
 	DeleteRule(ctx context.Context, id uuid.UUID) error
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
-	GetRuleBySlug(ctx context.Context, slug string) (Rule, error)
-	ListRules(ctx context.Context, limit, offset int32) ([]Rule, int32, error)
+	GetRulesByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Rule, error)
+	ListRules(ctx context.Context, f RuleFilter, limit, offset int32) ([]Rule, int32, error)
 	ListActiveRulesForChannel(ctx context.Context, channelID *uuid.UUID) ([]Rule, error)
 	IncrementRuleUsage(ctx context.Context, id uuid.UUID) error
 	ReorderRules(ctx context.Context, orderedIDs []uuid.UUID) error
@@ -46,10 +47,11 @@ type Repository interface {
 	GetCode(ctx context.Context, id uuid.UUID) (Code, error)
 	GetCodeByCode(ctx context.Context, code string) (Code, error)
 	ListCodesByRule(ctx context.Context, ruleID uuid.UUID, limit, offset int32) ([]Code, int32, error)
-	BulkInsertCodes(ctx context.Context, ruleID uuid.UUID, codes []string) (int, error)
+	// The codes actually inserted - a collision with an existing code is skipped, so this can be fewer and in any order
+	BulkInsertCodes(ctx context.Context, ruleID uuid.UUID, codes []string) ([]string, error)
 	IncrementCodeUsage(ctx context.Context, id uuid.UUID) error
-	CountCodeUsageByCustomer(ctx context.Context, codeID, customerID uuid.UUID) (int32, error)
-	CountRuleUsageByCustomer(ctx context.Context, ruleID, customerID uuid.UUID) (int32, error)
+	// Redemptions by this shopper per rule and per code, for the per-customer limits - nil maps when the shopper is unknown
+	ShopperRedemptions(ctx context.Context, sh Shopper, ruleIDs, codeIDs []uuid.UUID) (byRule, byCode map[uuid.UUID]int32, err error)
 
 	// Conditions
 	ReplaceRuleConditions(ctx context.Context, ruleID uuid.UUID, conditions []Condition) error
@@ -64,7 +66,6 @@ type Repository interface {
 	// Cart linkage
 	ApplyCodeToCart(ctx context.Context, cartID, ruleID uuid.UUID, codeID *uuid.UUID) error
 	RemoveCodeFromCartByCode(ctx context.Context, cartID uuid.UUID, code string) error
-	RemoveCodeFromCartByRule(ctx context.Context, cartID, ruleID uuid.UUID) error
 	ClearCartAppliedCodes(ctx context.Context, cartID uuid.UUID) error
 	ListCartAppliedCodes(ctx context.Context, cartID uuid.UUID) ([]AppliedCodeRecord, error)
 	MarkCartCodeInvalidated(ctx context.Context, cartID, ruleID uuid.UUID, reason string) error
@@ -90,6 +91,28 @@ type Repository interface {
 	AnalyticsTotals(ctx context.Context, start, end time.Time) (AnalyticsTotals, error)
 	AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID) ([]AnalyticsDailyPoint, error)
 }
+
+// Which rules a listing may return - every rule, the given channels' rules, and optionally the channel-less global ones
+type RuleFilter struct {
+	AllChannels   bool
+	ChannelIDs    []uuid.UUID
+	IncludeGlobal bool
+}
+
+// Who a per-customer limit counts against - the account when signed in, and the order email either way, so a guest checkout counts too
+type Shopper struct {
+	CustomerID *uuid.UUID
+	Email      string
+}
+
+func (sh Shopper) known() bool { return sh.CustomerID != nil || sh.Email != "" }
+
+func NewShopper(customerID *uuid.UUID, email string) Shopper {
+	return Shopper{CustomerID: customerID, Email: strings.ToLower(strings.TrimSpace(email))}
+}
+
+// Codes match case-insensitively for the shopper, so every write stores the canonical form ApplyCode looks up
+func normalizeCode(code string) string { return strings.ToUpper(strings.TrimSpace(code)) }
 
 type RuleAnalytics struct {
 	RuleID             uuid.UUID
@@ -215,26 +238,37 @@ func (r *postgresRepository) GetRule(ctx context.Context, id uuid.UUID) (Rule, e
 	return toRule(row), nil
 }
 
-func (r *postgresRepository) GetRuleBySlug(ctx context.Context, slug string) (Rule, error) {
-	row, err := r.queries.GetPromotionRuleBySlug(ctx, slug)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Rule{}, ErrRuleNotFound
-		}
-		return Rule{}, fmt.Errorf("get rule by slug: %w", err)
+func (r *postgresRepository) GetRulesByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Rule, error) {
+	out := make(map[uuid.UUID]Rule, len(ids))
+	if len(ids) == 0 {
+		return out, nil
 	}
-	return toRule(row), nil
+	rows, err := r.queries.ListPromotionRulesByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get rules by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ID] = toRule(row)
+	}
+	return out, nil
 }
 
-func (r *postgresRepository) ListRules(ctx context.Context, limit, offset int32) ([]Rule, int32, error) {
+func (r *postgresRepository) ListRules(ctx context.Context, f RuleFilter, limit, offset int32) ([]Rule, int32, error) {
 	rows, err := r.queries.ListPromotionRules(ctx, db.ListPromotionRulesParams{
-		Limit:  limit,
-		Offset: offset,
+		AllChannels:   f.AllChannels,
+		ChannelIds:    f.ChannelIDs,
+		IncludeGlobal: f.IncludeGlobal,
+		Lim:           limit,
+		Off:           offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rules: %w", err)
 	}
-	count, err := r.queries.CountPromotionRules(ctx)
+	count, err := r.queries.CountPromotionRules(ctx, db.CountPromotionRulesParams{
+		AllChannels:   f.AllChannels,
+		ChannelIds:    f.ChannelIDs,
+		IncludeGlobal: f.IncludeGlobal,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("count rules: %w", err)
 	}
@@ -285,7 +319,7 @@ func (r *postgresRepository) ReorderRules(ctx context.Context, orderedIDs []uuid
 func (r *postgresRepository) CreateCode(ctx context.Context, in Code) (Code, error) {
 	row, err := r.queries.CreatePromotionCode(ctx, db.CreatePromotionCodeParams{
 		RuleID:            in.RuleID,
-		Code:              in.Code,
+		Code:              normalizeCode(in.Code),
 		MaxUses:           sqlnull.Int32(in.MaxUses),
 		PerCustomerLimit:  sqlnull.Int32(in.PerCustomerLimit),
 		ValidFrom:         sqlnull.Time(in.ValidFrom),
@@ -305,7 +339,7 @@ func (r *postgresRepository) CreateCode(ctx context.Context, in Code) (Code, err
 func (r *postgresRepository) UpdateCode(ctx context.Context, in Code) (Code, error) {
 	row, err := r.queries.UpdatePromotionCode(ctx, db.UpdatePromotionCodeParams{
 		ID:                in.ID,
-		Code:              in.Code,
+		Code:              normalizeCode(in.Code),
 		MaxUses:           sqlnull.Int32(in.MaxUses),
 		PerCustomerLimit:  sqlnull.Int32(in.PerCustomerLimit),
 		ValidFrom:         sqlnull.Time(in.ValidFrom),
@@ -314,6 +348,9 @@ func (r *postgresRepository) UpdateCode(ctx context.Context, in Code) (Code, err
 		IsActive:          in.IsActive,
 	})
 	if err != nil {
+		if pgdb.IsUniqueViolation(err) {
+			return Code{}, ErrCodeTaken
+		}
 		return Code{}, fmt.Errorf("update code: %w", err)
 	}
 	return toCode(row), nil
@@ -365,18 +402,22 @@ func (r *postgresRepository) ListCodesByRule(ctx context.Context, ruleID uuid.UU
 	return out, count, nil
 }
 
-func (r *postgresRepository) BulkInsertCodes(ctx context.Context, ruleID uuid.UUID, codes []string) (int, error) {
+func (r *postgresRepository) BulkInsertCodes(ctx context.Context, ruleID uuid.UUID, codes []string) ([]string, error) {
 	if len(codes) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	n, err := r.queries.BulkInsertPromotionCodes(ctx, db.BulkInsertPromotionCodesParams{
+	clean := make([]string, len(codes))
+	for i, c := range codes {
+		clean[i] = normalizeCode(c)
+	}
+	inserted, err := r.queries.BulkInsertPromotionCodes(ctx, db.BulkInsertPromotionCodesParams{
 		RuleID: ruleID,
-		Codes:  codes,
+		Codes:  clean,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("bulk insert codes: %w", err)
+		return nil, fmt.Errorf("bulk insert codes: %w", err)
 	}
-	return int(n), nil
+	return inserted, nil
 }
 
 func (r *postgresRepository) IncrementCodeUsage(ctx context.Context, id uuid.UUID) error {
@@ -391,18 +432,29 @@ func (r *postgresRepository) IncrementCodeUsage(ctx context.Context, id uuid.UUI
 	return nil
 }
 
-func (r *postgresRepository) CountCodeUsageByCustomer(ctx context.Context, codeID, customerID uuid.UUID) (int32, error) {
-	return r.queries.CountCodeUsageByCustomer(ctx, db.CountCodeUsageByCustomerParams{
-		CodeID:     uuid.NullUUID{UUID: codeID, Valid: true},
-		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true},
+func (r *postgresRepository) ShopperRedemptions(ctx context.Context, sh Shopper, ruleIDs, codeIDs []uuid.UUID) (map[uuid.UUID]int32, map[uuid.UUID]int32, error) {
+	if !sh.known() || len(ruleIDs)+len(codeIDs) == 0 {
+		return nil, nil, nil
+	}
+	rows, err := r.queries.CountCustomerRedemptions(ctx, db.CountCustomerRedemptionsParams{
+		RuleIds:    ruleIDs,
+		CodeIds:    codeIDs,
+		CustomerID: sqlnull.UUID(sh.CustomerID),
+		Email:      sh.Email,
 	})
-}
-
-func (r *postgresRepository) CountRuleUsageByCustomer(ctx context.Context, ruleID, customerID uuid.UUID) (int32, error) {
-	return r.queries.CountRuleUsageByCustomer(ctx, db.CountRuleUsageByCustomerParams{
-		RuleID:     uuid.NullUUID{UUID: ruleID, Valid: true},
-		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true},
-	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("count shopper redemptions: %w", err)
+	}
+	byRule, byCode := map[uuid.UUID]int32{}, map[uuid.UUID]int32{}
+	for _, row := range rows {
+		if row.RuleID.Valid {
+			byRule[row.RuleID.UUID] += row.N
+		}
+		if row.CodeID.Valid {
+			byCode[row.CodeID.UUID] += row.N
+		}
+	}
+	return byRule, byCode, nil
 }
 
 // ---- Conditions ----
@@ -517,13 +569,6 @@ func (r *postgresRepository) RemoveCodeFromCartByCode(ctx context.Context, cartI
 	return r.queries.RemoveCodeFromCartByCode(ctx, db.RemoveCodeFromCartByCodeParams{
 		CartID: cartID,
 		Code:   code,
-	})
-}
-
-func (r *postgresRepository) RemoveCodeFromCartByRule(ctx context.Context, cartID, ruleID uuid.UUID) error {
-	return r.queries.RemoveCodeFromCartByRule(ctx, db.RemoveCodeFromCartByRuleParams{
-		CartID: cartID,
-		RuleID: ruleID,
 	})
 }
 

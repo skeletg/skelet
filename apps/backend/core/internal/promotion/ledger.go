@@ -116,6 +116,7 @@ func (l *ledgerImpl) clampTo(maxCents int64) {
 // Re-applies any cap_total_discount ceiling (so rule ordering can't defeat it), then clamps to the cart subtotal (so stacked percent rules can't discount more than the cart is worth), then spreads what's left across the lines
 // Without the subtotal clamp two 60%-off rules stacked to 120%: the order total floored at zero but discount_amount, the tax base and every per-line refund were computed from a number larger than the cart
 func (l *ledgerImpl) Finalize(lines []CartLineView, subtotalCents int64) {
+	l.clampLines(lines)
 	if l.discountCap != nil {
 		l.clampTo(*l.discountCap)
 	}
@@ -130,6 +131,30 @@ func (l *ledgerImpl) Finalize(lines []CartLineView, subtotalCents int64) {
 	l.AllocateLineDiscounts(lines)
 }
 
+// No line is discounted below zero, and a line the cart doesn't hold takes nothing - two 60%-off rules on one line used to net it at -20%, and a remote provider naming a stale line id added a discount no line carried
+// The excess comes off the cart total rather than moving to other lines, since it was earned by that line alone
+func (l *ledgerImpl) clampLines(lines []CartLineView) {
+	totals := make(map[uuid.UUID]int64, len(lines))
+	for _, line := range lines {
+		totals[line.LineID] += money.LineTotal(line.UnitPriceCents, line.Quantity)
+	}
+	for id, cents := range l.lineAdjust {
+		ceiling, ok := totals[id]
+		if !ok {
+			ceiling = 0
+		}
+		if cents > ceiling {
+			l.subtotalDiscount -= cents - ceiling
+			if ceiling == 0 {
+				delete(l.lineAdjust, id)
+			} else {
+				l.lineAdjust[id] = ceiling
+			}
+		}
+	}
+	l.subtotalDiscount = max(l.subtotalDiscount, 0)
+}
+
 func (l *ledgerImpl) SubtotalDiscountCents() int64         { return l.subtotalDiscount }
 func (l *ledgerImpl) LineAdjustments() map[uuid.UUID]int64 { return l.lineAdjust }
 func (l *ledgerImpl) LineAdjustment(id uuid.UUID) int64    { return l.lineAdjust[id] }
@@ -138,8 +163,8 @@ func (l *ledgerImpl) FreeShippingMethods() []string        { return l.freeShipMe
 func (l *ledgerImpl) ShippingOverride() *int64             { return l.shippingOverride }
 func (l *ledgerImpl) FreeGifts() []FreeGift                { return l.freeGifts }
 
-// Distributes subtotal-level discounts across lines proportionally to each line's subtotal contribution - without it, per-line refunds can't compute the post-discount unit price and EU-VAT tax-after-discount sees the wrong base
-// The portion already assigned to specific lines through AddLineAdjustment stays put, and the unallocated remainder distributes weighted by pre-discount subtotal contribution, with rounding errors landing on the last line that has something to discount
+// Distributes subtotal-level discounts across lines - without it, per-line refunds can't compute the post-discount unit price and EU-VAT tax-after-discount sees the wrong base
+// The portion already assigned to specific lines through AddLineAdjustment stays put, and the unallocated remainder distributes weighted by each line's remaining headroom (its total less what it already carries), so no line is pushed below zero - with no line adjustments that is the plain subtotal weighting
 func (l *ledgerImpl) AllocateLineDiscounts(lines []CartLineView) {
 	if l.subtotalDiscount == 0 || len(lines) == 0 {
 		return
@@ -152,29 +177,33 @@ func (l *ledgerImpl) AllocateLineDiscounts(lines []CartLineView) {
 	if remainder <= 0 {
 		return
 	}
-	subs := make([]int64, len(lines))
-	var grossSubtotal int64
+	room := make([]int64, len(lines))
+	var totalRoom int64
 	for i, line := range lines {
-		subs[i] = money.LineTotal(line.UnitPriceCents, line.Quantity)
-		grossSubtotal += subs[i]
+		room[i] = max(money.LineTotal(line.UnitPriceCents, line.Quantity)-l.lineAdjust[line.LineID], 0)
+		totalRoom += room[i]
 	}
-	if grossSubtotal <= 0 {
+	if totalRoom <= 0 {
+		l.subtotalDiscount = alreadyAllocated
 		return
 	}
+	if remainder > totalRoom {
+		l.subtotalDiscount -= remainder - totalRoom
+		remainder = totalRoom
+	}
 	distributed := int64(0)
-	last := -1
 	for i, line := range lines {
-		share := (remainder * subs[i]) / grossSubtotal
-		distributed += share
+		share := (remainder * room[i]) / totalRoom
 		if share > 0 {
 			l.lineAdjust[line.LineID] += share
-		}
-		if subs[i] > 0 {
-			last = i
+			room[i] -= share
+			distributed += share
 		}
 	}
-	// Floor division never over-allocates, so the shortfall is ≥0 - it goes to the last line worth something, since a zero-priced granted gift would be discounted below nothing
-	if short := remainder - distributed; short > 0 && last >= 0 {
-		l.lineAdjust[lines[last].LineID] += short
+	// Floor division never over-allocates - the few cents left go to the last lines with room, so a zero-priced gift is never discounted below nothing
+	for i := len(lines) - 1; i >= 0 && distributed < remainder; i-- {
+		take := min(remainder-distributed, room[i])
+		l.lineAdjust[lines[i].LineID] += take
+		distributed += take
 	}
 }

@@ -1,10 +1,12 @@
 package actions
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
@@ -115,8 +117,8 @@ func (bogo) Apply(ctx context.Context, env promotion.Environment, raw json.RawMe
 	if discountable <= 0 {
 		return nil
 	}
-	// Spend the earned units in cart order - cheapest-first would be kinder to the merchant, but cart order keeps the
-	// customer's mental model simple, so pooling doesn't change who gets discounted
+	// Cheapest units go free first, the industry norm - in cart order, adding a $100 item then a $5 one made the $100 one free
+	slices.SortStableFunc(matching, func(a, b promotion.CartLineView) int { return cmp.Compare(a.UnitPriceCents, b.UnitPriceCents) })
 	for _, line := range matching {
 		if discountable <= 0 {
 			break
