@@ -1,6 +1,11 @@
 // Browser error monitoring, opt-in via NEXT_PUBLIC_SENTRY_DSN - loaded lazily so
 // DSN-less builds never download or compile it
 import type * as SentryType from "@sentry/nextjs";
+import { guardReactServerTiming } from "@/app/lib/performance/react-server-timing";
+
+if (process.env.NODE_ENV === "development") {
+  guardReactServerTiming(performance);
+}
 
 let sentry: typeof SentryType | null = null;
 
