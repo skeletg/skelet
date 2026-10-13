@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // stubCarrier is a minimal Carrier for registry tests
@@ -96,5 +98,40 @@ func TestBuiltinCarrierQuoteParity(t *testing.T) {
 	}
 	if len(ca) != 1 || ca[0].Code != "std" {
 		t.Errorf("CA: got %v, want only the all-countries method", ca)
+	}
+}
+
+// A built-in method's delivery days and weekend rule ride through the carrier wrapper unchanged
+func TestBuiltinCarrierCarriesEstimates(t *testing.T) {
+	zone := uuid.New()
+	std := Method{ID: uuid.New(), ZoneID: zone, Code: "std", CalcType: CalcFlat, FlatCents: 500, IsActive: true, CountryMode: "all", EstimatedDays: 4}
+	express := Method{ID: uuid.New(), ZoneID: zone, Code: "express", CalcType: CalcFlat, FlatCents: 1200, IsActive: true, CountryMode: "all", EstimatedDays: 1, DeliversOnWeekends: true}
+	none := Method{ID: uuid.New(), ZoneID: zone, Code: "none", CalcType: CalcFree, IsActive: true, CountryMode: "all"}
+	svc := NewService(fakeShipRepo{zoneID: zone, methods: []Method{std, express, none}})
+
+	got, err := NewBuiltinCarrier(svc).Quote(context.Background(), RateRequest{ChannelID: uuid.New(), Destination: Address{CountryCode: "US"}})
+	if err != nil {
+		t.Fatalf("Quote: %v", err)
+	}
+	want := map[string]struct {
+		days     int
+		weekends bool
+	}{"std": {4, false}, "express": {1, true}, "none": {0, false}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d methods, want %d", len(got), len(want))
+	}
+	for _, m := range got {
+		if w := want[m.Code]; m.EstimatedDays != w.days || m.DeliversOnWeekends != w.weekends {
+			t.Errorf("%s: got {%d, %v}, want {%d, %v}", m.Code, m.EstimatedDays, m.DeliversOnWeekends, w.days, w.weekends)
+		}
+	}
+}
+
+func TestCheckMethodPricing_RefusesNegativeDays(t *testing.T) {
+	if err := CheckMethodPricing(Method{EstimatedDays: -1}); !errors.Is(err, errMethodDays) {
+		t.Errorf("got %v, want errMethodDays", err)
+	}
+	if err := CheckMethodPricing(Method{EstimatedDays: 0}); err != nil {
+		t.Errorf("0 days is no estimate, not an error: %v", err)
 	}
 }

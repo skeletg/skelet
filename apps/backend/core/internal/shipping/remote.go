@@ -2,6 +2,7 @@ package shipping
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sync"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 )
 
-// Rate sources implemented as merchant HTTP endpoints (remoteprovider kind=shipping_carrier) rather than registry entries, so a merchant can plug in a 3PL or negotiated-rate service without a Go plugin QuoteAll consults them alongside registered carriers and PriceSelected re-quotes at placement Wire contract: request {channelId, currency, subtotalCents, destination, items, parcels}, response {rates: [{code, name, amountCents, currency, etaDays}]} A provider that errors, times out or trips its circuit is skipped, so a flaky rate API never blanks checkout
+// Rate sources implemented as merchant HTTP endpoints (remoteprovider kind=shipping_carrier) rather than registry entries, so a merchant can plug in a 3PL or negotiated-rate service without a Go plugin QuoteAll consults them alongside registered carriers and PriceSelected re-quotes at placement Wire contract: request {channelId, currency, subtotalCents, destination, items, parcels}, response {rates: [{code, name, amountCents, currency, etaDays}]} - etaDays counts weekdays unless the provider's config sets "deliversOnWeekends" A provider that errors, times out or trips its circuit is skipped, so a flaky rate API never blanks checkout
 
 // The seam QuoteAll and PriceSelected use for remote providers, wired through SetRemoteRateSource so shipping's tests can skip the remoteprovider stack
 type RemoteRateSource interface {
@@ -63,6 +64,8 @@ type remoteRate struct {
 	AmountCents int64  `json:"amountCents"`
 	Currency    string `json:"currency"`
 	EtaDays     int    `json:"etaDays"`
+	// The delivery kind the rate serves - omitted means ship_to_address
+	Kind string `json:"kind,omitempty"`
 }
 
 type remoteRateResponse struct {
@@ -72,7 +75,10 @@ type remoteRateResponse struct {
 func buildRemoteRateRequest(req RateRequest) remoteRateRequest {
 	items := make([]remoteRateItem, len(req.Items))
 	for i, it := range req.Items {
-		items[i] = remoteRateItem(it) // same fields, differ only in JSON tags
+		items[i] = remoteRateItem{ // the product type stays in core - the wire contract rates by SKU
+			SKU: it.SKU, Quantity: it.Quantity, UnitPriceCents: it.UnitPriceCents,
+			WeightGrams: it.WeightGrams, LengthMm: it.LengthMm, WidthMm: it.WidthMm, HeightMm: it.HeightMm,
+		}
 	}
 	var parcels []remoteRateBox
 	for _, p := range req.Parcels {
@@ -137,6 +143,10 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 					log.Printf("[shipping] remote carrier %q quote panicked (skipped): %v", p.Slug, rec)
 				}
 			}()
+			var cfg struct {
+				DeliversOnWeekends bool `json:"deliversOnWeekends"`
+			}
+			_ = json.Unmarshal(p.Config, &cfg)
 			var resp remoteRateResponse
 			if err := r.invoker.Invoke(ctx, p, payload, &resp); err != nil {
 				// Fail-open - a broken rate endpoint never blanks checkout
@@ -151,6 +161,8 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 					Method: RatedMethod{
 						Code: rate.Code, Name: rate.Name,
 						PriceCents: rate.AmountCents, EstimatedDays: rate.EtaDays,
+						Kind:               cmpOr(rate.Kind, DefaultKind),
+						DeliversOnWeekends: cfg.DeliversOnWeekends,
 					},
 				})
 			}
@@ -159,6 +171,31 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 	}
 	wg.Wait()
 	return out
+}
+
+// Kinds reads each active provider's config for "deliveryKinds" - a provider that declares none quotes ship_to_address
+func (r *remoteRateSource) Kinds(ctx context.Context, channelID uuid.UUID) map[string][]string {
+	out := map[string][]string{}
+	for _, p := range r.providers(ctx, channelID) {
+		var cfg struct {
+			DeliveryKinds []string `json:"deliveryKinds"`
+		}
+		_ = json.Unmarshal(p.Config, &cfg)
+		if len(cfg.DeliveryKinds) == 0 {
+			cfg.DeliveryKinds = []string{DefaultKind}
+		}
+		for _, k := range cfg.DeliveryKinds {
+			out[k] = append(out[k], p.Slug+":"+p.Name)
+		}
+	}
+	return out
+}
+
+func cmpOr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (r *remoteRateSource) Price(ctx context.Context, slug, code string, req RateRequest) (int64, error) {

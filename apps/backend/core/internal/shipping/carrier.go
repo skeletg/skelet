@@ -33,13 +33,14 @@ type RateRequest struct {
 
 type Dimensions struct {
 	WeightGrams, LengthMm, WidthMm, HeightMm int32
+	ProductTypeID                            uuid.UUID
 }
 
 type DimensionLookup interface {
 	DimensionsBySKUs(ctx context.Context, skus []string) (map[string]Dimensions, error)
 }
 
-// One line summarized for rating - physical fields are 0 when the product doesn't specify them, and carriers should fall back to a default parcel
+// One line summarized for rating - physical fields are 0 when the product doesn't specify them, and carriers should fall back to a default parcel. ProductTypeID is filled from the catalog for the built-in methods' per-type rates
 type RateItem struct {
 	SKU            string
 	Quantity       float64
@@ -48,14 +49,19 @@ type RateItem struct {
 	LengthMm       int32
 	WidthMm        int32
 	HeightMm       int32
+	ProductTypeID  uuid.UUID
 }
 
 // One shipping option, where Code is carrier-stable like "ground" or "ups:03" - no DB id, since external carriers have none and the built-in re-resolves code to method by destination at placement
+// Kind is the delivery kind the method serves (ship_to_address, store_pickup, parcel_locker, carrier_point) - empty takes the carrier's first declared kind, so a carrier offering one kind never has to set it
 type RatedMethod struct {
 	Code          string
 	Name          string
 	PriceCents    int64
 	EstimatedDays int
+	Kind          string
+	// Whether Saturday and Sunday count toward EstimatedDays - core fills it from the method or the carrier's channel row, so a carrier never has to
+	DeliversOnWeekends bool
 }
 
 // A ship-to address, declared locally so shipping doesn't import order
@@ -118,8 +124,10 @@ type CarrierConfig struct {
 	SortOrder        int32
 	CountryMode      string
 	AllowedCountries []string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	// Saturday and Sunday count toward the carrier's estimates - set per channel, since a carrier quotes days and not a calendar
+	DeliversOnWeekends bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type CarrierWithConfig struct {

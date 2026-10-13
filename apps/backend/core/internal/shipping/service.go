@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 type Service struct {
@@ -52,10 +55,13 @@ func (s *Service) Quote(ctx context.Context, in QuoteInput) ([]Quote, error) {
 			continue
 		}
 		out = append(out, Quote{
-			MethodID:   m.ID,
-			Code:       m.Code,
-			Name:       m.Name,
-			PriceCents: ComputePrice(m, in.SubtotalCents),
+			MethodID:           m.ID,
+			Code:               m.Code,
+			Name:               m.Name,
+			PriceCents:         ComputePrice(m, in.SubtotalCents, in.Items),
+			DeliveryKind:       normalizeDeliveryKind(m.DeliveryKind),
+			EstimatedDays:      m.EstimatedDays,
+			DeliversOnWeekends: m.DeliversOnWeekends,
 		})
 	}
 	return out, nil
@@ -153,7 +159,7 @@ func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in Quo
 	} else if !ok {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents), method, nil
+	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
 }
 
 // The ID-based sibling of ComputeForOrder - verifies the method belongs to the country's zone, so one from another zone can't be smuggled in, and is still active
@@ -177,7 +183,7 @@ func (s *Service) ComputeForOrderByID(ctx context.Context, methodID uuid.UUID, i
 	} else if !ok {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents), method, nil
+	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
 }
 
 // Fills Zone.Countries per zone - the bare ListZones omits them, being a separate table, so the admin surface uses this to return both together
@@ -221,6 +227,43 @@ func (s *Service) HydrateMethodCountries(ctx context.Context, methods []Method) 
 		methods[i].AllowedCountries = countries
 	}
 	return methods, nil
+}
+
+// The kinds a built-in method can price - store pickup is the pickup carrier's, never a zone method
+var methodKinds = []string{DefaultKind, "parcel_locker", "carrier_point"}
+
+var (
+	errMethodKind      = apperr.New("SHIPPING_METHOD_KIND_INVALID", apperr.ClassValidation, "a shipping method prices door delivery, a pickup point, or delivery to the nearest pickup point")
+	errMethodUnits     = apperr.New("SHIPPING_METHOD_UNITS_INVALID", apperr.ClassValidation, "units per charge can't be negative")
+	errBuiltinWeekends = apperr.New("SHIPPING_CARRIER_WEEKENDS_PER_METHOD", apperr.ClassValidation, "the built-in carrier's methods each set their own weekend delivery")
+	errMethodDays      = apperr.New("SHIPPING_METHOD_DAYS_INVALID", apperr.ClassValidation, "delivery days can't be negative")
+	errTypeRate        = apperr.New("SHIPPING_TYPE_RATE_INVALID", apperr.ClassValidation, "each product type is priced once, at zero or more")
+)
+
+// CheckMethodPricing refuses a kind or a bundle size the engine can't price
+func CheckMethodPricing(m Method) error {
+	if m.DeliveryKind != "" && !slices.Contains(methodKinds, m.DeliveryKind) {
+		return errMethodKind
+	}
+	if m.UnitsPerCharge < 0 {
+		return errMethodUnits
+	}
+	if m.EstimatedDays < 0 {
+		return errMethodDays
+	}
+	return nil
+}
+
+// ReplaceMethodTypeRates sets a method's per-product-type prices - each type at most once
+func (s *Service) ReplaceMethodTypeRates(ctx context.Context, methodID uuid.UUID, rates []TypeRate) error {
+	seen := map[uuid.UUID]bool{}
+	for _, r := range rates {
+		if r.ProductTypeID == uuid.Nil || seen[r.ProductTypeID] || r.PriceCents < 0 || r.UnitsPerCharge < 0 {
+			return errTypeRate
+		}
+		seen[r.ProductTypeID] = true
+	}
+	return s.repo.ReplaceTypeRates(ctx, methodID, rates)
 }
 
 func (s *Service) ReplaceMethodCountries(ctx context.Context, methodID uuid.UUID, countries []string) error {
