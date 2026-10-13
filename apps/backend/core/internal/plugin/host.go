@@ -347,16 +347,13 @@ func (h *Host) ensurePermissionGroup(pluginSlug, group string) {
 	if group == "" {
 		return
 	}
-	if _, exists := permission.FindGroup(group); exists {
-		return
-	}
 	label := group
 	h.manifestMu.Lock()
 	if m, ok := h.manifestBySlug[pluginSlug]; ok && m.Name != "" {
 		label = m.Name
 	}
 	h.manifestMu.Unlock()
-	permission.RegisterGroup(permission.Group{Slug: group, Name: label, SortOrder: 80})
+	permission.RegisterGroupIfAbsent(permission.Group{Slug: group, Name: label, SortOrder: 80})
 }
 
 func (h *Host) RegisterConfigField(pluginSlug, path string, field sdk.ConfigField) error {
