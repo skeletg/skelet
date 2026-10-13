@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -14,13 +14,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
-// SubscribeToOrderEvents wires the reward trigger: when a pending referee places their first order (durable via the outbox), both sides get
-// store credit and the referral flips to 'rewarded' - The locked status flip makes at-least-once delivery safe
+// SubscribeToOrderEvents wires the reward trigger: when a pending referee's first order is paid for - at placement for a card, on the payment advance for COD or bank transfer - both sides get store credit and the referral flips to 'rewarded' (durable via the outbox) - The locked status flip makes at-least-once delivery safe
+// Paying on placement minted spendable credit off an unpaid throwaway order, and the cancel clawback could only take back what was left
 func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
 	if bus == nil {
 		return
 	}
 	bus.Subscribe(order.EventPlaced, s.onOrderPlaced)
+	bus.Subscribe(order.EventPaymentStatusChanged, s.onPaymentStatusChanged)
 	bus.Subscribe(order.EventCancelled, s.onOrderCancelled)
 	bus.Subscribe(order.EventRefunded, s.onOrderRefunded)
 }
@@ -31,7 +32,7 @@ func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	if err := s.reverseForOrder(ctx, cancelled.OrderID); err != nil {
-		log.Printf("[referral] reverse reward for cancelled order %s: %v", cancelled.OrderID, err)
+		slog.ErrorContext(ctx, "referral: reverse reward for cancelled order", "order", cancelled.OrderID, "err", err)
 		return err // credit must be clawed back - the locked status flip keeps the replay idempotent
 	}
 	return nil
@@ -45,7 +46,7 @@ func (s *Service) onOrderRefunded(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	if err := s.reverseForOrder(ctx, refunded.OrderID); err != nil {
-		log.Printf("[referral] reverse reward for refunded order %s: %v", refunded.OrderID, err)
+		slog.ErrorContext(ctx, "referral: reverse reward for refunded order", "order", refunded.OrderID, "err", err)
 		return err
 	}
 	return nil
@@ -97,15 +98,47 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if !ok || placed.CustomerID == nil {
 		return nil
 	}
-	if err := s.rewardForOrder(ctx, placed); err != nil {
-		log.Printf("[referral] reward for order %s: %v", placed.OrderID, err)
+	return s.reward(ctx, placed.OrderID)
+}
+
+func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) error {
+	changed, ok := e.(*order.OrderPaymentStatusChanged)
+	if !ok {
+		return nil
+	}
+	switch {
+	case order.PaidFor(changed.Status):
+		return s.reward(ctx, changed.OrderID)
+	case changed.Status == order.PaymentVoided:
+		// the authorization that earned the payout never turned into money
+		if err := s.reverseForOrder(ctx, changed.OrderID); err != nil {
+			slog.ErrorContext(ctx, "referral: reverse reward for voided order", "order", changed.OrderID, "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) reward(ctx context.Context, orderID uuid.UUID) error {
+	if err := s.rewardForOrder(ctx, orderID); err != nil {
+		slog.ErrorContext(ctx, "referral: reward for order", "order", orderID, "err", err)
 		return err
 	}
 	return nil
 }
 
-func (s *Service) rewardForOrder(ctx context.Context, placed *order.OrderPlaced) error {
-	prog, err := s.ProgramFor(ctx, placed.ChannelID)
+func (s *Service) rewardForOrder(ctx context.Context, orderID uuid.UUID) error {
+	if s.orders == nil {
+		return errors.New("referral: no order lookup wired, cannot tell whether the order is paid for")
+	}
+	o, err := s.orders.GetByID(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("load order: %w", err)
+	}
+	if o.CustomerID == nil || o.Status == order.OrderStatusCancelled || !order.PaidFor(o.PaymentStatus) {
+		return nil
+	}
+	prog, err := s.ProgramFor(ctx, o.ChannelID)
 	if err != nil {
 		return err
 	}
@@ -114,7 +147,7 @@ func (s *Service) rewardForOrder(ctx context.Context, placed *order.OrderPlaced)
 	}
 	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := s.queries.WithTx(t)
-		ref, err := q.GetPendingReferralByReferee(ctx, *placed.CustomerID)
+		ref, err := q.GetPendingReferralByReferee(ctx, *o.CustomerID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil // not a pending referee - nothing to do
@@ -123,20 +156,20 @@ func (s *Service) rewardForOrder(ctx context.Context, placed *order.OrderPlaced)
 		}
 		if err := q.MarkReferralRewarded(ctx, db.MarkReferralRewardedParams{
 			ID:                  ref.ID,
-			OrderID:             uuid.NullUUID{UUID: placed.OrderID, Valid: true},
+			OrderID:             uuid.NullUUID{UUID: orderID, Valid: true},
 			ReferrerRewardCents: prog.ReferrerRewardCents,
 			RefereeRewardCents:  prog.RefereeRewardCents,
 		}); err != nil {
 			return fmt.Errorf("mark rewarded: %w", err)
 		}
 		if prog.ReferrerRewardCents > 0 {
-			if err := s.credit.GrantTx(ctx, t, ref.ReferrerCustomerID, prog.ReferrerRewardCents, placed.Currency,
+			if err := s.credit.GrantTx(ctx, t, ref.ReferrerCustomerID, prog.ReferrerRewardCents, o.CurrencyCode,
 				"referral reward - your invite placed their first order"); err != nil {
 				return fmt.Errorf("grant referrer reward: %w", err)
 			}
 		}
 		if prog.RefereeRewardCents > 0 {
-			if err := s.credit.GrantTx(ctx, t, ref.RefereeCustomerID, prog.RefereeRewardCents, placed.Currency,
+			if err := s.credit.GrantTx(ctx, t, ref.RefereeCustomerID, prog.RefereeRewardCents, o.CurrencyCode,
 				"welcome referral reward"); err != nil {
 				return fmt.Errorf("grant referee reward: %w", err)
 			}
