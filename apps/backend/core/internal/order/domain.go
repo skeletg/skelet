@@ -50,8 +50,10 @@ type Order struct {
 	// Record the chosen carrier and method so a pre-fulfillment edit can re-price authoritatively - nil when shipping was free or promotional
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// none (digital only), physical or mixed
+	FulfillmentNeed string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // The cents owed to the provider - taxed total minus the gift-card and store-credit tenders
@@ -225,6 +227,9 @@ type Repository interface {
 
 	// Tax breakdown - replaced wholesale on an edit, since a recompute invalidates the old rows
 	InsertTaxLine(ctx context.Context, orderID uuid.UUID, line TaxLine) error
+	InsertShipment(ctx context.Context, orderID uuid.UUID, position int32, sh ShipmentInput, amount int64) error
+	ListShipments(ctx context.Context, orderID uuid.UUID) ([]Shipment, error)
+	SetFulfillmentNeed(ctx context.Context, orderID uuid.UUID, need string) error
 	ListTaxLines(ctx context.Context, orderID uuid.UUID) ([]TaxLine, error)
 	DeleteTaxLines(ctx context.Context, orderID uuid.UUID) error
 

@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -64,6 +65,7 @@ var Services = fx.Module("services",
 		newReviewService,
 		newFormService,
 		newWebFormService,
+		newDeliveryService,
 		newMenuService,
 		newChatService,
 		newActionService,
@@ -143,6 +145,10 @@ func newFormService(q *db.Queries) *form.Service { return form.New(q) } // store
 
 func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Service) *webform.Service { // admin-built CMS forms placed on pages via the `form` block
 	return webform.New(webform.NewRepository(q, txMgr), cfg)
+}
+
+func newDeliveryService(q *db.Queries, tx *txrunner.Manager) *delivery.Service { // delivery options, kinds, point sources and the admin's PO boxes
+	return delivery.NewService(delivery.NewRepository(q, tx))
 }
 
 func newMenuService(q *db.Queries) *menu.Service { return menu.NewService(menu.NewRepository(q)) }

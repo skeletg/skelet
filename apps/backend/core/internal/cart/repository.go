@@ -183,7 +183,17 @@ func (r *postgresRepository) SetCheckout(ctx context.Context, cartID uuid.UUID, 
 	if purchase == "" {
 		purchase = PurchasePersonal
 	}
+	deliveries := c.Deliveries
+	if deliveries == nil {
+		deliveries = map[string]DeliverySelection{}
+	}
+	deliveriesJSON, err := json.Marshal(deliveries)
+	if err != nil {
+		return fmt.Errorf("encode deliveries: %w", err)
+	}
 	return r.queries.SetCartCheckout(ctx, db.SetCartCheckoutParams{
+		Deliveries:            deliveriesJSON,
+		SplitDelivery:         c.SplitDelivery,
 		ID:                    cartID,
 		ShippingAddress:       shipping,
 		ShippingAddressID:     sqlnull.UUID(c.ShippingAddressID),
@@ -509,6 +519,8 @@ func toCart(row db.Cart) Cart {
 			Company:       row.CompanyName,
 			BusinessIDs:   decodeBusinessIDs(row.BusinessIds),
 			PickupContact: decodePickupContact(row.PickupContact),
+			Deliveries:    decodeDeliveries(row.Deliveries),
+			SplitDelivery: row.SplitDelivery,
 		},
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
@@ -532,6 +544,14 @@ func decodeBusinessIDs(raw json.RawMessage) map[string]string {
 		return nil
 	}
 	return ids
+}
+
+func decodeDeliveries(raw json.RawMessage) map[string]DeliverySelection {
+	var d map[string]DeliverySelection
+	if json.Unmarshal(raw, &d) != nil || len(d) == 0 {
+		return nil
+	}
+	return d
 }
 
 func decodePickupContact(n pqtype.NullRawMessage) *PickupContact {

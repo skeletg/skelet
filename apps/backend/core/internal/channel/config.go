@@ -10,11 +10,11 @@ func init() {
 	config.RegisterGroup(config.Group{Section: "general", Slug: "contact", Label: "Contact", SortOrder: 6, Scoping: config.ScopingChannel})
 	config.RegisterGroup(config.Group{Section: "general", Slug: "legal", Label: "Legal", SortOrder: 8, Scoping: config.ScopingChannel})
 
-	// Display only: the admin sidebar clock reads it. Scheduled jobs carry their own per-job timezone and every
-	// stored timestamp, retention sweep and email is UTC, so this changes nothing but the widget
+	// The store's local calendar: the admin sidebar clock, and the day checkout counts delivery estimates from. Scheduled
+	// jobs carry their own per-job timezone and every stored timestamp, retention sweep and email is UTC
 	config.Register(config.Definition{
 		Path: "general/store_information/timezone", Type: config.TypeSelect, Options: timezoneOptions(),
-		Default: "UTC", Label: "Timezone for the admin clock", Description: "Sets the timezone of the clock shown in the admin sidebar. Report boundaries, scheduled jobs and stored timestamps are unaffected - those are UTC, or carry their own timezone.", Public: false,
+		Default: "UTC", Label: "Store timezone", Description: "Sets the clock shown in the admin sidebar, and the day checkout counts delivery estimates from - an order placed late on Friday here counts from Friday. Report boundaries, scheduled jobs and stored timestamps are unaffected - those are UTC, or carry their own timezone.", Public: false,
 	})
 
 	// The customer-facing store name, public so storefronts read it from PublicConfig - channels.name stays the operator's internal label ("US Wholesale B2B")
