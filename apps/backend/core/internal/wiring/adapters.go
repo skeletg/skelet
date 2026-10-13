@@ -13,6 +13,7 @@ import (
 	"time"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 
 	"github.com/google/uuid"
@@ -256,7 +257,7 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 			return out, nil
 		}
 	}
-	// Tier (quantity-break) prices, pre-filtered to this channel and the caller's customer group so the cart can apply BestTier scope-free
+	// Tier (quantity-break) prices, pre-filtered to this channel and the caller's customer group so the cart applies them scope-free
 	var groupID *uuid.UUID
 	if customerID != nil && a.customers != nil {
 		if c, cerr := a.customers.GetByID(ctx, *customerID); cerr == nil && c.CustomerGroupID != uuid.Nil {
@@ -264,10 +265,13 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 			groupID = &g
 		}
 	}
-	if tiers, terr := a.svc.ApplicableGroupPrices(ctx, p.ID, &channelID, groupID); terr == nil {
-		for _, t := range tiers {
-			out.Tiers = append(out.Tiers, pricing.Tier{MinQty: t.MinQty, Price: t.Price})
-		}
+	tiers, terr := a.svc.ApplicableGroupPrices(ctx, p.ID, &channelID, groupID)
+	if terr != nil {
+		// list price still sells the line, but a buyer losing their quantity break has to be visible
+		applog.From(ctx).Warn("cart: tier price lookup failed, pricing at list", "sku", sku, "err", terr)
+	}
+	for _, t := range tiers {
+		out.Tiers = append(out.Tiers, pricing.Tier{MinQty: t.MinQty, Price: t.Price})
 	}
 	return out, nil
 }

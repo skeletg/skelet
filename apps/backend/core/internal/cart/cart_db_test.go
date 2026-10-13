@@ -293,6 +293,39 @@ func TestAQuantityEditRepricesAcrossTiersAndKeepsSurcharges(t *testing.T) {
 	}
 }
 
+// The break is read against the line's prospective total, on a plain add and a configured one alike
+func TestAddsPriceAtTheTierTheLineReaches(t *testing.T) {
+	optionID, valueID := uuid.New(), uuid.New()
+	r := newDBRig(t, catalogStub{
+		prices: map[string]SimplePricing{"pen": {UnitPrice: 1000, Tiers: tiersAt(10, 800)}},
+		options: map[string]ProductOptionsResolution{
+			"pen": {UnitPrice: 1000, Options: []ProductOptionConfig{{ID: optionID, InputType: "radio", Title: "Ink",
+				Values: []ProductOptionValueConfig{{ID: valueID, Title: "Gold", PriceValue: 150, PriceType: "fixed", Quantity: 1}}}}},
+		},
+	})
+	ctx := context.Background()
+	c := r.guestCart(t)
+	if _, err := r.svc.AddToCart(ctx, c.ID, nil, "pen", 9); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.svc.AddToCart(ctx, c.ID, nil, "pen", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lineBySku(t, got, "pen"); l.UnitPrice != 800 {
+		t.Errorf("9 + 1 pens priced at %d, want the 10-unit break 800", l.UnitPrice)
+	}
+
+	c2 := r.guestCart(t)
+	got, err = r.svc.AddConfiguredToCart(ctx, c2.ID, nil, AddConfiguredToCartInput{ProductSku: "pen", Quantity: 10, Options: []CartLineOptionInput{{OptionID: optionID, ValueIDs: []uuid.UUID{valueID}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lineBySku(t, got, "pen"); l.UnitPrice != 950 {
+		t.Errorf("10 gold pens priced at %d, want the break plus the surcharge, 950", l.UnitPrice)
+	}
+}
+
 // The SDK setters and a sync webhook swap the event's pointer rather than write through it - read back from the event, their override used to vanish
 func TestALineAddingOverrideReachesTheLine(t *testing.T) {
 	r := newDBRig(t, catalogStub{prices: map[string]SimplePricing{"tee": {UnitPrice: 2500}}})

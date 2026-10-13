@@ -65,28 +65,25 @@ func TestSpecialActiveBounds(t *testing.T) {
 	}
 }
 
-func strp(s string) *string { return &s }
-
-func TestBestTier(t *testing.T) {
-	tiers := []Tier{
-		{MinQty: 5, Price: 900},  // any group, any channel
-		{MinQty: 10, Price: 800}, // any group
-		{MinQty: 5, Price: 700, CustomerGroupID: strp("wholesale")}, // group-scoped
-		{MinQty: 1, Price: 950, ChannelID: strp("eu")},              // channel-scoped
+func TestApplyTiers(t *testing.T) {
+	tiers := []Tier{{MinQty: 5, Price: 900}, {MinQty: 10, Price: 800}, {MinQty: 2, Price: 1100}}
+	for _, tc := range []struct {
+		unit int64
+		qty  float64
+		want int64
+	}{
+		{1000, 1, 1000},  // below every break
+		{1000, 3, 1000},  // a tier above the unit price never raises it
+		{1000, 5, 900},   // MinQty is inclusive
+		{1000, 12, 800},  // the lowest reached tier wins
+		{750, 12, 750},   // a unit already under every tier stays
+		{1000, 9.5, 900}, // fractional quantities
+	} {
+		if got := ApplyTiers(tc.unit, tiers, tc.qty); got != tc.want {
+			t.Errorf("ApplyTiers(%d, qty %v) = %d, want %d", tc.unit, tc.qty, got, tc.want)
+		}
 	}
-	if got := BestTier(tiers, 3, nil, "us"); got != nil {
-		t.Errorf("qty 3 retail us: want nil, got %d", *got)
-	}
-	if got := BestTier(tiers, 5, nil, "us"); got == nil || *got != 900 {
-		t.Errorf("qty 5 retail us: want 900, got %v", got)
-	}
-	if got := BestTier(tiers, 12, nil, "us"); got == nil || *got != 800 {
-		t.Errorf("qty 12 retail us: want 800, got %v", got)
-	}
-	if got := BestTier(tiers, 5, strp("wholesale"), "us"); got == nil || *got != 700 {
-		t.Errorf("qty 5 wholesale: want 700, got %v", got)
-	}
-	if got := BestTier(tiers, 1, nil, "eu"); got == nil || *got != 950 {
-		t.Errorf("qty 1 eu: want 950, got %v", got)
+	if got := ApplyTiers(1000, nil, 50); got != 1000 {
+		t.Errorf("no tiers: got %d", got)
 	}
 }
