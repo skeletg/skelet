@@ -7,8 +7,10 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const clearAlsoBought = `-- name: ClearAlsoBought :exec
@@ -61,7 +63,7 @@ func (q *Queries) InsertProductLink(ctx context.Context, arg InsertProductLinkPa
 const listAlsoBought = `-- name: ListAlsoBought :many
 SELECT other_product_id FROM product_also_bought
 WHERE product_id = $1
-ORDER BY score DESC
+ORDER BY score DESC, other_product_id
 LIMIT $2
 `
 
@@ -83,6 +85,50 @@ func (q *Queries) ListAlsoBought(ctx context.Context, arg ListAlsoBoughtParams) 
 			return nil, err
 		}
 		items = append(items, other_product_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAlsoBoughtForProducts = `-- name: ListAlsoBoughtForProducts :many
+SELECT product_id, other_product_id FROM (
+    SELECT product_id, other_product_id,
+           ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY score DESC, other_product_id) AS rn
+    FROM   product_also_bought
+    WHERE  product_id = ANY($1::uuid[])
+) ranked
+WHERE  rn <= $2::int
+ORDER BY product_id, rn
+`
+
+type ListAlsoBoughtForProductsParams struct {
+	ProductIds []uuid.UUID `json:"product_ids"`
+	PerProduct int32       `json:"per_product"`
+}
+
+type ListAlsoBoughtForProductsRow struct {
+	ProductID      uuid.UUID `json:"product_id"`
+	OtherProductID uuid.UUID `json:"other_product_id"`
+}
+
+func (q *Queries) ListAlsoBoughtForProducts(ctx context.Context, arg ListAlsoBoughtForProductsParams) ([]ListAlsoBoughtForProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlsoBoughtForProducts, pq.Array(arg.ProductIds), arg.PerProduct)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAlsoBoughtForProductsRow{}
+	for rows.Next() {
+		var i ListAlsoBoughtForProductsRow
+		if err := rows.Scan(&i.ProductID, &i.OtherProductID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -135,6 +181,46 @@ func (q *Queries) ListProductLinks(ctx context.Context, arg ListProductLinksPara
 	return items, nil
 }
 
+const listProductLinksForProducts = `-- name: ListProductLinksForProducts :many
+SELECT product_id, linked_product_id FROM catalog_product_links
+WHERE  product_id = ANY($1::uuid[]) AND kind = $2
+ORDER BY product_id, sort_order, created_at
+`
+
+type ListProductLinksForProductsParams struct {
+	ProductIds []uuid.UUID `json:"product_ids"`
+	Kind       string      `json:"kind"`
+}
+
+type ListProductLinksForProductsRow struct {
+	ProductID       uuid.UUID `json:"product_id"`
+	LinkedProductID uuid.UUID `json:"linked_product_id"`
+}
+
+// The cart rail's crosssell candidates for every cart product in one read, each product's links in curated order
+func (q *Queries) ListProductLinksForProducts(ctx context.Context, arg ListProductLinksForProductsParams) ([]ListProductLinksForProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProductLinksForProducts, pq.Array(arg.ProductIds), arg.Kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProductLinksForProductsRow{}
+	for rows.Next() {
+		var i ListProductLinksForProductsRow
+		if err := rows.Scan(&i.ProductID, &i.LinkedProductID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const rebuildAlsoBought = `-- name: RebuildAlsoBought :exec
 WITH bought AS (
     SELECT DISTINCT ol.order_id, COALESCE(pc.parent_id, p.id) AS pid
@@ -143,6 +229,7 @@ WITH bought AS (
     JOIN orders o ON o.id = ol.order_id
     LEFT JOIN catalog_product_children pc ON pc.child_id = p.id
     WHERE o.status NOT IN ('cancelled', 'draft') AND ol.removed_at IS NULL
+      AND o.created_at >= $2::timestamptz
 ),
 pairs AS (
     SELECT a.pid AS product_id, b.pid AS other_product_id, COUNT(DISTINCT a.order_id)::int AS score
@@ -158,8 +245,13 @@ INSERT INTO product_also_bought (product_id, other_product_id, score)
 SELECT product_id, other_product_id, score FROM ranked WHERE rn <= $1::int
 `
 
-// Recomputes the co-occurrence table from completed (non-cancelled) order lines: variants roll up to their configurable parent, pairs score by the number of distinct orders that bought both, and each product keeps its top_n - full rebuild, the job runs off-peak
-func (q *Queries) RebuildAlsoBought(ctx context.Context, topN int32) error {
-	_, err := q.db.ExecContext(ctx, rebuildAlsoBought, topN)
+type RebuildAlsoBoughtParams struct {
+	TopN  int32     `json:"top_n"`
+	Since time.Time `json:"since"`
+}
+
+// Recomputes the co-occurrence table from completed (non-cancelled) order lines: variants roll up to their configurable parent, pairs score by the number of distinct orders since `since` that bought both, and each product keeps its top_n - full rebuild, the job runs off-peak
+func (q *Queries) RebuildAlsoBought(ctx context.Context, arg RebuildAlsoBoughtParams) error {
+	_, err := q.db.ExecContext(ctx, rebuildAlsoBought, arg.TopN, arg.Since)
 	return err
 }
