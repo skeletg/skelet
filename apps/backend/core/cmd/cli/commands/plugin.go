@@ -15,7 +15,6 @@ import (
 
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginmigrate"
-	"github.com/skeletg/skelet/apps/backend/core/internal/pluginpath"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pluginset"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -468,7 +467,7 @@ func titleizeSlug(s string) string { // "payment-stripe" -> "Payment Stripe"
 }
 
 func pluginPackageName(slug string) string { // "payment-stripe" -> "paymentstripe"
-	return pluginpath.PackageName(slug)
+	return strings.NewReplacer("-", "", "_", "").Replace(slug)
 }
 
 // File content is interpolated rather than run through text/template - the templates double as documentation of plugin shape, and that only reads well when they look like the file they produce
