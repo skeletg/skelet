@@ -512,16 +512,35 @@ type CacheRevalidation struct {
 }
 
 type Cart struct {
-	ID                  uuid.UUID     `json:"id"`
-	CustomerID          uuid.NullUUID `json:"customer_id"`
-	Status              string        `json:"status"`
-	CreatedAt           time.Time     `json:"created_at"`
-	UpdatedAt           time.Time     `json:"updated_at"`
-	ChannelID           uuid.UUID     `json:"channel_id"`
-	AbandonedNotifiedAt sql.NullTime  `json:"abandoned_notified_at"`
-	Email               string        `json:"email"`
-	Note                string        `json:"note"`
-	LastActivityAt      time.Time     `json:"last_activity_at"`
+	ID                    uuid.UUID             `json:"id"`
+	CustomerID            uuid.NullUUID         `json:"customer_id"`
+	Status                string                `json:"status"`
+	CreatedAt             time.Time             `json:"created_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
+	ChannelID             uuid.UUID             `json:"channel_id"`
+	AbandonedNotifiedAt   sql.NullTime          `json:"abandoned_notified_at"`
+	Email                 string                `json:"email"`
+	Note                  string                `json:"note"`
+	LastActivityAt        time.Time             `json:"last_activity_at"`
+	ShippingAddress       pqtype.NullRawMessage `json:"shipping_address"`
+	ShippingAddressID     uuid.NullUUID         `json:"shipping_address_id"`
+	BillingSameAsShipping bool                  `json:"billing_same_as_shipping"`
+	BillingAddress        pqtype.NullRawMessage `json:"billing_address"`
+	BillingAddressID      uuid.NullUUID         `json:"billing_address_id"`
+	ShippingCarrierSlug   string                `json:"shipping_carrier_slug"`
+	ShippingMethodCode    string                `json:"shipping_method_code"`
+	PaymentProviderSlug   string                `json:"payment_provider_slug"`
+	PoNumber              string                `json:"po_number"`
+	UseStoreCredit        bool                  `json:"use_store_credit"`
+	GiftCardCodes         []string              `json:"gift_card_codes"`
+	DestinationCountry    string                `json:"destination_country"`
+	DestinationRegion     string                `json:"destination_region"`
+	DestinationPostalCode string                `json:"destination_postal_code"`
+	ContactPhone          string                `json:"contact_phone"`
+	PurchaseType          string                `json:"purchase_type"`
+	CompanyName           string                `json:"company_name"`
+	BusinessIds           json.RawMessage       `json:"business_ids"`
+	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
 }
 
 type CartAppliedCode struct {
@@ -1161,6 +1180,7 @@ type Country struct {
 	UpdatedAt           time.Time       `json:"updated_at"`
 	Iso3Code            string          `json:"iso3_code"`
 	NumericCode         string          `json:"numeric_code"`
+	BusinessIDFields    json.RawMessage `json:"business_id_fields"`
 }
 
 type CreditMemo struct {
@@ -1605,6 +1625,7 @@ type Order struct {
 	HeldFromStatus      string          `json:"held_from_status"`
 	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
 	AnonID              string          `json:"anon_id"`
+	BusinessIds         json.RawMessage `json:"business_ids"`
 }
 
 type OrderEmailLog struct {

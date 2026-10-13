@@ -520,6 +520,14 @@ type ComplexityRoot struct {
 		SortOrder func(childComplexity int) int
 	}
 
+	BusinessIdField struct {
+		Hint     func(childComplexity int) int
+		Key      func(childComplexity int) int
+		Label    func(childComplexity int) int
+		Pattern  func(childComplexity int) int
+		Required func(childComplexity int) int
+	}
+
 	CMSAttribute struct {
 		AllContent         func(childComplexity int) int
 		Content            func(childComplexity int) int
@@ -994,6 +1002,7 @@ type ComplexityRoot struct {
 	}
 
 	Country struct {
+		BusinessIDFields    func(childComplexity int) int
 		Code                func(childComplexity int) int
 		CreatedAt           func(childComplexity int) int
 		DefaultCurrency     func(childComplexity int) int
@@ -2628,6 +2637,7 @@ type ComplexityRoot struct {
 	Order struct {
 		AppliedPromotions   func(childComplexity int) int
 		BillingAddress      func(childComplexity int) int
+		BusinessIds         func(childComplexity int) int
 		Carrier             func(childComplexity int) int
 		ChannelID           func(childComplexity int) int
 		CreatedAt           func(childComplexity int) int
@@ -2674,6 +2684,12 @@ type ComplexityRoot struct {
 		State       func(childComplexity int) int
 		Street1     func(childComplexity int) int
 		Street2     func(childComplexity int) int
+	}
+
+	OrderBusinessId struct {
+		Key   func(childComplexity int) int
+		Label func(childComplexity int) int
+		Value func(childComplexity int) int
 	}
 
 	OrderEvent struct {
@@ -7130,6 +7146,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BundleSelection.SortOrder(childComplexity), true
 
+	case "BusinessIdField.hint":
+		if e.ComplexityRoot.BusinessIdField.Hint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BusinessIdField.Hint(childComplexity), true
+	case "BusinessIdField.key":
+		if e.ComplexityRoot.BusinessIdField.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BusinessIdField.Key(childComplexity), true
+	case "BusinessIdField.label":
+		if e.ComplexityRoot.BusinessIdField.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BusinessIdField.Label(childComplexity), true
+	case "BusinessIdField.pattern":
+		if e.ComplexityRoot.BusinessIdField.Pattern == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BusinessIdField.Pattern(childComplexity), true
+	case "BusinessIdField.required":
+		if e.ComplexityRoot.BusinessIdField.Required == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BusinessIdField.Required(childComplexity), true
+
 	case "CMSAttribute.allContent":
 		if e.ComplexityRoot.CMSAttribute.AllContent == nil {
 			break
@@ -9152,6 +9199,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ConsentDefinition.Slug(childComplexity), true
 
+	case "Country.businessIdFields":
+		if e.ComplexityRoot.Country.BusinessIDFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Country.BusinessIDFields(childComplexity), true
 	case "Country.code":
 		if e.ComplexityRoot.Country.Code == nil {
 			break
@@ -19287,6 +19340,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.BillingAddress(childComplexity), true
+	case "Order.businessIds":
+		if e.ComplexityRoot.Order.BusinessIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.BusinessIds(childComplexity), true
 	case "Order.carrier":
 		if e.ComplexityRoot.Order.Carrier == nil {
 			break
@@ -19546,6 +19605,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderAddress.Street2(childComplexity), true
+
+	case "OrderBusinessId.key":
+		if e.ComplexityRoot.OrderBusinessId.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderBusinessId.Key(childComplexity), true
+	case "OrderBusinessId.label":
+		if e.ComplexityRoot.OrderBusinessId.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderBusinessId.Label(childComplexity), true
+	case "OrderBusinessId.value":
+		if e.ComplexityRoot.OrderBusinessId.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderBusinessId.Value(childComplexity), true
 
 	case "OrderEvent.actorEmail":
 		if e.ComplexityRoot.OrderEvent.ActorEmail == nil {
@@ -28072,6 +28150,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAttributeReferenceRefInput,
 		ec.unmarshalInputAttributeValueInput,
 		ec.unmarshalInputBlogPostFilter,
+		ec.unmarshalInputBusinessIdFieldInput,
 		ec.unmarshalInputCMSAttributeValueInput,
 		ec.unmarshalInputCMSPageCommentInput,
 		ec.unmarshalInputCMSPageFilter,
@@ -31639,10 +31718,31 @@ extend type Mutation {
   isActive:              Boolean!
   sortOrder:             Int!
   metadata:              [MetadataItem!]!
+  # The company identifiers a business purchase from this country asks for at checkout - Serbia's PIB and Matični broj, a VAT number elsewhere. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
+  businessIdFields:      [BusinessIdField!]!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!
   createdAt:             Time!
   updatedAt:             Time!
+}
+
+type BusinessIdField {
+  # Stable slug the values are stored under - derived from the label when left empty.
+  key:      String!
+  label:    String!
+  required: Boolean!
+  # An RE2 regular expression the whole value must match. Empty accepts any value.
+  pattern:  String!
+  # Shown under the field at checkout, such as "9 digits".
+  hint:     String!
+}
+
+input BusinessIdFieldInput {
+  key:      String
+  label:    String!
+  required: Boolean!
+  pattern:  String
+  hint:     String
 }
 
 # An ISO 3166-2 subdivision. ` + "`" + `code` + "`" + ` is the subdivision part only
@@ -31664,6 +31764,7 @@ input CreateCountryInput {
   isActive:              Boolean
   sortOrder:             Int
   metadata:              [MetadataInput!]
+  businessIdFields:      [BusinessIdFieldInput!]
 }
 
 # Code is the PK and never updates - to "rename" a country you delete
@@ -31678,6 +31779,8 @@ input UpdateCountryInput {
   isActive:              Boolean
   sortOrder:             Int
   metadata:              [MetadataInput!]
+  # Replaces the whole list when given.
+  businessIdFields:      [BusinessIdFieldInput!]
 }
 
 extend type Query {
@@ -33630,6 +33733,8 @@ type Order {
   shippingAddress: OrderAddress!
   # Buyer's PO reference, captured at checkout when they pay by purchase order.
   poNumber: String
+  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (PIB, Matični broj, VAT number). Empty for personal purchases.
+  businessIds: [OrderBusinessId!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -34078,6 +34183,12 @@ input EditOrderAddressInput {
   # Omit either side to leave it unchanged.
   shippingAddress: AddressInput
   billingAddress:  AddressInput
+}
+
+type OrderBusinessId {
+  key:   String!
+  label: String!
+  value: String!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/payment.graphqls", Input: `# A payment provider registered in code, paired with its per-channel payment_methods row. providerSlug is stable; isEnabled/countryMode/ allowedCountries are the admin-managed settings for this channel.
@@ -37721,6 +37832,22 @@ func (ec *executionContext) childFields_BundleSelection(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type BundleSelection", field.Name)
 }
 
+func (ec *executionContext) childFields_BusinessIdField(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_BusinessIdField_key(ctx, field)
+	case "label":
+		return ec.fieldContext_BusinessIdField_label(ctx, field)
+	case "required":
+		return ec.fieldContext_BusinessIdField_required(ctx, field)
+	case "pattern":
+		return ec.fieldContext_BusinessIdField_pattern(ctx, field)
+	case "hint":
+		return ec.fieldContext_BusinessIdField_hint(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BusinessIdField", field.Name)
+}
+
 func (ec *executionContext) childFields_CMSAttribute(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -38693,6 +38820,8 @@ func (ec *executionContext) childFields_Country(ctx context.Context, field graph
 		return ec.fieldContext_Country_sortOrder(ctx, field)
 	case "metadata":
 		return ec.fieldContext_Country_metadata(ctx, field)
+	case "businessIdFields":
+		return ec.fieldContext_Country_businessIdFields(ctx, field)
 	case "regions":
 		return ec.fieldContext_Country_regions(ctx, field)
 	case "createdAt":
@@ -40983,6 +41112,8 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_shippingAddress(ctx, field)
 	case "poNumber":
 		return ec.fieldContext_Order_poNumber(ctx, field)
+	case "businessIds":
+		return ec.fieldContext_Order_businessIds(ctx, field)
 	case "lines":
 		return ec.fieldContext_Order_lines(ctx, field)
 	case "events":
@@ -41055,6 +41186,18 @@ func (ec *executionContext) childFields_OrderAddress(ctx context.Context, field 
 		return ec.fieldContext_OrderAddress_phone(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderAddress", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderBusinessId(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OrderBusinessId_key(ctx, field)
+	case "label":
+		return ec.fieldContext_OrderBusinessId_label(ctx, field)
+	case "value":
+		return ec.fieldContext_OrderBusinessId_value(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderBusinessId", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -64625,6 +64768,121 @@ func (ec *executionContext) fieldContext_BundleSelection_sortOrder(_ context.Con
 	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _BusinessIdField_key(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BusinessIdField_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BusinessIdField_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BusinessIdField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BusinessIdField_label(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BusinessIdField_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BusinessIdField_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BusinessIdField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BusinessIdField_required(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BusinessIdField_required(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Required, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BusinessIdField_required(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BusinessIdField", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _BusinessIdField_pattern(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BusinessIdField_pattern(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pattern, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BusinessIdField_pattern(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BusinessIdField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BusinessIdField_hint(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BusinessIdField_hint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BusinessIdField_hint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BusinessIdField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _CMSAttribute_id(ctx context.Context, field graphql.CollectedField, obj *model.CMSAttribute) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72922,6 +73180,38 @@ func (ec *executionContext) fieldContext_Country_metadata(_ context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_MetadataItem(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Country_businessIdFields(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Country_businessIdFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BusinessIDFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BusinessIDField) graphql.Marshaler {
+			return ec.marshalNBusinessIdField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Country_businessIdFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Country",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BusinessIdField(ctx, field)
 		},
 	}
 	return fc, nil
@@ -113159,6 +113449,38 @@ func (ec *executionContext) fieldContext_Order_poNumber(_ context.Context, field
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Order_businessIds(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_businessIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BusinessIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderBusinessID) graphql.Marshaler {
+			return ec.marshalNOrderBusinessId2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderBusinessIDᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_businessIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Order",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderBusinessId(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Order_lines(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -113956,6 +114278,75 @@ func (ec *executionContext) _OrderAddress_phone(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_OrderAddress_phone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderBusinessId_key(ctx context.Context, field graphql.CollectedField, obj *model.OrderBusinessID) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderBusinessId_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderBusinessId_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderBusinessId", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderBusinessId_label(ctx context.Context, field graphql.CollectedField, obj *model.OrderBusinessID) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderBusinessId_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderBusinessId_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderBusinessId", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderBusinessId_value(ctx context.Context, field graphql.CollectedField, obj *model.OrderBusinessID) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderBusinessId_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderBusinessId_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderBusinessId", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _OrderEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderEvent) (ret graphql.Marshaler) {
@@ -150155,6 +150546,64 @@ func (ec *executionContext) unmarshalInputBlogPostFilter(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBusinessIdFieldInput(ctx context.Context, obj any) (model.BusinessIDFieldInput, error) {
+	var it model.BusinessIDFieldInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "label", "required", "pattern", "hint"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "required":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("required"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Required = data
+		case "pattern":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pattern"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Pattern = data
+		case "hint":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hint"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Hint = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCMSAttributeValueInput(ctx context.Context, obj any) (model.CMSAttributeValueInput, error) {
 	var it model.CMSAttributeValueInput
 	if obj == nil {
@@ -151818,7 +152267,7 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -151888,6 +152337,13 @@ func (ec *executionContext) unmarshalInputCreateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "businessIdFields":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("businessIdFields"))
+			data, err := ec.unmarshalOBusinessIdFieldInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BusinessIDFields = data
 		}
 	}
 	return it, nil
@@ -158923,7 +159379,7 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata"}
+	fieldsInOrder := [...]string{"code", "name", "nativeName", "emojiFlag", "phoneCode", "defaultCurrencyCode", "isActive", "sortOrder", "metadata", "businessIdFields"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -158993,6 +159449,13 @@ func (ec *executionContext) unmarshalInputUpdateCountryInput(ctx context.Context
 				return it, err
 			}
 			it.Metadata = data
+		case "businessIdFields":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("businessIdFields"))
+			data, err := ec.unmarshalOBusinessIdFieldInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BusinessIDFields = data
 		}
 	}
 	return it, nil
@@ -165656,6 +166119,64 @@ func (ec *executionContext) _BundleSelection(ctx context.Context, sel ast.Select
 	return out
 }
 
+var businessIdFieldImplementors = []string{"BusinessIdField"}
+
+func (ec *executionContext) _BusinessIdField(ctx context.Context, sel ast.SelectionSet, obj *model.BusinessIDField) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, businessIdFieldImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BusinessIdField")
+		case "key":
+			out.Values[i] = ec._BusinessIdField_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._BusinessIdField_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "required":
+			out.Values[i] = ec._BusinessIdField_required(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pattern":
+			out.Values[i] = ec._BusinessIdField_pattern(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hint":
+			out.Values[i] = ec._BusinessIdField_hint(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var cMSAttributeImplementors = []string{"CMSAttribute"}
 
 func (ec *executionContext) _CMSAttribute(ctx context.Context, sel ast.SelectionSet, obj *model.CMSAttribute) graphql.Marshaler {
@@ -169317,6 +169838,11 @@ func (ec *executionContext) _Country(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "metadata":
 			out.Values[i] = ec._Country_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "businessIdFields":
+			out.Values[i] = ec._Country_businessIdFields(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -180661,6 +181187,11 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "businessIds":
+			out.Values[i] = ec._Order_businessIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "lines":
 			out.Values[i] = ec._Order_lines(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -181050,6 +181581,54 @@ func (ec *executionContext) _OrderAddress(ctx context.Context, sel ast.Selection
 		case "phone":
 			out.Values[i] = ec._OrderAddress_phone(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderBusinessIdImplementors = []string{"OrderBusinessId"}
+
+func (ec *executionContext) _OrderBusinessId(ctx context.Context, sel ast.SelectionSet, obj *model.OrderBusinessID) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderBusinessIdImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderBusinessId")
+		case "key":
+			out.Values[i] = ec._OrderBusinessId_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._OrderBusinessId_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._OrderBusinessId_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -198829,6 +199408,37 @@ func (ec *executionContext) marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._BundleSelection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNBusinessIdField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BusinessIDField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBusinessIdField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBusinessIdField2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDField(ctx context.Context, sel ast.SelectionSet, v *model.BusinessIDField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BusinessIdField(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBusinessIdFieldInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInput(ctx context.Context, v any) (*model.BusinessIDFieldInput, error) {
+	res, err := ec.unmarshalInputBusinessIdFieldInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNCMSAttribute2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCMSAttribute(ctx context.Context, sel ast.SelectionSet, v model.CMSAttribute) graphql.Marshaler {
 	return ec._CMSAttribute(ctx, sel, &v)
 }
@@ -203332,6 +203942,32 @@ func (ec *executionContext) marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._OrderAddress(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOrderBusinessId2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderBusinessIDᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderBusinessID) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderBusinessId2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderBusinessID(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderBusinessId2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderBusinessID(ctx context.Context, sel ast.SelectionSet, v *model.OrderBusinessID) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderBusinessId(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNOrderDocumentKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderDocumentKind(ctx context.Context, v any) (model.OrderDocumentKind, error) {
@@ -208360,6 +208996,23 @@ func (ec *executionContext) marshalOBundleInputType2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOBusinessIdFieldInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInputᚄ(ctx context.Context, v any) ([]*model.BusinessIDFieldInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.BusinessIDFieldInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBusinessIdFieldInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOCMSAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCMSAttribute(ctx context.Context, sel ast.SelectionSet, v *model.CMSAttribute) graphql.Marshaler {
