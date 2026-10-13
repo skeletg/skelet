@@ -169,5 +169,7 @@ UPDATE carts SET
     company_name             = sqlc.arg(company_name),
     business_ids             = sqlc.arg(business_ids),
     pickup_contact           = sqlc.narg(pickup_contact),
+    deliveries               = sqlc.arg(deliveries),
+    split_delivery           = sqlc.arg(split_delivery),
     updated_at               = NOW()
 WHERE id = sqlc.arg(id);

@@ -650,18 +650,20 @@ func (q *Queries) GetProductCostsBySKUs(ctx context.Context, skus []string) ([]G
 }
 
 const getProductDimensionsBySKUs = `-- name: GetProductDimensionsBySKUs :many
-SELECT sku, weight_grams, length_mm, width_mm, height_mm FROM catalog_products
+SELECT sku, weight_grams, length_mm, width_mm, height_mm, product_type_id FROM catalog_products
 WHERE sku = ANY($1::text[])
 `
 
 type GetProductDimensionsBySKUsRow struct {
-	Sku         string        `json:"sku"`
-	WeightGrams sql.NullInt32 `json:"weight_grams"`
-	LengthMm    sql.NullInt32 `json:"length_mm"`
-	WidthMm     sql.NullInt32 `json:"width_mm"`
-	HeightMm    sql.NullInt32 `json:"height_mm"`
+	Sku           string        `json:"sku"`
+	WeightGrams   sql.NullInt32 `json:"weight_grams"`
+	LengthMm      sql.NullInt32 `json:"length_mm"`
+	WidthMm       sql.NullInt32 `json:"width_mm"`
+	HeightMm      sql.NullInt32 `json:"height_mm"`
+	ProductTypeID uuid.UUID     `json:"product_type_id"`
 }
 
+// What shipping rates a line by - its physical size, and its product type for the methods' per-type rates
 func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string) ([]GetProductDimensionsBySKUsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProductDimensionsBySKUs, pq.Array(skus))
 	if err != nil {
@@ -677,6 +679,7 @@ func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string)
 			&i.LengthMm,
 			&i.WidthMm,
 			&i.HeightMm,
+			&i.ProductTypeID,
 		); err != nil {
 			return nil, err
 		}

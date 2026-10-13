@@ -56,8 +56,9 @@ DELETE FROM shipping_zone_countries WHERE zone_id = $1;
 
 -- name: CreateShippingMethod :one
 INSERT INTO shipping_methods (
-    zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, country_mode
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    zone_id, code, name, calc_type, flat_cents, free_above_cents, sort_order, is_active, country_mode, delivery_kind, units_per_charge,
+    estimated_days, delivers_on_weekends
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdateShippingMethod :one
@@ -70,6 +71,10 @@ SET code = $2,
     sort_order = $7,
     is_active = $8,
     country_mode = $9,
+    delivery_kind = $10,
+    units_per_charge = $11,
+    estimated_days = $12,
+    delivers_on_weekends = $13,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
@@ -92,6 +97,22 @@ ORDER BY sort_order, code;
 SELECT * FROM shipping_methods
 WHERE zone_id = $1 AND is_active = TRUE
 ORDER BY sort_order, code;
+
+-- Method rates per product type - a type listed here is priced by its own row, every other line pools into the method's default rate
+
+-- name: ListMethodTypeRates :many
+SELECT r.method_id, r.product_type_id, pt.name AS product_type_name, r.price_cents, r.units_per_charge, r.free_shipping_eligible
+FROM shipping_method_type_rates r
+JOIN catalog_product_types pt ON pt.id = r.product_type_id
+WHERE r.method_id = ANY(sqlc.arg(method_ids)::uuid[])
+ORDER BY r.method_id, pt.name;
+
+-- name: ClearMethodTypeRates :exec
+DELETE FROM shipping_method_type_rates WHERE method_id = $1;
+
+-- name: InsertMethodTypeRate :exec
+INSERT INTO shipping_method_type_rates (method_id, product_type_id, price_cents, units_per_charge, free_shipping_eligible)
+VALUES ($1, $2, $3, $4, $5);
 
 -- Method country allow-list (mirrors the zone-country queries above)
 

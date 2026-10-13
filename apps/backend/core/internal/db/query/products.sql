@@ -294,7 +294,8 @@ SELECT sku, tax_class FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductDimensionsBySKUs :many
-SELECT sku, weight_grams, length_mm, width_mm, height_mm FROM catalog_products
+-- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates
+SELECT sku, weight_grams, length_mm, width_mm, height_mm, product_type_id FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductCostsBySKUs :many
