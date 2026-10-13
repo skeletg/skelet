@@ -156,10 +156,7 @@ func (s *Service) CurrentSimpleLinePrices(ctx context.Context, c Cart) map[uuid.
 		if err != nil {
 			continue
 		}
-		unit := p.UnitPrice
-		if best := pricing.BestTier(p.Tiers, l.Quantity, nil, ""); best != nil && *best < unit {
-			unit = *best
-		}
+		unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, l.Quantity)
 		out[l.ID] = unit
 	}
 	return out
@@ -252,11 +249,8 @@ func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quan
 	if err := validateQtyBounds(p, total); err != nil {
 		return AddCartLineInput{}, err
 	}
-	in := AddCartLineInput{ProductSku: sku, ProductName: p.ProductName, UnitPrice: p.UnitPrice, Quantity: quantity}
-	if best := pricing.BestTier(p.Tiers, total, nil, ""); best != nil && *best < in.UnitPrice { // tiers arrive pre-filtered to the caller's group and channel, and the upsert's incoming-price-wins rule re-prices the whole line
-		in.UnitPrice = *best
-	}
-	return in, nil
+	// the upsert's incoming-price-wins rule re-prices the whole line, so the tier reads the line's prospective total
+	return AddCartLineInput{ProductSku: sku, ProductName: p.ProductName, UnitPrice: pricing.ApplyTiers(p.UnitPrice, p.Tiers, total), Quantity: quantity}, nil
 }
 
 // Shared by customer and admin quantity edits - enforces the forced-qty lock (fail-closed, the lock is an invariant not a hint) and the min/max/step bounds, returning the tier-repriced unit with the line's snapshot option deltas back on top (nil = price unchanged)
@@ -281,10 +275,7 @@ func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line Cart
 	if err := validateQtyBounds(p, quantity); err != nil {
 		return nil, err
 	}
-	unit := p.UnitPrice // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
-	if best := pricing.BestTier(p.Tiers, quantity, nil, ""); best != nil && *best < unit {
-		unit = *best
-	}
+	unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, quantity) // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
 	for _, o := range line.Options {
 		unit += o.PriceDelta
 	}
@@ -477,10 +468,7 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 		if err != nil {
 			continue
 		}
-		unit := p.UnitPrice
-		if best := pricing.BestTier(p.Tiers, l.Quantity, nil, ""); best != nil && *best < unit {
-			unit = *best
-		}
+		unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, l.Quantity)
 		for _, o := range l.Options {
 			unit += o.PriceDelta
 		}
