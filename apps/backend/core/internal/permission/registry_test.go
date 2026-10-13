@@ -29,6 +29,23 @@ func TestRegisterAndFind_RoundTrips(t *testing.T) {
 	}
 }
 
+func TestRegisterGroupIfAbsent_KeepsTheFirst(t *testing.T) {
+	RegisterGroupIfAbsent(Group{Slug: "shared_group", Name: "First", SortOrder: 80})
+	RegisterGroupIfAbsent(Group{Slug: "shared_group", Name: "Second", SortOrder: 81})
+	if g, _ := FindGroup("shared_group"); g.Name != "First" {
+		t.Errorf("a second registrant replaced the group: %+v", g)
+	}
+	n := 0
+	for _, g := range AllGroups() {
+		if g.Slug == "shared_group" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("shared_group registered %d times, want 1", n)
+	}
+}
+
 func TestFind_UnknownReturnsFalse(t *testing.T) {
 	if _, ok := Find("definitely.not.registered"); ok {
 		t.Error("Find of an unknown slug should return ok=false")
