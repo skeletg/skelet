@@ -48,10 +48,11 @@ func (q *Queries) ApplyCodeToCart(ctx context.Context, arg ApplyCodeToCartParams
 	return i, err
 }
 
-const bulkInsertPromotionCodes = `-- name: BulkInsertPromotionCodes :execrows
+const bulkInsertPromotionCodes = `-- name: BulkInsertPromotionCodes :many
 INSERT INTO promotion_codes (rule_id, code)
 SELECT $1, unnest($2::TEXT[])
 ON CONFLICT (code) DO NOTHING
+RETURNING code
 `
 
 type BulkInsertPromotionCodesParams struct {
@@ -60,12 +61,27 @@ type BulkInsertPromotionCodesParams struct {
 }
 
 // Used by the batch-code generator - codes are passed as parallel arrays so a 10k-code batch fits in one round-trip - ON CONFLICT skips dupes - the generator regenerates collisions and retries
-func (q *Queries) BulkInsertPromotionCodes(ctx context.Context, arg BulkInsertPromotionCodesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, bulkInsertPromotionCodes, arg.RuleID, pq.Array(arg.Codes))
+func (q *Queries) BulkInsertPromotionCodes(ctx context.Context, arg BulkInsertPromotionCodesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, bulkInsertPromotionCodes, arg.RuleID, pq.Array(arg.Codes))
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected()
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		items = append(items, code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const clearCartAppliedCodes = `-- name: ClearCartAppliedCodes :exec
@@ -77,21 +93,56 @@ func (q *Queries) ClearCartAppliedCodes(ctx context.Context, cartID uuid.UUID) e
 	return err
 }
 
-const countCodeUsageByCustomer = `-- name: CountCodeUsageByCustomer :one
-SELECT COUNT(*)::INTEGER FROM promotion_redemptions
-WHERE code_id = $1 AND customer_id = $2
+const countCustomerRedemptions = `-- name: CountCustomerRedemptions :many
+SELECT r.rule_id, r.code_id, COUNT(*)::INTEGER AS n
+FROM   promotion_redemptions r
+LEFT JOIN orders o ON o.id = r.order_id
+WHERE  (r.rule_id = ANY($1::uuid[]) OR r.code_id = ANY($2::uuid[]))
+  AND  (($3::uuid IS NOT NULL AND r.customer_id = $3::uuid)
+        OR ($4::text <> '' AND lower(btrim(o.email)) = $4::text))
+GROUP BY r.rule_id, r.code_id
 `
 
-type CountCodeUsageByCustomerParams struct {
-	CodeID     uuid.NullUUID `json:"code_id"`
+type CountCustomerRedemptionsParams struct {
+	RuleIds    []uuid.UUID   `json:"rule_ids"`
+	CodeIds    []uuid.UUID   `json:"code_ids"`
 	CustomerID uuid.NullUUID `json:"customer_id"`
+	Email      string        `json:"email"`
 }
 
-func (q *Queries) CountCodeUsageByCustomer(ctx context.Context, arg CountCodeUsageByCustomerParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, countCodeUsageByCustomer, arg.CodeID, arg.CustomerID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
+type CountCustomerRedemptionsRow struct {
+	RuleID uuid.NullUUID `json:"rule_id"`
+	CodeID uuid.NullUUID `json:"code_id"`
+	N      int32         `json:"n"`
+}
+
+// A shopper is the account OR the order email, so a guest checkout can't reuse a once-per-customer code - email arrives lowercased and trimmed
+func (q *Queries) CountCustomerRedemptions(ctx context.Context, arg CountCustomerRedemptionsParams) ([]CountCustomerRedemptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countCustomerRedemptions,
+		pq.Array(arg.RuleIds),
+		pq.Array(arg.CodeIds),
+		arg.CustomerID,
+		arg.Email,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountCustomerRedemptionsRow{}
+	for rows.Next() {
+		var i CountCustomerRedemptionsRow
+		if err := rows.Scan(&i.RuleID, &i.CodeID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countPromotionCodesByRule = `-- name: CountPromotionCodesByRule :one
@@ -107,27 +158,19 @@ func (q *Queries) CountPromotionCodesByRule(ctx context.Context, ruleID uuid.UUI
 
 const countPromotionRules = `-- name: CountPromotionRules :one
 SELECT COUNT(*)::INTEGER FROM promotion_rules
+WHERE  $1::boolean
+   OR  channel_id = ANY($2::uuid[])
+   OR  ($3::boolean AND channel_id IS NULL)
 `
 
-func (q *Queries) CountPromotionRules(ctx context.Context) (int32, error) {
-	row := q.db.QueryRowContext(ctx, countPromotionRules)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
+type CountPromotionRulesParams struct {
+	AllChannels   bool        `json:"all_channels"`
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	IncludeGlobal bool        `json:"include_global"`
 }
 
-const countRuleUsageByCustomer = `-- name: CountRuleUsageByCustomer :one
-SELECT COUNT(*)::INTEGER FROM promotion_redemptions
-WHERE rule_id = $1 AND customer_id = $2
-`
-
-type CountRuleUsageByCustomerParams struct {
-	RuleID     uuid.NullUUID `json:"rule_id"`
-	CustomerID uuid.NullUUID `json:"customer_id"`
-}
-
-func (q *Queries) CountRuleUsageByCustomer(ctx context.Context, arg CountRuleUsageByCustomerParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, countRuleUsageByCustomer, arg.RuleID, arg.CustomerID)
+func (q *Queries) CountPromotionRules(ctx context.Context, arg CountPromotionRulesParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countPromotionRules, arg.AllChannels, pq.Array(arg.ChannelIds), arg.IncludeGlobal)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -556,44 +599,6 @@ SELECT id, slug, name, description, public_label, channel_id, requires_code, pri
 
 func (q *Queries) GetPromotionRule(ctx context.Context, id uuid.UUID) (PromotionRule, error) {
 	row := q.db.QueryRowContext(ctx, getPromotionRule, id)
-	var i PromotionRule
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Name,
-		&i.Description,
-		&i.PublicLabel,
-		&i.ChannelID,
-		&i.RequiresCode,
-		&i.Priority,
-		&i.StopAfterApply,
-		&i.ExclusivityGroup,
-		&i.ValidFrom,
-		&i.ValidTo,
-		&i.ScheduleJson,
-		&i.MaxUses,
-		&i.PerCustomerLimit,
-		&i.UsedCount,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.CreatedByAdminID,
-		&i.UpdatedByAdminID,
-		&i.LabelMediaID,
-		&i.BannerMediaID,
-		&i.PillText,
-		&i.PillTextColor,
-		&i.PillBgColor,
-	)
-	return i, err
-}
-
-const getPromotionRuleBySlug = `-- name: GetPromotionRuleBySlug :one
-SELECT id, slug, name, description, public_label, channel_id, requires_code, priority, stop_after_apply, exclusivity_group, valid_from, valid_to, schedule_json, max_uses, per_customer_limit, used_count, is_active, created_at, updated_at, created_by_admin_id, updated_by_admin_id, label_media_id, banner_media_id, pill_text, pill_text_color, pill_bg_color FROM promotion_rules WHERE slug = $1
-`
-
-func (q *Queries) GetPromotionRuleBySlug(ctx context.Context, slug string) (PromotionRule, error) {
-	row := q.db.QueryRowContext(ctx, getPromotionRuleBySlug, slug)
 	var i PromotionRule
 	err := row.Scan(
 		&i.ID,
@@ -1130,17 +1135,84 @@ func (q *Queries) ListPromotionRuleContents(ctx context.Context, ruleID uuid.UUI
 
 const listPromotionRules = `-- name: ListPromotionRules :many
 SELECT id, slug, name, description, public_label, channel_id, requires_code, priority, stop_after_apply, exclusivity_group, valid_from, valid_to, schedule_json, max_uses, per_customer_limit, used_count, is_active, created_at, updated_at, created_by_admin_id, updated_by_admin_id, label_media_id, banner_media_id, pill_text, pill_text_color, pill_bg_color FROM promotion_rules
+WHERE  $1::boolean
+   OR  channel_id = ANY($2::uuid[])
+   OR  ($3::boolean AND channel_id IS NULL)
 ORDER BY priority, created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $5 OFFSET $4
 `
 
 type ListPromotionRulesParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	AllChannels   bool        `json:"all_channels"`
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	IncludeGlobal bool        `json:"include_global"`
+	Off           int32       `json:"off"`
+	Lim           int32       `json:"lim"`
 }
 
+// Scoped in SQL so LIMIT/OFFSET page through what the caller may see, not through rules filtered away afterwards
 func (q *Queries) ListPromotionRules(ctx context.Context, arg ListPromotionRulesParams) ([]PromotionRule, error) {
-	rows, err := q.db.QueryContext(ctx, listPromotionRules, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listPromotionRules,
+		arg.AllChannels,
+		pq.Array(arg.ChannelIds),
+		arg.IncludeGlobal,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PromotionRule{}
+	for rows.Next() {
+		var i PromotionRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.Description,
+			&i.PublicLabel,
+			&i.ChannelID,
+			&i.RequiresCode,
+			&i.Priority,
+			&i.StopAfterApply,
+			&i.ExclusivityGroup,
+			&i.ValidFrom,
+			&i.ValidTo,
+			&i.ScheduleJson,
+			&i.MaxUses,
+			&i.PerCustomerLimit,
+			&i.UsedCount,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedByAdminID,
+			&i.UpdatedByAdminID,
+			&i.LabelMediaID,
+			&i.BannerMediaID,
+			&i.PillText,
+			&i.PillTextColor,
+			&i.PillBgColor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPromotionRulesByIDs = `-- name: ListPromotionRulesByIDs :many
+SELECT id, slug, name, description, public_label, channel_id, requires_code, priority, stop_after_apply, exclusivity_group, valid_from, valid_to, schedule_json, max_uses, per_customer_limit, used_count, is_active, created_at, updated_at, created_by_admin_id, updated_by_admin_id, label_media_id, banner_media_id, pill_text, pill_text_color, pill_bg_color FROM promotion_rules WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListPromotionRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]PromotionRule, error) {
+	rows, err := q.db.QueryContext(ctx, listPromotionRulesByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -1548,20 +1620,6 @@ type RemoveCodeFromCartByCodeParams struct {
 // Find the rule via the code join and delete the cart row
 func (q *Queries) RemoveCodeFromCartByCode(ctx context.Context, arg RemoveCodeFromCartByCodeParams) error {
 	_, err := q.db.ExecContext(ctx, removeCodeFromCartByCode, arg.CartID, arg.Code)
-	return err
-}
-
-const removeCodeFromCartByRule = `-- name: RemoveCodeFromCartByRule :exec
-DELETE FROM cart_applied_codes WHERE cart_id = $1 AND rule_id = $2
-`
-
-type RemoveCodeFromCartByRuleParams struct {
-	CartID uuid.UUID `json:"cart_id"`
-	RuleID uuid.UUID `json:"rule_id"`
-}
-
-func (q *Queries) RemoveCodeFromCartByRule(ctx context.Context, arg RemoveCodeFromCartByRuleParams) error {
-	_, err := q.db.ExecContext(ctx, removeCodeFromCartByRule, arg.CartID, arg.RuleID)
 	return err
 }
 

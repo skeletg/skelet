@@ -1,7 +1,9 @@
 package promotion
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -160,5 +162,62 @@ func TestAddFreeGiftKeepsZeroQtyCandidates(t *testing.T) {
 	}
 	if got[0].ProductSKU != "GIFT-A" || got[0].Quantity != 0 {
 		t.Errorf("free gifts[0] = %+v, want GIFT-A qty 0", got[0])
+	}
+}
+
+// Two 60% rules on one $100 line used to net it at -$20 while the cart total stayed positive
+func TestNoLineIsDiscountedBelowZero(t *testing.T) {
+	l := newLedger()
+	a, b, stale := uuid.New(), uuid.New(), uuid.New()
+	lines := []CartLineView{{LineID: a, UnitPriceCents: 10000, Quantity: 1}, {LineID: b, UnitPriceCents: 10000, Quantity: 1}}
+	l.AddLineAdjustment(a, 6000)
+	l.AddLineAdjustment(a, 6000)
+	l.AddLineAdjustment(stale, 500) // a remote provider naming a line the cart doesn't hold
+	l.Finalize(lines, 20000)
+	if got := l.LineAdjustment(a); got != 10000 {
+		t.Errorf("line A carries %d, want its own total 10000", got)
+	}
+	if got := l.LineAdjustment(stale); got != 0 {
+		t.Errorf("a line not in the cart carries %d", got)
+	}
+	if got := l.SubtotalDiscountCents(); got != 10000 {
+		t.Errorf("cart discount %d, want 10000 - the excess and the stale line come off it", got)
+	}
+}
+
+// The cart-level share goes where there is room left - spreading it by gross size put half on a line already discounted to zero
+func TestCartLevelDiscountAvoidsFullyDiscountedLines(t *testing.T) {
+	l := newLedger()
+	a, b := uuid.New(), uuid.New()
+	lines := []CartLineView{{LineID: a, UnitPriceCents: 10000, Quantity: 1}, {LineID: b, UnitPriceCents: 10000, Quantity: 1}}
+	l.AddLineAdjustment(a, 10000)
+	l.AddSubtotalDiscount(2000)
+	l.Finalize(lines, 20000)
+	if got := l.LineAdjustment(a); got != 10000 {
+		t.Errorf("line A carries %d, want 10000", got)
+	}
+	if got := l.LineAdjustment(b); got != 2000 {
+		t.Errorf("line B carries %d, want the whole cart-level 2000", got)
+	}
+}
+
+type evictingRepo struct {
+	Repository
+	cache *rulesCache
+}
+
+func (r evictingRepo) ListActiveRulesForChannel(context.Context, *uuid.UUID) ([]Rule, error) {
+	r.cache.EvictAll() // an admin edit landing while the load is in flight
+	return []Rule{{ID: uuid.New(), Slug: "pre-edit"}}, nil
+}
+
+// A load that raced an eviction must not store what it read, or the pre-edit rules price carts for a full TTL
+func TestALoadRacingAnEvictionIsNotCached(t *testing.T) {
+	c := newRulesCache(time.Minute)
+	if _, err := loadCachedActiveRules(context.Background(), c, evictingRepo{cache: c}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, hit := c.load(nil); hit {
+		t.Error("rules read before an eviction were cached after it")
 	}
 }
