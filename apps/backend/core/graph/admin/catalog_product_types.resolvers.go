@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -18,7 +19,7 @@ func (r *mutationResolver) CreateProductType(ctx context.Context, input model.Cr
 		Name:               input.Name,
 		IsDigital:          boolOrFalse(input.IsDigital),
 		IsShippingRequired: boolOrDefault(input.IsShippingRequired, true),
-		URLTemplate:        stringOrEmpty(input.URLTemplate),
+		URLTemplate:        ptr.Deref(input.URLTemplate),
 		TracksInventory:    boolOrFalse(input.TracksInventory),
 		Metadata:           metadataFromInput(input.Metadata),
 		PrivateMetadata:    metadataFromInput(input.PrivateMetadata),

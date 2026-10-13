@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"reflect"
 	"testing"
 	"time"
@@ -93,17 +94,17 @@ func TestOptionalUUID(t *testing.T) {
 func TestDerefHelpers(t *testing.T) {
 	b, i := true, int32(7)
 
-	if got := derefBoolDefault(nil, true); !got {
-		t.Error("derefBoolDefault(nil, true) = false, want the default honored")
+	if got := ptr.DerefOr(nil, true); !got {
+		t.Error("ptr.DerefOr(nil, true) = false, want the default honored")
 	}
-	if got := derefBoolDefault(nil, false); got {
-		t.Error("derefBoolDefault(nil, false) = true, want the default honored")
+	if got := ptr.DerefOr(nil, false); got {
+		t.Error("ptr.DerefOr(nil, false) = true, want the default honored")
 	}
-	if got := derefBoolDefault(&b, false); !got {
+	if got := ptr.DerefOr(&b, false); !got {
 		t.Error("an explicit true was overridden by the default")
 	}
 	no := false
-	if got := derefBoolDefault(&no, true); got {
+	if got := ptr.DerefOr(&no, true); got {
 		t.Error("an explicit false was overridden by the default - the whole point of the pointer")
 	}
 
