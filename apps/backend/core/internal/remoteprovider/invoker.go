@@ -22,6 +22,8 @@ import (
 const (
 	defaultTimeout       = 5 * time.Second
 	maxResponseBodyBytes = 256 * 1024
+	// The response cache's entry ceiling - a search provider caching for an hour, fed random storefront queries, otherwise grows without bound
+	maxCachedResponses = 4096
 	// hard client ceiling; per-invoke deadlines come from the request ctx
 	maxHTTPTimeout = time.Duration(MaxTimeoutMs)*time.Millisecond + 5*time.Second
 )
@@ -58,8 +60,13 @@ func NewInvoker(svc *Service, transport http.RoundTripper) *Invoker {
 		transport = http.DefaultTransport
 	}
 	return &Invoker{
-		svc:    svc,
-		client: &http.Client{Timeout: maxHTTPTimeout, Transport: transport},
+		svc: svc,
+		client: &http.Client{
+			Timeout:   maxHTTPTimeout,
+			Transport: transport,
+			// A 307 re-sends the signed body, config API keys included, to wherever the Location points - a provider answers at its registered URL or fails
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	}
 }
 
@@ -95,15 +102,15 @@ func (i *Invoker) Invoke(ctx context.Context, p Provider, payload any, out any) 
 	}
 
 	respBody, err := i.roundTrip(ctx, p, body)
-	ticket.Done(ctx, err == nil) // the per-call timeout is a child of ctx, so a slow provider still counts while a caller walking away doesn't
+	if err == nil && out != nil {
+		if uerr := json.Unmarshal(respBody, out); uerr != nil {
+			err = fmt.Errorf("remote provider %s/%s: undecodable response: %w", p.Kind, p.Slug, uerr)
+		}
+	}
+	// a 200 of garbage is a failing provider too, or it never trips the breaker - the per-call timeout is a child of ctx, so a slow provider still counts while a caller walking away doesn't
+	ticket.Done(ctx, err == nil)
 	if err != nil {
 		return err
-	}
-
-	if out != nil {
-		if err := json.Unmarshal(respBody, out); err != nil {
-			return fmt.Errorf("remote provider %s/%s: undecodable response: %w", p.Kind, p.Slug, err)
-		}
 	}
 	if cacheKey != "" {
 		invocationCache.put(cacheKey, p.ID, respBody, time.Duration(p.CacheTTLs)*time.Second)
@@ -142,9 +149,15 @@ func (i *Invoker) roundTrip(ctx context.Context, p Provider, body []byte) ([]byt
 		return nil, fmt.Errorf("remote provider %s/%s: %w", p.Kind, p.Slug, err)
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("remote provider %s/%s: HTTP %d", p.Kind, p.Slug, resp.StatusCode)
+	}
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("remote provider %s/%s: read response: %w", p.Kind, p.Slug, err)
+	}
+	if len(respBody) > maxResponseBodyBytes {
+		return nil, fmt.Errorf("remote provider %s/%s: response over %d bytes", p.Kind, p.Slug, maxResponseBodyBytes)
 	}
 	return respBody, nil
 }
@@ -192,17 +205,31 @@ func (c *responseCache) get(key string) ([]byte, bool) {
 func (c *responseCache) put(key string, providerID uuid.UUID, body []byte, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// opportunistic sweep keeps the map from accreting dead entries on
-	// low-traffic providers - cheap at these sizes
-	if len(c.m) > 4096 {
-		now := time.Now()
-		for k, e := range c.m {
-			if now.After(e.expiresAt) {
-				delete(c.m, k)
-			}
-		}
+	if _, exists := c.m[key]; !exists && len(c.m) >= maxCachedResponses {
+		c.makeRoom()
 	}
 	c.m[key] = cacheEntry{providerID: providerID, body: body, expiresAt: time.Now().Add(ttl)}
+}
+
+// Expired entries go first, and when every entry is live the one closest to expiring makes way - the sweep alone never freed anything while the TTLs held
+func (c *responseCache) makeRoom() {
+	now := time.Now()
+	for k, e := range c.m {
+		if now.After(e.expiresAt) {
+			delete(c.m, k)
+		}
+	}
+	if len(c.m) < maxCachedResponses {
+		return
+	}
+	var soonest string
+	var at time.Time
+	for k, e := range c.m {
+		if soonest == "" || e.expiresAt.Before(at) {
+			soonest, at = k, e.expiresAt
+		}
+	}
+	delete(c.m, soonest)
 }
 
 // invalidate drops every cached response for one provider - config or URL

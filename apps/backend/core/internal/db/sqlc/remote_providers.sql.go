@@ -7,9 +7,9 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 const createRemoteProvider = `-- name: CreateRemoteProvider :one
@@ -22,16 +22,16 @@ RETURNING id, kind, slug, name, target_url, signing_secret, config, timeout_ms, 
 `
 
 type CreateRemoteProviderParams struct {
-	Kind          string                `json:"kind"`
-	Slug          string                `json:"slug"`
-	Name          string                `json:"name"`
-	TargetUrl     string                `json:"target_url"`
-	SigningSecret string                `json:"signing_secret"`
-	Config        pqtype.NullRawMessage `json:"config"`
-	TimeoutMs     int32                 `json:"timeout_ms"`
-	CacheTtlS     int32                 `json:"cache_ttl_s"`
-	FailurePolicy string                `json:"failure_policy"`
-	ChannelID     uuid.NullUUID         `json:"channel_id"`
+	Kind          string         `json:"kind"`
+	Slug          string         `json:"slug"`
+	Name          string         `json:"name"`
+	TargetUrl     string         `json:"target_url"`
+	SigningSecret string         `json:"signing_secret"`
+	Config        sql.NullString `json:"config"`
+	TimeoutMs     int32          `json:"timeout_ms"`
+	CacheTtlS     int32          `json:"cache_ttl_s"`
+	FailurePolicy string         `json:"failure_policy"`
+	ChannelID     uuid.NullUUID  `json:"channel_id"`
 }
 
 func (q *Queries) CreateRemoteProvider(ctx context.Context, arg CreateRemoteProviderParams) (RemoteProvider, error) {
@@ -249,6 +249,40 @@ func (q *Queries) ListActiveRemoteProvidersForChannel(ctx context.Context, chann
 	return items, nil
 }
 
+const listRemoteProviderSecrets = `-- name: ListRemoteProviderSecrets :many
+SELECT id, signing_secret, config FROM remote_providers
+`
+
+type ListRemoteProviderSecretsRow struct {
+	ID            uuid.UUID      `json:"id"`
+	SigningSecret string         `json:"signing_secret"`
+	Config        sql.NullString `json:"config"`
+}
+
+// The at-rest sweep's view - the stored form of both sealed columns
+func (q *Queries) ListRemoteProviderSecrets(ctx context.Context) ([]ListRemoteProviderSecretsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRemoteProviderSecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRemoteProviderSecretsRow{}
+	for rows.Next() {
+		var i ListRemoteProviderSecretsRow
+		if err := rows.Scan(&i.ID, &i.SigningSecret, &i.Config); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRemoteProviders = `-- name: ListRemoteProviders :many
 SELECT id, kind, slug, name, target_url, signing_secret, config, timeout_ms, cache_ttl_s, failure_policy, channel_id, is_active, created_at, updated_at FROM remote_providers ORDER BY kind, slug
 `
@@ -324,6 +358,21 @@ func (q *Queries) SetRemoteProviderActive(ctx context.Context, arg SetRemoteProv
 	return i, err
 }
 
+const setRemoteProviderSealed = `-- name: SetRemoteProviderSealed :exec
+UPDATE remote_providers SET signing_secret = $2, config = $3 WHERE id = $1
+`
+
+type SetRemoteProviderSealedParams struct {
+	ID            uuid.UUID      `json:"id"`
+	SigningSecret string         `json:"signing_secret"`
+	Config        sql.NullString `json:"config"`
+}
+
+func (q *Queries) SetRemoteProviderSealed(ctx context.Context, arg SetRemoteProviderSealedParams) error {
+	_, err := q.db.ExecContext(ctx, setRemoteProviderSealed, arg.ID, arg.SigningSecret, arg.Config)
+	return err
+}
+
 const updateRemoteProvider = `-- name: UpdateRemoteProvider :one
 UPDATE remote_providers
 SET name = $2, target_url = $3, config = $4, timeout_ms = $5,
@@ -333,13 +382,13 @@ RETURNING id, kind, slug, name, target_url, signing_secret, config, timeout_ms, 
 `
 
 type UpdateRemoteProviderParams struct {
-	ID            uuid.UUID             `json:"id"`
-	Name          string                `json:"name"`
-	TargetUrl     string                `json:"target_url"`
-	Config        pqtype.NullRawMessage `json:"config"`
-	TimeoutMs     int32                 `json:"timeout_ms"`
-	CacheTtlS     int32                 `json:"cache_ttl_s"`
-	FailurePolicy string                `json:"failure_policy"`
+	ID            uuid.UUID      `json:"id"`
+	Name          string         `json:"name"`
+	TargetUrl     string         `json:"target_url"`
+	Config        sql.NullString `json:"config"`
+	TimeoutMs     int32          `json:"timeout_ms"`
+	CacheTtlS     int32          `json:"cache_ttl_s"`
+	FailurePolicy string         `json:"failure_policy"`
 }
 
 func (q *Queries) UpdateRemoteProvider(ctx context.Context, arg UpdateRemoteProviderParams) (RemoteProvider, error) {
