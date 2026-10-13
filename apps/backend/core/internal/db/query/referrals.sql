@@ -38,7 +38,7 @@ WHERE  id = $1;
 -- name: ReferralStats :one
 SELECT COUNT(*)::BIGINT                                                   AS referred,
        COUNT(*) FILTER (WHERE status = 'rewarded')::BIGINT                AS rewarded,
-       COALESCE(SUM(referrer_reward_cents), 0)::BIGINT                    AS earned_cents
+       COALESCE(SUM(referrer_reward_cents) FILTER (WHERE status = 'rewarded'), 0)::BIGINT AS earned_cents
 FROM   referrals
 WHERE  referrer_customer_id = $1;
 

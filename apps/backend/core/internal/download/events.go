@@ -33,16 +33,6 @@ type OrderDownloadLookup interface {
 	DownloadsForOrder(ctx context.Context, orderID uuid.UUID) (OrderDownloads, error)
 }
 
-// An authorization is the gateway's promise to pay the whole order - unpaid (cash on delivery, bank transfer) isn't, or the file
-// ships for free, and neither is a partial capture, which is how a cash deposit lands
-func paidFor(paymentStatus string) bool {
-	switch paymentStatus {
-	case order.PaymentAuthorized, order.PaymentPaid:
-		return true
-	}
-	return false
-}
-
 const EventAccessed = "download.accessed"
 
 // Fires AFTER a grant's token is redeemed and the download served - async and best-effort, with the Synapse activity tracker resolving the channel through OrderID
@@ -82,7 +72,7 @@ func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) er
 		return nil
 	}
 	switch {
-	case paidFor(changed.Status):
+	case order.PaidFor(changed.Status):
 		return s.grantForOrder(ctx, changed.OrderID)
 	case changed.Status == order.PaymentVoided || changed.Status == order.PaymentRefunded:
 		return s.revoke(ctx, changed.OrderID)
@@ -108,7 +98,7 @@ func (s *Service) grantForOrder(ctx context.Context, orderID uuid.UUID) error {
 		log.Printf("[download] resolve downloads for order %s: %v", orderID, err)
 		return err
 	}
-	if len(o.Items) == 0 || o.Status == order.OrderStatusCancelled || !paidFor(o.PaymentStatus) {
+	if len(o.Items) == 0 || o.Status == order.OrderStatusCancelled || !order.PaidFor(o.PaymentStatus) {
 		return nil
 	}
 	err = s.tx.InTransaction(ctx, func(t *sql.Tx) error {

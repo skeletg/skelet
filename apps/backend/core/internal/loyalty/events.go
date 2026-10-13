@@ -48,18 +48,13 @@ func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) er
 		return nil
 	}
 	switch {
-	case paidFor(changed.Status):
+	case order.PaidFor(changed.Status):
 		return s.earn(ctx, changed.OrderID)
 	case changed.Status == order.PaymentVoided:
 		// The authorization that earned the points never turned into money
 		return s.revoke(ctx, changed.OrderID, 1, "payment voided - points revoked")
 	}
 	return nil
-}
-
-// An authorization is the gateway's promise to pay the whole order - unpaid (cash on delivery, bank transfer) isn't, and neither is a partial capture, which is how a cash deposit lands
-func paidFor(paymentStatus string) bool {
-	return paymentStatus == order.PaymentAuthorized || paymentStatus == order.PaymentPaid
 }
 
 func (s *Service) earn(ctx context.Context, orderID uuid.UUID) error {
@@ -79,7 +74,7 @@ func (s *Service) earnForOrder(ctx context.Context, orderID uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("load order: %w", err)
 	}
-	if o.CustomerID == nil || o.Status == order.OrderStatusCancelled || !paidFor(o.PaymentStatus) {
+	if o.CustomerID == nil || o.Status == order.OrderStatusCancelled || !order.PaidFor(o.PaymentStatus) {
 		return nil
 	}
 	prog, err := s.ProgramFor(ctx, o.ChannelID)
