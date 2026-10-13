@@ -108,6 +108,25 @@ Full contract, the signed envelope and the per-kind schemas:
 [remote-providers.md](remote-providers.md). `./skelet provider` conformance-tests
 an endpoint against it.
 
+## Configure payment plugins in the dashboard
+
+**Settings → Payment providers** lists installed gateway plugins, their versions and
+runtime status. Select a provider to edit its registered credentials and test/live
+settings using the page-header Save. Secret values stay masked and are not stored in
+browser drafts. The page shows the backend webhook path; with a channel selected it
+includes the channel routing parameter. Plugin runtime enablement follows its registered
+scope, so the built-in plugin switch is edited at Global scope.
+
+**Settings → Checkout → Payment** controls which registered methods a channel offers,
+their country rules, checkout labels, display order and manual-payment instructions.
+A disabled plugin is excluded from eligible methods and cannot be enabled for checkout.
+Restarting the backend preserves merchant labels and ordering.
+
+Installing still requires adding a compatible plugin module and rebuilding the backend;
+the dashboard does not install code. Backend installation does not install card-entry
+or authentication UI in a storefront. Each gateway needs its matching storefront integration.
+Runtime status reports whether the plugin can run; it is not a credential or connectivity test.
+
 ## What the SDK gives a gateway author
 
 - **`sdk/httpx`** - the outbound HTTP client: auth hook, 1MiB body cap, torn-read
