@@ -63,9 +63,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 		if err := validateQtyBounds(sp, quantity); err != nil { // this upsert REPLACES the line rather than summing, so the requested quantity is the whole prospective total
 			return Cart{}, err
 		}
-		if best := pricing.BestTier(sp.Tiers, quantity, nil, ""); best != nil && *best < base {
-			base = *best
-		}
+		base = pricing.ApplyTiers(base, sp.Tiers, quantity)
 	}
 	unitPrice := max(base+optionDelta, 0) // a mistyped negative delta must not produce a negative line - free is the floor
 	name := res.ProductName
