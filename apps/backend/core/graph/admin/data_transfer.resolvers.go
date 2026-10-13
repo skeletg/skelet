@@ -7,6 +7,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -37,7 +38,7 @@ func (r *mutationResolver) StartDataExport(ctx context.Context, input model.Star
 		Format:    dataio.Format(input.Format),
 		Options:   optionValues(input.Options),
 		ChannelID: channelID,
-		Locale:    derefString(input.Locale),
+		Locale:    ptr.Deref(input.Locale),
 		AdminID:   claims.AdminID,
 	})
 	if err != nil {
@@ -134,7 +135,7 @@ func (r *queryResolver) DataJobs(ctx context.Context, resources []string, direct
 	}
 	jobs, total, err := r.DataJobSvc.List(ctx, datajob.ListFilter{
 		Resources:  visible,
-		Direction:  dataio.Direction(derefString(direction)),
+		Direction:  dataio.Direction(ptr.Deref(direction)),
 		Statuses:   statuses,
 		Limit:      int(derefInt32Default(limit, 50)),
 		Offset:     int(derefInt32Default(offset, 0)),

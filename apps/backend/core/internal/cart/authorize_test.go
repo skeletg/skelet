@@ -85,8 +85,6 @@ func (f fakeRepo) SetBundleLineQuantity(context.Context, uuid.UUID, float64) err
 func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error)  { return nil, nil }
 func (f fakeRepo) WithTx(*sql.Tx) Repository                                       { return f }
 
-func ptr(u uuid.UUID) *uuid.UUID { return &u }
-
 func TestAuthorizeCart(t *testing.T) {
 	owner := uuid.New()
 	other := uuid.New()
@@ -103,19 +101,19 @@ func TestAuthorizeCart(t *testing.T) {
 		{
 			name:    "a missing cart is forbidden, not not-found", // telling them apart would let anyone enumerate cart UUIDs
 			cartErr: sql.ErrNoRows,
-			caller:  ptr(owner),
+			caller:  new(owner),
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:    "a repo failure propagates rather than reading as forbidden", // masking it told a shopper their own cart was gone whenever the DB blipped
 			cartErr: dbDown,
-			caller:  ptr(owner),
+			caller:  new(owner),
 			wantErr: dbDown,
 		},
 		{
 			name:    "non-active cart rejected",
-			cart:    Cart{ID: cartID, Status: "converted", CustomerID: ptr(owner)},
-			caller:  ptr(owner),
+			cart:    Cart{ID: cartID, Status: "converted", CustomerID: new(owner)},
+			caller:  new(owner),
 			wantErr: ErrCartNotActive,
 		},
 		{
@@ -126,24 +124,24 @@ func TestAuthorizeCart(t *testing.T) {
 		{
 			name:   "guest cart allows any caller (some customer)",
 			cart:   Cart{ID: cartID, Status: "active", CustomerID: nil},
-			caller: ptr(other),
+			caller: new(other),
 		},
 		{
 			name:    "customer cart rejects anonymous caller",
-			cart:    Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
+			cart:    Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
 			caller:  nil,
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:    "customer cart rejects a different customer",
-			cart:    Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
-			caller:  ptr(other),
+			cart:    Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
+			caller:  new(other),
 			wantErr: ErrCartForbidden,
 		},
 		{
 			name:   "customer cart allows its owner",
-			cart:   Cart{ID: cartID, Status: "active", CustomerID: ptr(owner)},
-			caller: ptr(owner),
+			cart:   Cart{ID: cartID, Status: "active", CustomerID: new(owner)},
+			caller: new(owner),
 		},
 	}
 	for _, tc := range tests {

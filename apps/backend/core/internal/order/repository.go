@@ -776,8 +776,8 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingTaxAmount:   o.ShippingTaxAmount,
 		TotalAmount:         o.TotalAmount,
 		CurrencyCode:        o.CurrencyCode,
-		CustomerNote:        sqlnull.String(stringPtr(o.CustomerNote)),
-		PoNumber:            sqlnull.String(stringPtr(o.PONumber)),
+		CustomerNote:        sqlnull.StringValueNonEmpty(o.CustomerNote),
+		PoNumber:            sqlnull.StringValueNonEmpty(o.PONumber),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
@@ -1394,11 +1394,4 @@ func toOrderEvent(row db.OrderEvent) OrderEvent {
 		ActorEmail: row.ActorEmail.String,
 		CreatedAt:  row.CreatedAt,
 	}
-}
-
-func stringPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }

@@ -2,6 +2,7 @@ package cart
 
 import (
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 
 	"github.com/google/uuid"
 )
@@ -15,8 +16,8 @@ func (e *LineAdding) LineChannelID() uuid.UUID   { return e.ChannelID }
 func (e *LineAdding) LineCustomerID() *uuid.UUID { return e.CustomerID }
 func (e *LineAdding) LineSKU() string            { return e.ProductSku }
 func (e *LineAdding) LineName() string           { return e.ProductName }
-func (e *LineAdding) LineQuantity() float64      { return derefFloat(e.Quantity) }
-func (e *LineAdding) LineUnitPriceCents() int64  { return derefInt(e.UnitPrice) }
+func (e *LineAdding) LineQuantity() float64      { return ptr.Deref(e.Quantity) }
+func (e *LineAdding) LineUnitPriceCents() int64  { return ptr.Deref(e.UnitPrice) }
 
 func (e *LineAdding) SetLineUnitPrice(cents int64) error {
 	if cents < 0 {
@@ -39,7 +40,7 @@ func (e *LineUpdating) LineChannelID() uuid.UUID   { return e.ChannelID }
 func (e *LineUpdating) LineCustomerID() *uuid.UUID { return e.CustomerID }
 func (e *LineUpdating) CartLineID() uuid.UUID      { return e.LineID }
 func (e *LineUpdating) LineSKU() string            { return e.ProductSku }
-func (e *LineUpdating) LineQuantity() float64      { return derefFloat(e.Quantity) }
+func (e *LineUpdating) LineQuantity() float64      { return ptr.Deref(e.Quantity) }
 
 func (e *LineUpdating) SetLineQuantity(qty float64) error {
 	if qty <= 0 {
@@ -49,29 +50,14 @@ func (e *LineUpdating) SetLineQuantity(qty float64) error {
 	return nil
 }
 
-// Every emitter sets both, so these only guard a hand-built event
-func derefFloat(p *float64) float64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
-func derefInt(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
 // BundleAdding is sdk.CartLineAdding too - the same shape as a single line, the price being the bundle's
 func (e *BundleAdding) LineCartID() uuid.UUID      { return e.CartID }
 func (e *BundleAdding) LineChannelID() uuid.UUID   { return e.ChannelID }
 func (e *BundleAdding) LineCustomerID() *uuid.UUID { return e.CustomerID }
 func (e *BundleAdding) LineSKU() string            { return e.ProductSku }
 func (e *BundleAdding) LineName() string           { return e.ProductName }
-func (e *BundleAdding) LineQuantity() float64      { return derefFloat(e.Quantity) }
-func (e *BundleAdding) LineUnitPriceCents() int64  { return derefInt(e.UnitPrice) }
+func (e *BundleAdding) LineQuantity() float64      { return ptr.Deref(e.Quantity) }
+func (e *BundleAdding) LineUnitPriceCents() int64  { return ptr.Deref(e.UnitPrice) }
 
 func (e *BundleAdding) SetLineUnitPrice(cents int64) error {
 	if cents < 0 {
