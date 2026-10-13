@@ -52,6 +52,24 @@ func (h *harness) gqlCartCheckout(t *testing.T, ts *httptest.Server, f *store, c
 	return data["cart"].(map[string]any)["checkout"].(map[string]any)
 }
 
+// gqlCartGroups reads the cart's delivery groups with their selection
+func (h *harness) gqlCartGroups(t *testing.T, ts *httptest.Server, f *store, cartID string) []map[string]any {
+	t.Helper()
+	data, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(`{ cart(id: %q) { checkout { deliveryGroups {
+		key kinds lineIds choices { optionId optionName kind carrierSlug methodCode priceCents }
+		selection { optionId kind carrierSlug methodCode priceCents point { id name city } }
+		shipments { originName lineIds priceCents } } } } }`, cartID))
+	if len(errs) > 0 {
+		t.Fatalf("cart groups: %v", errs)
+	}
+	raw := data["cart"].(map[string]any)["checkout"].(map[string]any)["deliveryGroups"].([]any)
+	out := make([]map[string]any, len(raw))
+	for i, g := range raw {
+		out[i] = g.(map[string]any)
+	}
+	return out
+}
+
 func details(cartID, fields string) string {
 	return fmt.Sprintf(`setCartDetails(cartId: %q, input: {%s})`, cartID, fields)
 }
@@ -147,7 +165,7 @@ func TestCheckoutStepsPersistOnTheCart(t *testing.T) {
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cart2))
 	h.gqlCheckout(t, ts, f, details(cart2, fmt.Sprintf(`shippingAddress: %s, billingSameAsShipping: true`, usAddress)))
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cart2)); len(errs) == 0 || !strings.Contains(errs[0], "delivery or pickup") {
-		t.Errorf("placeOrder without a method = %v, want the CHECKOUT_SHIPPING_METHOD_REQUIRED refusal", errs)
+		t.Errorf("placeOrder without a method = %v, want the CHECKOUT_DELIVERY_OPTION_REQUIRED refusal", errs)
 	}
 }
 
@@ -176,9 +194,14 @@ func TestCheckoutPickupNeedsNoAddress(t *testing.T) {
 	email := "pickup-" + uuid.NewString()[:8] + "@e2e.test"
 
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
-	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: %q)`, cartID, "loc-"+f.Location.Slug))
+	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: "collect")`, cartID))
 	if co["isPickup"] != true {
-		t.Fatalf("isPickup = %v after choosing the store", co["isPickup"])
+		t.Fatalf("isPickup = %v after choosing pickup", co["isPickup"])
+	}
+	// The store's only pickup location is the point without being asked
+	groups := h.gqlCartGroups(t, ts, f, cartID)
+	if p, _ := groups[0]["selection"].(map[string]any)["point"].(map[string]any); p == nil || p["id"] != f.Location.Slug {
+		t.Fatalf("pickup point = %v, want the store's location %s", groups[0]["selection"], f.Location.Slug)
 	}
 
 	if msg := h.gqlCheckoutRefused(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, billingSameAsShipping: false`, email))); !strings.Contains(msg, "collect") {
