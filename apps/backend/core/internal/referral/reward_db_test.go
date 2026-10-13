@@ -3,6 +3,7 @@ package referral
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 
@@ -24,13 +25,26 @@ func testDB(t *testing.T) *sql.DB {
 	return testdb.Require(t)
 }
 
+// Reads the seeded order row - the reward gates on its customer, channel and payment state, and noCurrency blanks the currency for the refuse-to-guess test
 type fakeOrderLookup struct {
-	currency string
-	err      error
+	conn       *sql.DB
+	noCurrency bool
 }
 
-func (f fakeOrderLookup) GetByID(context.Context, uuid.UUID) (order.Order, error) {
-	return order.Order{CurrencyCode: f.currency}, f.err
+func (f fakeOrderLookup) GetByID(ctx context.Context, id uuid.UUID) (order.Order, error) {
+	var o order.Order
+	var customer uuid.NullUUID
+	if err := f.conn.QueryRowContext(ctx, `SELECT id, channel_id, customer_id, currency_code, status, payment_status FROM orders WHERE id = $1`, id).
+		Scan(&o.ID, &o.ChannelID, &customer, &o.CurrencyCode, &o.Status, &o.PaymentStatus); err != nil {
+		return order.Order{}, err
+	}
+	if customer.Valid {
+		o.CustomerID = &customer.UUID
+	}
+	if f.noCurrency {
+		o.CurrencyCode = ""
+	}
+	return o, nil
 }
 
 // The services wired the way main.go does, plus the channel the program config is scoped to
@@ -39,7 +53,7 @@ func newFixture(t *testing.T, conn *sql.DB) (*Service, *storecredit.Service, uui
 	queries, txMgr := dbsqlc.New(conn), txrunner.New(conn)
 	credit := storecredit.NewService(queries, txMgr)
 	svc := NewService(queries, txMgr, config.NewService(configstore.New(queries)), credit)
-	svc.SetOrderLookup(fakeOrderLookup{currency: "USD"})
+	svc.SetOrderLookup(fakeOrderLookup{conn: conn})
 
 	var channelID uuid.UUID
 	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
@@ -73,13 +87,18 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	return id
 }
 
-// referrals.order_id points at a real order, and the reversal reads the order to learn the currency
-func seedOrder(t *testing.T, conn *sql.DB, channelID uuid.UUID) uuid.UUID {
+// referrals.order_id points at a real order, and the reward reads it for the buyer and whether it's paid for - card-paid unless a test says otherwise
+func seedOrder(t *testing.T, conn *sql.DB, channelID uuid.UUID, customerID *uuid.UUID) uuid.UUID {
+	t.Helper()
+	return seedOrderPaying(t, conn, channelID, customerID, order.PaymentAuthorized)
+}
+
+func seedOrderPaying(t *testing.T, conn *sql.DB, channelID uuid.UUID, customerID *uuid.UUID, paymentStatus string) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
 	if err := conn.QueryRow(
-		`INSERT INTO orders (channel_id, currency_code) VALUES ($1, 'USD') RETURNING id`,
-		channelID).Scan(&id); err != nil {
+		`INSERT INTO orders (channel_id, currency_code, customer_id, payment_status) VALUES ($1, 'USD', $2, $3) RETURNING id`,
+		channelID, customerID, paymentStatus).Scan(&id); err != nil {
 		t.Fatalf("seed order: %v", err)
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM orders WHERE id = $1`, id) })
@@ -185,10 +204,10 @@ func TestAttachRefusesTheCodesThatWouldMintFreeCredit(t *testing.T) {
 		t.Fatalf("CodeFor: %v", err)
 	}
 
-	if err := svc.Attach(ctx, owner, code); err == nil || !strings.Contains(err.Error(), "self-referral") {
+	if err := svc.Attach(ctx, owner, code); !errors.Is(err, ErrSelfReferral) {
 		t.Errorf("self-referral err = %v, want the refusal", err)
 	}
-	if err := svc.Attach(ctx, referee, "ZZZZZZZZ"); err == nil || !strings.Contains(err.Error(), "unknown") {
+	if err := svc.Attach(ctx, referee, "ZZZZZZZZ"); !errors.Is(err, ErrUnknownCode) {
 		t.Errorf("unknown code err = %v, want the refusal", err)
 	}
 	if err := svc.Attach(ctx, referee, strings.ToLower("  "+code+"  ")); err != nil {
@@ -254,7 +273,7 @@ func TestTheFirstOrderPaysBothSidesOnce(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	placed := &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"}
 	for range 3 {
@@ -280,7 +299,7 @@ func TestNoRewardWhileTheProgramIsOff(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, false, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 
@@ -302,7 +321,7 @@ func TestOnlyTheRefereesOwnFirstOrderPaysOut(t *testing.T) {
 	referrer, referee := seedPendingReferral(t, conn, svc)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{
-		OrderID: seedOrder(t, conn, channelID), CustomerID: &referrer, ChannelID: channelID, Currency: "USD",
+		OrderID: seedOrder(t, conn, channelID, &referrer), CustomerID: &referrer, ChannelID: channelID, Currency: "USD",
 	})
 	if got := balance(t, credit, referrer); got != 0 {
 		t.Fatalf("the referrer's own order paid out %d", got)
@@ -312,11 +331,11 @@ func TestOnlyTheRefereesOwnFirstOrderPaysOut(t *testing.T) {
 	}
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{
-		OrderID: seedOrder(t, conn, channelID), CustomerID: &referee, ChannelID: channelID, Currency: "USD",
+		OrderID: seedOrder(t, conn, channelID, &referee), CustomerID: &referee, ChannelID: channelID, Currency: "USD",
 	})
 	before := balance(t, credit, referrer)
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{
-		OrderID: seedOrder(t, conn, channelID), CustomerID: &referee, ChannelID: channelID, Currency: "USD",
+		OrderID: seedOrder(t, conn, channelID, &referee), CustomerID: &referee, ChannelID: channelID, Currency: "USD",
 	})
 	if got := balance(t, credit, referrer); got != before {
 		t.Errorf("a second order by the referee paid out again: %d then %d", before, got)
@@ -329,7 +348,7 @@ func TestAGuestOrderIsNotAReferralTrigger(t *testing.T) { // a nil customer id h
 	setProgram(t, conn, channelID, true, "1000", "500")
 
 	_ = svc.onOrderPlaced(context.Background(), &order.OrderPlaced{
-		OrderID: seedOrder(t, conn, channelID), ChannelID: channelID, Currency: "USD",
+		OrderID: seedOrder(t, conn, channelID, nil), ChannelID: channelID, Currency: "USD",
 	})
 }
 
@@ -341,7 +360,7 @@ func TestCancellingTheQualifyingOrderClawsBothRewardsBack(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 	if balance(t, credit, referrer) != 1000 {
@@ -369,7 +388,7 @@ func TestAFullRefundReversesLikeACancel(t *testing.T) { // else the cancel loop 
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 	_ = svc.onOrderRefunded(ctx, &order.OrderRefunded{OrderID: orderID, ChannelID: channelID, FullyRefunded: true})
@@ -387,7 +406,7 @@ func TestAPartialRefundLeavesThePayoutAlone(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 	_ = svc.onOrderRefunded(ctx, &order.OrderRefunded{
@@ -408,10 +427,10 @@ func TestCancellingAnUnrelatedOrderIsANoOp(t *testing.T) { // most cancellations
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	qualifying := seedOrder(t, conn, channelID)
+	qualifying := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: qualifying, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
-	_ = svc.onOrderCancelled(ctx, &order.OrderCancelled{OrderID: seedOrder(t, conn, channelID), ChannelID: channelID})
+	_ = svc.onOrderCancelled(ctx, &order.OrderCancelled{OrderID: seedOrder(t, conn, channelID, nil), ChannelID: channelID})
 
 	if got := balance(t, credit, referrer); got != 1000 {
 		t.Errorf("referrer balance = %d, want the unrelated cancel ignored", got)
@@ -429,7 +448,7 @@ func TestASpentRewardIsClawedBackToZeroNotIntoDebt(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 	if _, err := credit.Adjust(ctx, referrer, -600, "USD", "spent on an order", nil); err != nil {
@@ -454,10 +473,10 @@ func TestTheReversalRefusesToGuessTheCurrency(t *testing.T) {
 	ctx := context.Background()
 	setProgram(t, conn, channelID, true, "1000", "500")
 	referrer, referee := seedPendingReferral(t, conn, svc)
-	orderID := seedOrder(t, conn, channelID)
+	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
-	svc.SetOrderLookup(fakeOrderLookup{currency: ""})
+	svc.SetOrderLookup(fakeOrderLookup{conn: conn, noCurrency: true})
 	_ = svc.onOrderCancelled(ctx, &order.OrderCancelled{OrderID: orderID, ChannelID: channelID})
 
 	if got := balance(t, credit, referrer); got != 1000 {
@@ -483,15 +502,24 @@ func TestStatsCountWhatTheCustomerEarned(t *testing.T) {
 		t.Errorf("before the order stats = %+v, want one referred and nothing earned", pending)
 	}
 
-	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{
-		OrderID: seedOrder(t, conn, channelID), CustomerID: &referee, ChannelID: channelID, Currency: "USD",
-	})
+	orderID := seedOrder(t, conn, channelID, &referee)
+	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
 	rewarded, err := svc.StatsFor(ctx, referrer)
 	if err != nil {
 		t.Fatalf("StatsFor: %v", err)
 	}
 	if rewarded.Referred != 1 || rewarded.Rewarded != 1 || rewarded.EarnedCents != 1000 {
 		t.Errorf("after the order stats = %+v, want one rewarded referral worth 1000", rewarded)
+	}
+
+	// a reversed payout was clawed back, so it isn't earned any more
+	_ = svc.onOrderCancelled(ctx, &order.OrderCancelled{OrderID: orderID, ChannelID: channelID})
+	reversed, err := svc.StatsFor(ctx, referrer)
+	if err != nil {
+		t.Fatalf("StatsFor: %v", err)
+	}
+	if reversed.EarnedCents != 0 {
+		t.Errorf("after the reversal earned = %d, want 0", reversed.EarnedCents)
 	}
 }
 
@@ -518,5 +546,59 @@ func TestACodeOnlyRefersOnItsOwnersChannel(t *testing.T) {
 	var n int
 	if err := conn.QueryRow(`SELECT count(*) FROM referrals WHERE referee_customer_id = $1`, referee).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("referrals for the cross-channel referee = %d, %v", n, err)
+	}
+}
+
+// Paying on placement minted spendable credit off an unpaid COD order from a throwaway account - the cancel clawback could only take back what was left
+func TestAnUnpaidFirstOrderPaysNothingUntilItIsPaid(t *testing.T) {
+	conn := testDB(t)
+	svc, credit, channelID := newFixture(t, conn)
+	ctx := context.Background()
+	setProgram(t, conn, channelID, true, "1000", "500")
+	referrer, referee := seedPendingReferral(t, conn, svc)
+	orderID := seedOrderPaying(t, conn, channelID, &referee, order.PaymentUnpaid)
+
+	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
+	if got := balance(t, credit, referrer); got != 0 {
+		t.Fatalf("referrer paid %d for an unpaid order", got)
+	}
+	if got := statusOf(t, conn, referee); got != "pending" {
+		t.Fatalf("referral status = %q before payment, want pending", got)
+	}
+
+	if _, err := conn.Exec(`UPDATE orders SET payment_status = 'paid' WHERE id = $1`, orderID); err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.onPaymentStatusChanged(ctx, &order.OrderPaymentStatusChanged{OrderID: orderID, Status: order.PaymentPaid})
+	if got := balance(t, credit, referrer); got != 1000 {
+		t.Errorf("referrer balance = %d once paid, want 1000", got)
+	}
+}
+
+// The authorization that earned the payout never turned into money
+func TestAVoidedPaymentReversesThePayout(t *testing.T) {
+	conn := testDB(t)
+	svc, credit, channelID := newFixture(t, conn)
+	ctx := context.Background()
+	setProgram(t, conn, channelID, true, "1000", "500")
+	referrer, referee := seedPendingReferral(t, conn, svc)
+	orderID := seedOrder(t, conn, channelID, &referee)
+	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
+	_ = svc.onPaymentStatusChanged(ctx, &order.OrderPaymentStatusChanged{OrderID: orderID, Status: order.PaymentVoided})
+	if got := balance(t, credit, referrer); got != 0 {
+		t.Errorf("referrer kept %d after the payment was voided", got)
+	}
+	if got := statusOf(t, conn, referee); got != "reversed" {
+		t.Errorf("referral status = %q, want reversed", got)
+	}
+}
+
+// Only a code collision is worth another try - any other failure surfaced as "could not generate a unique code" after five pointless retries
+func TestCodeForReportsTheRealFailure(t *testing.T) {
+	conn := testDB(t)
+	svc, _, _ := newFixture(t, conn)
+	_, err := svc.CodeFor(context.Background(), uuid.New()) // no such customer - a foreign key failure, not a collision
+	if err == nil || strings.Contains(err.Error(), "unique code") {
+		t.Errorf("err = %v, want the insert failure itself", err)
 	}
 }

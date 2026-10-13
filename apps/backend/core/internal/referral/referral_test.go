@@ -81,3 +81,24 @@ func TestReferralConfigIsRegistered(t *testing.T) { // ProgramFor reads these th
 		t.Error("the program must ship disabled - rewards move real store credit")
 	}
 }
+
+// 256 isn't a multiple of 31, so a plain modulo favoured the first eight symbols - with rejection sampling each symbol is near 1/31
+func TestNewCodeIsUnbiased(t *testing.T) {
+	counts := map[byte]int{}
+	const codes = 20000
+	for range codes {
+		c, err := newCode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range len(c) {
+			counts[c[i]]++
+		}
+	}
+	want := float64(codes*8) / float64(len(codeAlphabet))
+	for i := range len(codeAlphabet) {
+		if got := float64(counts[codeAlphabet[i]]); got < want*0.94 || got > want*1.06 {
+			t.Errorf("%c drawn %.0f times, want about %.0f", codeAlphabet[i], got, want)
+		}
+	}
+}
