@@ -2,7 +2,7 @@
 
 import type { Submission } from "@conform-to/zod/v4";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { refresh, revalidatePath } from "next/cache";
 
 import { AccountAddAddressDocument } from "@/app/lib/auth/operations.gql";
@@ -14,19 +14,25 @@ import {
   FinalizeOrderPaymentDocument,
   PlaceOrderDocument,
   RemoveCheckoutGiftCardDocument,
+  SetCheckoutDeliveryDocument,
+  SetCheckoutDeliveryPointDocument,
   SetCheckoutDestinationDocument,
   SetCheckoutDetailsDocument,
   SetCheckoutPaymentMethodDocument,
-  SetCheckoutShippingMethodDocument,
+  SetCheckoutSplitDeliveryDocument,
   SetCheckoutStoreCreditDocument,
   type AddressInput,
 } from "@/app/lib/checkout/operations.gql";
 import type { CheckoutDetailsInput } from "@/app/graphql/schema.types";
 import { getCheckoutState } from "@/app/lib/checkout/read";
+import { detailsAsks } from "@/app/lib/checkout/asks";
 import {
-  deliveryStepSchema,
+  deliveryPointSchema,
+  groupDeliverySchema,
   destinationSchema,
+  splitDeliverySchema,
   detailsStepSchema,
+  billingIsShown,
   type DetailsMode,
   giftCardSchema,
   paymentStepSchema,
@@ -40,9 +46,10 @@ import { errorMessage } from "@/app/lib/forms/reply";
 import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
 import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 
-// Every step saves to the cart and refreshes the page, which re-reads the cart and opens the next step - the cart is
-// the checkout's only state, so a reload lands in the same place
+// Delivery saves return to the delivery step for review; Continue opens details. Other step saves refresh
+// from the cart, which remains the source of checkout values and requirements.
 
 type AnySubmission = Submission<unknown, string[], unknown>;
 
@@ -59,6 +66,10 @@ const CODE_KEYS: Record<string, string> = {
   CHECKOUT_SHIPPING_ADDRESS_REQUIRED: "checkoutAddressRequired",
   CHECKOUT_BILLING_ADDRESS_REQUIRED: "checkoutBillingRequired",
   CHECKOUT_SHIPPING_METHOD_REQUIRED: "shippingMethodRequired",
+  CHECKOUT_DELIVERY_POINT_REQUIRED: "deliveryPointRequired",
+  CHECKOUT_DELIVERY_GROUP_UNKNOWN: "deliveryGroupChanged",
+  DELIVERY_POINT_NOT_FOUND: "deliveryPointUnavailable",
+  DELIVERY_SOURCE_UNAVAILABLE: "deliverySourceUnavailable",
   CART_EMAIL_INVALID: "email",
   SHIPPING_METHOD_UNAVAILABLE: "shippingMethodUnavailable",
   PAYMENT_METHOD_UNAVAILABLE: "paymentMethodUnavailable",
@@ -88,6 +99,7 @@ async function runStep(
   submission: AnySubmission,
   fallbackKey: string,
   save: (cartId: string) => Promise<unknown>,
+  stayOnDelivery = false,
 ): Promise<FormResult> {
   const cartId = await currentCartId();
   if (!cartId) return submission.reply({ formErrors: ["checkoutCartMissing"] });
@@ -96,6 +108,7 @@ async function runStep(
   } catch (err) {
     return checkoutError(submission, err, fallbackKey);
   }
+  if (stayOnDelivery) redirect(await withLocalePrefix("/checkout?step=delivery", await getCurrentLocale()), RedirectType.replace);
   refresh();
   return submission.reply();
 }
@@ -110,19 +123,47 @@ export async function saveDestinationStep(
   const { countryCode, postalCode } = submission.value;
   return runStep(submission, "checkoutSaveFailed", (cartId) =>
     gqlFetch(SetCheckoutDestinationDocument, { cartId, countryCode, postalCode }),
+    true,
   );
 }
 
-// Step 1b - one of the delivery or pickup options quoted for the destination
-export async function saveDeliveryStep(
+// Step 1b - deliver everything together, or choose for each group of lines that allow different deliveries
+export async function saveSplitDeliveryAction(
   _prev: FormResult | undefined,
   formData: FormData,
 ): Promise<FormResult> {
-  const submission = parseForm(formData, deliveryStepSchema);
+  const submission = parseForm(formData, splitDeliverySchema);
   if (submission.status !== "success") return submission.reply();
-  const { carrierSlug, code } = splitSelection(submission.value.selection);
+  const split = submission.value.split === "split";
+  return runStep(submission, "checkoutSaveFailed", (cartId) => gqlFetch(SetCheckoutSplitDeliveryDocument, { cartId, split }), true);
+}
+
+// Step 1c - one group's delivery, one of the option and carrier-method choices quoted for it
+export async function saveGroupDeliveryAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, groupDeliverySchema);
+  if (submission.status !== "success") return submission.reply();
+  const { optionId, carrierSlug, methodCode } = splitSelection(submission.value.selection);
+  const groupKey = submission.value.groupKey;
   return runStep(submission, "checkoutSaveFailed", (cartId) =>
-    gqlFetch(SetCheckoutShippingMethodDocument, { cartId, carrierSlug, code }),
+    gqlFetch(SetCheckoutDeliveryDocument, { cartId, groupKey, optionId, carrierSlug, methodCode }),
+    true,
+  );
+}
+
+// The store or PO box a group's delivery goes to - re-read from its source by the backend
+export async function saveDeliveryPointAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, deliveryPointSchema);
+  if (submission.status !== "success") return submission.reply();
+  const { groupKey, pointId } = submission.value;
+  return runStep(submission, "checkoutSaveFailed", (cartId) =>
+    gqlFetch(SetCheckoutDeliveryPointDocument, { cartId, groupKey, pointId }),
+    true,
   );
 }
 
@@ -157,14 +198,15 @@ export async function saveDetailsStep(
     getCountries(),
     getCustomerOrNull(),
   ]);
+  const asks = detailsAsks(checkout?.requirements ?? []);
   const mode: DetailsMode = {
-    pickup: checkout?.isPickup ?? false,
+    asks,
     signedIn: customer !== null,
     countries,
     savedCountries: Object.fromEntries((customer?.addresses ?? []).map((a) => [a.id, a.countryCode])),
     destinationCountry: checkout?.destination?.countryCode ?? "",
   };
-  const { pickup, signedIn } = mode;
+  const { signedIn } = mode;
   const submission = parseForm(formData, detailsStepSchema(settings, mode));
   if (submission.status !== "success") return submission.reply();
   if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
@@ -182,19 +224,19 @@ export async function saveDetailsStep(
     poNumber: business ? v.poNumber : null,
     billingSameAsShipping: false,
   };
-  const wantsBilling = pickup ? !!v.billingChoice : !v.billingSame;
-  if (wantsBilling && v.billingChoice === "new") input.billingAddress = addressInput(v.billing, null);
-  else if (wantsBilling && v.billingChoice) input.billingAddressId = v.billingChoice;
+  const someoneElse = asks.collector && settings.pickupSomeoneElse && v.pickupWho === "someoneElse";
+  if (billingIsShown(asks, someoneElse, v)) {
+    if (v.billingChoice === "new") input.billingAddress = addressInput(v.billing, null);
+    else if (v.billingChoice) input.billingAddressId = v.billingChoice;
+  }
 
-  let methodDropped = false;
+  const chosenBefore = new Set(checkout.deliveryGroups.filter((g) => g.selection).map((g) => g.key));
+  let deliveryDropped = false;
   try {
-    if (pickup) {
-      input.pickupContact = {
-        firstName: v.pickupFirstName ?? "",
-        lastName: v.pickupLastName ?? "",
-        someoneElse: settings.pickupSomeoneElse && v.pickupWho === "someoneElse",
-      };
-    } else {
+    if (asks.collector) {
+      input.pickupContact = { firstName: v.pickupFirstName ?? "", lastName: v.pickupLastName ?? "", someoneElse };
+    }
+    if (asks.shipping) {
       input.billingSameAsShipping = !!v.billingSame;
       if (v.shippingChoice !== "new") {
         input.shippingAddressId = v.shippingChoice;
@@ -207,12 +249,12 @@ export async function saveDetailsStep(
       }
     }
     const res = await gqlFetch(SetCheckoutDetailsDocument, { cartId, input });
-    methodDropped = !!checkout.shippingMethod && !res.data.setCartDetails.checkout.shippingMethod;
+    deliveryDropped = res.data.setCartDetails.checkout.deliveryGroups.some((g) => chosenBefore.has(g.key) && !g.selection);
   } catch (err) {
     return checkoutError(submission, err, "checkoutSaveFailed");
   }
-  if (methodDropped) {
-    // The address moved the order somewhere the chosen option doesn't reach - back to step 1, saying why
+  if (deliveryDropped) {
+    // The address moved the order somewhere a chosen delivery doesn't reach - back to step 1, saying why
     redirect(await withLocalePrefix("/checkout?notice=delivery-changed", String(formData.get("locale") ?? "")));
   }
   refresh();

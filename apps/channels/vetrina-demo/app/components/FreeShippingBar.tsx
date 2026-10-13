@@ -37,6 +37,7 @@ export function FreeShippingBar({
           })
         )}
       </p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("freeShippingExclusions")}</p>
       <div
         className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border"
         role="progressbar"

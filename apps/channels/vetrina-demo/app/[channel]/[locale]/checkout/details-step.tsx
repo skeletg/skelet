@@ -5,10 +5,11 @@ import { useMemo } from "react";
 
 import { Field, FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
 import { saveDetailsStep } from "@/app/lib/checkout/actions";
-import type { CheckoutAddress, CheckoutState, PickupLocation } from "@/app/lib/checkout/read";
+import type { DetailsAsks } from "@/app/lib/checkout/asks";
+import type { CheckoutAddress, CheckoutState, DeliveryPoint } from "@/app/lib/checkout/read";
 import { businessIdFieldsFor, GENERIC_TAX_ID } from "@/app/lib/checkout/business-ids";
-import { detailsCompanyCountry, detailsStepSchema, type DetailsMode } from "@/app/lib/checkout/schemas";
-import { pickupNeedsBilling, type CheckoutSettings } from "@/app/lib/checkout/settings";
+import { billingIsShown, detailsCompanyCountry, detailsStepSchema, type DetailsMode } from "@/app/lib/checkout/schemas";
+import type { CheckoutSettings } from "@/app/lib/checkout/settings";
 import type { BusinessIdField, CountryOption, PhoneSettings, RegionOption } from "@/app/lib/countries/read";
 import { phoneFieldFor } from "@/app/lib/forms/phone";
 import type { Address } from "@/app/lib/customer/read";
@@ -30,7 +31,10 @@ type Props = {
   regionsByCountry: Record<string, RegionOption[]>;
   // The store's phone policy - the contact phone is read in the destination's country unless the store fixes one
   phoneSettings: PhoneSettings;
-  pickupLocation: PickupLocation | null;
+  // What the chosen deliveries ask of the shopper, from the cart's requirements
+  asks: DetailsAsks;
+  // Where a pickup is collected from - shown above who collects it
+  collectFrom: DeliveryPoint[];
   locale: string;
 };
 
@@ -51,26 +55,27 @@ function addressDefaults(current: CheckoutAddress | null, fallback: { countryCod
   };
 }
 
-// Step 2 - who the order is for, in one form. Delivery asks for the address with billing inline beneath it; pickup
-// asks who collects and, only when it's owed, a billing address. What else is asked follows the store's settings
+// Step 2 - who the order is for, in one form. What it asks follows the chosen deliveries: their address when one ships
+// to the shopper (billing inline beneath it), who collects when one is a pickup, a billing address as strictly as any
+// delivery - or a download - needs one. A PO box asks neither address nor collector, only billing
 export function DetailsStep(props: Props) {
   const { checkout, settings, signedIn, me, saved, defaultShippingId, defaultBillingId, countries, regionsByCountry } =
     props;
   const t = useTranslations("checkout.details");
-  const pickup = checkout.isPickup;
+  const { asks } = props;
   const dest = {
     countryCode: checkout.destination?.countryCode ?? "",
     postalCode: checkout.destination?.postalCode ?? "",
   };
   const mode = useMemo<DetailsMode>(
     () => ({
-      pickup,
+      asks,
       signedIn,
       countries,
       savedCountries: Object.fromEntries(saved.map((a) => [a.id, a.countryCode])),
       destinationCountry: dest.countryCode,
     }),
-    [pickup, signedIn, countries, saved, dest.countryCode],
+    [asks, signedIn, countries, saved, dest.countryCode],
   );
   const schema = useMemo(() => detailsStepSchema(settings, mode), [settings, mode]);
 
@@ -98,8 +103,8 @@ export function DetailsStep(props: Props) {
       poNumber: checkout.poNumber,
       shippingChoice,
       shipping: addressDefaults(checkout.shippingAddress, dest),
-      billingSame: pickup ? false : billingSame,
-      addBilling: pickup && checkout.billingAddress !== null,
+      billingSame: asks.shipping ? billingSame : false,
+      addBilling: !asks.shipping && checkout.billingAddress !== null,
       billingChoice,
       billing: addressDefaults(checkout.billingSameAsShipping ? null : checkout.billingAddress, dest),
       pickupWho: contact?.someoneElse ? "someoneElse" : "me",
@@ -110,9 +115,12 @@ export function DetailsStep(props: Props) {
   useReturnToNextStep(lastResult);
 
   const business = settings.business && fields.purchaseType.value === "business";
-  const someoneElse = settings.pickupSomeoneElse && fields.pickupWho.value === "someoneElse";
-  const billingOwed = pickup ? pickupNeedsBilling(settings, someoneElse) : false;
-  const showBilling = pickup ? billingOwed || fields.addBilling.value === "on" : fields.billingSame.value !== "on";
+  const someoneElse = asks.collector && settings.pickupSomeoneElse && fields.pickupWho.value === "someoneElse";
+  const billingOwed = !asks.shipping && (asks.billing === "required" || someoneElse);
+  const showBilling = billingIsShown(asks, someoneElse, {
+    billingSame: fields.billingSame.value === "on",
+    addBilling: fields.addBilling.value === "on",
+  });
   const shipping = fields.shipping.getFieldset() as unknown as Record<string, ValueField>;
   const billing = fields.billing.getFieldset() as unknown as Record<string, ValueField>;
   // The identifiers follow the company's country as the form has it now - a billing address picked or typed below
@@ -157,34 +165,32 @@ export function DetailsStep(props: Props) {
             required
           />
         )}
-        {settings.phone !== "hidden" ? (
+        {asks.phone !== "hidden" ? (
           <Field
-            label={settings.phone === "required" ? t("phone") : t("phoneOptional")}
+            label={asks.phone === "required" ? t("phone") : t("phoneOptional")}
             field={fields.phone}
             type="tel"
             phone={phoneFieldFor(props.phoneSettings, dest.countryCode)}
             autoComplete="tel"
-            hint={pickup ? t("phoneHintPickup") : t("phoneHintDelivery")}
-            required={settings.phone === "required"}
+            hint={asks.collector ? t("phoneHintPickup") : t("phoneHintDelivery")}
+            required={asks.phone === "required"}
           />
         ) : null}
       </section>
 
-      {pickup ? (
+      {asks.collector ? (
         <section className="grid gap-3" aria-labelledby={`${form.id}-pickup`}>
           <h3 id={`${form.id}-pickup`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("pickupTitle")}
           </h3>
-          {props.pickupLocation ? (
-            <p className="rounded-lg border border-border p-3 text-sm">
-              <span className="block font-medium">{props.pickupLocation.name}</span>
+          {props.collectFrom.map((p) => (
+            <p key={p.id} className="rounded-lg border border-border p-3 text-sm">
+              <span className="block font-medium">{p.name}</span>
               <span className="block text-muted-foreground">
-                {[props.pickupLocation.line1, props.pickupLocation.city, props.pickupLocation.postalCode]
-                  .filter(Boolean)
-                  .join(", ")}
+                {[p.street1, p.city, p.postalCode].filter(Boolean).join(", ")}
               </span>
             </p>
-          ) : null}
+          ))}
           {settings.pickupSomeoneElse ? (
             <fieldset className="grid gap-2 sm:grid-cols-2">
               <legend className="sr-only">{t("whoCollects")}</legend>
@@ -212,7 +218,9 @@ export function DetailsStep(props: Props) {
           </div>
           {someoneElse ? <p className="text-xs text-muted-foreground">{t("collectorHint")}</p> : null}
         </section>
-      ) : (
+      ) : null}
+
+      {asks.shipping ? (
         <section className="grid gap-3" aria-labelledby={`${form.id}-address`}>
           <h3 id={`${form.id}-address`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("deliveryAddress")}
@@ -240,15 +248,18 @@ export function DetailsStep(props: Props) {
             ) : null}
           </AddressChoice>
         </section>
-      )}
+      ) : null}
 
+      {asks.shipping || asks.billing !== "hidden" || someoneElse ? (
       <section className="grid gap-3" aria-labelledby={`${form.id}-billing`}>
         <h3 id={`${form.id}-billing`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("billingTitle")}
         </h3>
-        {pickup ? (
+        {!asks.shipping ? (
           billingOwed ? (
-            <p className="text-xs text-muted-foreground">{someoneElse ? t("billingForPayer") : t("billingRequired")}</p>
+            <p className="text-xs text-muted-foreground">
+              {someoneElse ? t("billingForPayer") : asks.collector ? t("billingRequired") : t("billingNoAddress")}
+            </p>
           ) : (
             <Checkbox
               name={fields.addBilling.name}
@@ -282,6 +293,7 @@ export function DetailsStep(props: Props) {
           </AddressChoice>
         ) : null}
       </section>
+      ) : null}
 
       <ContinueButton pending={pending} label={t("continueToPayment")} />
     </form>

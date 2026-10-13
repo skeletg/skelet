@@ -51,9 +51,3 @@ export function parseCheckoutSettings(rows: { path: string; value: string }[]): 
     minOrderCents: Number.isFinite(minOrder) && minOrder > 0 ? minOrder : 0,
   };
 }
-
-// A pickup has no shipping address to name the payer, so a billing address is owed when the store wants one on every
-// invoice or someone else collects - the same rule the backend's detailsComplete applies
-export function pickupNeedsBilling(s: CheckoutSettings, someoneElse: boolean): boolean {
-  return s.pickupRequiresBilling || someoneElse;
-}
