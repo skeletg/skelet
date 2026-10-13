@@ -221,8 +221,8 @@ func (h *Host) RequestCustomerID(ctx context.Context) *uuid.UUID {
 	return channel.OptionalCustomerID(ctx)
 }
 
-// The channel this request resolved to - uuid.Nil off a storefront request, which is what the admin
-// graph and background work are
+// The channel this request resolved to - the storefront's channel, the admin's X-Channel-Id scope on the admin
+// graph, uuid.Nil in background work
 func (h *Host) RequestChannelID(ctx context.Context) uuid.UUID {
 	return graphChannelID(ctx)
 }
@@ -538,6 +538,7 @@ func callAsync(ctx context.Context, handler sdk.AsyncHandler, payload json.RawMe
 // The timeout is cooperative - it cancels ctx, so a handler ignoring ctx still runs to completion
 func attachAsyncHandler(bus *events.Bus, slug, eventType string, handler sdk.AsyncHandler, retry bool) {
 	bus.Subscribe(eventType, func(ctx context.Context, e events.Event) error {
+		// a disabled plugin drops the event, retry subscriptions included - switching one off is not a pause with a backlog
 		if slug != "" && !isEnabledFromContext(ctx, slug, eventChannel(e)) {
 			return nil
 		}
@@ -942,7 +943,7 @@ func instrumentedTrack(ctx context.Context, slug string, t sdk.Tracker, cfg sdk.
 }
 
 func instrumentedLabel(ctx context.Context, slug string, l sdk.Labeler, cfg sdk.ConfigReader, req shipping.LabelRequest) (_ shipping.LabelResult, err error) {
-	ctx, finish, err := Instrument(ctx, slug, "Label", uuid.Nil)
+	ctx, finish, err := Instrument(ctx, slug, "Label", req.ChannelID)
 	defer finish(&err)
 	if err != nil {
 		return shipping.LabelResult{}, err

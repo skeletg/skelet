@@ -174,10 +174,10 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.Middleware(infra.Config.JWTSecret)(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))
-	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public and unauthenticated like the storefront GraphQL endpoint, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
+	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public like the storefront GraphQL endpoint, with its customer session so sdk.CustomerID and ReadCart see a signed-in shopper, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
 	if pluginRoutes := pluginhost.RouteHandler(); pluginRoutes != nil {
 		mux.Handle(pluginhost.RoutePrefix, otelx.WrapHTTP(
-			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(channel.Middleware(s.Channel)(pluginRoutes))),
+			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(pluginRouteAuth(infra.Config.JWTSecret, s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
 			"plugins.routes"))
 	}
 	// No separate REST tier - machine callers hit the admin GraphQL endpoint above with an X-Api-Token integration token; a dedicated /api/v1/ REST surface may still come back once a real consumer needs one
@@ -459,4 +459,14 @@ func beaconProxy(enabled bool) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	}
 	return proxy
+}
+
+// Plugin routes are a storefront surface - the customer session rides along, an admin token must not reach a plugin's admin gates
+func pluginRouteAuth(secret string, active authpkg.CustomerActiveFunc) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		guarded := authpkg.CustomerSessionGuard(active)(next)
+		return authpkg.Middleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			guarded.ServeHTTP(w, r.WithContext(authpkg.WithAdmin(r.Context(), nil)))
+		}))
+	}
 }
