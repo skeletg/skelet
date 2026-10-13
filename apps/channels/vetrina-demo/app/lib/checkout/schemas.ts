@@ -7,7 +7,8 @@ import { refinePhone } from "@/app/lib/forms/phone";
 import type { CountryOption } from "@/app/lib/countries/read";
 
 import { businessIdFieldsFor, companyCountry, matchesPattern } from "./business-ids";
-import { pickupNeedsBilling, type CheckoutSettings } from "./settings";
+import type { DetailsAsks } from "./asks";
+import type { CheckoutSettings } from "./settings";
 
 // One schema per checkout step, shared by the step's form (client validation) and its action. Messages are
 // forms.errors keys, like every other storefront form
@@ -20,24 +21,34 @@ export const destinationSchema = z.object({
   postalCode: z.string({ error: "postalCodeRequired" }).trim().min(1, "postalCodeRequired").max(20, "tooLong"),
 });
 
-// selection is "<carrierSlug>::<code>", one radio per quote
-export const deliveryStepSchema = z.object({
+// One delivery group's choice - selection is "<optionId>::<carrierSlug>::<methodCode>", one radio per choice
+export const groupDeliverySchema = z.object({
+  groupKey: requiredText(),
   selection: z
     .string({ error: "shippingMethodRequired" })
-    .regex(/^[^:]+::.+$/, "shippingMethodRequired"),
+    .regex(/^[^:]+::[^:]+::.+$/, "shippingMethodRequired"),
 });
 
-export function splitSelection(selection: string): { carrierSlug: string; code: string } {
-  const at = selection.indexOf("::");
-  return { carrierSlug: selection.slice(0, at), code: selection.slice(at + 2) };
+export function splitSelection(selection: string): { optionId: string; carrierSlug: string; methodCode: string } {
+  const [optionId, carrierSlug, ...rest] = selection.split("::");
+  return { optionId, carrierSlug, methodCode: rest.join("::") };
 }
+
+// Deliver everything together, or choose for each group of lines
+export const splitDeliverySchema = z.object({ split: z.enum(["together", "split"]) });
+
+export const deliveryPointSchema = z.object({
+  groupKey: requiredText(),
+  pointId: z.string({ error: "deliveryPointRequired" }).min(1, "deliveryPointRequired"),
+});
 
 // Every address field optional at the shape level - which ones are required depends on the choices, so the address
 // schema is re-run in the refinement only when the shopper is typing one in. The contact phone is asked once, above
 const looseAddress = addressFields.omit({ phone: true }).partial().optional();
 
 export type DetailsMode = {
-  pickup: boolean;
+  // What the chosen deliveries ask of the shopper - their address, who collects, how strictly billing and phone
+  asks: DetailsAsks;
   signedIn: boolean;
   // What the company identifiers are judged against - the store's countries with their fields, the saved addresses'
   // countries by id, and where the order goes
@@ -61,7 +72,7 @@ export function detailsCompanyCountry(v: LooseValues, mode: DetailsMode, billing
     choice === "new" ? (addr?.countryCode ?? "").toUpperCase() : choice ? (mode.savedCountries[choice] ?? "") : "";
   return companyCountry({
     billingCountry: billingShown ? of(v.billingChoice, v.billing) : null,
-    deliveryCountry: mode.pickup ? null : of(v.shippingChoice, v.shipping),
+    deliveryCountry: mode.asks.shipping ? of(v.shippingChoice, v.shipping) : null,
     destinationCountry: mode.destinationCountry,
   });
 }
@@ -103,11 +114,12 @@ export function detailsStepSchema(s: CheckoutSettings, mode: DetailsMode) {
     .superRefine((v, ctx) => {
       const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
       if (!mode.signedIn && !emailField().safeParse(v.email ?? undefined).success) issue(["email"], v.email ? "email" : "required");
-      if (s.phone === "required" && !v.phone) issue(["phone"], "phoneRequired");
+      const { asks } = mode;
+      if (asks.phone === "required" && !v.phone) issue(["phone"], "phoneRequired");
       refinePhone("phone")(v, ctx);
 
-      const someoneElse = s.pickupSomeoneElse && v.pickupWho === "someoneElse";
-      const billingShown = mode.pickup ? pickupNeedsBilling(s, someoneElse) || !!v.addBilling : !v.billingSame;
+      const someoneElse = asks.collector && s.pickupSomeoneElse && v.pickupWho === "someoneElse";
+      const billingShown = billingIsShown(asks, someoneElse, v);
       if (s.business && v.purchaseType === "business") {
         if (!v.company) issue(["company"], "companyRequired");
         const country = detailsCompanyCountry(v, mode, billingShown);
@@ -129,15 +141,25 @@ export function detailsStepSchema(s: CheckoutSettings, mode: DetailsMode) {
         for (const i of parsed.error.issues) issue([key, ...i.path.map(String)], i.message);
       };
 
-      if (mode.pickup) {
+      if (asks.collector) {
         if (!v.pickupFirstName) issue(["pickupFirstName"], "required");
         if (!v.pickupLastName) issue(["pickupLastName"], "required");
-        if (billingShown) address("billing", v.billingChoice);
-        return;
       }
-      address("shipping", v.shippingChoice);
+      if (asks.shipping) address("shipping", v.shippingChoice);
       if (billingShown) address("billing", v.billingChoice);
     });
+}
+
+// Whether the billing address is asked - with an address of the shopper's own it is unless it mirrors that; without,
+// it is when a delivery requires one, someone else collects (the payer is named nowhere else), or the shopper adds one
+export function billingIsShown(
+  asks: DetailsAsks,
+  someoneElse: boolean,
+  v: { billingSame?: boolean; addBilling?: boolean },
+): boolean {
+  if (asks.shipping) return !v.billingSame;
+  if (asks.billing === "required" || someoneElse) return true;
+  return asks.billing === "optional" && !!v.addBilling;
 }
 
 export type DetailsValues = z.output<ReturnType<typeof detailsStepSchema>>;

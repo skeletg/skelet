@@ -98,7 +98,8 @@ function renderStep(props: {
       countries={[{ code: "US", name: "United States", emojiFlag: null } as never]}
       regionsByCountry={{}}
       phoneSettings={props.phoneSettings ?? ANY_PHONE}
-      pickupLocation={null}
+      asks={{ shipping: true, collector: false, billing: "required", phone: "optional" }}
+      collectFrom={[]}
       locale="en"
     />,
   );

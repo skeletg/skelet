@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CHECKOUT_SETTINGS, parseCheckoutSettings, pickupNeedsBilling } from "@/app/lib/checkout/settings";
+import { DEFAULT_CHECKOUT_SETTINGS, parseCheckoutSettings } from "@/app/lib/checkout/settings";
 
 const row = (key: string, value: string) => ({ path: `sales/checkout/${key}`, value });
 
@@ -39,13 +39,5 @@ describe("parseCheckoutSettings", () => {
     expect(s.phone).toBe(DEFAULT_CHECKOUT_SETTINGS.phone);
     expect(s.termsConsent).toBe(DEFAULT_CHECKOUT_SETTINGS.termsConsent);
     expect(s.minOrderCents).toBe(0);
-  });
-});
-
-describe("pickupNeedsBilling", () => {
-  it("is owed when someone else collects or the store wants it on every invoice", () => {
-    expect(pickupNeedsBilling(DEFAULT_CHECKOUT_SETTINGS, false)).toBe(false);
-    expect(pickupNeedsBilling(DEFAULT_CHECKOUT_SETTINGS, true)).toBe(true);
-    expect(pickupNeedsBilling({ ...DEFAULT_CHECKOUT_SETTINGS, pickupRequiresBilling: true }, false)).toBe(true);
   });
 });

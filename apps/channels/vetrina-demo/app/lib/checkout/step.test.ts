@@ -1,35 +1,48 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CHECKOUT_SETTINGS, type CheckoutSettings } from "@/app/lib/checkout/settings";
+import type { Requirement } from "@/app/lib/checkout/asks";
+import { detailsAsks } from "@/app/lib/checkout/asks";
+import { DEFAULT_CHECKOUT_SETTINGS } from "@/app/lib/checkout/settings";
 import {
   activeStep,
-  detailsComplete,
-  estimatedArrival,
+  businessComplete,
+  arrivalLabels,
   firstIncompleteStep,
+  progressOf,
+  stepsFor,
   stepStatus,
   type CheckoutProgress,
-  type DetailsState,
 } from "@/app/lib/checkout/step";
 
-const fresh: CheckoutProgress = { hasDestination: false, hasShippingMethod: false, detailsComplete: false };
+const req = (scope: string, type: string, status: Requirement["status"], mode: Requirement["mode"] = "REQUIRED"): Requirement => ({
+  scope,
+  type,
+  label: type,
+  mode,
+  status,
+  code: "",
+  message: "",
+});
+
+const fresh: CheckoutProgress = { needsDelivery: true, deliveryDone: false, detailsDone: false };
 
 describe("checkout step derivation", () => {
   it("walks a shopper through delivery, details and payment as the cart fills in", () => {
     expect(firstIncompleteStep(fresh)).toBe("delivery");
-    // A postcode alone isn't enough - an option has to be chosen for it
-    expect(firstIncompleteStep({ ...fresh, hasDestination: true })).toBe("delivery");
-    const chosen = { ...fresh, hasDestination: true, hasShippingMethod: true };
-    expect(firstIncompleteStep(chosen)).toBe("details");
-    expect(firstIncompleteStep({ ...chosen, detailsComplete: true })).toBe("payment");
+    const delivered = { ...fresh, deliveryDone: true };
+    expect(firstIncompleteStep(delivered)).toBe("details");
+    expect(firstIncompleteStep({ ...delivered, detailsDone: true })).toBe("payment");
   });
 
-  it("sends the shopper back to delivery when the chosen option stopped being offered", () => {
-    const p = { hasDestination: true, hasShippingMethod: false, detailsComplete: true };
-    expect(activeStep(p, "payment")).toBe("delivery");
+  it("skips delivery for a cart with nothing to ship", () => {
+    const digital = { needsDelivery: false, deliveryDone: true, detailsDone: false };
+    expect(stepsFor(digital)).toEqual(["details", "payment"]);
+    expect(firstIncompleteStep(digital)).toBe("details");
+    expect(activeStep(digital, "delivery")).toBe("details");
   });
 
   it("lets ?step reopen a finished step but never skip ahead", () => {
-    const p = { hasDestination: true, hasShippingMethod: true, detailsComplete: false };
+    const p = { needsDelivery: true, deliveryDone: true, detailsDone: false };
     expect(activeStep(p, "delivery")).toBe("delivery");
     expect(activeStep(p, "payment")).toBe("details");
     expect(activeStep(p, "nonsense")).toBe("details");
@@ -37,7 +50,7 @@ describe("checkout step derivation", () => {
   });
 
   it("marks a reopened step's neighbours by what the cart holds", () => {
-    const p = { hasDestination: true, hasShippingMethod: true, detailsComplete: true };
+    const p = { needsDelivery: true, deliveryDone: true, detailsDone: true };
     const active = activeStep(p, "delivery");
     expect(stepStatus("delivery", active, p)).toBe("active");
     expect(stepStatus("details", active, p)).toBe("completed");
@@ -45,68 +58,83 @@ describe("checkout step derivation", () => {
   });
 });
 
-describe("detailsComplete", () => {
-  const s = DEFAULT_CHECKOUT_SETTINGS;
-  const delivery: DetailsState = {
-    email: "a@b.c",
-    phone: "",
-    purchaseType: "PERSONAL",
-    company: "",
-    businessIds: {},
-    businessIdFields: [],
-    isPickup: false,
-    hasShippingAddress: true,
-    billingSameAsShipping: true,
-    hasBillingAddress: false,
-    pickupContact: null,
-  };
-  const pickup: DetailsState = {
-    ...delivery,
-    isPickup: true,
-    hasShippingAddress: false,
-    billingSameAsShipping: false,
-    pickupContact: { someoneElse: false },
-  };
+describe("progressOf", () => {
+  const base = { fulfillment: "MIXED", destination: { countryCode: "US" } };
 
-  it("needs an address and billing for a delivery", () => {
-    expect(detailsComplete(delivery, s)).toBe(true);
-    expect(detailsComplete({ ...delivery, hasShippingAddress: false }, s)).toBe(false);
-    expect(detailsComplete({ ...delivery, billingSameAsShipping: false }, s)).toBe(false);
-    expect(detailsComplete({ ...delivery, email: "" }, s)).toBe(false);
+  it("holds the delivery step open while any group still owes a choice, a point, a slot or a block", () => {
+    for (const type of ["delivery_option", "point"]) {
+      const p = progressOf({ ...base, requirements: [req("k:parcel_locker", type, "MISSING")] }, true);
+      expect(p.deliveryDone, type).toBe(false);
+    }
+    const done = progressOf({ ...base, requirements: [req("k:parcel_locker", "point", "SATISFIED")] }, true);
+    expect(done.deliveryDone).toBe(true);
   });
 
-  it("needs only who collects for a pickup - no address", () => {
-    expect(detailsComplete(pickup, s)).toBe(true);
-    expect(detailsComplete({ ...pickup, pickupContact: null }, s)).toBe(false);
+  it("leaves the shopper's own details to the details step", () => {
+    const p = progressOf(
+      { ...base, requirements: [req("order", "billing_address", "MISSING"), req("k:pickup", "collector", "MISSING")] },
+      true,
+    );
+    expect(p.deliveryDone).toBe(true);
+    expect(p.detailsDone).toBe(false);
   });
 
-  it("asks for the payer's billing address when someone else collects, or the store wants one", () => {
-    const other = { ...pickup, pickupContact: { someoneElse: true } };
-    expect(detailsComplete(other, s)).toBe(false);
-    expect(detailsComplete({ ...other, hasBillingAddress: true }, s)).toBe(true);
-    expect(detailsComplete(pickup, { ...s, pickupRequiresBilling: true })).toBe(false);
+  it("needs a destination before a physical cart's delivery is done", () => {
+    expect(progressOf({ ...base, destination: null, requirements: [] }, true).deliveryDone).toBe(false);
+    expect(progressOf({ fulfillment: "NONE", destination: null, requirements: [] }, true).deliveryDone).toBe(true);
   });
 
-  it("follows the phone and business settings", () => {
-    const strict: CheckoutSettings = { ...s, phone: "required", business: true };
-    expect(detailsComplete(delivery, strict)).toBe(false);
-    const withPhone = { ...delivery, phone: "+16502530000" };
-    expect(detailsComplete(withPhone, strict)).toBe(true);
-    const pib = { key: "pib", label: "PIB", required: true, pattern: "", hint: "" };
-    const biz = { ...withPhone, purchaseType: "BUSINESS" as const, company: "Acme", businessIdFields: [pib] };
-    expect(detailsComplete(biz, strict)).toBe(false);
-    expect(detailsComplete({ ...biz, businessIds: { pib: "123456789" } }, strict)).toBe(true);
-    // Business purchases switched off - the stale business fields don't hold the shopper up
-    expect(detailsComplete({ ...delivery, purchaseType: "BUSINESS" }, s)).toBe(true);
+  it("keeps an unpaid business purchase in details", () => {
+    expect(progressOf({ ...base, requirements: [] }, false).detailsDone).toBe(false);
   });
 });
 
-describe("estimatedArrival", () => {
-  it("counts business days, skipping the weekend", () => {
-    const friday = new Date(2026, 9, 2); // Fri 2 Oct 2026
-    expect(estimatedArrival(1, friday).getDate()).toBe(5); // Mon
-    expect(estimatedArrival(2, friday).getDate()).toBe(6); // Tue
-    const monday = new Date(2026, 9, 5);
-    expect(estimatedArrival(3, monday).getDate()).toBe(8); // Thu
+describe("detailsAsks", () => {
+  it("reads what the chosen deliveries ask of the shopper", () => {
+    const asks = detailsAsks([
+      req("order", "shipping_address", "MISSING"),
+      req("order", "billing_address", "MISSING", "OPTIONAL"),
+      req("order", "phone", "OPTIONAL", "OPTIONAL"),
+      req("k:pickup", "collector", "MISSING"),
+    ]);
+    expect(asks).toEqual({ shipping: true, collector: true, billing: "optional", phone: "optional" });
+    expect(detailsAsks([])).toEqual({ shipping: false, collector: false, billing: "hidden", phone: "hidden" });
+  });
+});
+
+describe("businessComplete", () => {
+  const s = { ...DEFAULT_CHECKOUT_SETTINGS, business: true };
+  const pib = { key: "pib", label: "PIB", required: true, pattern: "", hint: "" };
+  const biz = { purchaseType: "BUSINESS" as const, company: "Acme", businessIds: {}, businessIdFields: [pib] };
+
+  it("needs the company and the identifiers its country requires", () => {
+    expect(businessComplete(biz, s)).toBe(false);
+    expect(businessComplete({ ...biz, businessIds: { pib: "123456789" } }, s)).toBe(true);
+    expect(businessComplete({ ...biz, company: "" }, s)).toBe(false);
+    // Business purchases switched off - the stale business fields don't hold the shopper up
+    expect(businessComplete(biz, DEFAULT_CHECKOUT_SETTINGS)).toBe(true);
+  });
+});
+
+describe("arrivalLabels", () => {
+  const fmt = (date: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", options).format(date);
+  const c = (methodCode: string, estimatedArrival: string | null) => ({ optionId: "o1", carrierSlug: "builtin", methodCode, estimatedArrival });
+
+  it("labels each choice with the day the backend names, keyed by choice", () => {
+    expect(arrivalLabels([c("express", "2026-10-03"), c("standard", "2026-10-08")], fmt)).toEqual({
+      "o1::builtin::express": "Sat 3 Oct",
+      "o1::builtin::standard": "Thu 8 Oct",
+    });
+  });
+
+  it("skips a choice with no estimate or an unreadable date", () => {
+    expect(arrivalLabels([c("none", null), c("broken", "soon")], fmt)).toEqual({});
+  });
+
+  // A date-only value read as local midnight would move a day back west of UTC - it has to stay the day it names
+  it("keeps the calendar day whatever the formatter's own timezone", () => {
+    const newYork = (date: Date, options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en-GB", { ...options, timeZone: options.timeZone ?? "America/New_York" }).format(date);
+    expect(arrivalLabels([c("express", "2026-10-03")], newYork)["o1::builtin::express"]).toBe("Sat 3 Oct");
   });
 });
