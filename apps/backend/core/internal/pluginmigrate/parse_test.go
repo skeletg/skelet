@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"unicode/utf8"
 )
 
 // TestLoadMigrations covers the parser surface in isolation - no DB, no goroutines - Each case builds a fstest.MapFS,
@@ -87,6 +88,31 @@ func TestLoadMigrations(t *testing.T) {
 			},
 			wantCount:   3,
 			wantVersion: 1,
+		},
+		{
+			name: "two ups for one version rejected",
+			files: map[string]string{
+				"migrations/0001_a.up.sql": "SELECT 1;",
+				"migrations/0001_b.up.sql": "SELECT 2;",
+			},
+			wantErrSub: "two .up.sql",
+		},
+		{
+			name: "zero-padded and bare version collide",
+			files: map[string]string{
+				"migrations/0001_a.up.sql": "SELECT 1;",
+				"migrations/1_b.up.sql":    "SELECT 2;",
+			},
+			wantErrSub: "two .up.sql",
+		},
+		{
+			name: "two downs for one version rejected",
+			files: map[string]string{
+				"migrations/0001_a.up.sql":   "SELECT 1;",
+				"migrations/0001_a.down.sql": "SELECT 1;",
+				"migrations/0001_b.down.sql": "SELECT 2;",
+			},
+			wantErrSub: "two .down.sql",
 		},
 		{
 			name: "missing migrations dir surfaces error",
@@ -204,4 +230,12 @@ func toMapFS(files map[string]string) map[string]*fstest.MapFile {
 		out[name] = &fstest.MapFile{Data: []byte(content)}
 	}
 	return out
+}
+
+func TestTruncateForLogKeepsRunesWhole(t *testing.T) {
+	t.Parallel()
+	got := truncateForLog(strings.Repeat("a", 239) + strings.Repeat("é", 10))
+	if !utf8.ValidString(got) {
+		t.Errorf("truncation split a rune: %q", got[230:])
+	}
 }

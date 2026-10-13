@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
@@ -213,6 +214,85 @@ func TestDown_RefusesWithoutDownSQL(t *testing.T) {
 	}
 	if got := appliedCount(t, conn, ns); got != 1 {
 		t.Errorf("refused rollback still unrecorded the migration: %d rows left", got)
+	}
+}
+
+// Uninstall rolls back everything - a missing down below the top must refuse before the top is touched, not after
+func TestDown_ChecksEveryStepFirst(t *testing.T) {
+	conn := testDB(t)
+	const ns, table = "pmtest-downplan", "pmtest_downplan"
+	registerFixture(t, conn, ns, table, mapFS(map[string]string{
+		"0001_create.up.sql":   `CREATE TABLE ` + table + ` (id INT PRIMARY KEY);`,
+		"0002_column.up.sql":   `ALTER TABLE ` + table + ` ADD COLUMN label TEXT;`,
+		"0002_column.down.sql": `ALTER TABLE ` + table + ` DROP COLUMN label;`,
+	}))
+
+	ctx := context.Background()
+	r := New(conn)
+	if err := r.UpNamespace(ctx, ns); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if err := r.Down(ctx, ns, 2); err == nil || !strings.Contains(err.Error(), "no .down.sql") {
+		t.Fatalf("want a refusal naming the missing down, got %v", err)
+	}
+	if got := appliedCount(t, conn, ns); got != 2 {
+		t.Errorf("refused rollback still ran part of the plan: %d rows left, want 2", got)
+	}
+}
+
+// Two operators rolling back at once must not both run the down SQL
+func TestDown_ConcurrentRunnersSerialize(t *testing.T) {
+	conn := testDB(t)
+	const ns, table = "pmtest-downrace", "pmtest_downrace"
+	registerFixture(t, conn, ns, table, mapFS(map[string]string{
+		"0001_create.up.sql":   `CREATE TABLE ` + table + ` (id INT PRIMARY KEY);`,
+		"0001_create.down.sql": `DROP TABLE ` + table + `;`,
+	}))
+
+	ctx := context.Background()
+	if err := New(conn).UpNamespace(ctx, ns); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	// hold the namespace lock so every racer reads version 1 as applied, then queues behind it
+	holder, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lockNamespace(ctx, holder, ns); err != nil {
+		t.Fatal(err)
+	}
+	const racers = 4
+	errs := make([]error, racers)
+	var wg sync.WaitGroup
+	for i := range racers {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = New(conn).Down(ctx, ns, 1)
+		}(i)
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var waiting int
+		if err := conn.QueryRow(`SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND wait_event = 'advisory' AND datname = current_database()`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting == racers {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of %d racers reached the lock", waiting, racers)
+		}
+	}
+	_ = holder.Rollback()
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("racer %d failed - concurrent rollback ran the down SQL twice: %v", i, err)
+		}
+	}
+	if got := appliedCount(t, conn, ns); got != 0 {
+		t.Errorf("applied rows: got %d, want 0", got)
 	}
 }
 
