@@ -172,3 +172,16 @@ func toPaymentMethod(row db.PaymentMethod) PaymentMethod {
 		UpdatedAt:    row.UpdatedAt,
 	}
 }
+
+func (r *postgresRepository) UpdatePaymentMethodPresentation(ctx context.Context, channelID uuid.UUID, providerSlug, displayName string, sortOrder int32) (PaymentMethod, error) {
+	row, err := r.queries.UpdatePaymentMethodPresentation(ctx, db.UpdatePaymentMethodPresentationParams{
+		ChannelID: channelID, ProviderSlug: providerSlug, DisplayName: displayName, SortOrder: sortOrder,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return PaymentMethod{}, ErrProviderNotInstalled
+	}
+	if err != nil {
+		return PaymentMethod{}, fmt.Errorf("update payment method presentation: %w", err)
+	}
+	return toPaymentMethod(row), nil
+}

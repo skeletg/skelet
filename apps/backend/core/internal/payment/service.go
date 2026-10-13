@@ -11,6 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -100,6 +101,7 @@ func (s *Service) ListProvidersForChannel(ctx context.Context, channelID uuid.UU
 		out = append(out, ProviderWithMethod{
 			Slug:        reg.Slug,
 			DisplayName: reg.DisplayName,
+			IsAvailable: ProviderAvailable(ctx, reg, channelID),
 			IsOffline:   reg.IsOffline,
 			Method:      byProvider[reg.Slug], // zero value if not yet synced
 		})
@@ -108,6 +110,7 @@ func (s *Service) ListProvidersForChannel(ctx context.Context, channelID uuid.UU
 }
 
 type ProviderWithMethod struct {
+	IsAvailable bool
 	Slug        string
 	DisplayName string
 	// No third party behind it - cash on delivery, bank transfer, pickup, purchase order
@@ -143,6 +146,13 @@ func (s *Service) ValidatePaymentForChannel(ctx context.Context, channelID uuid.
 	if err != nil {
 		return err
 	}
+	reg, err := GetProvider(providerSlug)
+	if err != nil {
+		return err
+	}
+	if !ProviderAvailable(ctx, reg, channelID) {
+		return ErrProviderDisabled
+	}
 	if !m.IsEnabled {
 		return ErrProviderDisabled
 	}
@@ -172,7 +182,7 @@ func (s *Service) ListEligiblePaymentMethods(ctx context.Context, channelID uuid
 	for _, m := range methods {
 		// payment_methods rows outlive the plugin that registered them - Sync only upserts, so uninstalling a provider would
 		// otherwise keep offering it right up to the ErrProviderNotFound at placement
-		if _, err := GetProvider(m.ProviderSlug); err != nil {
+		if reg, err := GetProvider(m.ProviderSlug); err != nil || !ProviderAvailable(ctx, reg, channelID) {
 			continue
 		}
 		if m.CountryMode != "specific" {
@@ -224,8 +234,12 @@ func (s *Service) SetPaymentMethodCountries(ctx context.Context, channelID uuid.
 
 // ErrProviderNotInstalled when no row exists, i.e - Sync hasn't run for this provider - admins shouldn't see the option, but the API guards against direct mutation
 func (s *Service) SetEnabled(ctx context.Context, channelID uuid.UUID, providerSlug string, enabled bool) (PaymentMethod, error) {
-	if _, err := GetProvider(providerSlug); err != nil {
+	reg, err := GetProvider(providerSlug)
+	if err != nil {
 		return PaymentMethod{}, err
+	}
+	if enabled && !ProviderAvailable(ctx, reg, channelID) {
+		return PaymentMethod{}, ErrProviderDisabled
 	}
 	return s.repo.SetPaymentMethodEnabled(ctx, channelID, providerSlug, enabled)
 }
@@ -473,4 +487,16 @@ func (s *Service) DispatchWebhook(ctx context.Context, providerSlug string, req 
 	}
 	s.bus.Publish(ctx, evt)
 	return nil
+}
+
+// UpdatePresentation changes only shopper-facing wording and ordering, preserving provider identity.
+func (s *Service) UpdatePresentation(ctx context.Context, channelID uuid.UUID, providerSlug, displayName string, sortOrder int32) (PaymentMethod, error) {
+	if _, err := GetProvider(providerSlug); err != nil {
+		return PaymentMethod{}, err
+	}
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return PaymentMethod{}, apperr.New("PAYMENT_METHOD_LABEL_REQUIRED", apperr.ClassValidation, "A checkout label is required")
+	}
+	return s.repo.UpdatePaymentMethodPresentation(ctx, channelID, providerSlug, displayName, sortOrder)
 }
