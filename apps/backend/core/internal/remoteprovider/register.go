@@ -13,4 +13,5 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidPolicy, "REMOTE_PROVIDER_INVALID_POLICY", apperr.ClassValidation)
 
 	apperr.RegisterSentinel(ErrCircuitOpen, "REMOTE_PROVIDER_CIRCUIT_OPEN", apperr.ClassUnavailable)
+	apperr.RegisterSentinel(ErrSealedWithoutKey, "REMOTE_PROVIDER_SEALED_WITHOUT_KEY", apperr.ClassUnavailable)
 }

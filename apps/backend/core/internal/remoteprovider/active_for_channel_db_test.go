@@ -15,7 +15,7 @@ import (
 func TestTheChannelReadCarriesEveryActiveKindItCanSee(t *testing.T) {
 	conn := testdb.Require(t)
 	ctx := context.Background()
-	repo := NewRepository(db.New(conn))
+	repo := NewRepository(db.New(conn), nil)
 	a, b := uuid.New(), uuid.New()
 	for _, ch := range []uuid.UUID{a, b} {
 		if _, err := conn.Exec(`INSERT INTO channels (id, slug, name, currency_code, is_active) VALUES ($1,$2,'Scope','USD',true)`, ch, "scope-"+ch.String()[:8]); err != nil {
