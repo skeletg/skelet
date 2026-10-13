@@ -259,6 +259,10 @@ func (h *Host) RegisterPaymentProvider(reg sdk.ProviderRegistration) error {
 		prefix: "payment/" + reg.Slug + "/",
 	}
 	payment.RegisterProvider(payment.Registration{
+		PluginSlug: reg.PluginSlug,
+		Available: func(ctx context.Context, channelID uuid.UUID) bool {
+			return h.IsPluginEnabled(ctx, attributionSlug(reg.PluginSlug, reg.Slug), channelID)
+		},
 		Slug: reg.Slug,
 		Provider: &providerAdapter{
 			p:          reg.Provider,
@@ -312,6 +316,7 @@ func (h *Host) RegisterShippingCarrier(reg sdk.CarrierRegistration) error {
 		Slug:        reg.Slug,
 		Carrier:     carrier,
 		DisplayName: reg.DisplayName,
+		Kinds:       reg.Kinds,
 	})
 	label := reg.DisplayName
 	if label == "" {
@@ -981,7 +986,10 @@ func toSDKItems(items []shipping.RateItem) []sdk.RateItem {
 	}
 	out := make([]sdk.RateItem, len(items))
 	for i, it := range items {
-		out[i] = sdk.RateItem(it)
+		out[i] = sdk.RateItem{ // the product type stays in core - the SDK rates by SKU
+			SKU: it.SKU, Quantity: it.Quantity, UnitPriceCents: it.UnitPriceCents,
+			WeightGrams: it.WeightGrams, LengthMm: it.LengthMm, WidthMm: it.WidthMm, HeightMm: it.HeightMm,
+		}
 	}
 	return out
 }
@@ -1014,8 +1022,9 @@ func fromSDKMethods(methods []sdk.RatedMethod) []shipping.RatedMethod {
 		return nil
 	}
 	out := make([]shipping.RatedMethod, len(methods))
+	// Field by field rather than a conversion - DeliversOnWeekends is core's, set from the carrier's channel row, so the SDK has no such field
 	for i, m := range methods {
-		out[i] = shipping.RatedMethod(m)
+		out[i] = shipping.RatedMethod{Code: m.Code, Name: m.Name, PriceCents: m.PriceCents, EstimatedDays: m.EstimatedDays, Kind: m.Kind}
 	}
 	return out
 }

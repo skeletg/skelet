@@ -94,7 +94,8 @@ func TestMergeGuestCartCarriesCheckout(t *testing.T) {
 	}
 }
 
-func TestQuoteDestinationFollowsTheAddressUnlessPickup(t *testing.T) {
+// A pickup is quoted at its point, which the delivery group knows - the cart's own destination is always the shopper's
+func TestQuoteDestinationFollowsTheAddress(t *testing.T) {
 	state := "CA"
 	co := Checkout{
 		Destination:     Destination{CountryCode: "US", PostalCode: "10001"},
@@ -103,9 +104,9 @@ func TestQuoteDestinationFollowsTheAddressUnlessPickup(t *testing.T) {
 	if d := co.QuoteDestination(); d.PostalCode != "94103" || d.Region != "CA" {
 		t.Errorf("delivery quotes for %+v, want the shipping address", d)
 	}
-	co.ShippingCarrierSlug = PickupCarrierSlug
+	co.ShippingAddress = nil
 	if d := co.QuoteDestination(); d.PostalCode != "10001" {
-		t.Errorf("pickup quotes for %+v, want the destination - the shopper travels, the parcel doesn't", d)
+		t.Errorf("quotes for %+v without an address, want the destination", d)
 	}
 }
 

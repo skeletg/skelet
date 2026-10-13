@@ -149,6 +149,10 @@ func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID
 		if err := checkCartAccess(cart, callerID); err != nil {
 			return err
 		}
+		// A step plans deliveries from the lines, so it sees them - read under the cart's lock, never written here
+		if cart.Lines, err = r.ListCartLinesByCart(ctx, cart.ID); err != nil {
+			return fmt.Errorf("load cart lines: %w", err)
+		}
 		next := cart
 		next.Checkout.GiftCardCodes = append([]string(nil), cart.Checkout.GiftCardCodes...)
 		if err := apply(&next); err != nil {
