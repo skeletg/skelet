@@ -4,12 +4,17 @@ package pluginset
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/format"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+
+	"golang.org/x/mod/module"
 )
 
 const (
@@ -22,6 +27,9 @@ const (
 	// read-only module cache so codegen reaches it by a stable relative path. Derived, git-ignored
 	StageDir = "plugins/.modules"
 )
+
+// SlugPattern is the one shape a plugin slug may take - it becomes a directory name, a Go identifier and a config path prefix
+var SlugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
 // Entry is one plugin's decision. Module empty means in-tree at plugins/<slug>/; set, it names the Go
 // module the plugin ships as, and go.mod holds the version that actually gets built
@@ -120,6 +128,17 @@ func Load(root string) (*Set, error) {
 	if s.Plugins == nil {
 		s.Plugins = map[string]Entry{}
 	}
+	// a hand-edited slug reaches path joins and generated identifiers, a module string reaches `go list -m` as an argument
+	for slug, e := range s.Plugins {
+		if !SlugPattern.MatchString(slug) || slug == "firstparty" {
+			return nil, fmt.Errorf("%s: slug %q must match %s and not be firstparty", StateFile, slug, SlugPattern)
+		}
+		if e.Module != "" {
+			if err := module.CheckPath(e.Module); err != nil {
+				return nil, fmt.Errorf("%s: plugin %s: %w", StateFile, slug, err)
+			}
+		}
+	}
 	return &s, nil
 }
 
@@ -129,7 +148,27 @@ func (s *Set) Save(root string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(root, StateFile), append(raw, '\n'), 0o644)
+	return writeFileAtomic(filepath.Join(root, StateFile), append(raw, '\n'))
+}
+
+// Temp file plus rename, so a crash or a full disk mid-write leaves the old file whole rather than truncated
+func writeFileAtomic(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // Discover finds every directory under plugins/ that actually registers - structural, so plugins/firstparty and any
@@ -194,7 +233,8 @@ func Generate(root string) error {
 	for _, slug := range found {
 		present[slug] = true
 	}
-	for _, slug := range set.EnabledSlugs() {
+	enabled := set.EnabledSlugs()
+	for _, slug := range enabled {
 		// A module plugin has no directory to find - go build is what proves it resolves, and it says
 		// so far more clearly than a guess here could
 		if !set.InTree(slug) {
@@ -205,15 +245,15 @@ func Generate(root string) error {
 		}
 	}
 
-	paths := make([]string, 0, len(set.EnabledSlugs()))
-	for _, slug := range set.EnabledSlugs() {
+	paths := make([]string, 0, len(enabled))
+	for _, slug := range enabled {
 		paths = append(paths, set.ImportPath(slug))
 	}
 	src, err := render(paths)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(root, GenFile), src, 0o644)
+	return writeFileAtomic(filepath.Join(root, GenFile), src)
 }
 
 func render(importPaths []string) ([]byte, error) {
@@ -240,8 +280,10 @@ func Park(root, slug string, enabled bool) error {
 	if enabled {
 		from, to = parked, live
 	}
-	if _, err := os.Stat(from); err != nil {
+	if _, err := os.Stat(from); errors.Is(err, fs.ErrNotExist) {
 		return nil // already where it belongs
+	} else if err != nil {
+		return err
 	}
 	if _, err := os.Stat(to); err == nil {
 		return fmt.Errorf("both %s and %s exist - resolve that by hand", live, parked)

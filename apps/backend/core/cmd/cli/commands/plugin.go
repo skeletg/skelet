@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"slices"
@@ -255,7 +254,7 @@ func printManifestList(label string, values []string) {
 	}
 }
 
-var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`) // same shape as URL slugs elsewhere in the codebase
+var slugPattern = pluginset.SlugPattern
 
 func runPluginNew(cmd *cobra.Command, args []string) error {
 	slug := strings.TrimSpace(args[0])
