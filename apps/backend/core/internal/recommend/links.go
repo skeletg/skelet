@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,6 +27,10 @@ const (
 	alsoBoughtFetchMax           = AlsoBoughtMaxLimit * AlsoBoughtOverfetch
 	alsoBoughtRebuildTopN        = alsoBoughtFetchMax
 	maxProductLinks              = 200
+	// Older orders say more about last year's catalog than this one's, and the self-join grows with every order ever kept
+	alsoBoughtLookback = 365 * 24 * time.Hour
+	// A remote recommender is an HTTP call per product - the cart asks it about its newest lines only
+	cartRemoteLookups = 3
 )
 
 const (
@@ -124,20 +130,73 @@ func (s *Service) SetProductLinks(ctx context.Context, productID uuid.UUID, kind
 
 // Co-occurrence recommendations, best first - a wired remote recommender answers first, so both the PDP and the cart rail ride on it
 func (s *Service) ListAlsoBought(ctx context.Context, productID uuid.UUID, limit int32) ([]uuid.UUID, error) {
+	limit = clampFetch(limit)
 	if s.remote != nil {
 		if ids, ok := s.remote.Recommend(ctx, productID, StrategyAlsoBought, limit); ok {
 			return ids, nil
 		}
 	}
-	if limit <= 0 {
-		limit = AlsoBoughtDefaultLimit
-	}
-	limit = min(limit, alsoBoughtFetchMax)
 	ids, err := s.queries.ListAlsoBought(ctx, db.ListAlsoBoughtParams{ProductID: productID, Limit: limit})
 	if err != nil {
 		return nil, fmt.Errorf("list also bought: %w", err)
 	}
 	return ids, nil
+}
+
+// Clamped before either source answers - a 0 limit reached the remote provider as "no cap"
+func clampFetch(limit int32) int32 {
+	if limit <= 0 {
+		return AlsoBoughtDefaultLimit
+	}
+	return min(limit, alsoBoughtFetchMax)
+}
+
+// Each product's crosssell links in curated order, one query for the whole cart
+func (s *Service) CrosssellsFor(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	out := map[uuid.UUID][]uuid.UUID{}
+	if len(productIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.queries.ListProductLinksForProducts(ctx, db.ListProductLinksForProductsParams{ProductIds: productIDs, Kind: string(LinkCrosssell)})
+	if err != nil {
+		return nil, fmt.Errorf("list crosssells: %w", err)
+	}
+	for _, r := range rows {
+		out[r.ProductID] = append(out[r.ProductID], r.LinkedProductID)
+	}
+	return out, nil
+}
+
+// Also-bought for every product in one native read - a wired remote recommender answers for the last cartRemoteLookups products, concurrently, where it has an answer
+func (s *Service) AlsoBoughtFor(ctx context.Context, productIDs []uuid.UUID, perProduct int32) (map[uuid.UUID][]uuid.UUID, error) {
+	out := map[uuid.UUID][]uuid.UUID{}
+	if len(productIDs) == 0 {
+		return out, nil
+	}
+	perProduct = clampFetch(perProduct)
+	rows, err := s.queries.ListAlsoBoughtForProducts(ctx, db.ListAlsoBoughtForProductsParams{ProductIds: productIDs, PerProduct: perProduct})
+	if err != nil {
+		return nil, fmt.Errorf("list also bought: %w", err)
+	}
+	for _, r := range rows {
+		out[r.ProductID] = append(out[r.ProductID], r.OtherProductID)
+	}
+	if s.remote == nil {
+		return out, nil
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, id := range productIDs[max(len(productIDs)-cartRemoteLookups, 0):] {
+		wg.Go(func() {
+			if ids, ok := s.remote.Recommend(ctx, id, StrategyAlsoBought, perProduct); ok {
+				mu.Lock()
+				out[id] = ids
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	return out, nil
 }
 
 // Driven by a scheduled job - clear and rebuild are separate statements in one transaction, since fused into one statement via a DELETE CTE the insert never saw the deletion and every rebuild after the first failed on the primary key
@@ -147,7 +206,7 @@ func (s *Service) RebuildAlsoBought(ctx context.Context) error {
 		if err := q.ClearAlsoBought(ctx); err != nil {
 			return fmt.Errorf("clear also bought: %w", err)
 		}
-		if err := q.RebuildAlsoBought(ctx, alsoBoughtRebuildTopN); err != nil {
+		if err := q.RebuildAlsoBought(ctx, db.RebuildAlsoBoughtParams{TopN: alsoBoughtRebuildTopN, Since: time.Now().Add(-alsoBoughtLookback)}); err != nil {
 			return fmt.Errorf("rebuild also bought: %w", err)
 		}
 		return nil

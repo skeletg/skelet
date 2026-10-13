@@ -569,11 +569,19 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 	if err != nil || len(cart.Lines) == 0 {
 		return empty, nil
 	}
+	skus := make([]string, len(cart.Lines))
+	for i, l := range cart.Lines {
+		skus[i] = l.ProductSku
+	}
+	products, err := r.CatalogSvc.GetProductsBySKUs(ctx, skus)
+	if err != nil {
+		return empty, nil
+	}
 	inCart := map[uuid.UUID]bool{}
 	var cartProductIDs []uuid.UUID
 	for _, l := range cart.Lines {
-		p, perr := r.CatalogSvc.GetProductBySKU(ctx, l.ProductSku)
-		if perr != nil {
+		p, ok := products[l.ProductSku]
+		if !ok || inCart[p.ID] {
 			continue
 		}
 		inCart[p.ID] = true
@@ -590,15 +598,16 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 			recs = append(recs, id)
 		}
 	}
-	for _, pid := range cartProductIDs {
-		if linked, lerr := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkCrosssell); lerr == nil {
-			add(linked)
+	// one query per source for the whole cart - per-line lookups made a remote recommender an HTTP call for every line
+	if linked, lerr := r.RecommendSvc.CrosssellsFor(ctx, cartProductIDs); lerr == nil {
+		for _, pid := range cartProductIDs {
+			add(linked[pid])
 		}
 	}
 	if len(recs) < 4 {
-		for _, pid := range cartProductIDs {
-			if ab, aerr := r.RecommendSvc.ListAlsoBought(ctx, pid, recommend.AlsoBoughtDefaultLimit); aerr == nil {
-				add(ab)
+		if ab, aerr := r.RecommendSvc.AlsoBoughtFor(ctx, cartProductIDs, recommend.AlsoBoughtDefaultLimit); aerr == nil {
+			for _, pid := range cartProductIDs {
+				add(ab[pid])
 			}
 		}
 	}
