@@ -1,6 +1,7 @@
 package cms
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 
@@ -12,6 +13,7 @@ import (
 type postgresRepository struct {
 	queries *db.Queries
 	tx      *txrunner.Manager
+	inTx    bool // set by WithTx, so atomic joins the caller's tx instead of opening one on another connection
 }
 
 func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) *postgresRepository {
@@ -19,7 +21,16 @@ func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) *postgresReposi
 }
 
 func (r *postgresRepository) WithTx(t *sql.Tx) *postgresRepository {
-	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx}
+	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx, inTx: true}
+}
+
+func (r *postgresRepository) atomic(ctx context.Context, fn func(q *db.Queries) error) error {
+	if r.inTx {
+		return fn(r.queries)
+	}
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		return fn(r.queries.WithTx(t))
+	})
 }
 
 func emptyJSON(raw json.RawMessage) json.RawMessage {
@@ -52,3 +63,5 @@ func metadataFromJSON(raw json.RawMessage) map[string]string {
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
+
+func isForeignKeyViolation(err error) bool { return pgdb.IsForeignKeyViolation(err) }

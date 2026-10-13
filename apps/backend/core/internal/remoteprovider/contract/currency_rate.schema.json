@@ -43,5 +43,5 @@
   },
   "title": "currency_rate",
   "x-kind": "currency_rate",
-  "x-source": "internal/currency.remoteRateRequest -\u003e internal/currency.remoteRateResponse"
+  "x-source": "internal/wiring.remoteRateRequest -\u003e internal/wiring.remoteRateResponse"
 }

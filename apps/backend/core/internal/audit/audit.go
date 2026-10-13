@@ -1,5 +1,5 @@
-// Package audit persists the admin audit trail: every admin GraphQL mutation (recorded by the gqlgen operation interceptor in main.go) and every admin action run
-// Writes are best-effort - an audit insert failure logs but never blocks the underlying operation
+// Package audit persists the admin audit trail: every admin GraphQL mutation (recorded by the operation interceptor in internal/wiring/graphql.go) and every admin action run.
+// Writes are best-effort - an audit insert failure logs but never blocks the underlying operation.
 package audit
 
 import (
@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,16 +62,7 @@ func Identify(ctx context.Context, e *Entry) { // fills who and from where off t
 }
 
 func (s *Service) Record(ctx context.Context, e Entry) { // redacts secret-ish keys and caps size - best-effort, so failures are logged and never returned
-	detail := pqtype.NullRawMessage{}
-	if len(e.Detail) > 0 {
-		raw, err := json.Marshal(Redact(e.Detail))
-		if err == nil {
-			if len(raw) > maxDetailBytes {
-				raw, _ = json.Marshal(map[string]any{"truncated": true, "bytes": len(raw)})
-			}
-			detail = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-		}
-	}
+	detail := encodeDetail(e.Detail)
 	adminID := uuid.NullUUID{}
 	if e.AdminID != uuid.Nil {
 		adminID = uuid.NullUUID{UUID: e.AdminID, Valid: true}
@@ -107,6 +99,7 @@ func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, 
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+	offset = max(offset, 0)
 	aid := uuid.NullUUID{}
 	if adminID != nil {
 		aid = uuid.NullUUID{UUID: *adminID, Valid: true}
@@ -143,31 +136,67 @@ func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, 
 	return out, total, nil
 }
 
-func Redact(m map[string]any) map[string]any { // deep-copies, replacing values under secret-ish keys with a placeholder - exported for the interceptor and tests
+const redacted = "[REDACTED]"
+
+// Deep-copies, replacing values under secret-ish keys with a placeholder - exported for the interceptor and tests
+// A settings save names its field in "path" and carries it in "value", neither of which looks secret, so a value beside the path of a secret-typed setting is redacted too
+func Redact(m map[string]any) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
 		if secretKeyPattern.MatchString(k) {
-			out[k] = "[REDACTED]"
+			out[k] = redacted
 			continue
 		}
-		switch t := v.(type) {
-		case map[string]any:
-			out[k] = Redact(t)
-		case []any:
-			cp := make([]any, len(t))
-			for i, item := range t {
-				if im, ok := item.(map[string]any); ok {
-					cp[i] = Redact(im)
-				} else {
-					cp[i] = item
-				}
-			}
-			out[k] = cp
-		default:
-			out[k] = v
+		out[k] = redactValue(v)
+	}
+	if path, ok := m["path"].(string); ok && isSecretSetting(path) {
+		if _, has := out["value"]; has {
+			out["value"] = redacted
 		}
 	}
 	return out
+}
+
+func redactValue(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		return Redact(t)
+	case []any:
+		cp := make([]any, len(t))
+		for i, item := range t {
+			cp[i] = redactValue(item)
+		}
+		return cp
+	}
+	return v
+}
+
+func isSecretSetting(path string) bool {
+	def, ok := config.Find(path)
+	return ok && def.Type == config.TypeSecret
+}
+
+func encodeDetail(d map[string]any) pqtype.NullRawMessage {
+	if len(d) == 0 {
+		return pqtype.NullRawMessage{}
+	}
+	raw, err := json.Marshal(Redact(d))
+	if err != nil {
+		return pqtype.NullRawMessage{}
+	}
+	if len(raw) > maxDetailBytes { // the field names still say roughly what the mutation touched
+		raw, _ = json.Marshal(map[string]any{"truncated": true, "bytes": len(raw), "keys": sortedKeys(d)})
+	}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func (s *Service) Prune(ctx context.Context, before time.Time) (int64, error) { // operational history, not a legal ledger, so age is the only criterion

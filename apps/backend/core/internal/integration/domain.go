@@ -66,7 +66,4 @@ type Repository interface {
 	RegenerateTokenHash(ctx context.Context, id uuid.UUID, newHash string) (Integration, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetPermissions(ctx context.Context, integrationID uuid.UUID) ([]Permission, error)
-	HasPermission(ctx context.Context, integrationID uuid.UUID, slug string) (bool, error)
-
-	WithTx(tx *sql.Tx) Repository
 }

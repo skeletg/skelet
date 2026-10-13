@@ -13,13 +13,13 @@ import (
 	"github.com/google/uuid"
 )
 
-const refreshTokenTTL = 30 * 24 * time.Hour
+const RefreshTokenTTL = 30 * 24 * time.Hour
 
 // How long a just-rotated token keeps handing back its successor - rotation is single-use, but an SSR storefront fires several prefetches near-simultaneously and without a grace window one wins the GETDEL and the rest hard-fail and wipe the session, so inside it a replayed or concurrent refresh gets the SAME successor instead of an error
 const rotateGraceTTL = 30 * time.Second
 
 // How long a rotated token's hash is remembered, so a replay AFTER the grace window reads as reuse - the signature of a stolen token - rather than an anonymous bad one, and a hit revokes the whole family as a tripwire; bounded well below the 30d token TTL to cap the marker keys
-const reuseDetectWindow = 24 * time.Hour
+const ReuseDetectWindow = 24 * time.Hour
 
 // The backend owns the layout, Valkey keys plus a per-owner SET index or auth_refresh_tokens rows, while this stays storage-agnostic and just drives the protocol - with prefix == "admin" each token also gets a matching admin_sessions row keyed by the same hash, recording client IP and user-agent
 type RefreshStore struct {
@@ -70,7 +70,7 @@ func (s *RefreshStore) Create(ctx context.Context, id uuid.UUID, ip, userAgent s
 	}
 	token = hex.EncodeToString(raw)
 	hash := hashToken(token)
-	if err = s.backend.Put(ctx, hash, id, refreshTokenTTL); err != nil {
+	if err = s.backend.Put(ctx, hash, id, RefreshTokenTTL); err != nil {
 		return "", uuid.Nil, err
 	}
 	if s.prefix == "admin" && s.sessions != nil {
@@ -132,14 +132,14 @@ func (s *RefreshStore) Rotate(ctx context.Context, oldToken string) (newToken st
 	oldHash := hashToken(oldToken)
 	newHash := hashToken(candidate)
 
-	res, err := s.backend.Rotate(ctx, oldHash, newHash, candidate, refreshTokenTTL, rotateGraceTTL)
+	res, err := s.backend.Rotate(ctx, oldHash, newHash, candidate, RefreshTokenTTL, rotateGraceTTL)
 	if err != nil {
 		return "", uuid.Nil, err
 	}
 	switch res.Outcome {
 	case RotateWon:
 		ownerID = res.Owner
-		_ = s.backend.MarkRotated(ctx, oldHash, ownerID, reuseDetectWindow) // so a later post-grace replay reads as reuse rather than an unknown token
+		_ = s.backend.MarkRotated(ctx, oldHash, ownerID, ReuseDetectWindow) // so a later post-grace replay reads as reuse rather than an unknown token
 		s.publish(ctx, &RefreshRevoked{Subject: s.subject(), SubjectID: ownerID, Reason: "rotation"})
 		s.publish(ctx, &RefreshIssued{Subject: s.subject(), SubjectID: ownerID})
 		return candidate, ownerID, nil
@@ -209,17 +209,11 @@ func (s *RefreshStore) RevokeExcept(ctx context.Context, id uuid.UUID, currentHa
 	return nil
 }
 
-func (s *RefreshStore) SessionActive(ctx context.Context, adminID, sessionID uuid.UUID) (bool, error) { // backs AdminSessionGuard - every logout path deletes the session row, so the access token stops working at once; reuses ListSessions since admin sessions are few
-	rows, err := s.ListSessions(ctx, adminID)
-	if err != nil {
-		return false, err
+func (s *RefreshStore) SessionActive(ctx context.Context, adminID, sessionID uuid.UUID) (bool, error) { // backs AdminSessionGuard on every admin request - every logout path deletes the session row, so the access token stops working at once
+	if s.prefix != "admin" || s.sessions == nil {
+		return false, nil
 	}
-	for _, row := range rows {
-		if row.ID == sessionID {
-			return true, nil
-		}
-	}
-	return false, nil
+	return s.sessions.Exists(ctx, adminID, sessionID)
 }
 
 func (s *RefreshStore) ListSessions(ctx context.Context, id uuid.UUID) ([]AdminSession, error) { // an empty slice, never nil

@@ -54,6 +54,9 @@ it so the history stays readable after the file is gone.
 per resource by its own permission, so the hub can't become a side door:
 
 - Exporting `customers` needs `customers.manage`, because that's PII leaving the system.
+- Exporting `order_lines` needs `orders.view` *and* `customers.manage` on the same channel,
+  since every row carries the customer's email. A resource can ask for extra grants like
+  this through `ViewAlsoRequires`, and every read path checks all of them.
 - Importing `products` needs `catalog.manage`.
 - The resource list only shows what you hold, and the job list is narrowed the same way -
   a job for a resource you can't read isn't listed, downloadable, or countable.

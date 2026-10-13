@@ -2,20 +2,20 @@ package catalogio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
-	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 )
 
 // resolver turns the human-friendly references in a CSV (product-type slugs, attribute slugs, attribute value slugs/names, category slugs) into the IDs the catalog service needs - Every lookup is memoised for the lifetime of one import so a thousand rows sharing a product type cost one query
 type resolver struct {
-	cat *catalog.Service
-	ch  *channel.Service
+	cat    *catalog.Service
+	dryRun bool // an unmatched value create_missing_values would add is remembered instead of written
 
 	typesLoaded  bool
 	typeIDBySlug map[string]uuid.UUID
@@ -26,16 +26,18 @@ type resolver struct {
 	valuesByID  map[uuid.UUID]map[string]uuid.UUID // attrID → (value slug & lower(name)) → valueID
 
 	catBySlug map[string]uuid.UUID
+	bySKU     map[string]catalog.Product // a variant's parent is read for its type and again to link, once per row
 
 	// parentChildren caches a configurable parent's linked child IDs so a re-import doesn't re-link (and trip the
 	// variant-uniqueness guard) and large parents aren't re-read once per child
 	parentChildren map[uuid.UUID]map[uuid.UUID]bool
 }
 
-func newResolver(cat *catalog.Service, ch *channel.Service) *resolver {
+func newResolver(cat *catalog.Service, dryRun bool) *resolver {
 	return &resolver{
 		cat:            cat,
-		ch:             ch,
+		dryRun:         dryRun,
+		bySKU:          map[string]catalog.Product{},
 		typeIDBySlug:   map[string]uuid.UUID{},
 		typeByID:       map[uuid.UUID]catalog.ProductType{},
 		attrBySlug:     map[string]catalog.Attribute{},
@@ -156,9 +158,14 @@ func (rs *resolver) valueID(ctx context.Context, attr catalog.Attribute, cell st
 	if id, ok := m[strings.ToLower(cell)]; ok {
 		return id, nil
 	}
+	if createMissing && rs.dryRun {
+		id := uuid.New()
+		m[catalog.Slugify(cell)], m[strings.ToLower(cell)] = id, id
+		return id, nil
+	}
 	if createMissing {
 		v, err := rs.cat.AddAttributeValue(ctx, attr.ID, catalog.AttributeValueInput{
-			Slug: slugify(cell),
+			Slug: catalog.Slugify(cell),
 			Name: cell,
 		})
 		if err != nil {
@@ -176,11 +183,27 @@ func (rs *resolver) categoryBySlug(ctx context.Context, slug string) (uuid.UUID,
 		return id, nil
 	}
 	c, err := rs.cat.GetCategoryBySlug(ctx, slug)
+	if errors.Is(err, catalog.ErrCategoryNotFound) {
+		return uuid.Nil, fmt.Errorf("category %q not found", slug)
+	}
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("category %q: %w", slug, err)
+		return uuid.Nil, fmt.Errorf("lookup category %q: %w", slug, err)
 	}
 	rs.catBySlug[slug] = c.ID
 	return c.ID, nil
+}
+
+// Only a hit is remembered, so a parent created by an earlier row of this run is still found
+func (rs *resolver) productBySKU(ctx context.Context, sku string) (catalog.Product, error) {
+	if p, ok := rs.bySKU[sku]; ok {
+		return p, nil
+	}
+	p, err := rs.cat.GetProductBySKU(ctx, sku)
+	if err != nil {
+		return catalog.Product{}, err
+	}
+	rs.bySKU[sku] = p
+	return p, nil
 }
 
 // Builds the attribute writes from a row's non-empty attr:<slug> columns, validated against the product type's assigned attributes

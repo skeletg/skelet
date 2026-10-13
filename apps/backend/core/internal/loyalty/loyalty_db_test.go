@@ -28,7 +28,7 @@ func testDB(t *testing.T) *sql.DB {
 func newFixture(t *testing.T, conn *sql.DB) (*Service, *storecredit.Service, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	queries, txMgr := dbsqlc.New(conn), txrunner.New(conn)
-	cfg := config.NewService(configstore.New(queries, txMgr))
+	cfg := config.NewService(configstore.New(queries))
 	credit := storecredit.NewService(queries, txMgr)
 
 	var channelID uuid.UUID
@@ -56,7 +56,7 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	}
 	t.Cleanup(func() {
 		_, _ = conn.Exec(`DELETE FROM store_credit_entries WHERE customer_id = $1`, id)
-		_, _ = conn.Exec(`DELETE FROM loyalty_entries WHERE customer_id = $1`, id)
+		_, _ = conn.Exec(`DELETE FROM loyalty_point_entries WHERE customer_id = $1`, id)
 		_, _ = conn.Exec(`DELETE FROM customers WHERE id = $1`, id)
 	})
 	return id

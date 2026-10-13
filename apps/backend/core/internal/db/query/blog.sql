@@ -2,8 +2,8 @@
 
 -- name: CreateBlogAuthor :one
 INSERT INTO blog_authors (
-    slug, display_name, email, avatar_asset_id, linked_admin_id, metadata
-) VALUES ($1, $2, $3, $4, $5, $6)
+    slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, email_public
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetBlogAuthorByID :one
@@ -26,6 +26,7 @@ SET slug            = $2,
     avatar_asset_id = $5,
     linked_admin_id = $6,
     metadata        = $7,
+    email_public    = $8,
     updated_at      = NOW()
 WHERE id = $1
 RETURNING *;

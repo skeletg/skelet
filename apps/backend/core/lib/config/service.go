@@ -15,10 +15,22 @@ import (
 )
 
 type Service struct {
-	repo    Repository
-	signals Repository // the suite's store, when this process can reach it - see storeFor
-	cache   *cache.Cache
-	cipher  *secrets.Cipher
+	repo     Repository
+	signals  Repository // the suite's store, when this process can reach it - see storeFor
+	cache    *cache.Cache
+	cipher   *secrets.Cipher
+	onChange []func(ctx context.Context, def Definition)
+}
+
+// Runs fn after every successful Set or Reset, with the changed field's definition - register at startup, before the service takes writes
+func (s *Service) OnChange(fn func(ctx context.Context, def Definition)) {
+	s.onChange = append(s.onChange, fn)
+}
+
+func (s *Service) changed(ctx context.Context, def Definition) {
+	for _, fn := range s.onChange {
+		fn(ctx, def)
+	}
 }
 
 // Bounds staleness for the unauthenticated publicConfig query - operators tweak settings once a sprint at most, so 10 minutes is comfortable headroom against every storefront page hitting this, and any Set or Reset wipes the entry immediately
@@ -225,6 +237,7 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 		return Entry{}, err
 	}
 	s.invalidate(ctx)
+	s.changed(ctx, def)
 	return Entry{
 		Definition: def,
 		Value:      normalized,
@@ -236,7 +249,8 @@ func (s *Service) Set(ctx context.Context, path, value string, scope Scope) (Ent
 
 // Deletes the row at the given scope - the next Get falls back through the resolution chain, typically to the Registry default
 func (s *Service) Reset(ctx context.Context, path string, scope Scope) (Entry, error) {
-	if _, ok := Find(path); !ok {
+	def, ok := Find(path)
+	if !ok {
 		return Entry{}, ErrUnknownPath
 	}
 	if err := validateScope(scope); err != nil {
@@ -253,6 +267,7 @@ func (s *Service) Reset(ctx context.Context, path string, scope Scope) (Entry, e
 		return Entry{}, err
 	}
 	s.invalidate(ctx)
+	s.changed(ctx, def)
 	return s.Get(ctx, path, scope)
 }
 
@@ -366,6 +381,24 @@ func (s *Service) ListOrphans(ctx context.Context) ([]StoredValue, error) {
 			if _, ok := Find(row.Path); !ok {
 				out = append(out, row)
 			}
+		}
+	}
+	return out, nil
+}
+
+// Every stored row for one path across all scopes, from the store the definition lives in - for callers that must rewrite a value wherever it was set
+func (s *Service) ListStored(ctx context.Context, path string) ([]StoredValue, error) {
+	if _, ok := Find(path); !ok {
+		return nil, ErrUnknownPath
+	}
+	rows, err := s.storeFor(path).ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StoredValue, 0)
+	for _, row := range rows {
+		if row.Path == path {
+			out = append(out, row)
 		}
 	}
 	return out, nil

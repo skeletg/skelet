@@ -15,9 +15,11 @@ func TestMoney(t *testing.T) {
 		{6500, "USD", "65.00 USD"},
 		{1, "EUR", "0.01 EUR"},
 		{123456, "GBP", "1234.56 GBP"},
+		{5000, "JPY", "5000 JPY"},
+		{1234, "KWD", "1.234 KWD"},
 	} {
-		if got := money(tt.cents, tt.currency); got != tt.want {
-			t.Errorf("money(%d,%q) = %q, want %q", tt.cents, tt.currency, got, tt.want)
+		if got := formatMoney(tt.cents, tt.currency); got != tt.want {
+			t.Errorf("formatMoney(%d,%q) = %q, want %q", tt.cents, tt.currency, got, tt.want)
 		}
 	}
 }

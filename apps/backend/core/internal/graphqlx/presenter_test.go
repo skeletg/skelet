@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -166,9 +167,53 @@ func TestPresenterFrontKeepsGraphQLValidationMessages(t *testing.T) {
 		}
 	}
 
-	// A gqlerror with no protocol code is anything a resolver built - it stays internal and scrubbed
-	gqlErr := graphqlx.Presenter(graphqlx.SurfaceFront)(context.Background(), gqlerror.Errorf("pq: connection refused"))
+	// A gqlerror raised while a field resolves is one a resolver built - it stays internal and scrubbed
+	inField := graphql.WithFieldContext(context.Background(), &graphql.FieldContext{Field: graphql.CollectedField{}})
+	gqlErr := graphqlx.Presenter(graphqlx.SurfaceFront)(inField, gqlerror.Errorf("pq: connection refused"))
 	if gqlErr.Message != "internal error" || gqlErr.Extensions["class"] != "INTERNAL" {
 		t.Errorf("uncoded gqlerror = %q / %v, want scrubbed INTERNAL", gqlErr.Message, gqlErr.Extensions["class"])
+	}
+}
+
+type denial struct{}
+
+func (denial) Error() string { return "forbidden" }
+
+func (denial) DenialDetails() (string, string, string) { return "orders.view", "ch-1", "en" }
+
+func TestDenialDetailsOnlyInDev(t *testing.T) {
+	for _, dev := range []bool{false, true} {
+		gqlErr := graphqlx.Presenter(graphqlx.SurfaceAdmin, graphqlx.WithDevDetails(dev))(context.Background(), denial{})
+		_, has := gqlErr.Extensions["denied_permission"]
+		if has != dev {
+			t.Errorf("dev=%v: denied_permission present = %v", dev, has)
+		}
+		if dev && (gqlErr.Extensions["denied_channel_id"] != "ch-1" || gqlErr.Extensions["denied_locale"] != "en") {
+			t.Errorf("dev details = %v, want the channel and locale too", gqlErr.Extensions)
+		}
+	}
+}
+
+// Only server faults reach the aggregator - a shopper's typo would only fill its dedup index
+func TestOnlyServerFaultsAreReported(t *testing.T) {
+	rep := &captured{}
+	present := graphqlx.Presenter(graphqlx.SurfaceFront, graphqlx.WithReporter(rep))
+	_ = present(context.Background(), errFakeNotFound)
+	_ = present(context.Background(), apperr.New("", apperr.ClassValidation, "bad"))
+	if len(rep.errors) != 0 {
+		t.Fatalf("%d caller mistakes reported", len(rep.errors))
+	}
+	_ = present(context.Background(), errors.New("bare fault"))
+	_ = present(context.Background(), apperr.WrapClass(errFakeBareDB, apperr.ClassUnavailable, "test.Dep"))
+	if len(rep.errors) != 2 || rep.errors[0].Class != apperr.ClassInternal || rep.errors[1].Class != apperr.ClassUnavailable {
+		t.Fatalf("reported %+v, want the internal and the unavailable fault", rep.errors)
+	}
+}
+
+func TestRecoverReportsThePanic(t *testing.T) {
+	rep := &captured{}
+	_ = graphqlx.RecoverFunc(graphqlx.SurfaceFront, graphqlx.WithReporter(rep))(context.Background(), "boom")
+	if len(rep.panics) != 1 || rep.panics[0] != "boom" {
+		t.Fatalf("panics reported = %v, want the raw value once", rep.panics)
 	}
 }

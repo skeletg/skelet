@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "files": {
     "address_validator.request.json": "b21e68e3653f3a33ea20dbfe9b6091964e4d3acf8bdfdeb297228a4daa85b246",
     "address_validator.schema.json": "563eff8a83c7d18af0b7e6153c1cf04415ec1defdaef6577b1d2168483c41496",

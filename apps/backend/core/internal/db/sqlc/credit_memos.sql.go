@@ -53,7 +53,7 @@ INSERT INTO credit_memos (
     adjustment_refund_cents, adjustment_fee_cents, total_cents,
     refund_target, offline, reason, admin_id
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at
+RETURNING id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status
 `
 
 type CreateCreditMemoParams struct {
@@ -101,12 +101,13 @@ func (q *Queries) CreateCreditMemo(ctx context.Context, arg CreateCreditMemoPara
 		&i.Reason,
 		&i.AdminID,
 		&i.CreatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getCreditMemo = `-- name: GetCreditMemo :one
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at FROM credit_memos WHERE id = $1
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE id = $1
 `
 
 func (q *Queries) GetCreditMemo(ctx context.Context, id uuid.UUID) (CreditMemo, error) {
@@ -127,12 +128,13 @@ func (q *Queries) GetCreditMemo(ctx context.Context, id uuid.UUID) (CreditMemo, 
 		&i.Reason,
 		&i.AdminID,
 		&i.CreatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getCreditMemoByReturn = `-- name: GetCreditMemoByReturn :one
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at FROM credit_memos WHERE return_id = $1
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE return_id = $1
 `
 
 // Returns issue exactly one memo - used to make a replayed return refund a no-op
@@ -154,6 +156,7 @@ func (q *Queries) GetCreditMemoByReturn(ctx context.Context, returnID uuid.NullU
 		&i.Reason,
 		&i.AdminID,
 		&i.CreatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -233,9 +236,10 @@ func (q *Queries) ListCreditMemoLinesByMemoIDs(ctx context.Context, memoIds []uu
 }
 
 const listCreditMemosByOrder = `-- name: ListCreditMemosByOrder :many
-SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at FROM credit_memos WHERE order_id = $1 ORDER BY created_at, number
+SELECT id, order_id, number, return_id, lines_total_cents, shipping_refund_cents, adjustment_refund_cents, adjustment_fee_cents, total_cents, refund_target, offline, reason, admin_id, created_at, status FROM credit_memos WHERE order_id = $1 AND status = 'issued' ORDER BY created_at, number
 `
 
+// A failed memo stays for the audit trail but is not a credit the order carries
 func (q *Queries) ListCreditMemosByOrder(ctx context.Context, orderID uuid.UUID) ([]CreditMemo, error) {
 	rows, err := q.db.QueryContext(ctx, listCreditMemosByOrder, orderID)
 	if err != nil {
@@ -260,6 +264,7 @@ func (q *Queries) ListCreditMemosByOrder(ctx context.Context, orderID uuid.UUID)
 			&i.Reason,
 			&i.AdminID,
 			&i.CreatedAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -272,6 +277,15 @@ func (q *Queries) ListCreditMemosByOrder(ctx context.Context, orderID uuid.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const markCreditMemoFailed = `-- name: MarkCreditMemoFailed :exec
+UPDATE credit_memos SET status = 'failed' WHERE id = $1
+`
+
+func (q *Queries) MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, markCreditMemoFailed, id)
+	return err
 }
 
 const setPaymentTransactionCreditMemo = `-- name: SetPaymentTransactionCreditMemo :exec
@@ -293,7 +307,7 @@ const sumCreditMemoQtyByOrderLine = `-- name: SumCreditMemoQtyByOrderLine :many
 SELECT ml.order_line_id, COALESCE(SUM(ml.quantity), 0)::NUMERIC(14,4) AS credited
 FROM credit_memo_lines ml
 JOIN credit_memos m ON m.id = ml.credit_memo_id
-WHERE m.order_id = $1
+WHERE m.order_id = $1 AND m.status = 'issued'
 GROUP BY ml.order_line_id
 `
 

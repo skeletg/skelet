@@ -17,6 +17,9 @@ var tokenRe = regexp.MustCompile(`\{\{\s*([\w.]+)\s*\}\}`)
 var htmlPolicy = func() *bluemonday.Policy { // built once, since bluemonday policies are goroutine-safe after construction - UGCPolicy allows common formatting and media tags but strips <script>, <style>, ALL event handlers and unsafe URL schemes, permits no <iframe>, <object> or <embed>, and `class` is added back so authored markup keeps its styling hooks
 	p := bluemonday.UGCPolicy()
 	p.AllowAttrs("class").Globally()
+	// The merchant's own content, not strangers' comments - its links are followed like the rest of the site, and may open a new tab
+	p.RequireNoFollowOnLinks(false)
+	p.AllowAttrs("target").Matching(regexp.MustCompile(`^_blank$`)).OnElements("a")
 	return p
 }()
 
@@ -48,6 +51,11 @@ type AssetResolver func(assetID string) (ImageDescriptor, bool) // ok=false for 
 
 type FormResolver func(formID string) (map[string]any, bool) // a web-form id to its storefront-safe definition (fields, display settings, captcha site key), inlined into the block's props so the storefront needs no second round-trip - ok=false for a missing or inactive form drops the block, and it's injected so blockkit stays free of a webform dependency
 
+// The storefront's one entry point. Visibility is evaluated before preparing, which rebuilds some blocks and expands snippets, and again after for the snippets' own blocks
+func ForFront(doc Document, ec EvalContext, snippets SnippetResolver, custom CustomRenderer, links LinkResolver, assets AssetResolver, forms FormResolver) Document {
+	return FilterServerSide(PrepareForFront(FilterServerSide(doc, ec), snippets, custom, links, assets, forms), ec)
+}
+
 func PrepareForFront(doc Document, snippets SnippetResolver, custom CustomRenderer, links LinkResolver, assets AssetResolver, forms FormResolver) Document { // a render-ready copy for the storefront - sanitizes `html` blocks, expands `ref` snippets, renders custom block types into a safe `html` block, resolves internal-link props to URLs and media-asset props to image descriptors; pass nil for any seam to skip it
 	return Document{Version: doc.Version, Blocks: prepareBlocks(doc.Blocks, snippets, custom, links, assets, forms, map[string]bool{}, 1)}
 }
@@ -66,13 +74,14 @@ func prepareBlocks(in []Block, snippets SnippetResolver, custom CustomRenderer, 
 			}
 			if blocks, ok := snippets(slug); ok {
 				seen[slug] = true
-				out = append(out, prepareBlocks(blocks, snippets, custom, links, assets, forms, seen, depth+1)...)
+				out = append(out, withVisibility(prepareBlocks(blocks, snippets, custom, links, assets, forms, seen, depth+1), b.Props)...)
 				delete(seen, slug)
 			}
 			continue
 		case b.Type == TypeHTML:
 			nb := b
 			nb.Props = sanitizeHTMLProp(b.Props)
+			nb.Blocks = nil // an html block renders only its markup, so children would ship unused and unsanitized
 			out = append(out, nb)
 			continue
 		case b.Type == TypeForm && forms != nil:
@@ -84,11 +93,11 @@ func prepareBlocks(in []Block, snippets SnippetResolver, custom CustomRenderer, 
 			if !ok {
 				continue // deleted / inactive → drop the block
 			}
-			out = append(out, Block{ID: b.ID, Type: TypeForm, Props: map[string]any{"formId": formID, "form": data}})
+			out = append(out, Block{ID: b.ID, Type: TypeForm, Props: keepVisibility(map[string]any{"formId": formID, "form": data}, b.Props)})
 			continue
 		case !BuiltinTypes[b.Type] && custom != nil:
 			if rendered, ok := custom(b.Type, b.Props); ok {
-				out = append(out, Block{ID: b.ID, Type: TypeHTML, Props: map[string]any{"html": SanitizeHTML(rendered)}}) // sanitize here too - the sole XSS boundary can't depend on every CustomRenderer remembering to sanitize its own output
+				out = append(out, Block{ID: b.ID, Type: TypeHTML, Props: keepVisibility(map[string]any{"html": SanitizeHTML(rendered)}, b.Props)}) // sanitize here too - the sole XSS boundary can't depend on every CustomRenderer remembering to sanitize its own output
 				continue
 			}
 		}
@@ -191,4 +200,29 @@ func sanitizeHTMLProp(props map[string]any) map[string]any {
 		cp["html"] = SanitizeHTML(raw)
 	}
 	return cp
+}
+
+// A rebuilt block keeps its visibility rule - without it the schedule and audience check after preparing would find nothing to enforce
+func keepVisibility(props, from map[string]any) map[string]any {
+	if v, ok := from["visibility"]; ok {
+		props["visibility"] = v
+	}
+	return props
+}
+
+// A snippet's blocks inherit the ref's rule where they have none of their own, so the device hint set on the ref still reaches them
+func withVisibility(blocks []Block, refProps map[string]any) []Block {
+	v, ok := refProps["visibility"]
+	if !ok {
+		return blocks
+	}
+	for i := range blocks {
+		if _, own := blocks[i].Props["visibility"]; !own {
+			props := make(map[string]any, len(blocks[i].Props)+1)
+			maps.Copy(props, blocks[i].Props)
+			props["visibility"] = v
+			blocks[i].Props = props
+		}
+	}
+	return blocks
 }

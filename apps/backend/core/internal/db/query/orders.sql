@@ -95,11 +95,12 @@ WHERE  id = $1 AND email = $2 AND customer_id IS NULL
 LIMIT 1;
 
 -- name: ClaimGuestOrdersByEmail :execrows
--- Attach every guest order placed on this channel under the given email to the freshly-registered customer - called from the customer.registered subscriber so the customer's order history on /account/orders shows up immediately after sign-up
+-- Attach every guest order placed on this channel under the given email to the customer who just verified it - called from the customer.email_verified subscriber, never on registration, which proves nothing about owning the address
+-- Order emails are stored as typed, so the match normalizes them the way customer emails already are
 UPDATE orders
 SET    customer_id = $1, updated_at = NOW()
 WHERE  customer_id IS NULL
-  AND  email = $2
+  AND  lower(btrim(email)) = $2
   AND  channel_id = $3;
 
 -- name: UpdateOrderStatusFrom :one
@@ -139,6 +140,18 @@ RETURNING *;
 UPDATE orders
 SET    gift_card_amount = $2, payment_status = $3, updated_at = NOW()
 WHERE  id = $1
+RETURNING *;
+
+-- name: SetOrderPaymentStateFrom :one
+-- Only when the status is still what the caller read - the sync sweep and a webhook settling at once let the slower one write authorized over paid
+UPDATE orders
+SET    payment_status = sqlc.arg(payment_status), payment_reference = sqlc.arg(payment_reference), updated_at = NOW()
+WHERE  id = sqlc.arg(id) AND payment_status = sqlc.arg(from_status)
+RETURNING *;
+
+-- name: SetOrderPaymentReference :one
+-- The reference alone - parking a 3DS handle used to write back the status read at placement, over whatever a webhook had set since
+UPDATE orders SET payment_reference = $2, updated_at = NOW() WHERE id = $1
 RETURNING *;
 
 -- name: SetOrderPaymentState :one

@@ -9,9 +9,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 )
 
-// Honors the channel's "allowed countries" setting, all active when unset, and pins "top destinations" to the front
+// Active countries only, whatever activeOnly says - an inactive one can't be ordered to, so offering it only fails at checkout - honors the channel's "allowed countries" setting and pins "top destinations" to the front
 func (r *queryResolver) Countries(ctx context.Context, activeOnly *bool) ([]*model.Country, error) {
-	rows, err := r.CountrySvc.List(ctx, boolOrFalse(activeOnly))
+	rows, err := r.CountrySvc.List(ctx, true)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +53,9 @@ func (r *queryResolver) Country(ctx context.Context, code string) (*model.Countr
 	c, err := r.CountrySvc.GetByCode(ctx, code)
 	if err != nil {
 		return nil, err
+	}
+	if !r.CountrySvc.Offered(ctx, countryScope(ctx), c) {
+		return nil, country.ErrCountryNotFound
 	}
 	return r.toCountryModel(ctx, c), nil
 }

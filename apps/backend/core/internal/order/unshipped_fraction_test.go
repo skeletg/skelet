@@ -23,7 +23,7 @@ func (f fakeShippedRepo) ShippedByOrderLine(context.Context, uuid.UUID) (map[uui
 
 func fractionOf(o Order, shipped map[uuid.UUID]float64, err error) float64 {
 	s := &Service{repo: fakeShippedRepo{shipped: shipped, err: err}}
-	return s.unshippedFraction(context.Background(), o)
+	return unshippedFraction(context.Background(), s.repo, o)
 }
 
 // The fraction scales tender reversals on cancellation, so it has to be weighted by LINE VALUE and not by unit count - a cheap line and an expensive one don't refund the same

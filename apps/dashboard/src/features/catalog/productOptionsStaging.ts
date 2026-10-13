@@ -48,6 +48,28 @@ export function parseVisibleIfGroup(raw: unknown): VisibilityGroup | null {
   return g
 }
 
+// A FIXED surcharge set for one channel - without one, the base amount applies only on channels selling in the
+// product's own currency, and the choice can't be bought anywhere else
+export type ChannelPrice = { channelId: string; priceValue: number }
+export type ChannelPriceEdits = Record<string, number | null>
+
+export function mergeChannelEdits(
+  a: ChannelPriceEdits | undefined,
+  b: ChannelPriceEdits | undefined,
+): ChannelPriceEdits | undefined {
+  if (!a) return b
+  if (!b) return a
+  return { ...a, ...b }
+}
+
+export function applyChannelEdits(prices: readonly ChannelPrice[] | undefined, edits: ChannelPriceEdits | undefined): ChannelPrice[] {
+  const out = (prices ?? []).filter((p) => !edits || !(p.channelId in edits))
+  for (const [channelId, priceValue] of Object.entries(edits ?? {})) {
+    if (priceValue !== null) out.push({ channelId, priceValue })
+  }
+  return out
+}
+
 export type OptionValue = {
   id: string
   sortOrder: number
@@ -63,6 +85,7 @@ export type OptionValue = {
   // Optional linked SIMPLE product - When set the value's effective
   // cart contribution is (sourceProduct.defaultPrice * quantity) + priceValue
   sourceProduct?: SourceProduct | null
+  channelPrices?: ChannelPrice[]
 }
 
 export type ProductOption = {
@@ -80,6 +103,7 @@ export type ProductOption = {
   fileExtensions?: string | null
   // Raw JSON scalar from codegen - narrow with parseVisibleIfGroup()
   visibleIf?: unknown
+  channelPrices?: ChannelPrice[]
   values: OptionValue[]
 }
 
@@ -146,6 +170,7 @@ export type AddOptionOp = {
   fileExtensions: string | null
   // Carried when an update folds into this add - null/absent = always visible
   visibleIf?: VisibilityGroup | null
+  channelPrices?: ChannelPriceEdits
 }
 
 export type UpdateOptionOp = {
@@ -165,6 +190,7 @@ export type UpdateOptionOp = {
   fileExtensions?: string | null
   // null = clear the condition (always visible) - Undefined = no change
   visibleIf?: VisibilityGroup | null
+  channelPrices?: ChannelPriceEdits
 }
 
 export type DeleteOptionOp = {
@@ -188,6 +214,7 @@ export type AddValueOp = {
   // sourceProduct is the display snapshot for the staged view
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
+  channelPrices?: ChannelPriceEdits
 }
 
 export type UpdateValueOp = {
@@ -205,6 +232,7 @@ export type UpdateValueOp = {
   // null = unlink (clear) - Undefined = no change
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
+  channelPrices?: ChannelPriceEdits
 }
 
 export type DeleteValueOp = {
@@ -259,8 +287,12 @@ export function reduceOps(ops: PendingOp[]): PendingOp[] {
   })
 
   return collapseOps(result, view, {
-    updates: (acc, next) =>
-      ({ ...acc, ...next, id: (acc as UpdateOptionOp | UpdateValueOp).id }) as PendingOp,
+    updates: (acc, next) => {
+      const a = acc as UpdateOptionOp | UpdateValueOp
+      const n = next as UpdateOptionOp | UpdateValueOp
+      const channelPrices = mergeChannelEdits(a.channelPrices, n.channelPrices)
+      return { ...a, ...n, id: a.id, ...(channelPrices ? { channelPrices } : {}) } as PendingOp
+    },
     intoAdd: (add, upd) =>
       mergeAddWithUpdate(add as AddOptionOp | AddValueOp, upd as UpdateOptionOp | UpdateValueOp),
   })
@@ -281,6 +313,7 @@ function mergeAddWithUpdate(add: AddOptionOp | AddValueOp, upd: UpdateOptionOp |
       maxFileBytes: upd.maxFileBytes !== undefined ? upd.maxFileBytes : add.maxFileBytes,
       fileExtensions: upd.fileExtensions !== undefined ? upd.fileExtensions : add.fileExtensions,
       visibleIf: upd.visibleIf !== undefined ? upd.visibleIf : add.visibleIf,
+      channelPrices: mergeChannelEdits(add.channelPrices, upd.channelPrices),
     }
   }
   if (add.kind === 'add-value' && upd.kind === 'update-value') {
@@ -296,6 +329,7 @@ function mergeAddWithUpdate(add: AddOptionOp | AddValueOp, upd: UpdateOptionOp |
       // sourceProductId on the update wins (including the "unlink" null)
       sourceProductId: upd.sourceProductId !== undefined ? upd.sourceProductId : add.sourceProductId,
       sourceProduct: upd.sourceProductId !== undefined ? upd.sourceProduct ?? null : add.sourceProduct,
+      channelPrices: mergeChannelEdits(add.channelPrices, upd.channelPrices),
     }
   }
   return add
@@ -326,6 +360,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
           maxFileBytes: op.maxFileBytes,
           fileExtensions: op.fileExtensions,
           visibleIf: op.visibleIf ?? null,
+          channelPrices: applyChannelEdits([], op.channelPrices),
           values: [],
         })
         break
@@ -342,6 +377,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
           if (op.maxFileBytes !== undefined) next.maxFileBytes = op.maxFileBytes
           if (op.fileExtensions !== undefined) next.fileExtensions = op.fileExtensions
           if (op.visibleIf !== undefined) next.visibleIf = op.visibleIf
+          if (op.channelPrices !== undefined) next.channelPrices = applyChannelEdits(o.channelPrices, op.channelPrices)
           // Title/help text edits land on the targeted locale's content row,
           // not the request-locale scalar - so editing a translation doesn't
           // clobber the fallback shown for other locales - The UI reads copy
@@ -373,6 +409,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
                 title: op.title,
                 content: [{ locale: op.locale, title: op.title }],
                 sourceProduct: op.sourceProduct ?? null,
+                channelPrices: applyChannelEdits([], op.channelPrices),
               },
             ],
           }
@@ -390,6 +427,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
             if (op.isDefault !== undefined) next.isDefault = op.isDefault
             if (op.quantity !== undefined) next.quantity = op.quantity
             if (op.forcedLineQty !== undefined) next.forcedLineQty = op.forcedLineQty
+            if (op.channelPrices !== undefined) next.channelPrices = applyChannelEdits(v.channelPrices, op.channelPrices)
             if (op.sourceProductId !== undefined) {
               next.sourceProduct = op.sourceProductId === null ? null : op.sourceProduct ?? v.sourceProduct ?? null
             }
@@ -415,7 +453,38 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
 
 // ─── Diff for the save-registry ─────────────────────────────────────
 
-export function opsToDiff(original: readonly ProductOption[], ops: readonly PendingOp[]): SectionDiffEntry[] {
+export type ChannelLabel = (channelId: string) => string
+
+function channelPriceRows(
+  label: string,
+  prev: readonly ChannelPrice[] | undefined,
+  edits: ChannelPriceEdits | undefined,
+  channelLabel: ChannelLabel,
+): SectionDiffEntry[] {
+  return Object.entries(edits ?? {}).flatMap(([channelId, next]): SectionDiffEntry[] => {
+    const before = prev?.find((p) => p.channelId === channelId)?.priceValue ?? null
+    if (before === next) return []
+    return [{
+      kind: 'change',
+      label: `${label} · price on ${channelLabel(channelId)}`,
+      before: before === null ? '' : String(before),
+      after: next === null ? '' : String(next),
+    }]
+  })
+}
+
+function channelPriceSummary(edits: ChannelPriceEdits | undefined, channelLabel: ChannelLabel): string {
+  return Object.entries(edits ?? {})
+    .filter(([, v]) => v !== null)
+    .map(([channelId, v]) => ` · ${channelLabel(channelId)} ${v}`)
+    .join('')
+}
+
+export function opsToDiff(
+  original: readonly ProductOption[],
+  ops: readonly PendingOp[],
+  channelLabel: ChannelLabel = () => 'another channel',
+): SectionDiffEntry[] {
   const byId = new Map(original.map((o) => [o.id, o]))
   const valById = new Map<string, { option: ProductOption; value: OptionValue }>()
   for (const o of original) {
@@ -425,7 +494,7 @@ export function opsToDiff(original: readonly ProductOption[], ops: readonly Pend
   return ops.flatMap((op): SectionDiffEntry[] => {
     switch (op.kind) {
       case 'add-option':
-        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}`)]
+        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}${channelPriceSummary(op.channelPrices, channelLabel)}`)]
       case 'update-option': {
         const prev = byId.get(op.id)
         const label = `Option · ${prev?.title ?? op.id}`
@@ -455,6 +524,7 @@ export function opsToDiff(original: readonly ProductOption[], ops: readonly Pend
             op.visibleIf === null ? 'always shown' : 'conditional',
           )
         }
+        rows.push(...channelPriceRows(label, prev?.channelPrices, op.channelPrices, channelLabel))
         return rows
       }
       case 'delete-option': {
@@ -462,7 +532,7 @@ export function opsToDiff(original: readonly ProductOption[], ops: readonly Pend
         return [removed(`Option · ${prev?.title ?? op.id}`, prev ? `${prev.values.length} value(s)` : undefined)]
       }
       case 'add-value':
-        return [added(`Value · ${op.title}`, `${op.priceType.toLowerCase()} ${op.priceValue}${op.isDefault ? ' · default' : ''}${op.forcedLineQty ? ` · locks qty ${op.forcedLineQty}` : ''}`)]
+        return [added(`Value · ${op.title}`, `${op.priceType.toLowerCase()} ${op.priceValue}${channelPriceSummary(op.channelPrices, channelLabel)}${op.isDefault ? ' · default' : ''}${op.forcedLineQty ? ` · locks qty ${op.forcedLineQty}` : ''}`)]
       case 'update-value': {
         const prev = valById.get(op.id)
         const label = `Value · ${prev?.value.title ?? op.id}`
@@ -492,6 +562,7 @@ export function opsToDiff(original: readonly ProductOption[], ops: readonly Pend
         if (op.forcedLineQty !== undefined) {
           push('line qty', prev?.value.forcedLineQty != null ? `locked at ${prev.value.forcedLineQty}` : 'free', op.forcedLineQty === null ? 'free' : `locked at ${op.forcedLineQty}`)
         }
+        rows.push(...channelPriceRows(label, prev?.value.channelPrices, op.channelPrices, channelLabel))
         return rows
       }
       case 'delete-value': {
@@ -513,7 +584,26 @@ export type Committers = {
   updateValue: (op: UpdateValueOp) => Promise<void>
   upsertValueContent: (op: { valueId: string; locale: string; title: string }) => Promise<void>
   deleteValue: (op: { id: string }) => Promise<void>
+  setOptionChannelPrice: (op: { optionId: string; channelId: string; priceValue: number | null }) => Promise<void>
+  setValueChannelPrice: (op: { valueId: string; channelId: string; priceValue: number | null }) => Promise<void>
 }
+
+// An add carrying channel prices commits as the add and then a prices-only update of the same temp id, so a failed
+// price write leaves a retry that resumes at the prices instead of adding the row twice
+function splitChannelPrices(ops: readonly PendingOp[]): PendingOp[] {
+  return ops.flatMap((op): PendingOp[] => {
+    if ((op.kind !== 'add-option' && op.kind !== 'add-value') || !op.channelPrices || Object.keys(op.channelPrices).length === 0) {
+      return [op]
+    }
+    const { channelPrices, ...add } = op
+    return op.kind === 'add-option'
+      ? [add as AddOptionOp, { kind: 'update-option', id: op.tempId, channelPrices }]
+      : [add as AddValueOp, { kind: 'update-value', id: op.tempId, channelPrices }]
+  })
+}
+
+const onlyChannelPrices = (op: UpdateOptionOp | UpdateValueOp) =>
+  Object.keys(op).every((k) => k === 'kind' || k === 'id' || k === 'channelPrices')
 
 // Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
 // can keep just that and a retry resumes instead of re-running committed adds and duplicating rows
@@ -528,10 +618,11 @@ export class CommitError extends Error {
 }
 
 export async function commitOps(
-  ops: readonly PendingOp[],
+  staged: readonly PendingOp[],
   productId: string,
   committers: Committers,
 ): Promise<{ idMap: Map<string, string> }> {
+  const ops = splitChannelPrices(staged)
   const idMap = new Map<string, string>()
   const resolve = (id: string) => idMap.get(id) ?? id
 
@@ -566,7 +657,7 @@ async function commitOne(
     }
     case 'update-option': {
       const id = resolve(op.id)
-      await committers.updateOption({ ...op, id })
+      if (!onlyChannelPrices(op)) await committers.updateOption({ ...op, id })
       // Title + help text are per-locale content - The form sends both whenever either changes (a content upsert
       // replaces the row), so editing help text alone cannot drop the title
       if (op.titleLocale && (op.title !== undefined || op.helpText !== undefined)) {
@@ -576,6 +667,9 @@ async function commitOne(
           title: op.title ?? '',
           helpText: op.helpText ?? '',
         })
+      }
+      for (const [channelId, priceValue] of Object.entries(op.channelPrices ?? {})) {
+        await committers.setOptionChannelPrice({ optionId: id, channelId, priceValue })
       }
       break
     }
@@ -593,9 +687,12 @@ async function commitOne(
     }
     case 'update-value': {
       const id = resolve(op.id)
-      await committers.updateValue({ ...op, id })
+      if (!onlyChannelPrices(op)) await committers.updateValue({ ...op, id })
       if (op.title !== undefined && op.titleLocale) {
         await committers.upsertValueContent({ valueId: id, locale: op.titleLocale, title: op.title })
+      }
+      for (const [channelId, priceValue] of Object.entries(op.channelPrices ?? {})) {
+        await committers.setValueChannelPrice({ valueId: id, channelId, priceValue })
       }
       break
     }

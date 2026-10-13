@@ -19,6 +19,13 @@ test("a product page shows its name, price, stock and SKU", async ({ page }) => 
   await expect(pdp.getByText("SKU casual-t-shirt")).toBeVisible();
 });
 
+// The dev homepage is CMS-built, so this also renders every block type on it in one pass
+test("the home page renders in full", async ({ page }) => {
+  const res = await page.goto("/");
+  expect(res?.status()).toBe(200);
+  await expect(main(page).getByRole("heading", { level: 1 })).toBeVisible();
+});
+
 for (const path of ["/products", "/search?q=shirt"]) {
   test(`${path} lists its products, with no skeleton standing in`, async ({ page }) => {
     await page.goto(path);

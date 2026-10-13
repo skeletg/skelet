@@ -59,6 +59,48 @@ func (q *Queries) BackInStockProduct(ctx context.Context, arg BackInStockProduct
 	return i, err
 }
 
+const claimPendingBackInStock = `-- name: ClaimPendingBackInStock :many
+UPDATE back_in_stock_requests
+SET notified_at = NOW()
+WHERE product_id = $1 AND channel_id = $2 AND notified_at IS NULL
+RETURNING id, email, customer_id
+`
+
+type ClaimPendingBackInStockParams struct {
+	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+type ClaimPendingBackInStockRow struct {
+	ID         uuid.UUID     `json:"id"`
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+}
+
+// Marks and returns the waiting list in one statement, so a request made mid-send stays pending and two concurrent restocks can't both mail the same row
+func (q *Queries) ClaimPendingBackInStock(ctx context.Context, arg ClaimPendingBackInStockParams) ([]ClaimPendingBackInStockRow, error) {
+	rows, err := q.db.QueryContext(ctx, claimPendingBackInStock, arg.ProductID, arg.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimPendingBackInStockRow{}
+	for rows.Next() {
+		var i ClaimPendingBackInStockRow
+		if err := rows.Scan(&i.ID, &i.Email, &i.CustomerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countPendingBackInStock = `-- name: CountPendingBackInStock :one
 SELECT COUNT(*)::bigint FROM back_in_stock_requests
 WHERE channel_id = $1 AND notified_at IS NULL
@@ -90,7 +132,7 @@ func (q *Queries) CountPendingBackInStockForEmail(ctx context.Context, arg Count
 }
 
 const listPendingBackInStock = `-- name: ListPendingBackInStock :many
-SELECT id, email, customer_id, sku, product_name, product_image, product_url
+SELECT id, email, customer_id, sku
 FROM back_in_stock_requests
 WHERE product_id = $1 AND channel_id = $2 AND notified_at IS NULL
 ORDER BY created_at
@@ -102,13 +144,10 @@ type ListPendingBackInStockParams struct {
 }
 
 type ListPendingBackInStockRow struct {
-	ID           uuid.UUID     `json:"id"`
-	Email        string        `json:"email"`
-	CustomerID   uuid.NullUUID `json:"customer_id"`
-	Sku          string        `json:"sku"`
-	ProductName  string        `json:"product_name"`
-	ProductImage string        `json:"product_image"`
-	ProductUrl   string        `json:"product_url"`
+	ID         uuid.UUID     `json:"id"`
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	Sku        string        `json:"sku"`
 }
 
 // Waiting requests for a (product, channel), to notify
@@ -126,9 +165,6 @@ func (q *Queries) ListPendingBackInStock(ctx context.Context, arg ListPendingBac
 			&i.Email,
 			&i.CustomerID,
 			&i.Sku,
-			&i.ProductName,
-			&i.ProductImage,
-			&i.ProductUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -141,24 +177,6 @@ func (q *Queries) ListPendingBackInStock(ctx context.Context, arg ListPendingBac
 		return nil, err
 	}
 	return items, nil
-}
-
-const markBackInStockNotified = `-- name: MarkBackInStockNotified :exec
-UPDATE back_in_stock_requests
-SET notified_at = NOW()
-WHERE product_id = $1 AND channel_id = $2 AND notified_at IS NULL
-`
-
-type MarkBackInStockNotifiedParams struct {
-	ProductID uuid.UUID `json:"product_id"`
-	ChannelID uuid.UUID `json:"channel_id"`
-}
-
-// Mark every waiting request for a (product, channel) notified, once we've
-// enrolled/emailed them
-func (q *Queries) MarkBackInStockNotified(ctx context.Context, arg MarkBackInStockNotifiedParams) error {
-	_, err := q.db.ExecContext(ctx, markBackInStockNotified, arg.ProductID, arg.ChannelID)
-	return err
 }
 
 const pendingBackInStockChannels = `-- name: PendingBackInStockChannels :many
@@ -191,34 +209,38 @@ func (q *Queries) PendingBackInStockChannels(ctx context.Context, productID uuid
 	return items, nil
 }
 
+const releaseBackInStockClaim = `-- name: ReleaseBackInStockClaim :exec
+UPDATE back_in_stock_requests SET notified_at = NULL WHERE id = $1
+`
+
+// A notice that failed to send goes back to waiting, so the next restock retries it
+func (q *Queries) ReleaseBackInStockClaim(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, releaseBackInStockClaim, id)
+	return err
+}
+
 const upsertBackInStockRequest = `-- name: UpsertBackInStockRequest :exec
 
-INSERT INTO back_in_stock_requests (channel_id, product_id, sku, email, customer_id, anon_id, product_name, product_image, product_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO back_in_stock_requests (channel_id, product_id, sku, email, customer_id, anon_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (channel_id, product_id, email) DO UPDATE
-    SET notified_at   = NULL,
-        customer_id   = COALESCE(excluded.customer_id, back_in_stock_requests.customer_id),
-        anon_id       = CASE WHEN excluded.anon_id <> '' THEN excluded.anon_id ELSE back_in_stock_requests.anon_id END,
-        product_name  = excluded.product_name,
-        product_image = excluded.product_image,
-        product_url   = excluded.product_url
+    SET notified_at = NULL,
+        customer_id = COALESCE(excluded.customer_id, back_in_stock_requests.customer_id),
+        anon_id     = CASE WHEN excluded.anon_id <> '' THEN excluded.anon_id ELSE back_in_stock_requests.anon_id END
 `
 
 type UpsertBackInStockRequestParams struct {
-	ChannelID    uuid.UUID     `json:"channel_id"`
-	ProductID    uuid.UUID     `json:"product_id"`
-	Sku          string        `json:"sku"`
-	Email        string        `json:"email"`
-	CustomerID   uuid.NullUUID `json:"customer_id"`
-	AnonID       string        `json:"anon_id"`
-	ProductName  string        `json:"product_name"`
-	ProductImage string        `json:"product_image"`
-	ProductUrl   string        `json:"product_url"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	ProductID  uuid.UUID     `json:"product_id"`
+	Sku        string        `json:"sku"`
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	AnonID     string        `json:"anon_id"`
 }
 
 // Back-in-stock requests - storefront submits interest; the restock notifier
 // drains waiting requests per (product, channel) and marks them notified
-// Record interest - A repeat request re-arms an already-notified row (so a shopper can be told again after a future out-of-stock episode) and refreshes the customer/anon linkage + display snapshot in case they've since changed
+// Record interest - A repeat request re-arms an already-notified row (so a shopper can be told again after a future out-of-stock episode) and refreshes the customer/anon linkage in case it has since changed
 func (q *Queries) UpsertBackInStockRequest(ctx context.Context, arg UpsertBackInStockRequestParams) error {
 	_, err := q.db.ExecContext(ctx, upsertBackInStockRequest,
 		arg.ChannelID,
@@ -227,9 +249,6 @@ func (q *Queries) UpsertBackInStockRequest(ctx context.Context, arg UpsertBackIn
 		arg.Email,
 		arg.CustomerID,
 		arg.AnonID,
-		arg.ProductName,
-		arg.ProductImage,
-		arg.ProductUrl,
 	)
 	return err
 }

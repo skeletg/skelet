@@ -12,10 +12,6 @@ RETURNING *;
 -- name: GetProductTypeByID :one
 SELECT * FROM catalog_product_types WHERE id = $1;
 
--- GetProductTypesByIDs is the batched form used by the storefront DataLoader: every per-product `productType` field resolver across a page collapses into one query for the distinct ids
--- name: GetProductTypesByIDs :many
-SELECT * FROM catalog_product_types WHERE id = ANY(sqlc.arg(ids)::uuid[]);
-
 -- name: ListProductTypes :many
 SELECT * FROM catalog_product_types ORDER BY name;
 
@@ -78,6 +74,22 @@ RETURNING *;
 
 -- name: DeleteAttribute :exec
 DELETE FROM catalog_attributes WHERE id = $1;
+
+-- name: StripProductAttributeKey :exec
+-- Scalar values live in the products' JSONB under the attribute slug, which no FK cascades - a recreated slug would otherwise resurrect them
+UPDATE catalog_products
+SET attributes = attributes - sqlc.arg(slug)::text
+WHERE attributes ? sqlc.arg(slug)::text;
+
+-- name: ListProductIDsCarryingAttribute :many
+SELECT pav.product_id AS id FROM catalog_product_attribute_values pav WHERE pav.attribute_id = sqlc.arg(attribute_id)
+UNION
+SELECT par.product_id FROM catalog_product_attribute_references par WHERE par.attribute_id = sqlc.arg(attribute_id)
+UNION
+SELECT p.id FROM catalog_products p WHERE p.attributes ? sqlc.arg(slug)::text;
+
+-- name: ListProductIDsCarryingAttributeValue :many
+SELECT DISTINCT product_id FROM catalog_product_attribute_values WHERE attribute_value_id = $1;
 
 -- ==================== Attribute Values ====================
 
@@ -196,10 +208,6 @@ ORDER BY attribute_id;
 SELECT * FROM catalog_product_attribute_slugs
 WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[]);
 
--- name: GetProductAttributeSlug :one
-SELECT * FROM catalog_product_attribute_slugs
-WHERE product_id = $1 AND attribute_id = $2;
-
 -- Global override (applies on every channel without its own row)
 -- name: UpsertProductAttributeSlug :one
 INSERT INTO catalog_product_attribute_slugs (product_id, attribute_id, slug)
@@ -285,7 +293,7 @@ ON CONFLICT (product_type_id, attribute_id) DO UPDATE
     SET sort_order = EXCLUDED.sort_order,
         group_id   = EXCLUDED.group_id;
 
--- name: MoveAttributeToGroup :exec
+-- name: MoveAttributeToGroup :execrows
 UPDATE catalog_product_type_attributes
 SET group_id = $3
 WHERE product_type_id = $1 AND attribute_id = $2;
@@ -295,12 +303,8 @@ DELETE FROM catalog_product_type_attributes
 WHERE product_type_id = $1 AND attribute_id = $2;
 
 -- name: ListProductTypeAttributes :many
-SELECT a.id, a.slug, a.name, a.input_type, a.relationship_target, a.unit,
-       a.value_required, a.filterable, a.searchable, a.is_public,
-       a.facet_collapsed, a.is_indexable, a.h1_position,
-       a.sort_order AS attribute_sort_order,
-       a.metadata, a.private_metadata, a.default_value,
-       a.created_at, a.updated_at,
+-- Embeds the whole attribute row so the shared toAttribute mapper hydrates it - a hand-picked column list silently dropped new fields
+SELECT sqlc.embed(a),
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta
@@ -312,12 +316,7 @@ ORDER BY pta.sort_order, a.name;
 -- Batched twin of the above so a list of types hydrates its attributes in one
 -- query instead of one per row - carries product_type_id so Go can group them
 SELECT pta.product_type_id,
-       a.id, a.slug, a.name, a.input_type, a.relationship_target, a.unit,
-       a.value_required, a.filterable, a.searchable, a.is_public,
-       a.facet_collapsed, a.is_indexable, a.h1_position,
-       a.sort_order AS attribute_sort_order,
-       a.metadata, a.private_metadata, a.default_value,
-       a.created_at, a.updated_at,
+       sqlc.embed(a),
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta

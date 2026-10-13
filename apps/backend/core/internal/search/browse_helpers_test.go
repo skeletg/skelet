@@ -50,7 +50,7 @@ func swatchAttr(names ...string) catalog.Attribute {
 	a := catalog.Attribute{ID: uuid.New(), Slug: "color", InputType: catalog.InputTypeSwatch}
 	for _, n := range names {
 		a.Values = append(a.Values, catalog.AttributeValue{
-			ID: uuid.New(), Slug: slugify(n), Name: n, IsIndexable: n == "Red", // only Red is operator-blessed for SEO
+			ID: uuid.New(), Slug: catalog.Slugify(n), Name: n, IsIndexable: n == "Red", // only Red is operator-blessed for SEO
 		})
 	}
 	return a
@@ -87,23 +87,6 @@ func TestResolveAttributeFilterValuesMapsSlugsToDisplayNames(t *testing.T) { // 
 	got = resolveAttributeFilterValues(scalar, []string{"handmade"})
 	if len(got) != 1 || got[0] != "handmade" {
 		t.Errorf("scalar values = %v, want them untouched", got)
-	}
-}
-
-func TestSearchSlugify(t *testing.T) { // mirrors catalog.slugifyForSKU - a drift between them would give the fallback slug a different shape than the stored one
-	for in, want := range map[string]string{
-		"Navy Blue":     "navy-blue",
-		"  Rough  Cut ": "rough-cut",
-		"205/55 R16":    "205-55-r16",
-		"ALL CAPS":      "all-caps",
-		"--edge--":      "edge",
-		"":              "",
-		"???":           "",
-		"éclair":        "clair", // ascii-only on purpose, same as the SKU slugifier
-	} {
-		if got := slugify(in); got != want {
-			t.Errorf("slugify(%q) = %q, want %q", in, got, want)
-		}
 	}
 }
 

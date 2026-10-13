@@ -350,7 +350,9 @@ a disk loss takes every product image with it.
 
 `MEDIA_LIBRARY_ROOT_PREFIX` is OPTIONAL and scopes the media tier's library
 lookups to one key prefix, for a bucket shared with something else. Empty
-means the whole bucket.
+means the whole bucket, minus the prefixes the platform writes itself
+(`catalog/`, `webforms/`, `data/`, `derived/`) - the library won't list,
+upload into, rename or delete those, and won't delete its own root.
 
 Moving a store between buckets, `skelet media-migrate` reads the S3 vars
 above as the source and takes the destination from its own flags, falling back
@@ -441,7 +443,7 @@ channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and voting
 read at runtime too, so compose sets it on the container rather than the
 build. Besides GraphQL it carries the backend links the browser loads from the
 shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
-the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
+the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
 falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
 host.
 
@@ -585,8 +587,10 @@ Once it's on, each surface has its own per-minute budget:
 | `AUTH_RATE_LIMIT_PER_MIN` | 10 | login / register / password reset |
 | `FRONT_RATE_LIMIT_PER_MIN` | 600 | the whole storefront GraphQL endpoint |
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
-| `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, email open/click |
+| `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
+| `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
+| `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
 Setting one of these does NOT turn the layer on - `RATE_LIMIT_ENABLED`
 gates all of them, so a knob left over in an old env file can't quietly

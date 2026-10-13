@@ -510,6 +510,7 @@ export type BlogAuthor = {
   createdAt: Scalars['Time']['output'];
   displayName: Scalars['String']['output'];
   email?: Maybe<Scalars['String']['output']>;
+  emailPublic: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   linkedAdmin?: Maybe<AdminUser>;
   metadata: Array<MetadataItem>;
@@ -1505,6 +1506,7 @@ export type CreateBlogAuthorInput = {
   bio?: InputMaybe<Scalars['JSON']['input']>;
   displayName: Scalars['String']['input'];
   email?: InputMaybe<Scalars['String']['input']>;
+  emailPublic?: InputMaybe<Scalars['Boolean']['input']>;
   linkedAdminId?: InputMaybe<Scalars['ID']['input']>;
   locale?: InputMaybe<Scalars['String']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
@@ -1583,7 +1585,6 @@ export type CreateCmsPageInput = {
   body?: InputMaybe<Scalars['JSON']['input']>;
   contentData?: InputMaybe<Scalars['JSON']['input']>;
   data?: InputMaybe<Scalars['JSON']['input']>;
-  isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
   metaKeywords?: InputMaybe<Scalars['String']['input']>;
@@ -1593,7 +1594,6 @@ export type CreateCmsPageInput = {
   parentId?: InputMaybe<Scalars['ID']['input']>;
   position?: InputMaybe<Scalars['Int']['input']>;
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
-  publishedAt?: InputMaybe<Scalars['Time']['input']>;
   relationships?: InputMaybe<Array<CmsPageRelationshipInput>>;
   selections?: InputMaybe<Array<CmsPageSelectionInput>>;
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
@@ -1604,7 +1604,6 @@ export type CreateCmsPageInput = {
 export type CreateCmsPageTypeInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   icon?: InputMaybe<Scalars['String']['input']>;
-  isSystem?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   name: Scalars['String']['input'];
   position?: InputMaybe<Scalars['Int']['input']>;
@@ -2073,7 +2072,7 @@ export type CustomerActivityItem = {
 export type CustomerAuthPayload = {
   __typename?: 'CustomerAuthPayload';
   accessToken?: Maybe<Scalars['String']['output']>;
-  customer: Customer;
+  customer?: Maybe<Customer>;
   refreshToken?: Maybe<Scalars['String']['output']>;
   verificationRequired: Scalars['Boolean']['output'];
 };
@@ -2099,6 +2098,16 @@ export type CustomerConsent = {
   optedIn: Scalars['Boolean']['output'];
   source: Scalars['String']['output'];
   updatedAt?: Maybe<Scalars['Time']['output']>;
+};
+
+export type CustomerConsentEvent = {
+  __typename?: 'CustomerConsentEvent';
+  adminId?: Maybe<Scalars['ID']['output']>;
+  createdAt: Scalars['Time']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  optedIn: Scalars['Boolean']['output'];
+  source: Scalars['String']['output'];
 };
 
 export type CustomerEventCount = {
@@ -2369,6 +2378,8 @@ export type DataResource = {
   label: Scalars['String']['output'];
   options: Array<DataOption>;
   slug: Scalars['String']['output'];
+  /** Further grants an export needs on top of viewPermission, over the same channels */
+  viewAlsoRequires: Array<Scalars['String']['output']>;
   viewPermission: Scalars['String']['output'];
 };
 
@@ -3684,6 +3695,8 @@ export type Mutation = {
   setProductLinks: Scalars['Boolean']['output'];
   setProductListing: Product;
   setProductMediaRole: Product;
+  setProductOptionChannelPrice: Product;
+  setProductOptionValueChannelPrice: Product;
   setProductPrimaryCategory: Product;
   setProductTaxClass: Product;
   setProductTypeURLPathTemplate: ProductType;
@@ -4999,6 +5012,7 @@ export type MutationGeneratePromotionCodesArgs = {
 
 
 export type MutationGenerateShippingLabelArgs = {
+  force?: InputMaybe<Scalars['Boolean']['input']>;
   fulfillmentId: Scalars['ID']['input'];
 };
 
@@ -5399,7 +5413,6 @@ export type MutationRunScheduledJobNowArgs = {
 
 
 export type MutationSaveChatConversationArgs = {
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
   title?: InputMaybe<Scalars['String']['input']>;
@@ -5726,6 +5739,20 @@ export type MutationSetProductMediaRoleArgs = {
   mediaId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
   role: ProductMediaRole;
+};
+
+
+export type MutationSetProductOptionChannelPriceArgs = {
+  channelId: Scalars['ID']['input'];
+  optionId: Scalars['ID']['input'];
+  priceValue?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type MutationSetProductOptionValueChannelPriceArgs = {
+  channelId: Scalars['ID']['input'];
+  priceValue?: InputMaybe<Scalars['Int']['input']>;
+  valueId: Scalars['ID']['input'];
 };
 
 
@@ -6378,6 +6405,12 @@ export type MutationVoidPaymentArgs = {
   orderId: Scalars['ID']['input'];
 };
 
+export type OptionChannelPrice = {
+  __typename?: 'OptionChannelPrice';
+  channelId: Scalars['ID']['output'];
+  priceValue: Scalars['Int']['output'];
+};
+
 export type Order = {
   __typename?: 'Order';
   appliedPromotions: Array<AppliedPromotion>;
@@ -6818,6 +6851,7 @@ export type ProductMemberships = {
 
 export type ProductOption = {
   __typename?: 'ProductOption';
+  channelPrices: Array<OptionChannelPrice>;
   content: Array<ProductOptionContent>;
   createdAt: Scalars['Time']['output'];
   fileExtensions?: Maybe<Scalars['String']['output']>;
@@ -6861,6 +6895,7 @@ export type ProductOptionPriceType =
 
 export type ProductOptionValue = {
   __typename?: 'ProductOptionValue';
+  channelPrices: Array<OptionChannelPrice>;
   content: Array<ProductOptionValueContent>;
   createdAt: Scalars['Time']['output'];
   forcedLineQty?: Maybe<Scalars['Float']['output']>;
@@ -7211,6 +7246,7 @@ export type Query = {
   customer: Customer;
   customerAudiences: Array<SignalSegment>;
   customerCommerce: CustomerCommerce;
+  customerConsentHistory: Array<CustomerConsentEvent>;
   customerGroup: CustomerGroup;
   customerGroups: Array<CustomerGroup>;
   customerProfile: CustomerProfile;
@@ -7648,6 +7684,12 @@ export type QueryCustomerAudiencesArgs = {
 
 export type QueryCustomerCommerceArgs = {
   customerId: Scalars['ID']['input'];
+};
+
+
+export type QueryCustomerConsentHistoryArgs = {
+  customerId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -9876,6 +9918,7 @@ export type UpdateBlogAuthorInput = {
   clearLinkedAdmin?: InputMaybe<Scalars['Boolean']['input']>;
   displayName?: InputMaybe<Scalars['String']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  emailPublic?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
   linkedAdminId?: InputMaybe<Scalars['ID']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
@@ -9949,15 +9992,12 @@ export type UpdateCmsBlockTypeInput = {
 
 export type UpdateCmsPageInput = {
   clearParent?: InputMaybe<Scalars['Boolean']['input']>;
-  clearPublished?: InputMaybe<Scalars['Boolean']['input']>;
   data?: InputMaybe<Scalars['JSON']['input']>;
   id: Scalars['ID']['input'];
-  isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
   position?: InputMaybe<Scalars['Int']['input']>;
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
-  publishedAt?: InputMaybe<Scalars['Time']['input']>;
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
   tags?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -10156,6 +10196,7 @@ export type UpdateProductDownloadInput = {
 export type UpdateProductInput = {
   canonicalUrl?: InputMaybe<Scalars['String']['input']>;
   clearCompareAtPrice?: InputMaybe<Scalars['Boolean']['input']>;
+  clearCostCents?: InputMaybe<Scalars['Boolean']['input']>;
   clearSpecialPrice?: InputMaybe<Scalars['Boolean']['input']>;
   clearTracksInventoryOverride?: InputMaybe<Scalars['Boolean']['input']>;
   compareAtPrice?: InputMaybe<Scalars['Int']['input']>;

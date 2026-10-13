@@ -8,6 +8,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
 // addDownloadable attaches one downloadable file to the store's product - maxDownloads nil is unlimited
@@ -25,6 +26,15 @@ func (h *harness) addDownloadable(t *testing.T, productID uuid.UUID, title strin
 	return d
 }
 
+// Records the cash on delivery in full - a COD order is unpaid until then, and its files wait for it
+func (h *harness) collectCOD(t *testing.T, orderID uuid.UUID) {
+	t.Helper()
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{OrderID: orderID, Method: "cod", Reference: "e2e-cod"}); err != nil {
+		t.Fatalf("record cod payment: %v", err)
+	}
+	h.Settle(t)
+}
+
 func (h *harness) grantsFor(t *testing.T, orderID uuid.UUID) []download.Grant {
 	t.Helper()
 	got, err := h.D.Download.ListForOrder(h.Ctx, orderID)
@@ -34,7 +44,8 @@ func (h *harness) grantsFor(t *testing.T, orderID uuid.UUID) []download.Grant {
 	return got
 }
 
-// Scenario: buying a digital product grants download access on placement, once per downloadable file, and the grant carries the buyer's identity so the account page can list it
+// Scenario: buying a digital product grants download access once the order is paid, once per downloadable file, and the grant carries the buyer's identity so the account page can list it
+// Cash on delivery places unpaid - granting at placement handed the file over for an order nobody had to pay
 func TestDigitalPurchaseGrantsDownloadAccess(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 20, 2500)
@@ -42,6 +53,10 @@ func TestDigitalPurchaseGrantsDownloadAccess(t *testing.T) {
 
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	if got := h.grantsFor(t, o.ID); len(got) != 0 {
+		t.Fatalf("%d grants for an unpaid cash-on-delivery order, want none until the cash is in", len(got))
+	}
+	h.collectCOD(t, o.ID)
 
 	grants := h.grantsFor(t, o.ID)
 	if len(grants) != 1 {
@@ -74,6 +89,7 @@ func TestDigitalPurchaseGrantsOneTokenPerFile(t *testing.T) {
 
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 
 	grants := h.grantsFor(t, o.ID)
 	if len(grants) != 2 {
@@ -98,6 +114,7 @@ func TestDigitalGrantsAreIdempotentUnderReplay(t *testing.T) {
 
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	first := h.grantsFor(t, o.ID)
 	if len(first) != 1 {
 		t.Fatalf("%d grants after placement, want 1", len(first))
@@ -122,6 +139,7 @@ func TestNonDigitalPurchaseGrantsNothing(t *testing.T) {
 
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 
 	if got := h.grantsFor(t, o.ID); len(got) != 0 {
 		t.Errorf("%d grants for an order with no downloadable lines, want 0", len(got))
@@ -135,6 +153,7 @@ func TestDownloadConsumeIncrementsTheUseCount(t *testing.T) {
 	h.addDownloadable(t, f.Product.ID, "Manual", nil)
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	token := h.grantsFor(t, o.ID)[0].Token
 
 	for want := int32(1); want <= 3; want++ {
@@ -165,6 +184,7 @@ func TestDownloadConsumeEnforcesTheCap(t *testing.T) {
 	h.addDownloadable(t, f.Product.ID, "Capped", &max)
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	token := h.grantsFor(t, o.ID)[0].Token
 
 	for i := range 2 {
@@ -193,6 +213,7 @@ func TestDownloadConsumeRefusesAnUnknownToken(t *testing.T) {
 	h.addDownloadable(t, f.Product.ID, "Manual", nil)
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	real := h.grantsFor(t, o.ID)[0].Token
 
 	for name, token := range map[string]string{
@@ -223,6 +244,7 @@ func TestDownloadConsumeRaceNeverExceedsTheCap(t *testing.T) {
 	h.addDownloadable(t, f.Product.ID, "Capped", &max)
 	o := h.PlaceGuestCOD(t, f, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 	token := h.grantsFor(t, o.ID)[0].Token
 
 	const attempts = 8
@@ -266,6 +288,7 @@ func TestDownloadGrantsAreListableByCustomer(t *testing.T) {
 	}
 	o := h.placeFor(t, f, c.ID, email, 1)
 	h.Settle(t)
+	h.collectCOD(t, o.ID)
 
 	mine, err := h.D.Download.ListForCustomer(h.Ctx, c.ID)
 	if err != nil {
@@ -282,5 +305,22 @@ func TestDownloadGrantsAreListableByCustomer(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the order's grant is missing from the customer's %d grants", len(mine))
+	}
+}
+
+// Cancelling a paid digital order takes the files back - its grant stops serving
+func TestCancellingADigitalOrderRevokesItsDownloads(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 2500)
+	h.addDownloadable(t, f.Product.ID, "Manual", nil)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
+	h.collectCOD(t, o.ID)
+	token := h.grantsFor(t, o.ID)[0].Token
+
+	h.Cancel(t, o.ID)
+	h.Settle(t)
+	if _, err := h.D.Download.Consume(h.Ctx, token); !errors.Is(err, download.ErrExpired) {
+		t.Fatalf("a cancelled order's download = %v, want ErrExpired", err)
 	}
 }

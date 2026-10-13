@@ -416,6 +416,7 @@ func (r *queryResolver) PermissionGroups(ctx context.Context) ([]*model.Permissi
 	if err != nil {
 		return nil, err
 	}
+	groups = registeredPermissionGroups(groups)
 	result := make([]*model.PermissionGroup, len(groups))
 	for i, g := range groups {
 		result[i] = toPermissionGroupModel(g)

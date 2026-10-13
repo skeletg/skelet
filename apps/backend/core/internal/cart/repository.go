@@ -173,8 +173,12 @@ func (r *postgresRepository) GetSavedItem(ctx context.Context, id uuid.UUID) (Sa
 	return toSavedItem(row), nil
 }
 
-func (r *postgresRepository) DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) error {
-	return r.queries.DeleteSavedItem(ctx, db.DeleteSavedItemParams{ID: id, CartID: cartID})
+func (r *postgresRepository) DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) (bool, error) {
+	n, err := r.queries.DeleteSavedItem(ctx, db.DeleteSavedItemParams{ID: id, CartID: cartID})
+	if err != nil {
+		return false, fmt.Errorf("delete saved item: %w", err)
+	}
+	return n > 0, nil
 }
 
 func (r *postgresRepository) ListSavedItems(ctx context.Context, cartID uuid.UUID) ([]SavedItem, error) {
@@ -265,8 +269,7 @@ func (r *postgresRepository) UpsertCartLineBySku(ctx context.Context, cartID uui
 	return toCartLine(row), nil
 }
 
-// UpsertBundleCartLine writes the bundle line then replaces its components - On
-// SKU conflict it OVERWRITES quantity/price/name (the simple upsert sums instead)
+// Writes the bundle line then replaces its components, OVERWRITING quantity/price/name on a SKU conflict (the simple upsert sums instead) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uuid.UUID, input AddBundleLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertBundleCartLine(ctx, db.UpsertBundleCartLineParams{
 		CartID:      cartID,
@@ -303,8 +306,7 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 	return line, nil
 }
 
-// UpsertConfiguredCartLine writes the simple line then replaces its option rows Like the bundle path it OVERWRITES
-// quantity/price/name on SKU conflict (a reconfigure, not an accumulation)
+// Writes the line then replaces its option rows, OVERWRITING quantity/price/name on a SKU conflict like the bundle path (a reconfigure, not an accumulation) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartID uuid.UUID, input AddConfiguredLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertConfiguredCartLine(ctx, db.UpsertConfiguredCartLineParams{
 		CartID:      cartID,
@@ -338,6 +340,7 @@ func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartI
 			Quantity:        o.Quantity,
 			SortOrder:       o.SortOrder,
 			FileUrl:         o.FileURL,
+			SourceProductID: sqlnull.UUID(o.SourceProductID),
 		})
 		if err != nil {
 			return CartLine{}, fmt.Errorf("insert cart line option: %w", err)
@@ -368,6 +371,17 @@ func (r *postgresRepository) UpdateCartLineQuantityPrice(ctx context.Context, li
 		return CartLine{}, fmt.Errorf("update cart line: %w", err)
 	}
 	return toCartLine(row), nil
+}
+
+func (r *postgresRepository) SetBundleLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64) error {
+	n, err := r.queries.SetBundleLineQuantity(ctx, db.SetBundleLineQuantityParams{LineID: lineID, Quantity: quantity})
+	if err != nil {
+		return fmt.Errorf("update bundle line: %w", err)
+	}
+	if n == 0 {
+		return ErrCartLineNotFound
+	}
+	return nil
 }
 
 func (r *postgresRepository) RemoveCartLine(ctx context.Context, lineID uuid.UUID) error {
@@ -470,14 +484,9 @@ func toCartLineOption(row db.CartLineOption) CartLineOption {
 		v := row.OptionValueID.UUID
 		o.OptionValueID = &v
 	}
+	o.SourceProductID = sqlnull.UUIDPtr(row.SourceProductID)
 	return o
 }
 
-// IsSQLNoRows lets the service layer spot "no rows" without importing database/sql. errors.Is so wrapped chains
-// (fmt.Errorf("...: %w", sql.ErrNoRows)) still resolve - otherwise every %w repo method would hide the no-rows signal
-func IsSQLNoRows(err error) bool {
-	if err == nil {
-		return false
-	}
-	return errors.Is(err, sql.ErrNoRows) || err.Error() == "sql: no rows in result set"
-}
+// IsSQLNoRows spots "no rows" through the %w chains every repo method wraps
+func IsSQLNoRows(err error) bool { return errors.Is(err, sql.ErrNoRows) }

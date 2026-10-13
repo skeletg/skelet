@@ -11,6 +11,7 @@ import (
 
 type optionBatchRepo struct {
 	fakeRepo
+	catalog.OptionRepository
 	options      map[uuid.UUID][]catalog.ProductOption
 	content      map[uuid.UUID][]catalog.ProductOptionContent
 	values       map[uuid.UUID][]catalog.ProductOptionValue
@@ -47,6 +48,18 @@ func (f *optionBatchRepo) ListProductOptionValuesByOptionIDs(_ context.Context, 
 
 func (f *optionBatchRepo) ListProductOptionValueContentByValueIDs(_ context.Context, _ []uuid.UUID) (map[uuid.UUID][]catalog.ProductOptionValueContent, error) {
 	return f.valueContent, nil
+}
+
+func (f *optionBatchRepo) ListProductOptionChannelPricesByOptionIDs(context.Context, []uuid.UUID) (map[uuid.UUID][]catalog.OptionChannelPrice, error) {
+	return nil, nil
+}
+
+func (f *optionBatchRepo) ListProductOptionValueChannelPricesByValueIDs(context.Context, []uuid.UUID) (map[uuid.UUID][]catalog.OptionChannelPrice, error) {
+	return nil, nil
+}
+
+func (f *optionBatchRepo) ListProductRowsByIDs(context.Context, []uuid.UUID) (map[uuid.UUID]catalog.Product, error) {
+	return nil, nil
 }
 
 func TestGetProductOptionsByProductIDs_GroupsAndHydratesInOneQuerySet(t *testing.T) {

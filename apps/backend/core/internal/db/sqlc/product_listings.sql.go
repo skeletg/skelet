@@ -13,31 +13,22 @@ import (
 	"github.com/lib/pq"
 )
 
-const countInheritingListingsAcrossStoresWithCurrencyMismatch = `-- name: CountInheritingListingsAcrossStoresWithCurrencyMismatch :one
+const countInheritingListingsWithCurrencyMismatchForProduct = `-- name: CountInheritingListingsWithCurrencyMismatchForProduct :one
 SELECT COUNT(*)::bigint
 FROM catalog_product_channel_listings l
-JOIN channels s ON s.id = l.channel_id
-WHERE l.price IS NULL
-  AND s.currency_code <> $1
+JOIN channels c ON c.id = l.channel_id
+WHERE l.product_id = $1
+  AND l.price IS NULL
+  AND c.currency_code <> $2::text
 `
 
-// How many inheriting listings would become incoherent if the global default currency changed to $1 - A listing is incoherent under the new global currency when its store's currency differs from the new global, because inheritance requires currency match
-func (q *Queries) CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx context.Context, currencyCode string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countInheritingListingsAcrossStoresWithCurrencyMismatch, currencyCode)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
+type CountInheritingListingsWithCurrencyMismatchForProductParams struct {
+	ProductID    uuid.UUID `json:"product_id"`
+	CurrencyCode string    `json:"currency_code"`
 }
 
-const countInheritingListingsForChannel = `-- name: CountInheritingListingsForChannel :one
-SELECT COUNT(*)::bigint
-FROM catalog_product_channel_listings
-WHERE channel_id = $1 AND price IS NULL
-`
-
-// How many listings on this store currently inherit price (price IS NULL) Used by the currency-change guard to block changing a store's currency while any listing depends on the global default price
-func (q *Queries) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countInheritingListingsForChannel, channelID)
+func (q *Queries) CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, arg CountInheritingListingsWithCurrencyMismatchForProductParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countInheritingListingsWithCurrencyMismatchForProduct, arg.ProductID, arg.CurrencyCode)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -60,7 +51,7 @@ func (q *Queries) DeleteProductChannelListing(ctx context.Context, arg DeletePro
 
 const getListingProductIDByChannelURL = `-- name: GetListingProductIDByChannelURL :one
 SELECT product_id FROM catalog_product_channel_listings
-WHERE channel_id = $1 AND url = $2
+WHERE channel_id = $1 AND url = $2 AND is_published
 `
 
 type GetListingProductIDByChannelURLParams struct {
@@ -317,6 +308,41 @@ func (q *Queries) UpsertProductChannelListing(ctx context.Context, arg UpsertPro
 		arg.SpecialFrom,
 		arg.SpecialTo,
 	)
+	var i ProductChannelListing
+	err := row.Scan(
+		&i.ProductID,
+		&i.ChannelID,
+		&i.Price,
+		&i.IsPublished,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Url,
+		&i.CompareAtPrice,
+		&i.SpecialPrice,
+		&i.SpecialFrom,
+		&i.SpecialTo,
+	)
+	return i, err
+}
+
+const upsertProductChannelListingPublished = `-- name: UpsertProductChannelListingPublished :one
+INSERT INTO catalog_product_channel_listings (product_id, channel_id, is_published)
+VALUES ($1, $2, $3)
+ON CONFLICT (product_id, channel_id) DO UPDATE
+SET is_published = EXCLUDED.is_published,
+    updated_at   = NOW()
+RETURNING product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to
+`
+
+type UpsertProductChannelListingPublishedParams struct {
+	ProductID   uuid.UUID `json:"product_id"`
+	ChannelID   uuid.UUID `json:"channel_id"`
+	IsPublished bool      `json:"is_published"`
+}
+
+// Touches only is_published, so a bulk publish toggle (CSV import) keeps the listing's prices and url override
+func (q *Queries) UpsertProductChannelListingPublished(ctx context.Context, arg UpsertProductChannelListingPublishedParams) (ProductChannelListing, error) {
+	row := q.db.QueryRowContext(ctx, upsertProductChannelListingPublished, arg.ProductID, arg.ChannelID, arg.IsPublished)
 	var i ProductChannelListing
 	err := row.Scan(
 		&i.ProductID,

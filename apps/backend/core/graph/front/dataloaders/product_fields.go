@@ -160,7 +160,7 @@ func newProductFieldLoaders(svc *catalog.Service) productFieldLoaders {
 		return productFieldLoaders{}
 	}
 	return productFieldLoaders{
-		ProductMedia:      newByIDLoader(svc.ListProductMediaByProductIDs),
+		ProductMedia:      newByIDLoader(svc.ListReadyProductMediaByProductIDs),
 		ProductMediaRoles: newByIDLoader(svc.ListProductMediaRolesByProductIDs),
 		ProductTypeID:     newByIDLoader(svc.ListProductTypeIDsByProductIDs),
 		ChildRows:         newByIDLoader(svc.ListProductChildrenByParentIDs),

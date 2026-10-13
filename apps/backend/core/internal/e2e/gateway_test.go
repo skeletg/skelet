@@ -20,6 +20,10 @@ import (
 type fakeGateway struct {
 	mu         sync.Mutex
 	captureRef string
+	// park leaves the next authorizations on a redirect, the way a shopper who closes a hosted checkout does, and sync is what
+	// the gateway answers when core asks where such a payment stands
+	park bool
+	sync sdk.SyncPaymentResult
 	// what the last Authorize actually received - the typed token slots once had NO producer and every
 	// gateway silently authorized with nothing, so e2e now watches the seam itself
 	lastAuthorize sdk.AuthorizeRequest
@@ -40,8 +44,36 @@ func (g *fakeGateway) setCaptureRef(ref string) {
 func (g *fakeGateway) Authorize(_ context.Context, req sdk.AuthorizeRequest) (sdk.AuthorizeResult, error) {
 	g.mu.Lock()
 	g.lastAuthorize = req
+	park := g.park
 	g.mu.Unlock()
+	if park {
+		return sdk.AuthorizeResult{ProviderReference: "auth-" + req.OrderID.String()[:8],
+			Action: sdk.PendingAction{Kind: sdk.ActionRedirect, Value: "https://gateway.example.test/checkout"}}, nil
+	}
 	return sdk.AuthorizeResult{ProviderReference: "auth-" + req.OrderID.String()[:8]}, nil
+}
+
+func (g *fakeGateway) SyncPayment(context.Context, sdk.SyncPaymentRequest) (sdk.SyncPaymentResult, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.sync, nil
+}
+
+func (g *fakeGateway) parkAuthorizations(t *testing.T) {
+	g.mu.Lock()
+	g.park = true
+	g.mu.Unlock()
+	t.Cleanup(func() {
+		g.mu.Lock()
+		g.park, g.sync = false, sdk.SyncPaymentResult{}
+		g.mu.Unlock()
+	})
+}
+
+func (g *fakeGateway) answerSync(res sdk.SyncPaymentResult) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.sync = res
 }
 
 func (g *fakeGateway) Capture(_ context.Context, _ sdk.CaptureRequest) (sdk.CaptureResult, error) {

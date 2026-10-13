@@ -9,11 +9,11 @@ func TestStoreSnapshotFromHeader(t *testing.T) {
 		store StoreSnapshot
 		want  string
 	}{
-		{"name and address", StoreSnapshot{EmailFromAddress: "hi@shop.test", EmailFromName: "Shop"}, "Shop <hi@shop.test>"},
+		{"name and address", StoreSnapshot{EmailFromAddress: "hi@shop.test", EmailFromName: "Shop"}, `"Shop" <hi@shop.test>`},
 		{"address only", StoreSnapshot{EmailFromAddress: "hi@shop.test"}, "hi@shop.test"},
 		{"neither configured", StoreSnapshot{}, "no-reply@skelet.local"},
-		{"name only", StoreSnapshot{EmailFromName: "Shop"}, "Shop <no-reply@skelet.local>"},
-		{"padded values", StoreSnapshot{EmailFromAddress: "  hi@shop.test ", EmailFromName: " Shop "}, "Shop <hi@shop.test>"},
+		{"name only", StoreSnapshot{EmailFromName: "Shop"}, `"Shop" <no-reply@skelet.local>`},
+		{"padded values", StoreSnapshot{EmailFromAddress: "  hi@shop.test ", EmailFromName: " Shop "}, `"Shop" <hi@shop.test>`},
 	} {
 		if got := tc.store.fromHeader(); got != tc.want {
 			t.Errorf("%s: fromHeader() = %q, want %q", tc.name, got, tc.want)

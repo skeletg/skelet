@@ -2,6 +2,11 @@ package config
 
 // Fields already living as channels-table columns are NOT registered here - the store form owns those
 
+const (
+	BaseCurrencyPath    = "general/store_information/currency_list"
+	DefaultBaseCurrency = "USD"
+)
+
 func init() {
 	RegisterSection(Section{Slug: "general", Label: "General", SortOrder: 1})
 	RegisterSection(Section{Slug: "sales", Label: "Sales", SortOrder: 2})
@@ -33,7 +38,7 @@ func init() {
 	Register(Definition{Path: "general/store_information/description", Type: TypeTextarea, Default: "", Label: "Store description", Description: "A short line about the store. Served to storefronts over publicConfig; the bundled one doesn't show it.", Public: true})
 	Register(Definition{Path: "general/store_information/phone_mobile", Type: TypePhone, Default: "", Label: "Mobile phone", Description: "A second number, for stores that publish one. Served to storefronts; the bundled one doesn't show it.", Public: true})
 	// Options come from the currencies the operator actually created, not a hardcoded three - and the label says what the value does: it is the base the currency-rates job quotes every other rate against, NOT a display preference. Path kept as-is so existing rows keep resolving
-	Register(Definition{Path: "general/store_information/currency_list", Scoping: ScopingGlobal, Type: TypeSelect, Default: "USD", Label: "Base currency for exchange rates", Description: "The currency every stored exchange rate is quoted against, refreshed twice daily from ECB. Storefront prices come from each channel's own currency, not from here.", Public: true, Source: "currencies"})
+	Register(Definition{Path: BaseCurrencyPath, Scoping: ScopingGlobal, Type: TypeSelect, Default: DefaultBaseCurrency, Label: "Base currency for exchange rates", Description: "The currency every stored exchange rate is quoted against, refreshed twice daily from ECB. Storefront prices come from each channel's own currency, not from here.", Public: true, Source: "currencies"})
 	// Replaced a free-text "hours" string that nothing parsed - this one is per-day ranges, so a storefront or LocalBusiness JSON-LD block can actually use it
 	Register(Definition{Path: "general/store_information/working_hours", Type: TypeWorkingHours, Default: "{}", Label: "Opening hours", Description: "Per-day opening times. Served to storefronts over publicConfig; the bundled one doesn't show them.", Public: true})
 

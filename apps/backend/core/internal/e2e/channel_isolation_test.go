@@ -16,7 +16,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
@@ -30,7 +31,7 @@ func (h *harness) gqlAs(t *testing.T, ts *httptest.Server, channelID, query stri
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Channel-Id", channelID)
+	req.Header.Set(channel.HeaderChannelID, channelID)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -164,7 +165,7 @@ func TestARefreshTokenOnTheWrongStoreIsNotSpent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if tok, terr := h.D.Verify.Create(h.Ctx, c.ID); terr == nil {
+	if tok, terr := h.D.Verify.Create(h.Ctx, c.ID, c.Email); terr == nil {
 		_ = h.D.Customer.VerifyEmail(h.Ctx, tok)
 	}
 	ts := httptest.NewServer(h.D.Root.Handler)
@@ -203,12 +204,12 @@ func TestBackInStockTakesOnlyTheProductAndTheAddress(t *testing.T) {
 	if err := h.D.BackInStock.Record(h.Ctx, backinstock.Request{ChannelID: a.Channel.ID, ProductID: a.Product.ID, Email: addr}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	var sku, name string
-	if err := h.D.DB.QueryRow(`SELECT sku, product_name FROM back_in_stock_requests WHERE channel_id = $1 AND email = $2`, a.Channel.ID, addr).Scan(&sku, &name); err != nil {
+	var sku string
+	if err := h.D.DB.QueryRow(`SELECT sku FROM back_in_stock_requests WHERE channel_id = $1 AND email = $2`, a.Channel.ID, addr).Scan(&sku); err != nil {
 		t.Fatalf("read back: %v", err)
 	}
-	if sku != a.Product.SKU || name != "" {
-		t.Fatalf("stored sku %q name %q, want the catalog's sku and no client copy", sku, name)
+	if sku != a.Product.SKU {
+		t.Fatalf("stored sku %q, want the catalog's sku", sku)
 	}
 	if _, err := h.D.Inventory.AdjustLevel(h.Ctx, inventory.AdjustLevelInput{InventoryItemID: a.Item.ID, LocationID: a.Location.ID, NewQuantity: 5}); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -242,7 +243,7 @@ func TestTheMerchantFeedIsChannelTrue(t *testing.T) {
 		a.Product.ID, path, a.Channel.ID); err != nil {
 		t.Fatalf("channel rewrite: %v", err)
 	}
-	out, _, err := catalog.NewMerchantFeed(h.D.Queries, nil).Render(context.Background(), catalog.MerchantFeedOptions{
+	out, _, err := catalogio.NewMerchantFeed(h.D.Queries, nil, h.D.Inventory, h.D.Catalog).Render(context.Background(), catalogio.MerchantFeedOptions{
 		ChannelID: a.Channel.ID, BaseURL: "https://a.test", CurrencyCode: "USD", Locale: "en", Title: "A",
 	})
 	if err != nil {

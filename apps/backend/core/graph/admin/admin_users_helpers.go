@@ -189,6 +189,26 @@ func rolePermissionScopeInputsFromGQL(inputs []*model.RolePermissionScopeInput) 
 	return scopes, nil
 }
 
+// Sync never deletes, so rows whose code is gone (a renamed slug, a plugin taken out of the build) stay in the DB - offering them
+// as grantable would hand out a permission no resolver checks, so the picker shows only what the registry still declares
+func registeredPermissionGroups(groups []admin.PermissionGroup) []admin.PermissionGroup {
+	out := make([]admin.PermissionGroup, 0, len(groups))
+	for _, g := range groups {
+		if _, ok := permission.FindGroup(g.Slug); !ok {
+			continue
+		}
+		live := make([]admin.Permission, 0, len(g.Permissions))
+		for _, p := range g.Permissions {
+			if _, ok := permission.Find(p.Slug); ok {
+				live = append(live, p)
+			}
+		}
+		g.Permissions = live
+		out = append(out, g)
+	}
+	return out
+}
+
 func toPermissionGroupModel(g admin.PermissionGroup) *model.PermissionGroup {
 	perms := make([]*model.Permission, len(g.Permissions))
 	for i, p := range g.Permissions {

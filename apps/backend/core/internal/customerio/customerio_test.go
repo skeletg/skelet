@@ -72,20 +72,11 @@ func TestFirstNonEmpty(t *testing.T) {
 	}
 }
 
-// Both files feed downstream spreadsheets keyed by column name - a rename breaks silently on their side
-func TestColumnNamesStayAccountingStable(t *testing.T) {
-	wantCustomer := []string{"email", "first_name", "last_name", "phone", "group", "is_active", "email_verified", "created_at"}
-	if got := names(customerFields); strings.Join(got, ",") != strings.Join(wantCustomer, ",") {
-		t.Errorf("customer columns = %v, want %v", got, wantCustomer)
-	}
-	have := map[string]bool{}
-	for _, n := range names(orderFields) {
-		have[n] = true
-	}
-	for _, must := range []string{"order_number", "sku", "quantity", "unit_price_cents", "line_total_cents", "order_total_cents", "currency"} {
-		if !have[must] {
-			t.Errorf("order columns are missing %q", must)
-		}
+// The file feeds downstream spreadsheets keyed by column name - a rename breaks silently on their side
+func TestColumnNamesStayStable(t *testing.T) {
+	want := []string{"email", "first_name", "last_name", "phone", "group", "is_active", "email_verified", "created_at"}
+	if got := names(customerFields); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("customer columns = %v, want %v", got, want)
 	}
 }
 
@@ -97,21 +88,11 @@ func names(fields []dataio.Field) []string {
 	return out
 }
 
-// Order lines are an export - an importable one would let a spreadsheet invent revenue
-func TestResourcesRegister(t *testing.T) {
+func TestResourceRegisters(t *testing.T) {
 	reg := dataio.NewRegistry()
 	reg.Register(CustomerResource(nil, nil))
-	reg.Register(OrderLineResource(nil))
-
 	customers, err := reg.Get("customers")
 	if err != nil || !customers.CanImport() || !customers.CanExport() {
 		t.Fatalf("customers should round-trip: %v", err)
-	}
-	orders, err := reg.Get("order_lines")
-	if err != nil {
-		t.Fatalf("get order_lines: %v", err)
-	}
-	if orders.CanImport() {
-		t.Fatal("order lines must not be importable")
 	}
 }

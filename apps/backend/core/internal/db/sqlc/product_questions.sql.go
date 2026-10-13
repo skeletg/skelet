@@ -13,10 +13,14 @@ import (
 )
 
 const answerProductQuestion = `-- name: AnswerProductQuestion :one
-UPDATE product_questions
+WITH prev AS (
+  SELECT p.id, p.status FROM product_questions p WHERE p.id = $1 FOR UPDATE
+)
+UPDATE product_questions q
 SET    answer = $2, answered_by = $3, answered_at = now(), status = 'published'
-WHERE  id = $1
-RETURNING id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at
+FROM   prev
+WHERE  q.id = prev.id
+RETURNING q.id, q.product_id, q.channel_id, q.customer_id, q.author_name, q.author_email, q.question, q.answer, q.answered_by, q.answered_at, q.status, q.created_at, prev.status AS prev_status
 `
 
 type AnswerProductQuestionParams struct {
@@ -25,22 +29,29 @@ type AnswerProductQuestionParams struct {
 	AnsweredBy uuid.NullUUID `json:"answered_by"`
 }
 
-func (q *Queries) AnswerProductQuestion(ctx context.Context, arg AnswerProductQuestionParams) (ProductQuestion, error) {
+type AnswerProductQuestionRow struct {
+	ProductQuestion ProductQuestion `json:"product_question"`
+	PrevStatus      string          `json:"prev_status"`
+}
+
+// prev_status is read under the row lock, so of two racing answers only one sees the question unpublished and announces it
+func (q *Queries) AnswerProductQuestion(ctx context.Context, arg AnswerProductQuestionParams) (AnswerProductQuestionRow, error) {
 	row := q.db.QueryRowContext(ctx, answerProductQuestion, arg.ID, arg.Answer, arg.AnsweredBy)
-	var i ProductQuestion
+	var i AnswerProductQuestionRow
 	err := row.Scan(
-		&i.ID,
-		&i.ProductID,
-		&i.ChannelID,
-		&i.CustomerID,
-		&i.AuthorName,
-		&i.AuthorEmail,
-		&i.Question,
-		&i.Answer,
-		&i.AnsweredBy,
-		&i.AnsweredAt,
-		&i.Status,
-		&i.CreatedAt,
+		&i.ProductQuestion.ID,
+		&i.ProductQuestion.ProductID,
+		&i.ProductQuestion.ChannelID,
+		&i.ProductQuestion.CustomerID,
+		&i.ProductQuestion.AuthorName,
+		&i.ProductQuestion.AuthorEmail,
+		&i.ProductQuestion.Question,
+		&i.ProductQuestion.Answer,
+		&i.ProductQuestion.AnsweredBy,
+		&i.ProductQuestion.AnsweredAt,
+		&i.ProductQuestion.Status,
+		&i.ProductQuestion.CreatedAt,
+		&i.PrevStatus,
 	)
 	return i, err
 }

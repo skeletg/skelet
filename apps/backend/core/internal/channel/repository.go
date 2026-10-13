@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -16,75 +17,73 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
+const storefrontHostIndex = "idx_channels_storefront_host"
+
+// tx is nil on a repository already bound to a transaction
 type postgresRepository struct {
 	queries *db.Queries
 	tx      *txrunner.Manager
 }
 
-// NewRepository constructs a postgres-backed Repository - The txrunner.Manager is only used for SetLocales (delete + N
-// inserts in one transaction); other operations talk to db.Queries directly
 func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) Repository {
 	return &postgresRepository{queries: queries, tx: txMgr}
 }
 
+func (r *postgresRepository) Atomic(ctx context.Context, fn func(Repository) error) error {
+	if r.tx == nil {
+		return fn(r)
+	}
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		return fn(&postgresRepository{queries: r.queries.WithTx(t)})
+	})
+}
+
+func (r *postgresRepository) inTx(ctx context.Context, fn func(*db.Queries) error) error {
+	return r.Atomic(ctx, func(repo Repository) error { return fn(repo.(*postgresRepository).queries) })
+}
+
 func (r *postgresRepository) Create(ctx context.Context, input CreateChannelInput) (Channel, error) {
 	row, err := r.queries.CreateChannel(ctx, db.CreateChannelParams{
-		Slug:          input.Slug,
-		Name:          input.Name,
-		DefaultLocale: input.DefaultLocale,
-		CurrencyCode:  input.CurrencyCode,
-		PublicUrl:     input.PublicURL,
-		Metadata:      mapToJSON(input.Metadata),
+		Slug:           input.Slug,
+		Name:           input.Name,
+		DefaultLocale:  input.DefaultLocale,
+		CurrencyCode:   input.CurrencyCode,
+		PublicUrl:      input.PublicURL,
+		StorefrontHost: storefrontHost(input.PublicURL),
+		Metadata:       mapToJSON(input.Metadata),
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
-			return Channel{}, ErrSlugTaken
-		}
-		return Channel{}, fmt.Errorf("create channel: %w", err)
+		return Channel{}, writeError("create channel", err)
 	}
 	return toChannel(row), nil
 }
 
 func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Channel, error) {
-	row, err := r.queries.GetChannelByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Channel{}, ErrChannelNotFound
-		}
-		return Channel{}, fmt.Errorf("get channel: %w", err)
-	}
-	return toChannel(row), nil
+	return readOne(r.queries.GetChannelByID(ctx, id))
+}
+
+func (r *postgresRepository) GetForUpdate(ctx context.Context, id uuid.UUID) (Channel, error) {
+	return readOne(r.queries.GetChannelByIDForUpdate(ctx, id))
 }
 
 func (r *postgresRepository) GetBySlug(ctx context.Context, slug string) (Channel, error) {
-	row, err := r.queries.GetChannelBySlug(ctx, slug)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Channel{}, ErrChannelNotFound
-		}
-		return Channel{}, fmt.Errorf("get channel by slug: %w", err)
-	}
-	return toChannel(row), nil
+	return readOne(r.queries.GetChannelBySlug(ctx, slug))
 }
 
 func (r *postgresRepository) GetByStorefrontHost(ctx context.Context, host string) (Channel, error) {
-	row, err := r.queries.GetChannelByStorefrontHost(ctx, host)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Channel{}, ErrChannelNotFound
-		}
-		return Channel{}, fmt.Errorf("get channel by host: %w", err)
-	}
-	return toChannel(row), nil
+	return readOne(r.queries.GetChannelByStorefrontHost(ctx, host))
 }
 
 func (r *postgresRepository) GetDefault(ctx context.Context) (Channel, error) {
-	row, err := r.queries.GetDefaultChannel(ctx)
+	return readOne(r.queries.GetDefaultChannel(ctx))
+}
+
+func readOne(row db.Channel, err error) (Channel, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return Channel{}, ErrChannelNotFound
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Channel{}, ErrChannelNotFound
-		}
-		return Channel{}, fmt.Errorf("get default channel: %w", err)
+		return Channel{}, fmt.Errorf("get channel: %w", err)
 	}
 	return toChannel(row), nil
 }
@@ -116,23 +115,38 @@ func (r *postgresRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) (ma
 	return out, nil
 }
 
-func (r *postgresRepository) Update(ctx context.Context, input UpdateChannelInput) (Channel, error) {
-	current, err := r.queries.GetChannelByID(ctx, input.ID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Channel{}, ErrChannelNotFound
-		}
-		return Channel{}, fmt.Errorf("load channel: %w", err)
+func (r *postgresRepository) Update(ctx context.Context, ch Channel, writeMetadata bool) (Channel, error) {
+	params := db.UpdateChannelParams{
+		ID:             ch.ID,
+		Name:           ch.Name,
+		DefaultLocale:  ch.DefaultLocale,
+		IsActive:       ch.IsActive,
+		CurrencyCode:   ch.CurrencyCode,
+		PublicUrl:      ch.PublicURL,
+		StorefrontHost: storefrontHost(ch.PublicURL),
 	}
-	merged := mergeUpdate(current, input)
-	row, err := r.queries.UpdateChannel(ctx, merged)
+	if writeMetadata {
+		params.Metadata = pqtype.NullRawMessage{RawMessage: mapToJSON(ch.Metadata), Valid: true}
+	}
+	row, err := r.queries.UpdateChannel(ctx, params)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Channel{}, ErrChannelNotFound
+	}
 	if err != nil {
-		if isUniqueViolation(err) {
-			return Channel{}, ErrSlugTaken
-		}
-		return Channel{}, fmt.Errorf("update channel: %w", err)
+		return Channel{}, writeError("update channel", err)
 	}
 	return toChannel(row), nil
+}
+
+// The two unique indexes a channel write can trip, told apart by name
+func writeError(op string, err error) error {
+	if pgdb.IsUniqueViolation(err) {
+		if pgdb.ConstraintName(err) == storefrontHostIndex {
+			return ErrStorefrontHostTaken
+		}
+		return ErrSlugTaken
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -145,55 +159,41 @@ func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// SetDefault atomically flips is_default=true on the given channel and clears it from any other row - Wrapped in a
-// transaction so the partial unique index never sees two TRUE rows mid-flight
-func (r *postgresRepository) SetDefault(ctx context.Context, id uuid.UUID) (Channel, error) {
-	var out Channel
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
-		if err := q.UnsetDefaultChannelExcept(ctx, id); err != nil {
+func (r *postgresRepository) SetDefault(ctx context.Context, id uuid.UUID) (Channel, []uuid.UUID, error) {
+	var (
+		out     Channel
+		cleared []uuid.UUID
+	)
+	err := r.inTx(ctx, func(q *db.Queries) error {
+		var err error
+		if cleared, err = q.UnsetDefaultChannelExcept(ctx, id); err != nil {
 			return fmt.Errorf("unset other defaults: %w", err)
 		}
-		row, err := q.SetChannelAsDefault(ctx, id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrChannelNotFound
-			}
-			return fmt.Errorf("set default: %w", err)
-		}
-		out = toChannel(row)
-		return nil
+		out, err = readOne(q.SetChannelAsDefault(ctx, id))
+		return err
 	})
 	if err != nil {
-		return Channel{}, err
+		return Channel{}, nil, err
 	}
-	return out, nil
+	return out, cleared, nil
 }
 
-// ListLocales returns the locales attached to one store, ordered by the
-// junction's sort_order
-func (r *postgresRepository) ListLocales(ctx context.Context, channelID uuid.UUID) ([]locale.Locale, error) {
-	rows, err := r.queries.ListChannelLocales(ctx, channelID)
+func (r *postgresRepository) CountInheritingListings(ctx context.Context, channelID uuid.UUID) (int64, error) {
+	n, err := r.queries.CountInheritingListingsForChannel(ctx, channelID)
 	if err != nil {
-		return nil, fmt.Errorf("list channel locales: %w", err)
+		return 0, fmt.Errorf("count inheriting listings: %w", err)
 	}
-	out := make([]locale.Locale, len(rows))
-	for i, row := range rows {
-		out[i] = locale.Locale{
-			Code:       row.Code,
-			Name:       row.Name,
-			NativeName: row.NativeName,
-			IsActive:   row.IsActive,
-			IsRTL:      row.IsRtl,
-			SortOrder:  row.LocaleSortOrder,
-			CreatedAt:  row.CreatedAt,
-			UpdatedAt:  row.UpdatedAt,
-		}
-	}
-	return out, nil
+	return n, nil
 }
 
-// ListLocalesByStoreIDs is the batched form for admin list views
+func (r *postgresRepository) ListLocales(ctx context.Context, channelID uuid.UUID) ([]locale.Locale, error) {
+	byID, err := r.ListLocalesByStoreIDs(ctx, []uuid.UUID{channelID})
+	if err != nil {
+		return nil, err
+	}
+	return byID[channelID], nil
+}
+
 func (r *postgresRepository) ListLocalesByStoreIDs(ctx context.Context, channelIDs []uuid.UUID) (map[uuid.UUID][]locale.Locale, error) {
 	if len(channelIDs) == 0 {
 		return map[uuid.UUID][]locale.Locale{}, nil
@@ -218,10 +218,9 @@ func (r *postgresRepository) ListLocalesByStoreIDs(ctx context.Context, channelI
 	return out, nil
 }
 
-// SetLocales atomically replaces the supported-locales set for one store - Empty `codes` clears the list - Each insert lowercases the code and FK-validates against locales.code; an unknown code surfaces as a raw FK violation here - callers should pre-validate via locale.Service.EnsureExists for a friendlier error
+// Replaces the whole set - each code is FK-checked on insert, so callers pre-validate for a friendlier error
 func (r *postgresRepository) SetLocales(ctx context.Context, channelID uuid.UUID, codes []string) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.inTx(ctx, func(q *db.Queries) error {
 		if err := q.DeleteChannelLocales(ctx, channelID); err != nil {
 			return fmt.Errorf("clear channel locales: %w", err)
 		}
@@ -238,53 +237,18 @@ func (r *postgresRepository) SetLocales(ctx context.Context, channelID uuid.UUID
 	})
 }
 
-// mergeUpdate folds nil-pointer "no change" semantics from input over the
-// currently-stored row, producing a fully-populated UpdateChannelParams
-func mergeUpdate(current db.Channel, in UpdateChannelInput) db.UpdateChannelParams {
-	out := db.UpdateChannelParams{
-		ID:            in.ID,
-		Name:          current.Name,
-		DefaultLocale: current.DefaultLocale,
-		IsActive:      current.IsActive,
-		CurrencyCode:  current.CurrencyCode,
-		PublicUrl:     current.PublicUrl,
-		Metadata:      current.Metadata,
-	}
-	if in.Name != nil {
-		out.Name = *in.Name
-	}
-	if in.DefaultLocale != nil {
-		out.DefaultLocale = strings.ToLower(*in.DefaultLocale)
-	}
-	if in.IsActive != nil {
-		out.IsActive = *in.IsActive
-	}
-	if in.CurrencyCode != nil {
-		out.CurrencyCode = *in.CurrencyCode
-	}
-	if in.PublicURL != nil {
-		out.PublicUrl = *in.PublicURL
-	}
-	if in.Metadata != nil {
-		out.Metadata = mapToJSON(*in.Metadata)
-	}
-	return out
-}
-
-// toChannel maps a row to the domain type - Locales is left empty - callers that need it call repo.ListLocales(id) (or
-// the batched ListLocalesByStoreIDs for list views)
+// Locales is left empty - callers hydrate it through ListLocales or the batched ListLocalesByStoreIDs
 func toChannel(row db.Channel) Channel {
 	return Channel{
 		ID:                  row.ID,
 		Slug:                row.Slug,
 		Name:                row.Name,
 		DefaultLocale:       row.DefaultLocale,
-		Locales:             nil,
 		IsActive:            row.IsActive,
 		IsDefault:           row.IsDefault,
 		CurrencyCode:        row.CurrencyCode,
 		PublicURL:           row.PublicUrl,
-		Metadata:            jsonToMap(row.Metadata),
+		Metadata:            jsonToMap(row.ID, row.Metadata),
 		TaxInclusivePricing: row.TaxInclusivePricing,
 		CreatedAt:           row.CreatedAt,
 	}
@@ -301,15 +265,14 @@ func mapToJSON(m Metadata) json.RawMessage {
 	return out
 }
 
-func jsonToMap(raw json.RawMessage) Metadata {
-	if len(raw) == 0 {
-		return Metadata{}
-	}
+func jsonToMap(id uuid.UUID, raw json.RawMessage) Metadata {
 	out := Metadata{}
+	if len(raw) == 0 {
+		return out
+	}
 	if err := json.Unmarshal(raw, &out); err != nil {
+		slog.Warn("channel: unreadable metadata, serving it empty", "channel_id", id, "err", err)
 		return Metadata{}
 	}
 	return out
 }
-
-func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

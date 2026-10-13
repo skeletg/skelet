@@ -18,6 +18,7 @@ type Service struct {
 	repo  Repository
 	bus   *events.Bus
 	cache *cache.Cache
+	held  *[]func(context.Context) // set on a WithTxDeferred copy - cache drops and events wait here for the tx to commit
 }
 
 // 60 min is long because reads (every PDP / PLP catch-all hit) dwarf writes - any admin write drops the affected path keys immediately, so the TTL only matters for orphans
@@ -55,6 +56,10 @@ func (s *Service) invalidatePath(ctx context.Context, path string, channelID *uu
 	if s.cache == nil || path == "" {
 		return
 	}
+	if s.held != nil {
+		*s.held = append(*s.held, func(ctx context.Context) { s.unheld().invalidatePath(ctx, path, channelID) })
+		return
+	}
 	if channelID != nil {
 		// A channel-scoped row only shadows that one channel's lookups
 		s.cache.DelIn(ctx, cacheGroup(path), cacheKey(channelID))
@@ -68,7 +73,28 @@ func (s *Service) WithTx(tx *sql.Tx) *Service {
 	return &Service{repo: s.repo.WithTx(tx), bus: s.bus, cache: s.cache}
 }
 
+// Holds every cache drop and event until flush, run once tx commits - an early drop lets a concurrent read re-cache the old answer
+func (s *Service) WithTxDeferred(tx *sql.Tx) (*Service, func(context.Context)) {
+	held := []func(context.Context){}
+	bound := &Service{repo: s.repo.WithTx(tx), bus: s.bus, cache: s.cache, held: &held}
+	return bound, func(ctx context.Context) {
+		for _, fn := range held {
+			fn(ctx)
+		}
+	}
+}
+
 func (s *Service) publishChanged(ctx context.Context, rw UrlRewrite, deleted bool) {
+	if s.held != nil {
+		*s.held = append(*s.held, func(ctx context.Context) { s.unheld().publishNow(ctx, rw, deleted) })
+		return
+	}
+	s.publishNow(ctx, rw, deleted)
+}
+
+func (s *Service) unheld() *Service { return &Service{repo: s.repo, bus: s.bus, cache: s.cache} }
+
+func (s *Service) publishNow(ctx context.Context, rw UrlRewrite, deleted bool) {
 	// Every mutation that inserts or updates a rewrite routes through here, so the cache stays consistent without each writer remembering to invalidate
 	s.invalidatePath(ctx, rw.RequestPath, rw.ChannelID)
 	if s.bus == nil {
@@ -151,7 +177,7 @@ func (s *Service) PathConflict(ctx context.Context, requestPath, entityType stri
 	return s.PathConflictForChannel(ctx, requestPath, entityType, entityID, nil)
 }
 
-// Scope-exact: when writing a channel row, a global row at the same path is NOT a conflict, since the override shadows it
+// Scope-exact, except that a channel write may only shadow a global row the same entity owns - shadowing another entity's global row would hide it on that channel
 // Pass uuid.Nil for entityID on create
 func (s *Service) PathConflictForChannel(ctx context.Context, requestPath, entityType string, entityID uuid.UUID, channelID *uuid.UUID) (bool, error) {
 	rw, err := s.repo.GetByRequestPath(ctx, requestPath, channelID)
@@ -161,11 +187,7 @@ func (s *Service) PathConflictForChannel(ctx context.Context, requestPath, entit
 		}
 		return false, err
 	}
-	// A resolved GLOBAL row means no channel row exists yet, so the override is free to create and will shadow it
-	if channelID != nil && rw.ChannelID == nil {
-		return false, nil
-	}
-	// Its own canonical row is no conflict - anyone else holding the path in this scope is
+	// Its own row is no conflict, in this scope or the global one it would shadow - anyone else holding the path is
 	if rw.EntityType == EntityType(entityType) && rw.EntityID == entityID {
 		return false, nil
 	}

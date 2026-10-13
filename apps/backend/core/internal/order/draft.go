@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // CreateDraftLine is one simple line of a draft, priced server-side (admins never set prices directly)
@@ -122,6 +123,10 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		subtotal += money.LineTotal(unit, dl.Quantity)
 	}
 
+	lines, err = s.stampStockParts(ctx, lines)
+	if err != nil {
+		return Order{}, err
+	}
 	discount := min(max(in.ManualDiscountCents, 0), subtotal)
 
 	// Reuse the placement pricing helpers via a synthetic checkout context
@@ -168,7 +173,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			Email:               in.Email,
 			ChannelID:           store.ID,
 			Status:              OrderStatusDraft,
-			PaymentStatus:       "unpaid",
+			PaymentStatus:       PaymentUnpaid,
 			BillingAddress:      billing,
 			ShippingAddress:     shipping,
 			SubtotalAmount:      subtotal,
@@ -180,8 +185,8 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			ShippingMethodID:    shipSel.MethodID,
-			ShippingCarrierSlug: stringPtr(shipSel.CarrierSlug),
-			ShippingMethodCode:  stringPtr(shipSel.MethodCode),
+			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
+			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 		})
 		if err != nil {
 			return fmt.Errorf("create draft order: %w", err)
@@ -221,7 +226,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 func (s *Service) PlaceDraftOrder(ctx context.Context, orderID uuid.UUID) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if o.Status != OrderStatusDraft {
 		return Order{}, apperr.New("ORDER_NOT_DRAFT", apperr.ClassConflict, "only draft orders can be placed")

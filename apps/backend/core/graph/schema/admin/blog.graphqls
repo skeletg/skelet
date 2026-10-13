@@ -12,6 +12,8 @@ type BlogAuthor {
   slug:         String!
   displayName:  String!
   email:        String
+  # Whether the storefront may show the email - off unless the author opted in
+  emailPublic:  Boolean!
   avatarAsset:  MediaAsset
   linkedAdmin:  AdminUser
   metadata:     [MetadataItem!]!
@@ -35,6 +37,7 @@ input CreateBlogAuthorInput {
   slug:          String!
   displayName:   String!
   email:         String
+  emailPublic:   Boolean
   avatarAssetId: ID
   linkedAdminId: ID
   metadata:      [MetadataInput!]
@@ -50,6 +53,7 @@ input UpdateBlogAuthorInput {
   displayName:      String
   email:            String
   clearEmail:       Boolean
+  emailPublic:      Boolean
   avatarAssetId:    ID
   clearAvatar:      Boolean
   linkedAdminId:    ID

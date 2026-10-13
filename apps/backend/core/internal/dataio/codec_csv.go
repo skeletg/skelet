@@ -26,20 +26,49 @@ func (csvCodec) Writer(w io.Writer, cols []Field) (RowWriter, error) {
 	if err := cw.Write(names); err != nil {
 		return nil, err
 	}
-	return &csvWriter{cw: cw, cols: names, rec: make([]string, len(names))}, nil
+	guard := make([]bool, len(cols))
+	for i, c := range cols {
+		guard[i] = !numericField(c.Type)
+	}
+	return &csvWriter{cw: cw, cols: names, guard: guard, rec: make([]string, len(names))}, nil
 }
 
 type csvWriter struct {
-	cw   *csv.Writer
-	cols []string
-	rec  []string
+	cw    *csv.Writer
+	cols  []string
+	guard []bool
+	rec   []string
 }
 
 func (w *csvWriter) Write(r *Row) error {
 	for i, name := range w.cols {
-		w.rec[i] = r.values[name]
+		v := r.values[name]
+		if w.guard[i] && needsQuote(v) {
+			v = formulaQuote + v
+		}
+		w.rec[i] = v
 	}
 	return w.cw.Write(w.rec)
+}
+
+// A spreadsheet runs a cell starting with one of these as a formula, so text from shoppers and admins is quoted on the way out and unquoted on the way back in - numeric columns are left alone so a negative amount stays a number
+const formulaQuote = "'"
+
+// A value already led by quotes before a formula character gets one more, so the import's single strip is exact
+func needsQuote(v string) bool {
+	return formulaLike(strings.TrimLeft(v, formulaQuote))
+}
+
+func formulaLike(v string) bool {
+	return v != "" && strings.ContainsRune("=+-@\t\r", rune(v[0]))
+}
+
+func numericField(t FieldType) bool {
+	switch t {
+	case FieldInteger, FieldNumber, FieldMoney, FieldBool, FieldDate:
+		return true
+	}
+	return false
 }
 
 func (w *csvWriter) Close() error {
@@ -110,6 +139,9 @@ func (r *csvReader) Next() (*Row, error) {
 			v := ""
 			if i < len(rec) {
 				v = strings.TrimSpace(rec[i])
+				if rest, ok := strings.CutPrefix(v, formulaQuote); ok && needsQuote(rest) {
+					v = rest
+				}
 			}
 			row.values[h] = v
 			row.present[h] = true

@@ -14,14 +14,19 @@ import (
 
 const consumeAuthToken = `-- name: ConsumeAuthToken :one
 DELETE FROM auth_tokens WHERE token_key = $1 AND expires_at > now()
-RETURNING subject_id
+RETURNING subject_id, binding
 `
 
-func (q *Queries) ConsumeAuthToken(ctx context.Context, tokenKey string) (uuid.UUID, error) {
+type ConsumeAuthTokenRow struct {
+	SubjectID uuid.UUID `json:"subject_id"`
+	Binding   string    `json:"binding"`
+}
+
+func (q *Queries) ConsumeAuthToken(ctx context.Context, tokenKey string) (ConsumeAuthTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, consumeAuthToken, tokenKey)
-	var subject_id uuid.UUID
-	err := row.Scan(&subject_id)
-	return subject_id, err
+	var i ConsumeAuthTokenRow
+	err := row.Scan(&i.SubjectID, &i.Binding)
+	return i, err
 }
 
 const deleteAuthToken = `-- name: DeleteAuthToken :exec
@@ -33,18 +38,39 @@ func (q *Queries) DeleteAuthToken(ctx context.Context, tokenKey string) error {
 	return err
 }
 
+const deleteSubjectAuthTokens = `-- name: DeleteSubjectAuthTokens :exec
+DELETE FROM auth_tokens
+WHERE subject_id = $1 AND starts_with(token_key, $2::text || ':')
+`
+
+type DeleteSubjectAuthTokensParams struct {
+	SubjectID uuid.UUID `json:"subject_id"`
+	Namespace string    `json:"namespace"`
+}
+
+// Every token one subject holds in one namespace (verify:customer, reset:admin, ...)
+func (q *Queries) DeleteSubjectAuthTokens(ctx context.Context, arg DeleteSubjectAuthTokensParams) error {
+	_, err := q.db.ExecContext(ctx, deleteSubjectAuthTokens, arg.SubjectID, arg.Namespace)
+	return err
+}
+
 const getAuthToken = `-- name: GetAuthToken :one
-SELECT subject_id FROM auth_tokens
+SELECT subject_id, binding FROM auth_tokens
 WHERE token_key = $1 AND expires_at > now()
 `
 
+type GetAuthTokenRow struct {
+	SubjectID uuid.UUID `json:"subject_id"`
+	Binding   string    `json:"binding"`
+}
+
 // Expiry is filtered here, not left to the prune sweep, so a token can't validate
 // past its TTL even if pruning is behind
-func (q *Queries) GetAuthToken(ctx context.Context, tokenKey string) (uuid.UUID, error) {
+func (q *Queries) GetAuthToken(ctx context.Context, tokenKey string) (GetAuthTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthToken, tokenKey)
-	var subject_id uuid.UUID
-	err := row.Scan(&subject_id)
-	return subject_id, err
+	var i GetAuthTokenRow
+	err := row.Scan(&i.SubjectID, &i.Binding)
+	return i, err
 }
 
 const pruneExpiredAuthTokens = `-- name: PruneExpiredAuthTokens :execrows
@@ -61,16 +87,18 @@ func (q *Queries) PruneExpiredAuthTokens(ctx context.Context) (int64, error) {
 
 const putAuthToken = `-- name: PutAuthToken :exec
 
-INSERT INTO auth_tokens (token_key, subject_id, expires_at)
-VALUES ($1, $2, $3)
+INSERT INTO auth_tokens (token_key, subject_id, binding, expires_at)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (token_key) DO UPDATE
 SET subject_id = EXCLUDED.subject_id,
+    binding    = EXCLUDED.binding,
     expires_at = EXCLUDED.expires_at
 `
 
 type PutAuthTokenParams struct {
 	TokenKey  string    `json:"token_key"`
 	SubjectID uuid.UUID `json:"subject_id"`
+	Binding   string    `json:"binding"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -79,6 +107,11 @@ type PutAuthTokenParams struct {
 // Upsert so re-issuing a token key refreshes subject + expiry instead of erroring
 // (a caller re-Create is legal, even if the key collision is astronomically rare)
 func (q *Queries) PutAuthToken(ctx context.Context, arg PutAuthTokenParams) error {
-	_, err := q.db.ExecContext(ctx, putAuthToken, arg.TokenKey, arg.SubjectID, arg.ExpiresAt)
+	_, err := q.db.ExecContext(ctx, putAuthToken,
+		arg.TokenKey,
+		arg.SubjectID,
+		arg.Binding,
+		arg.ExpiresAt,
+	)
 	return err
 }

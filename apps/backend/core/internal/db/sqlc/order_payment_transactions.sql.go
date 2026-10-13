@@ -12,6 +12,30 @@ import (
 	"github.com/google/uuid"
 )
 
+const getOrderPaymentTransaction = `-- name: GetOrderPaymentTransaction :one
+SELECT id, order_id, kind, amount_cents, status, provider_slug, provider_reference, idempotency_key, reason, created_at, return_id, credit_memo_id FROM order_payment_transactions WHERE id = $1
+`
+
+func (q *Queries) GetOrderPaymentTransaction(ctx context.Context, id uuid.UUID) (OrderPaymentTransaction, error) {
+	row := q.db.QueryRowContext(ctx, getOrderPaymentTransaction, id)
+	var i OrderPaymentTransaction
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.Kind,
+		&i.AmountCents,
+		&i.Status,
+		&i.ProviderSlug,
+		&i.ProviderReference,
+		&i.IdempotencyKey,
+		&i.Reason,
+		&i.CreatedAt,
+		&i.ReturnID,
+		&i.CreditMemoID,
+	)
+	return i, err
+}
+
 const getOrderPaymentTransactionByIdempotencyKey = `-- name: GetOrderPaymentTransactionByIdempotencyKey :one
 SELECT id, order_id, kind, amount_cents, status, provider_slug, provider_reference, idempotency_key, reason, created_at, return_id, credit_memo_id FROM order_payment_transactions
 WHERE idempotency_key = $1 AND status <> 'failed'
@@ -140,7 +164,7 @@ func (q *Queries) ListOrderPaymentTransactions(ctx context.Context, orderID uuid
 const markOrderPaymentTransaction = `-- name: MarkOrderPaymentTransaction :one
 UPDATE order_payment_transactions
 SET status = $2, provider_reference = $3
-WHERE id = $1
+WHERE id = $1 AND status = 'pending'
 RETURNING id, order_id, kind, amount_cents, status, provider_slug, provider_reference, idempotency_key, reason, created_at, return_id, credit_memo_id
 `
 
@@ -152,6 +176,7 @@ type MarkOrderPaymentTransactionParams struct {
 
 // Flip a pending transaction to succeeded/failed and stamp the provider's
 // reference for the action (e.g. a Stripe refund id)
+// Pending rows only - a second finalize flipped a succeeded refund to failed, which freed its ceiling for the same units to be refunded again
 func (q *Queries) MarkOrderPaymentTransaction(ctx context.Context, arg MarkOrderPaymentTransactionParams) (OrderPaymentTransaction, error) {
 	row := q.db.QueryRowContext(ctx, markOrderPaymentTransaction, arg.ID, arg.Status, arg.ProviderReference)
 	var i OrderPaymentTransaction

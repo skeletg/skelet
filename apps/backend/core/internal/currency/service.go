@@ -2,8 +2,8 @@ package currency
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 )
@@ -12,7 +12,7 @@ import (
 // decimal-range enforcement, delete-by-reference guard
 type Service struct {
 	repo Repository
-	// httpClient overrides the rate-fetch client (tests), nil = 15s-timeout default
+	// httpClient overrides the rate-fetch client (tests), nil = a ratesFetchTimeout default
 	httpClient *http.Client
 	// An alternate FX source consulted before the built-in feed - see remote.go
 	remoteRates RemoteRateSource
@@ -31,16 +31,19 @@ func (s *Service) Create(ctx context.Context, input CreateCurrencyInput) (Curren
 		return Currency{}, err
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Currency{}, fmt.Errorf("name is required")
+		return Currency{}, ErrNameRequired
 	}
 	if input.SymbolPosition == "" {
 		input.SymbolPosition = SymbolPositionPrefix
 	}
-	if input.SymbolPosition != SymbolPositionPrefix && input.SymbolPosition != SymbolPositionSuffix {
-		return Currency{}, fmt.Errorf(`symbol_position must be "prefix" or "suffix" (got %q)`, input.SymbolPosition)
+	if err := validateSymbolPosition(input.SymbolPosition); err != nil {
+		return Currency{}, err
 	}
-	if input.Decimals < 0 || input.Decimals > 4 {
-		return Currency{}, fmt.Errorf("decimals must be 0..4 (got %d)", input.Decimals)
+	if err := validateDecimals(input.Decimals); err != nil {
+		return Currency{}, err
+	}
+	if err := validateMetadata(input.Metadata); err != nil {
+		return Currency{}, err
 	}
 	return s.repo.Create(ctx, input)
 }
@@ -58,21 +61,67 @@ func (s *Service) List(ctx context.Context, activeOnly bool) ([]Currency, error)
 func (s *Service) Update(ctx context.Context, input UpdateCurrencyInput) (Currency, error) {
 	input.Code = normalizeCode(input.Code)
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
-		return Currency{}, fmt.Errorf("name is required")
+		return Currency{}, ErrNameRequired
 	}
-	if input.Decimals != nil && (*input.Decimals < 0 || *input.Decimals > 4) {
-		return Currency{}, fmt.Errorf("decimals must be 0..4 (got %d)", *input.Decimals)
+	if input.Decimals != nil {
+		if err := validateDecimals(*input.Decimals); err != nil {
+			return Currency{}, err
+		}
 	}
 	if input.SymbolPosition != nil {
-		sp := *input.SymbolPosition
-		if sp != SymbolPositionPrefix && sp != SymbolPositionSuffix {
-			return Currency{}, fmt.Errorf(`symbol_position must be "prefix" or "suffix" (got %q)`, sp)
+		if err := validateSymbolPosition(*input.SymbolPosition); err != nil {
+			return Currency{}, err
+		}
+	}
+	if input.Metadata != nil {
+		if err := validateMetadata(*input.Metadata); err != nil {
+			return Currency{}, err
+		}
+	}
+	if input.Decimals != nil || (input.IsActive != nil && !*input.IsActive) {
+		current, err := s.repo.GetByCode(ctx, input.Code)
+		if err != nil {
+			return Currency{}, err
+		}
+		if input.Decimals != nil && *input.Decimals != current.Decimals {
+			if err := s.guardDecimals(ctx, input.Code); err != nil {
+				return Currency{}, err
+			}
+		}
+		if input.IsActive != nil && !*input.IsActive && current.IsActive {
+			if err := s.guardDeactivate(ctx, input.Code); err != nil {
+				return Currency{}, err
+			}
 		}
 	}
 	return s.repo.Update(ctx, input)
 }
 
-// Refuses when any live-data column references the code - orders.currency_code is deliberately excluded, since historical orders are snapshots and mustn't block retirement
+// Stored amounts are minor units, so a new decimals value would silently rescale every one of them
+func (s *Service) guardDecimals(ctx context.Context, code string) error {
+	referenced, err := s.repo.HasAmounts(ctx, code)
+	if err != nil {
+		return err
+	}
+	if referenced {
+		return ErrDecimalsLocked
+	}
+	return nil
+}
+
+// A channel prices and checks out in its currency, so the currency must stay active while one uses it
+func (s *Service) guardDeactivate(ctx context.Context, code string) error {
+	n, err := s.repo.CountChannels(ctx, code)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: %d channel(s)", ErrCurrencyUsedByChannel, n)
+	}
+	return nil
+}
+
+// Refuses when any live-data column references the code - orders and subscription invoices are deliberately excluded, since they're snapshots and mustn't block retirement
 func (s *Service) Delete(ctx context.Context, code string) error {
 	code = normalizeCode(code)
 	count, err := s.repo.CountReferences(ctx, code)
@@ -87,21 +136,16 @@ func (s *Service) Delete(ctx context.Context, code string) error {
 
 // Stores a manual exchange-rate override - the scheduled refresh overwrites it next run
 func (s *Service) SetRate(ctx context.Context, code string, rate float64) error {
-	if rate <= 0 {
-		return fmt.Errorf("exchange rate must be > 0 (got %v)", rate)
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return fmt.Errorf("%w (got %v)", ErrInvalidRate, rate)
 	}
 	return s.repo.SetRate(ctx, normalizeCode(code), rate)
 }
 
 // Pre-validates a code before an FK insert, ErrCurrencyNotFound on a miss
 func (s *Service) EnsureExists(ctx context.Context, code string) error {
-	if _, err := s.repo.GetByCode(ctx, normalizeCode(code)); err != nil {
-		if errors.Is(err, ErrCurrencyNotFound) {
-			return err
-		}
-		return err
-	}
-	return nil
+	_, err := s.repo.GetByCode(ctx, normalizeCode(code))
+	return err
 }
 
 func normalizeCode(code string) string {
@@ -115,6 +159,32 @@ func validateCode(code string) error {
 	for _, r := range code {
 		if r < 'A' || r > 'Z' {
 			return fmt.Errorf("%w: %q must be ASCII uppercase letters", ErrInvalidCode, code)
+		}
+	}
+	return nil
+}
+
+func validateSymbolPosition(sp SymbolPosition) error {
+	if sp != SymbolPositionPrefix && sp != SymbolPositionSuffix {
+		return fmt.Errorf("%w (got %q)", ErrInvalidSymbolPosition, sp)
+	}
+	return nil
+}
+
+func validateDecimals(d int16) error {
+	if d < MinDecimals || d > MaxDecimals {
+		return fmt.Errorf("%w: %d..%d (got %d)", ErrInvalidDecimals, MinDecimals, MaxDecimals, d)
+	}
+	return nil
+}
+
+func validateMetadata(m map[string]string) error {
+	if len(m) > maxMetadataKeys {
+		return fmt.Errorf("%w: at most %d keys", ErrMetadataTooLarge, maxMetadataKeys)
+	}
+	for _, v := range m {
+		if len(v) > maxMetadataValueLength {
+			return fmt.Errorf("%w: values are at most %d bytes", ErrMetadataTooLarge, maxMetadataValueLength)
 		}
 	}
 	return nil

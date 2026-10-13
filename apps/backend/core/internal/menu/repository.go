@@ -11,14 +11,22 @@ import (
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 type postgresRepository struct {
 	queries *db.Queries
+	tx      *txrunner.Manager
 }
 
-func NewRepository(queries *db.Queries) Repository {
-	return &postgresRepository{queries: queries}
+func NewRepository(queries *db.Queries, tx *txrunner.Manager) Repository {
+	return &postgresRepository{queries: queries, tx: tx}
+}
+
+func (r *postgresRepository) InTx(ctx context.Context, fn func(Repository) error) error {
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		return fn(&postgresRepository{queries: r.queries.WithTx(t), tx: r.tx})
+	})
 }
 
 // --- menus ---

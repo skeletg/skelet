@@ -17,6 +17,21 @@ func TestSanitizeSVG_StripsAttacks(t *testing.T) {
 		wantErr error
 	}{
 		{
+			name:   "image-set in a style fetches with no url( in sight",
+			src:    `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1" style="fill:red;background-image:image-set('https://evil.test/x' 1x)"/></svg>`,
+			banned: []string{"image-set", "evil"},
+		},
+		{
+			name:   "a CSS escape spells url( in a style",
+			src:    `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1" style="fill:u\72l(https://evil.test/x)"/></svg>`,
+			banned: []string{"evil"},
+		},
+		{
+			name:   "a CSS escape spells url( in a paint attribute",
+			src:    `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1" fill="\75rl(https://evil.test/x)"/></svg>`,
+			banned: []string{"evil"},
+		},
+		{
 			name:   "script element",
 			src:    `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="1" height="1"/></svg>`,
 			banned: []string{"script", "alert"},
@@ -220,5 +235,21 @@ func TestSanitizeSVG_RejectsRunawayNesting(t *testing.T) {
 func TestSVGStaysOffThePresignAllowlist(t *testing.T) {
 	if media.IsAllowedImage("image/svg+xml") {
 		t.Error("image/svg+xml is on AllowedImageMimeTypes: presigned uploads would store it unsanitized - it belongs on the UploadSVG route instead")
+	}
+}
+
+func TestSanitizeSVG_KeepsAllowedStyleProperties(t *testing.T) {
+	out, err := media.SanitizeSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="g"><stop offset="0" style="stop-color:#fff"/></linearGradient><rect width="1" height="1" style="fill:url(#g);stroke-width:2;behavior:url(x.htc)"/></svg>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	for _, want := range []string{"stop-color:#fff", "fill:url(#g)", "stroke-width:2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lost %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "behavior") {
+		t.Errorf("a property off the allowlist survived:\n%s", got)
 	}
 }

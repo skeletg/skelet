@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -184,5 +185,18 @@ func TestUUIDPtrStr(t *testing.T) {
 	got := uuidPtrStr(&id)
 	if got == nil || *got != id.String() {
 		t.Errorf("uuidPtrStr = %v, want %q", got, id)
+	}
+}
+
+func TestPageInputsCannotSetThePublishState(t *testing.T) {
+	for _, typ := range []reflect.Type{reflect.TypeFor[model.CreateCMSPageInput](), reflect.TypeFor[model.UpdateCMSPageInput]()} {
+		for _, f := range []string{"IsPublished", "PublishedAt", "ClearPublished"} {
+			if _, ok := typ.FieldByName(f); ok {
+				t.Errorf("%s exposes %s", typ.Name(), f)
+			}
+		}
+	}
+	if _, ok := reflect.TypeFor[model.CreateCMSPageTypeInput]().FieldByName("IsSystem"); ok {
+		t.Error("CreateCMSPageTypeInput lets the API mint a system type")
 	}
 }

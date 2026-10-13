@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
-	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 )
@@ -15,7 +14,7 @@ const (
 	colKind           = "kind"
 	colParentSKU      = "parent_sku"
 	colName           = "name"
-	colSlug           = "slug"
+	colURLPath        = "url_path"
 	colProductType    = "product_type"
 	colPrice          = "price"
 	colCurrency       = "currency"
@@ -38,9 +37,9 @@ var fields = []dataio.Field{
 	{Name: colKind, Label: "Kind", Type: dataio.FieldText, Enum: []string{"simple", "configurable", "grouped"}, Description: "Bundles and kits are built in the admin, not here", Example: "simple"},
 	{Name: colParentSKU, Label: "Parent SKU", Type: dataio.FieldText, Description: "Set on a variant row to link it to its configurable parent - the parent may appear anywhere in the file", Example: "TEE"},
 	{Name: colName, Label: "Name", Type: dataio.FieldText, Required: true, Description: "Written under the run's locale, leaving that locale's descriptions and SEO copy alone", Example: "Blue Tee"},
-	{Name: colSlug, Label: "URL slug", Type: dataio.FieldText, Description: "Setting one switches the product to manual URLs - leave blank to keep the generated path", Example: "blue-tee"},
+	{Name: colURLPath, Label: "URL path", Type: dataio.FieldText, Aliases: []string{"slug"}, Description: "Exported only for products on manual URLs - setting one switches the product to manual URLs, blank keeps the generated path", Example: "blue-tee"},
 	{Name: colProductType, Label: "Product type", Type: dataio.FieldText, Description: "Required to create a top-level product - an existing one keeps its type and a variant inherits its parent's", Example: "clothing"},
-	{Name: colPrice, Label: "Price", Type: dataio.FieldMoney, Description: "Minor units, so 1999 is 19.99", Example: "1999"},
+	{Name: colPrice, Label: "Price", Type: dataio.FieldMoney, Required: true, Description: "Minor units, so 1999 is 19.99 - required to create a product, optional on update", Example: "1999"},
 	{Name: colCurrency, Label: "Currency", Type: dataio.FieldText, Required: true, Example: "EUR"},
 	{Name: colCategory, Label: "Primary category", Type: dataio.FieldText, Description: "Category slug - additive, an existing assignment is never removed", Example: "t-shirts"},
 	{Name: colPublished, Label: "Published", Type: dataio.FieldBool, Description: "Applies to the channel this run targets - ignored when no channel is selected", Example: "true"},
@@ -55,14 +54,14 @@ var fields = []dataio.Field{
 
 // Resource is the products entry in the data registry - one flat schema round-trips both directions, with
 // configurable variants as their own rows linked by parent_sku
-func Resource(queries *db.Queries, cat *catalog.Service, ch *channel.Service) dataio.Resource {
+func Resource(queries *db.Queries, cat *catalog.Service) dataio.Resource {
 	return dataio.Resource{
-		Slug:             "products",
+		Slug:             resourceProducts,
 		Label:            "Products",
 		Group:            "Catalog",
 		Description:      "Every product with its attributes, pricing and category. Variants are rows of their own linked to a parent by SKU.",
-		ViewPermission:   "catalog.view",
-		ImportPermission: "catalog.manage",
+		ViewPermission:   permView,
+		ImportPermission: permManage,
 		// Product and category rows are shared by every channel that lists them
 		RequireGlobalImport: true,
 		Fields:              fields,
@@ -74,15 +73,23 @@ func Resource(queries *db.Queries, cat *catalog.Service, ch *channel.Service) da
 				Applies:     dataio.DirectionImport,
 			},
 		},
-		NewExporter: func(_ context.Context, o dataio.Opts) (dataio.Exporter, error) {
-			return &exporter{cat: cat, ch: ch, queries: queries, opts: o}, nil
+		NewExporter: func(ctx context.Context, o dataio.Opts) (dataio.Exporter, error) {
+			locale, err := runLocale(ctx, cat, o)
+			if err != nil {
+				return nil, err
+			}
+			return &exporter{cat: cat, queries: queries, opts: o, locale: locale}, nil
 		},
-		NewImporter: func(_ context.Context, o dataio.Opts) (dataio.Importer, error) {
+		NewImporter: func(ctx context.Context, o dataio.Opts) (dataio.Importer, error) {
+			locale, err := runLocale(ctx, cat, o)
+			if err != nil {
+				return nil, err
+			}
 			return &importer{
 				cat:      cat,
-				ch:       ch,
 				opts:     o,
-				rs:       newResolver(cat, ch),
+				locale:   locale,
+				rs:       newResolver(cat, o.DryRun),
 				known:    map[string]bool{},
 				childSeq: map[string]int32{},
 			}, nil

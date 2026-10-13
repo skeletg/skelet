@@ -18,8 +18,6 @@ import (
 
 	"golang.org/x/image/webp"
 	"golang.org/x/sync/singleflight"
-
-	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 )
 
 // Image derivatives - fit (resized) and cover (focal-cropped) variants built on first request and cached back under derived/<spec>/<key>, so later hits are a plain storage read
@@ -49,11 +47,27 @@ const (
 // The original is over the pixel cap, so there's no derivative - callers 422 rather than retry
 var ErrSourceTooLarge = errors.New("media: source image exceeds the pixel cap")
 
+// The original is in a format this build can't decode (HEIC from an iPhone, say) - not a storage fault, so callers 415 rather than 502 on every request
+var ErrUnsupportedSource = errors.New("media: source image format can't be rendered")
+
+// How long one shared render may run - it's detached from the request that started it, so it needs its own bound
+const renderTimeout = 30 * time.Second
+
+// The object storage a Transformer reads originals from and caches derivatives into
+type Store interface {
+	GetBytes(ctx context.Context, key string) ([]byte, error)
+	GetBytesTyped(ctx context.Context, key string) ([]byte, string, error)
+	PutBytes(ctx context.Context, key string, data []byte, contentType string) error
+	Head(ctx context.Context, key string) (int64, string, bool, error)
+	HasPublicBase() bool
+	PublicURL(key string) string
+}
+
 // Every render slot taken and the wait elapsed - callers 503 with Retry-After
 var ErrBusy = errors.New("media: image render capacity saturated")
 
 type Transformer struct {
-	storage         *objstore.Storage
+	storage         Store
 	maxSourcePixels int
 	// Bounds concurrent decode and resample, the only CPU-heavy work here - callers WAIT for a slot and only fail once renderWait elapses, so a burst queues instead of stampeding
 	sem        chan struct{}
@@ -62,7 +76,7 @@ type Transformer struct {
 	inflight singleflight.Group
 }
 
-func NewTransformer(s *objstore.Storage) *Transformer {
+func NewTransformer(s Store) *Transformer {
 	// Half the CPUs - renders share the box with request serving, and CatmullRom eats whatever it's given
 	slots := max(runtime.GOMAXPROCS(0)/2, 1)
 	return &Transformer{
@@ -148,39 +162,42 @@ func (t *Transformer) Transform(ctx context.Context, key string, w, h int, focal
 		return data, ctype, nil
 	}
 
-	// One render per derivative no matter how many raced in - waiters share the leader's result, error included, and a cancelled leader makes them retry rather than pile on
+	// One render per derivative no matter how many raced in, and waiters share its result - it runs detached from whichever request started it, so that shopper closing the tab no longer failed every request queued behind it, and each caller still gives up on its own context
 	type rendered struct {
 		data  []byte
 		ctype string
 	}
-	v, err, _ := t.inflight.Do(dkey, func() (any, error) {
-		if data, ctype, ok := t.cached(ctx, dkey); ok {
+	ch := t.inflight.DoChan(dkey, func() (any, error) {
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), renderTimeout)
+		defer cancel()
+		if data, ctype, ok := t.cached(rctx, dkey); ok {
 			return rendered{data, ctype}, nil
 		}
-		if err := t.acquire(ctx); err != nil {
+		if err := t.acquire(rctx); err != nil {
 			return nil, err
 		}
 		defer t.release()
-		data, ctype, err := t.render(ctx, key, dkey, w, h, focalX, focalY, webp)
+		data, ctype, err := t.render(rctx, key, dkey, w, h, focalX, focalY, webp)
 		if err != nil {
 			return nil, err
 		}
 		return rendered{data, ctype}, nil
 	})
-	if err != nil {
-		return nil, "", err
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, "", res.Err
+		}
+		out := res.Val.(rendered)
+		return out.data, out.ctype, nil
+	case <-ctx.Done():
+		return nil, "", ctx.Err()
 	}
-	out := v.(rendered)
-	return out.data, out.ctype, nil
 }
 
-// Fetches a ready derivative head-then-get, so a miss costs one metadata call rather than a failed body read
+// A ready derivative in one round trip - any read failure is a miss, and the render path regenerates it
 func (t *Transformer) cached(ctx context.Context, dkey string) ([]byte, string, bool) {
-	_, ctype, ok, _ := t.storage.Head(ctx, dkey)
-	if !ok {
-		return nil, "", false
-	}
-	data, err := t.storage.GetBytes(ctx, dkey)
+	data, ctype, err := t.storage.GetBytesTyped(ctx, dkey)
 	if err != nil {
 		return nil, "", false
 	}
@@ -209,6 +226,9 @@ func (t *Transformer) render(ctx context.Context, key, dkey string, w, h int, fo
 // Rejects an original whose pixel count would blow the budget, reading dimensions from the header - wraps ErrSourceTooLarge so callers can 422
 func checkSourceSize(raw []byte, maxPixels int) error {
 	cfg, _, err := decodeConfig(raw)
+	if errors.Is(err, image.ErrFormat) {
+		return fmt.Errorf("%w: %w", ErrUnsupportedSource, err)
+	}
 	if err != nil {
 		return fmt.Errorf("decode config: %w", err)
 	}

@@ -7,17 +7,25 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
+
+const deleteCustomerConsentEvents = `-- name: DeleteCustomerConsentEvents :exec
+DELETE FROM customer_consent_events WHERE customer_id = $1
+`
+
+func (q *Queries) DeleteCustomerConsentEvents(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerConsentEvents, customerID)
+	return err
+}
 
 const deleteCustomerConsents = `-- name: DeleteCustomerConsents :exec
 DELETE FROM customer_consents WHERE customer_id = $1
 `
 
-// Used by future GDPR delete flow - FK CASCADE also handles this, but an
-// explicit query lets the service log which consents were wiped
+// The GDPR erasure path - FK CASCADE only fires on a hard delete, and erasure anonymizes the row instead
 func (q *Queries) DeleteCustomerConsents(ctx context.Context, customerID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteCustomerConsents, customerID)
 	return err
@@ -44,6 +52,49 @@ func (q *Queries) GetCustomerConsent(ctx context.Context, arg GetCustomerConsent
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listCustomerConsentEvents = `-- name: ListCustomerConsentEvents :many
+SELECT id, customer_id, kind, opted_in, source, admin_id, created_at FROM customer_consent_events
+WHERE customer_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+`
+
+type ListCustomerConsentEventsParams struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	Lim        int32     `json:"lim"`
+}
+
+func (q *Queries) ListCustomerConsentEvents(ctx context.Context, arg ListCustomerConsentEventsParams) ([]CustomerConsentEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listCustomerConsentEvents, arg.CustomerID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CustomerConsentEvent{}
+	for rows.Next() {
+		var i CustomerConsentEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.Kind,
+			&i.OptedIn,
+			&i.Source,
+			&i.AdminID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCustomerConsents = `-- name: ListCustomerConsents :many
@@ -80,71 +131,48 @@ func (q *Queries) ListCustomerConsents(ctx context.Context, customerID uuid.UUID
 	return items, nil
 }
 
-const listCustomerConsentsByCustomerIDs = `-- name: ListCustomerConsentsByCustomerIDs :many
-SELECT customer_id, kind, opted_in, source, updated_at FROM customer_consents
-WHERE kind = $1 AND customer_id = ANY($2::uuid[])
-`
-
-type ListCustomerConsentsByCustomerIDsParams struct {
-	Kind        string      `json:"kind"`
-	CustomerIds []uuid.UUID `json:"customer_ids"`
-}
-
-// Batch of GetCustomerConsent for ONE kind across many customers - mass-send consent gating resolves the whole recipient page in one query instead of a per-recipient lookup - customers with no row are simply absent from the result; the caller applies the definition default (GDPR-safe opt-out)
-func (q *Queries) ListCustomerConsentsByCustomerIDs(ctx context.Context, arg ListCustomerConsentsByCustomerIDsParams) ([]CustomerConsent, error) {
-	rows, err := q.db.QueryContext(ctx, listCustomerConsentsByCustomerIDs, arg.Kind, pq.Array(arg.CustomerIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CustomerConsent{}
-	for rows.Next() {
-		var i CustomerConsent
-		if err := rows.Scan(
-			&i.CustomerID,
-			&i.Kind,
-			&i.OptedIn,
-			&i.Source,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const upsertCustomerConsent = `-- name: UpsertCustomerConsent :one
-INSERT INTO customer_consents (customer_id, kind, opted_in, source)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (customer_id, kind) DO UPDATE
-  SET opted_in  = EXCLUDED.opted_in,
-      source    = EXCLUDED.source,
-      updated_at = NOW()
-RETURNING customer_id, kind, opted_in, source, updated_at
+WITH up AS (
+    INSERT INTO customer_consents (customer_id, kind, opted_in, source)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (customer_id, kind) DO UPDATE
+      SET opted_in  = EXCLUDED.opted_in,
+          source    = EXCLUDED.source,
+          updated_at = NOW()
+    RETURNING customer_id, kind, opted_in, source, updated_at
+), ev AS (
+    INSERT INTO customer_consent_events (customer_id, kind, opted_in, source, admin_id)
+    SELECT up.customer_id, up.kind, up.opted_in, up.source, $5::uuid FROM up
+)
+SELECT customer_id, kind, opted_in, source, updated_at FROM up
 `
 
 type UpsertCustomerConsentParams struct {
+	CustomerID uuid.UUID     `json:"customer_id"`
+	Kind       string        `json:"kind"`
+	OptedIn    bool          `json:"opted_in"`
+	Source     string        `json:"source"`
+	AdminID    uuid.NullUUID `json:"admin_id"`
+}
+
+type UpsertCustomerConsentRow struct {
 	CustomerID uuid.UUID `json:"customer_id"`
 	Kind       string    `json:"kind"`
 	OptedIn    bool      `json:"opted_in"`
 	Source     string    `json:"source"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-func (q *Queries) UpsertCustomerConsent(ctx context.Context, arg UpsertCustomerConsentParams) (CustomerConsent, error) {
+// The history row is written by the same statement, so a change can never land without its audit entry
+func (q *Queries) UpsertCustomerConsent(ctx context.Context, arg UpsertCustomerConsentParams) (UpsertCustomerConsentRow, error) {
 	row := q.db.QueryRowContext(ctx, upsertCustomerConsent,
 		arg.CustomerID,
 		arg.Kind,
 		arg.OptedIn,
 		arg.Source,
+		arg.AdminID,
 	)
-	var i CustomerConsent
+	var i UpsertCustomerConsentRow
 	err := row.Scan(
 		&i.CustomerID,
 		&i.Kind,

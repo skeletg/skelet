@@ -299,3 +299,17 @@ type fakeLevelsRepo struct {
 func (f fakeLevelsRepo) ListLevelsByItem(context.Context, uuid.UUID) ([]Level, error) {
 	return f.levels, f.err
 }
+
+func (f fakeSalableRepo) ListItemsByProductIDs(_ context.Context, pids []uuid.UUID) (map[uuid.UUID]Item, error) {
+	if errors.Is(f.itemErr, ErrItemNotFound) {
+		return map[uuid.UUID]Item{}, nil
+	}
+	if f.itemErr != nil {
+		return nil, f.itemErr
+	}
+	out := map[uuid.UUID]Item{}
+	for _, pid := range pids {
+		out[pid] = f.item
+	}
+	return out, nil
+}

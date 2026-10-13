@@ -11,8 +11,8 @@ FROM chat_conversations
 WHERE id = $1 AND admin_id = $2;
 
 -- name: InsertChatConversation :one
-INSERT INTO chat_conversations (admin_id, channel_id, title, messages)
-VALUES ($1, $2, $3, $4)
+INSERT INTO chat_conversations (admin_id, title, messages)
+VALUES ($1, $2, $3)
 RETURNING id;
 
 -- name: UpdateChatConversation :one

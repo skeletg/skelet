@@ -50,11 +50,12 @@ type Address {
 }
 
 type CustomerAuthPayload {
-  # Null when the account exists but no session was issued - registration withholds the session while require_email_verification is on, so an unverified address can never be used to reach the account.
+  # Null when no session was issued - registration withholds it while require_email_verification is on, and when the address already has an account.
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
-  # True when registration deliberately withheld the session pending verification. Clients should route to a "check your inbox" state rather than treating the missing tokens as an error.
+  # Null whenever the tokens are, so the answer never shows whether the address already had an account.
+  customer:     Customer
+  # True when registration issued no session. Clients should route to a "check your inbox" state - the inbox holds either a verification link or, for an address that already has an account, a note to its owner.
   verificationRequired: Boolean!
 }
 
@@ -103,6 +104,8 @@ extend type Mutation {
   changeCustomerPassword(currentPassword: String!, newPassword: String!): Boolean!
   verifyEmail(token: String!):                                  Boolean!
   resendVerificationEmail:                                      Boolean!
+  # Signed-out resend for an account the verification gate keeps from signing in. Always true, so it never shows whether the address has an account.
+  resendVerification(email: String!):                           Boolean!
   requestPasswordReset(email: String!):                         Boolean!
   resetPassword(token: String!, newPassword: String!):          Boolean!
   addAddress(input: AddressInput!):                             Address!

@@ -22,4 +22,5 @@ type Repository interface {
 	Get(ctx context.Context, adminID uuid.UUID, key string) (json.RawMessage, error)
 	Set(ctx context.Context, adminID uuid.UUID, key string, value json.RawMessage) error
 	Delete(ctx context.Context, adminID uuid.UUID, key string) error
+	CountOthers(ctx context.Context, adminID uuid.UUID, key string) (int64, error) // keys held besides this one
 }

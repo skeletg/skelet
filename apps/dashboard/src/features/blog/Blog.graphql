@@ -3,6 +3,7 @@ fragment BlogAuthorRow on BlogAuthor {
   slug
   displayName
   email
+  emailPublic
   createdAt
   updatedAt
   content {

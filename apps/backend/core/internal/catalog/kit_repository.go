@@ -20,7 +20,7 @@ func (r *postgresRepository) CreateKitComponent(ctx context.Context, input AddKi
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return KitComponent{}, fmt.Errorf("component already in this kit")
+			return KitComponent{}, ErrKitComponentDuplicate
 		}
 		return KitComponent{}, fmt.Errorf("create kit component: %w", err)
 	}

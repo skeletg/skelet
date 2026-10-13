@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
@@ -281,12 +282,16 @@ func (r *postgresRepository) ListCollectionsByProductIDs(ctx context.Context, pr
 }
 
 func (r *postgresRepository) ReorderCollectionProduct(ctx context.Context, collectionID, productID uuid.UUID, sortOrder int32) error {
-	if err := r.queries.ReorderCollectionProduct(ctx, db.ReorderCollectionProductParams{
+	n, err := r.queries.ReorderCollectionProduct(ctx, db.ReorderCollectionProductParams{
 		CollectionID: collectionID,
 		ProductID:    productID,
 		SortOrder:    sortOrder,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("reorder collection product: %w", err)
+	}
+	if n == 0 {
+		return ErrCollectionProductNotFound
 	}
 	return nil
 }
@@ -311,15 +316,17 @@ func (r *postgresRepository) SetCollectionCover(ctx context.Context, collectionI
 	return toCollection(row), nil
 }
 
-func (r *postgresRepository) ConfirmCollectionCover(ctx context.Context, collectionID uuid.UUID, width, height int32) (Collection, error) {
+// Pinned to the cover the caller checked - a replaced or already-confirmed cover matches no row
+func (r *postgresRepository) ConfirmCollectionCover(ctx context.Context, collectionID, coverID uuid.UUID, width, height int32) (Collection, error) {
 	row, err := r.queries.ConfirmCollectionCover(ctx, db.ConfirmCollectionCoverParams{
 		ID:          collectionID,
+		CoverID:     uuid.NullUUID{UUID: coverID, Valid: true},
 		CoverWidth:  sql.NullInt32{Int32: width, Valid: true},
 		CoverHeight: sql.NullInt32{Int32: height, Valid: true},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Collection{}, ErrCollectionNotFound
+			return Collection{}, ErrCollectionCoverNotPending
 		}
 		return Collection{}, fmt.Errorf("confirm collection cover: %w", err)
 	}
@@ -429,8 +436,7 @@ func (r *postgresRepository) ListCollectionFacetOverrides(ctx context.Context, c
 
 // Same clear-and-rebuild shape as the category twin
 func (r *postgresRepository) ReplaceCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID, overrides []FacetOverride) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.DeleteCollectionFacetOverrides(ctx, collectionID); err != nil {
 			return fmt.Errorf("clear collection facet overrides: %w", err)
 		}
@@ -441,6 +447,9 @@ func (r *postgresRepository) ReplaceCollectionFacetOverrides(ctx context.Context
 				SortOrder:    o.SortOrder,
 				IsHidden:     o.Hidden,
 			}); err != nil {
+				if pgdb.IsForeignKeyViolation(err) {
+					return ErrAttributeNotFound
+				}
 				return fmt.Errorf("insert collection facet override: %w", err)
 			}
 		}

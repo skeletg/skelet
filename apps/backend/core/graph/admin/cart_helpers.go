@@ -9,9 +9,9 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // A cart or order on another channel would hand the customer's identity to it
@@ -49,6 +49,8 @@ func (r *mutationResolver) cartForAdmin(ctx context.Context, idStr string) (uuid
 }
 
 const cartAbandonedAfter = time.Hour // how long an active cart sits untouched before the `abandoned` filter surfaces it
+
+const maxCartListLimit = 200
 
 // Carts store no totals, so line totals and the subtotal are computed here
 func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.AdminCart {

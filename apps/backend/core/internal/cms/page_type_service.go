@@ -2,6 +2,7 @@ package cms
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,7 +16,6 @@ type pageTypeStore interface {
 	CountPagesByType(ctx context.Context, pageTypeID uuid.UUID) (int64, error)
 	CreatePageType(ctx context.Context, in CreatePageTypeInput) (PageType, error)
 	DeletePageType(ctx context.Context, id uuid.UUID) error
-	DeletePageTypeChannelRoot(ctx context.Context, pageTypeID, channelID uuid.UUID) error
 	GetPageTypeByID(ctx context.Context, id uuid.UUID) (PageType, error)
 	GetPageTypeBySlug(ctx context.Context, slug string) (PageType, error)
 	GetPageTypeWithAttributes(ctx context.Context, id uuid.UUID) (PageType, error)
@@ -23,9 +23,8 @@ type pageTypeStore interface {
 	ListPagesByType(ctx context.Context, pageTypeID uuid.UUID) ([]Page, error)
 	SetPageTypeDefaultBlocks(ctx context.Context, id uuid.UUID, blocks json.RawMessage) error
 	UpdatePageType(ctx context.Context, in UpdatePageTypeInput) (PageType, error)
-	UpdatePageTypeStructure(ctx context.Context, in ResolvedPageTypeStructure) (PageType, error)
-	UpsertPageTypeChannelRoot(ctx context.Context, pageTypeID, channelID uuid.UUID, rootSlug string) error
 	UpsertPageTypeContent(ctx context.Context, pageTypeID uuid.UUID, in PageTypeContentInput) (PageTypeContent, error)
+	WithTx(t *sql.Tx) *postgresRepository
 }
 
 func (s *pageTypeService) CreatePageType(ctx context.Context, in CreatePageTypeInput) (PageType, error) {
@@ -33,7 +32,7 @@ func (s *pageTypeService) CreatePageType(ctx context.Context, in CreatePageTypeI
 		return PageType{}, err
 	}
 	if strings.TrimSpace(in.Locale) == "" || strings.TrimSpace(in.Name) == "" {
-		return PageType{}, fmt.Errorf("locale and name are required")
+		return PageType{}, fmt.Errorf("%w: locale and name", ErrRequiredFieldMissing)
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, in.Locale); err != nil {
@@ -64,11 +63,25 @@ func (s *pageTypeService) ListPageTypes(ctx context.Context) ([]PageType, error)
 	// Hydrate each type's content, attributes and channel roots - the dashboard reads the page-type DETAIL from this list, since page types are low-volume
 	// The bare row alone leaves the detail's attribute panel empty, so assignments never appear
 	for i := range types {
-		if full, err := s.repo.GetPageTypeWithAttributes(ctx, types[i].ID); err == nil {
-			types[i] = full
+		full, err := s.repo.GetPageTypeWithAttributes(ctx, types[i].ID)
+		if err != nil {
+			return nil, err
 		}
+		types[i] = full
 	}
 	return types, nil
+}
+
+func (s *pageTypeService) PageTypeSEODefaults(ctx context.Context) (map[uuid.UUID]PageType, error) {
+	types, err := s.repo.ListPageTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]PageType, len(types))
+	for _, t := range types {
+		out[t.ID] = t
+	}
+	return out, nil
 }
 
 func (s *pageTypeService) UpdatePageType(ctx context.Context, in UpdatePageTypeInput) (PageType, error) {
@@ -76,6 +89,7 @@ func (s *pageTypeService) UpdatePageType(ctx context.Context, in UpdatePageTypeI
 }
 
 // Changing the global root slug re-syncs every page of the type, so their public URLs pick up the new prefix and leave 301s behind
+// Every page's new paths are conflict-checked first, then the root and every page move in one tx - so a clash strands nothing and a retry redoes the whole move
 func (s *pageTypeService) UpdatePageTypeStructure(ctx context.Context, in UpdatePageTypeStructureInput) (PageType, error) {
 	old, err := s.repo.GetPageTypeByID(ctx, in.ID)
 	if err != nil {
@@ -106,22 +120,27 @@ func (s *pageTypeService) UpdatePageTypeStructure(ctx context.Context, in Update
 	if in.IsSingleton != nil {
 		merged.IsSingleton = *in.IsSingleton
 	}
-	if _, err := s.repo.UpdatePageTypeStructure(ctx, merged); err != nil {
-		return PageType{}, err
-	}
-	if old.RootSlug != merged.RootSlug {
-		updated, err := s.repo.GetPageTypeByID(ctx, in.ID)
+	if merged.IsSingleton && !old.IsSingleton {
+		n, err := s.repo.CountPagesByType(ctx, in.ID)
 		if err != nil {
 			return PageType{}, err
 		}
-		if err := s.resyncPagesOfType(ctx, old, updated); err != nil {
-			return PageType{}, err
+		if n > 1 {
+			return PageType{}, fmt.Errorf("%w: the type already has %d pages", ErrSingletonExists, n)
 		}
+	}
+	next := old
+	next.RootSlug = merged.RootSlug
+	if err := s.moveTypeURLs(ctx, old, next, func(r *postgresRepository) error {
+		_, err := r.UpdatePageTypeStructure(ctx, merged)
+		return err
+	}); err != nil {
+		return PageType{}, err
 	}
 	return s.repo.GetPageTypeWithAttributes(ctx, in.ID)
 }
 
-// Upserts, or removes for an empty slug, a per-channel root override, then re-syncs the type's pages so that channel's URLs move
+// Upserts, or removes for an empty slug, a per-channel root override, moving that channel's page URLs with it in the same tx
 func (s *pageTypeService) SetPageTypeChannelRoot(ctx context.Context, pageTypeID, channelID uuid.UUID, rootSlug string) (PageType, error) {
 	rootSlug = strings.Trim(strings.TrimSpace(rootSlug), "/")
 	if rootSlug != "" {
@@ -133,18 +152,22 @@ func (s *pageTypeService) SetPageTypeChannelRoot(ctx context.Context, pageTypeID
 	if err != nil {
 		return PageType{}, err
 	}
-	if rootSlug == "" {
-		if err := s.repo.DeletePageTypeChannelRoot(ctx, pageTypeID, channelID); err != nil {
-			return PageType{}, err
+	next := old
+	next.ChannelRoots = make([]PageTypeChannelRoot, 0, len(old.ChannelRoots)+1)
+	for _, cr := range old.ChannelRoots {
+		if cr.ChannelID != channelID {
+			next.ChannelRoots = append(next.ChannelRoots, cr)
 		}
-	} else if err := s.repo.UpsertPageTypeChannelRoot(ctx, pageTypeID, channelID, rootSlug); err != nil {
-		return PageType{}, err
 	}
-	updated, err := s.repo.GetPageTypeByID(ctx, pageTypeID)
-	if err != nil {
-		return PageType{}, err
+	if rootSlug != "" {
+		next.ChannelRoots = append(next.ChannelRoots, PageTypeChannelRoot{ChannelID: channelID, RootSlug: rootSlug})
 	}
-	if err := s.resyncPagesOfType(ctx, old, updated); err != nil {
+	if err := s.moveTypeURLs(ctx, old, next, func(r *postgresRepository) error {
+		if rootSlug == "" {
+			return r.DeletePageTypeChannelRoot(ctx, pageTypeID, channelID)
+		}
+		return r.UpsertPageTypeChannelRoot(ctx, pageTypeID, channelID, rootSlug)
+	}); err != nil {
 		return PageType{}, err
 	}
 	return s.repo.GetPageTypeWithAttributes(ctx, pageTypeID)
@@ -155,9 +178,13 @@ func (s *pageTypeService) SetPageTypeDefaultBlocks(ctx context.Context, pageType
 	if len(blocks) > 0 {
 		doc, ok := blockkit.ParseDocument(blocks)
 		if !ok {
-			return PageType{}, fmt.Errorf("default blocks is not a valid block document")
+			return PageType{}, fmt.Errorf("%w: default blocks", blockkit.ErrInvalidDocument)
 		}
-		if err := blockkit.Validate(doc, s.customTypeChecker(ctx)); err != nil {
+		checker, err := s.customTypeChecker(ctx)
+		if err != nil {
+			return PageType{}, err
+		}
+		if err := blockkit.Validate(doc, checker); err != nil {
 			return PageType{}, err
 		}
 	}
@@ -187,7 +214,7 @@ func (s *pageTypeService) DeletePageType(ctx context.Context, id uuid.UUID) erro
 
 func (s *pageTypeService) UpsertPageTypeContent(ctx context.Context, pageTypeID uuid.UUID, in PageTypeContentInput) (PageType, error) {
 	if strings.TrimSpace(in.Locale) == "" || strings.TrimSpace(in.Name) == "" {
-		return PageType{}, fmt.Errorf("locale and name are required")
+		return PageType{}, fmt.Errorf("%w: locale and name", ErrRequiredFieldMissing)
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, in.Locale); err != nil {
@@ -200,21 +227,58 @@ func (s *pageTypeService) UpsertPageTypeContent(ctx context.Context, pageTypeID 
 	return s.repo.GetPageTypeWithAttributes(ctx, pageTypeID)
 }
 
-// resyncPagesOfType recomputes every page of a type after its root slug(s) changed. base_path is unchanged; only the
-// root prefix moves, so we diff against the OLD type roots to emit the right 301s
-func (s *pageTypeService) resyncPagesOfType(ctx context.Context, oldPT, newPT PageType) error {
-	if s.urlRewrites == nil {
-		return nil
-	}
+// Applies write, then moves every page whose stored URL isn't where the new roots put it in the same tx - a stale url_path from an unfinished resync is caught too
+func (s *pageTypeService) moveTypeURLs(ctx context.Context, oldPT, newPT PageType, write func(r *postgresRepository) error) error {
 	pages, err := s.repo.ListPagesByType(ctx, newPT.ID)
 	if err != nil {
 		return err
 	}
+	var stale []Page
 	for _, p := range pages {
-		old := desiredPageURLs(p.BasePath, oldPT)
-		if _, err := s.syncPageURLs(ctx, p.ID, p.BasePath, newPT, old); err != nil {
-			return err
+		if p.URLPath != joinRoot(newPT.RootSlug, p.BasePath) || !sameScopedPaths(desiredPageURLs(p.BasePath, oldPT), desiredPageURLs(p.BasePath, newPT)) {
+			stale = append(stale, p)
 		}
 	}
+	if s.urlRewrites != nil {
+		for _, p := range stale {
+			if err := checkPageURLs(ctx, s.urlRewrites, p.ID, desiredPageURLs(p.BasePath, newPT)); err != nil {
+				return fmt.Errorf("page %q: %w", p.Slug, err)
+			}
+		}
+	}
+	if err := s.inURLTx(ctx, func(r *postgresRepository, rw UrlRewriteSyncer) error {
+		if err := write(r); err != nil {
+			return err
+		}
+		for _, p := range stale {
+			old := desiredPageURLs(p.BasePath, oldPT)
+			old[0].path = p.URLPath
+			if err := syncPageURLs(ctx, r, rw, p.ID, p.BasePath, newPT, old); err != nil {
+				return fmt.Errorf("page %q: %w", p.Slug, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, p := range stale {
+		s.announceChanged(ctx, p, publicPaths(p.BasePath, oldPT)...)
+	}
 	return nil
+}
+
+func sameScopedPaths(a, b []scopedPath) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	byKey := make(map[string]string, len(a))
+	for _, sp := range a {
+		byKey[channelKey(sp.channelID)] = sp.path
+	}
+	for _, sp := range b {
+		if p, ok := byKey[channelKey(sp.channelID)]; !ok || p != sp.path {
+			return false
+		}
+	}
+	return true
 }

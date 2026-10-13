@@ -74,7 +74,7 @@ func (s *Sender) record(ctx context.Context, spec Spec) {
 	select {
 	case s.slots <- struct{}{}:
 	default:
-		log.Printf("[mailsend] record %s to %s: skipped, %d reports already waiting on the suite", spec.MessageKey, spec.To, maxRecordsLive)
+		log.Printf("[mailsend] record %s to %s: skipped, %d reports already waiting on the suite", spec.MessageKey, recipientDomain(spec.To), maxRecordsLive)
 		return
 	}
 	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
@@ -82,7 +82,7 @@ func (s *Sender) record(ctx context.Context, spec Spec) {
 		defer func() { <-s.slots }()
 		defer cancel()
 		if err := s.rec.RecordSent(rctx, uuid.New(), spec); err != nil {
-			log.Printf("[mailsend] record %s to %s: %v", spec.MessageKey, spec.To, err)
+			log.Printf("[mailsend] record %s to %s: %v", spec.MessageKey, recipientDomain(spec.To), err)
 		}
 	})
 }
@@ -97,19 +97,22 @@ func (s *Sender) from(ctx context.Context, spec Spec) string {
 		id := spec.ChannelID
 		scope = config.Scope{Kind: config.ScopeChannel, ChannelID: &id}
 	}
-	addr, name := "no-reply@skelet.local", ""
+	var addr, name string
 	if s.cfg != nil {
-		if a, _ := s.cfg.GetString(ctx, "general/contact/email_from_address", scope); strings.TrimSpace(a) != "" {
-			addr = strings.TrimSpace(a)
-		}
+		addr, _ = s.cfg.GetString(ctx, "general/contact/email_from_address", scope)
 		n, _ := s.cfg.GetString(ctx, "general/contact/email_from_name", scope)
 		name = strings.TrimSpace(n)
 	}
 	if name == "" {
 		name = spec.FallbackName
 	}
-	if name == "" {
-		return addr
+	return email.FromHeader(name, addr)
+}
+
+// Logs carry where a mail went, never who - the full address is personal data with no business in a log line
+func recipientDomain(to string) string {
+	if _, domain, ok := strings.Cut(to, "@"); ok {
+		return "*@" + domain
 	}
-	return name + " <" + addr + ">"
+	return "*"
 }

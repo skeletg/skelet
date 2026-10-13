@@ -113,7 +113,7 @@ func PushChannels(ctx context.Context, chans *channel.Service, cfg *config.Servi
 		if cfg != nil {
 			// general/branding/store_name is the customer-facing name a mail prints; channels.name is the
 			// operator's internal label ("US Wholesale B2B"), which is what the setting exists to keep out of one
-			if name, _ := cfg.GetString(ctx, "general/branding/store_name", scope); strings.TrimSpace(name) != "" {
+			if name, _ := cfg.GetString(ctx, channel.ConfigStoreName, scope); strings.TrimSpace(name) != "" {
 				entry.Name = strings.TrimSpace(name)
 			}
 			entry.FromAddress, _ = cfg.GetString(ctx, "general/contact/email_from_address", scope)

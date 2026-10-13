@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // Applies a percent discount only to lines whose product matches a nested condition - max_qty caps how many units are discounted across matching lines, which covers "10% off your first 3 widgets" The condition's shape mirrors the composite conditions, e.g. {"type": "core.cart_contains_sku", "params": {"skus": ["WIDGET"]}} Discounts record as per-line adjustments through Ledger.AddLineAdjustment, so the final ledger carries accurate per-line discounted prices for refund accounting and EU-VAT without AllocateLineDiscounts having to redistribute

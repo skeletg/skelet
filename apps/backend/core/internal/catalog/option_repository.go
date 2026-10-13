@@ -19,8 +19,11 @@ import (
 
 func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddProductOptionInput) (ProductOption, error) {
 	var out ProductOption
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
+		visibleIf, err := nullRawFromGroup(input.VisibleIf)
+		if err != nil {
+			return err
+		}
 		row, err := q.CreateProductOption(ctx, db.CreateProductOptionParams{
 			ProductID:      input.ProductID,
 			InputType:      db.CatalogProductOptionInputType(input.InputType),
@@ -31,7 +34,7 @@ func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddP
 			MaxChars:       sqlnull.Int32(input.MaxChars),
 			MaxFileBytes:   sqlnull.Int64(input.MaxFileBytes),
 			FileExtensions: sqlnull.StringValueNonEmpty(input.FileExtensions),
-			VisibleIf:      nullRawFromGroup(input.VisibleIf),
+			VisibleIf:      visibleIf,
 		})
 		if err != nil {
 			return fmt.Errorf("create product option: %w", err)
@@ -45,7 +48,9 @@ func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddP
 		if err != nil {
 			return fmt.Errorf("upsert product option content: %w", err)
 		}
-		out = toProductOption(row)
+		if out, err = toProductOption(row); err != nil {
+			return err
+		}
 		out.Title = content.Title
 		out.HelpText = content.HelpText
 		out.AllContent = []ProductOptionContent{{Locale: content.Locale, Title: content.Title, HelpText: content.HelpText}}
@@ -65,7 +70,18 @@ func (r *postgresRepository) GetProductOptionByID(ctx context.Context, id uuid.U
 		}
 		return ProductOption{}, fmt.Errorf("get product option: %w", err)
 	}
-	return toProductOption(row), nil
+	return toProductOption(row)
+}
+
+func (r *postgresRepository) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (ProductOption, error) {
+	row, err := r.queries.GetProductOptionByIDForUpdate(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProductOption{}, ErrProductOptionNotFound
+		}
+		return ProductOption{}, fmt.Errorf("lock product option: %w", err)
+	}
+	return toProductOption(row)
 }
 
 func (r *postgresRepository) ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductOption, error) {
@@ -75,7 +91,9 @@ func (r *postgresRepository) ListProductOptionsByProductID(ctx context.Context, 
 	}
 	out := make([]ProductOption, len(rows))
 	for i, row := range rows {
-		out[i] = toProductOption(row)
+		if out[i], err = toProductOption(row); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -90,12 +108,20 @@ func (r *postgresRepository) ListProductOptionsByProductIDs(ctx context.Context,
 	}
 	out := make(map[uuid.UUID][]ProductOption, len(productIDs))
 	for _, row := range rows {
-		out[row.ProductID] = append(out[row.ProductID], toProductOption(row))
+		o, err := toProductOption(row)
+		if err != nil {
+			return nil, err
+		}
+		out[row.ProductID] = append(out[row.ProductID], o)
 	}
 	return out, nil
 }
 
 func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UUID, params UpdateProductOptionFields) (ProductOption, error) {
+	visibleIf, err := nullRawFromGroup(params.VisibleIf)
+	if err != nil {
+		return ProductOption{}, err
+	}
 	row, err := r.queries.UpdateProductOption(ctx, db.UpdateProductOptionParams{
 		ID:             id,
 		InputType:      db.CatalogProductOptionInputType(params.InputType),
@@ -106,7 +132,7 @@ func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UU
 		MaxChars:       sqlnull.Int32(params.MaxChars),
 		MaxFileBytes:   sqlnull.Int64(params.MaxFileBytes),
 		FileExtensions: sqlnull.StringValueNonEmpty(params.FileExtensions),
-		VisibleIf:      nullRawFromGroup(params.VisibleIf),
+		VisibleIf:      visibleIf,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -114,7 +140,7 @@ func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UU
 		}
 		return ProductOption{}, fmt.Errorf("update product option: %w", err)
 	}
-	return toProductOption(row), nil
+	return toProductOption(row)
 }
 
 func (r *postgresRepository) DeleteProductOption(ctx context.Context, id uuid.UUID) error {
@@ -175,12 +201,7 @@ func (r *postgresRepository) DeleteProductOptionContent(ctx context.Context, opt
 
 func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input AddProductOptionValueInput) (ProductOptionValue, error) {
 	var out ProductOptionValue
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
-		qty := input.Quantity
-		if qty < 1 {
-			qty = 1
-		}
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateProductOptionValue(ctx, db.CreateProductOptionValueParams{
 			OptionID:        input.OptionID,
 			SortOrder:       input.SortOrder,
@@ -188,7 +209,7 @@ func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input
 			PriceType:       db.CatalogProductOptionPriceType(input.PriceType),
 			IsDefault:       input.IsDefault,
 			SourceProductID: sqlnull.UUIDNonZero(input.SourceProductID),
-			Quantity:        qty,
+			Quantity:        input.Quantity,
 			ForcedLineQty:   sqlnull.Float64(input.ForcedLineQty),
 		})
 		if err != nil {
@@ -260,9 +281,6 @@ func (r *postgresRepository) CountProductOptionValueDefaultsForOption(ctx contex
 }
 
 func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error) {
-	if quantity < 1 {
-		quantity = 1
-	}
 	row, err := r.queries.UpdateProductOptionValue(ctx, db.UpdateProductOptionValueParams{
 		ID:              id,
 		SortOrder:       sortOrder,
@@ -337,7 +355,8 @@ func (r *postgresRepository) DeleteProductOptionValueContent(ctx context.Context
 
 // --- row mappers ---
 
-func toProductOption(row db.CatalogProductOption) ProductOption {
+// A stored visibility rule that won't decode is an error, never "always visible"
+func toProductOption(row db.CatalogProductOption) (ProductOption, error) {
 	out := ProductOption{
 		ID:         row.ID,
 		ProductID:  row.ProductID,
@@ -349,9 +368,10 @@ func toProductOption(row db.CatalogProductOption) ProductOption {
 	}
 	if row.VisibleIf.Valid && len(row.VisibleIf.RawMessage) > 0 {
 		var g OptionConditionGroup
-		if err := json.Unmarshal(row.VisibleIf.RawMessage, &g); err == nil {
-			out.VisibleIf = &g
+		if err := json.Unmarshal(row.VisibleIf.RawMessage, &g); err != nil {
+			return ProductOption{}, fmt.Errorf("decode visible_if of option %s: %w", row.ID, err)
 		}
+		out.VisibleIf = &g
 	}
 	if row.PriceValue.Valid {
 		v := row.PriceValue.Int32
@@ -372,7 +392,7 @@ func toProductOption(row db.CatalogProductOption) ProductOption {
 	if row.FileExtensions.Valid {
 		out.FileExtensions = row.FileExtensions.String
 	}
-	return out
+	return out, nil
 }
 
 func toProductOptionValue(row db.CatalogProductOptionValue) ProductOptionValue {
@@ -414,15 +434,15 @@ type UpdateProductOptionFields struct {
 // --- null-helpers (local to options for now) ---
 
 // nullRawFromGroup marshals a visibility condition to JSONB (NULL when nil)
-func nullRawFromGroup(g *OptionConditionGroup) pqtype.NullRawMessage {
+func nullRawFromGroup(g *OptionConditionGroup) (pqtype.NullRawMessage, error) {
 	if g == nil {
-		return pqtype.NullRawMessage{}
+		return pqtype.NullRawMessage{}, nil
 	}
 	raw, err := json.Marshal(g)
 	if err != nil {
-		return pqtype.NullRawMessage{}
+		return pqtype.NullRawMessage{}, fmt.Errorf("encode visible_if: %w", err)
 	}
-	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}, nil
 }
 
 func nullPriceType(t *ProductOptionPriceType) db.NullCatalogProductOptionPriceType {
@@ -430,4 +450,60 @@ func nullPriceType(t *ProductOptionPriceType) db.NullCatalogProductOptionPriceTy
 		return db.NullCatalogProductOptionPriceType{}
 	}
 	return db.NullCatalogProductOptionPriceType{Valid: true, CatalogProductOptionPriceType: db.CatalogProductOptionPriceType(*t)}
+}
+
+func (r *postgresRepository) SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) error {
+	var err error
+	if priceValue == nil {
+		err = r.queries.DeleteProductOptionChannelPrice(ctx, db.DeleteProductOptionChannelPriceParams{OptionID: optionID, ChannelID: channelID})
+	} else {
+		err = r.queries.UpsertProductOptionChannelPrice(ctx, db.UpsertProductOptionChannelPriceParams{OptionID: optionID, ChannelID: channelID, PriceValue: *priceValue})
+	}
+	if err != nil {
+		return fmt.Errorf("set product option channel price: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) error {
+	var err error
+	if priceValue == nil {
+		err = r.queries.DeleteProductOptionValueChannelPrice(ctx, db.DeleteProductOptionValueChannelPriceParams{ValueID: valueID, ChannelID: channelID})
+	} else {
+		err = r.queries.UpsertProductOptionValueChannelPrice(ctx, db.UpsertProductOptionValueChannelPriceParams{ValueID: valueID, ChannelID: channelID, PriceValue: *priceValue})
+	}
+	if err != nil {
+		return fmt.Errorf("set product option value channel price: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) ListProductOptionChannelPricesByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error) {
+	out := make(map[uuid.UUID][]OptionChannelPrice)
+	if len(optionIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductOptionChannelPricesByOptionIDs(ctx, optionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product option channel prices: %w", err)
+	}
+	for _, row := range rows {
+		out[row.OptionID] = append(out[row.OptionID], OptionChannelPrice{ChannelID: row.ChannelID, PriceValue: row.PriceValue})
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListProductOptionValueChannelPricesByValueIDs(ctx context.Context, valueIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error) {
+	out := make(map[uuid.UUID][]OptionChannelPrice)
+	if len(valueIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product option value channel prices: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ValueID] = append(out[row.ValueID], OptionChannelPrice{ChannelID: row.ChannelID, PriceValue: row.PriceValue})
+	}
+	return out, nil
 }

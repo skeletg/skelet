@@ -10,6 +10,7 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // A category and a collection holding the same three products, positioned 0-2
@@ -72,7 +73,8 @@ func TestMembershipListsHonourTheirCap(t *testing.T) {
 
 func TestDeleteCategoryStillRefusesOneWithProducts(t *testing.T) {
 	conn := testdb.Require(t)
-	svc := NewService(Deps{Repo: NewRepository(db.New(conn), nil)})
+	tx := txrunner.New(conn)
+	svc := NewService(Deps{Repo: NewRepository(db.New(conn), tx), Tx: tx})
 	cat, _, _ := seedMemberships(t, conn)
 	if err := svc.DeleteCategory(context.Background(), cat); !errors.Is(err, ErrCategoryHasProducts) {
 		t.Fatalf("err = %v, want ErrCategoryHasProducts", err)

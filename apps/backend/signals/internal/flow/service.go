@@ -589,7 +589,11 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 	} else {
 		html = s.track.Inject(html, storefrontURL(ch), sendID)
 	}
-	if err := s.sender.Send(ctx, emailpkg.Message{From: s.fromAddress(ch), To: recipient, Subject: subj, HTMLBody: html, TextBody: text}); err != nil {
+	msg := emailpkg.Message{From: s.fromAddress(ch), To: recipient, Subject: subj, HTMLBody: html, TextBody: text}
+	if !transactional {
+		msg.Headers = emailpkg.ListUnsubscribeHeaders(s.unsubscribeLink(ch, cust.ID))
+	}
+	if err := s.sender.Send(ctx, msg); err != nil {
 		log.Printf("[flow] email node send to %s: %v", recipient, err)
 	}
 }
@@ -669,6 +673,18 @@ func (s *Service) mergeVars(ctx context.Context, ch Store, cust Contact, run Flo
 			}
 			if v, _ := rc["reset_expires_in"].(string); v != "" {
 				vars["reset.expiresIn"] = v
+			}
+			if v, _ := rc["confirm_link"].(string); v != "" {
+				vars["confirm.link"] = v
+			}
+			if v, _ := rc["confirm_expires_in"].(string); v != "" {
+				vars["confirm.expiresIn"] = v
+			}
+			if v, _ := rc["signin_link"].(string); v != "" {
+				vars["signin.link"] = v
+			}
+			if v, _ := rc["forgot_link"].(string); v != "" {
+				vars["forgot.link"] = v
 			}
 			// Auth triggers pass an explicit name, since the customer may be brand new
 			if v, _ := rc["first_name"].(string); v != "" {
@@ -753,28 +769,25 @@ func (s *Service) vars(ctx context.Context, ch Store, cust Contact) map[string]s
 		"storefront.url":     storefrontURL(ch),
 		"customer.firstName": first,
 		"customer.email":     cust.Email,
-		"unsubscribe.link":   storefrontURL(ch) + "/unsubscribe/" + s.track.SignUnsubscribe(cust.ID),
+		"unsubscribe.link":   s.unsubscribeLink(ch, cust.ID),
 	}
 	// Personalization tags the suite computes - absent ones just render empty, which is what a failed read already did
 	s.varSources.merge(ctx, ch.ID, cust.ID, m)
 	return m
 }
 
+func (s *Service) unsubscribeLink(ch Store, customerID uuid.UUID) string {
+	return storefrontURL(ch) + "/unsubscribe/" + s.track.SignUnsubscribe(customerID)
+}
+
 // The channel's configured sender identity as core pushed it, with the store's name when no sender
 // name was ever set - an empty From is refused by every relay
 func (s *Service) fromAddress(ch Store) string {
-	addr := strings.TrimSpace(ch.FromAddress)
-	if addr == "" {
-		addr = "no-reply@skelet.local"
-	}
 	name := strings.TrimSpace(ch.FromName)
 	if name == "" {
 		name = ch.Name
 	}
-	if name != "" {
-		return name + " <" + addr + ">"
-	}
-	return addr
+	return emailpkg.FromHeader(name, ch.FromAddress)
 }
 
 func storefrontURL(ch Store) string {

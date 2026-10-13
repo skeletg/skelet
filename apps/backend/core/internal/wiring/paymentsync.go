@@ -43,7 +43,8 @@ func paymentSyncActionFor(state paymentpkg.PaymentState) paymentSyncAction {
 	return syncNothing
 }
 
-func sweepUnsettledPayments(ctx context.Context, orders *order.Service, payments *paymentpkg.Service) error {
+// SweepUnsettledPayments is the payment-sync-sweep job, exported so the e2e suite can run it on demand
+func SweepUnsettledPayments(ctx context.Context, orders *order.Service, payments *paymentpkg.Service) error {
 	now := time.Now()
 	list, err := orders.ListAwaitingPaymentSync(ctx, now.Add(-paymentSyncMaxAge), now.Add(-paymentSyncMinAge), paymentSyncBatch)
 	if err != nil {

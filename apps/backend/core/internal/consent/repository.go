@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -20,25 +21,32 @@ func NewRepository(queries *db.Queries) Repository {
 	return &postgresRepository{queries: queries}
 }
 
-func (r *postgresRepository) UpsertTx(ctx context.Context, sqlTx *sql.Tx, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
-	return upsert(ctx, r.queries.WithTx(sqlTx), customerID, kind, optedIn, source)
+func (r *postgresRepository) UpsertTx(ctx context.Context, sqlTx *sql.Tx, c Change) (StoredConsent, error) {
+	return upsert(ctx, r.queries.WithTx(sqlTx), c)
 }
 
-func (r *postgresRepository) Upsert(ctx context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
-	return upsert(ctx, r.queries, customerID, kind, optedIn, source)
+func (r *postgresRepository) Upsert(ctx context.Context, c Change) (StoredConsent, error) {
+	return upsert(ctx, r.queries, c)
 }
 
-func upsert(ctx context.Context, q *db.Queries, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
+func upsert(ctx context.Context, q *db.Queries, c Change) (StoredConsent, error) {
 	row, err := q.UpsertCustomerConsent(ctx, db.UpsertCustomerConsentParams{
-		CustomerID: customerID,
-		Kind:       kind,
-		OptedIn:    optedIn,
-		Source:     source,
+		CustomerID: c.CustomerID,
+		Kind:       c.Kind,
+		OptedIn:    c.OptedIn,
+		Source:     c.Source,
+		AdminID:    sqlnull.UUIDNonZero(c.AdminID),
 	})
 	if err != nil {
 		return StoredConsent{}, fmt.Errorf("upsert consent: %w", err)
 	}
-	return toStored(row), nil
+	return StoredConsent{
+		CustomerID: row.CustomerID,
+		Kind:       row.Kind,
+		OptedIn:    row.OptedIn,
+		Source:     row.Source,
+		UpdatedAt:  row.UpdatedAt,
+	}, nil
 }
 
 func (r *postgresRepository) Get(ctx context.Context, customerID uuid.UUID, kind string) (*StoredConsent, error) {
@@ -68,29 +76,19 @@ func (r *postgresRepository) ListByCustomer(ctx context.Context, customerID uuid
 	return out, nil
 }
 
-func (r *postgresRepository) ListByCustomerIDs(ctx context.Context, customerIDs []uuid.UUID, kind string) ([]StoredConsent, error) {
-	if len(customerIDs) == 0 {
-		return nil, nil
-	}
-	rows, err := r.queries.ListCustomerConsentsByCustomerIDs(ctx, db.ListCustomerConsentsByCustomerIDsParams{
-		Kind:        kind,
-		CustomerIds: customerIDs,
-	})
+func (r *postgresRepository) ListEvents(ctx context.Context, customerID uuid.UUID, limit int32) ([]Event, error) {
+	rows, err := r.queries.ListCustomerConsentEvents(ctx, db.ListCustomerConsentEventsParams{CustomerID: customerID, Lim: limit})
 	if err != nil {
-		return nil, fmt.Errorf("list consents by ids: %w", err)
+		return nil, fmt.Errorf("list consent history: %w", err)
 	}
-	out := make([]StoredConsent, len(rows))
+	out := make([]Event, len(rows))
 	for i, row := range rows {
-		out[i] = toStored(row)
+		out[i] = Event{
+			ID: row.ID, CustomerID: row.CustomerID, Kind: row.Kind, OptedIn: row.OptedIn,
+			Source: row.Source, AdminID: sqlnull.UUIDPtr(row.AdminID), CreatedAt: row.CreatedAt,
+		}
 	}
 	return out, nil
-}
-
-func (r *postgresRepository) DeleteByCustomer(ctx context.Context, customerID uuid.UUID) error {
-	if err := r.queries.DeleteCustomerConsents(ctx, customerID); err != nil {
-		return fmt.Errorf("delete consents: %w", err)
-	}
-	return nil
 }
 
 func toStored(row db.CustomerConsent) StoredConsent {

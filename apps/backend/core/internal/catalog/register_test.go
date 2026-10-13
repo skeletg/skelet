@@ -54,6 +54,15 @@ func TestCatalogSentinelsRegistered(t *testing.T) {
 		{catalog.ErrInvalidCurrency, "INVALID_CURRENCY_CODE", apperr.ClassValidation},
 		{catalog.ErrFileTooLarge, "FILE_TOO_LARGE", apperr.ClassValidation},
 
+		{catalog.ErrCategoryContentNotFound, "CATEGORY_CONTENT_NOT_FOUND", apperr.ClassNotFound},
+		{catalog.ErrCategoryCycle, "CATEGORY_CYCLE", apperr.ClassValidation},
+		{catalog.ErrCategoryTooDeep, "CATEGORY_TOO_DEEP", apperr.ClassValidation},
+		{catalog.ErrNameRequired, "NAME_REQUIRED", apperr.ClassValidation},
+		{catalog.ErrLocaleRequired, "LOCALE_REQUIRED", apperr.ClassValidation},
+		{catalog.ErrInvalidSize, "INVALID_SIZE", apperr.ClassValidation},
+		{catalog.ErrInvalidDimensions, "INVALID_DIMENSIONS", apperr.ClassValidation},
+		{catalog.ErrTooManyItems, "TOO_MANY_ITEMS", apperr.ClassValidation},
+
 		{catalog.ErrUploadNotReceived, "UPLOAD_NOT_RECEIVED", apperr.ClassUnavailable},
 	}
 

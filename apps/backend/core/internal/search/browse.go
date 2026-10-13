@@ -32,7 +32,7 @@ type AttributeIn struct {
 	Values []string
 }
 
-// One value of one facet, counted under the current filter set MINUS that facet so picking it doesn't zero the sibling buckets - the per-facet filter agg in buildFacetAggregations does the exclusion Slug is the AttributeValue.slug for selectable attrs (stable across renames) and slugify(value) for scalars (derived, so it shifts if a typo is fixed) Unique within a facet group but not across attributes - always pair with the parent facet's slug before round-tripping in a URL
+// One value of one facet, counted under the current filter set MINUS that facet so picking it doesn't zero the sibling buckets - the per-facet filter agg in buildFacetAggregations does the exclusion Slug is the AttributeValue.slug for selectable attrs (stable across renames) and catalog.Slugify(value) for scalars (derived, so it shifts if a typo is fixed) Unique within a facet group but not across attributes - always pair with the parent facet's slug before round-tripping in a URL
 type FacetBucket struct {
 	Value string
 	Slug  string
@@ -534,14 +534,14 @@ func bucketKeyToBool(key any) bool {
 }
 
 // Walks the loaded a.Values for the matching display name to return the operator-blessed slug and flag
-// Falls back to slugify(value) on no match, which should only happen during a brief index lag after a rename
+// Falls back to catalog.Slugify(value) on no match, which should only happen during a brief index lag after a rename
 func selectableBucketMeta(a catalog.Attribute, value string) (string, bool) {
 	for _, v := range a.Values {
 		if v.Name == value {
 			return v.Slug, v.IsIndexable
 		}
 	}
-	return slugify(value), false
+	return catalog.Slugify(value), false
 }
 
 // Maps slug-shaped inputs to the display strings stored on the doc - selectable attrs look up the AttributeValue by slug, scalars have no slug record so v1 passes through That means a scalar slug input only matches when the slug equals the indexed value exactly, e.g. a single-word value like "handmade" Unmatched input passes through unchanged, keeping admin GraphQL and CLI callers that already send display values working
@@ -562,21 +562,4 @@ func resolveAttributeFilterValues(a catalog.Attribute, in []string) []string {
 		}
 	}
 	return out
-}
-
-// Mirrors catalog.slugifyForSKU, kept local so catalog needn't export it
-func slugify(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	prev := rune('-')
-	for _, r := range strings.ToLower(s) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			prev = r
-		} else if prev != '-' {
-			b.WriteRune('-')
-			prev = '-'
-		}
-	}
-	return strings.Trim(b.String(), "-")
 }

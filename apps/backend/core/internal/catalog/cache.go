@@ -10,18 +10,21 @@ const (
 	CacheProductOnUpdate = "cache/product/on_update"       // ProductUpdated (incl. price)
 	CacheProductOnStock  = "cache/product/on_stock_change" // inventory StockChanged
 	CacheProductOnDelete = "cache/product/on_delete"       // ProductDeleted (always invalidate)
+
+	CacheSurfaceProduct = "product"
+	CacheSurfaceCatalog = "catalog"
 )
 
 func init() {
 	revalidate.RegisterSurface(revalidate.Surface{ // no AllTag on purpose - products invalidate PER-ID only, and a catalog-wide bust would mark every PDP stale and stampede the renderer on the next traffic wave
-		Key:            "product",
+		Key:            CacheSurfaceProduct,
 		Label:          "Products (PDP)",
 		AllTag:         "",
 		DefaultEnabled: true,
 	})
 
 	revalidate.RegisterSurface(revalidate.Surface{ // unlike products this has an AllTag so an operator can bust the whole surface at once - normal invalidation stays targeted via category:<id>, collection:<id> and catalog:browse
-		Key:            "catalog",
+		Key:            CacheSurfaceCatalog,
 		Label:          "Catalog listings (categories, grids, collections)",
 		AllTag:         "catalog:all",
 		DefaultEnabled: true,

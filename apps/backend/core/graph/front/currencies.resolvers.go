@@ -10,8 +10,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 )
 
+// Active currencies only, whatever activeOnly says - a retired one is nothing a shopper can pay in
 func (r *queryResolver) Currencies(ctx context.Context, activeOnly *bool) ([]*model.Currency, error) {
-	rows, err := r.CurrencySvc.List(ctx, boolOrFalse(activeOnly))
+	rows, err := r.CurrencySvc.List(ctx, true)
 	if err != nil {
 		return nil, err
 	}
@@ -26,6 +27,9 @@ func (r *queryResolver) Currency(ctx context.Context, code string) (*model.Curre
 	c, err := r.CurrencySvc.GetByCode(ctx, code)
 	if err != nil {
 		return nil, err
+	}
+	if !c.IsActive {
+		return nil, currency.ErrCurrencyNotFound
 	}
 	return toCurrencyModel(c), nil
 }
@@ -43,10 +47,9 @@ func (r *queryResolver) PresentmentCurrencies(ctx context.Context) ([]*model1.Pr
 	if err != nil {
 		return nil, err
 	}
-	const freshness = 7 * 24 * time.Hour
 	out := make([]*model1.PresentmentCurrency, 0, len(all))
 	for _, c := range all {
-		if c.Code == base.Code || c.RateUpdatedAt == nil || time.Since(*c.RateUpdatedAt) > freshness {
+		if c.Code == base.Code || c.RateUpdatedAt == nil || time.Since(*c.RateUpdatedAt) > presentmentRateFreshness {
 			continue
 		}
 		// Shared converter at 6-decimal precision, presentedMinor = round(baseMinor * factor) - pairs where either side has no usable rate are skipped

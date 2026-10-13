@@ -1,13 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 
-import { ForgotForm } from "@/app/components/auth/ForgotForm";
-import { LoginForm } from "@/app/components/auth/LoginForm";
-import { RegisterForm } from "@/app/components/auth/RegisterForm";
 import { Drawer } from "./Drawer";
 import { useAuthUI, type AuthView } from "./AuthUIProvider";
+
+// The forms carry zod and Conform, the heaviest thing in the storefront's client bundle - the drawer is
+// mounted on every page but opened on few, so they load on first open (or on hover of the trigger, see
+// preloadAuthForms) instead of with the page. The /account/login etc. pages import them statically
+const loadLogin = () => import("@/app/components/auth/LoginForm").then((m) => m.LoginForm);
+const loadRegister = () => import("@/app/components/auth/RegisterForm").then((m) => m.RegisterForm);
+const loadForgot = () => import("@/app/components/auth/ForgotForm").then((m) => m.ForgotForm);
+const formLoading = () => <div className="h-64" aria-busy="true" />;
+const LoginForm = dynamic(loadLogin, { loading: formLoading });
+const RegisterForm = dynamic(loadRegister, { loading: formLoading });
+const ForgotForm = dynamic(loadForgot, { loading: formLoading });
+
+export function preloadAuthForms(): void {
+  void loadLogin();
+  void loadRegister();
+  void loadForgot();
+}
 
 // auth.drawer message keys per view
 const TITLES = {
@@ -42,9 +57,14 @@ export function AuthSidebar() {
   // Captured on open rather than during render: window is server-undefined, and the value
   // has to be the location as it was when the drawer opened
   const [returnTo, setReturnTo] = useState<string | null>(null);
+  // Nothing inside renders until the first open, which is what keeps the forms off the page load -
+  // then it stays mounted, so the close animation and a half-typed form both survive
+  const [opened, setOpened] = useState(false);
   useEffect(() => {
+    if (!isOpen) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (isOpen) setReturnTo(currentReturnTo());
+    setReturnTo(currentReturnTo());
+    setOpened(true);
   }, [isOpen]);
 
   return (
@@ -55,40 +75,44 @@ export function AuthSidebar() {
       title={t(TITLES[view])}
       hideTitle
     >
-      <header className="flex flex-col gap-1 border-b border-border px-5 py-4">
-        <h2 className="text-lg font-semibold tracking-tight">
-          {t(TITLES[view])}
-        </h2>
-        <p className="text-xs text-muted-foreground">{t(SUBTITLES[view])}</p>
-        <div
-          role="tablist"
-          aria-label={t("tabs")}
-          className="mt-3 inline-flex rounded-md border border-border bg-background p-0.5 text-sm"
-        >
-          <TabButton
-            active={view === "login"}
-            onClick={() => setView("login")}
-          >
-            {tc("signIn")}
-          </TabButton>
-          <TabButton
-            active={view === "register"}
-            onClick={() => setView("register")}
-          >
-            {tc("register")}
-          </TabButton>
-        </div>
-      </header>
+      {opened ? (
+        <>
+          <header className="flex flex-col gap-1 border-b border-border px-5 py-4">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {t(TITLES[view])}
+            </h2>
+            <p className="text-xs text-muted-foreground">{t(SUBTITLES[view])}</p>
+            <div
+              role="tablist"
+              aria-label={t("tabs")}
+              className="mt-3 inline-flex rounded-md border border-border bg-background p-0.5 text-sm"
+            >
+              <TabButton
+                active={view === "login"}
+                onClick={() => setView("login")}
+              >
+                {tc("signIn")}
+              </TabButton>
+              <TabButton
+                active={view === "register"}
+                onClick={() => setView("register")}
+              >
+                {tc("register")}
+              </TabButton>
+            </div>
+          </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
-        {view === "login" ? (
-          <LoginForm returnTo={returnTo} onSwitchView={setView} />
-        ) : view === "register" ? (
-          <RegisterForm returnTo={returnTo} onSwitchView={setView} />
-        ) : (
-          <ForgotForm onSwitchView={setView} />
-        )}
-      </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            {view === "login" ? (
+              <LoginForm returnTo={returnTo} onSwitchView={setView} />
+            ) : view === "register" ? (
+              <RegisterForm returnTo={returnTo} onSwitchView={setView} />
+            ) : (
+              <ForgotForm onSwitchView={setView} />
+            )}
+          </div>
+        </>
+      ) : null}
     </Drawer>
   );
 }

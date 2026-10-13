@@ -1,13 +1,19 @@
 -- name: CreateCustomer :one
 -- customer_group_id falls back to the current default group, so a caller names one only when it
 -- means to - a customer.registering plugin routing the account, say
-INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, customer_group_id)
+INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id)
 VALUES (sqlc.arg(email), sqlc.arg(password_hash), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.arg(channel_id),
+        sqlc.arg(is_email_verified),
         COALESCE(sqlc.narg(customer_group_id)::uuid, (SELECT id FROM customer_groups WHERE is_default)))
 RETURNING *;
 
 -- name: GetCustomerByChannelAndEmail :one
-SELECT * FROM customers WHERE channel_id = $1 AND email = $2 LIMIT 1;
+-- Matches the way customers_store_email_lower_key enforces uniqueness, so the lookup rides that index
+SELECT * FROM customers WHERE channel_id = $1 AND lower(btrim(email)) = $2 LIMIT 1;
+
+-- name: GetCustomerByIDForUpdate :one
+-- Locks the row for a read-merge-write, so two admin edits can't each overwrite the other's fields
+SELECT * FROM customers WHERE id = $1 FOR UPDATE;
 
 -- name: GetCustomerByID :one
 SELECT * FROM customers WHERE id = $1 LIMIT 1;
@@ -16,26 +22,25 @@ SELECT * FROM customers WHERE id = $1 LIMIT 1;
 -- name: GetCustomersByIDs :many
 SELECT * FROM customers WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
--- name: ListCustomers :many
-SELECT * FROM customers ORDER BY created_at DESC;
-
 -- name: ListCustomersInChannels :many
-SELECT * FROM customers
-WHERE sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
-ORDER BY created_at DESC;
+SELECT sqlc.embed(c), sqlc.embed(g)
+FROM   customers c
+JOIN   customer_groups g ON g.id = c.customer_group_id
+WHERE  sqlc.arg(all_channels)::boolean OR c.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+ORDER  BY c.created_at DESC;
 
--- name: UpdateCustomer :one
+-- name: UpdateCustomer :execrows
 UPDATE customers
 SET first_name = $2, last_name = $3, phone = $4, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+WHERE id = $1;
 
 -- name: UpdateCustomerPassword :exec
 UPDATE customers SET password_hash = $2, updated_at = NOW() WHERE id = $1;
 
--- name: MarkCustomerEmailVerified :one
+-- name: MarkCustomerEmailVerified :execrows
+-- Only while the row still has the address that was proven - zero rows means it changed underneath
 UPDATE customers SET is_email_verified = TRUE, updated_at = NOW()
-WHERE id = $1 RETURNING *;
+WHERE id = sqlc.arg(id) AND email = sqlc.arg(email);
 
 -- name: CreateCustomerAdmin :one
 -- Admin-side create: accepts all admin-visible fields - caller must resolve
@@ -46,7 +51,7 @@ INSERT INTO customers (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
--- name: UpdateCustomerAdmin :one
+-- name: UpdateCustomerAdmin :exec
 -- Admin-side update: all fields, caller pre-merges with current values
 UPDATE customers
 SET email                       = $2,
@@ -61,24 +66,24 @@ SET email                       = $2,
     default_shipping_address_id = $11,
     metadata                    = $12,
     updated_at                  = NOW()
-WHERE id = $1
-RETURNING *;
+WHERE id = $1;
 
--- name: SetCustomerActive :one
+-- name: SetCustomerActive :execrows
 UPDATE customers SET is_active = $2, updated_at = NOW()
-WHERE id = $1 RETURNING *;
+WHERE id = $1;
 
--- name: SetDefaultBillingAddress :one
-UPDATE customers SET default_billing_address_id = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+-- name: SetDefaultBillingAddress :execrows
+-- Zero rows when the address isn't this customer's - the ownership check and the write are one statement
+UPDATE customers c SET default_billing_address_id = sqlc.arg(address_id), updated_at = NOW()
+WHERE  c.id = sqlc.arg(customer_id)
+  AND  EXISTS (SELECT 1 FROM addresses a WHERE a.id = sqlc.arg(address_id) AND a.customer_id = sqlc.arg(customer_id));
 
--- name: SetDefaultShippingAddress :one
-UPDATE customers SET default_shipping_address_id = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+-- name: SetDefaultShippingAddress :execrows
+UPDATE customers c SET default_shipping_address_id = sqlc.arg(address_id), updated_at = NOW()
+WHERE  c.id = sqlc.arg(customer_id)
+  AND  EXISTS (SELECT 1 FROM addresses a WHERE a.id = sqlc.arg(address_id) AND a.customer_id = sqlc.arg(customer_id));
 
--- name: DeleteCustomer :exec
+-- name: DeleteCustomer :execrows
 DELETE FROM customers WHERE id = $1;
 
 -- name: CreateAddress :one
@@ -87,20 +92,27 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetAddressByID :one
+-- Owner-blind, for the admin path that resolves the owner before its channel check - everything else reads through GetCustomerAddress
 SELECT * FROM addresses WHERE id = $1 LIMIT 1;
+
+-- name: GetCustomerAddress :one
+SELECT * FROM addresses WHERE id = $1 AND customer_id = $2;
 
 -- name: ListAddressesByCustomer :many
 SELECT * FROM addresses WHERE customer_id = $1 ORDER BY created_at ASC;
 
+-- name: CountAddressesByCustomer :one
+SELECT COUNT(*) FROM addresses WHERE customer_id = $1;
+
 -- name: UpdateAddress :one
 UPDATE addresses
-SET first_name = $2, last_name = $3, company = $4, street_1 = $5, street_2 = $6,
-    city = $7, state = $8, postal_code = $9, country_code = $10, phone = $11
-WHERE id = $1
+SET first_name = $3, last_name = $4, company = $5, street_1 = $6, street_2 = $7,
+    city = $8, state = $9, postal_code = $10, country_code = $11, phone = $12
+WHERE id = $1 AND customer_id = $2
 RETURNING *;
 
--- name: DeleteAddress :exec
-DELETE FROM addresses WHERE id = $1;
+-- name: DeleteAddress :execrows
+DELETE FROM addresses WHERE id = $1 AND customer_id = $2;
 
 -- --- customer_groups ---
 
@@ -111,7 +123,8 @@ INSERT INTO customer_groups (name, slug, description) VALUES ($1, $2, $3) RETURN
 UPDATE customer_groups SET name = $2, description = $3 WHERE id = $1 RETURNING *;
 
 -- name: DeleteCustomerGroup :exec
-DELETE FROM customer_groups WHERE id = $1;
+-- Only a non-default group goes - a group made default since it was read is left alone
+DELETE FROM customer_groups WHERE id = $1 AND NOT is_default;
 
 -- name: GetCustomerGroupByID :one
 SELECT * FROM customer_groups WHERE id = $1;
@@ -142,26 +155,25 @@ UPDATE customer_groups SET is_default = FALSE WHERE is_default = TRUE;
 -- name: MarkCustomerGroupDefault :exec
 UPDATE customer_groups SET is_default = TRUE WHERE id = $1;
 
--- name: SetCustomerGroup :one
-UPDATE customers SET customer_group_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+-- name: SetCustomerGroup :execrows
+UPDATE customers SET customer_group_id = $2, updated_at = NOW() WHERE id = $1;
 
--- name: SetCustomerTaxStatus :one
+-- name: SetCustomerTaxStatus :execrows
 UPDATE customers
 SET tax_exempt = $2, tax_exemption_note = $3, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+WHERE id = $1;
 
--- name: SetCustomerVatID :one
+-- name: SetCustomerVatID :execrows
 UPDATE customers
 SET vat_id = $2, vat_id_status = $3, vat_id_checked_at = NOW(), updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+WHERE id = $1;
 
 -- name: ListCustomersPaged :many
 -- Server-side page for the admin list - ListCustomers returns the WHOLE table, which the dashboard then paged and searched in the browser - fine at seed scale, a hung tab and an ~80MB response at 200k customers Channel scoping is applied here rather than post-filtered in the resolver, or LIMIT would be taken before the permission filter and pages would come back short with holes
-SELECT c.*, COUNT(*) OVER () AS total_count
+-- The group rides the same join the slug filter needs, and search is a pattern the caller has already escaped (the trigram indexes back it)
+SELECT sqlc.embed(c), sqlc.embed(g), COUNT(*) OVER () AS total_count
 FROM   customers c
-LEFT   JOIN customer_groups g ON g.id = c.customer_group_id
+JOIN   customer_groups g ON g.id = c.customer_group_id
 WHERE  (sqlc.arg(all_channels)::boolean OR c.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
   AND  (sqlc.arg(search)::text = '' OR
         c.email ILIKE '%' || sqlc.arg(search)::text || '%' OR

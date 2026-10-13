@@ -20,6 +20,7 @@ const addProductToCategory = `-- name: AddProductToCategory :exec
 
 INSERT INTO catalog_product_categories (product_id, category_id, position, is_primary)
 VALUES ($1, $2, $3, $4)
+ON CONFLICT (product_id, category_id) DO UPDATE SET position = EXCLUDED.position
 `
 
 type AddProductToCategoryParams struct {
@@ -30,6 +31,7 @@ type AddProductToCategoryParams struct {
 }
 
 // ==================== Product-Category junction ====================
+// Re-adding a member moves it - is_primary is left alone, SetPrimaryProductCategory owns it
 func (q *Queries) AddProductToCategory(ctx context.Context, arg AddProductToCategoryParams) error {
 	_, err := q.db.ExecContext(ctx, addProductToCategory,
 		arg.ProductID,
@@ -38,6 +40,30 @@ func (q *Queries) AddProductToCategory(ctx context.Context, arg AddProductToCate
 		arg.IsPrimary,
 	)
 	return err
+}
+
+const categorySubtreeHeight = `-- name: CategorySubtreeHeight :one
+WITH RECURSIVE subtree(id, depth) AS (
+    SELECT c.id, 0 FROM catalog_categories c WHERE c.id = $1::uuid
+    UNION ALL
+    SELECT c.id, s.depth + 1
+    FROM catalog_categories c
+    JOIN subtree s ON c.parent_id = s.id
+    WHERE s.depth < $2::int
+)
+SELECT COALESCE(MAX(depth), 0)::int FROM subtree
+`
+
+type CategorySubtreeHeightParams struct {
+	ID       uuid.UUID `json:"id"`
+	MaxDepth int32     `json:"max_depth"`
+}
+
+func (q *Queries) CategorySubtreeHeight(ctx context.Context, arg CategorySubtreeHeightParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, categorySubtreeHeight, arg.ID, arg.MaxDepth)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const clearCategoryCover = `-- name: ClearCategoryCover :one
@@ -84,22 +110,28 @@ func (q *Queries) ClearCategoryCover(ctx context.Context, id uuid.UUID) (Catalog
 
 const confirmCategoryCover = `-- name: ConfirmCategoryCover :one
 UPDATE catalog_categories
-SET cover_width  = $2,
-    cover_height = $3,
+SET cover_width  = $1,
+    cover_height = $2,
     cover_status = 'ready',
     updated_at   = NOW()
-WHERE id = $1
+WHERE id = $3 AND cover_id = $4 AND cover_status = 'pending'
 RETURNING id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
 `
 
 type ConfirmCategoryCoverParams struct {
-	ID          uuid.UUID     `json:"id"`
 	CoverWidth  sql.NullInt32 `json:"cover_width"`
 	CoverHeight sql.NullInt32 `json:"cover_height"`
+	ID          uuid.UUID     `json:"id"`
+	CoverID     uuid.NullUUID `json:"cover_id"`
 }
 
 func (q *Queries) ConfirmCategoryCover(ctx context.Context, arg ConfirmCategoryCoverParams) (CatalogCategory, error) {
-	row := q.db.QueryRowContext(ctx, confirmCategoryCover, arg.ID, arg.CoverWidth, arg.CoverHeight)
+	row := q.db.QueryRowContext(ctx, confirmCategoryCover,
+		arg.CoverWidth,
+		arg.CoverHeight,
+		arg.ID,
+		arg.CoverID,
+	)
 	var i CatalogCategory
 	err := row.Scan(
 		&i.ID,
@@ -146,6 +178,41 @@ func (q *Queries) CountProductsByCategory(ctx context.Context) ([]CountProductsB
 	items := []CountProductsByCategoryRow{}
 	for rows.Next() {
 		var i CountProductsByCategoryRow
+		if err := rows.Scan(&i.CategoryID, &i.ProductCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countProductsByCategoryIDs = `-- name: CountProductsByCategoryIDs :many
+SELECT category_id, COUNT(*) AS product_count
+FROM catalog_product_categories
+WHERE category_id = ANY($1::uuid[])
+GROUP BY category_id
+`
+
+type CountProductsByCategoryIDsRow struct {
+	CategoryID   uuid.UUID `json:"category_id"`
+	ProductCount int64     `json:"product_count"`
+}
+
+func (q *Queries) CountProductsByCategoryIDs(ctx context.Context, categoryIds []uuid.UUID) ([]CountProductsByCategoryIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countProductsByCategoryIDs, pq.Array(categoryIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountProductsByCategoryIDsRow{}
+	for rows.Next() {
+		var i CountProductsByCategoryIDsRow
 		if err := rows.Scan(&i.CategoryID, &i.ProductCount); err != nil {
 			return nil, err
 		}
@@ -496,41 +563,6 @@ func (q *Queries) ListCatalogCategoryChannelListings(ctx context.Context, catego
 	return items, nil
 }
 
-const listCatalogCategoryChannelListingsByCategoryIDs = `-- name: ListCatalogCategoryChannelListingsByCategoryIDs :many
-SELECT category_id, channel_id, is_published, sort_order_override, created_at, updated_at FROM catalog_category_channel_listings
-WHERE category_id = ANY($1::uuid[])
-`
-
-func (q *Queries) ListCatalogCategoryChannelListingsByCategoryIDs(ctx context.Context, categoryIds []uuid.UUID) ([]CatalogCategoryChannelListing, error) {
-	rows, err := q.db.QueryContext(ctx, listCatalogCategoryChannelListingsByCategoryIDs, pq.Array(categoryIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CatalogCategoryChannelListing{}
-	for rows.Next() {
-		var i CatalogCategoryChannelListing
-		if err := rows.Scan(
-			&i.CategoryID,
-			&i.ChannelID,
-			&i.IsPublished,
-			&i.SortOrderOverride,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listCategoriesByProduct = `-- name: ListCategoriesByProduct :many
 SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, pc.is_primary AS pc_is_primary
 FROM catalog_product_categories pc
@@ -771,7 +803,7 @@ WITH RECURSIVE chain(id, parent_id, depth) AS (
     SELECT p.id, p.parent_id, chain.depth + 1
     FROM catalog_categories p
     JOIN chain ON p.id = chain.parent_id
-    WHERE chain.depth < 64
+    WHERE chain.depth < $2::int
 )
 SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at
 FROM chain
@@ -779,9 +811,14 @@ JOIN catalog_categories c ON c.id = chain.id
 ORDER BY chain.depth
 `
 
+type ListCategoryChainParams struct {
+	ID       uuid.UUID `json:"id"`
+	MaxDepth int32     `json:"max_depth"`
+}
+
 // The category (depth 0) and its ancestors nearest first - the depth cap stops a parent cycle recursing forever
-func (q *Queries) ListCategoryChain(ctx context.Context, id uuid.UUID) ([]CatalogCategory, error) {
-	rows, err := q.db.QueryContext(ctx, listCategoryChain, id)
+func (q *Queries) ListCategoryChain(ctx context.Context, arg ListCategoryChainParams) ([]CatalogCategory, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryChain, arg.ID, arg.MaxDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -1119,39 +1156,42 @@ func (q *Queries) ListCategoryFacetOverrides(ctx context.Context, categoryID uui
 }
 
 const listFullyVisibleCategoryIDsForChannelFiltered = `-- name: ListFullyVisibleCategoryIDsForChannelFiltered :many
-WITH RECURSIVE chain(origin_id, cur_id, parent_id) AS (
-    SELECT c.id, c.id, c.parent_id
+WITH RECURSIVE chain(origin_id, cur_id, parent_id, depth) AS (
+    SELECT c.id, c.id, c.parent_id, 0
       FROM catalog_categories c
      WHERE c.id = ANY($1::uuid[])
   UNION ALL
-    SELECT ch.origin_id, c.id, c.parent_id
+    SELECT ch.origin_id, c.id, c.parent_id, ch.depth + 1
       FROM catalog_categories c
       JOIN chain ch ON c.id = ch.parent_id
+     WHERE ch.depth < $2::int
 ),
 chain_visibility AS (
     SELECT ch.origin_id,
            (cc.is_published
-            AND COALESCE(l.is_published, FALSE)) AS visible
+            AND COALESCE(l.is_published, FALSE)) AS visible,
+           ch.parent_id IS NULL AS at_root
       FROM chain ch
       JOIN catalog_categories cc ON cc.id = ch.cur_id
       LEFT JOIN catalog_category_channel_listings l
         ON l.category_id = ch.cur_id
-       AND l.channel_id = $2::uuid
+       AND l.channel_id = $3::uuid
 )
 SELECT origin_id
   FROM chain_visibility
 GROUP BY origin_id
-HAVING bool_and(visible) = TRUE
+HAVING bool_and(visible) = TRUE AND bool_or(at_root) = TRUE
 `
 
 type ListFullyVisibleCategoryIDsForChannelFilteredParams struct {
 	CategoryIds []uuid.UUID `json:"category_ids"`
+	MaxDepth    int32       `json:"max_depth"`
 	ChannelID   uuid.UUID   `json:"channel_id"`
 }
 
-// Strict-chain filter for breadcrumb/parent enforcement - returns the subset of candidates where the category AND every ancestor up to the root is listed-and-published on the store - implemented as a recursive CTE walking parent_id; outer aggregation keeps only origins whose entire chain evaluated to visible=TRUE
+// Strict-chain filter for breadcrumb/parent enforcement - returns the subset of candidates where the category AND every ancestor up to the root is listed-and-published on the store - implemented as a recursive CTE walking parent_id; outer aggregation keeps only origins whose entire chain evaluated to visible=TRUE and actually reached a root, so a capped parent cycle reads as hidden
 func (q *Queries) ListFullyVisibleCategoryIDsForChannelFiltered(ctx context.Context, arg ListFullyVisibleCategoryIDsForChannelFilteredParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, listFullyVisibleCategoryIDsForChannelFiltered, pq.Array(arg.CategoryIds), arg.ChannelID)
+	rows, err := q.db.QueryContext(ctx, listFullyVisibleCategoryIDsForChannelFiltered, pq.Array(arg.CategoryIds), arg.MaxDepth, arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -1249,12 +1289,13 @@ func (q *Queries) ListPrimaryCategoryByProductIDs(ctx context.Context, productId
 }
 
 const listProductIDsInPrimaryCategoryDescendants = `-- name: ListProductIDsInPrimaryCategoryDescendants :many
-WITH RECURSIVE subtree(id) AS (
-    SELECT cc.id FROM catalog_categories cc WHERE cc.id = $1
+WITH RECURSIVE subtree(id, depth) AS (
+    SELECT cc.id, 0 FROM catalog_categories cc WHERE cc.id = $1::uuid
     UNION ALL
-    SELECT cc.id
+    SELECT cc.id, s.depth + 1
     FROM catalog_categories cc
     JOIN subtree s ON cc.parent_id = s.id
+    WHERE s.depth < $2::int
 )
 SELECT DISTINCT pc.product_id
 FROM catalog_product_categories pc
@@ -1262,9 +1303,14 @@ JOIN subtree s ON pc.category_id = s.id
 WHERE pc.is_primary = TRUE
 `
 
+type ListProductIDsInPrimaryCategoryDescendantsParams struct {
+	ID       uuid.UUID `json:"id"`
+	MaxDepth int32     `json:"max_depth"`
+}
+
 // Recursive CTE: walks every descendant of the root category (inclusive of the root itself), then projects to products that hold ANY of those categories as their primary - used by UpdateCategory to cascade url_path regen to products whose templated URL depends on the category's prefix
-func (q *Queries) ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, listProductIDsInPrimaryCategoryDescendants, id)
+func (q *Queries) ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, arg ListProductIDsInPrimaryCategoryDescendantsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listProductIDsInPrimaryCategoryDescendants, arg.ID, arg.MaxDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -1363,6 +1409,7 @@ FROM catalog_categories c
 JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
   AND c.is_published = TRUE
+ORDER BY COALESCE(ccsl.sort_order_override, c.position), c.slug
 `
 
 type ListPublishedCategoriesForChannelRow struct {
@@ -1440,6 +1487,7 @@ JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
   AND c.is_published = TRUE
   AND c.parent_id = $2
+ORDER BY COALESCE(ccsl.sort_order_override, c.position), c.slug
 `
 
 type ListPublishedCategoryChildrenForChannelParams struct {
@@ -1560,6 +1608,7 @@ JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
   AND c.is_published = TRUE
   AND c.parent_id IS NULL
+ORDER BY COALESCE(ccsl.sort_order_override, c.position), c.slug
 `
 
 type ListPublishedRootCategoriesForChannelRow struct {
@@ -1676,6 +1725,48 @@ func (q *Queries) ListRootCategories(ctx context.Context) ([]CatalogCategory, er
 	return items, nil
 }
 
+const lockCategoryByID = `-- name: LockCategoryByID :one
+SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE id = $1 FOR UPDATE
+`
+
+// Row lock for delete - a child insert or a product assignment needs a KEY SHARE on this row, so they wait until the delete decides
+func (q *Queries) LockCategoryByID(ctx context.Context, id uuid.UUID) (CatalogCategory, error) {
+	row := q.db.QueryRowContext(ctx, lockCategoryByID, id)
+	var i CatalogCategory
+	err := row.Scan(
+		&i.ID,
+		&i.ParentID,
+		&i.Slug,
+		&i.UrlPath,
+		&i.Position,
+		&i.IsPublished,
+		&i.SeoNoindex,
+		&i.CoverID,
+		&i.CoverS3Key,
+		&i.CoverMimeType,
+		&i.CoverSizeBytes,
+		&i.CoverWidth,
+		&i.CoverHeight,
+		&i.CoverStatus,
+		&i.CoverAlt,
+		&i.Metadata,
+		&i.PrivateMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockCategoryTree = `-- name: LockCategoryTree :exec
+SELECT pg_advisory_xact_lock(hashtext('catalog_categories.tree'))
+`
+
+// Serializes re-parenting so two concurrent moves can't each pass the cycle check and close a loop together
+func (q *Queries) LockCategoryTree(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, lockCategoryTree)
+	return err
+}
+
 const removeProductFromCategory = `-- name: RemoveProductFromCategory :execrows
 DELETE FROM catalog_product_categories WHERE product_id = $1 AND category_id = $2
 `
@@ -1691,6 +1782,67 @@ func (q *Queries) RemoveProductFromCategory(ctx context.Context, arg RemoveProdu
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const rewriteCategorySubtreeURLPaths = `-- name: RewriteCategorySubtreeURLPaths :many
+WITH RECURSIVE subtree(id, old_path, new_path, depth) AS (
+    SELECT c.id, c.url_path, $1::text, 0
+    FROM catalog_categories c WHERE c.id = $2::uuid
+    UNION ALL
+    SELECT c.id, c.url_path, s.new_path || '/' || c.slug, s.depth + 1
+    FROM catalog_categories c
+    JOIN subtree s ON c.parent_id = s.id
+    WHERE s.depth < $3::int
+)
+UPDATE catalog_categories c
+SET url_path = s.new_path, updated_at = NOW()
+FROM subtree s
+WHERE c.id = s.id AND c.url_path <> s.new_path
+RETURNING c.id, c.slug, c.parent_id, s.old_path::text AS old_path, s.new_path::text AS new_path
+`
+
+type RewriteCategorySubtreeURLPathsParams struct {
+	UrlPath  string    `json:"url_path"`
+	ID       uuid.UUID `json:"id"`
+	MaxDepth int32     `json:"max_depth"`
+}
+
+type RewriteCategorySubtreeURLPathsRow struct {
+	ID       uuid.UUID     `json:"id"`
+	Slug     string        `json:"slug"`
+	ParentID uuid.NullUUID `json:"parent_id"`
+	OldPath  string        `json:"old_path"`
+	NewPath  string        `json:"new_path"`
+}
+
+// One set-based pass over the moved category and every descendant, returning each path that changed - the depth cap stops a parent cycle recursing forever
+func (q *Queries) RewriteCategorySubtreeURLPaths(ctx context.Context, arg RewriteCategorySubtreeURLPathsParams) ([]RewriteCategorySubtreeURLPathsRow, error) {
+	rows, err := q.db.QueryContext(ctx, rewriteCategorySubtreeURLPaths, arg.UrlPath, arg.ID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RewriteCategorySubtreeURLPathsRow{}
+	for rows.Next() {
+		var i RewriteCategorySubtreeURLPathsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.ParentID,
+			&i.OldPath,
+			&i.NewPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setCategoryCover = `-- name: SetCategoryCover :one

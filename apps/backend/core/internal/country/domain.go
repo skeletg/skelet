@@ -18,6 +18,17 @@ const (
 	CfgAllowOptionalState = "general/country/allow_optional_state"
 	CfgTopDestinations    = "general/country/top_destinations"
 	CfgEUCountries        = "general/country/eu_countries"
+
+	// The config option source the country pickers read from
+	OptionSource = "countries"
+)
+
+// The settings that name country codes - a deleted country is taken out of each
+var codeSettings = []string{CfgAllowedCountries, CfgDefaultCountry, CfgRequiredRegion, CfgTopDestinations, CfgEUCountries}
+
+const (
+	maxMetadataKeys        = 50
+	maxMetadataValueLength = 1024
 )
 
 func init() {
@@ -39,12 +50,12 @@ func init() {
 
 	// Per-channel country options, grouped under the existing "general" section owned by config - the multiselects pull options from the "countries" source registered in main.go, and they're public so the storefront can read channel-scoped values
 	config.RegisterGroup(config.Group{Section: "general", Slug: "country", Label: "Country Options", SortOrder: 4, Scoping: config.ScopingChannel})
-	config.Register(config.Definition{Path: CfgAllowedCountries, Type: config.TypeMultiselect, Label: "Allowed countries", Public: true, Source: "countries"})
-	config.Register(config.Definition{Path: CfgDefaultCountry, Type: config.TypeSelect, Label: "Default country", Public: true, Source: "countries"})
-	config.Register(config.Definition{Path: CfgRequiredRegion, Type: config.TypeMultiselect, Label: "Countries requiring a region/state", Public: true, Source: "countries"})
+	config.Register(config.Definition{Path: CfgAllowedCountries, Type: config.TypeMultiselect, Label: "Allowed countries", Public: true, Source: OptionSource})
+	config.Register(config.Definition{Path: CfgDefaultCountry, Type: config.TypeSelect, Label: "Default country", Public: true, Source: OptionSource})
+	config.Register(config.Definition{Path: CfgRequiredRegion, Type: config.TypeMultiselect, Label: "Countries requiring a region/state", Public: true, Source: OptionSource})
 	config.Register(config.Definition{Path: CfgAllowOptionalState, Type: config.TypeBool, Default: "false", Label: "Show optional state field", Public: true})
-	config.Register(config.Definition{Path: CfgTopDestinations, Type: config.TypeMultiselect, Label: "Top destinations", Public: true, Source: "countries"})
-	config.Register(config.Definition{Path: CfgEUCountries, Type: config.TypeMultiselect, Label: "EU countries (VAT grouping)", Public: true, Source: "countries"})
+	config.Register(config.Definition{Path: CfgTopDestinations, Type: config.TypeMultiselect, Label: "Top destinations", Public: true, Source: OptionSource})
+	config.Register(config.Definition{Path: CfgEUCountries, Type: config.TypeMultiselect, Label: "EU countries (VAT grouping)", Public: true, Source: OptionSource})
 }
 
 // One ISO 3166-1 alpha-2 code with display and presentation hints - DefaultCurrencyCode is a soft FK to currencies(code), set to NULL on currency delete, unlike the RESTRICT policy everywhere else
@@ -103,6 +114,8 @@ var (
 	ErrCountryCodeTaken = errors.New("country code already exists")
 	ErrCountryInUse     = errors.New("country has references; cannot delete")
 	ErrInvalidCode      = errors.New("invalid ISO 3166-1 alpha-2 country code")
+	ErrNameRequired     = errors.New("country name is required")
+	ErrMetadataTooLarge = errors.New("country metadata is too large")
 
 	ErrCountryNotAllowed = errors.New("country not available for this store")
 	ErrRegionRequired    = errors.New("region/state is required for this country")

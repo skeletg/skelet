@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,28 +15,59 @@ import (
 // Price=nil expresses inheritance from the product's default price, and the inheritance rule (currency match) is enforced here so an inheriting listing always has a coherent currency
 func (s *listingService) SetProductListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error) {
 	input.URL = normalizeListingOverride(input.URL)
-	if input.Price == nil {
-		product, err := s.repo.GetProductByID(ctx, input.ProductID)
-		if err != nil {
-			return ProductChannelListing{}, err
-		}
-		store, err := s.channelSvc.GetByID(ctx, input.ChannelID)
-		if err != nil {
-			return ProductChannelListing{}, err
-		}
-		if store.CurrencyCode != product.DefaultCurrencyCode {
-			return ProductChannelListing{}, ErrListingCurrencyMismatch
+	for name, v := range map[string]*int64{"price": input.Price, "compare_at_price": input.CompareAtPrice, "special_price": input.SpecialPrice} {
+		if v != nil && *v < 0 {
+			return ProductChannelListing{}, fmt.Errorf("%w: %s", ErrNegativePrice, name)
 		}
 	}
-	var oldURL *string
-	if prev, err := s.repo.GetProductChannelListing(ctx, input.ProductID, input.ChannelID); err == nil {
-		oldURL = prev.URL
+	if input.Price == nil {
+		if err := s.requireInheritableCurrency(ctx, input.ProductID, input.ChannelID); err != nil {
+			return ProductChannelListing{}, err
+		}
 	}
 	listing, err := s.repo.UpsertProductChannelListing(ctx, input)
 	if err != nil {
 		return ProductChannelListing{}, err
 	}
-	s.forgetChannelPaths(ctx, input.ChannelID, oldURL, listing.URL)
+	s.forgetChannelPaths(ctx, input.ChannelID)
+	s.publishListingChanged(ctx, listing)
+	return listing, nil
+}
+
+// SetProductListingPublished flips only is_published - a new row inherits the product price, so it must pass the currency rule
+func (s *listingService) SetProductListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error) {
+	if _, err := s.repo.GetProductChannelListing(ctx, productID, channelID); errors.Is(err, ErrListingNotFound) {
+		if err := s.requireInheritableCurrency(ctx, productID, channelID); err != nil {
+			return ProductChannelListing{}, err
+		}
+	} else if err != nil {
+		return ProductChannelListing{}, err
+	}
+	listing, err := s.repo.UpsertProductChannelListingPublished(ctx, productID, channelID, published)
+	if err != nil {
+		return ProductChannelListing{}, err
+	}
+	s.forgetChannelPaths(ctx, channelID)
+	s.publishListingChanged(ctx, listing)
+	return listing, nil
+}
+
+func (s *listingService) requireInheritableCurrency(ctx context.Context, productID, channelID uuid.UUID) error {
+	product, err := s.repo.GetProductByID(ctx, productID)
+	if err != nil {
+		return err
+	}
+	store, err := s.channelSvc.GetByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if store.CurrencyCode != product.DefaultCurrencyCode {
+		return ErrListingCurrencyMismatch
+	}
+	return nil
+}
+
+func (s *listingService) publishListingChanged(ctx context.Context, listing ProductChannelListing) {
 	if s.bus != nil {
 		s.bus.Publish(ctx, &ProductListingChanged{
 			ProductID:   listing.ProductID,
@@ -44,7 +76,6 @@ func (s *listingService) SetProductListing(ctx context.Context, input ProductCha
 			Cleared:     false,
 		})
 	}
-	return listing, nil
 }
 
 // Blank input collapses to nil ("inherit") and leading slashes are stripped so stored paths match the rewrite convention
@@ -59,53 +90,57 @@ func normalizeListingOverride(p *string) *string {
 	return &v
 }
 
-// ErrListingNotFound when this channel has no override matching the path - the caller then falls back to the global url_rewrites / slug lookup
+// ErrListingNotFound when this channel has no published override matching the path - the caller then falls back to the global url_rewrites / slug lookup
 func (s *listingService) ResolveProductIDForChannelPath(ctx context.Context, channelID uuid.UUID, path string) (uuid.UUID, error) {
 	path = strings.Trim(strings.TrimSpace(path), "/")
-	if path == "" {
-		return uuid.Nil, ErrListingNotFound
+	if path == "" || len(path) > maxChannelPathLen {
+		return uuid.Nil, ErrListingNotFound // an over-long path can't be a stored override, and caching it would let random paths flood the negative cache
 	}
-	key := channelPathKey(channelID, path)
-	if s.channelPathCache != nil {
-		if hit, ok := cache.GetJSON[cachedChannelPath](ctx, s.channelPathCache, key); ok {
-			if hit.NotFound {
-				return uuid.Nil, ErrListingNotFound
-			}
-			if id, err := uuid.Parse(hit.ProductID); err == nil {
-				return id, nil
-			}
+	if s.channelPathCache == nil {
+		return s.resolveChannelPathUncached(ctx, channelID, path)
+	}
+	// The version is read BEFORE the database, so a write that commits in between bumps it and this fill lands under a key nobody reads
+	key := channelPathKey(channelID, s.channelPathVersion(ctx, channelID), path)
+	if hit, ok := cache.GetJSON[cachedChannelPath](ctx, s.channelPathCache, key); ok {
+		if hit.NotFound {
+			return uuid.Nil, ErrListingNotFound
+		}
+		if id, err := uuid.Parse(hit.ProductID); err == nil {
+			return id, nil
 		}
 	}
 	id, err := s.resolveChannelPathUncached(ctx, channelID, path)
-	if s.channelPathCache != nil {
-		if errors.Is(err, ErrListingNotFound) {
-			s.channelPathCache.SetJSON(ctx, key, cachedChannelPath{NotFound: true}, channelPathNotFoundCacheTTL)
-		} else if err == nil {
-			s.channelPathCache.SetJSON(ctx, key, cachedChannelPath{ProductID: id.String()}, channelPathCacheTTL)
-		}
+	if errors.Is(err, ErrListingNotFound) {
+		s.channelPathCache.SetJSON(ctx, key, cachedChannelPath{NotFound: true}, channelPathNotFoundCacheTTL)
+	} else if err == nil {
+		s.channelPathCache.SetJSON(ctx, key, cachedChannelPath{ProductID: id.String()}, channelPathCacheTTL)
 	}
 	return id, err
 }
 
-// A moved override must stop resolving at once, and a new one must not stay hidden behind a cached miss
-func (s *listingService) forgetChannelPaths(ctx context.Context, channelID uuid.UUID, paths ...*string) {
+func (s *listingService) forgetChannelPaths(ctx context.Context, channelID uuid.UUID) {
 	if s.channelPathCache == nil {
 		return
 	}
-	for _, p := range paths {
-		if p != nil && *p != "" {
-			s.channelPathCache.Del(ctx, channelPathKey(channelID, *p))
-		}
-	}
+	s.channelPathCache.SetJSON(ctx, channelPathVersionKey(channelID), uuid.NewString(), channelPathVersionTTL)
 }
 
-func channelPathKey(channelID uuid.UUID, path string) string {
-	return "p:" + channelID.String() + ":" + strings.Trim(strings.TrimSpace(path), "/")
+func (s *listingService) channelPathVersion(ctx context.Context, channelID uuid.UUID) string {
+	v, _ := cache.GetJSON[string](ctx, s.channelPathCache, channelPathVersionKey(channelID))
+	return v
+}
+
+func channelPathVersionKey(channelID uuid.UUID) string { return "pv:" + channelID.String() }
+
+func channelPathKey(channelID uuid.UUID, version, path string) string {
+	return "p:" + channelID.String() + ":" + version + ":" + path
 }
 
 const (
 	channelPathCacheTTL         = 15 * time.Minute
 	channelPathNotFoundCacheTTL = 5 * time.Minute
+	channelPathVersionTTL       = 24 * time.Hour // outlives every entry, so an expired version can't resurrect one
+	maxChannelPathLen           = 512
 )
 
 type cachedChannelPath struct { // the Valkey value for a channel pretty-URL lookup - either the resolved product id or a negative marker
@@ -119,14 +154,10 @@ func (s *listingService) resolveChannelPathUncached(ctx context.Context, channel
 
 // Removing the listing un-publishes the product on that store
 func (s *listingService) ClearProductListing(ctx context.Context, productID, channelID uuid.UUID) error {
-	var oldURL *string
-	if prev, err := s.repo.GetProductChannelListing(ctx, productID, channelID); err == nil {
-		oldURL = prev.URL
-	}
 	if err := s.repo.DeleteProductChannelListing(ctx, productID, channelID); err != nil {
 		return err
 	}
-	s.forgetChannelPaths(ctx, channelID, oldURL)
+	s.forgetChannelPaths(ctx, channelID)
 	if s.bus != nil {
 		s.bus.Publish(ctx, &ProductListingChanged{
 			ProductID:   productID,
@@ -152,16 +183,4 @@ func (s *listingService) ListProductChannelListingsByProductIDsForChannel(ctx co
 
 func (s *listingService) ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error) {
 	return s.repo.ListProductChannelListingsByChannel(ctx, channelID)
-}
-
-func (s *listingService) GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error) {
-	return s.repo.GetProductChannelListing(ctx, productID, channelID)
-}
-
-func (s *listingService) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) { // backs the channel-update guard
-	return s.repo.CountInheritingListingsForChannel(ctx, channelID)
-}
-
-func (s *listingService) CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx context.Context, newCurrency string) (int64, error) { // backs the global default-currency guard
-	return s.repo.CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx, newCurrency)
 }

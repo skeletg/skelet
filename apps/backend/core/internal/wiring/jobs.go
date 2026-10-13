@@ -13,11 +13,11 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/core/internal/authstore"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
@@ -29,12 +29,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	paymentpkg "github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -60,9 +62,10 @@ type jobDeps struct {
 	LinkGraph     *linkgraph.Service
 	Webhook       *webhook.Service
 	Catalog       *catalog.Service
+	Recommend     *recommend.Service
 	MediaLibrary  *medialibrary.Service
 	Subscription  *subscription.Service
-	Chat          *chat.Service
+	Chat          *ai.History
 	AI            *ai.Service
 	Review        *review.Service
 	Flows         *enroll.Enroller
@@ -78,6 +81,7 @@ type jobDeps struct {
 	SignalsClient *signalsclient.Client
 	Order         *order.Service
 	Payment       *paymentpkg.Service
+	Form          *signupform.Service
 
 	SignalsEnabled SignalsEnabled
 }
@@ -151,7 +155,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		})
 	// The reconciliation half of redirect/BNPL flows - a shopper who closes the tab mid-3DS leaves an unpaid order no webhook will ever settle, so this asks the gateway directly and applies the answer through the same amount-aware settle path the webhooks use
 	jobScheduler.Register("payment-sync-sweep", "@every 15m", "Ask gateways where stuck unpaid gateway payments stand (abandoned redirect/3DS flows) and settle what they report.",
-		func(ctx context.Context) error { return sweepUnsettledPayments(ctx, d.Order, d.Payment) })
+		func(ctx context.Context) error { return SweepUnsettledPayments(ctx, d.Order, d.Payment) })
 	jobScheduler.Register("subscription-billing", "@every 1m", "Bill subscriptions whose next billing date has passed.",
 		func(ctx context.Context) error { _, err := d.Subscription.ProcessDue(ctx, time.Now()); return err })
 	jobScheduler.Register("subscription-collect", "@every 1m", "Charge due subscription invoices against saved payment methods (dunning ladder on failure).",
@@ -162,6 +166,8 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		func(ctx context.Context) error { _, err := d.CMS.PromoteDuePages(ctx); return err })
 	jobScheduler.Register("cache-rebuild", "@every 10s", "Drain the page-rebuild queue, warming pages with bounded concurrency.",
 		func(ctx context.Context) error { _, err := d.CacheQueue.ProcessDue(ctx, 25, 5); return err })
+	jobScheduler.Register("signup-confirmations-prune", "@every 24h", "Delete signup-form confirmation links that expired unconfirmed.",
+		func(ctx context.Context) error { _, err := d.Form.PruneConfirmations(ctx); return err })
 	jobScheduler.Register("cache-rebuild-prune", "@every 6h", "Delete finished (done/failed) page-rebuild tasks older than 7 days.",
 		func(ctx context.Context) error { _, err := d.CacheQueue.Prune(ctx, 7*24*time.Hour); return err })
 	jobScheduler.Register("data-transfer-sweep", "@every 1h", "Delete import/export files past their retention window, and prune long-finished job rows. The rows outlive their files so the history stays readable.",
@@ -182,15 +188,9 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	jobScheduler.RegisterDisabled("seo-crawl-nightly", "0 3 * * *", "Crawl each storefront that opted in, then compare the result with the previous crawl and notify on regressions.",
 		nightlyCrawl(seoCrawlDeps{Crawl: d.SiteCrawl, Graph: d.LinkGraph, Config: d.Config, Notification: d.Notification}))
 	jobScheduler.Register("also-bought-rebuild", "@every 24h", "Recompute the customers-also-bought co-occurrence table from order history.",
-		func(ctx context.Context) error { return d.Catalog.RebuildAlsoBought(ctx) })
+		func(ctx context.Context) error { return d.Recommend.RebuildAlsoBought(ctx) })
 	jobScheduler.Register("currency-rates", "@every 12h", "Refresh currency exchange rates from ECB (frankfurter.dev) against the platform base currency.",
-		func(ctx context.Context) error {
-			base, _ := d.Config.GetString(ctx, "general/store_information/currency_list", config.DefaultScope)
-			if base == "" {
-				base = "USD"
-			}
-			return d.Currency.RefreshRates(ctx, base)
-		})
+		func(ctx context.Context) error { return refreshCurrencyRates(ctx, d.Config, d.Currency) })
 	// Both engines run in the suite - core keeps the cadence, the run history and the operator's run-now button
 	// Each tick drains for most of its minute, and the job lease holds the next tick behind it
 	signalsJob("campaign-send", "@every 1m", "Materialize + send due email campaigns to their audiences.",
@@ -249,19 +249,15 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			}
 			return runBrowseAbandonment(ctx, channels, d.Config, d.SignalsClient, d.Queries, d.Flows, time.Now())
 		})
-	// Postgres has no TTL, so the auth-token fallback tables need sweeping - always registered - expiry is enforced on read anyway, this just reclaims space and no-ops when Valkey holds the tokens (tables stay empty)
-	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired rows from the Postgres auth-token fallback tables (no-op when Valkey is configured).",
+	// Always registered: the Postgres token tables stay empty when Valkey holds the tokens, but admin sessions live in Postgres either way
+	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired auth tokens, lapsed refresh successors and admin sessions whose refresh token can no longer be used.",
 		func(ctx context.Context) error {
-			n, err := d.Queries.PruneExpiredAuthTokens(ctx)
+			c, err := authstore.Prune(ctx, d.Queries, time.Now())
 			if err != nil {
-				return fmt.Errorf("prune auth tokens: %w", err)
+				return err
 			}
-			m, err := d.Queries.PruneExpiredRefreshTokens(ctx, time.Now().Add(-24*time.Hour)) // rotated rows outlive their expiry until the reuse window lapses, so a replay of a token that expired after rotation still trips the tripwire
-			if err != nil {
-				return fmt.Errorf("prune refresh tokens: %w", err)
-			}
-			if n+m > 0 {
-				slog.Info("auth token prune", "auth_tokens", n, "refresh_tokens", m)
+			if c.Total() > 0 {
+				slog.Info("auth token prune", "auth_tokens", c.AuthTokens, "refresh_tokens", c.RefreshTokens, "successors", c.Successors, "admin_sessions", c.Sessions)
 			}
 			return nil
 		})
@@ -345,7 +341,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	if d.AI.Enabled() {
 		jobScheduler.Register("chat-prune", "@every 24h", "Delete chat conversations untouched past the retention window (0 days = keep forever).",
 			func(ctx context.Context) error {
-				days, err := d.Config.GetInt(ctx, "ai/llm/history_retention_days", config.DefaultScope)
+				days, err := d.Config.GetInt(ctx, ai.HistoryRetentionPath, config.DefaultScope)
 				if err != nil || days <= 0 {
 					return err
 				}

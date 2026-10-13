@@ -10,6 +10,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const addIntegrationPermission = `-- name: AddIntegrationPermission :exec
@@ -62,13 +63,16 @@ func (q *Queries) CreateIntegration(ctx context.Context, arg CreateIntegrationPa
 	return i, err
 }
 
-const deleteIntegration = `-- name: DeleteIntegration :exec
+const deleteIntegration = `-- name: DeleteIntegration :execrows
 DELETE FROM integrations WHERE id = $1
 `
 
-func (q *Queries) DeleteIntegration(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteIntegration, id)
-	return err
+func (q *Queries) DeleteIntegration(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteIntegration, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteIntegrationPermissions = `-- name: DeleteIntegrationPermissions :exec
@@ -81,11 +85,50 @@ func (q *Queries) DeleteIntegrationPermissions(ctx context.Context, integrationI
 }
 
 const getIntegrationByHash = `-- name: GetIntegrationByHash :one
-SELECT id, name, token_hash, is_active, created_at, expires_at, description, channel_id FROM integrations WHERE token_hash = $1
+SELECT i.id, i.name, i.token_hash, i.is_active, i.created_at, i.expires_at, i.description, i.channel_id,
+       COALESCE(array_agg(p.id ORDER BY p.sort_order, p.name) FILTER (WHERE p.id IS NOT NULL), '{}')::uuid[] AS permission_ids,
+       COALESCE(array_agg(p.slug ORDER BY p.sort_order, p.name) FILTER (WHERE p.id IS NOT NULL), '{}')::text[] AS permission_slugs,
+       COALESCE(array_agg(p.name ORDER BY p.sort_order, p.name) FILTER (WHERE p.id IS NOT NULL), '{}')::text[] AS permission_names
+FROM integrations i
+LEFT JOIN integration_permissions ip ON ip.integration_id = i.id
+LEFT JOIN permissions p ON p.id = ip.permission_id
+WHERE i.token_hash = $1
+GROUP BY i.id
 `
 
-func (q *Queries) GetIntegrationByHash(ctx context.Context, tokenHash string) (Integration, error) {
+type GetIntegrationByHashRow struct {
+	Integration     Integration `json:"integration"`
+	PermissionIds   []uuid.UUID `json:"permission_ids"`
+	PermissionSlugs []string    `json:"permission_slugs"`
+	PermissionNames []string    `json:"permission_names"`
+}
+
+// One round trip per machine API request: the row and its grant set together
+func (q *Queries) GetIntegrationByHash(ctx context.Context, tokenHash string) (GetIntegrationByHashRow, error) {
 	row := q.db.QueryRowContext(ctx, getIntegrationByHash, tokenHash)
+	var i GetIntegrationByHashRow
+	err := row.Scan(
+		&i.Integration.ID,
+		&i.Integration.Name,
+		&i.Integration.TokenHash,
+		&i.Integration.IsActive,
+		&i.Integration.CreatedAt,
+		&i.Integration.ExpiresAt,
+		&i.Integration.Description,
+		&i.Integration.ChannelID,
+		pq.Array(&i.PermissionIds),
+		pq.Array(&i.PermissionSlugs),
+		pq.Array(&i.PermissionNames),
+	)
+	return i, err
+}
+
+const getIntegrationByID = `-- name: GetIntegrationByID :one
+SELECT id, name, token_hash, is_active, created_at, expires_at, description, channel_id FROM integrations WHERE id = $1
+`
+
+func (q *Queries) GetIntegrationByID(ctx context.Context, id uuid.UUID) (Integration, error) {
+	row := q.db.QueryRowContext(ctx, getIntegrationByID, id)
 	var i Integration
 	err := row.Scan(
 		&i.ID,
@@ -100,12 +143,12 @@ func (q *Queries) GetIntegrationByHash(ctx context.Context, tokenHash string) (I
 	return i, err
 }
 
-const getIntegrationByID = `-- name: GetIntegrationByID :one
-SELECT id, name, token_hash, is_active, created_at, expires_at, description, channel_id FROM integrations WHERE id = $1
+const getIntegrationByIDForUpdate = `-- name: GetIntegrationByIDForUpdate :one
+SELECT id, name, token_hash, is_active, created_at, expires_at, description, channel_id FROM integrations WHERE id = $1 FOR UPDATE
 `
 
-func (q *Queries) GetIntegrationByID(ctx context.Context, id uuid.UUID) (Integration, error) {
-	row := q.db.QueryRowContext(ctx, getIntegrationByID, id)
+func (q *Queries) GetIntegrationByIDForUpdate(ctx context.Context, id uuid.UUID) (Integration, error) {
+	row := q.db.QueryRowContext(ctx, getIntegrationByIDForUpdate, id)
 	var i Integration
 	err := row.Scan(
 		&i.ID,
@@ -156,24 +199,45 @@ func (q *Queries) GetIntegrationPermissions(ctx context.Context, integrationID u
 	return items, nil
 }
 
-const hasIntegrationPermission = `-- name: HasIntegrationPermission :one
-SELECT EXISTS (
-    SELECT 1 FROM integration_permissions ip
-    JOIN permissions p ON p.id = ip.permission_id
-    WHERE ip.integration_id = $1 AND p.slug = $2
-) AS has_permission
+const listAllIntegrationPermissions = `-- name: ListAllIntegrationPermissions :many
+SELECT ip.integration_id, p.id, p.slug, p.name FROM permissions p
+JOIN integration_permissions ip ON ip.permission_id = p.id
+ORDER BY ip.integration_id, p.sort_order, p.name
 `
 
-type HasIntegrationPermissionParams struct {
+type ListAllIntegrationPermissionsRow struct {
 	IntegrationID uuid.UUID `json:"integration_id"`
+	ID            uuid.UUID `json:"id"`
 	Slug          string    `json:"slug"`
+	Name          string    `json:"name"`
 }
 
-func (q *Queries) HasIntegrationPermission(ctx context.Context, arg HasIntegrationPermissionParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, hasIntegrationPermission, arg.IntegrationID, arg.Slug)
-	var has_permission bool
-	err := row.Scan(&has_permission)
-	return has_permission, err
+func (q *Queries) ListAllIntegrationPermissions(ctx context.Context) ([]ListAllIntegrationPermissionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllIntegrationPermissions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllIntegrationPermissionsRow{}
+	for rows.Next() {
+		var i ListAllIntegrationPermissionsRow
+		if err := rows.Scan(
+			&i.IntegrationID,
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listIntegrations = `-- name: ListIntegrations :many

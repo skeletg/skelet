@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cacheinvalidate"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -25,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -46,6 +48,7 @@ import (
 // The one call the entrypoint makes - every "what reacts when X fires" decision is below it, and registration order is load-bearing where sync priorities tie, so treat the sequence here as part of the contract
 type subscriberDeps struct {
 	fx.In
+	Lifecycle           fx.Lifecycle
 	Bus                 *events.Bus
 	Outbox              *outbox.Outbox
 	WebhookDispatcher   *webhook.Dispatcher
@@ -69,6 +72,8 @@ type subscriberDeps struct {
 	BackInStock         *backinstock.Service
 	Customer            *customer.Service
 	Consent             *consent.Service
+	Catalog             *catalog.Service
+	QnA                 *qna.Service
 	Tx                  *txrunner.Manager
 
 	Inventory    *inventory.Service // the order reactors - each subscribes itself, this only decides that they all do and in what order
@@ -86,9 +91,14 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	payment.RegisterOutboxTypes(d.Outbox)
 	customer.RegisterOutboxTypes(d.Outbox)
 	consent.RegisterOutboxTypes(d.Outbox)
-	d.Payment.SetOutbox(d.Outbox)        // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
-	d.Customer.SetOutbox(d.Outbox, d.Tx) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
+	catalog.RegisterOutboxTypes(d.Outbox)
+	qna.RegisterOutboxTypes(d.Outbox)
+	d.Payment.SetOutbox(d.Outbox)  // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
+	d.Customer.SetOutbox(d.Outbox) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
 	d.Consent.SetOutbox(d.Outbox, d.Tx)
+	d.QnA.SetEventBus(bus) // never wired before, so both qna webhooks registered but never fired
+	d.QnA.SetOutbox(d.Outbox, d.Tx)
+	d.Catalog.SetOutbox(d.Outbox)                                                                       // a category move re-renders the product URLs under it off the request, and a crash after commit mustn't lose that
 	d.Outbox.SetDropAlert(func(ctx context.Context, eventType string, rowID uuid.UUID, reason string) { // a dropped row means a domain reaction (points, credit, capture) silently never ran - that needs an operator, not a log line
 		if err := d.Notification.Create(ctx, notification.Input{
 			Category:           notification.CategorySystem,
@@ -105,9 +115,11 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	})
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
+	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
-	cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	purges := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	d.Lifecycle.Append(fx.Hook{OnStop: func(ctx context.Context) error { purges.Flush(ctx); return nil }}) // a purge gathered in the last second still goes out
 	d.Flows.Subscribe(bus)
 	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
 	// Ahead of the conversion attribution below, which also listens on order.EventPlaced
@@ -146,8 +158,7 @@ func subscribeOrderReactors(d subscriberDeps) {
 func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispatcher, orderSvc *order.Service) {
 	bus.Subscribe(customer.EventRegistered, func(ctx context.Context, e events.Event) error { // async demo: log every new customer - fires post-commit, cannot abort
 		evt := e.(*customer.CustomerRegistered)
-		log.Printf("[events] customer.registered id=%s email=%s source=%s tags=%v",
-			evt.CustomerID, evt.Email, evt.Source, evt.Tags)
+		log.Printf("[events] customer.registered id=%s source=%s tags=%v", evt.CustomerID, evt.Source, evt.Tags)
 		return nil
 	})
 
@@ -178,8 +189,8 @@ func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispat
 		if evt.CustomerID != nil {
 			customer = evt.CustomerID.String()
 		}
-		log.Printf("[events] order.placed id=%s number=%s customer=%s email=%s total=%d %s",
-			evt.OrderID, evt.OrderNumber, customer, evt.Email, evt.TotalCents, evt.Currency)
+		log.Printf("[events] order.placed id=%s number=%s customer=%s total=%d %s",
+			evt.OrderID, evt.OrderNumber, customer, evt.TotalCents, evt.Currency)
 		return nil
 	})
 
@@ -244,8 +255,8 @@ func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispat
 		if evt.CustomerID != nil {
 			customer = evt.CustomerID.String()
 		}
-		log.Printf("[events] order.placing customer=%s email=%s subtotal=%d lines=%d",
-			customer, evt.Email, evt.Subtotal, len(evt.Cart.Lines))
+		log.Printf("[events] order.placing customer=%s subtotal=%d lines=%d",
+			customer, evt.Subtotal, len(evt.Cart.Lines))
 		return nil
 	})
 

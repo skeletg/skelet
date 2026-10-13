@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -71,7 +72,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 
 	case model.ProductKindKit:
 		// A kit ships every component, so ALL must be sellable - the any-of rule of the other wrappers would call a kit with one dead component in stock
-		comps, err := r.CatalogSvc.ListKitComponents(ctx, pid)
+		comps, err := r.CatalogSvc.KitComponentRefs(ctx, pid)
 		if err != nil {
 			return false, err
 		}
@@ -606,6 +607,32 @@ func (r *Resolver) rawBundleOptions(ctx context.Context, productID uuid.UUID, lo
 		})
 }
 
+// The linked source products of these options this channel actually shows - a hidden source renders as no product
+func (r *Resolver) visibleOptionSources(ctx context.Context, opts []catalog.ProductOption) (map[uuid.UUID]struct{}, error) {
+	var ids []uuid.UUID
+	for _, o := range opts {
+		for _, v := range o.Values {
+			if v.SourceProductID != nil {
+				ids = append(ids, *v.SourceProductID)
+			}
+		}
+	}
+	storeID := channelIDFromContext(ctx)
+	if len(ids) == 0 || storeID == nil {
+		return nil, nil
+	}
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
+	if err != nil {
+		return nil, fmt.Errorf("filter option source products: %w", err)
+	}
+	return visible, nil
+}
+
+func hasKey(m map[uuid.UUID]struct{}, id uuid.UUID) bool {
+	_, ok := m[id]
+	return ok
+}
+
 func (r *Resolver) loadVisibleBundleOptions(ctx context.Context, productID uuid.UUID, locale string) ([]catalog.BundleOption, error) {
 	storeID := channelIDFromContext(ctx)
 	if storeID == nil {
@@ -814,10 +841,12 @@ func keepPublicAttributeValues(values []*model.ProductAttributeValue, axisAttrs 
 }
 
 // The native engines gate facets and filters by IsPublic themselves, but an external engine tier answers before that gate - browse strips both at this seam
-func (r *Resolver) privateAttributeSlugs(ctx context.Context) map[string]bool {
+// ok=false means the attribute set couldn't be read, and callers fail closed by dropping every attribute filter and facet
+func (r *Resolver) privateAttributeSlugs(ctx context.Context) (map[string]bool, bool) {
 	attrs, err := r.getAttributesCached(ctx)
 	if err != nil {
-		return nil
+		log.Printf("[browse] attribute visibility unavailable, stripping attribute filters and facets: %v", err)
+		return nil, false
 	}
 	out := map[string]bool{}
 	for _, a := range attrs {
@@ -825,7 +854,7 @@ func (r *Resolver) privateAttributeSlugs(ctx context.Context) map[string]bool {
 			out[a.Slug] = true
 		}
 	}
-	return out
+	return out, true
 }
 
 // Grouped by attribute id, with targets not visible on the active store silently skipped
@@ -896,6 +925,16 @@ func toCategoryModel(c catalog.Category) *model.Category {
 		PrivateMetadata: toMetadataItems(c.PrivateMetadata),
 		CreatedAt:       c.CreatedAt,
 		UpdatedAt:       c.UpdatedAt,
+	}
+	// Ancestors only arrive after Query.category's strict chain check, so the tail is a visible parent - and a child's parent is the node it hangs under
+	for i := 1; i < len(ancestors); i++ {
+		ancestors[i].Parent = ancestors[i-1]
+	}
+	if len(ancestors) > 0 {
+		m.Parent = ancestors[len(ancestors)-1]
+	}
+	for _, ch := range children {
+		ch.Parent = m
 	}
 	if c.CoverImage != nil {
 		m.CoverImage = &model.CollectionCover{
@@ -1004,10 +1043,6 @@ func int32PtrFrom64(p *int64) *int32 {
 
 // Rows scoped to another channel or customer group are dropped, so "Buy N+ for $X" renders without leaking other groups' pricing
 func (r *Resolver) renderTierPrices(ctx context.Context, productID uuid.UUID) []*model1.TierPrice {
-	rows, err := r.CatalogSvc.ListGroupPrices(ctx, productID)
-	if err != nil || len(rows) == 0 {
-		return []*model1.TierPrice{}
-	}
 	channelID := channelIDFromContext(ctx)
 	var groupID *uuid.UUID
 	if cid := channel.OptionalCustomerID(ctx); cid != nil {
@@ -1025,15 +1060,11 @@ func (r *Resolver) renderTierPrices(ctx context.Context, productID uuid.UUID) []
 		}
 	}
 	out := []*model1.TierPrice{}
+	rows, err := r.CatalogSvc.ApplicableGroupPrices(ctx, productID, channelID, groupID)
+	if err != nil {
+		return out
+	}
 	for _, t := range rows {
-		if t.ChannelID != nil && (channelID == nil || *t.ChannelID != *channelID) {
-			continue
-		}
-		if t.CustomerGroupID != nil {
-			if groupID == nil || *t.CustomerGroupID != *groupID {
-				continue
-			}
-		}
 		out = append(out, &model1.TierPrice{MinQty: t.MinQty, Price: int32(t.Price)})
 	}
 	return out
@@ -1168,4 +1199,12 @@ func (r *Resolver) renderMemberProducts(ctx context.Context, products []catalog.
 		out[i] = toProductBaseModel(p)
 	}
 	return out, nil
+}
+
+func optionPricingChannel(ctx context.Context) (uuid.UUID, string, bool) {
+	ch, ok := channel.FromContext(ctx)
+	if !ok || ch == nil {
+		return uuid.Nil, "", false
+	}
+	return ch.ID, ch.CurrencyCode, true
 }

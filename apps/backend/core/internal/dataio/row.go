@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strconv"
@@ -51,6 +52,19 @@ func (r *Row) Reset() {
 	r.fields = nil
 	clear(r.values)
 	clear(r.present)
+}
+
+// Moves an alias header's cell onto its canonical column, unless the file also carries the canonical one
+func (r *Row) renameAliases(res Resource) {
+	for name := range r.present {
+		canon := res.canonical(name)
+		if canon == name || r.present[canon] {
+			continue
+		}
+		r.values[canon], r.present[canon] = r.values[name], true
+		delete(r.values, name)
+		delete(r.present, name)
+	}
 }
 
 // Whether the column exists in the file at all, regardless of whether this row filled it - the difference between "clear this" and "leave it alone"
@@ -153,7 +167,7 @@ func (r *Row) OptFloat(name string) *float64 {
 		return nil
 	}
 	f, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 		r.bad(name, raw, "a number")
 		return nil
 	}

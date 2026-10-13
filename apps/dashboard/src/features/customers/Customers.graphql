@@ -284,3 +284,14 @@ mutation AdjustLoyaltyPoints($customerId: ID!, $points: Int!, $reason: String!) 
     balancePoints
   }
 }
+
+query CustomerConsentHistory($customerId: ID!) {
+  customerConsentHistory(customerId: $customerId, limit: 200) {
+    id
+    kind
+    optedIn
+    source
+    adminId
+    createdAt
+  }
+}

@@ -13,6 +13,32 @@ import (
 	"github.com/google/uuid"
 )
 
+const claimSignupConfirmation = `-- name: ClaimSignupConfirmation :one
+UPDATE signup_confirmations SET confirmed_at = NOW()
+WHERE token_hash = $1 AND confirmed_at IS NULL AND expires_at > NOW()
+RETURNING id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at
+`
+
+// Single-use: the first caller flips confirmed_at, every later one matches nothing
+func (q *Queries) ClaimSignupConfirmation(ctx context.Context, tokenHash []byte) (SignupConfirmation, error) {
+	row := q.db.QueryRowContext(ctx, claimSignupConfirmation, tokenHash)
+	var i SignupConfirmation
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.FormID,
+		&i.ChannelID,
+		&i.Email,
+		&i.FirstName,
+		&i.ConsentKind,
+		&i.CustomerID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ConfirmedAt,
+	)
+	return i, err
+}
+
 const countSignupSubmissions = `-- name: CountSignupSubmissions :one
 SELECT COUNT(*)::bigint FROM signup_form_submissions WHERE form_id = $1
 `
@@ -22,6 +48,34 @@ func (q *Queries) CountSignupSubmissions(ctx context.Context, formID uuid.UUID) 
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const createSignupConfirmation = `-- name: CreateSignupConfirmation :exec
+INSERT INTO signup_confirmations (token_hash, form_id, channel_id, email, first_name, consent_kind, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type CreateSignupConfirmationParams struct {
+	TokenHash   []byte    `json:"token_hash"`
+	FormID      uuid.UUID `json:"form_id"`
+	ChannelID   uuid.UUID `json:"channel_id"`
+	Email       string    `json:"email"`
+	FirstName   string    `json:"first_name"`
+	ConsentKind string    `json:"consent_kind"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
+func (q *Queries) CreateSignupConfirmation(ctx context.Context, arg CreateSignupConfirmationParams) error {
+	_, err := q.db.ExecContext(ctx, createSignupConfirmation,
+		arg.TokenHash,
+		arg.FormID,
+		arg.ChannelID,
+		arg.Email,
+		arg.FirstName,
+		arg.ConsentKind,
+		arg.ExpiresAt,
+	)
+	return err
 }
 
 const createSignupForm = `-- name: CreateSignupForm :one
@@ -95,6 +149,22 @@ func (q *Queries) CreateSignupForm(ctx context.Context, arg CreateSignupFormPara
 	return i, err
 }
 
+const deleteCustomerSignupConfirmations = `-- name: DeleteCustomerSignupConfirmations :exec
+DELETE FROM signup_confirmations sc
+WHERE sc.customer_id = $1::uuid
+   OR (sc.email = $2::text AND sc.channel_id = (SELECT c.channel_id FROM customers c WHERE c.id = $1::uuid))
+`
+
+type DeleteCustomerSignupConfirmationsParams struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	Email      string    `json:"email"`
+}
+
+func (q *Queries) DeleteCustomerSignupConfirmations(ctx context.Context, arg DeleteCustomerSignupConfirmationsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerSignupConfirmations, arg.CustomerID, arg.Email)
+	return err
+}
+
 const deleteSignupForm = `-- name: DeleteSignupForm :exec
 DELETE FROM signup_forms WHERE id = $1
 `
@@ -102,6 +172,30 @@ DELETE FROM signup_forms WHERE id = $1
 func (q *Queries) DeleteSignupForm(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteSignupForm, id)
 	return err
+}
+
+const getPendingSignupConfirmation = `-- name: GetPendingSignupConfirmation :one
+SELECT id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at FROM signup_confirmations
+WHERE token_hash = $1 AND confirmed_at IS NULL AND expires_at > NOW()
+`
+
+func (q *Queries) GetPendingSignupConfirmation(ctx context.Context, tokenHash []byte) (SignupConfirmation, error) {
+	row := q.db.QueryRowContext(ctx, getPendingSignupConfirmation, tokenHash)
+	var i SignupConfirmation
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.FormID,
+		&i.ChannelID,
+		&i.Email,
+		&i.FirstName,
+		&i.ConsentKind,
+		&i.CustomerID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ConfirmedAt,
+	)
+	return i, err
 }
 
 const getSignupForm = `-- name: GetSignupForm :one
@@ -270,6 +364,19 @@ func (q *Queries) ListSignupSubmissions(ctx context.Context, arg ListSignupSubmi
 	return items, nil
 }
 
+const pruneSignupConfirmations = `-- name: PruneSignupConfirmations :execrows
+DELETE FROM signup_confirmations WHERE confirmed_at IS NULL AND expires_at < $1
+`
+
+// Unconfirmed links past expiry only - a confirmed row is the record of the double opt-in
+func (q *Queries) PruneSignupConfirmations(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneSignupConfirmations, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const recordSignupSubmission = `-- name: RecordSignupSubmission :exec
 INSERT INTO signup_form_submissions (form_id, channel_id, email, customer_id)
 VALUES ($1, $2, $3, $4)
@@ -292,6 +399,29 @@ func (q *Queries) RecordSignupSubmission(ctx context.Context, arg RecordSignupSu
 		arg.Email,
 		arg.CustomerID,
 	)
+	return err
+}
+
+const releaseSignupConfirmation = `-- name: ReleaseSignupConfirmation :exec
+UPDATE signup_confirmations SET confirmed_at = NULL WHERE id = $1
+`
+
+func (q *Queries) ReleaseSignupConfirmation(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, releaseSignupConfirmation, id)
+	return err
+}
+
+const setSignupConfirmationCustomer = `-- name: SetSignupConfirmationCustomer :exec
+UPDATE signup_confirmations SET customer_id = $1 WHERE id = $2
+`
+
+type SetSignupConfirmationCustomerParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ID         uuid.UUID     `json:"id"`
+}
+
+func (q *Queries) SetSignupConfirmationCustomer(ctx context.Context, arg SetSignupConfirmationCustomerParams) error {
+	_, err := q.db.ExecContext(ctx, setSignupConfirmationCustomer, arg.CustomerID, arg.ID)
 	return err
 }
 

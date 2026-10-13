@@ -32,6 +32,12 @@ type ToolResult struct { // fed back to the model as ChatMessage{Role:"tool", To
 type ChatTurn struct { // one of the two - final assistant text with ToolCalls empty, or tool calls the caller must execute
 	Text      string
 	ToolCalls []ToolCall
+	blocks    json.RawMessage // the Anthropic reply's content as sent, thinking blocks included
+}
+
+// The assistant message to append before the tool results. On Anthropic it replays the reply's blocks unchanged - the current models pass their reasoning across the loop in thinking blocks, and those must come back byte for byte
+func (t ChatTurn) AsMessage() ChatMessage {
+	return ChatMessage{Role: "assistant", Text: t.Text, ToolCalls: t.ToolCalls, blocks: t.blocks}
 }
 
 // Both built-in providers support tool calling, so this is really the operator kill switch (ai/llm/tools=false) for models and endpoints that don't - a false drops the caller back to snapshot mode
@@ -46,19 +52,16 @@ func (s *Service) SupportsTools(ctx context.Context) bool {
 	return v
 }
 
-// Per-customer profiles and records - defaults true, and operators turn it off to keep personal data out of the LLM provider
+// Per-customer profiles and records - defaults true, and operators turn it off to keep personal data out of the LLM provider. A failed read counts as off: a privacy switch that flips open on a database hiccup protects nothing
 func (s *Service) AllowCustomerData(ctx context.Context) bool {
 	if s.cfg == nil {
 		return false
 	}
 	v, err := s.cfg.GetBool(ctx, cfgAllowCustomerData, config.DefaultScope)
-	if err != nil {
-		return true
-	}
-	return v
+	return err == nil && v
 }
 
-// ONE turn - to continue, the caller executes the returned calls and appends an assistant ChatMessage carrying the ToolCalls followed by a ChatMessage{Role:"tool", ToolResults: ...} before calling again, and tools=nil gives a plain completion that still reads tool history
+// ONE turn - to continue, the caller executes the returned calls and appends turn.AsMessage() followed by a ChatMessage{Role:"tool", ToolResults: ...} before calling again, and tools=nil gives a plain completion that still reads tool history. system and tools must stay identical across a conversation's calls, since changing either invalidates the thinking blocks replayed from earlier turns
 func (s *Service) ChatWithTools(ctx context.Context, system string, messages []ChatMessage, tools []Tool, maxTokens int) (ChatTurn, error) {
 	if !s.envEnabled {
 		return ChatTurn{}, ErrDisabled
@@ -95,7 +98,12 @@ func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system
 					"is_error":    tr.IsError,
 				})
 			}
+			if strings.TrimSpace(m.Text) != "" {
+				blocks = append(blocks, map[string]any{"type": "text", "text": m.Text})
+			}
 			msgs = append(msgs, map[string]any{"role": "user", "content": blocks})
+		case len(m.ToolCalls) > 0 && len(m.blocks) > 0:
+			msgs = append(msgs, map[string]any{"role": "assistant", "content": m.blocks})
 		case len(m.ToolCalls) > 0:
 			blocks := make([]map[string]any, 0, len(m.ToolCalls)+1)
 			if strings.TrimSpace(m.Text) != "" {
@@ -118,24 +126,21 @@ func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system
 			msgs = append(msgs, map[string]any{"role": chatRole(m.Role), "content": m.Text})
 		}
 	}
-	payload := map[string]any{
-		"model":      pc.model,
-		"max_tokens": maxTokens,
-		"system":     system,
-		"messages":   msgs,
-	}
+	payload := map[string]any{"system": system, "messages": msgs}
 	if len(tools) > 0 {
 		payload["tools"] = anthropicTools(tools)
 	}
-	data, err := s.post(ctx, pc.baseURL+"/v1/messages", map[string]string{
-		"x-api-key":         pc.apiKey,
-		"anthropic-version": anthropicVersion,
-	}, payload)
+	headers := pc.anthropicRequest(payload, pc.model, maxTokens, "")
+	data, err := s.post(ctx, pc.baseURL+"/v1/messages", headers, payload)
 	if err != nil {
 		return ChatTurn{}, err
 	}
+	var raw struct {
+		Content json.RawMessage `json:"content"`
+	}
 	var out struct {
-		Content []struct {
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
 			Type  string          `json:"type"`
 			Text  string          `json:"text"`
 			ID    string          `json:"id"`
@@ -146,7 +151,11 @@ func (s *Service) anthropicChatTools(ctx context.Context, pc providerCfg, system
 	if err := json.Unmarshal(data, &out); err != nil {
 		return ChatTurn{}, fmt.Errorf("ai: decode: %w", err)
 	}
-	var turn ChatTurn
+	if err := anthropicStop(out.StopReason); err != nil {
+		return ChatTurn{}, err
+	}
+	_ = json.Unmarshal(data, &raw)
+	turn := ChatTurn{blocks: raw.Content}
 	var sb strings.Builder
 	for _, c := range out.Content {
 		switch c.Type {
@@ -189,6 +198,9 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 			for _, tr := range m.ToolResults {
 				msgs = append(msgs, map[string]any{"role": "tool", "tool_call_id": tr.ID, "content": tr.Content})
 			}
+			if strings.TrimSpace(m.Text) != "" {
+				msgs = append(msgs, map[string]any{"role": "user", "content": m.Text})
+			}
 		case len(m.ToolCalls) > 0:
 			calls := make([]map[string]any, 0, len(m.ToolCalls))
 			for _, tc := range m.ToolCalls {
@@ -207,7 +219,7 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 			msgs = append(msgs, map[string]any{"role": chatRole(m.Role), "content": m.Text})
 		}
 	}
-	payload := map[string]any{"model": pc.model, "max_tokens": maxTokens, "messages": msgs}
+	payload := map[string]any{"model": pc.model, pc.openaiMaxTokensField(): maxTokens, "messages": msgs}
 	if len(tools) > 0 {
 		payload["tools"] = openaiTools(tools)
 	}
@@ -221,7 +233,8 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 	}
 	var out struct {
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content   string `json:"content"`
 				ToolCalls []struct {
 					ID       string `json:"id"`
@@ -238,6 +251,9 @@ func (s *Service) openaiChatTools(ctx context.Context, pc providerCfg, system st
 	}
 	if len(out.Choices) == 0 {
 		return ChatTurn{}, fmt.Errorf("ai: empty response")
+	}
+	if err := openaiStop(out.Choices[0].FinishReason); err != nil {
+		return ChatTurn{}, err
 	}
 	msg := out.Choices[0].Message
 	turn := ChatTurn{Text: strings.TrimSpace(msg.Content)}

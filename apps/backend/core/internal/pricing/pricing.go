@@ -49,34 +49,18 @@ func Resolve(in Inputs, now time.Time) Resolved {
 	return out
 }
 
-// One quantity-break price row, optionally scoped to a customer group and/or channel, where nil applies to all
+// One quantity-break price row - the caller has already narrowed tiers to the buyer's channel and customer group
 type Tier struct {
-	MinQty          float64
-	Price           int64
-	CustomerGroupID *string // uuid string; nil = every group
-	ChannelID       *string // uuid string; nil = every channel
+	MinQty float64
+	Price  int64
 }
 
-// The lowest applicable tier price for the given quantity, customer group and channel, or nil when none applies - a tier applies when qty >= MinQty and its scopes match, with a nil scope matching
-func BestTier(tiers []Tier, qty float64, customerGroupID *string, channelID string) *int64 {
-	var best *int64
-	for i := range tiers {
-		t := tiers[i]
-		if qty < t.MinQty {
-			continue
-		}
-		if t.ChannelID != nil && *t.ChannelID != channelID {
-			continue
-		}
-		if t.CustomerGroupID != nil {
-			if customerGroupID == nil || *t.CustomerGroupID != *customerGroupID {
-				continue
-			}
-		}
-		if best == nil || t.Price < *best {
-			p := t.Price
-			best = &p
+// The unit price after quantity breaks - the lowest tier qty reaches, when it undercuts unit
+func ApplyTiers(unit int64, tiers []Tier, qty float64) int64 {
+	for _, t := range tiers {
+		if qty >= t.MinQty && t.Price < unit {
+			unit = t.Price
 		}
 	}
-	return best
+	return unit
 }

@@ -137,6 +137,20 @@ func (q *Queries) DeleteProductOption(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deleteProductOptionChannelPrice = `-- name: DeleteProductOptionChannelPrice :exec
+DELETE FROM catalog_product_option_channel_prices WHERE option_id = $1 AND channel_id = $2
+`
+
+type DeleteProductOptionChannelPriceParams struct {
+	OptionID  uuid.UUID `json:"option_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) DeleteProductOptionChannelPrice(ctx context.Context, arg DeleteProductOptionChannelPriceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteProductOptionChannelPrice, arg.OptionID, arg.ChannelID)
+	return err
+}
+
 const deleteProductOptionContent = `-- name: DeleteProductOptionContent :exec
 DELETE FROM catalog_product_option_content
 WHERE option_id = $1 AND locale = $2
@@ -158,6 +172,20 @@ DELETE FROM catalog_product_option_values WHERE id = $1
 
 func (q *Queries) DeleteProductOptionValue(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteProductOptionValue, id)
+	return err
+}
+
+const deleteProductOptionValueChannelPrice = `-- name: DeleteProductOptionValueChannelPrice :exec
+DELETE FROM catalog_product_option_value_channel_prices WHERE value_id = $1 AND channel_id = $2
+`
+
+type DeleteProductOptionValueChannelPriceParams struct {
+	ValueID   uuid.UUID `json:"value_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) DeleteProductOptionValueChannelPrice(ctx context.Context, arg DeleteProductOptionValueChannelPriceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteProductOptionValueChannelPrice, arg.ValueID, arg.ChannelID)
 	return err
 }
 
@@ -201,6 +229,31 @@ func (q *Queries) GetProductOptionByID(ctx context.Context, id uuid.UUID) (Catal
 	return i, err
 }
 
+const getProductOptionByIDForUpdate = `-- name: GetProductOptionByIDForUpdate :one
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductOption, error) {
+	row := q.db.QueryRowContext(ctx, getProductOptionByIDForUpdate, id)
+	var i CatalogProductOption
+	err := row.Scan(
+		&i.ID,
+		&i.ProductID,
+		&i.InputType,
+		&i.IsRequired,
+		&i.SortOrder,
+		&i.PriceValue,
+		&i.PriceType,
+		&i.MaxChars,
+		&i.MaxFileBytes,
+		&i.FileExtensions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.VisibleIf,
+	)
+	return i, err
+}
+
 const getProductOptionValueByID = `-- name: GetProductOptionValueByID :one
 SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty FROM catalog_product_option_values WHERE id = $1
 `
@@ -222,6 +275,41 @@ func (q *Queries) GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (
 		&i.ForcedLineQty,
 	)
 	return i, err
+}
+
+const listProductOptionChannelPricesByOptionIDs = `-- name: ListProductOptionChannelPricesByOptionIDs :many
+SELECT option_id, channel_id, price_value, created_at, updated_at FROM catalog_product_option_channel_prices
+WHERE option_id = ANY($1::uuid[])
+ORDER BY option_id, channel_id
+`
+
+func (q *Queries) ListProductOptionChannelPricesByOptionIDs(ctx context.Context, optionIds []uuid.UUID) ([]CatalogProductOptionChannelPrice, error) {
+	rows, err := q.db.QueryContext(ctx, listProductOptionChannelPricesByOptionIDs, pq.Array(optionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogProductOptionChannelPrice{}
+	for rows.Next() {
+		var i CatalogProductOptionChannelPrice
+		if err := rows.Scan(
+			&i.OptionID,
+			&i.ChannelID,
+			&i.PriceValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProductOptionContent = `-- name: ListProductOptionContent :many
@@ -278,6 +366,41 @@ func (q *Queries) ListProductOptionContentByOptionIDs(ctx context.Context, optio
 			&i.Locale,
 			&i.Title,
 			&i.HelpText,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProductOptionValueChannelPricesByValueIDs = `-- name: ListProductOptionValueChannelPricesByValueIDs :many
+SELECT value_id, channel_id, price_value, created_at, updated_at FROM catalog_product_option_value_channel_prices
+WHERE value_id = ANY($1::uuid[])
+ORDER BY value_id, channel_id
+`
+
+func (q *Queries) ListProductOptionValueChannelPricesByValueIDs(ctx context.Context, valueIds []uuid.UUID) ([]CatalogProductOptionValueChannelPrice, error) {
+	rows, err := q.db.QueryContext(ctx, listProductOptionValueChannelPricesByValueIDs, pq.Array(valueIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogProductOptionValueChannelPrice{}
+	for rows.Next() {
+		var i CatalogProductOptionValueChannelPrice
+		if err := rows.Scan(
+			&i.ValueID,
+			&i.ChannelID,
+			&i.PriceValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -632,6 +755,24 @@ func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProduc
 	return i, err
 }
 
+const upsertProductOptionChannelPrice = `-- name: UpsertProductOptionChannelPrice :exec
+INSERT INTO catalog_product_option_channel_prices (option_id, channel_id, price_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (option_id, channel_id)
+DO UPDATE SET price_value = EXCLUDED.price_value, updated_at = NOW()
+`
+
+type UpsertProductOptionChannelPriceParams struct {
+	OptionID   uuid.UUID `json:"option_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+}
+
+func (q *Queries) UpsertProductOptionChannelPrice(ctx context.Context, arg UpsertProductOptionChannelPriceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProductOptionChannelPrice, arg.OptionID, arg.ChannelID, arg.PriceValue)
+	return err
+}
+
 const upsertProductOptionContent = `-- name: UpsertProductOptionContent :one
 INSERT INTO catalog_product_option_content (option_id, locale, title, help_text)
 VALUES ($1, $2, $3, $4)
@@ -663,6 +804,24 @@ func (q *Queries) UpsertProductOptionContent(ctx context.Context, arg UpsertProd
 		&i.HelpText,
 	)
 	return i, err
+}
+
+const upsertProductOptionValueChannelPrice = `-- name: UpsertProductOptionValueChannelPrice :exec
+INSERT INTO catalog_product_option_value_channel_prices (value_id, channel_id, price_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (value_id, channel_id)
+DO UPDATE SET price_value = EXCLUDED.price_value, updated_at = NOW()
+`
+
+type UpsertProductOptionValueChannelPriceParams struct {
+	ValueID    uuid.UUID `json:"value_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+}
+
+func (q *Queries) UpsertProductOptionValueChannelPrice(ctx context.Context, arg UpsertProductOptionValueChannelPriceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProductOptionValueChannelPrice, arg.ValueID, arg.ChannelID, arg.PriceValue)
+	return err
 }
 
 const upsertProductOptionValueContent = `-- name: UpsertProductOptionValueContent :one

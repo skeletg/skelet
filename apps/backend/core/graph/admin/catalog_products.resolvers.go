@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -96,6 +97,7 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 		v := int64(*input.CostCents)
 		domainInput.CostCents = &v
 	}
+	domainInput.ClearCostCents = input.ClearCostCents != nil && *input.ClearCostCents
 	if input.Metadata != nil {
 		m := metadataFromInput(input.Metadata)
 		domainInput.Metadata = &m
@@ -625,7 +627,7 @@ func (r *mutationResolver) SetProductLinks(ctx context.Context, productID string
 		}
 		linked = append(linked, id)
 	}
-	if err := r.CatalogSvc.SetProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))), linked); err != nil {
+	if err := r.RecommendSvc.SetProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))), linked); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -727,7 +729,11 @@ func (r *productResolver) ProductOptions(ctx context.Context, obj *model.Product
 	if err != nil {
 		return nil, fmt.Errorf("load product options: %w", err)
 	}
-	return toProductOptionModels(options), nil
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "catalog.view")
+	if err != nil {
+		return nil, err
+	}
+	return toProductOptionModels(options, perm), nil
 }
 
 // Products is the resolver for the products field. When channelId is set, the result is restricted to products with a
@@ -736,30 +742,13 @@ func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*mod
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
-	products, err := r.CatalogSvc.ListProductsWithGraph(ctx, r.activeLocale(ctx), catalog.MaxUnpagedRows)
-	if err != nil {
-		return nil, err
-	}
 	chID, err := r.scopedChannelID(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	if chID != nil {
-		listings, err := r.CatalogSvc.ListProductChannelListingsByChannel(ctx, *chID)
-		if err != nil {
-			return nil, err
-		}
-		listed := make(map[uuid.UUID]struct{}, len(listings))
-		for _, l := range listings {
-			listed[l.ProductID] = struct{}{}
-		}
-		filtered := products[:0]
-		for _, p := range products {
-			if _, ok := listed[p.ID]; ok {
-				filtered = append(filtered, p)
-			}
-		}
-		products = filtered
+	products, err := r.CatalogSvc.ListProductsWithGraph(ctx, r.activeLocale(ctx), catalog.MaxUnpagedRows, chID)
+	if err != nil {
+		return nil, err
 	}
 	return r.renderProductRows(ctx, products, channelID)
 }
@@ -884,7 +873,7 @@ func (r *queryResolver) ProductLinks(ctx context.Context, productID string, kind
 	if err != nil {
 		return nil, err
 	}
-	ids, err := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))))
+	ids, err := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))))
 	if err != nil {
 		return nil, err
 	}

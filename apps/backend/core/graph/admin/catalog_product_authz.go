@@ -2,9 +2,11 @@ package admin
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -95,4 +97,34 @@ func (r *mutationResolver) requireCatalogManageForKitComponent(ctx context.Conte
 		return err
 	}
 	return r.requireCatalogManageOnAllListingChannels(ctx, comp.ProductID)
+}
+
+// A per-channel surcharge is option data, gated on every listing channel like the rest - and since only a listed channel can carry one, that already keeps a channel-scoped admin to channels they hold
+func requireOptionChannelPrice(ctx context.Context, checker auth.AllChannelsListedChecker, target uuid.UUID, listed []uuid.UUID) error {
+	if err := auth.RequireAllListedChannelsPermission(ctx, checker, "catalog.manage", listed, ""); err != nil {
+		return err
+	}
+	if !slices.Contains(listed, target) {
+		return catalog.ErrOptionChannelNotListed
+	}
+	return nil
+}
+
+func (r *mutationResolver) requireCatalogManageForOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID) (catalog.ProductOption, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return catalog.ProductOption{}, err
+	}
+	opt, err := r.CatalogSvc.GetProductOption(ctx, optionID)
+	if err != nil {
+		return catalog.ProductOption{}, err
+	}
+	listings, err := r.CatalogSvc.ListProductChannelListings(ctx, opt.ProductID)
+	if err != nil {
+		return catalog.ProductOption{}, err
+	}
+	listed := make([]uuid.UUID, len(listings))
+	for i, l := range listings {
+		listed[i] = l.ChannelID
+	}
+	return opt, requireOptionChannelPrice(ctx, r.AdminSvc, channelID, listed)
 }

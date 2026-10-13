@@ -3,10 +3,12 @@
 package linkgraph
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
-	"sort"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -144,21 +146,28 @@ func (s *Service) Build(ctx context.Context, channelID uuid.UUID, crawlID *uuid.
 		return Graph{}, err
 	}
 
-	locale := ""
-	if ch, err := s.queries.GetChannelByID(ctx, channelID); err == nil {
-		locale = ch.DefaultLocale
+	// A failed lookup here used to fall through to an empty locale and no prefixes, silently mislabelling every node
+	ch, err := s.queries.GetChannelByID(ctx, channelID)
+	if err != nil {
+		return Graph{}, fmt.Errorf("load channel: %w", err)
 	}
-	inventory, err := s.queries.LinkGraphNodes(ctx, db.LinkGraphNodesParams{ChannelID: channelID, Locale: locale})
+	inventory, err := s.queries.LinkGraphNodes(ctx, db.LinkGraphNodesParams{ChannelID: channelID, Locale: ch.DefaultLocale})
 	if err != nil {
 		return Graph{}, err
 	}
-	localePrefixes := []string{}
-	if rows, err := s.queries.ListChannelLocales(ctx, channelID); err == nil {
-		for _, l := range rows {
-			localePrefixes = append(localePrefixes, l.Code)
-		}
+	locales, err := s.queries.ListChannelLocales(ctx, channelID)
+	if err != nil {
+		return Graph{}, fmt.Errorf("load channel locales: %w", err)
 	}
+	localePrefixes := make([]string, len(locales))
+	for i, l := range locales {
+		localePrefixes[i] = l.Code
+	}
+	return assemble(crawl, pages, links, inventory, localePrefixes, maxNodes), nil
+}
 
+// The whole graph from the crawl's rows - kept free of the database so the rules can be pinned by tests
+func assemble(crawl db.SeoCrawl, pages []db.SeoCrawlPagesRow, links []db.SeoCrawlLinksRow, inventory []db.LinkGraphNodesRow, localePrefixes []string, maxNodes int) Graph {
 	labelByEntity := make(map[string]string, len(inventory))
 	entityByPath := make(map[string]db.LinkGraphNodesRow, len(inventory))
 	for _, e := range inventory {
@@ -250,7 +259,7 @@ func (s *Service) Build(ctx context.Context, channelID uuid.UUID, crawlID *uuid.
 		}
 	}
 
-	stats := Stats{TotalNodes: len(nodes), TotalEdges: len(edges), Complete: !crawl.HitBudget}
+	stats := Stats{TotalNodes: len(nodes), TotalEdges: len(edges), Complete: crawlComplete(crawl)}
 	for _, n := range nodes {
 		if n.Depth > stats.MaxDepth {
 			stats.MaxDepth = n.Depth
@@ -302,8 +311,11 @@ func (s *Service) Build(ctx context.Context, channelID uuid.UUID, crawlID *uuid.
 		}
 	}
 
-	return Graph{Nodes: kept, Edges: keptEdges, Stats: stats, Crawl: toCrawlInfo(crawl)}, nil
+	return Graph{Nodes: kept, Edges: keptEdges, Stats: stats, Crawl: toCrawlInfo(crawl)}
 }
+
+// A pinned crawl can be one that failed or is still running - its "nothing links here" is as unsafe as a budget-truncated one
+func crawlComplete(c db.SeoCrawl) bool { return c.Status == "completed" && !c.HitBudget }
 
 // Nav and footer links repeat on nearly every page, so they connect everything to everything and drown the real
 // structure - half the edges on a typical storefront. Needs a decent sample before the share means anything
@@ -363,11 +375,8 @@ func toCrawlInfo(c db.SeoCrawl) CrawlInfo {
 // Skeleton first so the map stays legible, then the findings - a site with 10k unlinked products would otherwise
 // push every category and landing page out of the picture
 func selectNodes(nodes []*Node, maxNodes int) []Node {
-	ranked := make([]*Node, len(nodes))
-	copy(ranked, nodes)
-	sort.SliceStable(ranked, func(i, j int) bool {
-		return priority(ranked[i]) < priority(ranked[j])
-	})
+	ranked := slices.Clone(nodes)
+	slices.SortStableFunc(ranked, func(a, b *Node) int { return cmp.Compare(priority(a), priority(b)) })
 	limit := min(maxNodes, len(ranked))
 	out := make([]Node, 0, limit)
 	for _, n := range ranked[:limit] {

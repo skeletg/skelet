@@ -27,7 +27,7 @@ func (r *fakeRepo) Create(_ context.Context, in CreateLocaleInput) (Locale, erro
 	l := Locale{
 		Code: in.Code, Name: in.Name, NativeName: in.NativeName, IsActive: in.IsActive,
 		DecimalSeparator: in.DecimalSeparator, ThousandsSeparator: in.ThousandsSeparator,
-		FirstDayOfWeek: in.FirstDayOfWeek, DefaultCountryCode: in.DefaultCountryCode,
+		FirstDayOfWeek: *in.FirstDayOfWeek, DefaultCountryCode: in.DefaultCountryCode,
 		HreflangValue: in.HreflangValue,
 	}
 	r.rows[in.Code] = l
@@ -53,12 +53,13 @@ func (r *fakeRepo) List(_ context.Context, activeOnly bool) ([]Locale, error) {
 	return out, nil
 }
 
-func (r *fakeRepo) Update(_ context.Context, in UpdateLocaleInput) (Locale, error) {
+func (r *fakeRepo) Update(_ context.Context, in UpdateLocaleInput) (Locale, bool, error) {
 	if r.updateErr != nil {
-		return Locale{}, r.updateErr
+		return Locale{}, false, r.updateErr
 	}
 	r.updated = append(r.updated, in)
 	l := r.rows[in.Code]
+	was := l.IsActive
 	l.Code = in.Code
 	if in.Name != nil {
 		l.Name = *in.Name
@@ -73,7 +74,7 @@ func (r *fakeRepo) Update(_ context.Context, in UpdateLocaleInput) (Locale, erro
 		l.HreflangValue = *in.HreflangValue
 	}
 	r.rows[in.Code] = l
-	return l, nil
+	return l, was, nil
 }
 
 func (r *fakeRepo) Delete(_ context.Context, code string) error {
@@ -165,8 +166,8 @@ func TestCreateRejectsBadInput(t *testing.T) {
 		"blank name":           {Code: "de", Name: "   "},
 		"bad country":          {Code: "de", Name: "German", DefaultCountryCode: "DEU"},
 		"bad hreflang":         {Code: "de", Name: "German", HreflangValue: "de_AT"},
-		"day of week too big":  {Code: "de", Name: "German", FirstDayOfWeek: 7, DefaultCountryCode: "DE"},
-		"day of week negative": {Code: "de", Name: "German", FirstDayOfWeek: -1, DefaultCountryCode: "DE"},
+		"day of week too big":  {Code: "de", Name: "German", FirstDayOfWeek: day(7), DefaultCountryCode: "DE"},
+		"day of week negative": {Code: "de", Name: "German", FirstDayOfWeek: day(-1), DefaultCountryCode: "DE"},
 	} {
 		if _, err := svc.Create(context.Background(), in); err == nil {
 			t.Errorf("%s was accepted, want a validation error", name)
@@ -436,6 +437,58 @@ func TestCreateAndUpdateAgreeOnPaddedInput(t *testing.T) {
 		_, uerr := svc.Update(context.Background(), UpdateLocaleInput{Code: "de-at", HreflangValue: &v})
 		if (cerr != nil) != (uerr != nil) {
 			t.Errorf("hreflang %q: Create err=%v but Update err=%v", val, cerr, uerr)
+		}
+	}
+}
+
+func day(d int16) *int16 { return &d }
+
+// Only an absent value defaults to Monday - 0 is a real choice, and collapsing it turned Sunday-first locales into Monday ones
+func TestAnExplicitSundayIsKept(t *testing.T) {
+	svc, repo := newTestService()
+	if _, err := svc.Create(context.Background(), CreateLocaleInput{Code: "en-us", Name: "English (US)", FirstDayOfWeek: day(0)}); err != nil {
+		t.Fatal(err)
+	}
+	if got := *repo.created[0].FirstDayOfWeek; got != 0 {
+		t.Errorf("first day = %d, want Sunday", got)
+	}
+}
+
+func TestSeparatorsMustDiffer(t *testing.T) {
+	svc, repo := newTestService()
+	ctx := context.Background()
+	for name, in := range map[string]CreateLocaleInput{
+		"both commas":       {Code: "de", Name: "German", DecimalSeparator: ",", ThousandsSeparator: ","},
+		"default collision": {Code: "de", Name: "German", DecimalSeparator: ","},
+		"too long":          {Code: "de", Name: "German", DecimalSeparator: "dot."},
+	} {
+		if _, err := svc.Create(ctx, in); !errors.Is(err, ErrInvalidSeparators) {
+			t.Errorf("%s: %v, want ErrInvalidSeparators", name, err)
+		}
+	}
+	if _, err := svc.Create(ctx, CreateLocaleInput{Code: "de", Name: "German", DecimalSeparator: ",", ThousandsSeparator: "."}); err != nil {
+		t.Fatal(err)
+	}
+	// An edit to one side is checked against the other side as stored
+	dot := "."
+	if _, err := svc.Update(ctx, UpdateLocaleInput{Code: "de", DecimalSeparator: &dot}); !errors.Is(err, ErrInvalidSeparators) {
+		t.Errorf("decimal edited onto the stored thousands = %v, want ErrInvalidSeparators", err)
+	}
+	if len(repo.updated) != 0 {
+		t.Error("a refused edit reached the repository")
+	}
+}
+
+func TestValidationErrorsAreTyped(t *testing.T) {
+	svc, _ := newTestService()
+	ctx := context.Background()
+	for want, in := range map[error]CreateLocaleInput{
+		ErrNameRequired:    {Code: "de", Name: " "},
+		ErrInvalidFirstDay: {Code: "de", Name: "German", FirstDayOfWeek: day(9)},
+		ErrInvalidCountry:  {Code: "de", Name: "German", DefaultCountryCode: "DEU"},
+	} {
+		if _, err := svc.Create(ctx, in); !errors.Is(err, want) {
+			t.Errorf("got %v, want %v", err, want)
 		}
 	}
 }

@@ -75,22 +75,28 @@ func (q *Queries) ClearCollectionCover(ctx context.Context, id uuid.UUID) (Colle
 
 const confirmCollectionCover = `-- name: ConfirmCollectionCover :one
 UPDATE catalog_collections
-SET cover_width  = $2,
-    cover_height = $3,
+SET cover_width  = $1,
+    cover_height = $2,
     cover_status = 'ready',
     updated_at   = NOW()
-WHERE id = $1
+WHERE id = $3 AND cover_id = $4 AND cover_status = 'pending'
 RETURNING id, slug, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at
 `
 
 type ConfirmCollectionCoverParams struct {
-	ID          uuid.UUID     `json:"id"`
 	CoverWidth  sql.NullInt32 `json:"cover_width"`
 	CoverHeight sql.NullInt32 `json:"cover_height"`
+	ID          uuid.UUID     `json:"id"`
+	CoverID     uuid.NullUUID `json:"cover_id"`
 }
 
 func (q *Queries) ConfirmCollectionCover(ctx context.Context, arg ConfirmCollectionCoverParams) (Collection, error) {
-	row := q.db.QueryRowContext(ctx, confirmCollectionCover, arg.ID, arg.CoverWidth, arg.CoverHeight)
+	row := q.db.QueryRowContext(ctx, confirmCollectionCover,
+		arg.CoverWidth,
+		arg.CoverHeight,
+		arg.ID,
+		arg.CoverID,
+	)
 	var i Collection
 	err := row.Scan(
 		&i.ID,
@@ -687,7 +693,7 @@ func (q *Queries) RemoveProductFromCollection(ctx context.Context, arg RemovePro
 	return result.RowsAffected()
 }
 
-const reorderCollectionProduct = `-- name: ReorderCollectionProduct :exec
+const reorderCollectionProduct = `-- name: ReorderCollectionProduct :execrows
 UPDATE catalog_collection_products
 SET sort_order = $3
 WHERE collection_id = $1 AND product_id = $2
@@ -699,9 +705,12 @@ type ReorderCollectionProductParams struct {
 	SortOrder    int32     `json:"sort_order"`
 }
 
-func (q *Queries) ReorderCollectionProduct(ctx context.Context, arg ReorderCollectionProductParams) error {
-	_, err := q.db.ExecContext(ctx, reorderCollectionProduct, arg.CollectionID, arg.ProductID, arg.SortOrder)
-	return err
+func (q *Queries) ReorderCollectionProduct(ctx context.Context, arg ReorderCollectionProductParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reorderCollectionProduct, arg.CollectionID, arg.ProductID, arg.SortOrder)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setCollectionCover = `-- name: SetCollectionCover :one
