@@ -1293,6 +1293,23 @@ export type PaymentStatus =
   | 'UNPAID'
   | 'VOIDED';
 
+export type PhoneCountryFormat = {
+  __typename?: 'PhoneCountryFormat';
+  callingCode: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  example: Scalars['String']['output'];
+  nationalExample: Scalars['String']['output'];
+  template: Scalars['String']['output'];
+};
+
+export type PhoneSettings = {
+  __typename?: 'PhoneSettings';
+  defaultCountryCode: Scalars['String']['output'];
+  formats: Array<PhoneCountryFormat>;
+  lockedCountryCode?: Maybe<Scalars['String']['output']>;
+  restrictedToStoreCountries: Scalars['Boolean']['output'];
+};
+
 export type PickupLocation = {
   __typename?: 'PickupLocation';
   city: Scalars['String']['output'];
@@ -1632,6 +1649,7 @@ export type Query = {
   myWishlist: Array<Product>;
   myWishlistShareToken: Scalars['String']['output'];
   paymentMethods: Array<PaymentMethodOption>;
+  phoneSettings: PhoneSettings;
   pickupLocations: Array<PickupLocation>;
   presentmentCurrencies: Array<PresentmentCurrency>;
   previewBlogPost?: Maybe<BlogPost>;

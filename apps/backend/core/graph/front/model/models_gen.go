@@ -212,6 +212,21 @@ type PaymentMethodOption struct {
 	Instructions string `json:"instructions"`
 }
 
+type PhoneCountryFormat struct {
+	CountryCode     string `json:"countryCode"`
+	CallingCode     string `json:"callingCode"`
+	Example         string `json:"example"`
+	NationalExample string `json:"nationalExample"`
+	Template        string `json:"template"`
+}
+
+type PhoneSettings struct {
+	RestrictedToStoreCountries bool                  `json:"restrictedToStoreCountries"`
+	LockedCountryCode          *string               `json:"lockedCountryCode,omitempty"`
+	DefaultCountryCode         string                `json:"defaultCountryCode"`
+	Formats                    []*PhoneCountryFormat `json:"formats"`
+}
+
 type PickupLocation struct {
 	Slug         string `json:"slug"`
 	Name         string `json:"name"`
