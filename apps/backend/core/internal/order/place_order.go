@@ -32,8 +32,10 @@ type checkoutContext struct {
 	cart            cart.Cart
 	subtotal        int64
 	orderID         uuid.UUID // pre-allocated so pre-tx subscribers can link writes
-	taxLines        []TaxLine // per-rule breakdown from the last computeLineTax call
-	shippingTax     int64
+	// A digital-only order ships nowhere - shipping then mirrors billing for tax, promotions and payment eligibility, and the order stores no shipping address
+	noShipping  bool
+	taxLines    []TaxLine // per-rule breakdown from the last computeLineTax call
+	shippingTax int64
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
@@ -64,9 +66,13 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 	if err != nil {
 		return nil, err
 	}
-	shipping, err := resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote, rules)
-	if err != nil {
-		return nil, err
+	noShipping := in.FulfillmentNeed == FulfillmentNone && in.ShippingAddress == nil && in.ShippingAddressID == nil
+	shipping := billing
+	if !noShipping {
+		shipping, err = resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote, rules)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// PlaceOrder is storefront-only - without a store there's no currency to stamp
@@ -140,6 +146,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 		cart:            cartObj,
 		subtotal:        subtotal,
 		orderID:         orderID,
+		noShipping:      noShipping,
 	}, nil
 }
 

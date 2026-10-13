@@ -901,10 +901,11 @@ func (r *postgresRepository) ProductDimensionsBySKUs(ctx context.Context, skus [
 	out := make(map[string]Dimensions, len(rows))
 	for _, row := range rows {
 		out[row.Sku] = Dimensions{
-			WeightGrams: row.WeightGrams.Int32,
-			LengthMm:    row.LengthMm.Int32,
-			WidthMm:     row.WidthMm.Int32,
-			HeightMm:    row.HeightMm.Int32,
+			WeightGrams:   row.WeightGrams.Int32,
+			LengthMm:      row.LengthMm.Int32,
+			WidthMm:       row.WidthMm.Int32,
+			HeightMm:      row.HeightMm.Int32,
+			ProductTypeID: row.ProductTypeID,
 		}
 	}
 	return out, nil

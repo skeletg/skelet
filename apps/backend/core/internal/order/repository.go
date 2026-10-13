@@ -1251,6 +1251,7 @@ func toOrder(row db.Order) Order {
 		CurrencyCode:      row.CurrencyCode,
 		CustomerNote:      row.CustomerNote.String,
 		PONumber:          row.PoNumber.String,
+		FulfillmentNeed:   row.FulfillmentNeed,
 		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,

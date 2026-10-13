@@ -21,6 +21,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -78,6 +79,7 @@ type Deps struct {
 	Currency      *currency.Service
 	Country       *country.Service
 	Catalog       *catalog.Service
+	Delivery      *delivery.Service
 	Inventory     *inventory.Service
 	Cart          *cart.Service
 	Order         *order.Service

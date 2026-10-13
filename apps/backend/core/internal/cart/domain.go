@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 
 	"github.com/google/uuid"
@@ -149,6 +150,32 @@ type Checkout struct {
 	Company       string            // business purchases only, with BusinessIDs
 	BusinessIDs   map[string]string // the company identifiers the country asks for, by field key ("pib" -> "123456789")
 	PickupContact *PickupContact    // who collects a pickup order, nil until the details step of one
+	// Deliveries holds the shopper's choice per delivery group, keyed by the group's key - a cart delivered as one uses delivery.CombinedGroupKey. Groups are recomputed from the lines on every read, so a selection whose group no longer exists is simply ignored
+	Deliveries map[string]DeliverySelection
+	// SplitDelivery is the shopper asking to choose per group when one option could cover every line
+	SplitDelivery bool
+}
+
+// DeliverySelection is one group's delivery - the option and carrier method, and the point when the option's kind needs one. The point is a snapshot, re-checked at placement
+type DeliverySelection struct {
+	OptionID    uuid.UUID       `json:"optionId"`
+	CarrierSlug string          `json:"carrierSlug,omitempty"`
+	MethodCode  string          `json:"methodCode,omitempty"`
+	Point       *delivery.Point `json:"point,omitempty"`
+}
+
+// Delivery is the group's selection - the zero value when nothing is chosen
+func (c Checkout) Delivery(groupKey string) (DeliverySelection, bool) {
+	d, ok := c.Deliveries[groupKey]
+	return d, ok && d.OptionID != uuid.Nil
+}
+
+// SetDelivery stores a group's selection
+func (c *Checkout) SetDelivery(groupKey string, d DeliverySelection) {
+	if c.Deliveries == nil {
+		c.Deliveries = map[string]DeliverySelection{}
+	}
+	c.Deliveries[groupKey] = d
 }
 
 const (
@@ -196,7 +223,7 @@ func (c Checkout) EffectiveBilling() (*Address, *uuid.UUID) {
 
 // QuoteDestination is what shipping and tax are quoted for - the shipping address once there is one, else the destination the first step saved
 func (c Checkout) QuoteDestination() Destination {
-	if c.ShippingAddress != nil && !c.IsPickup() {
+	if c.ShippingAddress != nil {
 		a := c.ShippingAddress
 		d := Destination{CountryCode: a.CountryCode, PostalCode: a.PostalCode}
 		if a.State != nil {
@@ -210,14 +237,6 @@ func (c Checkout) QuoteDestination() Destination {
 // ShippingCountry is the destination's country, empty until the first step is saved
 func (c Checkout) ShippingCountry() string {
 	return c.QuoteDestination().CountryCode
-}
-
-// PickupCarrierSlug mirrors shipping.PickupCarrierSlug - the cart doesn't import shipping
-const PickupCarrierSlug = "pickup"
-
-// IsPickup reports whether the chosen method is collection from a store, which needs no shipping address
-func (c Checkout) IsPickup() bool {
-	return c.ShippingCarrierSlug == PickupCarrierSlug
 }
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty

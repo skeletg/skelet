@@ -72,14 +72,16 @@ type ProductType struct {
 	Name               string
 	IsDigital          bool
 	IsShippingRequired bool
-	URLTemplate        string // empty = no auto-generation default - token syntax lives in url_template.go, validated against the type's assigned attributes when set
-	TracksInventory    bool
-	Metadata           Metadata
-	PrivateMetadata    Metadata
-	Attributes         []ProductTypeAttribute
-	Groups             []AttributeGroup
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	// The delivery kinds the type's products may ship by - empty takes any the channel offers
+	DeliveryKinds   []string
+	URLTemplate     string // empty = no auto-generation default - token syntax lives in url_template.go, validated against the type's assigned attributes when set
+	TracksInventory bool
+	Metadata        Metadata
+	PrivateMetadata Metadata
+	Attributes      []ProductTypeAttribute
+	Groups          []AttributeGroup
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type AttributeGroup struct {
