@@ -58,3 +58,10 @@ SELECT signing_secret FROM remote_providers WHERE id = $1;
 
 -- name: DeleteRemoteProvider :exec
 DELETE FROM remote_providers WHERE id = $1;
+
+-- name: ListRemoteProviderSecrets :many
+-- The at-rest sweep's view - the stored form of both sealed columns
+SELECT id, signing_secret, config FROM remote_providers;
+
+-- name: SetRemoteProviderSealed :exec
+UPDATE remote_providers SET signing_secret = $2, config = $3 WHERE id = $1;

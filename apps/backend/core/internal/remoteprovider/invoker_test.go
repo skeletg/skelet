@@ -3,6 +3,7 @@ package remoteprovider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -81,7 +82,8 @@ func (r *fakeRepo) UpdateSecret(context.Context, uuid.UUID, string) (Provider, e
 func (r *fakeRepo) GetSecret(_ context.Context, id uuid.UUID) (string, error) {
 	return r.secrets[id], nil
 }
-func (r *fakeRepo) Delete(context.Context, uuid.UUID) error { return nil }
+func (r *fakeRepo) Delete(context.Context, uuid.UUID) error    { return nil }
+func (r *fakeRepo) SealPlaintext(context.Context) (int, error) { return 0, nil }
 
 func resetBreaker() {
 	breaker = circuit.New(circuit.DefaultThreshold, circuit.DefaultCooldown)
@@ -232,5 +234,74 @@ func TestInvokeTimeout(t *testing.T) {
 	}
 	if time.Since(start) > 400*time.Millisecond {
 		t.Fatal("timeout_ms not honored")
+	}
+}
+
+// A 307 re-sends the signed body - config API keys included - to wherever Location points, so the invoker never follows one
+func TestInvokeRefusesToFollowARedirect(t *testing.T) {
+	resetBreaker()
+	var leaked atomic.Bool
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		leaked.Store(true)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer elsewhere.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	err := NewInvoker(NewService(newFakeRepo(p)), nil).Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	if err == nil {
+		t.Error("a redirect answered as success")
+	}
+	if leaked.Load() {
+		t.Error("the signed body followed the redirect")
+	}
+}
+
+// A 200 of garbage is a failing provider - recording it as a success meant it could never trip the breaker
+func TestAnUndecodableResponseCountsAgainstTheBreaker(t *testing.T) {
+	resetBreaker()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html>maintenance</html>`))
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	for range circuit.DefaultThreshold {
+		_ = inv.Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	}
+	if err := inv.Invoke(context.Background(), p, map[string]any{}, &struct{}{}); !errors.Is(err, ErrCircuitOpen) {
+		t.Errorf("after %d garbage answers: %v, want the circuit open", circuit.DefaultThreshold, err)
+	}
+}
+
+func TestAnOversizedResponseSaysSo(t *testing.T) {
+	resetBreaker()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"pad":"` + strings.Repeat("x", maxResponseBodyBytes) + `"}`))
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	err := NewInvoker(NewService(newFakeRepo(p)), nil).Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	if err == nil || !strings.Contains(err.Error(), "bytes") {
+		t.Errorf("err = %v, want the size named", err)
+	}
+}
+
+// Live entries used to be kept however many there were - an hour-long TTL fed random search queries grew the process without bound
+func TestTheResponseCacheIsBounded(t *testing.T) {
+	c := &responseCache{m: map[string]cacheEntry{}}
+	id := uuid.New()
+	c.put("first", id, []byte("x"), time.Second) // expires soonest, so it makes way
+	for i := range maxCachedResponses + 50 {
+		c.put(fmt.Sprintf("k%d", i), id, []byte("x"), time.Hour)
+	}
+	if len(c.m) > maxCachedResponses {
+		t.Errorf("cache holds %d entries, cap %d", len(c.m), maxCachedResponses)
+	}
+	if _, ok := c.m["first"]; ok {
+		t.Error("the entry closest to expiring survived while the cache was full")
 	}
 }

@@ -121,4 +121,6 @@ type Repository interface {
 	UpdateSecret(ctx context.Context, id uuid.UUID, secret string) (Provider, error)
 	GetSecret(ctx context.Context, id uuid.UUID) (string, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	// Seals rows still holding a plaintext secret or config, returning how many it rewrote
+	SealPlaintext(ctx context.Context) (int, error)
 }

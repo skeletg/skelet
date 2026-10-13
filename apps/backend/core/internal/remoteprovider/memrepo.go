@@ -171,3 +171,5 @@ func (r *MemRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(r.secrets, id)
 	return nil
 }
+
+func (m *MemRepo) SealPlaintext(context.Context) (int, error) { return 0, nil }
