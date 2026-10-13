@@ -18,9 +18,11 @@ export const KIND_LABELS: Record<RemoteProviderKind, string> = {
   RETURNS_POLICY: 'Returns policy',
   INVENTORY_AVAILABILITY: 'Inventory availability',
   SHIPPING_TRACKING: 'Shipping tracking',
+  DELIVERY_POINTS: 'Delivery points',
 }
 
 export const KIND_HINTS: Record<RemoteProviderKind, string> = {
+  DELIVERY_POINTS: 'Search and resolve PO boxes and lockers using the shared point contract.',
   SHIPPING_CARRIER: 'Called during rate quoting - respond with {"rates": [...]}.',
   TAX_PROVIDER: 'Called at order placement - respond with {"taxCents": ...}.',
   ADDRESS_VALIDATOR: 'Called at checkout - respond with {"valid": bool, "reason": ...}.',
