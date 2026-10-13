@@ -24,59 +24,46 @@ func TestCheckRateLimit_UnlimitedWhenZero(t *testing.T) {
 	}
 }
 
-// Drives the bucket directly with a stubbed limit, bypassing rateLimitFor by pre-populating a bucket at the threshold - the next call should fail closed
-func TestCheckRateLimit_AppliesLimit(t *testing.T) {
-	resetRateLimiterForTest()
-	// Pre-fill the bucket as if 5 calls already arrived this window
-	now := time.Now()
-	rateBucketsMu.Lock()
-	rateBuckets["test"] = &rateBucket{calls: []time.Time{
-		now.Add(-30 * time.Second),
-		now.Add(-25 * time.Second),
-		now.Add(-20 * time.Second),
-		now.Add(-15 * time.Second),
-		now.Add(-10 * time.Second),
-	}}
-	rateBucketsMu.Unlock()
-
-	// rateLimitFor returns 0 when the host isn't installed, so replicate the inner check directly rather than stubbing a full installation
-	cutoff := now.Add(-rateLimitWindow)
-	rateBucketsMu.Lock()
-	b := rateBuckets["test"]
-	keep := 0
-	for ; keep < len(b.calls); keep++ {
-		if b.calls[keep].After(cutoff) {
-			break
+func TestRateBucketAdmitsUpToTheLimit(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	b := &rateBucket{}
+	for i := range 5 {
+		if !b.admit(t0.Add(time.Duration(i)*time.Second), 5) {
+			t.Fatalf("call %d refused under the limit", i)
 		}
 	}
-	if keep > 0 {
-		b.calls = b.calls[keep:]
+	if b.admit(t0.Add(10*time.Second), 5) {
+		t.Fatal("sixth call in the window admitted")
 	}
-	if len(b.calls) < 5 {
-		t.Fatalf("setup: expected 5 fresh calls, got %d", len(b.calls))
+	if b.cur != 5 {
+		t.Errorf("a refused call consumed a slot: cur=%d", b.cur)
 	}
-	rateBucketsMu.Unlock()
 }
 
-// Exercises the window-trimming logic directly, so the test needn't stand up a full Host to stub a non-zero limit - validates that entries older than the window come off and fresh ones stay
-func TestSlideOff(t *testing.T) {
-	now := time.Now()
-	calls := []time.Time{
-		now.Add(-2 * time.Minute),
-		now.Add(-90 * time.Second),
-		now.Add(-30 * time.Second),
-		now.Add(-5 * time.Second),
+// Last minute's calls still count for the part of it the window overlaps, so the boundary is no burst point
+func TestRateBucketSlides(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	b := &rateBucket{}
+	for range 10 {
+		b.admit(t0.Add(50*time.Second), 10)
 	}
-	cutoff := now.Add(-rateLimitWindow)
-	keep := 0
-	for ; keep < len(calls); keep++ {
-		if calls[keep].After(cutoff) {
-			break
+	admitted := 0
+	for range 10 {
+		if b.admit(t0.Add(61*time.Second), 10) {
+			admitted++
 		}
 	}
-	calls = calls[keep:]
-	if len(calls) != 2 {
-		t.Errorf("expected 2 fresh entries after slide-off, got %d (%v)", len(calls), calls)
+	if admitted > 1 {
+		t.Errorf("admitted a burst of %d right after the boundary while last minute's 10 still fill the window", admitted)
+	}
+	if !b.admit(t0.Add(115*time.Second), 10) {
+		t.Error("refused once most of last minute had slid out")
+	}
+	if !b.admit(t0.Add(5*time.Minute), 10) {
+		t.Error("refused after the window fully expired")
+	}
+	if b.prev != 0 {
+		t.Errorf("a stale window carried over: prev=%d", b.prev)
 	}
 }
 

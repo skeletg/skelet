@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ func resetRoutes(t *testing.T) *Host {
 	t.Helper()
 	clear := func() {
 		routeRegistry.mu.Lock()
-		routeRegistry.routes = nil
+		routeRegistry.routes, routeRegistry.probe = nil, nil
 		routeRegistry.mu.Unlock()
 	}
 	clear()
@@ -190,5 +191,21 @@ func TestQualifyPattern(t *testing.T) {
 		if got := qualifyPattern(c.slug, c.pattern); got != c.want {
 			t.Errorf("qualifyPattern(%q, %q) = %q, want %q", c.slug, c.pattern, got, c.want)
 		}
+	}
+}
+
+// A pattern the mux would refuse has to fail at registration, naming the plugin, not panic later inside RouteHandler
+func TestConflictingRouteIsARegistrationError(t *testing.T) {
+	h := resetRoutes(t)
+	noop := func(http.ResponseWriter, *http.Request) {}
+	if err := h.RegisterRoute("dup", "GET /hook", noop); err != nil {
+		t.Fatalf("first registration: %v", err)
+	}
+	err := h.RegisterRoute("dup", "GET /hook", noop)
+	if err == nil || !strings.Contains(err.Error(), "dup") {
+		t.Fatalf("want an error naming the plugin, got %v", err)
+	}
+	if RouteHandler() == nil {
+		t.Fatal("the first route was lost")
 	}
 }
