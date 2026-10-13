@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -162,6 +163,7 @@ func toOrderModel(o order.Order) *model.Order {
 		Carrier:            o.Carrier,
 		TrackingNumber:     o.TrackingNumber,
 		CreatedAt:          o.CreatedAt,
+		FulfillmentNeed:    strings.ToUpper(cmp.Or(o.FulfillmentNeed, order.FulfillmentPhysical)),
 	}
 	if o.CustomerID != nil {
 		id := o.CustomerID.String()

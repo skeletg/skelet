@@ -17,6 +17,8 @@ type ProductType {
   name:               String!
   isDigital:          Boolean!
   isShippingRequired: Boolean!
+  # The delivery kinds this type's products may ship by - empty allows every kind the channel offers. A fridge allows ship_to_address and store_pickup, never parcel_locker or carrier_point. Set with setProductTypeDeliveryKinds.
+  deliveryKinds:      [String!]!
   # Auto-generated URL path template applied to products of this type whose urlPathAuto is true. Empty string = no auto-generation. Tokens: {slug}, {category}, {categorySlug}, {attr:<slug>}.
   urlTemplate:    String!
   # Whether new products of this type opt into inventory tracking by default.
