@@ -41,6 +41,8 @@ type Repository interface {
 	GetMethodByCode(ctx context.Context, zoneID uuid.UUID, code string) (Method, error)
 	ListMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]Method, error)
 	ListActiveMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]Method, error)
+	// Replaces a method's per-product-type rates - every method read above returns them hydrated
+	ReplaceTypeRates(ctx context.Context, methodID uuid.UUID, rates []TypeRate) error
 
 	AddCountryToMethod(ctx context.Context, methodID uuid.UUID, country string) error
 	ListCountriesForMethod(ctx context.Context, methodID uuid.UUID) ([]string, error)
@@ -51,6 +53,7 @@ type Repository interface {
 	GetCarrierConfig(ctx context.Context, channelID uuid.UUID, slug string) (CarrierConfig, error)
 	ListCarrierConfigsByChannel(ctx context.Context, channelID uuid.UUID) ([]CarrierConfig, error)
 	SetCarrierEnabled(ctx context.Context, channelID uuid.UUID, slug string, enabled bool) (CarrierConfig, error)
+	SetCarrierWeekendDelivery(ctx context.Context, channelID uuid.UUID, slug string, weekends bool) (CarrierConfig, error)
 	SetCarrierSortOrder(ctx context.Context, channelID uuid.UUID, slug string, sortOrder int32) (CarrierConfig, error)
 	SetCarrierCountryMode(ctx context.Context, channelID uuid.UUID, slug string, mode string) (CarrierConfig, error)
 	AddCountryToCarrier(ctx context.Context, carrierID uuid.UUID, country string) error
@@ -189,15 +192,19 @@ func (r *postgresRepository) ClearZoneCountries(ctx context.Context, zoneID uuid
 
 func (r *postgresRepository) CreateMethod(ctx context.Context, in Method) (Method, error) {
 	row, err := r.queries.CreateShippingMethod(ctx, db.CreateShippingMethodParams{
-		ZoneID:         in.ZoneID,
-		Code:           in.Code,
-		Name:           in.Name,
-		CalcType:       string(in.CalcType),
-		FlatCents:      in.FlatCents,
-		FreeAboveCents: in.FreeAboveCents,
-		SortOrder:      in.SortOrder,
-		IsActive:       in.IsActive,
-		CountryMode:    normalizeMethodMode(in.CountryMode),
+		ZoneID:             in.ZoneID,
+		Code:               in.Code,
+		Name:               in.Name,
+		CalcType:           string(in.CalcType),
+		FlatCents:          in.FlatCents,
+		FreeAboveCents:     in.FreeAboveCents,
+		SortOrder:          in.SortOrder,
+		IsActive:           in.IsActive,
+		CountryMode:        normalizeMethodMode(in.CountryMode),
+		DeliveryKind:       normalizeDeliveryKind(in.DeliveryKind),
+		UnitsPerCharge:     in.UnitsPerCharge,
+		EstimatedDays:      in.EstimatedDays,
+		DeliversOnWeekends: in.DeliversOnWeekends,
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -205,25 +212,29 @@ func (r *postgresRepository) CreateMethod(ctx context.Context, in Method) (Metho
 		}
 		return Method{}, fmt.Errorf("create method: %w", err)
 	}
-	return toMethod(row), nil
+	return r.hydrateOne(ctx, toMethod(row))
 }
 
 func (r *postgresRepository) UpdateMethod(ctx context.Context, in Method) (Method, error) {
 	row, err := r.queries.UpdateShippingMethod(ctx, db.UpdateShippingMethodParams{
-		ID:             in.ID,
-		Code:           in.Code,
-		Name:           in.Name,
-		CalcType:       string(in.CalcType),
-		FlatCents:      in.FlatCents,
-		FreeAboveCents: in.FreeAboveCents,
-		SortOrder:      in.SortOrder,
-		IsActive:       in.IsActive,
-		CountryMode:    normalizeMethodMode(in.CountryMode),
+		ID:                 in.ID,
+		Code:               in.Code,
+		Name:               in.Name,
+		CalcType:           string(in.CalcType),
+		FlatCents:          in.FlatCents,
+		FreeAboveCents:     in.FreeAboveCents,
+		SortOrder:          in.SortOrder,
+		IsActive:           in.IsActive,
+		CountryMode:        normalizeMethodMode(in.CountryMode),
+		DeliveryKind:       normalizeDeliveryKind(in.DeliveryKind),
+		UnitsPerCharge:     in.UnitsPerCharge,
+		EstimatedDays:      in.EstimatedDays,
+		DeliversOnWeekends: in.DeliversOnWeekends,
 	})
 	if err != nil {
 		return Method{}, fmt.Errorf("update method: %w", err)
 	}
-	return toMethod(row), nil
+	return r.hydrateOne(ctx, toMethod(row))
 }
 
 func (r *postgresRepository) DeleteMethod(ctx context.Context, id uuid.UUID) error {
@@ -241,7 +252,7 @@ func (r *postgresRepository) GetMethod(ctx context.Context, id uuid.UUID) (Metho
 		}
 		return Method{}, fmt.Errorf("get method: %w", err)
 	}
-	return toMethod(row), nil
+	return r.hydrateOne(ctx, toMethod(row))
 }
 
 func (r *postgresRepository) GetMethodByCode(ctx context.Context, zoneID uuid.UUID, code string) (Method, error) {
@@ -255,7 +266,7 @@ func (r *postgresRepository) GetMethodByCode(ctx context.Context, zoneID uuid.UU
 		}
 		return Method{}, fmt.Errorf("get method by code: %w", err)
 	}
-	return toMethod(row), nil
+	return r.hydrateOne(ctx, toMethod(row))
 }
 
 func (r *postgresRepository) ListMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]Method, error) {
@@ -267,7 +278,7 @@ func (r *postgresRepository) ListMethodsByZone(ctx context.Context, zoneID uuid.
 	for i, row := range rows {
 		out[i] = toMethod(row)
 	}
-	return out, nil
+	return r.hydrateTypeRates(ctx, out)
 }
 
 func (r *postgresRepository) ListActiveMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]Method, error) {
@@ -279,7 +290,57 @@ func (r *postgresRepository) ListActiveMethodsByZone(ctx context.Context, zoneID
 	for i, row := range rows {
 		out[i] = toMethod(row)
 	}
-	return out, nil
+	return r.hydrateTypeRates(ctx, out)
+}
+
+// hydrateTypeRates fills every method's per-product-type rates in one query
+func (r *postgresRepository) hydrateTypeRates(ctx context.Context, methods []Method) ([]Method, error) {
+	if len(methods) == 0 {
+		return methods, nil
+	}
+	ids := make([]uuid.UUID, len(methods))
+	for i, m := range methods {
+		ids[i] = m.ID
+	}
+	rows, err := r.queries.ListMethodTypeRates(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list method type rates: %w", err)
+	}
+	byMethod := make(map[uuid.UUID][]TypeRate, len(methods))
+	for _, row := range rows {
+		byMethod[row.MethodID] = append(byMethod[row.MethodID], TypeRate{
+			ProductTypeID: row.ProductTypeID, ProductTypeName: row.ProductTypeName, PriceCents: row.PriceCents,
+			UnitsPerCharge: row.UnitsPerCharge, FreeShippingEligible: row.FreeShippingEligible,
+		})
+	}
+	for i := range methods {
+		methods[i].TypeRates = byMethod[methods[i].ID]
+	}
+	return methods, nil
+}
+
+func (r *postgresRepository) hydrateOne(ctx context.Context, m Method) (Method, error) {
+	out, err := r.hydrateTypeRates(ctx, []Method{m})
+	if err != nil {
+		return Method{}, err
+	}
+	return out[0], nil
+}
+
+// ReplaceTypeRates clears and rewrites a method's rates - the caller wraps it in a transaction with the method's own write
+func (r *postgresRepository) ReplaceTypeRates(ctx context.Context, methodID uuid.UUID, rates []TypeRate) error {
+	if err := r.queries.ClearMethodTypeRates(ctx, methodID); err != nil {
+		return fmt.Errorf("clear method type rates: %w", err)
+	}
+	for _, rt := range rates {
+		if err := r.queries.InsertMethodTypeRate(ctx, db.InsertMethodTypeRateParams{
+			MethodID: methodID, ProductTypeID: rt.ProductTypeID, PriceCents: rt.PriceCents,
+			UnitsPerCharge: rt.UnitsPerCharge, FreeShippingEligible: rt.FreeShippingEligible,
+		}); err != nil {
+			return fmt.Errorf("insert method type rate: %w", err)
+		}
+	}
+	return nil
 }
 
 func toZone(row db.ShippingZone) Zone {
@@ -297,19 +358,31 @@ func toZone(row db.ShippingZone) Zone {
 
 func toMethod(row db.ShippingMethod) Method {
 	return Method{
-		ID:             row.ID,
-		ZoneID:         row.ZoneID,
-		Code:           row.Code,
-		Name:           row.Name,
-		CalcType:       CalcType(row.CalcType),
-		FlatCents:      row.FlatCents,
-		FreeAboveCents: row.FreeAboveCents,
-		SortOrder:      row.SortOrder,
-		IsActive:       row.IsActive,
-		CountryMode:    row.CountryMode,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
+		ID:                 row.ID,
+		ZoneID:             row.ZoneID,
+		Code:               row.Code,
+		Name:               row.Name,
+		CalcType:           CalcType(row.CalcType),
+		FlatCents:          row.FlatCents,
+		FreeAboveCents:     row.FreeAboveCents,
+		SortOrder:          row.SortOrder,
+		IsActive:           row.IsActive,
+		CountryMode:        row.CountryMode,
+		DeliveryKind:       row.DeliveryKind,
+		UnitsPerCharge:     row.UnitsPerCharge,
+		EstimatedDays:      row.EstimatedDays,
+		DeliversOnWeekends: row.DeliversOnWeekends,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
 	}
+}
+
+// normalizeDeliveryKind coerces an empty kind to door delivery for the DB CHECK constraint
+func normalizeDeliveryKind(kind string) string {
+	if kind == "" {
+		return DefaultKind
+	}
+	return kind
 }
 
 // normalizeMethodMode coerces an empty/unknown mode to "all" for the DB CHECK constraint
@@ -349,15 +422,16 @@ func (r *postgresRepository) ClearMethodCountries(ctx context.Context, methodID 
 
 func toCarrierConfig(row db.ShippingCarrier) CarrierConfig {
 	return CarrierConfig{
-		ID:          row.ID,
-		ChannelID:   row.ChannelID,
-		CarrierSlug: row.CarrierSlug,
-		IsEnabled:   row.IsEnabled,
-		DisplayName: row.DisplayName,
-		SortOrder:   row.SortOrder,
-		CountryMode: row.CountryMode,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:                 row.ID,
+		ChannelID:          row.ChannelID,
+		CarrierSlug:        row.CarrierSlug,
+		IsEnabled:          row.IsEnabled,
+		DisplayName:        row.DisplayName,
+		SortOrder:          row.SortOrder,
+		CountryMode:        row.CountryMode,
+		DeliversOnWeekends: row.DeliversOnWeekends,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
 	}
 }
 
@@ -401,6 +475,14 @@ func (r *postgresRepository) SetCarrierEnabled(ctx context.Context, channelID uu
 	row, err := r.queries.SetShippingCarrierEnabled(ctx, db.SetShippingCarrierEnabledParams{ChannelID: channelID, CarrierSlug: slug, IsEnabled: enabled})
 	if err != nil {
 		return CarrierConfig{}, fmt.Errorf("set carrier enabled: %w", err)
+	}
+	return toCarrierConfig(row), nil
+}
+
+func (r *postgresRepository) SetCarrierWeekendDelivery(ctx context.Context, channelID uuid.UUID, slug string, weekends bool) (CarrierConfig, error) {
+	row, err := r.queries.SetShippingCarrierWeekendDelivery(ctx, db.SetShippingCarrierWeekendDeliveryParams{ChannelID: channelID, CarrierSlug: slug, DeliversOnWeekends: weekends})
+	if err != nil {
+		return CarrierConfig{}, fmt.Errorf("set carrier weekend delivery: %w", err)
 	}
 	return toCarrierConfig(row), nil
 }

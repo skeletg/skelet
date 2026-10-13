@@ -235,3 +235,49 @@ func TestPriceSelected_FillsProductDimensions(t *testing.T) {
 		t.Error("the caller's items were mutated")
 	}
 }
+
+// The built-in carrier's methods carry their own weekend rule; every other carrier takes its channel row's, whatever its quote says
+func TestQuoteAll_WeekendDeliveryFollowsTheCarrierRow(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{methods: []RatedMethod{
+		{Code: "std", PriceCents: 500, EstimatedDays: 3},
+		{Code: "express", PriceCents: 1200, EstimatedDays: 1, DeliversOnWeekends: true},
+	}}, DisplayName: "Store"})
+	RegisterCarrier(CarrierRegistration{Slug: "sat", Carrier: rateStub{methods: []RatedMethod{{Code: "parcel", PriceCents: 700, EstimatedDays: 2}}}, DisplayName: "Saturday Co"})
+	RegisterCarrier(CarrierRegistration{Slug: "weekday", Carrier: rateStub{methods: []RatedMethod{{Code: "parcel", PriceCents: 800, EstimatedDays: 2, DeliversOnWeekends: true}}}, DisplayName: "Weekday Co"})
+
+	repo := fakeCarrierRepo{configs: []CarrierConfig{
+		{ID: uuid.New(), CarrierSlug: BuiltinCarrierSlug, IsEnabled: true, DeliversOnWeekends: true},
+		{ID: uuid.New(), CarrierSlug: "sat", IsEnabled: true, SortOrder: 1, DeliversOnWeekends: true},
+		{ID: uuid.New(), CarrierSlug: "weekday", IsEnabled: true, SortOrder: 2},
+	}}
+	got, err := NewService(repo).QuoteAll(context.Background(), RateRequest{ChannelID: uuid.New(), Destination: Address{CountryCode: "US"}})
+	if err != nil {
+		t.Fatalf("QuoteAll: %v", err)
+	}
+	want := map[string]bool{"builtin/std": false, "builtin/express": true, "sat/parcel": true, "weekday/parcel": false}
+	if len(got) != len(want) {
+		t.Fatalf("got %d quotes, want %d: %+v", len(got), len(want), got)
+	}
+	for _, q := range got {
+		k := q.CarrierSlug + "/" + q.Method.Code
+		if w, ok := want[k]; !ok || q.Method.DeliversOnWeekends != w {
+			t.Errorf("%s: deliversOnWeekends = %v, want %v", k, q.Method.DeliversOnWeekends, w)
+		}
+	}
+}
+
+func TestSetCarrierWeekendDelivery_RefusesBuiltinAndUnknown(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{}})
+	svc := NewService(fakeCarrierRepo{})
+
+	if _, err := svc.SetCarrierWeekendDelivery(context.Background(), uuid.New(), BuiltinCarrierSlug, true); !errors.Is(err, errBuiltinWeekends) {
+		t.Errorf("builtin: got %v, want errBuiltinWeekends", err)
+	}
+	if _, err := svc.SetCarrierWeekendDelivery(context.Background(), uuid.New(), "nobody", true); err == nil {
+		t.Error("unknown carrier: want an error")
+	}
+}

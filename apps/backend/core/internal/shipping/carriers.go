@@ -141,7 +141,11 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 			name := carrierName(a.reg, a.cfg)
 			mu.Lock()
 			for _, m := range methods {
-				out = append(out, RatedQuote{CarrierSlug: a.reg.Slug, CarrierName: name, Method: m})
+				// The built-in carrier's methods say for themselves; any other carrier follows its channel row
+				if a.reg.Slug != BuiltinCarrierSlug {
+					m.DeliversOnWeekends = a.cfg.DeliversOnWeekends
+				}
+				out = append(out, RatedQuote{CarrierSlug: a.reg.Slug, CarrierName: name, Method: a.reg.tag(m)})
 			}
 			mu.Unlock()
 		}(a)
@@ -178,6 +182,43 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 	return out, nil
 }
 
+// EnabledCarrierKinds maps each delivery kind to the carriers enabled on the channel that quote it, as "slug:Display name" - the readiness check of a delivery option asks it whether anything can ever price the option. Registered carriers follow the same enable rule QuoteAll does; remote ones report what their provider config declares
+func (s *Service) EnabledCarrierKinds(ctx context.Context, channelID uuid.UUID) (map[string][]string, error) {
+	configs, err := s.repo.ListCarrierConfigsByChannel(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	bySlug := make(map[string]CarrierConfig, len(configs))
+	for _, c := range configs {
+		bySlug[c.CarrierSlug] = c
+	}
+	out := map[string][]string{}
+	for _, reg := range AllCarriers() {
+		cfg, hasRow := bySlug[reg.Slug]
+		enabled := reg.Slug == BuiltinCarrierSlug
+		if hasRow {
+			enabled = cfg.IsEnabled
+		}
+		if !enabled {
+			continue
+		}
+		for _, k := range reg.DeliveryKinds() {
+			out[k] = append(out[k], reg.Slug+":"+carrierName(reg, cfg))
+		}
+	}
+	if kr, ok := s.remoteRates.(remoteKindReporter); ok {
+		for k, names := range kr.Kinds(ctx, channelID) {
+			out[k] = append(out[k], names...)
+		}
+	}
+	return out, nil
+}
+
+// remoteKindReporter is the optional half of a RemoteRateSource that knows which kinds its providers quote
+type remoteKindReporter interface {
+	Kinds(ctx context.Context, channelID uuid.UUID) map[string][]string
+}
+
 // Authoritatively re-prices the chosen carrier and method, never trusting the client's price - the built-in re-prices by code through ComputeForOrder and returns the method uuid, while external carriers re-quote and match by code
 // ErrMethodNotFound, from a disabled or unknown carrier or a vanished method, is fail-closed so the customer retries
 func (s *Service) PriceSelected(ctx context.Context, slug, code string, req RateRequest) (int64, *uuid.UUID, error) {
@@ -190,10 +231,12 @@ func (s *Service) PriceSelected(ctx context.Context, slug, code string, req Rate
 		if cfgErr == nil && !cfg.IsEnabled {
 			return 0, nil, ErrMethodNotFound
 		}
+		req = s.withDimensions(ctx, req)
 		cents, method, err := s.ComputeForOrder(ctx, code, QuoteInput{
 			ChannelID:     req.ChannelID,
 			CountryCode:   req.Destination.CountryCode,
 			SubtotalCents: req.SubtotalCents,
+			Items:         pricedItems(req.Items),
 		})
 		if err != nil {
 			return 0, nil, err
@@ -238,6 +281,17 @@ func (s *Service) SetCarrierEnabled(ctx context.Context, channelID uuid.UUID, sl
 		return CarrierConfig{}, err
 	}
 	return s.repo.SetCarrierEnabled(ctx, channelID, slug, enabled)
+}
+
+// Sets whether Saturday and Sunday count toward a carrier's delivery estimates on a channel. The built-in carrier is refused - its methods carry their own
+func (s *Service) SetCarrierWeekendDelivery(ctx context.Context, channelID uuid.UUID, slug string, weekends bool) (CarrierConfig, error) {
+	if slug == BuiltinCarrierSlug {
+		return CarrierConfig{}, errBuiltinWeekends
+	}
+	if _, err := GetCarrier(slug); err != nil {
+		return CarrierConfig{}, err
+	}
+	return s.repo.SetCarrierWeekendDelivery(ctx, channelID, slug, weekends)
 }
 
 func (s *Service) SetCarrierSortOrder(ctx context.Context, channelID uuid.UUID, slug string, sortOrder int32) (CarrierConfig, error) {
@@ -349,14 +403,14 @@ func (s *Service) withParcels(ctx context.Context, req RateRequest) RateRequest 
 	return req
 }
 
-// Callers only know SKUs and quantities, so weights come from the catalog here
+// Callers only know SKUs and quantities, so weights and product types come from the catalog here
 func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateRequest {
 	if s.dims == nil {
 		return req
 	}
 	var skus []string
 	for _, it := range req.Items {
-		if it.WeightGrams == 0 && it.LengthMm == 0 && it.WidthMm == 0 && it.HeightMm == 0 {
+		if (it.WeightGrams == 0 && it.LengthMm == 0 && it.WidthMm == 0 && it.HeightMm == 0) || it.ProductTypeID == uuid.Nil {
 			skus = append(skus, it.SKU)
 		}
 	}
@@ -371,7 +425,13 @@ func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateReque
 	items := slices.Clone(req.Items)
 	for i, it := range items {
 		d, ok := dims[it.SKU]
-		if !ok || it.WeightGrams != 0 || it.LengthMm != 0 || it.WidthMm != 0 || it.HeightMm != 0 {
+		if !ok {
+			continue
+		}
+		if it.ProductTypeID == uuid.Nil {
+			items[i].ProductTypeID = d.ProductTypeID
+		}
+		if it.WeightGrams != 0 || it.LengthMm != 0 || it.WidthMm != 0 || it.HeightMm != 0 {
 			continue
 		}
 		items[i].WeightGrams, items[i].LengthMm, items[i].WidthMm, items[i].HeightMm = d.WeightGrams, d.LengthMm, d.WidthMm, d.HeightMm
