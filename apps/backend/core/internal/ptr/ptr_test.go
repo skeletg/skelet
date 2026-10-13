@@ -42,3 +42,23 @@ func TestDerefReadsThroughThePointer(t *testing.T) {
 		t.Errorf("Deref(&id) = %v, want %v", got, id)
 	}
 }
+
+func TestDerefOrGivesTheDefaultOnlyForNil(t *testing.T) {
+	if !DerefOr(nil, true) {
+		t.Error("nil should read as the default")
+	}
+	f := false
+	if DerefOr(&f, true) {
+		t.Error("an explicit false must not read as the default")
+	}
+}
+
+// An empty string written to a nullable column has to read as unset, not as a stored empty value
+func TestNonZeroIsNilForTheZeroValue(t *testing.T) {
+	if NonZero("") != nil || NonZero(0) != nil {
+		t.Error("zero value should give nil")
+	}
+	if p := NonZero("ups"); p == nil || *p != "ups" {
+		t.Errorf("NonZero(\"ups\") = %v", p)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"log"
 	"reflect"
 	"slices"
@@ -557,8 +558,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			CustomerNote:        in.CustomerNote,
 			PONumber:            in.PONumber,
 			ShippingMethodID:    shipSel.MethodID,
-			ShippingCarrierSlug: stringPtr(shipSel.CarrierSlug),
-			ShippingMethodCode:  stringPtr(shipSel.MethodCode),
+			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
+			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              auth.AnonID(ctx),
 		})
 		if err != nil {
