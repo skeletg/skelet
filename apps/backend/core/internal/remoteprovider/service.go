@@ -154,8 +154,12 @@ func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID) (CreateResult,
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	defer invalidateRequestCache(ctx)
 	invocationCache.invalidate(id)
+	breaker.Reset(id)
 	return s.repo.Delete(ctx, id)
 }
+
+// Run at boot - rows written before CONFIG_ENCRYPTION_KEY was set stay plaintext until edited otherwise
+func (s *Service) SealPlaintext(ctx context.Context) (int, error) { return s.repo.SealPlaintext(ctx) }
 
 func validateSettings(policy FailurePolicy, timeoutMs, cacheTTLs int32, config []byte) error {
 	if policy != "" && policy != FailOpen && policy != FailClosed {

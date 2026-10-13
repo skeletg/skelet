@@ -2062,20 +2062,20 @@ type Region struct {
 }
 
 type RemoteProvider struct {
-	ID            uuid.UUID             `json:"id"`
-	Kind          string                `json:"kind"`
-	Slug          string                `json:"slug"`
-	Name          string                `json:"name"`
-	TargetUrl     string                `json:"target_url"`
-	SigningSecret string                `json:"signing_secret"`
-	Config        pqtype.NullRawMessage `json:"config"`
-	TimeoutMs     int32                 `json:"timeout_ms"`
-	CacheTtlS     int32                 `json:"cache_ttl_s"`
-	FailurePolicy string                `json:"failure_policy"`
-	ChannelID     uuid.NullUUID         `json:"channel_id"`
-	IsActive      bool                  `json:"is_active"`
-	CreatedAt     time.Time             `json:"created_at"`
-	UpdatedAt     time.Time             `json:"updated_at"`
+	ID            uuid.UUID      `json:"id"`
+	Kind          string         `json:"kind"`
+	Slug          string         `json:"slug"`
+	Name          string         `json:"name"`
+	TargetUrl     string         `json:"target_url"`
+	SigningSecret string         `json:"signing_secret"`
+	Config        sql.NullString `json:"config"`
+	TimeoutMs     int32          `json:"timeout_ms"`
+	CacheTtlS     int32          `json:"cache_ttl_s"`
+	FailurePolicy string         `json:"failure_policy"`
+	ChannelID     uuid.NullUUID  `json:"channel_id"`
+	IsActive      bool           `json:"is_active"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 type Review struct {

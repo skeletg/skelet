@@ -48,6 +48,14 @@ func toRemoteProviderModel(p remoteprovider.Provider) *model.RemoteProvider {
 	return m
 }
 
+// config is where merchants keep the receiver's API keys - a view-only admin sees the provider, not its credentials
+func redactedUnlessManaged(m *model.RemoteProvider, manages bool) *model.RemoteProvider {
+	if !manages {
+		m.Config = nil
+	}
+	return m
+}
+
 func toRemoteProviderCircuitModel(id uuid.UUID) *model.WebhookCircuit {
 	return toCircuitModel(remoteprovider.CircuitInfoFor(id))
 }
