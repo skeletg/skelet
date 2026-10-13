@@ -411,6 +411,18 @@ registerNavNode({
       permission: 'settings.view',
     },
     {
+      title: 'Checkout',
+      path: '/checkout-settings',
+      element: lazyPage(() => import('@/features/checkout/CheckoutPage'), 'CheckoutPage'),
+      permission: 'checkout.view',
+    },
+    {
+      title: 'Payment providers',
+      path: '/payment-providers',
+      element: lazyPage(() => import('@/features/payments/PaymentProvidersPage'), 'PaymentProvidersPage'),
+      permission: 'payments.view',
+    },
+    {
       title: 'Shipping zones',
       path: '/shipping',
       element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'),
