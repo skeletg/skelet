@@ -31,6 +31,7 @@ query ProductType($id: ID!) {
     isShippingRequired
     urlTemplate
     tracksInventory
+    deliveryKinds
 
     attributes {
       sortOrder
@@ -1919,5 +1920,12 @@ query ProductTraffic($channelId: ID!, $pageKey: String!) {
     visitors
     clicks
     avgScroll
+  }
+}
+
+mutation SetProductTypeDeliveryKinds($productTypeId: ID!, $kinds: [String!]) {
+  setProductTypeDeliveryKinds(productTypeId: $productTypeId, kinds: $kinds) {
+    id
+    deliveryKinds
   }
 }
