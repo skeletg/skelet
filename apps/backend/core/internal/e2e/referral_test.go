@@ -46,7 +46,18 @@ func (h *harness) newReferralPair(t *testing.T, f *store) (referrer, referee uui
 	return rc.ID, ec.ID, eEmail
 }
 
+// Places and pays the order in full - the payout waits for payment, so an unpaid placement earns nothing
 func (h *harness) placeFor(t *testing.T, f *store, customerID uuid.UUID, email string, qty float64) order.Order {
+	t.Helper()
+	o := h.placeUnpaidFor(t, f, customerID, email, qty)
+	paid, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{OrderID: o.ID, Method: "cod", Reference: "e2e-referral"})
+	if err != nil {
+		t.Fatalf("pay: %v", err)
+	}
+	return paid
+}
+
+func (h *harness) placeUnpaidFor(t *testing.T, f *store, customerID uuid.UUID, email string, qty float64) order.Order {
 	t.Helper()
 	cartID := h.NewCustomerCart(t, f, customerID, f.Product.SKU, qty)
 	o, err := h.TryPlace(t, f.Channel, cartID, func(in *order.PlaceOrderInput) {
@@ -57,6 +68,27 @@ func (h *harness) placeFor(t *testing.T, f *store, customerID uuid.UUID, email s
 		t.Fatalf("place: %v", err)
 	}
 	return o
+}
+
+// Scenario: a COD first order from a throwaway account pays the referrer nothing until the money arrives - paying on placement minted credit the cancel clawback couldn't recover once spent
+func TestReferralWaitsForTheFirstOrderToBePaid(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 2500)
+	h.enableReferrals(t, f, "1000", "500")
+	referrer, referee, refereeEmail := h.newReferralPair(t, f)
+
+	o := h.placeUnpaidFor(t, f, referee, refereeEmail, 1)
+	h.Settle(t)
+	if bal, _ := h.D.StoreCredit.Balance(h.Ctx, referrer, f.Channel.CurrencyCode); bal != 0 {
+		t.Fatalf("referrer credit after an unpaid first order = %d, want 0", bal)
+	}
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{OrderID: o.ID, Method: "cod", Reference: "e2e-referral"}); err != nil {
+		t.Fatalf("pay: %v", err)
+	}
+	h.Settle(t)
+	if bal, _ := h.D.StoreCredit.Balance(h.Ctx, referrer, f.Channel.CurrencyCode); bal != 1000 {
+		t.Errorf("referrer credit once the order is paid = %d, want 1000", bal)
+	}
 }
 
 // Scenario: the give-get cycle - both sides get store credit on the referee's first order, the reward is idempotent under replay, and a cancellation claws both back

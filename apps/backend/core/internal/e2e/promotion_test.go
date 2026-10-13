@@ -215,8 +215,8 @@ func TestSegmentGatedPromotionDiscountsAMember(t *testing.T) {
 		t.Fatalf("assign member: %v", err)
 	}
 
-	base := h.placeFor(t, f, outsider, outsiderEmail, 1)
-	got := h.placeFor(t, f, member, memberEmail, 1)
+	base := h.placeUnpaidFor(t, f, outsider, outsiderEmail, 1)
+	got := h.placeUnpaidFor(t, f, member, memberEmail, 1)
 	if d := got.DiscountAmount - base.DiscountAmount; d != 700 {
 		t.Errorf("member got %d of discount over a non-member, want 700", d)
 	}
