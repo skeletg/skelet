@@ -204,6 +204,7 @@ structs by `./skelet gen`, so they cannot drift from what core actually sends.
 | Kind | What you decide |
 |---|---|
 | `shipping_carrier` | Rate a basket to a destination; the options the shopper picks from |
+| `delivery_points` | Search and resolve PO boxes and lockers for a PO box delivery option; see [checkout.md](checkout.md) |
 | `shipping_tracking` | Carrier tracking status for a shipment |
 | `tax_provider` | Tax owed on an order |
 | `address_validator` | Whether an address is valid, plus a normalized form |
