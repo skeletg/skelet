@@ -62,8 +62,8 @@ func CustomerID(ctx context.Context) *uuid.UUID {
 	return h.RequestCustomerID(ctx)
 }
 
-// The channel this request resolved to, uuid.Nil off a storefront request - for scoping a per-channel
-// read, and for the channel argument to IsEnabled
+// The channel this request resolved to - the storefront's channel, the admin's channel scope on the admin graph,
+// uuid.Nil in background work - for scoping a per-channel read, and for the channel argument to IsEnabled
 func RequestChannelID(ctx context.Context) uuid.UUID {
 	h := hostNow()
 	if h == nil {

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -58,27 +59,25 @@ func ResolveUnitPrice(ctx context.Context, req sdk.PriceRequest) (int64, bool) {
 // Split out so each resolver gets its own deferred finish, rather than every one of them stacking up
 // until the loop returns
 func callPriceResolver(ctx context.Context, reg priceResolverReg, req sdk.PriceRequest) (int64, bool) {
-	ctx, finish, gate := Instrument(ctx, reg.slug, "ResolveUnitPrice", req.ChannelID)
-	if gate != nil {
-		return 0, false
-	}
-	var (
-		cents int64
-		ok    bool
-		err   error
-	)
+	ctx, finish, err := Instrument(ctx, reg.slug, "ResolveUnitPrice", req.ChannelID)
 	defer func() { finish(&err) }()
-	defer func() {
-		if rec := recover(); rec != nil {
-			err = errFromPanic(rec)
-			ok = false
-		}
-	}()
-	cents, ok, err = reg.r.ResolveUnitPrice(ctx, req)
 	if err != nil {
 		return 0, false
 	}
-	return cents, ok
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = errFromPanic(rec)
+		}
+	}()
+	cents, ok, err := reg.r.ResolveUnitPrice(ctx, req)
+	if err != nil || !ok {
+		return 0, false
+	}
+	if cents < 0 {
+		slog.Warn("plugin: price resolver returned a negative price, falling back to list pricing", "plugin", reg.slug, "cents", cents)
+		return 0, false
+	}
+	return cents, true
 }
 
 // Between-scenario reset, matching the other registries
