@@ -1325,7 +1325,7 @@ func (q *Queries) SetOrderGiftCardTender(ctx context.Context, arg SetOrderGiftCa
 
 const setOrderPaymentReference = `-- name: SetOrderPaymentReference :one
 UPDATE orders SET payment_reference = $2, updated_at = NOW() WHERE id = $1
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need
 `
 
 type SetOrderPaymentReferenceParams struct {
@@ -1389,6 +1389,7 @@ func (q *Queries) SetOrderPaymentReference(ctx context.Context, arg SetOrderPaym
 		&i.ShippingTaxAmount,
 		&i.AnonID,
 		&i.BusinessIds,
+		&i.FulfillmentNeed,
 	)
 	return i, err
 }
@@ -1471,7 +1472,7 @@ const setOrderPaymentStateFrom = `-- name: SetOrderPaymentStateFrom :one
 UPDATE orders
 SET    payment_status = $1, payment_reference = $2, updated_at = NOW()
 WHERE  id = $3 AND payment_status = $4
-RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids
+RETURNING id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status, shipping_tax_amount, anon_id, business_ids, fulfillment_need
 `
 
 type SetOrderPaymentStateFromParams struct {
@@ -1542,6 +1543,7 @@ func (q *Queries) SetOrderPaymentStateFrom(ctx context.Context, arg SetOrderPaym
 		&i.ShippingTaxAmount,
 		&i.AnonID,
 		&i.BusinessIds,
+		&i.FulfillmentNeed,
 	)
 	return i, err
 }
