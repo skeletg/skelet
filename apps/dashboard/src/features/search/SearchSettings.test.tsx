@@ -95,5 +95,7 @@ describe('SearchSettings', () => {
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(1), SLOW)
     expect(writes).toHaveBeenCalledWith(expect.objectContaining({ path: 'search/general/max_page_size', value: '50' }))
+    // The request matcher fires before save/refetch resolves; wait for completion before tearing down the page.
+    await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
   })
 })
