@@ -1,6 +1,6 @@
 package catalog
 
-// Customer-group tier pricing (quantity breaks) - Rows live in catalog_product_group_prices; resolution (lowest applicable price wins against the effective price) is internal/pricing.BestTier - the cart adapter pre-filters scope and passes the tiers through
+// Customer-group tier pricing (quantity breaks) - Rows live in catalog_product_group_prices; resolution (lowest applicable price wins against the effective price) is internal/pricing.ApplyTiers - the cart adapter pre-filters scope and passes the tiers through
 
 import (
 	"context"
