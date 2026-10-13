@@ -69,7 +69,11 @@
       "orderMinimumNotMet": "Your order is below the store's minimum. Add a little more to your cart.",
       "guestCheckoutDisabled": "Sign in or create an account to place this order.",
       "businessIdInvalid": "This doesn't look right - check the format.",
-      "checkoutBusinessIdRequired": "Enter the company's identification numbers."
+      "checkoutBusinessIdRequired": "Enter the company's identification numbers.",
+      "deliveryPointRequired": "Choose where it goes.",
+      "deliveryGroupChanged": "Your cart changed - choose the delivery again.",
+      "deliveryPointUnavailable": "That place isn't available any more - choose another.",
+      "deliverySourceUnavailable": "We couldn't reach the delivery service - try again in a moment."
     },
     "fields": {
       "email": "Email",
@@ -432,8 +436,8 @@
     "outOfStock": "Out of stock - remove to check out.",
     "onlyLeft": "Only {count} left - reduce the quantity to check out.",
     "priceUpdated": "Price updated: {from} → {to}",
-    "freeShippingUnlocked": "You’ve unlocked free shipping.",
-    "freeShippingRemaining": "Add <amount></amount> more for free shipping.",
+    "freeShippingUnlocked": "You’ve reached the threshold for eligible delivery rates.",
+    "freeShippingRemaining": "Add <amount></amount> more to reach the threshold for eligible delivery rates.",
     "freeShippingProgress": "Progress toward free shipping",
     "restoreNeedsFile": "Couldn't restore - this item needs a file upload. Add it again from the product page.",
     "restoreFailed": "Couldn't restore this item - {error}",
@@ -476,7 +480,8 @@
       "giftsApplied": "{count, plural, one {Free gift} other {Free gifts}} applied: {items}",
       "freeShip": "Free ship",
       "remove": "Remove {code}"
-    }
+    },
+    "freeShippingExclusions": "Product-specific charges may still apply. Your final delivery price is shown at checkout."
   },
   "search": {
     "label": "Search products",
@@ -859,7 +864,30 @@
       "minimumTitle": "The minimum order is {amount}",
       "minimumProgress": "Progress towards the minimum order",
       "minimumRemaining": "Add <amount></amount> more to your cart to check out.",
-      "backToCart": "Back to cart"
+      "backToCart": "Back to cart",
+      "digitalTitle": "Delivered by email - nothing to choose",
+      "splitLegend": "How should it arrive?",
+      "together": "Deliver everything together",
+      "togetherHint": "One delivery for the whole order.",
+      "split": "Choose for each group of items",
+      "splitHint": "Some items can go to a PO box or be collected - pick the best way for each.",
+      "groupTitle": "Delivery {n} of {total}",
+      "noPoints": "No pickup locations match. Try another name, city or postcode, or choose another delivery option.",
+      "packages": "{count, plural, one {# package} other {# packages}}",
+      "package": "Package {n}",
+      "from": "from {origin}",
+      "items": "{count, plural, one {# item} other {# items}}",
+      "choose": "Choose",
+      "automaticGroups": "These items need different delivery options, so choose how each group reaches you.",
+      "deliveryTotal": "Selected delivery total",
+      "thresholdHint": "Some delivery rates are waived above {amount}. Product-specific charges may still apply; the price shown for each option is your delivery cost.",
+      "saving": "Saving your delivery choice…",
+      "reviewDelivery": "Review your delivery choices and total, then continue.",
+      "completeDelivery": "Enter your destination and choose an available delivery option and pickup location for every group before continuing.",
+      "pointSearch": "Find a pickup location by name, city or postcode",
+      "search": "Search",
+      "retry": "Retry",
+      "pointsUnavailable": "Pickup locations could not be loaded. Retry or choose another delivery option."
     },
     "payment": {
       "none": "No payment method is available for this country.",
@@ -934,7 +962,8 @@
       "billingRequired": "The store needs a billing address for the invoice.",
       "billingForPayer": "Someone else is collecting, so we need the payer's billing address.",
       "continueToPayment": "Continue to payment",
-      "optional": "{label} (optional)"
+      "optional": "{label} (optional)",
+      "billingNoAddress": "Nothing is delivered to your address, so we need one for the invoice."
     }
   },
   "verifyEmail": {
