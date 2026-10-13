@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -72,6 +73,7 @@ type subscriberDeps struct {
 	Customer            *customer.Service
 	Consent             *consent.Service
 	Catalog             *catalog.Service
+	QnA                 *qna.Service
 	Tx                  *txrunner.Manager
 
 	Inventory    *inventory.Service // the order reactors - each subscribes itself, this only decides that they all do and in what order
@@ -90,9 +92,12 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	customer.RegisterOutboxTypes(d.Outbox)
 	consent.RegisterOutboxTypes(d.Outbox)
 	catalog.RegisterOutboxTypes(d.Outbox)
+	qna.RegisterOutboxTypes(d.Outbox)
 	d.Payment.SetOutbox(d.Outbox)  // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
 	d.Customer.SetOutbox(d.Outbox) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
 	d.Consent.SetOutbox(d.Outbox, d.Tx)
+	d.QnA.SetEventBus(bus) // never wired before, so both qna webhooks registered but never fired
+	d.QnA.SetOutbox(d.Outbox, d.Tx)
 	d.Catalog.SetOutbox(d.Outbox)                                                                       // a category move re-renders the product URLs under it off the request, and a crash after commit mustn't lose that
 	d.Outbox.SetDropAlert(func(ctx context.Context, eventType string, rowID uuid.UUID, reason string) { // a dropped row means a domain reaction (points, credit, capture) silently never ran - that needs an operator, not a log line
 		if err := d.Notification.Create(ctx, notification.Input{
