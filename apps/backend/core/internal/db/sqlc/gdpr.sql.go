@@ -175,12 +175,18 @@ func (q *Queries) ScrubCustomerAuditDetail(ctx context.Context, arg ScrubCustome
 
 const scrubCustomerCarts = `-- name: ScrubCustomerCarts :execrows
 UPDATE carts
-SET    email = ''
-WHERE  customer_id = $1 AND email <> ''
+SET    email = '', shipping_address = NULL, billing_address = NULL,
+       contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
+       pickup_contact = NULL
+WHERE  customer_id = $1
+  AND  (email <> '' OR shipping_address IS NOT NULL OR billing_address IS NOT NULL
+        OR contact_phone <> '' OR company_name <> '' OR business_ids <> '{}'::jsonb OR po_number <> ''
+        OR pickup_contact IS NOT NULL)
 `
 
 // carts.email makes an abandoned cart addressable by the recovery flow, so an
-// un-scrubbed row keeps emailing a customer who asked to be erased
+// un-scrubbed row keeps emailing a customer who asked to be erased - and a
+// checkout in progress holds addresses, phone and tax details the same way
 func (q *Queries) ScrubCustomerCarts(ctx context.Context, customerID uuid.NullUUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, scrubCustomerCarts, customerID)
 	if err != nil {
@@ -241,6 +247,7 @@ UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
+    business_ids        = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
