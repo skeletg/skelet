@@ -152,12 +152,16 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 	if err != nil {
 		return nil, err
 	}
-	method := r.offeredShippingMethod(ctx, c, c.Checkout)
-	paymentOK := r.paymentMethodOffered(ctx, c.ChannelID, c.Checkout.PaymentProviderSlug, c.Checkout.ShippingCountry())
-	if err := r.checkoutComplete(ctx, c, method, paymentOK); err != nil {
+	v := r.checkoutView(ctx, c)
+	slug := c.Checkout.PaymentProviderSlug
+	paymentOK := r.paymentMethodOffered(ctx, c.ChannelID, slug, paymentCountry(c.Checkout))
+	if slug != "" && !paymentOK {
+		return nil, errPaymentMethodOffered
+	}
+	if err := r.checkoutComplete(ctx, v); err != nil {
 		return nil, err
 	}
-	input := r.placeOrderInput(ctx, c, method, paymentOK)
+	input := r.placeOrderInput(ctx, v, paymentOK)
 	input.CustomerID = channel.OptionalCustomerID(ctx)
 	if paymentToken != nil && *paymentToken != "" {
 		input.PaymentToken = paymentToken

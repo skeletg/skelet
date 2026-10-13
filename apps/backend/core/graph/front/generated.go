@@ -353,9 +353,13 @@ type ComplexityRoot struct {
 		BillingAddress        func(childComplexity int) int
 		BillingSameAsShipping func(childComplexity int) int
 		BusinessIds           func(childComplexity int) int
+		CanSplit              func(childComplexity int) int
 		Company               func(childComplexity int) int
+		DeliveryGroups        func(childComplexity int) int
 		Destination           func(childComplexity int) int
+		DigitalLineIds        func(childComplexity int) int
 		Email                 func(childComplexity int) int
+		Fulfillment           func(childComplexity int) int
 		GiftCards             func(childComplexity int) int
 		IsPickup              func(childComplexity int) int
 		PaymentProviderSlug   func(childComplexity int) int
@@ -363,8 +367,11 @@ type ComplexityRoot struct {
 		PickupContact         func(childComplexity int) int
 		PoNumber              func(childComplexity int) int
 		PurchaseType          func(childComplexity int) int
+		Ready                 func(childComplexity int) int
+		Requirements          func(childComplexity int) int
 		ShippingAddress       func(childComplexity int) int
 		ShippingMethod        func(childComplexity int) int
+		SplitDelivery         func(childComplexity int) int
 		Totals                func(childComplexity int) int
 		UseStoreCredit        func(childComplexity int) int
 	}
@@ -467,6 +474,16 @@ type ComplexityRoot struct {
 		CountryCode func(childComplexity int) int
 		PostalCode  func(childComplexity int) int
 		RegionCode  func(childComplexity int) int
+	}
+
+	CheckoutRequirement struct {
+		Code    func(childComplexity int) int
+		Label   func(childComplexity int) int
+		Message func(childComplexity int) int
+		Mode    func(childComplexity int) int
+		Scope   func(childComplexity int) int
+		Status  func(childComplexity int) int
+		Type    func(childComplexity int) int
 	}
 
 	CheckoutTotals struct {
@@ -644,6 +661,73 @@ type ComplexityRoot struct {
 		Title            func(childComplexity int) int
 	}
 
+	DeliveryChoice struct {
+		CarrierName      func(childComplexity int) int
+		CarrierSlug      func(childComplexity int) int
+		Description      func(childComplexity int) int
+		EstimatedArrival func(childComplexity int) int
+		EstimatedDays    func(childComplexity int) int
+		Kind             func(childComplexity int) int
+		KindLabel        func(childComplexity int) int
+		MethodCode       func(childComplexity int) int
+		MethodName       func(childComplexity int) int
+		OptionID         func(childComplexity int) int
+		OptionName       func(childComplexity int) int
+		PointLabel       func(childComplexity int) int
+		PriceCents       func(childComplexity int) int
+		ShipTo           func(childComplexity int) int
+	}
+
+	DeliveryGroup struct {
+		Choices   func(childComplexity int) int
+		Key       func(childComplexity int) int
+		Kinds     func(childComplexity int) int
+		LineIds   func(childComplexity int) int
+		Selection func(childComplexity int) int
+		Shipments func(childComplexity int) int
+	}
+
+	DeliveryPoint struct {
+		City         func(childComplexity int) int
+		CountryCode  func(childComplexity int) int
+		DistanceKm   func(childComplexity int) int
+		Hours        func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Instructions func(childComplexity int) int
+		Lat          func(childComplexity int) int
+		Lng          func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Phone        func(childComplexity int) int
+		PostalCode   func(childComplexity int) int
+		Region       func(childComplexity int) int
+		Street1      func(childComplexity int) int
+		Street2      func(childComplexity int) int
+	}
+
+	DeliverySelection struct {
+		CarrierSlug      func(childComplexity int) int
+		EstimatedArrival func(childComplexity int) int
+		EstimatedDays    func(childComplexity int) int
+		Kind             func(childComplexity int) int
+		MethodCode       func(childComplexity int) int
+		MethodName       func(childComplexity int) int
+		OptionID         func(childComplexity int) int
+		OptionName       func(childComplexity int) int
+		Point            func(childComplexity int) int
+		PointLabel       func(childComplexity int) int
+		PriceCents       func(childComplexity int) int
+		ShipTo           func(childComplexity int) int
+	}
+
+	DeliveryShipment struct {
+		EstimatedArrival func(childComplexity int) int
+		EstimatedDays    func(childComplexity int) int
+		LineIds          func(childComplexity int) int
+		OriginCity       func(childComplexity int) int
+		OriginName       func(childComplexity int) int
+		PriceCents       func(childComplexity int) int
+	}
+
 	DownloadGrant struct {
 		CreatedAt     func(childComplexity int) int
 		DownloadURL   func(childComplexity int) int
@@ -765,12 +849,15 @@ type ComplexityRoot struct {
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
 		SavePaymentMethod              func(childComplexity int, providerSlug string, token string) int
+		SetCartDelivery                func(childComplexity int, cartID string, groupKey string, optionID string, carrierSlug string, methodCode string) int
+		SetCartDeliveryPoint           func(childComplexity int, cartID string, groupKey string, pointID string) int
 		SetCartDestination             func(childComplexity int, cartID string, countryCode string, regionCode *string, postalCode string) int
 		SetCartDetails                 func(childComplexity int, cartID string, input model1.CheckoutDetailsInput) int
 		SetCartEmail                   func(childComplexity int, cartID string, email string) int
 		SetCartNote                    func(childComplexity int, cartID string, note string) int
 		SetCartPaymentMethod           func(childComplexity int, cartID string, providerSlug string) int
 		SetCartShippingMethod          func(childComplexity int, cartID string, carrierSlug string, code string) int
+		SetCartSplitDelivery           func(childComplexity int, cartID string, split bool) int
 		SetCartStoreCredit             func(childComplexity int, cartID string, use bool) int
 		SetConsent                     func(childComplexity int, kind string, optedIn bool) int
 		SetDefaultBillingAddress       func(childComplexity int, id string) int
@@ -1139,6 +1226,7 @@ type ComplexityRoot struct {
 		Currencies            func(childComplexity int, activeOnly *bool) int
 		Currency              func(childComplexity int, code string) int
 		CurrentChannel        func(childComplexity int) int
+		DeliveryPoints        func(childComplexity int, cartID string, groupKey string, search *string) int
 		Features              func(childComplexity int) int
 		FreeShippingThreshold func(childComplexity int, countryCode *string) int
 		GiftCardBalance       func(childComplexity int, code string) int
@@ -1319,12 +1407,13 @@ type ComplexityRoot struct {
 	}
 
 	ShippingQuote struct {
-		CarrierName   func(childComplexity int) int
-		CarrierSlug   func(childComplexity int) int
-		Code          func(childComplexity int) int
-		EstimatedDays func(childComplexity int) int
-		Name          func(childComplexity int) int
-		PriceCents    func(childComplexity int) int
+		CarrierName      func(childComplexity int) int
+		CarrierSlug      func(childComplexity int) int
+		Code             func(childComplexity int) int
+		EstimatedArrival func(childComplexity int) int
+		EstimatedDays    func(childComplexity int) int
+		Name             func(childComplexity int) int
+		PriceCents       func(childComplexity int) int
 	}
 
 	SitemapCounts struct {
@@ -1423,6 +1512,9 @@ type MutationResolver interface {
 	RemoveCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error)
 	SetCartDestination(ctx context.Context, cartID string, countryCode string, regionCode *string, postalCode string) (*model1.Cart, error)
 	SetCartShippingMethod(ctx context.Context, cartID string, carrierSlug string, code string) (*model1.Cart, error)
+	SetCartSplitDelivery(ctx context.Context, cartID string, split bool) (*model1.Cart, error)
+	SetCartDelivery(ctx context.Context, cartID string, groupKey string, optionID string, carrierSlug string, methodCode string) (*model1.Cart, error)
+	SetCartDeliveryPoint(ctx context.Context, cartID string, groupKey string, pointID string) (*model1.Cart, error)
 	SetCartDetails(ctx context.Context, cartID string, input model1.CheckoutDetailsInput) (*model1.Cart, error)
 	SetCartPaymentMethod(ctx context.Context, cartID string, providerSlug string) (*model1.Cart, error)
 	ApplyGiftCard(ctx context.Context, cartID string, code string) (*model1.Cart, error)
@@ -1534,6 +1626,7 @@ type QueryResolver interface {
 	Cart(ctx context.Context, id string) (*model1.Cart, error)
 	ShippingQuotes(ctx context.Context, countryCode string, cartID *string, regionCode *string, postalCode *string) ([]*model1.ShippingQuote, error)
 	PickupLocations(ctx context.Context) ([]*model1.PickupLocation, error)
+	DeliveryPoints(ctx context.Context, cartID string, groupKey string, search *string) ([]*model1.DeliveryPoint, error)
 	CartEstimate(ctx context.Context, cartID string, countryCode string, regionCode *string) (*model1.CartEstimate, error)
 	FreeShippingThreshold(ctx context.Context, countryCode *string) (int32, error)
 	CartRecommendations(ctx context.Context, cartID string) ([]*model.Product, error)
@@ -2880,24 +2973,48 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartCheckout.BusinessIds(childComplexity), true
+	case "CartCheckout.canSplit":
+		if e.ComplexityRoot.CartCheckout.CanSplit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.CanSplit(childComplexity), true
 	case "CartCheckout.company":
 		if e.ComplexityRoot.CartCheckout.Company == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartCheckout.Company(childComplexity), true
+	case "CartCheckout.deliveryGroups":
+		if e.ComplexityRoot.CartCheckout.DeliveryGroups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.DeliveryGroups(childComplexity), true
 	case "CartCheckout.destination":
 		if e.ComplexityRoot.CartCheckout.Destination == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartCheckout.Destination(childComplexity), true
+	case "CartCheckout.digitalLineIds":
+		if e.ComplexityRoot.CartCheckout.DigitalLineIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.DigitalLineIds(childComplexity), true
 	case "CartCheckout.email":
 		if e.ComplexityRoot.CartCheckout.Email == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartCheckout.Email(childComplexity), true
+	case "CartCheckout.fulfillment":
+		if e.ComplexityRoot.CartCheckout.Fulfillment == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.Fulfillment(childComplexity), true
 	case "CartCheckout.giftCards":
 		if e.ComplexityRoot.CartCheckout.GiftCards == nil {
 			break
@@ -2940,6 +3057,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartCheckout.PurchaseType(childComplexity), true
+	case "CartCheckout.ready":
+		if e.ComplexityRoot.CartCheckout.Ready == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.Ready(childComplexity), true
+	case "CartCheckout.requirements":
+		if e.ComplexityRoot.CartCheckout.Requirements == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.Requirements(childComplexity), true
 	case "CartCheckout.shippingAddress":
 		if e.ComplexityRoot.CartCheckout.ShippingAddress == nil {
 			break
@@ -2952,6 +3081,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartCheckout.ShippingMethod(childComplexity), true
+	case "CartCheckout.splitDelivery":
+		if e.ComplexityRoot.CartCheckout.SplitDelivery == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartCheckout.SplitDelivery(childComplexity), true
 	case "CartCheckout.totals":
 		if e.ComplexityRoot.CartCheckout.Totals == nil {
 			break
@@ -3411,6 +3546,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CheckoutDestination.RegionCode(childComplexity), true
+
+	case "CheckoutRequirement.code":
+		if e.ComplexityRoot.CheckoutRequirement.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Code(childComplexity), true
+	case "CheckoutRequirement.label":
+		if e.ComplexityRoot.CheckoutRequirement.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Label(childComplexity), true
+	case "CheckoutRequirement.message":
+		if e.ComplexityRoot.CheckoutRequirement.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Message(childComplexity), true
+	case "CheckoutRequirement.mode":
+		if e.ComplexityRoot.CheckoutRequirement.Mode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Mode(childComplexity), true
+	case "CheckoutRequirement.scope":
+		if e.ComplexityRoot.CheckoutRequirement.Scope == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Scope(childComplexity), true
+	case "CheckoutRequirement.status":
+		if e.ComplexityRoot.CheckoutRequirement.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Status(childComplexity), true
+	case "CheckoutRequirement.type":
+		if e.ComplexityRoot.CheckoutRequirement.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CheckoutRequirement.Type(childComplexity), true
 
 	case "CheckoutTotals.amountDueCents":
 		if e.ComplexityRoot.CheckoutTotals.AmountDueCents == nil {
@@ -4155,6 +4333,323 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CustomerSubscription.Title(childComplexity), true
+
+	case "DeliveryChoice.carrierName":
+		if e.ComplexityRoot.DeliveryChoice.CarrierName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.CarrierName(childComplexity), true
+	case "DeliveryChoice.carrierSlug":
+		if e.ComplexityRoot.DeliveryChoice.CarrierSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.CarrierSlug(childComplexity), true
+	case "DeliveryChoice.description":
+		if e.ComplexityRoot.DeliveryChoice.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.Description(childComplexity), true
+	case "DeliveryChoice.estimatedArrival":
+		if e.ComplexityRoot.DeliveryChoice.EstimatedArrival == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.EstimatedArrival(childComplexity), true
+	case "DeliveryChoice.estimatedDays":
+		if e.ComplexityRoot.DeliveryChoice.EstimatedDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.EstimatedDays(childComplexity), true
+	case "DeliveryChoice.kind":
+		if e.ComplexityRoot.DeliveryChoice.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.Kind(childComplexity), true
+	case "DeliveryChoice.kindLabel":
+		if e.ComplexityRoot.DeliveryChoice.KindLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.KindLabel(childComplexity), true
+	case "DeliveryChoice.methodCode":
+		if e.ComplexityRoot.DeliveryChoice.MethodCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.MethodCode(childComplexity), true
+	case "DeliveryChoice.methodName":
+		if e.ComplexityRoot.DeliveryChoice.MethodName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.MethodName(childComplexity), true
+	case "DeliveryChoice.optionId":
+		if e.ComplexityRoot.DeliveryChoice.OptionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.OptionID(childComplexity), true
+	case "DeliveryChoice.optionName":
+		if e.ComplexityRoot.DeliveryChoice.OptionName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.OptionName(childComplexity), true
+	case "DeliveryChoice.pointLabel":
+		if e.ComplexityRoot.DeliveryChoice.PointLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.PointLabel(childComplexity), true
+	case "DeliveryChoice.priceCents":
+		if e.ComplexityRoot.DeliveryChoice.PriceCents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.PriceCents(childComplexity), true
+	case "DeliveryChoice.shipTo":
+		if e.ComplexityRoot.DeliveryChoice.ShipTo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryChoice.ShipTo(childComplexity), true
+
+	case "DeliveryGroup.choices":
+		if e.ComplexityRoot.DeliveryGroup.Choices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.Choices(childComplexity), true
+	case "DeliveryGroup.key":
+		if e.ComplexityRoot.DeliveryGroup.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.Key(childComplexity), true
+	case "DeliveryGroup.kinds":
+		if e.ComplexityRoot.DeliveryGroup.Kinds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.Kinds(childComplexity), true
+	case "DeliveryGroup.lineIds":
+		if e.ComplexityRoot.DeliveryGroup.LineIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.LineIds(childComplexity), true
+	case "DeliveryGroup.selection":
+		if e.ComplexityRoot.DeliveryGroup.Selection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.Selection(childComplexity), true
+	case "DeliveryGroup.shipments":
+		if e.ComplexityRoot.DeliveryGroup.Shipments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryGroup.Shipments(childComplexity), true
+
+	case "DeliveryPoint.city":
+		if e.ComplexityRoot.DeliveryPoint.City == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.City(childComplexity), true
+	case "DeliveryPoint.countryCode":
+		if e.ComplexityRoot.DeliveryPoint.CountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.CountryCode(childComplexity), true
+	case "DeliveryPoint.distanceKm":
+		if e.ComplexityRoot.DeliveryPoint.DistanceKm == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.DistanceKm(childComplexity), true
+	case "DeliveryPoint.hours":
+		if e.ComplexityRoot.DeliveryPoint.Hours == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Hours(childComplexity), true
+	case "DeliveryPoint.id":
+		if e.ComplexityRoot.DeliveryPoint.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.ID(childComplexity), true
+	case "DeliveryPoint.instructions":
+		if e.ComplexityRoot.DeliveryPoint.Instructions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Instructions(childComplexity), true
+	case "DeliveryPoint.lat":
+		if e.ComplexityRoot.DeliveryPoint.Lat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Lat(childComplexity), true
+	case "DeliveryPoint.lng":
+		if e.ComplexityRoot.DeliveryPoint.Lng == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Lng(childComplexity), true
+	case "DeliveryPoint.name":
+		if e.ComplexityRoot.DeliveryPoint.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Name(childComplexity), true
+	case "DeliveryPoint.phone":
+		if e.ComplexityRoot.DeliveryPoint.Phone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Phone(childComplexity), true
+	case "DeliveryPoint.postalCode":
+		if e.ComplexityRoot.DeliveryPoint.PostalCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.PostalCode(childComplexity), true
+	case "DeliveryPoint.region":
+		if e.ComplexityRoot.DeliveryPoint.Region == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Region(childComplexity), true
+	case "DeliveryPoint.street1":
+		if e.ComplexityRoot.DeliveryPoint.Street1 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Street1(childComplexity), true
+	case "DeliveryPoint.street2":
+		if e.ComplexityRoot.DeliveryPoint.Street2 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryPoint.Street2(childComplexity), true
+
+	case "DeliverySelection.carrierSlug":
+		if e.ComplexityRoot.DeliverySelection.CarrierSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.CarrierSlug(childComplexity), true
+	case "DeliverySelection.estimatedArrival":
+		if e.ComplexityRoot.DeliverySelection.EstimatedArrival == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.EstimatedArrival(childComplexity), true
+	case "DeliverySelection.estimatedDays":
+		if e.ComplexityRoot.DeliverySelection.EstimatedDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.EstimatedDays(childComplexity), true
+	case "DeliverySelection.kind":
+		if e.ComplexityRoot.DeliverySelection.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.Kind(childComplexity), true
+	case "DeliverySelection.methodCode":
+		if e.ComplexityRoot.DeliverySelection.MethodCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.MethodCode(childComplexity), true
+	case "DeliverySelection.methodName":
+		if e.ComplexityRoot.DeliverySelection.MethodName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.MethodName(childComplexity), true
+	case "DeliverySelection.optionId":
+		if e.ComplexityRoot.DeliverySelection.OptionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.OptionID(childComplexity), true
+	case "DeliverySelection.optionName":
+		if e.ComplexityRoot.DeliverySelection.OptionName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.OptionName(childComplexity), true
+	case "DeliverySelection.point":
+		if e.ComplexityRoot.DeliverySelection.Point == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.Point(childComplexity), true
+	case "DeliverySelection.pointLabel":
+		if e.ComplexityRoot.DeliverySelection.PointLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.PointLabel(childComplexity), true
+	case "DeliverySelection.priceCents":
+		if e.ComplexityRoot.DeliverySelection.PriceCents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.PriceCents(childComplexity), true
+	case "DeliverySelection.shipTo":
+		if e.ComplexityRoot.DeliverySelection.ShipTo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliverySelection.ShipTo(childComplexity), true
+
+	case "DeliveryShipment.estimatedArrival":
+		if e.ComplexityRoot.DeliveryShipment.EstimatedArrival == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.EstimatedArrival(childComplexity), true
+	case "DeliveryShipment.estimatedDays":
+		if e.ComplexityRoot.DeliveryShipment.EstimatedDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.EstimatedDays(childComplexity), true
+	case "DeliveryShipment.lineIds":
+		if e.ComplexityRoot.DeliveryShipment.LineIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.LineIds(childComplexity), true
+	case "DeliveryShipment.originCity":
+		if e.ComplexityRoot.DeliveryShipment.OriginCity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.OriginCity(childComplexity), true
+	case "DeliveryShipment.originName":
+		if e.ComplexityRoot.DeliveryShipment.OriginName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.OriginName(childComplexity), true
+	case "DeliveryShipment.priceCents":
+		if e.ComplexityRoot.DeliveryShipment.PriceCents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeliveryShipment.PriceCents(childComplexity), true
 
 	case "DownloadGrant.createdAt":
 		if e.ComplexityRoot.DownloadGrant.CreatedAt == nil {
@@ -4908,6 +5403,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SavePaymentMethod(childComplexity, args["providerSlug"].(string), args["token"].(string)), true
+	case "Mutation.setCartDelivery":
+		if e.ComplexityRoot.Mutation.SetCartDelivery == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setCartDelivery_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetCartDelivery(childComplexity, args["cartId"].(string), args["groupKey"].(string), args["optionId"].(string), args["carrierSlug"].(string), args["methodCode"].(string)), true
+	case "Mutation.setCartDeliveryPoint":
+		if e.ComplexityRoot.Mutation.SetCartDeliveryPoint == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setCartDeliveryPoint_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetCartDeliveryPoint(childComplexity, args["cartId"].(string), args["groupKey"].(string), args["pointId"].(string)), true
 	case "Mutation.setCartDestination":
 		if e.ComplexityRoot.Mutation.SetCartDestination == nil {
 			break
@@ -4974,6 +5491,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetCartShippingMethod(childComplexity, args["cartId"].(string), args["carrierSlug"].(string), args["code"].(string)), true
+	case "Mutation.setCartSplitDelivery":
+		if e.ComplexityRoot.Mutation.SetCartSplitDelivery == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setCartSplitDelivery_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetCartSplitDelivery(childComplexity, args["cartId"].(string), args["split"].(bool)), true
 	case "Mutation.setCartStoreCredit":
 		if e.ComplexityRoot.Mutation.SetCartStoreCredit == nil {
 			break
@@ -6867,6 +7395,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CurrentChannel(childComplexity), true
+	case "Query.deliveryPoints":
+		if e.ComplexityRoot.Query.DeliveryPoints == nil {
+			break
+		}
+
+		args, err := ec.field_Query_deliveryPoints_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.DeliveryPoints(childComplexity, args["cartId"].(string), args["groupKey"].(string), args["search"].(*string)), true
 	case "Query.features":
 		if e.ComplexityRoot.Query.Features == nil {
 			break
@@ -7775,6 +8314,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ShippingQuote.Code(childComplexity), true
+	case "ShippingQuote.estimatedArrival":
+		if e.ComplexityRoot.ShippingQuote.EstimatedArrival == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ShippingQuote.EstimatedArrival(childComplexity), true
 	case "ShippingQuote.estimatedDays":
 		if e.ComplexityRoot.ShippingQuote.EstimatedDays == nil {
 			break
@@ -8170,10 +8715,24 @@ type CartCheckout {
   email: String!
   # Where the order is headed - saved by the first step from a postcode, then kept in step with the shipping address. Null until the first step is saved.
   destination: CheckoutDestination
-  # The chosen method, priced for this cart at the destination. Null when none is chosen, or when the chosen one is no longer offered (the destination or the lines changed) - the shopper picks again.
+  # The chosen method of a cart delivered as one, priced for this cart at the destination. Null when none is chosen, when the chosen one is no longer offered, or when the cart is split into several deliveries - read deliveryGroups then.
   shippingMethod: ShippingQuote
-  # True when the chosen method is collection from a store - the order then needs pickupContact rather than a shipping address.
+  # True when the cart is delivered as one and its delivery is a store pickup.
   isPickup: Boolean!
+  # What the order has to deliver - NONE for a digital-only cart, which asks no delivery and no shipping address.
+  fulfillment: FulfillmentNeed!
+  # The cart lines delivered digitally (download, licence, gift card email) - no delivery is chosen for them.
+  digitalLineIds: [ID!]!
+  # The shopper asked to choose a delivery per group although one option could cover everything.
+  splitDelivery: Boolean!
+  # More than one group of lines allows different deliveries and one option could still cover all - offer "deliver everything together" vs "choose per item group".
+  canSplit: Boolean!
+  # The groups of lines that each take one delivery choice, in the order to ask them. One group unless the lines allow different delivery kinds and the shopper split.
+  deliveryGroups: [DeliveryGroup!]!
+  # Everything the checkout still asks, from the store's delivery options and settings - render the checkout from this, and placeOrder refuses while any is MISSING or INVALID.
+  requirements: [CheckoutRequirement!]!
+  # Every requirement is met - placeOrder will accept the cart.
+  ready: Boolean!
   phone: String!
   purchaseType: PurchaseType!
   company: String!
@@ -8190,6 +8749,124 @@ type CartCheckout {
   giftCards: [CartGiftCard!]!
   useStoreCredit: Boolean!
   totals: CheckoutTotals!
+}
+
+enum FulfillmentNeed {
+  NONE
+  PHYSICAL
+  MIXED
+}
+
+enum DeliveryShipTo {
+  # The shopper's own address - asked once and shared by every group that ships to them.
+  CUSTOMER
+  # The address of the point the shopper picks - a store, a locker, a parcel shop or a PO box.
+  POINT
+}
+
+# Lines that travel together and take one delivery choice.
+type DeliveryGroup {
+  key: String!
+  lineIds: [ID!]!
+  # The delivery kinds every line in the group allows and the store offers.
+  kinds: [String!]!
+  # What the shopper can choose - one per delivery option and carrier method, priced across the group's shipments.
+  choices: [DeliveryChoice!]!
+  # The shopper's choice. Null until chosen, or when the chosen option or method is no longer offered.
+  selection: DeliverySelection
+  # The packages the group leaves as - one per origin (warehouse, store, seller), each quoted on its own.
+  shipments: [DeliveryShipment!]!
+}
+
+type DeliveryChoice {
+  optionId: ID!
+  optionName: String!
+  description: String!
+  kind: String!
+  kindLabel: String!
+  shipTo: DeliveryShipTo!
+  # What a point is called for this kind - "Store", "Pickup point". Null when the kind asks for none.
+  pointLabel: String
+  carrierSlug: String!
+  carrierName: String!
+  methodCode: String!
+  methodName: String!
+  # Summed over the group's shipments.
+  priceCents: Int!
+  # The slowest shipment's estimate.
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+type DeliverySelection {
+  optionId: ID!
+  optionName: String!
+  kind: String!
+  shipTo: DeliveryShipTo!
+  pointLabel: String
+  carrierSlug: String!
+  methodCode: String!
+  methodName: String!
+  priceCents: Int!
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+  point: DeliveryPoint
+}
+
+type DeliveryPoint {
+  id: String!
+  name: String!
+  street1: String!
+  street2: String
+  city: String!
+  region: String
+  postalCode: String!
+  countryCode: String!
+  lat: Float
+  lng: Float
+  distanceKm: Float
+  hours: String
+  instructions: String
+  phone: String
+}
+
+type DeliveryShipment {
+  # Where the package leaves from - null when the store keeps no locations.
+  originName: String
+  originCity: String
+  lineIds: [ID!]!
+  # This package's share of the selection's price. Null until a choice is made.
+  priceCents: Int
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+enum RequirementMode {
+  REQUIRED
+  OPTIONAL
+}
+
+enum RequirementStatus {
+  SATISFIED
+  MISSING
+  INVALID
+  # Asked, not required, and not given.
+  OPTIONAL
+}
+
+# One thing the checkout asks. scope is "order" or the key of the delivery group it belongs to; type is email, phone, shipping_address, billing_address, delivery_option, point, collector or payment.
+type CheckoutRequirement {
+  scope: String!
+  type: String!
+  label: String!
+  mode: RequirementMode!
+  status: RequirementStatus!
+  # The error placeOrder refuses with while this is missing.
+  code: String!
+  message: String!
 }
 
 type CheckoutDestination {
@@ -8338,8 +9015,10 @@ type ShippingQuote {
   code:        String!
   name:        String!
   priceCents:  Int!
-  # Business days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
+  # Delivery days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
   estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
 }
 
 # A save-for-later item parked off the cart. imageUrl is hydrated like a line.
@@ -8437,6 +9116,8 @@ extend type Query {
   shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
   # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
   pickupLocations: [PickupLocation!]!
+  # Points for the delivery chosen for a group - stores, lockers, parcel shops, PO boxes - near the cart's destination, optionally filtered by a search string.
+  deliveryPoints(cartId: ID!, groupKey: String!, search: String): [DeliveryPoint!]!
   # Pre-checkout estimate for a cart at a destination: shipping options + the tax placement would charge with the cheapest option (goods and shipping, tax classes, customer group and exemption) + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
   cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
   # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
@@ -8487,8 +9168,14 @@ extend type Mutation {
   # Checkout steps. Each saves one choice to the cart, validated against the store, and returns the whole cart so a reload resumes where the shopper was. placeOrder reads all of it from the cart.
   # Step 1 - where the order is headed. Delivery and pickup are quoted from this alone, so no address is needed yet. A saved shipping address in another country or postcode is cleared, and a shipping or payment method the new destination doesn't support is dropped.
   setCartDestination(cartId: ID!, countryCode: String!, regionCode: String, postalCode: String!): Cart!
-  # One of the shippingQuotes offered for the destination, delivery or pickup. Needs a destination first.
+  # One of the shippingQuotes offered for the destination, for a cart delivered as one - the shorthand for setCartDelivery on its single group, taking the first delivery option of the method's kind. Needs a destination first.
   setCartShippingMethod(cartId: ID!, carrierSlug: String!, code: String!): Cart!
+  # Deliver everything together (false) or choose per group of lines (true) - only meaningful while canSplit. Selections of groups that no longer exist are kept, so toggling back restores them.
+  setCartSplitDelivery(cartId: ID!, split: Boolean!): Cart!
+  # One of a group's choices. Changing the option clears its point.
+  setCartDelivery(cartId: ID!, groupKey: String!, optionId: ID!, carrierSlug: String!, methodCode: String!): Cart!
+  # One of deliveryPoints for the group - re-read from its source, so a point that closed is refused.
+  setCartDeliveryPoint(cartId: ID!, groupKey: String!, pointId: String!): Cart!
   # Step 2 - contact, business details and the addresses or pickup contact, in one write. A shipping address in another country or postcode moves the destination, which can drop the chosen method - the shopper then picks again.
   setCartDetails(cartId: ID!, input: CheckoutDetailsInput!): Cart!
   # One of the paymentMethods offered for the destination country. Needs a destination first.
@@ -10810,6 +11497,20 @@ func (ec *executionContext) childFields_CartCheckout(ctx context.Context, field 
 		return ec.fieldContext_CartCheckout_shippingMethod(ctx, field)
 	case "isPickup":
 		return ec.fieldContext_CartCheckout_isPickup(ctx, field)
+	case "fulfillment":
+		return ec.fieldContext_CartCheckout_fulfillment(ctx, field)
+	case "digitalLineIds":
+		return ec.fieldContext_CartCheckout_digitalLineIds(ctx, field)
+	case "splitDelivery":
+		return ec.fieldContext_CartCheckout_splitDelivery(ctx, field)
+	case "canSplit":
+		return ec.fieldContext_CartCheckout_canSplit(ctx, field)
+	case "deliveryGroups":
+		return ec.fieldContext_CartCheckout_deliveryGroups(ctx, field)
+	case "requirements":
+		return ec.fieldContext_CartCheckout_requirements(ctx, field)
+	case "ready":
+		return ec.fieldContext_CartCheckout_ready(ctx, field)
 	case "phone":
 		return ec.fieldContext_CartCheckout_phone(ctx, field)
 	case "purchaseType":
@@ -11018,6 +11719,26 @@ func (ec *executionContext) childFields_CheckoutDestination(ctx context.Context,
 		return ec.fieldContext_CheckoutDestination_postalCode(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CheckoutDestination", field.Name)
+}
+
+func (ec *executionContext) childFields_CheckoutRequirement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "scope":
+		return ec.fieldContext_CheckoutRequirement_scope(ctx, field)
+	case "type":
+		return ec.fieldContext_CheckoutRequirement_type(ctx, field)
+	case "label":
+		return ec.fieldContext_CheckoutRequirement_label(ctx, field)
+	case "mode":
+		return ec.fieldContext_CheckoutRequirement_mode(ctx, field)
+	case "status":
+		return ec.fieldContext_CheckoutRequirement_status(ctx, field)
+	case "code":
+		return ec.fieldContext_CheckoutRequirement_code(ctx, field)
+	case "message":
+		return ec.fieldContext_CheckoutRequirement_message(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CheckoutRequirement", field.Name)
 }
 
 func (ec *executionContext) childFields_CheckoutTotals(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11350,6 +12071,140 @@ func (ec *executionContext) childFields_CustomerSubscription(ctx context.Context
 		return ec.fieldContext_CustomerSubscription_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CustomerSubscription", field.Name)
+}
+
+func (ec *executionContext) childFields_DeliveryChoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "optionId":
+		return ec.fieldContext_DeliveryChoice_optionId(ctx, field)
+	case "optionName":
+		return ec.fieldContext_DeliveryChoice_optionName(ctx, field)
+	case "description":
+		return ec.fieldContext_DeliveryChoice_description(ctx, field)
+	case "kind":
+		return ec.fieldContext_DeliveryChoice_kind(ctx, field)
+	case "kindLabel":
+		return ec.fieldContext_DeliveryChoice_kindLabel(ctx, field)
+	case "shipTo":
+		return ec.fieldContext_DeliveryChoice_shipTo(ctx, field)
+	case "pointLabel":
+		return ec.fieldContext_DeliveryChoice_pointLabel(ctx, field)
+	case "carrierSlug":
+		return ec.fieldContext_DeliveryChoice_carrierSlug(ctx, field)
+	case "carrierName":
+		return ec.fieldContext_DeliveryChoice_carrierName(ctx, field)
+	case "methodCode":
+		return ec.fieldContext_DeliveryChoice_methodCode(ctx, field)
+	case "methodName":
+		return ec.fieldContext_DeliveryChoice_methodName(ctx, field)
+	case "priceCents":
+		return ec.fieldContext_DeliveryChoice_priceCents(ctx, field)
+	case "estimatedDays":
+		return ec.fieldContext_DeliveryChoice_estimatedDays(ctx, field)
+	case "estimatedArrival":
+		return ec.fieldContext_DeliveryChoice_estimatedArrival(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeliveryChoice", field.Name)
+}
+
+func (ec *executionContext) childFields_DeliveryGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_DeliveryGroup_key(ctx, field)
+	case "lineIds":
+		return ec.fieldContext_DeliveryGroup_lineIds(ctx, field)
+	case "kinds":
+		return ec.fieldContext_DeliveryGroup_kinds(ctx, field)
+	case "choices":
+		return ec.fieldContext_DeliveryGroup_choices(ctx, field)
+	case "selection":
+		return ec.fieldContext_DeliveryGroup_selection(ctx, field)
+	case "shipments":
+		return ec.fieldContext_DeliveryGroup_shipments(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeliveryGroup", field.Name)
+}
+
+func (ec *executionContext) childFields_DeliveryPoint(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_DeliveryPoint_id(ctx, field)
+	case "name":
+		return ec.fieldContext_DeliveryPoint_name(ctx, field)
+	case "street1":
+		return ec.fieldContext_DeliveryPoint_street1(ctx, field)
+	case "street2":
+		return ec.fieldContext_DeliveryPoint_street2(ctx, field)
+	case "city":
+		return ec.fieldContext_DeliveryPoint_city(ctx, field)
+	case "region":
+		return ec.fieldContext_DeliveryPoint_region(ctx, field)
+	case "postalCode":
+		return ec.fieldContext_DeliveryPoint_postalCode(ctx, field)
+	case "countryCode":
+		return ec.fieldContext_DeliveryPoint_countryCode(ctx, field)
+	case "lat":
+		return ec.fieldContext_DeliveryPoint_lat(ctx, field)
+	case "lng":
+		return ec.fieldContext_DeliveryPoint_lng(ctx, field)
+	case "distanceKm":
+		return ec.fieldContext_DeliveryPoint_distanceKm(ctx, field)
+	case "hours":
+		return ec.fieldContext_DeliveryPoint_hours(ctx, field)
+	case "instructions":
+		return ec.fieldContext_DeliveryPoint_instructions(ctx, field)
+	case "phone":
+		return ec.fieldContext_DeliveryPoint_phone(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeliveryPoint", field.Name)
+}
+
+func (ec *executionContext) childFields_DeliverySelection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "optionId":
+		return ec.fieldContext_DeliverySelection_optionId(ctx, field)
+	case "optionName":
+		return ec.fieldContext_DeliverySelection_optionName(ctx, field)
+	case "kind":
+		return ec.fieldContext_DeliverySelection_kind(ctx, field)
+	case "shipTo":
+		return ec.fieldContext_DeliverySelection_shipTo(ctx, field)
+	case "pointLabel":
+		return ec.fieldContext_DeliverySelection_pointLabel(ctx, field)
+	case "carrierSlug":
+		return ec.fieldContext_DeliverySelection_carrierSlug(ctx, field)
+	case "methodCode":
+		return ec.fieldContext_DeliverySelection_methodCode(ctx, field)
+	case "methodName":
+		return ec.fieldContext_DeliverySelection_methodName(ctx, field)
+	case "priceCents":
+		return ec.fieldContext_DeliverySelection_priceCents(ctx, field)
+	case "estimatedDays":
+		return ec.fieldContext_DeliverySelection_estimatedDays(ctx, field)
+	case "estimatedArrival":
+		return ec.fieldContext_DeliverySelection_estimatedArrival(ctx, field)
+	case "point":
+		return ec.fieldContext_DeliverySelection_point(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeliverySelection", field.Name)
+}
+
+func (ec *executionContext) childFields_DeliveryShipment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "originName":
+		return ec.fieldContext_DeliveryShipment_originName(ctx, field)
+	case "originCity":
+		return ec.fieldContext_DeliveryShipment_originCity(ctx, field)
+	case "lineIds":
+		return ec.fieldContext_DeliveryShipment_lineIds(ctx, field)
+	case "priceCents":
+		return ec.fieldContext_DeliveryShipment_priceCents(ctx, field)
+	case "estimatedDays":
+		return ec.fieldContext_DeliveryShipment_estimatedDays(ctx, field)
+	case "estimatedArrival":
+		return ec.fieldContext_DeliveryShipment_estimatedArrival(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeliveryShipment", field.Name)
 }
 
 func (ec *executionContext) childFields_DownloadGrant(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12420,6 +13275,8 @@ func (ec *executionContext) childFields_ShippingQuote(ctx context.Context, field
 		return ec.fieldContext_ShippingQuote_priceCents(ctx, field)
 	case "estimatedDays":
 		return ec.fieldContext_ShippingQuote_estimatedDays(ctx, field)
+	case "estimatedArrival":
+		return ec.fieldContext_ShippingQuote_estimatedArrival(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ShippingQuote", field.Name)
 }
@@ -13352,6 +14209,82 @@ func (ec *executionContext) field_Mutation_savePaymentMethod_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setCartDeliveryPoint_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "pointId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pointId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setCartDelivery_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "optionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["optionId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "carrierSlug",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["carrierSlug"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "methodCode",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["methodCode"] = arg4
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setCartDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13505,6 +14438,28 @@ func (ec *executionContext) field_Mutation_setCartShippingMethod_args(ctx contex
 		return nil, err
 	}
 	args["code"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setCartSplitDelivery_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "split",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["split"] = arg1
 	return args, nil
 }
 
@@ -14321,6 +15276,36 @@ func (ec *executionContext) field_Query_currency_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["code"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_deliveryPoints_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "search",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["search"] = arg2
 	return args, nil
 }
 
@@ -19837,6 +20822,185 @@ func (ec *executionContext) fieldContext_CartCheckout_isPickup(_ context.Context
 	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _CartCheckout_fulfillment(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_fulfillment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Fulfillment, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model1.FulfillmentNeed) graphql.Marshaler {
+			return ec.marshalNFulfillmentNeed2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐFulfillmentNeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_fulfillment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type FulfillmentNeed does not have child fields"))
+}
+
+func (ec *executionContext) _CartCheckout_digitalLineIds(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_digitalLineIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DigitalLineIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNID2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_digitalLineIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CartCheckout_splitDelivery(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_splitDelivery(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SplitDelivery, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_splitDelivery(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CartCheckout_canSplit(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_canSplit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CanSplit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_canSplit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CartCheckout_deliveryGroups(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_deliveryGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeliveryGroups, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.DeliveryGroup) graphql.Marshaler {
+			return ec.marshalNDeliveryGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_deliveryGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CartCheckout",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliveryGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CartCheckout_requirements(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_requirements(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Requirements, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CheckoutRequirement) graphql.Marshaler {
+			return ec.marshalNCheckoutRequirement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutRequirementᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_requirements(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CartCheckout",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CheckoutRequirement(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CartCheckout_ready(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartCheckout_ready(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ready, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartCheckout_ready(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartCheckout", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _CartCheckout_phone(ctx context.Context, field graphql.CollectedField, obj *model1.CartCheckout) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21957,6 +23121,167 @@ func (ec *executionContext) _CheckoutDestination_postalCode(ctx context.Context,
 }
 func (ec *executionContext) fieldContext_CheckoutDestination_postalCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CheckoutDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_scope(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_scope(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scope, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_scope(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_type(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_label(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_mode(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_mode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model1.RequirementMode) graphql.Marshaler {
+			return ec.marshalNRequirementMode2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementMode(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type RequirementMode does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_status(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model1.RequirementStatus) graphql.Marshaler {
+			return ec.marshalNRequirementStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type RequirementStatus does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_code(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_code(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CheckoutRequirement_message(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutRequirement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CheckoutRequirement_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CheckoutRequirement_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CheckoutRequirement", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _CheckoutTotals_subtotalCents(ctx context.Context, field graphql.CollectedField, obj *model1.CheckoutTotals) (ret graphql.Marshaler) {
@@ -24895,6 +26220,1238 @@ func (ec *executionContext) fieldContext_CustomerSubscription_createdAt(_ contex
 	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _DeliveryChoice_optionId(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_optionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_optionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_optionName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_optionName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_optionName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_description(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_kind(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_kindLabel(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_kindLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KindLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_kindLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_shipTo(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_shipTo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShipTo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model1.DeliveryShipTo) graphql.Marshaler {
+			return ec.marshalNDeliveryShipTo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipTo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_shipTo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type DeliveryShipTo does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_pointLabel(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_pointLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PointLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_pointLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_carrierSlug(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_carrierSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CarrierSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_carrierSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_carrierName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_carrierName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CarrierName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_carrierName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_methodCode(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_methodCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_methodCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_methodName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_methodName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_methodName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_priceCents(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_priceCents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceCents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_priceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_estimatedDays(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_estimatedDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_estimatedDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryChoice_estimatedArrival(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryChoice_estimatedArrival(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedArrival, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryChoice_estimatedArrival(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryGroup_key(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryGroup_lineIds(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_lineIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LineIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNID2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_lineIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryGroup", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryGroup_kinds(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_kinds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kinds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_kinds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryGroup_choices(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_choices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Choices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.DeliveryChoice) graphql.Marshaler {
+			return ec.marshalNDeliveryChoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryChoiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_choices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeliveryGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliveryChoice(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeliveryGroup_selection(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_selection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Selection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.DeliverySelection) graphql.Marshaler {
+			return ec.marshalODeliverySelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliverySelection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_selection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeliveryGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliverySelection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeliveryGroup_shipments(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryGroup_shipments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Shipments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.DeliveryShipment) graphql.Marshaler {
+			return ec.marshalNDeliveryShipment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryGroup_shipments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeliveryGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliveryShipment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeliveryPoint_id(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_name(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_street1(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_street1(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Street1, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_street1(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_street2(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_street2(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Street2, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_street2(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_city(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_city(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.City, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_city(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_region(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_region(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Region, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_region(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_postalCode(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_postalCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PostalCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_postalCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_countryCode(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_countryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_countryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_lat(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_lat(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lat, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_lat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_lng(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_lng(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lng, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_lng(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_distanceKm(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_distanceKm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DistanceKm, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_distanceKm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_hours(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_hours(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hours, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_hours(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_instructions(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_instructions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Instructions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryPoint_phone(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryPoint_phone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Phone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryPoint_phone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_optionId(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_optionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_optionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_optionName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_optionName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_optionName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_kind(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_shipTo(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_shipTo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShipTo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model1.DeliveryShipTo) graphql.Marshaler {
+			return ec.marshalNDeliveryShipTo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipTo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_shipTo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type DeliveryShipTo does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_pointLabel(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_pointLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PointLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_pointLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_carrierSlug(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_carrierSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CarrierSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_carrierSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_methodCode(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_methodCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_methodCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_methodName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_methodName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_methodName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_priceCents(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_priceCents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceCents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_priceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_estimatedDays(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_estimatedDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_estimatedDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_estimatedArrival(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_estimatedArrival(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedArrival, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_estimatedArrival(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliverySelection_point(ctx context.Context, field graphql.CollectedField, obj *model1.DeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliverySelection_point(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Point, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.DeliveryPoint) graphql.Marshaler {
+			return ec.marshalODeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPoint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliverySelection_point(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeliverySelection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliveryPoint(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeliveryShipment_originName(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_originName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_originName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryShipment_originCity(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_originCity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginCity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_originCity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryShipment_lineIds(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_lineIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LineIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNID2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_lineIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryShipment_priceCents(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_priceCents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceCents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_priceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryShipment_estimatedDays(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_estimatedDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_estimatedDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeliveryShipment_estimatedArrival(ctx context.Context, field graphql.CollectedField, obj *model1.DeliveryShipment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeliveryShipment_estimatedArrival(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedArrival, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeliveryShipment_estimatedArrival(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeliveryShipment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _DownloadGrant_id(ctx context.Context, field graphql.CollectedField, obj *model1.DownloadGrant) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26956,6 +29513,138 @@ func (ec *executionContext) fieldContext_Mutation_setCartShippingMethod(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setCartShippingMethod_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setCartSplitDelivery(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setCartSplitDelivery(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetCartSplitDelivery(ctx, fc.Args["cartId"].(string), fc.Args["split"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setCartSplitDelivery(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setCartSplitDelivery_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setCartDelivery(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setCartDelivery(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetCartDelivery(ctx, fc.Args["cartId"].(string), fc.Args["groupKey"].(string), fc.Args["optionId"].(string), fc.Args["carrierSlug"].(string), fc.Args["methodCode"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setCartDelivery(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setCartDelivery_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setCartDeliveryPoint(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setCartDeliveryPoint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetCartDeliveryPoint(ctx, fc.Args["cartId"].(string), fc.Args["groupKey"].(string), fc.Args["pointId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setCartDeliveryPoint(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setCartDeliveryPoint_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -35238,6 +37927,50 @@ func (ec *executionContext) fieldContext_Query_pickupLocations(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_deliveryPoints(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_deliveryPoints(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().DeliveryPoints(ctx, fc.Args["cartId"].(string), fc.Args["groupKey"].(string), fc.Args["search"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.DeliveryPoint) graphql.Marshaler {
+			return ec.marshalNDeliveryPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_deliveryPoints(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeliveryPoint(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_deliveryPoints_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_cartEstimate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -39610,6 +42343,29 @@ func (ec *executionContext) _ShippingQuote_estimatedDays(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_ShippingQuote_estimatedDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ShippingQuote", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ShippingQuote_estimatedArrival(ctx context.Context, field graphql.CollectedField, obj *model1.ShippingQuote) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ShippingQuote_estimatedArrival(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedArrival, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ShippingQuote_estimatedArrival(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ShippingQuote", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SitemapCounts_products(ctx context.Context, field graphql.CollectedField, obj *model1.SitemapCounts) (ret graphql.Marshaler) {
@@ -44536,6 +47292,41 @@ func (ec *executionContext) _CartCheckout(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "fulfillment":
+			out.Values[i] = ec._CartCheckout_fulfillment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digitalLineIds":
+			out.Values[i] = ec._CartCheckout_digitalLineIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "splitDelivery":
+			out.Values[i] = ec._CartCheckout_splitDelivery(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "canSplit":
+			out.Values[i] = ec._CartCheckout_canSplit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deliveryGroups":
+			out.Values[i] = ec._CartCheckout_deliveryGroups(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requirements":
+			out.Values[i] = ec._CartCheckout_requirements(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ready":
+			out.Values[i] = ec._CartCheckout_ready(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "phone":
 			out.Values[i] = ec._CartCheckout_phone(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -45326,6 +48117,74 @@ func (ec *executionContext) _CheckoutDestination(ctx context.Context, sel ast.Se
 			}
 		case "postalCode":
 			out.Values[i] = ec._CheckoutDestination_postalCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var checkoutRequirementImplementors = []string{"CheckoutRequirement"}
+
+func (ec *executionContext) _CheckoutRequirement(ctx context.Context, sel ast.SelectionSet, obj *model1.CheckoutRequirement) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, checkoutRequirementImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CheckoutRequirement")
+		case "scope":
+			out.Values[i] = ec._CheckoutRequirement_scope(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._CheckoutRequirement_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._CheckoutRequirement_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mode":
+			out.Values[i] = ec._CheckoutRequirement_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._CheckoutRequirement_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "code":
+			out.Values[i] = ec._CheckoutRequirement_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._CheckoutRequirement_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -46681,6 +49540,431 @@ func (ec *executionContext) _CustomerSubscription(ctx context.Context, sel ast.S
 	return out
 }
 
+var deliveryChoiceImplementors = []string{"DeliveryChoice"}
+
+func (ec *executionContext) _DeliveryChoice(ctx context.Context, sel ast.SelectionSet, obj *model1.DeliveryChoice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deliveryChoiceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeliveryChoice")
+		case "optionId":
+			out.Values[i] = ec._DeliveryChoice_optionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optionName":
+			out.Values[i] = ec._DeliveryChoice_optionName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._DeliveryChoice_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._DeliveryChoice_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kindLabel":
+			out.Values[i] = ec._DeliveryChoice_kindLabel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shipTo":
+			out.Values[i] = ec._DeliveryChoice_shipTo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pointLabel":
+			out.Values[i] = ec._DeliveryChoice_pointLabel(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "carrierSlug":
+			out.Values[i] = ec._DeliveryChoice_carrierSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "carrierName":
+			out.Values[i] = ec._DeliveryChoice_carrierName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodCode":
+			out.Values[i] = ec._DeliveryChoice_methodCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodName":
+			out.Values[i] = ec._DeliveryChoice_methodName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceCents":
+			out.Values[i] = ec._DeliveryChoice_priceCents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "estimatedDays":
+			out.Values[i] = ec._DeliveryChoice_estimatedDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "estimatedArrival":
+			out.Values[i] = ec._DeliveryChoice_estimatedArrival(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var deliveryGroupImplementors = []string{"DeliveryGroup"}
+
+func (ec *executionContext) _DeliveryGroup(ctx context.Context, sel ast.SelectionSet, obj *model1.DeliveryGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deliveryGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeliveryGroup")
+		case "key":
+			out.Values[i] = ec._DeliveryGroup_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lineIds":
+			out.Values[i] = ec._DeliveryGroup_lineIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kinds":
+			out.Values[i] = ec._DeliveryGroup_kinds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "choices":
+			out.Values[i] = ec._DeliveryGroup_choices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "selection":
+			out.Values[i] = ec._DeliveryGroup_selection(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "shipments":
+			out.Values[i] = ec._DeliveryGroup_shipments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var deliveryPointImplementors = []string{"DeliveryPoint"}
+
+func (ec *executionContext) _DeliveryPoint(ctx context.Context, sel ast.SelectionSet, obj *model1.DeliveryPoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deliveryPointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeliveryPoint")
+		case "id":
+			out.Values[i] = ec._DeliveryPoint_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DeliveryPoint_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "street1":
+			out.Values[i] = ec._DeliveryPoint_street1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "street2":
+			out.Values[i] = ec._DeliveryPoint_street2(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "city":
+			out.Values[i] = ec._DeliveryPoint_city(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "region":
+			out.Values[i] = ec._DeliveryPoint_region(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "postalCode":
+			out.Values[i] = ec._DeliveryPoint_postalCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "countryCode":
+			out.Values[i] = ec._DeliveryPoint_countryCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lat":
+			out.Values[i] = ec._DeliveryPoint_lat(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "lng":
+			out.Values[i] = ec._DeliveryPoint_lng(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "distanceKm":
+			out.Values[i] = ec._DeliveryPoint_distanceKm(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "hours":
+			out.Values[i] = ec._DeliveryPoint_hours(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "instructions":
+			out.Values[i] = ec._DeliveryPoint_instructions(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "phone":
+			out.Values[i] = ec._DeliveryPoint_phone(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var deliverySelectionImplementors = []string{"DeliverySelection"}
+
+func (ec *executionContext) _DeliverySelection(ctx context.Context, sel ast.SelectionSet, obj *model1.DeliverySelection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deliverySelectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeliverySelection")
+		case "optionId":
+			out.Values[i] = ec._DeliverySelection_optionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optionName":
+			out.Values[i] = ec._DeliverySelection_optionName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._DeliverySelection_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shipTo":
+			out.Values[i] = ec._DeliverySelection_shipTo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pointLabel":
+			out.Values[i] = ec._DeliverySelection_pointLabel(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "carrierSlug":
+			out.Values[i] = ec._DeliverySelection_carrierSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodCode":
+			out.Values[i] = ec._DeliverySelection_methodCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodName":
+			out.Values[i] = ec._DeliverySelection_methodName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceCents":
+			out.Values[i] = ec._DeliverySelection_priceCents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "estimatedDays":
+			out.Values[i] = ec._DeliverySelection_estimatedDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "estimatedArrival":
+			out.Values[i] = ec._DeliverySelection_estimatedArrival(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "point":
+			out.Values[i] = ec._DeliverySelection_point(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var deliveryShipmentImplementors = []string{"DeliveryShipment"}
+
+func (ec *executionContext) _DeliveryShipment(ctx context.Context, sel ast.SelectionSet, obj *model1.DeliveryShipment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deliveryShipmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeliveryShipment")
+		case "originName":
+			out.Values[i] = ec._DeliveryShipment_originName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "originCity":
+			out.Values[i] = ec._DeliveryShipment_originCity(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "lineIds":
+			out.Values[i] = ec._DeliveryShipment_lineIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceCents":
+			out.Values[i] = ec._DeliveryShipment_priceCents(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "estimatedDays":
+			out.Values[i] = ec._DeliveryShipment_estimatedDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "estimatedArrival":
+			out.Values[i] = ec._DeliveryShipment_estimatedArrival(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var downloadGrantImplementors = []string{"DownloadGrant"}
 
 func (ec *executionContext) _DownloadGrant(ctx context.Context, sel ast.SelectionSet, obj *model1.DownloadGrant) graphql.Marshaler {
@@ -47390,6 +50674,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setCartShippingMethod":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setCartShippingMethod(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setCartSplitDelivery":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setCartSplitDelivery(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setCartDelivery":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setCartDelivery(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setCartDeliveryPoint":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setCartDeliveryPoint(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -51523,6 +54828,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "deliveryPoints":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_deliveryPoints(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "cartEstimate":
 			field := field
 
@@ -54073,6 +57400,11 @@ func (ec *executionContext) _ShippingQuote(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "estimatedArrival":
+			out.Values[i] = ec._ShippingQuote_estimatedArrival(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -55730,6 +59062,32 @@ func (ec *executionContext) unmarshalNCheckoutDetailsInput2githubᚗcomᚋskelet
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNCheckoutRequirement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutRequirementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CheckoutRequirement) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCheckoutRequirement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutRequirement(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCheckoutRequirement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutRequirement(ctx context.Context, sel ast.SelectionSet, v *model1.CheckoutRequirement) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CheckoutRequirement(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCheckoutTotals2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCheckoutTotals(ctx context.Context, sel ast.SelectionSet, v *model1.CheckoutTotals) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -56106,6 +59464,120 @@ func (ec *executionContext) marshalNCustomerSubscription2ᚖgithubᚗcomᚋskele
 	return ec._CustomerSubscription(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDeliveryChoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryChoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DeliveryChoice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeliveryChoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryChoice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDeliveryChoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryChoice(ctx context.Context, sel ast.SelectionSet, v *model1.DeliveryChoice) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeliveryChoice(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDeliveryGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DeliveryGroup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeliveryGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryGroup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDeliveryGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryGroup(ctx context.Context, sel ast.SelectionSet, v *model1.DeliveryGroup) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeliveryGroup(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDeliveryPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DeliveryPoint) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPoint(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPoint(ctx context.Context, sel ast.SelectionSet, v *model1.DeliveryPoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeliveryPoint(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDeliveryShipTo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipTo(ctx context.Context, v any) (model1.DeliveryShipTo, error) {
+	var res model1.DeliveryShipTo
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDeliveryShipTo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipTo(ctx context.Context, sel ast.SelectionSet, v model1.DeliveryShipTo) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDeliveryShipment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DeliveryShipment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeliveryShipment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDeliveryShipment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryShipment(ctx context.Context, sel ast.SelectionSet, v *model1.DeliveryShipment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeliveryShipment(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDownloadGrantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DownloadGrant) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -56146,6 +59618,16 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 		}
 	}
 	return graphql.WrapContextMarshaler(ctx, res)
+}
+
+func (ec *executionContext) unmarshalNFulfillmentNeed2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐFulfillmentNeed(ctx context.Context, v any) (model1.FulfillmentNeed, error) {
+	var res model1.FulfillmentNeed
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFulfillmentNeed2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐFulfillmentNeed(ctx context.Context, sel ast.SelectionSet, v model1.FulfillmentNeed) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GroupedMember) graphql.Marshaler {
@@ -57214,6 +60696,26 @@ func (ec *executionContext) unmarshalNRequestReturnInput2githubᚗcomᚋskeletg�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNRequirementMode2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementMode(ctx context.Context, v any) (model1.RequirementMode, error) {
+	var res model1.RequirementMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRequirementMode2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementMode(ctx context.Context, sel ast.SelectionSet, v model1.RequirementMode) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNRequirementStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementStatus(ctx context.Context, v any) (model1.RequirementStatus, error) {
+	var res model1.RequirementStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRequirementStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐRequirementStatus(ctx context.Context, sel ast.SelectionSet, v model1.RequirementStatus) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐReturnLineInputᚄ(ctx context.Context, v any) ([]*model.ReturnLineInput, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
@@ -58222,6 +61724,20 @@ func (ec *executionContext) marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._Customer(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliveryPoint(ctx context.Context, sel ast.SelectionSet, v *model1.DeliveryPoint) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DeliveryPoint(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODeliverySelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐDeliverySelection(ctx context.Context, sel ast.SelectionSet, v *model1.DeliverySelection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DeliverySelection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

@@ -10,9 +10,9 @@ import (
 	frontmodel "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
-	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -168,37 +168,16 @@ func (r *Resolver) checkoutCart(ctx context.Context, cartID *string) (cart.Cart,
 	return r.CartSvc.GetOrCreateCart(ctx, *callerID, sv.ID)
 }
 
-// checkoutComplete names the first step the shopper still owes, as a code the storefront can send them back to - a selection the store no longer offers counts as missing, and what the details step owes follows the store's settings
-func (r *Resolver) checkoutComplete(ctx context.Context, c cart.Cart, method *shipping.RatedQuote, paymentOK bool) error {
-	co := c.Checkout
-	dest := co.QuoteDestination()
-	if dest.IsZero() {
-		return errCheckoutNeedsDestination
+// checkoutComplete names the first thing the cart still owes, as a code the storefront can send the shopper back to - the delivery requirements first, then what a business purchase owes. A missing payment method isn't refused here: gift cards or store credit may cover the total, and placement refuses with PAYMENT_REQUIRED when they don't
+func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error {
+	for _, q := range delivery.Requirements(r.checkoutSnapshot(ctx, v)) {
+		if !q.Blocking() || (q.Type == delivery.BlockPayment && q.Status == delivery.StatusMissing) {
+			continue
+		}
+		return apperr.New(q.Code, apperr.ClassValidation, q.Message)
 	}
-	// With nothing quoted for the destination there's nothing to choose, and placement prices shipping as it always has
-	if method == nil && len(r.quotesFor(ctx, c, dest)) > 0 {
-		return apperr.New("CHECKOUT_SHIPPING_METHOD_REQUIRED", apperr.ClassValidation, "choose a delivery or pickup option")
-	}
-	if err := r.detailsComplete(ctx, c); err != nil {
-		return err
-	}
-	// No provider is allowed - gift cards or store credit may cover the total, and placement refuses with PAYMENT_REQUIRED when they don't
-	if co.PaymentProviderSlug != "" && !paymentOK {
-		return errPaymentMethodOffered
-	}
-	return nil
-}
-
-// detailsComplete is what the details step owes - the same rules setCartDetails enforces, re-checked at placement because a setting can change after the step was saved
-func (r *Resolver) detailsComplete(ctx context.Context, c cart.Cart) error {
-	co := c.Checkout
-	set := r.checkoutSettings(ctx, c.ChannelID)
-	switch {
-	case r.checkoutEmail(ctx, c) == "":
-		return errCheckoutNeedsEmail
-	case set.Phone == "required" && co.ContactPhone == "":
-		return errCheckoutNeedsPhone
-	}
+	co := v.c.Checkout
+	set := r.checkoutSettings(ctx, v.c.ChannelID)
 	if set.Business && co.PurchaseType == cart.PurchaseBusiness {
 		if co.Company == "" {
 			return errCheckoutNeedsCompany
@@ -206,21 +185,6 @@ func (r *Resolver) detailsComplete(ctx context.Context, c cart.Cart) error {
 		if r.missingBusinessID(ctx, co, set) {
 			return apperr.New("CHECKOUT_BUSINESS_ID_REQUIRED", apperr.ClassValidation, "enter the company's identification numbers")
 		}
-	}
-	if co.IsPickup() {
-		if co.PickupContact == nil {
-			return errCheckoutNeedsCollector
-		}
-		if set.pickupNeedsBilling(co) && co.BillingAddress == nil {
-			return errCheckoutNeedsBilling
-		}
-		return nil
-	}
-	if co.ShippingAddress == nil {
-		return errCheckoutNeedsAddress
-	}
-	if !co.BillingSameAsShipping && co.BillingAddress == nil {
-		return errCheckoutNeedsBilling
 	}
 	return nil
 }
