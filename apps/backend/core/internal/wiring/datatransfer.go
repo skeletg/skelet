@@ -92,7 +92,7 @@ func newDataRegistry(d dataResourceDeps) *dataio.Registry { // registered here r
 
 	// Mirrors config.RegisterSource - what keeps entity pickers out of the dashboard entirely
 	reg.RegisterSource(promotion.SourceRules, func(ctx context.Context) ([]dataio.Choice, error) {
-		rules, _, err := d.Promotion.ListRules(ctx, choiceLimit, 0)
+		rules, _, err := d.Promotion.ListRules(ctx, promotion.RuleFilter{AllChannels: true}, choiceLimit, 0)
 		if err != nil {
 			return nil, err
 		}

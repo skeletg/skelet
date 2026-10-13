@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,8 +17,15 @@ type rulesOnly struct {
 	rules []promotion.Rule
 }
 
-func (f rulesOnly) ListRules(context.Context, int32, int32) ([]promotion.Rule, int32, error) {
-	return f.rules, int32(len(f.rules)), nil
+// Applies the filter the way the SQL does, so the test still proves the tool asks for the right scope
+func (f rulesOnly) ListRules(_ context.Context, rf promotion.RuleFilter, _, _ int32) ([]promotion.Rule, int32, error) {
+	var out []promotion.Rule
+	for _, r := range f.rules {
+		if rf.AllChannels || (r.ChannelID == nil && rf.IncludeGlobal) || (r.ChannelID != nil && slices.Contains(rf.ChannelIDs, *r.ChannelID)) {
+			out = append(out, r)
+		}
+	}
+	return out, int32(len(out)), nil
 }
 
 func TestTheChatListsOnlyItsChannelsPromotions(t *testing.T) {
