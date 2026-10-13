@@ -150,6 +150,7 @@ type ProductRepository interface {
 	ListProductsForChannel(ctx context.Context, channelID uuid.UUID, rowLimit int32) ([]Product, error)
 	ListProductIDsPaged(ctx context.Context, f ProductPageFilter) ([]uuid.UUID, int64, error)
 	CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error)
+	CountProductsByCategory(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error)
 	ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, limit int32) ([]Product, error)
 	ListProductsByType(ctx context.Context, productTypeID uuid.UUID) ([]Product, error)

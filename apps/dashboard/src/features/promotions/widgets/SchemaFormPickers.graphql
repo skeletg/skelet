@@ -14,24 +14,6 @@ query SchemaFormAttributes {
   }
 }
 
-query SchemaFormRootCategories {
-  rootCategories {
-    id
-    slug
-    name
-    children {
-      id
-      slug
-      name
-      children {
-        id
-        slug
-        name
-      }
-    }
-  }
-}
-
 query SchemaFormCustomerGroups {
   customerGroups {
     id
