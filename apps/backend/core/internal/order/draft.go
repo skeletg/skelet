@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 
 	"github.com/google/uuid"
 
@@ -184,8 +185,8 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			ShippingMethodID:    shipSel.MethodID,
-			ShippingCarrierSlug: stringPtr(shipSel.CarrierSlug),
-			ShippingMethodCode:  stringPtr(shipSel.MethodCode),
+			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
+			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 		})
 		if err != nil {
 			return fmt.Errorf("create draft order: %w", err)

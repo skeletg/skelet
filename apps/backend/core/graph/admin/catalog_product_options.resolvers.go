@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -25,7 +26,7 @@ func (r *mutationResolver) AddProductOption(ctx context.Context, input model.Add
 		SortOrder:  int32Or(input.SortOrder, 0),
 		Locale:     input.Locale,
 		Title:      input.Title,
-		HelpText:   stringOrEmpty(input.HelpText),
+		HelpText:   ptr.Deref(input.HelpText),
 	}
 	if input.PriceValue != nil {
 		v := *input.PriceValue
@@ -121,7 +122,7 @@ func (r *mutationResolver) UpsertProductOptionContent(ctx context.Context, optio
 		OptionID: id,
 		Locale:   locale,
 		Title:    title,
-		HelpText: stringOrEmpty(helpText),
+		HelpText: ptr.Deref(helpText),
 	}); err != nil {
 		return nil, err
 	}

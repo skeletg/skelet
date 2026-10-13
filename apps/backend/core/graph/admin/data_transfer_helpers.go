@@ -155,13 +155,6 @@ func (r *Resolver) dataResourceLabel(slug string) string {
 	return slug
 }
 
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func optionValues(in []*model.DataOptionValue) map[string]string {
 	out := make(map[string]string, len(in))
 	for _, v := range in {
