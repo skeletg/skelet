@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
@@ -28,7 +27,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -45,6 +43,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
@@ -55,6 +54,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -135,11 +135,11 @@ type Svcs struct {
 	Wishlist     *wishlist.Service
 	AI           *ai.Service
 	Review       *review.Service
-	Form         *form.Service
+	Form         *signupform.Service
 	WebForm      *webform.Service
 	Delivery     *delivery.Service
 	Menu         *menu.Service
-	Chat         *chat.Service
+	Chat         *ai.History
 	Action       *adminaction.Service
 	DataJob      *datajob.Service
 	Payment      *payment.Service
@@ -162,6 +162,7 @@ type Svcs struct {
 	Order     *order.Service
 	OrderMail *ordermail.Service
 	Catalog   *catalog.Service
+	Recommend *recommend.Service
 	Outbox    *outbox.Outbox
 
 	Flows       *enroll.Enroller

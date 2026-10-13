@@ -51,7 +51,7 @@ func runReviewsClassifyBackfill(cmd *cobra.Command, args []string) error {
 
 	queries := db.New(conn)
 	txMgr := txrunner.New(conn)
-	configSvc := config.NewService(configstore.New(queries, txMgr))
+	configSvc := config.NewService(configstore.New(queries))
 	if rawKey := strings.TrimSpace(os.Getenv("CONFIG_ENCRYPTION_KEY")); rawKey != "" {
 		cipher, cipherErr := secrets.NewCipher(rawKey)
 		if cipherErr != nil {

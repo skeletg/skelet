@@ -14,71 +14,7 @@ func activeCard(balance int64) GiftCard {
 	return GiftCard{ID: uuid.New(), Code: "GC-TEST", CurrencyCode: "USD", Balance: balance, InitialBalance: balance, Status: StatusActive}
 }
 
-func TestApplyRedemption_PartialLeavesActive(t *testing.T) {
-	bal, status, err := applyRedemption(activeCard(5000), 2000, "USD", time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bal != 3000 || status != StatusActive {
-		t.Errorf("got balance=%d status=%s, want 3000/active", bal, status)
-	}
-}
-
-func TestApplyRedemption_ExactDepletes(t *testing.T) {
-	bal, status, err := applyRedemption(activeCard(2000), 2000, "USD", time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bal != 0 || status != StatusDepleted {
-		t.Errorf("got balance=%d status=%s, want 0/depleted", bal, status)
-	}
-}
-
-func TestApplyRedemption_Insufficient(t *testing.T) {
-	if _, _, err := applyRedemption(activeCard(1500), 2000, "USD", time.Now()); !errors.Is(err, ErrInsufficient) {
-		t.Fatalf("got %v, want ErrInsufficient", err)
-	}
-}
-
-func TestApplyRedemption_NonPositiveAmount(t *testing.T) {
-	if _, _, err := applyRedemption(activeCard(5000), 0, "USD", time.Now()); !errors.Is(err, ErrInvalidAmount) {
-		t.Fatalf("got %v, want ErrInvalidAmount", err)
-	}
-}
-
-func TestApplyRedemption_Inactive(t *testing.T) {
-	c := activeCard(5000)
-	c.Status = StatusDisabled
-	if _, _, err := applyRedemption(c, 100, "USD", time.Now()); !errors.Is(err, ErrInactive) {
-		t.Fatalf("got %v, want ErrInactive", err)
-	}
-}
-
-func TestApplyRedemption_Expired(t *testing.T) {
-	c := activeCard(5000)
-	past := time.Now().Add(-time.Hour)
-	c.ExpiresAt = &past
-	if _, _, err := applyRedemption(c, 100, "USD", time.Now()); !errors.Is(err, ErrExpired) {
-		t.Fatalf("got %v, want ErrExpired", err)
-	}
-}
-
-func TestApplyRedemption_NotYetExpired(t *testing.T) {
-	c := activeCard(5000)
-	future := time.Now().Add(time.Hour)
-	c.ExpiresAt = &future
-	if _, _, err := applyRedemption(c, 100, "USD", time.Now()); err != nil {
-		t.Fatalf("unexpected error for unexpired card: %v", err)
-	}
-}
-
-func TestApplyRedemption_CurrencyMismatch(t *testing.T) {
-	if _, _, err := applyRedemption(activeCard(5000), 100, "EUR", time.Now()); !errors.Is(err, ErrCurrencyMismatch) {
-		t.Fatalf("got %v, want ErrCurrencyMismatch", err)
-	}
-}
-
-// fakeRepo implements Repository for testing issueTx/redeemTx without a DB
+// fakeRepo implements Repository for testing issueTx/redeemUpToTx without a DB
 type fakeRepo struct {
 	byCode    map[string]GiftCard
 	byRef     map[string]GiftCard // what a keyed (idempotent) issue already minted
@@ -167,32 +103,6 @@ func TestIssueTx_CreatesCardAndLedger(t *testing.T) {
 	}
 	if len(r.txns) != 1 || r.txns[0].Reason != ReasonIssue || r.txns[0].Amount != 5000 {
 		t.Errorf("expected one +5000 issue ledger row, got %+v", r.txns)
-	}
-}
-
-func TestRedeemTx_DebitsAndWritesLedger(t *testing.T) {
-	r := &fakeRepo{byCode: map[string]GiftCard{"GC-X": activeCardCode("GC-X", 5000)}}
-	oid := uuid.New()
-	_, err := redeemTx(context.Background(), r, "GC-X", 2000, "USD", time.Now(), &oid)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if r.balanceTo == nil || *r.balanceTo != 3000 {
-		t.Errorf("balance updated to %v, want 3000", r.balanceTo)
-	}
-	if len(r.txns) != 1 || r.txns[0].Amount != -2000 || r.txns[0].Reason != ReasonRedeem {
-		t.Errorf("expected one -2000 redeem ledger row, got %+v", r.txns)
-	}
-}
-
-func TestRedeemTx_InsufficientWritesNothing(t *testing.T) {
-	r := &fakeRepo{byCode: map[string]GiftCard{"GC-X": activeCardCode("GC-X", 100)}}
-	_, err := redeemTx(context.Background(), r, "GC-X", 2000, "USD", time.Now(), nil)
-	if !errors.Is(err, ErrInsufficient) {
-		t.Fatalf("got %v, want ErrInsufficient", err)
-	}
-	if r.balanceTo != nil || len(r.txns) != 0 {
-		t.Errorf("a rejected redemption must not write balance/ledger")
 	}
 }
 
@@ -313,5 +223,20 @@ func TestIssueTx_UnkeyedIssuesAreDistinct(t *testing.T) {
 	}
 	if second.ID == first.ID {
 		t.Error("unkeyed issues returned the same card")
+	}
+}
+
+func TestNormalizeCode(t *testing.T) {
+	for in, want := range map[string]string{
+		"GC-A7K2-9MTX-PQ4R": "GC-A7K2-9MTX-PQ4R",
+		"gc-a7k2-9mtx-pq4r": "GC-A7K2-9MTX-PQ4R",
+		" GCA7K29MTXPQ4R ":  "GC-A7K2-9MTX-PQ4R",
+		"gc a7k2 9mtx pq4r": "GC-A7K2-9MTX-PQ4R",
+		"legacy-code":       "LEGACY-CODE",
+		"GC-A7K2":           "GC-A7K2",
+	} {
+		if got := NormalizeCode(in); got != want {
+			t.Errorf("NormalizeCode(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

@@ -1,4 +1,8 @@
-// Package backinstock powers "notify me when it's back" - shoppers register interest in an out-of-stock SKU and are told when it's restocked Notification takes one of two paths per requester, so nobody who asked is missed: a resolved customer with an active back_in_stock flow is enrolled into it for rich operator-controlled content, and everyone else gets a direct built-in email It's a solicited one-time notification the shopper explicitly requested, so it sends without marketing consent - but it still honours the suppression list, never mailing a hard-bounced or complained address
+// Package backinstock powers "notify me when it's back" - shoppers register interest in an out-of-stock SKU and are told when it's restocked.
+//
+// Notification takes one of two paths per requester, so nobody who asked is missed: a resolved customer with an active back_in_stock flow is enrolled into it for rich operator-controlled content, and everyone else gets a direct built-in email.
+//
+// It's a solicited one-time notification the shopper explicitly requested, so it sends without marketing consent - but it still honours the suppression list, never mailing a hard-bounced or complained address.
 package backinstock
 
 import (
@@ -7,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/mail"
 	"strings"
 
 	"github.com/google/uuid"
@@ -25,7 +30,7 @@ type salableReader interface { // narrow dependency seams - accepting interfaces
 	Salable(ctx context.Context, productID, channelID uuid.UUID) (float64, error)
 }
 type customerFinder interface {
-	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool)
+	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error)
 }
 type flowEnroller interface {
 	OnBackInStock(ctx context.Context, channelID, customerID uuid.UUID, sku, name, image, url string) int
@@ -64,6 +69,7 @@ const maxPendingPerEmail = 20
 var (
 	ErrNotSoldHere      = errors.New("product is not sold on this store")
 	ErrTooManyRequested = errors.New("too many back-in-stock requests for this address")
+	ErrInvalidEmail     = errors.New("not a valid email address") // a bad address only bounces, and bounces cost the store's sending reputation
 )
 
 // Names this notice in the send log - back-in-stock has no editable slot, so it is not an emailtemplate key
@@ -98,6 +104,9 @@ func (s *Service) Record(ctx context.Context, r Request) error { // stores or re
 	if em == "" || r.ProductID == uuid.Nil || r.ChannelID == uuid.Nil {
 		return fmt.Errorf("channel, product and email are required")
 	}
+	if a, err := mail.ParseAddress(em); err != nil || a.Address != em {
+		return ErrInvalidEmail
+	}
 	prod, err := s.q.BackInStockProduct(ctx, db.BackInStockProductParams{ProductID: r.ProductID, ChannelID: r.ChannelID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotSoldHere
@@ -113,8 +122,9 @@ func (s *Service) Record(ctx context.Context, r Request) error { // stores or re
 		return ErrTooManyRequested
 	}
 	var cid uuid.NullUUID
-	if r.CustomerID != nil && *r.CustomerID != uuid.Nil {
-		cid = uuid.NullUUID{UUID: *r.CustomerID, Valid: true}
+	var customer *uuid.UUID
+	if r.CustomerID != nil && *r.CustomerID != uuid.Nil && s.ownsAddress(ctx, r.ChannelID, *r.CustomerID, em) {
+		cid, customer = uuid.NullUUID{UUID: *r.CustomerID, Valid: true}, r.CustomerID
 	}
 	if err := s.q.UpsertBackInStockRequest(ctx, db.UpsertBackInStockRequestParams{
 		ChannelID: r.ChannelID, ProductID: r.ProductID, Sku: prod.Sku, Email: em,
@@ -125,10 +135,22 @@ func (s *Service) Record(ctx context.Context, r Request) error { // stores or re
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Requested{
 			ChannelID: r.ChannelID, ProductID: r.ProductID, SKU: prod.Sku,
-			Email: em, CustomerID: r.CustomerID,
+			Email: em, CustomerID: customer,
 		})
 	}
 	return nil
+}
+
+// A signed-in shopper can type someone else's address - the request is then that address's, since a customer link would send the notice through their account's flow to their own inbox instead
+func (s *Service) ownsAddress(ctx context.Context, channelID, customerID uuid.UUID, email string) bool {
+	if s.cust == nil {
+		return false
+	}
+	id, found, err := s.cust.CustomerIDByEmail(ctx, channelID, email)
+	if err != nil {
+		log.Printf("[backinstock] customer lookup: %v", err)
+	}
+	return found && id == customerID
 }
 
 type display struct{ sku, name, image, url string }
@@ -189,17 +211,18 @@ func (s *Service) onStockChanged(ctx context.Context, e events.Event) error { //
 }
 
 func (s *Service) notifyChannel(ctx context.Context, productID, channelID uuid.UUID) {
-	reqs, err := s.q.ListPendingBackInStock(ctx, db.ListPendingBackInStockParams{ProductID: productID, ChannelID: channelID})
-	if err != nil || len(reqs) == 0 {
-		return
-	}
 	ch, cerr := s.chans.GetByID(ctx, channelID)
 	if cerr != nil {
 		return
 	}
 	prod, sold := s.productDisplay(ctx, productID, ch)
 	if !sold {
-		return // pulled from the store while shoppers waited - nothing to send them to
+		return // pulled from the store while shoppers waited - they stay waiting, with nothing to send them to yet
+	}
+	reqs, err := s.q.ClaimPendingBackInStock(ctx, db.ClaimPendingBackInStockParams{ProductID: productID, ChannelID: channelID})
+	if err != nil {
+		log.Printf("[backinstock] claim pending %s/%s: %v", productID, channelID, err)
+		return
 	}
 	var suppressed map[string]bool // one query for the whole waiting list rather than a lookup per request - a nil map, meaning no service, is none suppressed
 	if s.suppress != nil {
@@ -216,23 +239,28 @@ func (s *Service) notifyChannel(ctx context.Context, productID, channelID uuid.U
 		var custID uuid.UUID // the flow path wins for resolved customers with an active flow
 		if r.CustomerID.Valid {
 			custID = r.CustomerID.UUID
-		} else if id, found := s.cust.CustomerIDByEmail(ctx, channelID, r.Email); found {
+		} else if id, found, err := s.cust.CustomerIDByEmail(ctx, channelID, r.Email); err != nil {
+			log.Printf("[backinstock] customer lookup %s: %v", r.Email, err)
+		} else if found {
 			custID = id
 		}
 		enrolled := 0
 		if custID != uuid.Nil {
 			enrolled = s.flows.OnBackInStock(ctx, channelID, custID, prod.sku, prod.name, prod.image, prod.url)
 		}
-		if enrolled == 0 {
-			s.sendDirect(ctx, r.Email, prod.name, prod.image, prod.url, ch)
+		if enrolled > 0 {
+			continue
 		}
-	}
-	if err := s.q.MarkBackInStockNotified(ctx, db.MarkBackInStockNotifiedParams{ProductID: productID, ChannelID: channelID}); err != nil {
-		log.Printf("[backinstock] mark notified %s/%s: %v", productID, channelID, err)
+		if err := s.sendDirect(ctx, r.Email, prod.name, prod.image, prod.url, ch); err != nil {
+			log.Printf("[backinstock] direct notify %s: %v", r.Email, err)
+			if rerr := s.q.ReleaseBackInStockClaim(ctx, r.ID); rerr != nil { // back to waiting, so the next restock retries rather than the shopper silently never hearing
+				log.Printf("[backinstock] release %s: %v", r.ID, rerr)
+			}
+		}
 	}
 }
 
-func (s *Service) sendDirect(ctx context.Context, to, name, image, url string, ch channel.Channel) { // a minimal self-contained notice, best-effort
+func (s *Service) sendDirect(ctx context.Context, to, name, image, url string, ch channel.Channel) error { // a minimal self-contained notice
 	if name == "" {
 		name = "The item you wanted"
 	}
@@ -252,11 +280,9 @@ func (s *Service) sendDirect(ctx context.Context, to, name, image, url string, c
 <p style="color:#888;font-size:12px">You asked to be notified when this item returned.</p>
 </div>`, htmlEscape(name), img, htmlEscape(url))
 	text := fmt.Sprintf("Good news - %s is back in stock.\nShop now: %s\n\nYou asked to be notified when this item returned.", name, url)
-	if err := s.directSender().Send(ctx, mailsend.Spec{
+	return s.directSender().Send(ctx, mailsend.Spec{
 		ChannelID: ch.ID, FallbackName: ordermail.StoreName(ctx, s.config, ch), To: to, MessageKey: MessageKey,
-	}, subject, html, text); err != nil {
-		log.Printf("[backinstock] direct notify %s: %v", to, err)
-	}
+	}, subject, html, text)
 }
 
 func htmlEscape(s string) string {

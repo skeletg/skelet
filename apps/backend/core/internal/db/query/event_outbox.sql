@@ -27,3 +27,9 @@ WHERE id = $1;
 -- name: DeleteDeliveredOutboxBefore :execrows
 DELETE FROM event_outbox
 WHERE delivered_at IS NOT NULL AND delivered_at < $1::timestamptz;
+
+-- name: RescheduleOutboxEvent :exec
+-- Shortens the claim lease after a subscriber failure, so the retry comes on a backoff rather than when the full lease runs out
+UPDATE event_outbox
+SET next_attempt_at = NOW() + make_interval(secs => sqlc.arg(delay_seconds)::int)
+WHERE id = sqlc.arg(id) AND delivered_at IS NULL;

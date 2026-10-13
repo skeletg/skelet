@@ -49,13 +49,74 @@ func (q *Queries) DeleteCustomerAddresses(ctx context.Context, customerID uuid.U
 }
 
 const deleteCustomerBackInStockRequests = `-- name: DeleteCustomerBackInStockRequests :execrows
-DELETE FROM back_in_stock_requests WHERE lower(email) = lower($1::text)
+DELETE FROM back_in_stock_requests
+WHERE  channel_id = $1
+  AND  (customer_id = $2 OR lower(btrim(email)) = $3::text)
 `
 
-// Keyed by email rather than customer_id (guests subscribe too), so this takes
-// the address the customer is being erased under
-func (q *Queries) DeleteCustomerBackInStockRequests(ctx context.Context, email string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteCustomerBackInStockRequests, email)
+type DeleteCustomerBackInStockRequestsParams struct {
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	Email      string        `json:"email"`
+}
+
+// Keyed by email as well as customer_id (guests subscribe too), and only on the customer's channel - the same
+// address on another store belongs to a separate account
+func (q *Queries) DeleteCustomerBackInStockRequests(ctx context.Context, arg DeleteCustomerBackInStockRequestsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerBackInStockRequests, arg.ChannelID, arg.CustomerID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomerPaymentMethods = `-- name: DeleteCustomerPaymentMethods :execrows
+DELETE FROM customer_payment_methods WHERE customer_id = $1
+`
+
+func (q *Queries) DeleteCustomerPaymentMethods(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerPaymentMethods, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomerSignupSubmissions = `-- name: DeleteCustomerSignupSubmissions :execrows
+DELETE FROM signup_form_submissions
+WHERE  customer_id = $1
+   OR  (channel_id = $2 AND lower(btrim(email)) = $3::text)
+`
+
+type DeleteCustomerSignupSubmissionsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	Email      string        `json:"email"`
+}
+
+func (q *Queries) DeleteCustomerSignupSubmissions(ctx context.Context, arg DeleteCustomerSignupSubmissionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerSignupSubmissions, arg.CustomerID, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomerWebFormSubmissions = `-- name: DeleteCustomerWebFormSubmissions :execrows
+DELETE FROM web_form_submissions
+WHERE  customer_id = $1
+   OR  (channel_id = $2 AND position($3::text IN lower(answers::text)) > 0)
+`
+
+type DeleteCustomerWebFormSubmissionsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	Email      string        `json:"email"`
+}
+
+// The answers are free-form, so a submission naming the address anywhere in them goes, not just one tied to the account
+func (q *Queries) DeleteCustomerWebFormSubmissions(ctx context.Context, arg DeleteCustomerWebFormSubmissionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerWebFormSubmissions, arg.CustomerID, arg.ChannelID, arg.Email)
 	if err != nil {
 		return 0, err
 	}
@@ -71,15 +132,41 @@ func (q *Queries) DeleteCustomerWishlist(ctx context.Context, customerID uuid.UU
 	return err
 }
 
-const scrubCustomerAuditDetail = `-- name: ScrubCustomerAuditDetail :execrows
-UPDATE audit_log
-SET    detail = jsonb_build_object('redacted', true, 'reason', 'customer erased')
-WHERE  detail::text ILIKE '%' || $1::text || '%'
+const deleteCustomerWishlistShares = `-- name: DeleteCustomerWishlistShares :execrows
+DELETE FROM wishlist_shares WHERE customer_id = $1
 `
 
-// The audit log keeps admin mutation variables for a year, so an adminUpdateCustomer or adminAddAddress row still holds the pre-erasure email, phone and street long after the customer row was scrubbed - only the detail payload is cleared - the action, actor and timestamp stay, so the trail of WHO did WHAT survives the erasure
-func (q *Queries) ScrubCustomerAuditDetail(ctx context.Context, email string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, scrubCustomerAuditDetail, email)
+func (q *Queries) DeleteCustomerWishlistShares(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCustomerWishlistShares, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const scrubCustomerAuditDetail = `-- name: ScrubCustomerAuditDetail :execrows
+UPDATE audit_log a
+SET    detail = jsonb_build_object('redacted', true, 'reason', 'customer erased')
+WHERE  position($1::text IN lower(a.detail::text)) > 0
+   OR  position($2::uuid::text IN a.detail::text) > 0
+   OR  EXISTS (
+         SELECT 1 FROM orders o
+         WHERE  (o.customer_id = $2
+                 OR (o.customer_id IS NULL AND o.channel_id = $3 AND lower(btrim(o.email)) = $1::text))
+           AND  position(o.id::text IN a.detail::text) > 0)
+`
+
+type ScrubCustomerAuditDetailParams struct {
+	Email      string    `json:"email"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+}
+
+// The audit log keeps admin mutation variables for a year, so an adminUpdateCustomer or adminAddAddress row still holds the pre-erasure email, phone and street long after the customer row was scrubbed - only the detail payload is cleared, the action, actor and timestamp stay
+// A row names the customer by address, by id, or through one of their orders; position() rather than ILIKE, so a % or _ in the address can't widen the match
+// Runs before the orders are scrubbed, while the guest orders still carry the address
+func (q *Queries) ScrubCustomerAuditDetail(ctx context.Context, arg ScrubCustomerAuditDetailParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerAuditDetail, arg.Email, arg.CustomerID, arg.ChannelID)
 	if err != nil {
 		return 0, err
 	}
@@ -108,6 +195,53 @@ func (q *Queries) ScrubCustomerCarts(ctx context.Context, customerID uuid.NullUU
 	return result.RowsAffected()
 }
 
+const scrubCustomerDownloadGrants = `-- name: ScrubCustomerDownloadGrants :execrows
+UPDATE download_grants g
+SET    email = ''
+WHERE  g.customer_id = $1
+   OR  (lower(btrim(g.email)) = $2::text
+        AND EXISTS (SELECT 1 FROM orders o WHERE o.id = g.order_id AND o.channel_id = $3))
+`
+
+type ScrubCustomerDownloadGrantsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	Email      string        `json:"email"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+}
+
+// Grants outlive the order they came from, so the address they were issued to is blanked here
+func (q *Queries) ScrubCustomerDownloadGrants(ctx context.Context, arg ScrubCustomerDownloadGrantsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerDownloadGrants, arg.CustomerID, arg.Email, arg.ChannelID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const scrubCustomerGiftCards = `-- name: ScrubCustomerGiftCards :execrows
+UPDATE gift_cards
+SET    recipient_email = CASE WHEN lower(btrim(recipient_email)) = $1::text THEN '' ELSE recipient_email END,
+       message         = '',
+       updated_at      = NOW()
+WHERE  customer_id = $2
+   OR  (channel_id = $3 AND lower(btrim(recipient_email)) = $1::text)
+`
+
+type ScrubCustomerGiftCardsParams struct {
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+}
+
+// A card sent to the erased address loses the address and the sender's note; one the customer bought loses the note they wrote
+func (q *Queries) ScrubCustomerGiftCards(ctx context.Context, arg ScrubCustomerGiftCardsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerGiftCards, arg.Email, arg.CustomerID, arg.ChannelID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const scrubCustomerOrders = `-- name: ScrubCustomerOrders :execrows
 UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',
@@ -130,6 +264,63 @@ WHERE customer_id = $1
 // customer_note, po_number and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
 func (q *Queries) ScrubCustomerOrders(ctx context.Context, customerID uuid.NullUUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, scrubCustomerOrders, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const scrubCustomerProductQuestions = `-- name: ScrubCustomerProductQuestions :execrows
+UPDATE product_questions
+SET    author_name = 'Redacted', author_email = ''
+WHERE  customer_id = $1
+   OR  (channel_id = $2 AND lower(btrim(author_email)) = $3::text)
+`
+
+type ScrubCustomerProductQuestionsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	Email      string        `json:"email"`
+}
+
+// The question text stays on the product page, the asker's name and address don't
+func (q *Queries) ScrubCustomerProductQuestions(ctx context.Context, arg ScrubCustomerProductQuestionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerProductQuestions, arg.CustomerID, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const scrubGuestOrdersByEmail = `-- name: ScrubGuestOrdersByEmail :execrows
+UPDATE orders
+SET email               = 'redacted-' || $1::uuid::text || '@anonymized.invalid',
+    customer_note       = '',
+    po_number           = NULL,
+    metadata            = '{}'::jsonb,
+    billing_first_name  = 'Redacted', billing_last_name = '',
+    billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
+    billing_city        = 'Redacted', billing_state = '', billing_postal_code = '',
+    billing_phone       = '',
+    shipping_first_name = 'Redacted', shipping_last_name = '',
+    shipping_company    = '', shipping_street_1 = 'Redacted', shipping_street_2 = '',
+    shipping_city       = 'Redacted', shipping_state = '', shipping_postal_code = '',
+    shipping_phone      = '',
+    anon_id             = ''
+WHERE customer_id IS NULL
+  AND channel_id = $2
+  AND lower(btrim(email)) = $3::text
+`
+
+type ScrubGuestOrdersByEmailParams struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	Email      string    `json:"email"`
+}
+
+// Orders placed as a guest under the erased address, on the customer's channel - retained like their own orders, with the same columns scrubbed
+func (q *Queries) ScrubGuestOrdersByEmail(ctx context.Context, arg ScrubGuestOrdersByEmailParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubGuestOrdersByEmail, arg.CustomerID, arg.ChannelID, arg.Email)
 	if err != nil {
 		return 0, err
 	}

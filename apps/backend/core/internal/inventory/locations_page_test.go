@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -158,4 +159,20 @@ type levelsListRepo struct {
 
 func (l *levelsListRepo) ListLevelsByItems(_ context.Context, _ []uuid.UUID) ([]Level, error) {
 	return l.levels, nil
+}
+
+func TestLocationInputErrorsAreTyped(t *testing.T) {
+	svc := NewService(&fakeLocRepo{}, nil)
+	ctx := context.Background()
+	if _, err := svc.CreateLocation(ctx, CreateLocationInput{Slug: "wh", Name: " "}); !errors.Is(err, ErrLocationNameRequired) {
+		t.Errorf("blank name = %v, want ErrLocationNameRequired", err)
+	}
+	bad := 91.0
+	if _, err := svc.CreateLocation(ctx, CreateLocationInput{Slug: "wh", Name: "WH", Latitude: &bad}); !errors.Is(err, ErrInvalidCoordinates) {
+		t.Errorf("latitude 91 = %v, want ErrInvalidCoordinates", err)
+	}
+	blank := ""
+	if _, err := svc.UpdateLocation(ctx, UpdateLocationInput{Name: &blank}); !errors.Is(err, ErrLocationNameRequired) {
+		t.Errorf("update to a blank name = %v, want ErrLocationNameRequired", err)
+	}
 }

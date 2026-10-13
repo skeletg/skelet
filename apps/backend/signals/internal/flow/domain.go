@@ -30,6 +30,8 @@ const (
 	TriggerFormSubmitted      = signalsapi.TriggerFormSubmitted
 	TriggerEmailVerification  = signalsapi.TriggerEmailVerification
 	TriggerPasswordReset      = signalsapi.TriggerPasswordReset
+	TriggerSignupConfirmation = signalsapi.TriggerSignupConfirmation
+	TriggerAccountExists      = signalsapi.TriggerAccountExists
 )
 
 const (

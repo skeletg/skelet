@@ -2,10 +2,11 @@
 package health
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -158,37 +159,26 @@ func (r *Registry) run(ctx context.Context, now time.Time) Report {
 
 	out := make([]GroupResult, 0, len(byGroup))
 	for _, g := range byGroup {
-		sort.SliceStable(g.Checks, func(i, j int) bool {
-			if g.Checks[i].Order != g.Checks[j].Order {
-				return g.Checks[i].Order < g.Checks[j].Order
-			}
-			return g.Checks[i].Key < g.Checks[j].Key
+		slices.SortStableFunc(g.Checks, func(a, b CheckResult) int {
+			return cmp.Or(cmp.Compare(a.Order, b.Order), cmp.Compare(a.Key, b.Key))
 		})
 		out = append(out, *g)
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Order != out[j].Order {
-			return out[i].Order < out[j].Order
-		}
-		return out[i].Key < out[j].Key
+	slices.SortStableFunc(out, func(a, b GroupResult) int {
+		return cmp.Or(cmp.Compare(a.Order, b.Order), cmp.Compare(a.Key, b.Key))
 	})
 
 	return Report{Status: worst(results), CheckedAt: now, Groups: out}
 }
 
-func runOne(ctx context.Context, c Check) (res Result) {
-	defer func() {
-		if p := recover(); p != nil {
-			res = Bad("probe panicked", fmt.Sprintf("%v - this is a bug in the %s check, not necessarily in the subsystem", p, c.Key))
-		}
-	}()
+func runOne(ctx context.Context, c Check) Result {
 	pctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	done := make(chan Result, 1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
-				done <- Bad("probe panicked", fmt.Sprintf("%v", p))
+				done <- Bad("probe panicked", fmt.Sprintf("%v - this is a bug in the %s check, not necessarily in the subsystem", p, c.Key))
 			}
 		}()
 		done <- c.Run(pctx)

@@ -12,14 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const createDownloadGrant = `-- name: CreateDownloadGrant :one
+const createDownloadGrant = `-- name: CreateDownloadGrant :execrows
 
 INSERT INTO download_grants (
     token, order_id, customer_id, email, product_id, download_id,
     title, url, max_downloads, expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, token, order_id, customer_id, email, product_id, download_id, title, url, downloads_used, max_downloads, expires_at, created_at
+ON CONFLICT (order_id, download_id) WHERE order_id IS NOT NULL DO NOTHING
 `
 
 type CreateDownloadGrantParams struct {
@@ -35,9 +35,10 @@ type CreateDownloadGrantParams struct {
 	ExpiresAt    sql.NullTime  `json:"expires_at"`
 }
 
-// Download grants (per-buyer access, created at order placement)
-func (q *Queries) CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (DownloadGrant, error) {
-	row := q.db.QueryRowContext(ctx, createDownloadGrant,
+// Download grants (per-buyer access, created once the order's payment is secured)
+// Zero rows when the order already holds a grant for this file - order.placed and payment changes both ask for grants
+func (q *Queries) CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createDownloadGrant,
 		arg.Token,
 		arg.OrderID,
 		arg.CustomerID,
@@ -49,23 +50,10 @@ func (q *Queries) CreateDownloadGrant(ctx context.Context, arg CreateDownloadGra
 		arg.MaxDownloads,
 		arg.ExpiresAt,
 	)
-	var i DownloadGrant
-	err := row.Scan(
-		&i.ID,
-		&i.Token,
-		&i.OrderID,
-		&i.CustomerID,
-		&i.Email,
-		&i.ProductID,
-		&i.DownloadID,
-		&i.Title,
-		&i.Url,
-		&i.DownloadsUsed,
-		&i.MaxDownloads,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const createProductDownload = `-- name: CreateProductDownload :one
@@ -335,6 +323,21 @@ func (q *Queries) ListProductDownloadsByProductID(ctx context.Context, productID
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeOrderDownloadGrants = `-- name: RevokeOrderDownloadGrants :execrows
+UPDATE download_grants
+SET    expires_at = NOW()
+WHERE  order_id = $1 AND (expires_at IS NULL OR expires_at > NOW())
+`
+
+// Expires the order's live grants - a cancelled, voided or refunded order stops serving its files
+func (q *Queries) RevokeOrderDownloadGrants(ctx context.Context, orderID uuid.NullUUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeOrderDownloadGrants, orderID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateProductDownload = `-- name: UpdateProductDownload :one

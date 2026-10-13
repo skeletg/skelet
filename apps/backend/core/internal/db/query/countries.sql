@@ -36,8 +36,12 @@ RETURNING *;
 DELETE FROM countries WHERE code = UPPER($1);
 
 -- name: CountCountryReferences :one
--- Total references across live-data columns. orders.* country fields are intentionally excluded - they're snapshots; historical orders must not block disabling a country
+-- Total references across live-data columns, the shipping and payment coverage lists included though they carry no FK. orders.* country fields are intentionally excluded - they're snapshots; historical orders must not block disabling a country
 SELECT (
-    (SELECT COUNT(*) FROM addresses WHERE country_code         = UPPER($1)) +
-    (SELECT COUNT(*) FROM locales   WHERE default_country_code = UPPER($1))
+    (SELECT COUNT(*) FROM addresses                  WHERE country_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM locales                    WHERE default_country_code = UPPER($1)) +
+    (SELECT COUNT(*) FROM shipping_zone_countries    WHERE country_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM shipping_method_countries  WHERE country_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM shipping_carrier_countries WHERE country_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM payment_method_countries   WHERE country_code         = UPPER($1))
 )::bigint AS total;

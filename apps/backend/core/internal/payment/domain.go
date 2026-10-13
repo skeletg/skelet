@@ -250,6 +250,8 @@ var (
 	ErrProviderNotInstalled = errors.New("payment: provider not installed on this channel")
 	ErrProviderDisabled     = errors.New("payment: provider not enabled on this channel")
 	ErrSyncUnsupported      = errors.New("payment: provider cannot report payment state")
+	ErrProviderNotInCountry = errors.New("payment: provider not available for this country")
+	ErrVaultUnsupported     = errors.New("payment: provider does not support saved payment methods")
 )
 
 // Provider rows themselves live in code, registered via the SDK, not in the DB

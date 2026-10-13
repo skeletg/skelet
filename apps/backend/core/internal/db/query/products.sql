@@ -16,6 +16,18 @@ RETURNING *;
 -- name: GetProductByID :one
 SELECT * FROM catalog_products WHERE id = $1;
 
+-- name: GetProductByIDForUpdate :one
+-- UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
+SELECT * FROM catalog_products WHERE id = $1 FOR UPDATE;
+
+-- name: CountActiveCartReferencesToSKU :one
+SELECT ((SELECT COUNT(*) FROM cart_lines cl JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND cl.product_sku = sqlc.arg(sku)::text)
+      + (SELECT COUNT(*) FROM cart_saved_items si JOIN carts c ON c.id = si.cart_id
+         WHERE c.status = 'active' AND si.product_sku = sqlc.arg(sku)::text)
+      + (SELECT COUNT(*) FROM cart_line_components lc JOIN cart_lines cl ON cl.id = lc.cart_line_id JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND lc.product_sku = sqlc.arg(sku)::text))::bigint;
+
 -- Batched product loader for the storefront browse hydration - one query replaces N GetProductByID round-trips - order is restored Go-side from the caller's id slice
 -- name: GetProductsByIDs :many
 SELECT * FROM catalog_products WHERE id = ANY(sqlc.arg(ids)::uuid[]);
@@ -70,6 +82,11 @@ ORDER BY p.url;
 -- name: ListProducts :many
 -- row_limit 0 means every row - only the CSV export needs that, and the GraphQL surface never does: an uncapped list is 101k rows and ~17MB on a real catalog, which pins a connection for ~20s and is reachable by any admin who can view the catalog
 SELECT * FROM catalog_products ORDER BY created_at DESC LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
+
+-- name: ListProductsForChannel :many
+SELECT p.* FROM catalog_products p
+WHERE EXISTS (SELECT 1 FROM catalog_product_channel_listings l WHERE l.product_id = p.id AND l.channel_id = sqlc.arg(channel_id))
+ORDER BY p.created_at DESC LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
 
 -- name: UpdateProduct :one
 UPDATE catalog_products
@@ -340,12 +357,12 @@ WHERE l.is_published = TRUE
          WHERE sqlc.arg(search)::text <> ''
            AND mc.locale = sqlc.arg(locale)::text
            AND (mc.search_tsv @@ websearch_to_tsquery('simple', sqlc.arg(search)::text)
-                OR mc.name ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                OR mc.name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
         UNION
         SELECT mp.id
           FROM catalog_products mp
          WHERE sqlc.arg(search)::text <> ''
-           AND mp.sku ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'))
+           AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
   AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
         SELECT 1 FROM catalog_product_categories pc
         WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
@@ -411,11 +428,11 @@ WHERE l.is_published = TRUE
           FROM catalog_product_content mc
          WHERE mc.locale = sqlc.arg(locale)
            AND (mc.search_tsv @@ websearch_to_tsquery('simple', sqlc.arg(q)::text)
-                OR mc.name ILIKE '%' || replace(replace(replace(sqlc.arg(q)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                OR mc.name ILIKE '%' || escape_like(sqlc.arg(q)::text) || '%')
         UNION
         SELECT mp.id
           FROM catalog_products mp
-         WHERE mp.sku ILIKE '%' || replace(replace(replace(sqlc.arg(q)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+         WHERE mp.sku ILIKE '%' || escape_like(sqlc.arg(q)::text) || '%'
   )
 ORDER BY rank DESC, p.created_at DESC, p.id ASC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
@@ -439,12 +456,12 @@ WITH base AS (
              WHERE sqlc.arg(search)::text <> ''
                AND mc.locale = sqlc.arg(locale)::text
                AND (mc.search_tsv @@ websearch_to_tsquery('simple', sqlc.arg(search)::text)
-                    OR mc.name ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+                    OR mc.name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
             UNION
             SELECT mp.id
               FROM catalog_products mp
              WHERE sqlc.arg(search)::text <> ''
-               AND mp.sku ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'))
+               AND mp.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'))
       AND (NOT sqlc.arg(filter_category)::boolean OR EXISTS (
             SELECT 1 FROM catalog_product_categories pc
             WHERE pc.product_id = p.id AND pc.category_id = sqlc.arg(category_id)))
@@ -491,9 +508,9 @@ WITH filtered AS (
               SELECT 1 FROM catalog_product_channel_listings l
               WHERE l.product_id = p.id AND l.channel_id = sqlc.arg(channel_id)))
       AND (sqlc.arg(search)::text = ''
-           OR p.sku ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
-           OR p.url ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
-           OR co.name ILIKE '%' || replace(replace(replace(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+           OR p.sku ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+           OR p.url ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+           OR co.name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
       AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR p.kind::text = ANY(sqlc.arg(kinds)::text[]))
       AND (cardinality(sqlc.arg(type_slugs)::text[]) = 0 OR pt.slug = ANY(sqlc.arg(type_slugs)::text[]))
       -- Published means "has a published listing in scope" - in global mode any

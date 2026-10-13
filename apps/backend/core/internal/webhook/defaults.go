@@ -42,7 +42,7 @@ func init() {
 		Type:        customer.EventUpdated,
 		Kind:        KindAsync,
 		Name:        "Customer Updated",
-		Description: "Fires after an admin updates a customer. Response is ignored (async). Payload includes changedFields listing which fields were modified.",
+		Description: "Fires after an admin updates a customer, including the active toggle, group, tax status and VAT id. Response is ignored (async). Payload includes changedFields listing which fields were modified, in camelCase.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        order.EventPlaced,
@@ -141,7 +141,7 @@ func init() {
 		Type:        customer.EventProfileUpdated,
 		Kind:        KindAsync,
 		Name:        "Customer Profile Updated",
-		Description: "Fires after a customer edits their own profile. Payload includes changedFields.",
+		Description: "Fires after a customer edits their own profile, or a customer import changes one. Payload includes changedFields, named in camelCase like customer.updated's (firstName, lastName, phone), and Source: self or import.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        customer.EventPasswordChanged,
@@ -153,7 +153,7 @@ func init() {
 		Type:        customer.EventAddressChanged,
 		Kind:        KindAsync,
 		Name:        "Customer Address Changed",
-		Description: "Fires after a customer adds, updates, or deletes an address book entry. Payload includes the action.",
+		Description: "Fires after an address book entry is added, updated or deleted, by the customer or an admin, or made the default. Payload includes the action: add, update, delete, default_billing or default_shipping.",
 	})
 
 	// Subscription lifecycle
@@ -375,6 +375,18 @@ func init() {
 		Description: "Fires when the set of products in a collection changes (manual collections). Payload includes the collection id.",
 	})
 	RegisterEvent(EventDefinition{
+		Type:        catalog.EventAttributeUpdated,
+		Kind:        KindAsync,
+		Name:        "Attribute Updated",
+		Description: "Fires after an attribute, its values, its product-type assignments or its flags change. Payload includes attributeId, slug and changedFields.",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        catalog.EventAttributeDeleted,
+		Kind:        KindAsync,
+		Name:        "Attribute Deleted",
+		Description: "Fires after an attribute is deleted, along with every value products held for it. Payload includes attributeId and slug.",
+	})
+	RegisterEvent(EventDefinition{
 		Type:        catalog.EventProductListingChanged,
 		Kind:        KindAsync,
 		Name:        "Product Listing Changed",
@@ -434,6 +446,12 @@ func init() {
 		Kind:        KindAsync,
 		Name:        "Channel Locales Changed",
 		Description: "Fires after a store's active locale set changes.",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        channel.EventUpdated,
+		Kind:        KindAsync,
+		Name:        "Channel Updated",
+		Description: "Fires after a store's own fields change - name, currency, locales, active flag, public URL or default flag. Subscribe to bust a headless frontend's nav cache.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        channel.EventDeleted,

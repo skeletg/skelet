@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 )
 
 // gqlPost drives the real front API - the request crosses the entire production middleware
@@ -25,7 +27,7 @@ func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query st
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if channelID != "" {
-		req.Header.Set("X-Channel-Id", channelID)
+		req.Header.Set(channel.HeaderChannelID, channelID)
 	}
 	resp, err := ts.Client().Do(req)
 	if err != nil {

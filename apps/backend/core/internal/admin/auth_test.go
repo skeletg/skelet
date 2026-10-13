@@ -164,29 +164,38 @@ func (f *fakeRevoker) RevokeAll(_ context.Context, id uuid.UUID) error {
 	return f.err
 }
 
-type memTokens map[string]uuid.UUID
+type memTokens map[string]auth.Token
 
-func (m memTokens) Put(_ context.Context, k string, id uuid.UUID, _ time.Duration) error {
-	m[k] = id
+func (m memTokens) Put(_ context.Context, k string, t auth.Token, _ time.Duration) error {
+	m[k] = t
 	return nil
 }
 
-func (m memTokens) Get(_ context.Context, k string) (uuid.UUID, error) {
-	id, ok := m[k]
+func (m memTokens) Get(_ context.Context, k string) (auth.Token, error) {
+	t, ok := m[k]
 	if !ok {
-		return uuid.Nil, auth.ErrTokenNotFound
+		return auth.Token{}, auth.ErrTokenNotFound
 	}
-	return id, nil
+	return t, nil
 }
 
-func (m memTokens) Consume(ctx context.Context, k string) (uuid.UUID, error) {
-	id, err := m.Get(ctx, k)
+func (m memTokens) Consume(ctx context.Context, k string) (auth.Token, error) {
+	t, err := m.Get(ctx, k)
 	delete(m, k)
-	return id, err
+	return t, err
 }
 
 func (m memTokens) Delete(_ context.Context, k string) error {
 	delete(m, k)
+	return nil
+}
+
+func (m memTokens) DeleteSubject(_ context.Context, namespace string, id uuid.UUID) error {
+	for k, t := range m {
+		if t.Subject == id && strings.HasPrefix(k, namespace+":") {
+			delete(m, k)
+		}
+	}
 	return nil
 }
 

@@ -16,8 +16,7 @@ import (
 
 func (r *postgresRepository) CreateBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error) {
 	var out BundleOption
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateBundleOption(ctx, db.CreateBundleOptionParams{
 			ProductID:     input.ProductID,
 			InputType:     db.CatalogBundleInputType(input.InputType),
@@ -55,6 +54,17 @@ func (r *postgresRepository) GetBundleOptionByID(ctx context.Context, id uuid.UU
 			return BundleOption{}, ErrBundleOptionNotFound
 		}
 		return BundleOption{}, fmt.Errorf("get bundle option: %w", err)
+	}
+	return toBundleOption(row), nil
+}
+
+func (r *postgresRepository) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (BundleOption, error) {
+	row, err := r.queries.GetBundleOptionByIDForUpdate(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return BundleOption{}, ErrBundleOptionNotFound
+		}
+		return BundleOption{}, fmt.Errorf("lock bundle option: %w", err)
 	}
 	return toBundleOption(row), nil
 }
@@ -154,7 +164,7 @@ func (r *postgresRepository) CreateBundleSelection(ctx context.Context, input Ad
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return BundleSelection{}, fmt.Errorf("selection already exists for this option/product")
+			return BundleSelection{}, ErrBundleSelectionDuplicate
 		}
 		return BundleSelection{}, fmt.Errorf("create bundle selection: %w", err)
 	}
@@ -170,18 +180,6 @@ func (r *postgresRepository) GetBundleSelectionByID(ctx context.Context, id uuid
 		return BundleSelection{}, fmt.Errorf("get bundle selection: %w", err)
 	}
 	return toBundleSelection(row), nil
-}
-
-func (r *postgresRepository) ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]BundleSelection, error) {
-	rows, err := r.queries.ListBundleSelectionsByOptionID(ctx, optionID)
-	if err != nil {
-		return nil, fmt.Errorf("list bundle selections: %w", err)
-	}
-	out := make([]BundleSelection, len(rows))
-	for i, row := range rows {
-		out[i] = toBundleSelection(row)
-	}
-	return out, nil
 }
 
 func (r *postgresRepository) ListBundleSelectionsByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleSelection, error) {

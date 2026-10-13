@@ -1,13 +1,17 @@
-// Package blockkit is the shared CMS page-layout engine - the typed block tree a page's body stores, its validation, and safe HTML rendering
+// Package blockkit is the shared CMS page-layout engine - the typed block tree a page's body stores, its validation, and safe HTML rendering.
 // SYNC SENTINEL: the block `type` strings are a contract with the dashboard palette and the storefront renderer, and bin/contract-check fails the build when they drift
 package blockkit
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 )
+
+var ErrInvalidDocument = errors.New("invalid block document")
 
 const maxDepth = 8 // containers land in a later phase and v1 is flat, but the bound means a malformed or cyclic tree can't blow the stack
 
@@ -97,11 +101,39 @@ func ParseDocument(raw json.RawMessage) (doc Document, ok bool) {
 	return doc, doc.Blocks != nil || doc.Version > 0 // a block document is identified by a blocks array or an explicit version - plain rich-text and Lexical bodies are objects with neither
 }
 
-func Validate(doc Document, custom CustomTypeChecker) error { // every block needs a known type, built-in or a channel custom one, nesting within maxDepth, and an id
-	return validateBlocks(doc.Blocks, custom, 1)
+// A JSON object carrying a blocks key is claiming to be a Document, so it must parse as one or be refused - never stored or served as freeform
+func ClaimsDocument(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return false
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &keys); err != nil {
+		return false
+	}
+	_, ok := keys["blocks"]
+	return ok
 }
 
-func validateBlocks(blocks []Block, custom CustomTypeChecker, depth int) error {
+func CheckBody(raw json.RawMessage, custom CustomTypeChecker) error {
+	doc, ok := ParseDocument(raw)
+	if !ok {
+		if ClaimsDocument(raw) {
+			return fmt.Errorf("%w: body does not parse", ErrInvalidDocument)
+		}
+		return nil
+	}
+	return Validate(doc, custom)
+}
+
+func Validate(doc Document, custom CustomTypeChecker) error { // every block needs a known type, built-in or a channel custom one, nesting within maxDepth, and an id unique in the page - the storefront keys blocks by id and the editor selects by it
+	if err := validateBlocks(doc.Blocks, custom, 1, map[string]bool{}); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidDocument, err)
+	}
+	return nil
+}
+
+func validateBlocks(blocks []Block, custom CustomTypeChecker, depth int, ids map[string]bool) error {
 	if depth > maxDepth {
 		return fmt.Errorf("block nesting exceeds %d levels", maxDepth)
 	}
@@ -109,6 +141,13 @@ func validateBlocks(blocks []Block, custom CustomTypeChecker, depth int) error {
 		if b.Type == "" {
 			return fmt.Errorf("block %d has no type", i)
 		}
+		if b.ID == "" {
+			return fmt.Errorf("block %d (%s) has no id", i, b.Type)
+		}
+		if ids[b.ID] {
+			return fmt.Errorf("block id %q is used twice", b.ID)
+		}
+		ids[b.ID] = true
 		if !BuiltinTypes[b.Type] && (custom == nil || !custom(b.Type)) {
 			return fmt.Errorf("unknown block type %q", b.Type)
 		}
@@ -118,7 +157,7 @@ func validateBlocks(blocks []Block, custom CustomTypeChecker, depth int) error {
 			}
 		}
 		if len(b.Blocks) > 0 {
-			if err := validateBlocks(b.Blocks, custom, depth+1); err != nil {
+			if err := validateBlocks(b.Blocks, custom, depth+1, ids); err != nil {
 				return err
 			}
 		}

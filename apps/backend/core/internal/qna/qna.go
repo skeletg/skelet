@@ -4,6 +4,8 @@ package qna
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +18,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
+)
+
+const (
+	minQuestionRunes = 10
+	maxQuestionRunes = 1000
+	maxAnswerRunes   = 5000
 )
 
 const (
@@ -27,8 +36,8 @@ const (
 var (
 	// ErrInvalidQuestion rejects empty or oversized questions
 	ErrInvalidQuestion = apperr.New("QNA_INVALID_QUESTION", apperr.ClassValidation, "question must be between 10 and 1000 characters")
-	// ErrInvalidAnswer rejects empty answers (an empty answer is a reject, not a publish)
-	ErrInvalidAnswer = apperr.New("QNA_INVALID_ANSWER", apperr.ClassValidation, "answer must not be empty")
+	// ErrInvalidAnswer rejects empty answers (an empty answer is a reject, not a publish) and oversized ones
+	ErrInvalidAnswer = apperr.New("QNA_INVALID_ANSWER", apperr.ClassValidation, "answer must be between 1 and 5000 characters")
 	// ErrNotFound is the generic missing-row error
 	ErrNotFound = apperr.New("QNA_NOT_FOUND", apperr.ClassNotFound, "question not found")
 )
@@ -95,9 +104,27 @@ type QuestionAnswered struct {
 func (*QuestionAnswered) Type() string                { return EventQuestionAnswered }
 func (e *QuestionAnswered) EventChannelID() uuid.UUID { return e.ChannelID }
 
+// OutboxEnqueuer writes an event through the caller's tx, satisfied by *outbox.Outbox
+type OutboxEnqueuer interface {
+	Enqueue(ctx context.Context, sqlTx *sql.Tx, e events.Event) error
+}
+
+// OutboxTypes is the registry half of the outbox
+type OutboxTypes interface {
+	RegisterType(eventType string, fn func() events.Event)
+}
+
+// Both events feed webhooks, so a crash between the write and the publish must not lose them
+func RegisterOutboxTypes(r OutboxTypes) {
+	r.RegisterType(EventQuestionSubmitted, func() events.Event { return &QuestionSubmitted{} })
+	r.RegisterType(EventQuestionAnswered, func() events.Event { return &QuestionAnswered{} })
+}
+
 type Service struct {
 	queries *db.Queries
 	bus     *events.Bus
+	outbox  OutboxEnqueuer
+	tx      *txrunner.Manager
 }
 
 func NewService(queries *db.Queries) *Service { return &Service{queries: queries} }
@@ -105,40 +132,68 @@ func NewService(queries *db.Queries) *Service { return &Service{queries: queries
 // SetEventBus is optional and nil-safe
 func (s *Service) SetEventBus(b *events.Bus) { s.bus = b }
 
-func (s *Service) publish(ctx context.Context, e events.Event) {
-	if s.bus != nil {
-		s.bus.Publish(ctx, e)
+// SetOutbox commits each event with the row it describes, relayed at least once
+func (s *Service) SetOutbox(o OutboxEnqueuer, txm *txrunner.Manager) { s.outbox, s.tx = o, txm }
+
+// write runs fn and its event in one transaction where the outbox is wired, else publishes in-process after it
+func (s *Service) write(ctx context.Context, fn func(q *db.Queries) (events.Event, error)) error {
+	if s.outbox == nil || s.tx == nil {
+		e, err := fn(s.queries)
+		if err == nil && e != nil && s.bus != nil {
+			s.bus.Publish(ctx, e)
+		}
+		return err
 	}
+	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+		e, err := fn(s.queries.WithTx(sqlTx))
+		if err != nil || e == nil {
+			return err
+		}
+		return s.outbox.Enqueue(ctx, sqlTx, e)
+	})
+}
+
+func notFound(err error, op string) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 // Submit records a new pending question - rate limiting and channel resolution
 // are the resolver's job, validation is authoritative here
 func (s *Service) Submit(ctx context.Context, productID, channelID uuid.UUID, customerID *uuid.UUID, authorName, authorEmail, question string) (Question, error) {
 	question = strings.TrimSpace(question)
-	if len(question) < 10 || len(question) > 1000 {
+	if n := utf8.RuneCountInString(question); n < minQuestionRunes || n > maxQuestionRunes {
 		return Question{}, ErrInvalidQuestion
 	}
 	authorName = clampAuthorName(authorName)
-	row, err := s.queries.InsertProductQuestion(ctx, db.InsertProductQuestionParams{
-		ProductID:   productID,
-		ChannelID:   channelID,
-		CustomerID:  sqlnull.UUID(customerID),
-		AuthorName:  authorName,
-		AuthorEmail: strings.TrimSpace(strings.ToLower(authorEmail)),
-		Question:    question,
+	var q Question
+	err := s.write(ctx, func(dbq *db.Queries) (events.Event, error) {
+		row, err := dbq.InsertProductQuestion(ctx, db.InsertProductQuestionParams{
+			ProductID:   productID,
+			ChannelID:   channelID,
+			CustomerID:  sqlnull.UUID(customerID),
+			AuthorName:  authorName,
+			AuthorEmail: strings.TrimSpace(strings.ToLower(authorEmail)),
+			Question:    question,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("insert question: %w", err)
+		}
+		q = toQuestion(row)
+		return &QuestionSubmitted{
+			QuestionID: q.ID,
+			ProductID:  q.ProductID,
+			ChannelID:  q.ChannelID,
+			CustomerID: q.CustomerID,
+			AuthorName: q.AuthorName,
+			Question:   q.Question,
+		}, nil
 	})
 	if err != nil {
-		return Question{}, fmt.Errorf("insert question: %w", err)
+		return Question{}, err
 	}
-	q := toQuestion(row)
-	s.publish(ctx, &QuestionSubmitted{
-		QuestionID: q.ID,
-		ProductID:  q.ProductID,
-		ChannelID:  q.ChannelID,
-		CustomerID: q.CustomerID,
-		AuthorName: q.AuthorName,
-		Question:   q.Question,
-	})
 	return q, nil
 }
 
@@ -179,34 +234,43 @@ func (s *Service) ListForModeration(ctx context.Context, channelIDs []uuid.UUID,
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Question, error) {
 	row, err := s.queries.GetProductQuestion(ctx, id)
 	if err != nil {
-		return Question{}, ErrNotFound
+		return Question{}, notFound(err, "get question")
 	}
 	return toQuestion(row), nil
 }
 
-// Answer publishes the question with the operator's answer
+// Answer publishes the question with the operator's answer - editing an answer keeps it published without announcing it again
 func (s *Service) Answer(ctx context.Context, id uuid.UUID, adminID uuid.UUID, answer string) (Question, error) {
 	answer = strings.TrimSpace(answer)
-	if answer == "" {
+	if answer == "" || utf8.RuneCountInString(answer) > maxAnswerRunes {
 		return Question{}, ErrInvalidAnswer
 	}
-	row, err := s.queries.AnswerProductQuestion(ctx, db.AnswerProductQuestionParams{
-		ID:         id,
-		Answer:     answer,
-		AnsweredBy: uuid.NullUUID{UUID: adminID, Valid: true},
+	var q Question
+	err := s.write(ctx, func(dbq *db.Queries) (events.Event, error) {
+		row, err := dbq.AnswerProductQuestion(ctx, db.AnswerProductQuestionParams{
+			ID:         id,
+			Answer:     answer,
+			AnsweredBy: uuid.NullUUID{UUID: adminID, Valid: true},
+		})
+		if err != nil {
+			return nil, notFound(err, "answer question")
+		}
+		q = toQuestion(row.ProductQuestion)
+		if row.PrevStatus == StatusPublished {
+			return nil, nil
+		}
+		return &QuestionAnswered{
+			QuestionID: q.ID,
+			ProductID:  q.ProductID,
+			ChannelID:  q.ChannelID,
+			AnsweredBy: adminID,
+			Question:   q.Question,
+			Answer:     q.Answer,
+		}, nil
 	})
 	if err != nil {
-		return Question{}, ErrNotFound
+		return Question{}, err
 	}
-	q := toQuestion(row)
-	s.publish(ctx, &QuestionAnswered{
-		QuestionID: q.ID,
-		ProductID:  q.ProductID,
-		ChannelID:  q.ChannelID,
-		AnsweredBy: adminID,
-		Question:   q.Question,
-		Answer:     q.Answer,
-	})
 	return q, nil
 }
 
@@ -217,7 +281,7 @@ func (s *Service) Reject(ctx context.Context, id uuid.UUID) (Question, error) {
 		Status: StatusRejected,
 	})
 	if err != nil {
-		return Question{}, ErrNotFound
+		return Question{}, notFound(err, "reject question")
 	}
 	return toQuestion(row), nil
 }

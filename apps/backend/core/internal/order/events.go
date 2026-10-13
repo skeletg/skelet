@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 const (
@@ -56,8 +57,7 @@ func (e *CheckoutValidating) ApplyWebhookResponse(body []byte) (bool, string, er
 		return false, "", nil
 	}
 	var resp struct {
-		Reject        bool     `json:"reject"`
-		Reason        string   `json:"reason"`
+		syncveto.Response
 		DiscountCents int64    `json:"discountCents"`
 		RiskScore     int      `json:"riskScore"`
 		Tags          []string `json:"tags"`
@@ -146,8 +146,7 @@ func (o *OrderPlacing) ApplyWebhookResponse(body []byte) (bool, string, error) {
 		return false, "", nil
 	}
 	var resp struct {
-		Reject        bool     `json:"reject"`
-		Reason        string   `json:"reason"`
+		syncveto.Response
 		DiscountCents int64    `json:"discountCents"`
 		RiskScore     int      `json:"riskScore"`
 		Tags          []string `json:"tags"`
@@ -225,9 +224,8 @@ func (o *OrderCancelling) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool   `json:"reject"`
-		Reason string `json:"reason"`
-		Note   string `json:"note"`
+		syncveto.Response
+		Note string `json:"note"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -284,8 +282,7 @@ func (o *OrderFulfilling) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject         bool   `json:"reject"`
-		Reason         string `json:"reason"`
+		syncveto.Response
 		Carrier        string `json:"carrier"`
 		TrackingNumber string `json:"trackingNumber"`
 	}

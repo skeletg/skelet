@@ -12,9 +12,10 @@ import (
 
 // --- test doubles -----------------------------------------------------------
 
-// fakeRepo embeds catalog.Repository so any method the test doesn't exercise panics (nil interface deref) - a loud signal that coverage is missing rather than a silent wrong answer - Only the read methods the validation paths touch are overridden - Mirrors the payment/giftcard service-test pattern
+// fakeRepo stands in for the product and attribute roles only - any other role is nil in the assembled Repos, and an un-faked method of these two panics, a loud signal that coverage is missing rather than a silent wrong answer
 type fakeRepo struct {
-	catalog.Repository
+	catalog.ProductRepository
+	catalog.AttributeRepository
 
 	productByID      map[uuid.UUID]catalog.Product
 	configOptions    []catalog.Attribute
@@ -68,8 +69,8 @@ type fakeDefaultLocale struct{ code string }
 
 func (f fakeDefaultLocale) DefaultLocale(context.Context) (string, error) { return f.code, nil }
 
-func svcWith(repo catalog.Repository, deps ...func(*catalog.Deps)) *catalog.Service {
-	d := catalog.Deps{Repo: repo}
+func svcWith(fake any, deps ...func(*catalog.Deps)) *catalog.Service {
+	d := catalog.Deps{Repo: catalog.ReposOf(fake)}
 	for _, fn := range deps {
 		fn(&d)
 	}
@@ -129,7 +130,7 @@ func TestGenerateConfigurableChildren_Validation(t *testing.T) {
 				return r
 			}(),
 			inputs:  []catalog.GenerateConfigurableChildInput{{AttributeValueIDs: []uuid.UUID{red}}},
-			wantErr: "no configurable options",
+			wantErr: "attribute-mode configurable requires at least one configurable option",
 		},
 		{
 			name:    "wrong value count",
@@ -150,7 +151,7 @@ func TestGenerateConfigurableChildren_Validation(t *testing.T) {
 				{AttributeValueIDs: []uuid.UUID{red}},
 				{AttributeValueIDs: []uuid.UUID{red}},
 			},
-			wantErr: "same option combination",
+			wantErr: "same super attribute combination already exists: variants 0 and 1",
 		},
 	}
 
@@ -189,8 +190,8 @@ func TestGenerateConfigurableChildren_ExistingCombinationRejected(t *testing.T) 
 	svc := svcWith(repo)
 	_, err := svc.GenerateConfigurableChildren(context.Background(), parentID,
 		[]catalog.GenerateConfigurableChildInput{{AttributeValueIDs: []uuid.UUID{red}}})
-	if err == nil || !strings.Contains(err.Error(), "already exists on child") {
-		t.Fatalf("got err %v, want 'already exists on child'", err)
+	if err == nil || !errors.Is(err, catalog.ErrDuplicateSuperAttributeCombination) {
+		t.Fatalf("got err %v, want ErrDuplicateSuperAttributeCombination", err)
 	}
 }
 
@@ -243,7 +244,7 @@ func TestCreateProduct_Validation(t *testing.T) {
 		{"empty locale", func(in *catalog.CreateProductInput) { in.Locale = "" }, nil, "locale is required"},
 		{"empty name", func(in *catalog.CreateProductInput) { in.Name = "" }, nil, "name is required"},
 		{"unknown kind", func(in *catalog.CreateProductInput) { in.Kind = "wat" }, nil, "wat"},
-		{"negative price", func(in *catalog.CreateProductInput) { in.DefaultPrice = -1 }, nil, "default_price must be non-negative"},
+		{"negative price", func(in *catalog.CreateProductInput) { in.DefaultPrice = -1 }, nil, "prices must be non-negative: default_price"},
 		{"bad currency", func(in *catalog.CreateProductInput) { in.DefaultCurrencyCode = "US" }, nil, "currency"},
 		{
 			name:    "locale must be default",

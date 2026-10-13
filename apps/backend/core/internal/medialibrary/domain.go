@@ -181,4 +181,10 @@ var (
 	ErrDirectoryNotEmpty  = errors.New("directory is not empty")
 	ErrInvalidFilename    = errors.New("invalid filename")
 	ErrRootRenameNotAllow = errors.New("root directory cannot be renamed")
+	// Deleting the root recursively empties the whole library - or with no root prefix, the whole bucket
+	ErrRootDeleteNotAllowed = errors.New("the library root cannot be deleted")
+	ErrReservedPath         = errors.New("this path belongs to the platform, not the media library")
+	ErrInvalidSize          = errors.New("file size must be positive")
+	ErrInvalidDimensions    = errors.New("width and height are required for images")
+	ErrInvalidFocalPoint    = errors.New("a focal point needs both x and y within 0..1, or neither to clear it")
 )

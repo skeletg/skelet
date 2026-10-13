@@ -2,6 +2,7 @@ package front
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,12 +11,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -536,8 +537,11 @@ func (r *queryResolver) Cart(ctx context.Context, id string) (*model1.Cart, erro
 		return nil, nil
 	}
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
-	if err != nil {
+	if errors.Is(err, cart.ErrCartForbidden) || errors.Is(err, cart.ErrCartNotActive) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err // a DB failure isn't "no cart" - reading it as one sent the shopper off to start a fresh cart
 	}
 	sv, ok := channel.FromContext(ctx)
 	if !ok || sv == nil || c.ChannelID != sv.ID {
@@ -755,13 +759,13 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 		}
 	}
 	for _, pid := range cartProductIDs {
-		if linked, lerr := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkCrosssell); lerr == nil {
+		if linked, lerr := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkCrosssell); lerr == nil {
 			add(linked)
 		}
 	}
 	if len(recs) < 4 {
 		for _, pid := range cartProductIDs {
-			if ab, aerr := r.CatalogSvc.ListAlsoBought(ctx, pid, 8); aerr == nil {
+			if ab, aerr := r.RecommendSvc.ListAlsoBought(ctx, pid, recommend.AlsoBoughtDefaultLimit); aerr == nil {
 				add(ab)
 			}
 		}

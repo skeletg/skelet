@@ -33,8 +33,8 @@ query ChatConversation($id: ID!) {
   }
 }
 
-mutation SaveChatConversation($id: ID, $channelId: ID, $title: String, $messages: [SignalsChatMessage!]!) {
-  saveChatConversation(id: $id, channelId: $channelId, title: $title, messages: $messages)
+mutation SaveChatConversation($id: ID, $title: String, $messages: [SignalsChatMessage!]!) {
+  saveChatConversation(id: $id, title: $title, messages: $messages)
 }
 
 mutation DeleteChatConversation($id: ID!) {

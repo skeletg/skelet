@@ -4,16 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 )
+
+const (
+	categoryTreeCacheTTL    = 20 * time.Minute
+	categoryTreeCachePrefix = "tree:"
+	categoryCoverKeyFormat  = "catalog/categories/%s/cover/%s%s"
+	maxFacetOverrides       = 200 // far past any real facet sidebar, low enough that one save stays one small tx
+)
+
+var categoryEntityType = string(urlrewrite.EntityTypeCategory)
+
+func categoryCoverKey(categoryID, coverID uuid.UUID, ext string) string {
+	return fmt.Sprintf(categoryCoverKeyFormat, categoryID, coverID, ext)
+}
 
 // ==================== Category CRUD ====================
 
@@ -22,13 +37,13 @@ func (s *categoryService) CreateCategory(ctx context.Context, input CreateCatego
 		return Category{}, err
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return Category{}, fmt.Errorf("locale is required")
+		return Category{}, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
 		return Category{}, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Category{}, fmt.Errorf("name is required")
+		return Category{}, ErrNameRequired
 	}
 
 	// Build the URL path from parent's path + own slug
@@ -38,16 +53,16 @@ func (s *categoryService) CreateCategory(ctx context.Context, input CreateCatego
 		if err != nil {
 			return Category{}, fmt.Errorf("get parent category: %w", err)
 		}
+		if err := checkCategoryDepth(ctx, s.repo, parent.ID, 0); err != nil {
+			return Category{}, err
+		}
 		urlPath = parent.URLPath + "/" + input.Slug
 	}
 
 	var created Category
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
-		// Override url_path with the computed value before insert
-		in := input
-		in.Slug = input.Slug
-		c, err := r.CreateCategory(ctx, in)
+		r := s.core.repo.WithTx(t)
+		c, err := r.CreateCategory(ctx, input)
 		if err != nil {
 			return err
 		}
@@ -73,8 +88,8 @@ func (s *categoryService) CreateCategory(ctx context.Context, input CreateCatego
 	}
 
 	if s.urlRewrites != nil {
-		// Best-effort: a stale canonical doesn't roll back the create (the category exists - the redirect can be re-synced), but we MUST log so a quietly-broken redirect surfaces in ops
-		if err := s.urlRewrites.SyncCanonical(ctx, "category", created.ID, urlPath); err != nil {
+		// Best-effort: a stale canonical doesn't undo the create (the category exists - the redirect can be re-synced), but we MUST log so a quietly-broken redirect surfaces in ops
+		if err := s.urlRewrites.SyncCanonical(ctx, categoryEntityType, created.ID, urlPath); err != nil {
 			applog.From(ctx).Error("sync canonical url rewrite",
 				"op", "catalog.Service.CreateCategory",
 				"category_id", created.ID,
@@ -156,72 +171,52 @@ func (s *categoryService) CountProductsInCategory(ctx context.Context, id uuid.U
 	return s.repo.CountProductsInCategory(ctx, id)
 }
 
+// The batched form for a rendered tree - a category with no members is absent from the map
+func (s *categoryService) CountProductsInCategories(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int64, error) {
+	return s.repo.CountProductsByCategoryIDs(ctx, ids)
+}
+
 func (s *categoryService) ListRootCategories(ctx context.Context, locale string) ([]Category, error) {
 	all, err := s.repo.ListAllCategories(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for i := range all {
-		s.resolveCategoryCoverURL(&all[i])
-	}
-	if len(all) > 0 {
-		ids := make([]uuid.UUID, len(all))
-		for i, c := range all {
-			ids[i] = c.ID
-		}
-		if locale != "" {
-			contentMap, err := s.repo.ListCategoryContentByScope(ctx, ids, locale)
-			if err != nil {
-				return nil, err
-			}
-			for i := range all {
-				if content, ok := contentMap[all[i].ID]; ok {
-					cp := content
-					all[i].Content = &cp
-				}
-			}
-		}
-		if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
-			missing := make([]uuid.UUID, 0, len(all))
-			for _, c := range all {
-				if c.Content == nil {
-					missing = append(missing, c.ID)
-				}
-			}
-			if len(missing) > 0 {
-				fallback, err := s.repo.ListCategoryContentByScope(ctx, missing, def)
-				if err != nil {
-					return nil, err
-				}
-				for i := range all {
-					if all[i].Content != nil {
-						continue
-					}
-					if content, ok := fallback[all[i].ID]; ok {
-						cp := content
-						all[i].Content = &cp
-					}
-				}
-			}
-		}
+	if err := s.applyCategoryContent(ctx, all, locale, false); err != nil {
+		return nil, err
 	}
 	return buildCategoryTree(all, nil), nil
 }
 
-// buildCategoryTree recursively organises a flat list of categories into a parent→children tree. parentID nil = collect root nodes
+// Nests a flat list under its parents in one pass, keeping input order among siblings - parentID nil collects the roots - a node whose parent isn't in the list is dropped, and so is anything on a parent cycle, since no root reaches it
 func buildCategoryTree(all []Category, parentID *uuid.UUID) []Category {
-	var result []Category
-	for _, c := range all {
-		match := (parentID == nil && c.ParentID == nil) ||
-			(parentID != nil && c.ParentID != nil && *c.ParentID == *parentID)
-		if !match {
+	byParent := make(map[uuid.UUID][]int, len(all))
+	var roots []int
+	for i, c := range all {
+		if c.ParentID == nil {
+			roots = append(roots, i)
 			continue
 		}
-		id := c.ID
-		c.Children = buildCategoryTree(all, &id)
-		result = append(result, c)
+		byParent[*c.ParentID] = append(byParent[*c.ParentID], i)
 	}
-	return result
+	placed := make([]bool, len(all)) // a subtree rooted on a cycle would otherwise recurse forever
+	var build func(idx []int) []Category
+	build = func(idx []int) []Category {
+		var out []Category
+		for _, i := range idx {
+			if placed[i] {
+				continue
+			}
+			placed[i] = true
+			c := all[i]
+			c.Children = build(byParent[c.ID])
+			out = append(out, c)
+		}
+		return out
+	}
+	if parentID != nil {
+		return build(byParent[*parentID])
+	}
+	return build(roots)
 }
 
 func (s *categoryService) ListCategoryChildren(ctx context.Context, parentID uuid.UUID, locale string) ([]Category, error) {
@@ -229,50 +224,8 @@ func (s *categoryService) ListCategoryChildren(ctx context.Context, parentID uui
 	if err != nil {
 		return nil, err
 	}
-	for i := range children {
-		s.resolveCategoryCoverURL(&children[i])
-	}
-	if len(children) == 0 {
-		return children, nil
-	}
-	ids := make([]uuid.UUID, len(children))
-	for i, c := range children {
-		ids[i] = c.ID
-	}
-	if locale != "" {
-		batch, err := s.repo.ListCategoryContentByScope(ctx, ids, locale)
-		if err != nil {
-			return nil, err
-		}
-		for i, c := range children {
-			if content, ok := batch[c.ID]; ok {
-				cp := content
-				children[i].Content = &cp
-			}
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
-		missing := make([]uuid.UUID, 0, len(children))
-		for _, c := range children {
-			if c.Content == nil {
-				missing = append(missing, c.ID)
-			}
-		}
-		if len(missing) > 0 {
-			fallback, err := s.repo.ListCategoryContentByScope(ctx, missing, def)
-			if err != nil {
-				return nil, err
-			}
-			for i, c := range children {
-				if c.Content != nil {
-					continue
-				}
-				if content, ok := fallback[c.ID]; ok {
-					cp := content
-					children[i].Content = &cp
-				}
-			}
-		}
+	if err := s.applyCategoryContent(ctx, children, locale, false); err != nil {
+		return nil, err
 	}
 	return children, nil
 }
@@ -286,43 +239,11 @@ func (s *categoryService) GetCategoryAncestors(ctx context.Context, id uuid.UUID
 	if len(ancestors) == 0 || locale == "" {
 		return ancestors, nil
 	}
-	ids := make([]uuid.UUID, len(ancestors))
-	for i, a := range ancestors {
-		ids[i] = a.ID
-	}
-	batch, err := s.repo.ListCategoryContentByScope(ctx, ids, locale)
+	byID, err := s.resolveCategoryContent(ctx, categoryIDs(ancestors), locale, false)
 	if err != nil {
 		return nil, err
 	}
-	for i, a := range ancestors {
-		if content, ok := batch[a.ID]; ok {
-			cp := content
-			ancestors[i].Content = &cp
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
-		missing := make([]uuid.UUID, 0, len(ancestors))
-		for _, a := range ancestors {
-			if a.Content == nil {
-				missing = append(missing, a.ID)
-			}
-		}
-		if len(missing) > 0 {
-			fallback, err := s.repo.ListCategoryContentByScope(ctx, missing, def)
-			if err != nil {
-				return nil, err
-			}
-			for i, a := range ancestors {
-				if a.Content != nil {
-					continue
-				}
-				if content, ok := fallback[a.ID]; ok {
-					cp := content
-					ancestors[i].Content = &cp
-				}
-			}
-		}
-	}
+	setCategoryContent(ancestors, byID)
 	return ancestors, nil
 }
 
@@ -332,8 +253,24 @@ func (s *categoryService) ListCategoryFacetOverrides(ctx context.Context, catego
 
 // SetCategoryFacetOverrides replaces the category's whole override set - positions are re-numbered from the slice order so callers can't hand in colliding sort keys, and an empty slice resets the category to attribute-order defaults
 func (s *categoryService) SetCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID, overrides []FacetOverride) error {
-	if _, err := s.repo.GetCategoryByID(ctx, categoryID); err != nil {
+	if err := checkFacetOverrides(overrides); err != nil {
 		return err
+	}
+	c, err := s.repo.GetCategoryByID(ctx, categoryID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.ReplaceCategoryFacetOverrides(ctx, categoryID, overrides); err != nil {
+		return err
+	}
+	s.categoryChanged(ctx, c, "facet_overrides")
+	return nil
+}
+
+// Shared by both facet-override setters: bounded, no duplicate attribute, positions re-numbered from the slice order
+func checkFacetOverrides(overrides []FacetOverride) error {
+	if len(overrides) > maxFacetOverrides {
+		return fmt.Errorf("%w: %d facet overrides, at most %d", ErrTooManyItems, len(overrides), maxFacetOverrides)
 	}
 	seen := make(map[uuid.UUID]struct{}, len(overrides))
 	for i := range overrides {
@@ -343,69 +280,72 @@ func (s *categoryService) SetCategoryFacetOverrides(ctx context.Context, categor
 		seen[overrides[i].AttributeID] = struct{}{}
 		overrides[i].SortOrder = int32(i)
 	}
-	return s.repo.ReplaceCategoryFacetOverrides(ctx, categoryID, overrides)
+	return nil
 }
 
+// A slug or parent change moves this category's url_path and every descendant's in one tx, together with the outbox row that later re-renders the products under them
 func (s *categoryService) UpdateCategory(ctx context.Context, input UpdateCategoryInput) (Category, error) {
 	if input.Slug != nil {
 		if err := validateSlug(*input.Slug); err != nil {
 			return Category{}, err
 		}
 	}
-
-	current, err := s.repo.GetCategoryByID(ctx, input.ID)
-	if err != nil {
-		return Category{}, err
-	}
-	oldURLPath := current.URLPath
-
-	updated, err := s.repo.UpdateCategory(ctx, input)
-	if err != nil {
-		return Category{}, err
+	reparent := input.ParentID != nil && !input.ClearParent
+	if reparent && *input.ParentID == input.ID {
+		return Category{}, ErrCategoryCycle
 	}
 
-	// Recompute URL path when either slug OR parent changed - Slug rename moves the leaf token - re-parenting moves the entire prefix - Both produce a new url_path for this category and every descendant, plus a 301 from the prior path - Pre-fix this branch only fired on slug change, leaving re-parented categories on a stale prefix
-	slugChanged := input.Slug != nil && *input.Slug != current.Slug
-	parentChanged := !uuidPtrEqual(current.ParentID, updated.ParentID)
-	if slugChanged || parentChanged {
-		ancestors, err := s.GetCategoryAncestors(ctx, updated.ID, "")
-		if err != nil {
-			return Category{}, err
-		}
-		newURLPath := buildCategoryURLPath(ancestors, updated.Slug)
-		if err := s.repo.UpdateCategoryURLPath(ctx, updated.ID, newURLPath); err != nil {
-			return Category{}, err
-		}
-		updated.URLPath = newURLPath
-		if s.urlRewrites != nil {
-			// Best-effort: a stale canonical or missing redirect on slug change is a downstream problem (SEO), not a reason to roll back the category update - Log so it's visible in ops instead of disappearing silently
-			logger := applog.From(ctx)
-			if err := s.urlRewrites.SyncCanonical(ctx, "category", updated.ID, newURLPath); err != nil {
-				logger.Error("sync canonical url rewrite",
-					"op", "catalog.Service.UpdateCategory",
-					"category_id", updated.ID,
-					"url_path", newURLPath,
-					"err", err)
+	var updated Category
+	var moves []CategoryPathMove
+	relocated := false
+	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.core.repo.WithTx(t)
+		if input.Slug != nil || input.ParentID != nil || input.ClearParent {
+			if err := r.LockCategoryTree(ctx); err != nil {
+				return err
 			}
-			s.createRenameRedirect(ctx, oldURLPath, "category", updated.ID)
 		}
-		// Propagate new path prefix to all descendants
-		if err := s.propagateURLPaths(ctx, updated.ID, newURLPath); err != nil {
-			return Category{}, err
+		current, err := r.GetCategoryByID(ctx, input.ID)
+		if err != nil {
+			return err
 		}
-		// Cascade to products whose primary category is this category or one of its descendants - Templates using {category}/{categorySlug} otherwise keep the stale prefix until some unrelated edit triggers a regen
-		if err := s.regenerateProductsInCategorySubtree(ctx, updated.ID); err != nil {
-			return Category{}, err
+		if reparent && !uuidPtrEqual(current.ParentID, input.ParentID) {
+			if err := checkCategoryPlacement(ctx, r, input.ID, *input.ParentID); err != nil {
+				return err
+			}
 		}
+		if updated, err = r.UpdateCategory(ctx, input); err != nil {
+			return err
+		}
+		if updated.Slug == current.Slug && uuidPtrEqual(current.ParentID, updated.ParentID) {
+			return nil
+		}
+		relocated = true
+		ancestors, err := r.GetCategoryAncestors(ctx, updated.ID)
+		if err != nil {
+			return err
+		}
+		if moves, err = r.RewriteCategorySubtreeURLPaths(ctx, updated.ID, buildCategoryURLPath(ancestors, updated.Slug)); err != nil {
+			return err
+		}
+		return s.enqueueCategoryMoved(ctx, t, &CategoryMoved{CategoryID: updated.ID})
+	}); err != nil {
+		return Category{}, err
 	}
 
+	s.syncMovedCategoryPaths(ctx, moves)
+	if relocated && s.outbox == nil {
+		s.publishCategoryMovedUndurably(ctx, &CategoryMoved{CategoryID: updated.ID})
+	}
+	s.invalidateCategoryTreeCache(ctx)
 	if s.bus != nil {
-		var changed []string
-		if input.Slug != nil {
-			changed = append(changed, "slug")
-		}
-		if input.ParentID != nil {
-			changed = append(changed, "parent_id")
+		changed := changedCategoryFields(input)
+		for _, m := range moves {
+			if m.ID == updated.ID {
+				changed = append(changed, "url_path")
+				continue
+			}
+			s.bus.Publish(ctx, &CategoryUpdated{CategoryID: m.ID, Slug: m.Slug, ParentID: m.ParentID, ChangedFields: []string{"url_path"}})
 		}
 		s.bus.Publish(ctx, &CategoryUpdated{
 			CategoryID:    updated.ID,
@@ -414,62 +354,111 @@ func (s *categoryService) UpdateCategory(ctx context.Context, input UpdateCatego
 			ChangedFields: changed,
 		})
 	}
-	s.invalidateCategoryTreeCache(ctx)
 	return s.repo.GetCategoryByID(ctx, updated.ID)
 }
 
-// propagateURLPaths recursively updates url_path for all descendants after a parent slug change, also syncing canonical URL rewrites
-func (s *categoryService) propagateURLPaths(ctx context.Context, parentID uuid.UUID, parentURLPath string) error {
-	children, err := s.repo.ListCategoryChildren(ctx, parentID)
+// Every field UpdateCategoryInput can carry, named the way the category webhooks always have
+func changedCategoryFields(in UpdateCategoryInput) []string {
+	var changed []string
+	add := func(set bool, name string) {
+		if set {
+			changed = append(changed, name)
+		}
+	}
+	add(in.Slug != nil, "slug")
+	add(in.ParentID != nil || in.ClearParent, "parent_id")
+	add(in.Position != nil, "position")
+	add(in.IsPublished != nil, "is_published")
+	add(in.SEONoindex != nil, "seo_noindex")
+	add(in.Metadata != nil, "metadata")
+	add(in.PrivateMetadata != nil, "private_metadata")
+	return changed
+}
+
+// A parent inside the moved subtree closes a loop, and the subtree's deepest leaf must still fit under the depth cap
+func checkCategoryPlacement(ctx context.Context, r CategoryRepository, id, parentID uuid.UUID) error {
+	if parentID == id {
+		return ErrCategoryCycle
+	}
+	chain, err := r.GetCategoryAncestors(ctx, parentID)
 	if err != nil {
 		return err
 	}
-	for _, child := range children {
-		newPath := parentURLPath + "/" + child.Slug
-		oldPath := child.URLPath
-		if err := s.repo.UpdateCategoryURLPath(ctx, child.ID, newPath); err != nil {
-			return err
+	for _, a := range chain {
+		if a.ID == id {
+			return ErrCategoryCycle
 		}
-		if s.urlRewrites != nil {
-			logger := applog.From(ctx)
-			if err := s.urlRewrites.SyncCanonical(ctx, "category", child.ID, newPath); err != nil {
-				logger.Error("sync canonical url rewrite",
-					"op", "catalog.Service.propagateURLPaths",
-					"category_id", child.ID,
-					"url_path", newPath,
-					"err", err)
-			}
-			s.createRenameRedirect(ctx, oldPath, "category", child.ID)
-		}
-		if err := s.propagateURLPaths(ctx, child.ID, newPath); err != nil {
-			return err
-		}
+	}
+	height, err := r.CategorySubtreeHeight(ctx, id)
+	if err != nil {
+		return err
+	}
+	return categoryDepthFits(len(chain), height)
+}
+
+func checkCategoryDepth(ctx context.Context, r CategoryRepository, parentID uuid.UUID, height int32) error {
+	chain, err := r.GetCategoryAncestors(ctx, parentID)
+	if err != nil {
+		return err
+	}
+	return categoryDepthFits(len(chain), height)
+}
+
+// The parent sits at level len(chain), its new child one below, and the child's own subtree hangs height levels further
+func categoryDepthFits(parentChain int, height int32) error {
+	if parentChain+1+int(height) >= maxCategoryDepth {
+		return ErrCategoryTooDeep
 	}
 	return nil
 }
 
+// Best-effort and after commit: a stale canonical or missing redirect is an SEO problem, not a reason to undo the move - logged so it surfaces in ops
+// Canonical first, since until it moves the entity's own row still holds the old path and the redirect insert would die on the unique index
+func (s *categoryService) syncMovedCategoryPaths(ctx context.Context, moves []CategoryPathMove) {
+	if s.urlRewrites == nil {
+		return
+	}
+	for _, m := range moves {
+		if err := s.urlRewrites.SyncCanonical(ctx, categoryEntityType, m.ID, m.NewPath); err != nil {
+			applog.From(ctx).Error("sync canonical url rewrite",
+				"op", "catalog.Service.UpdateCategory",
+				"category_id", m.ID,
+				"url_path", m.NewPath,
+				"err", err)
+		}
+		s.createRenameRedirect(ctx, m.OldPath, categoryEntityType, m.ID)
+	}
+}
+
+// The children/products checks and the delete share one tx under a row lock, so a child or a product assigned meanwhile waits on it instead of slipping in between
 func (s *categoryService) DeleteCategory(ctx context.Context, id uuid.UUID) error {
-	children, err := s.repo.ListCategoryChildren(ctx, id)
-	if err != nil {
-		return err
-	}
-	if len(children) > 0 {
-		return ErrCategoryHasChildren
-	}
-	n, err := s.repo.CountProductsInCategory(ctx, id)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return ErrCategoryHasProducts
-	}
-	// Snapshot slug before delete - listeners need the human handle since the row vanishes
-	snap, _ := s.repo.GetCategoryByID(ctx, id)
-	if err := s.repo.DeleteCategory(ctx, id); err != nil {
+	var snap Category
+	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.core.repo.WithTx(t)
+		var err error
+		if snap, err = r.LockCategoryByID(ctx, id); err != nil {
+			return err
+		}
+		children, err := r.ListCategoryChildren(ctx, id)
+		if err != nil {
+			return err
+		}
+		if len(children) > 0 {
+			return ErrCategoryHasChildren
+		}
+		n, err := r.CountProductsInCategory(ctx, id)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return ErrCategoryHasProducts
+		}
+		return r.DeleteCategory(ctx, id)
+	}); err != nil {
 		return err
 	}
 	if s.urlRewrites != nil {
-		if err := s.urlRewrites.DeleteAllForEntity(ctx, "category", id); err != nil {
+		if err := s.urlRewrites.DeleteAllForEntity(ctx, categoryEntityType, id); err != nil {
 			applog.From(ctx).Error("delete url rewrites",
 				"op", "catalog.Service.DeleteCategory",
 				"category_id", id,
@@ -483,14 +472,22 @@ func (s *categoryService) DeleteCategory(ctx context.Context, id uuid.UUID) erro
 	return nil
 }
 
+// Every storefront-visible change that isn't a field update - the tree cache drops and the category's pages purge
+func (s *categoryService) categoryChanged(ctx context.Context, c Category, changed ...string) {
+	s.invalidateCategoryTreeCache(ctx)
+	if s.bus != nil {
+		s.bus.Publish(ctx, &CategoryUpdated{CategoryID: c.ID, Slug: c.Slug, ParentID: c.ParentID, ChangedFields: changed})
+	}
+}
+
 // ==================== Category Content ====================
 
 func (s *categoryService) UpsertCategoryContent(ctx context.Context, categoryID uuid.UUID, input CategoryContentInput) (Category, error) {
 	if strings.TrimSpace(input.Name) == "" {
-		return Category{}, fmt.Errorf("name is required")
+		return Category{}, ErrNameRequired
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return Category{}, fmt.Errorf("locale is required")
+		return Category{}, ErrLocaleRequired
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, input.Locale); err != nil {
@@ -503,8 +500,12 @@ func (s *categoryService) UpsertCategoryContent(ctx context.Context, categoryID 
 	if _, err := s.repo.UpsertCategoryContent(ctx, categoryID, input); err != nil {
 		return Category{}, err
 	}
-	s.invalidateCategoryTreeCache(ctx)
-	return s.repo.GetCategoryByID(ctx, categoryID)
+	c, err := s.repo.GetCategoryByID(ctx, categoryID)
+	if err != nil {
+		return Category{}, err
+	}
+	s.categoryChanged(ctx, c, "content")
+	return c, nil
 }
 
 func (s *categoryService) DeleteCategoryContent(ctx context.Context, categoryID uuid.UUID, locale string) error {
@@ -519,15 +520,20 @@ func (s *categoryService) DeleteCategoryContent(ctx context.Context, categoryID 
 			}
 		}
 	}
+	c, err := s.repo.GetCategoryByID(ctx, categoryID)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.DeleteCategoryContent(ctx, categoryID, locale); err != nil {
 		return err
 	}
-	s.invalidateCategoryTreeCache(ctx)
+	s.categoryChanged(ctx, c, "content")
 	return nil
 }
 
 // ==================== Product-Category ====================
 
+// Re-adding an existing member updates its position, and with isPrimary also makes it the primary
 func (s *categoryService) AddProductToCategory(ctx context.Context, productID, categoryID uuid.UUID, position int32, isPrimary bool) (Product, error) {
 	if _, err := s.repo.GetCategoryByID(ctx, categoryID); err != nil {
 		return Product{}, err
@@ -538,7 +544,7 @@ func (s *categoryService) AddProductToCategory(ctx context.Context, productID, c
 	if isPrimary {
 		// Clear any existing primary before inserting to avoid unique constraint violation - wrap in a single tx so there's no window with zero primaries
 		if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-			r := s.repo.WithTx(t)
+			r := s.core.repo.WithTx(t)
 			if err := r.AddProductToCategory(ctx, productID, categoryID, position, false); err != nil {
 				return err
 			}
@@ -570,13 +576,12 @@ func (s *categoryService) AddProductToCategory(ctx context.Context, productID, c
 
 func (s *categoryService) RemoveProductFromCategory(ctx context.Context, productID, categoryID uuid.UUID) (Product, error) {
 	// If the category being removed is the product's primary, we'll need to recompute the URL path afterwards (which may fail strict validation)
-	wasPrimary := false
 	primaryByID, err := s.repo.ListPrimaryCategoryByProductIDs(ctx, []uuid.UUID{productID})
-	if err == nil {
-		if cur := primaryByID[productID]; cur != nil && cur.ID == categoryID {
-			wasPrimary = true
-		}
+	if err != nil {
+		return Product{}, err
 	}
+	cur := primaryByID[productID]
+	wasPrimary := cur != nil && cur.ID == categoryID
 	if err := s.repo.RemoveProductFromCategory(ctx, productID, categoryID); err != nil {
 		return Product{}, err
 	}
@@ -638,51 +643,25 @@ func (s *categoryService) ListCategoriesByProductIDs(ctx context.Context, produc
 	if err != nil {
 		return nil, err
 	}
-	if len(byProduct) > 0 {
-		seen := make(map[uuid.UUID]struct{})
-		var categoryIDs []uuid.UUID
-		for _, cats := range byProduct {
-			for _, c := range cats {
-				if _, ok := seen[c.ID]; !ok {
-					categoryIDs = append(categoryIDs, c.ID)
-					seen[c.ID] = struct{}{}
-				}
+	seen := make(map[uuid.UUID]struct{})
+	var ids []uuid.UUID
+	for _, cats := range byProduct {
+		for _, c := range cats {
+			if _, ok := seen[c.ID]; !ok {
+				ids = append(ids, c.ID)
+				seen[c.ID] = struct{}{}
 			}
-		}
-		var primary map[uuid.UUID]CategoryContent
-		if locale != "" {
-			primary, err = s.repo.ListCategoryContentByScope(ctx, categoryIDs, locale)
-			if err != nil {
-				return nil, err
-			}
-		}
-		var fallback map[uuid.UUID]CategoryContent
-		if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
-			fallback, err = s.repo.ListCategoryContentByScope(ctx, categoryIDs, def)
-			if err != nil {
-				return nil, err
-			}
-		}
-		for pid, cats := range byProduct {
-			for i, c := range cats {
-				if content, ok := primary[c.ID]; ok {
-					cp := content
-					cats[i].Content = &cp
-					continue
-				}
-				if content, ok := fallback[c.ID]; ok {
-					cp := content
-					cats[i].Content = &cp
-				}
-			}
-			byProduct[pid] = cats
 		}
 	}
-	for pid, cats := range byProduct {
+	byID, err := s.resolveCategoryContent(ctx, ids, locale, false)
+	if err != nil {
+		return nil, err
+	}
+	for _, cats := range byProduct {
+		setCategoryContent(cats, byID)
 		for i := range cats {
 			s.resolveCategoryCoverURL(&cats[i])
 		}
-		byProduct[pid] = cats
 	}
 	return byProduct, nil
 }
@@ -709,7 +688,7 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 		return RequestCategoryCoverResult{}, fmt.Errorf("%w: %s", ErrInvalidMimeType, input.MimeType)
 	}
 	if input.SizeBytes <= 0 {
-		return RequestCategoryCoverResult{}, fmt.Errorf("size_bytes must be positive")
+		return RequestCategoryCoverResult{}, ErrInvalidSize
 	}
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestCategoryCoverResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
@@ -722,8 +701,7 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 	if err != nil {
 		return RequestCategoryCoverResult{}, fmt.Errorf("generate cover id: %w", err)
 	}
-	ext := media.ExtensionForMime(input.MimeType)
-	s3Key := fmt.Sprintf("catalog/categories/%s/cover/%s%s", input.CategoryID, coverID, ext)
+	s3Key := categoryCoverKey(input.CategoryID, coverID, media.ExtensionForMime(input.MimeType))
 
 	uploadURL, err := s.media.PresignUpload(ctx, s3Key, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {
@@ -737,6 +715,7 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 	if c.CoverImage != nil {
 		c.CoverImage.URL = s.media.PublicURL(s3Key)
 	}
+	s.categoryChanged(ctx, c, "cover")
 
 	return RequestCategoryCoverResult{
 		Category:  c,
@@ -745,9 +724,10 @@ func (s *categoryService) RequestCategoryCoverUpload(ctx context.Context, input 
 	}, nil
 }
 
+// The confirm is pinned to the cover checked here, so a re-upload that replaced it in between reads as not pending rather than confirming the wrong object
 func (s *categoryService) ConfirmCategoryCover(ctx context.Context, categoryID uuid.UUID, width, height int32) (Category, error) {
 	if width <= 0 || height <= 0 {
-		return Category{}, fmt.Errorf("width and height must be positive")
+		return Category{}, ErrInvalidDimensions
 	}
 	current, err := s.repo.GetCategoryByID(ctx, categoryID)
 	if err != nil {
@@ -761,22 +741,29 @@ func (s *categoryService) ConfirmCategoryCover(ctx context.Context, categoryID u
 	}
 	if s.media != nil {
 		_, _, exists, err := s.media.Head(ctx, current.CoverImage.S3Key)
-		if err == nil && !exists {
+		if err != nil {
+			return Category{}, fmt.Errorf("%w: %w", ErrUploadNotReceived, err)
+		}
+		if !exists {
 			return Category{}, ErrUploadNotReceived
 		}
 	}
-	c, err := s.repo.ConfirmCategoryCover(ctx, categoryID, width, height)
+	c, err := s.repo.ConfirmCategoryCover(ctx, categoryID, current.CoverImage.ID, width, height)
 	if err != nil {
 		return Category{}, err
 	}
-	if s.media != nil && c.CoverImage != nil {
-		c.CoverImage.URL = s.media.PublicURL(c.CoverImage.S3Key)
-	}
+	s.resolveCategoryCoverURL(&c)
+	s.categoryChanged(ctx, c, "cover")
 	return c, nil
 }
 
 func (s *categoryService) ClearCategoryCover(ctx context.Context, categoryID uuid.UUID) (Category, error) {
-	return s.repo.ClearCategoryCover(ctx, categoryID)
+	c, err := s.repo.ClearCategoryCover(ctx, categoryID)
+	if err != nil {
+		return Category{}, err
+	}
+	s.categoryChanged(ctx, c, "cover")
+	return c, nil
 }
 
 // ==================== Helpers ====================
@@ -790,20 +777,6 @@ func uuidPtrEqual(a, b *uuid.UUID) bool {
 		return false
 	}
 	return *a == *b
-}
-
-// Called from UpdateCategory after a slug or parent change so {category}/{categorySlug}-templated product URLs don't drift - strict: a failure (missing data, unrenderable template) surfaces back and rolls back, mirroring SetProductPrimaryCategory
-func (s *categoryService) regenerateProductsInCategorySubtree(ctx context.Context, rootID uuid.UUID) error {
-	ids, err := s.repo.ListProductIDsInPrimaryCategoryDescendants(ctx, rootID)
-	if err != nil {
-		return fmt.Errorf("list products under category subtree %s: %w", rootID, err)
-	}
-	for _, pid := range ids {
-		if err := s.regenerateProductURLPath(ctx, pid, true); err != nil {
-			return fmt.Errorf("regenerate product %s: %w", pid, err)
-		}
-	}
-	return nil
 }
 
 func buildCategoryURLPath(ancestors []Category, slug string) string {
@@ -825,6 +798,80 @@ func (s *categoryService) resolveCategoryCoverURL(c *Category) {
 	c.CoverImage.URL = s.media.PublicURL(c.CoverImage.S3Key)
 }
 
+func categoryIDs(cats []Category) []uuid.UUID {
+	ids := make([]uuid.UUID, len(cats))
+	for i, c := range cats {
+		ids[i] = c.ID
+	}
+	return ids
+}
+
+func setCategoryContent(cats []Category, byID map[uuid.UUID]CategoryContent) {
+	for i := range cats {
+		if content, ok := byID[cats[i].ID]; ok {
+			cp := content
+			cats[i].Content = &cp
+		}
+	}
+}
+
+// Requested locale first, then the system default, then with anyLocale whatever translation a category has - one query per tier, never one per category
+func (s *categoryService) resolveCategoryContent(ctx context.Context, ids []uuid.UUID, locale string, anyLocale bool) (map[uuid.UUID]CategoryContent, error) {
+	out := make(map[uuid.UUID]CategoryContent, len(ids))
+	missing := func() []uuid.UUID {
+		var todo []uuid.UUID
+		for _, id := range ids {
+			if _, ok := out[id]; !ok {
+				todo = append(todo, id)
+			}
+		}
+		return todo
+	}
+	tiers := []string{locale}
+	if def := s.resolveDefaultLocale(ctx); def != locale {
+		tiers = append(tiers, def)
+	}
+	for _, code := range tiers {
+		todo := missing()
+		if code == "" || len(todo) == 0 {
+			continue
+		}
+		byID, err := s.repo.ListCategoryContentByScope(ctx, todo, code)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(out, byID)
+	}
+	if todo := missing(); anyLocale && len(todo) > 0 {
+		rows, err := s.repo.ListCategoryContentForCategories(ctx, todo)
+		if err != nil {
+			return nil, err
+		}
+		for id, r := range rows {
+			if len(r) > 0 {
+				out[id] = r[0]
+			}
+		}
+	}
+	return out, nil
+}
+
+// Content per the resolveCategoryContent tiers plus cover URLs, in place
+func (s *categoryService) applyCategoryContent(ctx context.Context, cats []Category, locale string, anyLocale bool) error {
+	if len(cats) == 0 {
+		return nil
+	}
+	byID, err := s.resolveCategoryContent(ctx, categoryIDs(cats), locale, anyLocale)
+	if err != nil {
+		return err
+	}
+	setCategoryContent(cats, byID)
+	for i := range cats {
+		s.resolveCategoryCoverURL(&cats[i])
+	}
+	return nil
+}
+
 // ==================== Per-store category listings ====================
 
 // SetCategoryChannelListing creates or updates a per-store listing for a category - SortOrderOverride is a pointer so callers can distinguish "explicit null" (meaning "clear the override; inherit category.Position") from "leave it unchanged" (we don't honour that here - the caller passes the desired final state) - Returns the loaded category with all its store listings populated
@@ -832,18 +879,7 @@ func (s *categoryService) SetCategoryChannelListing(ctx context.Context, in SetC
 	if _, err := s.repo.UpsertCategoryChannelListing(ctx, in); err != nil {
 		return Category{}, err
 	}
-	c, err := s.repo.GetCategoryByID(ctx, in.CategoryID)
-	if err != nil {
-		return Category{}, err
-	}
-	listings, err := s.repo.ListCategoryChannelListings(ctx, in.CategoryID)
-	if err != nil {
-		return Category{}, err
-	}
-	c.ChannelListings = listings
-	s.resolveCategoryCoverURL(&c)
-	s.invalidateCategoryTreeCache(ctx)
-	return c, nil
+	return s.reloadWithListings(ctx, in.CategoryID)
 }
 
 // ClearCategoryChannelListing removes the listing row for (category, store) - With no row, the category is treated as not-listed (hidden) on that store by storefront resolvers - Returns the reloaded category
@@ -851,6 +887,10 @@ func (s *categoryService) ClearCategoryChannelListing(ctx context.Context, categ
 	if err := s.repo.DeleteCategoryChannelListing(ctx, categoryID, channelID); err != nil {
 		return Category{}, err
 	}
+	return s.reloadWithListings(ctx, categoryID)
+}
+
+func (s *categoryService) reloadWithListings(ctx context.Context, categoryID uuid.UUID) (Category, error) {
 	c, err := s.repo.GetCategoryByID(ctx, categoryID)
 	if err != nil {
 		return Category{}, err
@@ -861,7 +901,7 @@ func (s *categoryService) ClearCategoryChannelListing(ctx context.Context, categ
 	}
 	c.ChannelListings = listings
 	s.resolveCategoryCoverURL(&c)
-	s.invalidateCategoryTreeCache(ctx)
+	s.categoryChanged(ctx, c, "listings")
 	return c, nil
 }
 
@@ -870,14 +910,9 @@ func (s *categoryService) ListCategoryChannelListings(ctx context.Context, categ
 	return s.repo.ListCategoryChannelListings(ctx, categoryID)
 }
 
-// GetCategoryChannelListing returns one listing or ErrCategoryChannelListingNotFound
-func (s *categoryService) GetCategoryChannelListing(ctx context.Context, categoryID, channelID uuid.UUID) (CategoryChannelListing, error) {
-	return s.repo.GetCategoryChannelListing(ctx, categoryID, channelID)
-}
-
-// Storefront tree: roots come back nested (Children populated recursively), limited to categories listed+published on the store - cached in Valkey per (store, locale), admin mutations invalidate the namespace so reads stay fresh within a request, and the 20m TTL is only an upper bound for catastrophic cases (cache misconfig, namespace lock contention)
+// Storefront tree: roots come back nested (Children populated recursively), limited to categories listed+published on the store - cached in Valkey per (store, locale), admin mutations invalidate the namespace so reads stay fresh within a request, and the TTL is only an upper bound for catastrophic cases (cache misconfig, namespace lock contention)
 func (s *categoryService) ListPublishedRootCategoriesForChannel(ctx context.Context, channelID uuid.UUID, locale string) ([]Category, error) {
-	cacheKey := "tree:" + channelID.String() + ":" + locale
+	cacheKey := categoryTreeCachePrefix + channelID.String() + ":" + locale
 	if hit, ok := cache.GetJSON[[]Category](ctx, s.categoryTreeCache, cacheKey); ok {
 		return hit, nil
 	}
@@ -885,14 +920,11 @@ func (s *categoryService) ListPublishedRootCategoriesForChannel(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	for i := range all {
-		s.resolveCategoryCoverURL(&all[i])
-	}
 	if err := s.populateCategoryLocale(ctx, all, locale); err != nil {
 		return nil, err
 	}
 	tree := buildCategoryTree(all, nil)
-	s.categoryTreeCache.SetJSON(ctx, cacheKey, tree, 20*time.Minute)
+	s.categoryTreeCache.SetJSON(ctx, cacheKey, tree, categoryTreeCacheTTL)
 	return tree, nil
 }
 
@@ -901,9 +933,6 @@ func (s *categoryService) ListRootCategoriesListedOnChannel(ctx context.Context,
 	all, err := s.repo.ListCategoriesListedOnChannel(ctx, channelID)
 	if err != nil {
 		return nil, err
-	}
-	for i := range all {
-		s.resolveCategoryCoverURL(&all[i])
 	}
 	if err := s.populateCategoryLocale(ctx, all, locale); err != nil {
 		return nil, err
@@ -935,7 +964,6 @@ func (s *categoryService) ListPublishedCategoryChildrenForChannel(ctx context.Co
 	return cats, nil
 }
 
-// GetPublishedCategoryForChannel returns a category visible on a particular store - Returns ErrCategoryNotFound when the category exists but is not listed on the store, or is unpublished globally
 func (s *categoryService) ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, locale string, limit int32) ([]Product, error) {
 	products, err := s.repo.ListProductsByCategory(ctx, categoryID, limit)
 	if err != nil {
@@ -944,6 +972,7 @@ func (s *categoryService) ListProductsByCategory(ctx context.Context, categoryID
 	return s.withProductsContent(ctx, products, locale)
 }
 
+// GetPublishedCategoryForChannel returns a category visible on a particular store - Returns ErrCategoryNotFound when the category exists but is not listed on the store, or is unpublished globally
 func (s *categoryService) GetPublishedCategoryForChannel(ctx context.Context, channelID, categoryID uuid.UUID, locale string) (Category, error) {
 	c, err := s.repo.GetPublishedCategoryForChannel(ctx, channelID, categoryID)
 	if err != nil {
@@ -970,71 +999,7 @@ func (s *categoryService) FilterFullyVisibleCategoryIDsForChannel(ctx context.Co
 	return s.repo.FilterFullyVisibleCategoryIDsForChannel(ctx, ids, channelID)
 }
 
-// Requested locale first, then the system default for anything still empty - the fallback matters for the admin tree, fetched without a locale (Apollo normalises categories by id, so locale-keyed queries would clobber each other), and guarantees `name` comes from some translation rather than the slug
+// Requested locale first, then the system default, then any translation at all - the fallback matters for the admin tree, fetched without a locale (Apollo normalises categories by id, so locale-keyed queries would clobber each other), and guarantees `name` comes from some translation rather than the slug
 func (s *categoryService) populateCategoryLocale(ctx context.Context, cats []Category, locale string) error {
-	if len(cats) == 0 {
-		return nil
-	}
-	def := s.resolveDefaultLocale(ctx)
-	primary := locale
-	if primary == "" {
-		primary = def
-	}
-	ids := make([]uuid.UUID, len(cats))
-	for i, c := range cats {
-		ids[i] = c.ID
-	}
-	if primary != "" {
-		byID, err := s.repo.ListCategoryContentByScope(ctx, ids, primary)
-		if err != nil {
-			return err
-		}
-		for i := range cats {
-			if content, ok := byID[cats[i].ID]; ok {
-				cp := content
-				cats[i].Content = &cp
-			}
-		}
-	}
-	if def != "" && def != primary {
-		missing := make([]uuid.UUID, 0, len(cats))
-		for _, c := range cats {
-			if c.Content == nil {
-				missing = append(missing, c.ID)
-			}
-		}
-		if len(missing) > 0 {
-			fallback, err := s.repo.ListCategoryContentByScope(ctx, missing, def)
-			if err != nil {
-				return err
-			}
-			for i := range cats {
-				if cats[i].Content != nil {
-					continue
-				}
-				if content, ok := fallback[cats[i].ID]; ok {
-					cp := content
-					cats[i].Content = &cp
-				}
-			}
-		}
-	}
-	// Last-resort fallback: load whatever translation exists for any category that's still without content, so the admin tree can show a real name instead of just the slug for categories whose only translation is in a locale other than the active/default
-	for i := range cats {
-		if cats[i].Content != nil {
-			continue
-		}
-		rows, err := s.repo.ListCategoryContent(ctx, cats[i].ID)
-		if err != nil {
-			return err
-		}
-		if len(rows) > 0 {
-			cp := rows[0]
-			cats[i].Content = &cp
-		}
-	}
-	for i := range cats {
-		s.resolveCategoryCoverURL(&cats[i])
-	}
-	return nil
+	return s.applyCategoryContent(ctx, cats, locale, true)
 }

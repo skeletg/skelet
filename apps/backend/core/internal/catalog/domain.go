@@ -4,6 +4,8 @@ package catalog
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -325,6 +327,42 @@ var (
 	ErrLocaleMustBeDefault               = errors.New("initial content must use the default locale")                   // every entity is born in the canonical locale - translations arrive later via UpsertContent
 	ErrCannotDeleteDefaultLocale         = errors.New("cannot delete default-locale content while translations exist") // removing the default would leave translations with nothing to fall back to
 	ErrDuplicateFacetOverride            = errors.New("duplicate attribute in facet overrides")
+	ErrNameRequired                      = errors.New("name is required")
+	ErrLocaleRequired                    = errors.New("locale is required")
+	ErrInvalidSize                       = errors.New("size_bytes must be positive")
+	ErrInvalidDimensions                 = errors.New("width and height must be positive")
+	ErrTooManyItems                      = errors.New("too many items in one request")
+	ErrInvalidH1Position                 = errors.New("invalid h1Position")
+	ErrAttributeGroupNameTaken           = errors.New("an attribute group with this name already exists on the product type")
+	ErrAttributeGroupWrongType           = errors.New("attribute group belongs to a different product type")
+	ErrSelectableSlugOverride            = errors.New("selectable attributes manage slugs through AttributeValue, not per-product overrides")
+	ErrAttributeNotTranslatable          = errors.New("only plain_text scalar attribute values are translatable")
+	ErrMediaStorageUnavailable           = errors.New("media storage not configured")
+	ErrInvalidTierQuantity               = errors.New("tier min quantity must be greater than zero")
+	ErrCustomerGroupNotFound             = errors.New("customer group not found")
+	ErrTitleRequired                     = errors.New("title is required")
+	ErrQuantityOutOfRange                = errors.New("quantity is out of range")
 )
+
+const (
+	// What an omitted structure quantity means: one unit per kit, bundle, group or option value
+	DefaultStructureQuantity = 1
+	// Matches the cart's line cap, so a configured quantity can always become a cart line
+	MaxStructureQuantity = 1e9
+)
+
+func validPositiveQuantity(q float64) error {
+	if math.IsNaN(q) || q <= 0 || q > MaxStructureQuantity {
+		return fmt.Errorf("%w: %v must be above 0 and at most %v", ErrQuantityOutOfRange, q, MaxStructureQuantity)
+	}
+	return nil
+}
+
+func validUnitQuantity(q float64) error {
+	if math.IsNaN(q) || q < 1 || q > MaxStructureQuantity {
+		return fmt.Errorf("%w: %v must be between 1 and %v", ErrQuantityOutOfRange, q, MaxStructureQuantity)
+	}
+	return nil
+}
 
 // No producer-defined repository interfaces here - a consumer that needs to mock a slice of persistence declares the narrow interface it uses, in its own package

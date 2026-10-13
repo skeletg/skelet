@@ -100,8 +100,16 @@ type OrderLine struct {
 	// A promotion free gift granted by core.add_free_gift - zero-priced, stock reserved like any other line, and excluded from pro-rata refunds since nothing was paid for it
 	IsGift     bool
 	Components []OrderLineComponent
+	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
+	StockParts []OrderLineStockPart
 	Options    []OrderLineOption
 	CreatedAt  time.Time
+}
+
+type OrderLineStockPart struct {
+	ProductID uuid.UUID
+	Quantity  float64
+	Source    string // cart.StockPartKit or cart.StockPartOption
 }
 
 // One custom-option pick snapshot copied from the cart at placement - PriceDelta is already folded into the line's UnitPrice
@@ -170,6 +178,7 @@ type Repository interface {
 	CreateOrder(ctx context.Context, o Order) (Order, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
+	AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error
 	AddOrderLineOption(ctx context.Context, option OrderLineOption) (OrderLineOption, error)
 	AddOrderEvent(ctx context.Context, event OrderEvent) (OrderEvent, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)
@@ -192,14 +201,21 @@ type Repository interface {
 	SetStoreCreditTender(ctx context.Context, id uuid.UUID, storeCreditAmount int64, paymentStatus string) (Order, error)
 	SetGiftCardTender(ctx context.Context, id uuid.UUID, giftCardAmount int64, paymentStatus string) (Order, error)
 	SetPaymentState(ctx context.Context, id uuid.UUID, paymentStatus, paymentReference string) (Order, error)
+	// SetPaymentState only while the status is still from - false when someone moved it first
+	SetPaymentStateFrom(ctx context.Context, id uuid.UUID, from, paymentStatus, paymentReference string) (Order, bool, error)
+	SetPaymentReference(ctx context.Context, id uuid.UUID, paymentReference string) (Order, error)
 	// The payment-sync sweep's worklist - unpaid gateway orders holding a provider reference, bounded so ancient ones stop polling
 	ListOrdersAwaitingPaymentSync(ctx context.Context, notBefore, olderThan time.Time, maxRows int32) ([]Order, error)
 
 	// The payment ledger - a durable record of every authorize, capture, refund and void - It's the source of truth for amounts, and payment_status derives from the succeeded sums
 	InsertPaymentTransaction(ctx context.Context, t PaymentTransaction) (PaymentTransaction, error)
 	LockOrderForPayment(ctx context.Context, orderID uuid.UUID) error
+	// The same row lock, for the paths that plan against the order's lines - shipping and editing
+	LockOrder(ctx context.Context, orderID uuid.UUID) error
 	PaymentTotalsActiveByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
-	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, error)
+	// Settles a pending row - false with the row as it stands when it was already final
+	MarkPaymentTransaction(ctx context.Context, id uuid.UUID, status, providerReference string) (PaymentTransaction, bool, error)
+	MarkCreditMemoFailed(ctx context.Context, id uuid.UUID) error
 	ListPaymentTransactions(ctx context.Context, orderID uuid.UUID) ([]PaymentTransaction, error)
 	PaymentTotalsByKind(ctx context.Context, orderID uuid.UUID) (PaymentTotals, error)
 	FindPaymentTransactionByKey(ctx context.Context, idempotencyKey string) (PaymentTransaction, bool, error)
@@ -221,7 +237,8 @@ type Repository interface {
 	AddReturnLine(ctx context.Context, returnID uuid.UUID, line OrderReturnLine) (OrderReturnLine, error)
 	GetReturn(ctx context.Context, id uuid.UUID) (OrderReturn, error)
 	ListReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturn, error)
-	UpdateReturnStatus(ctx context.Context, id uuid.UUID, status string) (OrderReturn, error)
+	// Moves a return from one status to another - RETURN_STATUS_RACED when it already left from
+	UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error)
 	MarkReturnRefunded(ctx context.Context, id uuid.UUID, refundAmount int64, giftCardID *uuid.UUID) (OrderReturn, error)
 	ReturnedByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
 

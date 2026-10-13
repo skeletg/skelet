@@ -6,6 +6,7 @@ const (
 	EventLocalesChanged = "channel.locales.changed"
 	EventCreated        = "channel.created"
 	EventDeleted        = "channel.deleted"
+	EventUpdated        = "channel.updated"
 )
 
 // Fires after a channel's locale set changes - the search indexer rebuilds per-locale docs, since removed locales leave stale ones and added locales have none
@@ -33,3 +34,12 @@ type Deleted struct {
 func (*Deleted) Type() string { return EventDeleted }
 
 func (e *Deleted) EventChannelID() uuid.UUID { return e.ChannelID }
+
+// Fires after a channel's own row changes - name, currency, locales, active flag, public URL, default flag - which the storefront header caches
+type Updated struct {
+	ChannelID uuid.UUID
+}
+
+func (*Updated) Type() string { return EventUpdated }
+
+func (e *Updated) EventChannelID() uuid.UUID { return e.ChannelID }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 const (
@@ -17,6 +19,7 @@ const (
 	EventCategoryCreated = "category.created"
 	EventCategoryUpdated = "category.updated"
 	EventCategoryDeleted = "category.deleted"
+	EventCategoryMoved   = "category.moved"
 
 	EventCollectionCreated         = "collection.created"
 	EventCollectionUpdated         = "collection.updated"
@@ -26,12 +29,17 @@ const (
 	EventBundleCreated = "bundle.created"
 	EventBundleUpdated = "bundle.updated"
 	EventBundleDeleted = "bundle.deleted"
+
+	EventAttributeUpdated = "attribute.updated"
+	EventAttributeDeleted = "attribute.deleted"
+
+	EventProductTypeURLTemplateChanged = "product_type.url_template.changed"
+	EventAttributeValueSlugChanged     = "attribute.value.slug.changed"
 )
 
 // Fires BEFORE the insert - sync handlers may abort (PIM duplicate-SKU check, naming policy) or append tags that get merged into the product's metadata, response schema {"reject": bool, "reason": string, "tags": [string]}
 type ProductCreating struct {
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	Tags          []string
 }
@@ -43,9 +51,8 @@ func (e *ProductCreating) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -63,7 +70,6 @@ func (e *ProductCreating) ApplyWebhookResponse(body []byte) (bool, string, error
 type ProductUpdating struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	ChangedFields []string
 	Tags          []string
@@ -76,9 +82,8 @@ func (e *ProductUpdating) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -95,7 +100,6 @@ func (e *ProductUpdating) ApplyWebhookResponse(body []byte) (bool, string, error
 type ProductCreated struct { // fires AFTER the insert commits, async-only
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 }
 
@@ -105,7 +109,6 @@ func (*ProductCreated) Type() string { return EventProductCreated }
 type ProductUpdated struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	ChangedFields []string
 }
@@ -116,7 +119,6 @@ func (*ProductUpdated) Type() string { return EventProductUpdated }
 type ProductDeleted struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 }
 
@@ -157,6 +159,13 @@ type CategoryDeleted struct {
 }
 
 func (*CategoryDeleted) Type() string { return EventCategoryDeleted }
+
+// Enqueued in the same tx as a rename or re-parent, so the product URL regeneration under the subtree survives a crash after commit
+type CategoryMoved struct {
+	CategoryID uuid.UUID
+}
+
+func (*CategoryMoved) Type() string { return EventCategoryMoved }
 
 type CollectionCreated struct { // this and the other Collection* events fire AFTER the mutation commits, async-only
 	CollectionID uuid.UUID
@@ -210,3 +219,35 @@ type BundleDeleted struct {
 }
 
 func (*BundleDeleted) Type() string { return EventBundleDeleted }
+
+// Fires AFTER an attribute or its values, assignments or flags change - ProductIDs stays off the webhook payload, which can't carry a catalogue-sized list
+type AttributeUpdated struct {
+	AttributeID   uuid.UUID
+	Slug          string
+	ChangedFields []string
+	ProductIDs    []uuid.UUID `json:"-"`
+}
+
+func (*AttributeUpdated) Type() string { return EventAttributeUpdated }
+
+type AttributeDeleted struct {
+	AttributeID uuid.UUID
+	Slug        string
+	ProductIDs  []uuid.UUID `json:"-"`
+}
+
+func (*AttributeDeleted) Type() string { return EventAttributeDeleted }
+
+// Enqueued in the same tx as the template change, so the bulk product URL recompute survives a crash after commit
+type ProductTypeURLTemplateChanged struct {
+	ProductTypeID uuid.UUID
+}
+
+func (*ProductTypeURLTemplateChanged) Type() string { return EventProductTypeURLTemplateChanged }
+
+type AttributeValueSlugChanged struct {
+	AttributeID uuid.UUID
+	ValueID     uuid.UUID
+}
+
+func (*AttributeValueSlugChanged) Type() string { return EventAttributeValueSlugChanged }

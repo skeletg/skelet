@@ -454,31 +454,6 @@ func (q *Queries) GetAttributeValueByID(ctx context.Context, id uuid.UUID) (Attr
 	return i, err
 }
 
-const getProductAttributeSlug = `-- name: GetProductAttributeSlug :one
-SELECT id, product_id, attribute_id, slug, created_at, updated_at, channel_id FROM catalog_product_attribute_slugs
-WHERE product_id = $1 AND attribute_id = $2
-`
-
-type GetProductAttributeSlugParams struct {
-	ProductID   uuid.UUID `json:"product_id"`
-	AttributeID uuid.UUID `json:"attribute_id"`
-}
-
-func (q *Queries) GetProductAttributeSlug(ctx context.Context, arg GetProductAttributeSlugParams) (CatalogProductAttributeSlug, error) {
-	row := q.db.QueryRowContext(ctx, getProductAttributeSlug, arg.ProductID, arg.AttributeID)
-	var i CatalogProductAttributeSlug
-	err := row.Scan(
-		&i.ID,
-		&i.ProductID,
-		&i.AttributeID,
-		&i.Slug,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ChannelID,
-	)
-	return i, err
-}
-
 const getProductTypeByID = `-- name: GetProductTypeByID :one
 SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds FROM catalog_product_types WHERE id = $1
 `
@@ -501,47 +476,6 @@ func (q *Queries) GetProductTypeByID(ctx context.Context, id uuid.UUID) (Product
 		pq.Array(&i.DeliveryKinds),
 	)
 	return i, err
-}
-
-const getProductTypesByIDs = `-- name: GetProductTypesByIDs :many
-SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds FROM catalog_product_types WHERE id = ANY($1::uuid[])
-`
-
-// GetProductTypesByIDs is the batched form used by the storefront DataLoader: every per-product `productType` field resolver across a page collapses into one query for the distinct ids
-func (q *Queries) GetProductTypesByIDs(ctx context.Context, ids []uuid.UUID) ([]ProductType, error) {
-	rows, err := q.db.QueryContext(ctx, getProductTypesByIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ProductType{}
-	for rows.Next() {
-		var i ProductType
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Name,
-			&i.IsDigital,
-			&i.IsShippingRequired,
-			&i.Metadata,
-			&i.PrivateMetadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UrlTemplate,
-			&i.TracksInventory,
-			pq.Array(&i.DeliveryKinds),
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listAttributeContent = `-- name: ListAttributeContent :many
@@ -1232,13 +1166,71 @@ func (q *Queries) ListProductChildrenByParentIDs(ctx context.Context, parentIds 
 	return items, nil
 }
 
+const listProductIDsCarryingAttribute = `-- name: ListProductIDsCarryingAttribute :many
+SELECT pav.product_id AS id FROM catalog_product_attribute_values pav WHERE pav.attribute_id = $1
+UNION
+SELECT par.product_id FROM catalog_product_attribute_references par WHERE par.attribute_id = $1
+UNION
+SELECT p.id FROM catalog_products p WHERE p.attributes ? $2::text
+`
+
+type ListProductIDsCarryingAttributeParams struct {
+	AttributeID uuid.UUID `json:"attribute_id"`
+	Slug        string    `json:"slug"`
+}
+
+func (q *Queries) ListProductIDsCarryingAttribute(ctx context.Context, arg ListProductIDsCarryingAttributeParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listProductIDsCarryingAttribute, arg.AttributeID, arg.Slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProductIDsCarryingAttributeValue = `-- name: ListProductIDsCarryingAttributeValue :many
+SELECT DISTINCT product_id FROM catalog_product_attribute_values WHERE attribute_value_id = $1
+`
+
+func (q *Queries) ListProductIDsCarryingAttributeValue(ctx context.Context, attributeValueID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listProductIDsCarryingAttributeValue, attributeValueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var product_id uuid.UUID
+		if err := rows.Scan(&product_id); err != nil {
+			return nil, err
+		}
+		items = append(items, product_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProductTypeAttributes = `-- name: ListProductTypeAttributes :many
-SELECT a.id, a.slug, a.name, a.input_type, a.relationship_target, a.unit,
-       a.value_required, a.filterable, a.searchable, a.is_public,
-       a.facet_collapsed, a.is_indexable, a.h1_position,
-       a.sort_order AS attribute_sort_order,
-       a.metadata, a.private_metadata, a.default_value,
-       a.created_at, a.updated_at,
+SELECT a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target,
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta
@@ -1248,29 +1240,12 @@ ORDER BY pta.sort_order, a.name
 `
 
 type ListProductTypeAttributesRow struct {
-	ID                  uuid.UUID             `json:"id"`
-	Slug                string                `json:"slug"`
-	Name                string                `json:"name"`
-	InputType           string                `json:"input_type"`
-	RelationshipTarget  sql.NullString        `json:"relationship_target"`
-	Unit                string                `json:"unit"`
-	ValueRequired       bool                  `json:"value_required"`
-	Filterable          bool                  `json:"filterable"`
-	Searchable          bool                  `json:"searchable"`
-	IsPublic            bool                  `json:"is_public"`
-	FacetCollapsed      bool                  `json:"facet_collapsed"`
-	IsIndexable         bool                  `json:"is_indexable"`
-	H1Position          string                `json:"h1_position"`
-	AttributeSortOrder  int32                 `json:"attribute_sort_order"`
-	Metadata            json.RawMessage       `json:"metadata"`
-	PrivateMetadata     json.RawMessage       `json:"private_metadata"`
-	DefaultValue        pqtype.NullRawMessage `json:"default_value"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
-	AssignmentSortOrder int32                 `json:"assignment_sort_order"`
-	GroupID             uuid.NullUUID         `json:"group_id"`
+	Attribute           Attribute     `json:"attribute"`
+	AssignmentSortOrder int32         `json:"assignment_sort_order"`
+	GroupID             uuid.NullUUID `json:"group_id"`
 }
 
+// Embeds the whole attribute row so the shared toAttribute mapper hydrates it - a hand-picked column list silently dropped new fields
 func (q *Queries) ListProductTypeAttributes(ctx context.Context, productTypeID uuid.UUID) ([]ListProductTypeAttributesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProductTypeAttributes, productTypeID)
 	if err != nil {
@@ -1281,25 +1256,27 @@ func (q *Queries) ListProductTypeAttributes(ctx context.Context, productTypeID u
 	for rows.Next() {
 		var i ListProductTypeAttributesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Name,
-			&i.InputType,
-			&i.RelationshipTarget,
-			&i.Unit,
-			&i.ValueRequired,
-			&i.Filterable,
-			&i.Searchable,
-			&i.IsPublic,
-			&i.FacetCollapsed,
-			&i.IsIndexable,
-			&i.H1Position,
-			&i.AttributeSortOrder,
-			&i.Metadata,
-			&i.PrivateMetadata,
-			&i.DefaultValue,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.Attribute.ID,
+			&i.Attribute.Slug,
+			&i.Attribute.Name,
+			&i.Attribute.InputType,
+			&i.Attribute.Unit,
+			&i.Attribute.ValueRequired,
+			&i.Attribute.Filterable,
+			&i.Attribute.Searchable,
+			&i.Attribute.IsPublic,
+			&i.Attribute.SortOrder,
+			&i.Attribute.Metadata,
+			&i.Attribute.PrivateMetadata,
+			&i.Attribute.CreatedAt,
+			&i.Attribute.UpdatedAt,
+			&i.Attribute.DefaultValue,
+			&i.Attribute.FacetCollapsed,
+			&i.Attribute.IsIndexable,
+			&i.Attribute.H1Position,
+			&i.Attribute.SynapseTrack,
+			&i.Attribute.AutoSegment,
+			&i.Attribute.RelationshipTarget,
 			&i.AssignmentSortOrder,
 			&i.GroupID,
 		); err != nil {
@@ -1318,12 +1295,7 @@ func (q *Queries) ListProductTypeAttributes(ctx context.Context, productTypeID u
 
 const listProductTypeAttributesByTypeIDs = `-- name: ListProductTypeAttributesByTypeIDs :many
 SELECT pta.product_type_id,
-       a.id, a.slug, a.name, a.input_type, a.relationship_target, a.unit,
-       a.value_required, a.filterable, a.searchable, a.is_public,
-       a.facet_collapsed, a.is_indexable, a.h1_position,
-       a.sort_order AS attribute_sort_order,
-       a.metadata, a.private_metadata, a.default_value,
-       a.created_at, a.updated_at,
+       a.id, a.slug, a.name, a.input_type, a.unit, a.value_required, a.filterable, a.searchable, a.is_public, a.sort_order, a.metadata, a.private_metadata, a.created_at, a.updated_at, a.default_value, a.facet_collapsed, a.is_indexable, a.h1_position, a.synapse_track, a.auto_segment, a.relationship_target,
        pta.sort_order AS assignment_sort_order,
        pta.group_id   AS group_id
 FROM catalog_product_type_attributes pta
@@ -1333,28 +1305,10 @@ ORDER BY pta.product_type_id, pta.sort_order, a.name
 `
 
 type ListProductTypeAttributesByTypeIDsRow struct {
-	ProductTypeID       uuid.UUID             `json:"product_type_id"`
-	ID                  uuid.UUID             `json:"id"`
-	Slug                string                `json:"slug"`
-	Name                string                `json:"name"`
-	InputType           string                `json:"input_type"`
-	RelationshipTarget  sql.NullString        `json:"relationship_target"`
-	Unit                string                `json:"unit"`
-	ValueRequired       bool                  `json:"value_required"`
-	Filterable          bool                  `json:"filterable"`
-	Searchable          bool                  `json:"searchable"`
-	IsPublic            bool                  `json:"is_public"`
-	FacetCollapsed      bool                  `json:"facet_collapsed"`
-	IsIndexable         bool                  `json:"is_indexable"`
-	H1Position          string                `json:"h1_position"`
-	AttributeSortOrder  int32                 `json:"attribute_sort_order"`
-	Metadata            json.RawMessage       `json:"metadata"`
-	PrivateMetadata     json.RawMessage       `json:"private_metadata"`
-	DefaultValue        pqtype.NullRawMessage `json:"default_value"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
-	AssignmentSortOrder int32                 `json:"assignment_sort_order"`
-	GroupID             uuid.NullUUID         `json:"group_id"`
+	ProductTypeID       uuid.UUID     `json:"product_type_id"`
+	Attribute           Attribute     `json:"attribute"`
+	AssignmentSortOrder int32         `json:"assignment_sort_order"`
+	GroupID             uuid.NullUUID `json:"group_id"`
 }
 
 // Batched twin of the above so a list of types hydrates its attributes in one
@@ -1370,25 +1324,27 @@ func (q *Queries) ListProductTypeAttributesByTypeIDs(ctx context.Context, produc
 		var i ListProductTypeAttributesByTypeIDsRow
 		if err := rows.Scan(
 			&i.ProductTypeID,
-			&i.ID,
-			&i.Slug,
-			&i.Name,
-			&i.InputType,
-			&i.RelationshipTarget,
-			&i.Unit,
-			&i.ValueRequired,
-			&i.Filterable,
-			&i.Searchable,
-			&i.IsPublic,
-			&i.FacetCollapsed,
-			&i.IsIndexable,
-			&i.H1Position,
-			&i.AttributeSortOrder,
-			&i.Metadata,
-			&i.PrivateMetadata,
-			&i.DefaultValue,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.Attribute.ID,
+			&i.Attribute.Slug,
+			&i.Attribute.Name,
+			&i.Attribute.InputType,
+			&i.Attribute.Unit,
+			&i.Attribute.ValueRequired,
+			&i.Attribute.Filterable,
+			&i.Attribute.Searchable,
+			&i.Attribute.IsPublic,
+			&i.Attribute.SortOrder,
+			&i.Attribute.Metadata,
+			&i.Attribute.PrivateMetadata,
+			&i.Attribute.CreatedAt,
+			&i.Attribute.UpdatedAt,
+			&i.Attribute.DefaultValue,
+			&i.Attribute.FacetCollapsed,
+			&i.Attribute.IsIndexable,
+			&i.Attribute.H1Position,
+			&i.Attribute.SynapseTrack,
+			&i.Attribute.AutoSegment,
+			&i.Attribute.RelationshipTarget,
 			&i.AssignmentSortOrder,
 			&i.GroupID,
 		); err != nil {
@@ -1479,7 +1435,7 @@ func (q *Queries) ListSynapseTrackedAttributes(ctx context.Context) ([]ListSynap
 	return items, nil
 }
 
-const moveAttributeToGroup = `-- name: MoveAttributeToGroup :exec
+const moveAttributeToGroup = `-- name: MoveAttributeToGroup :execrows
 UPDATE catalog_product_type_attributes
 SET group_id = $3
 WHERE product_type_id = $1 AND attribute_id = $2
@@ -1491,9 +1447,12 @@ type MoveAttributeToGroupParams struct {
 	GroupID       uuid.NullUUID `json:"group_id"`
 }
 
-func (q *Queries) MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToGroupParams) error {
-	_, err := q.db.ExecContext(ctx, moveAttributeToGroup, arg.ProductTypeID, arg.AttributeID, arg.GroupID)
-	return err
+func (q *Queries) MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToGroupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveAttributeToGroup, arg.ProductTypeID, arg.AttributeID, arg.GroupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const removeProductChild = `-- name: RemoveProductChild :execrows
@@ -1575,6 +1534,18 @@ func (q *Queries) SetAttributeValuesIndexable(ctx context.Context, arg SetAttrib
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const stripProductAttributeKey = `-- name: StripProductAttributeKey :exec
+UPDATE catalog_products
+SET attributes = attributes - $1::text
+WHERE attributes ? $1::text
+`
+
+// Scalar values live in the products' JSONB under the attribute slug, which no FK cascades - a recreated slug would otherwise resurrect them
+func (q *Queries) StripProductAttributeKey(ctx context.Context, slug string) error {
+	_, err := q.db.ExecContext(ctx, stripProductAttributeKey, slug)
+	return err
 }
 
 const unassignAttributeFromProductType = `-- name: UnassignAttributeFromProductType :execrows

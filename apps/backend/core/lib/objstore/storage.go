@@ -232,6 +232,26 @@ func (s *Storage) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	return b, nil
 }
 
+// GetBytes plus the stored content type in one round trip - a cache read that went HEAD then GET paid two
+func (s *Storage) GetBytesTyped(ctx context.Context, key string) ([]byte, string, error) {
+	out, err := s.internalClient.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.cfg.Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		if isNotFound(err) {
+			return nil, "", fmt.Errorf("%w: %s", ErrObjectNotFound, key)
+		}
+		return nil, "", fmt.Errorf("media: get bytes: %w", err)
+	}
+	defer out.Body.Close()
+	b, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("media: read body: %w", err)
+	}
+	return b, aws.ToString(out.ContentType), nil
+}
+
 func (s *Storage) PutEmptyObject(ctx context.Context, key string) error {
 	_, err := s.internalClient.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.cfg.Bucket),

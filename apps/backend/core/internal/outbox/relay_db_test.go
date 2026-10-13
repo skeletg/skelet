@@ -3,6 +3,7 @@ package outbox
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -369,5 +370,43 @@ func TestDeliveredRowsAreSweptOnlyOnceTheyAreOldEnough(t *testing.T) {
 				t.Errorf("swept = %v, want %v", gone, tc.wantGone)
 			}
 		})
+	}
+}
+
+// A subscriber failure waited out the whole ten-minute lease - a two-second mail outage delayed the retry by ten minutes
+func TestAFailedDeliveryRetriesOnABackoffNotTheLease(t *testing.T) {
+	conn := testDB(t)
+	r := newRelay(t, conn)
+	failing := "outbox.failing." + uuid.NewString()
+	r.RegisterType(failing, func() events.Event { return &dbProbe{} })
+	r.bus.Subscribe(failing, func(context.Context, events.Event) error { return errors.New("smtp down") })
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM event_outbox WHERE event_type = $1`, failing) })
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Enqueue(context.Background(), tx, &dbProbe{Kind: failing}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	r.DrainPending(context.Background())
+	var wait float64
+	if err := conn.QueryRow(`SELECT EXTRACT(EPOCH FROM next_attempt_at - NOW()) FROM event_outbox WHERE event_type = $1`, failing).Scan(&wait); err != nil {
+		t.Fatal(err)
+	}
+	if wait < 20 || wait > 40 {
+		t.Fatalf("the retry is due in %.0fs, want about %s", wait, firstRetry)
+	}
+}
+
+func TestRetryDelayDoublesUpToTheLease(t *testing.T) {
+	for attempts, want := range map[int32]time.Duration{
+		1: 30 * time.Second, 2: time.Minute, 3: 2 * time.Minute, 5: 8 * time.Minute, 6: leaseSeconds * time.Second, 9: leaseSeconds * time.Second,
+	} {
+		if got := retryDelay(attempts); got != want {
+			t.Errorf("retryDelay(%d) = %s, want %s", attempts, got, want)
+		}
 	}
 }

@@ -45,12 +45,12 @@ func newCatTxManager(t *testing.T) *txrunner.Manager {
 // the SetProductAttributes revalidation path touches
 type variantModeRepo struct {
 	fakeRepo
+	catalog.ProductTypeRepository
+	catalog.ProductAttributeRepository
 	productWithAttrs catalog.Product
 	productType      catalog.ProductType
 	modeWrites       []catalog.VariantMode
 }
-
-func (f *variantModeRepo) WithTx(*sql.Tx) catalog.Repository { return f }
 
 func (f *variantModeRepo) GetProductWithAttributes(_ context.Context, _ uuid.UUID) (catalog.Product, error) {
 	return f.productWithAttrs, nil

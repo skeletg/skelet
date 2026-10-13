@@ -31,8 +31,14 @@ guess, because guessing means quietly rendering someone else's market.
 **On the front API**, the backend resolves one channel per request, in this order:
 
 1. The `X-Channel-Id` header, a channel UUID. This is what a storefront app always sends.
-2. Otherwise the request's host, matched against the channel's configured storefront host.
-3. Otherwise the channel flagged as default - at most one may be, and it's opt-in.
+2. Otherwise the request's host, matched against the host of the channel's public URL.
+   Case doesn't matter and the default ports (80, 443) are dropped, but any other port is
+   part of the host - `http://localhost:3000` and `http://localhost:5174` are two different
+   channels. Each host belongs to at most one channel, and only an admin with global
+   `channels.manage` can change a channel's public URL.
+3. Otherwise the channel flagged as default - at most one may be, and it's opt-in. Only an
+   active channel can take the flag, the default can't be deactivated, and moving it takes
+   global `channels.manage`.
 
 Steps 2 and 3 exist for the other callers of the front API - a mobile client, a curl, an
 integration - not for storefronts, which are pinned and never rely on them.

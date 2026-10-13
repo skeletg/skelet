@@ -90,7 +90,7 @@ func (h *harness) gqlPostLocale(t *testing.T, ts *httptest.Server, channelID, lo
 		t.Fatalf("build request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Channel-Id", channelID)
+	req.Header.Set(channel.HeaderChannelID, channelID)
 	if loc != "" {
 		req.Header.Set("Locale", loc)
 	}

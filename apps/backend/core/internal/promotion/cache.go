@@ -8,11 +8,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// The engine's per-store cached snapshot of active rules plus their conditions and actions - without it every cart read, applyCoupon and placeOrder costs 3 DB queries, which at any reasonable traffic dominates the engine's footprint Invalidation is event-driven, with every rule mutation calling Evict for the affected stores - a per-rule mutation can't tell whether the store scope is changing too, so it wipes the cache entirely, and reorder is the only high-frequency path where the cost is still small Evict only reaches the replica that served the mutation, so the TTL is also the hard staleness bound every OTHER replica pays: an operator who disables a misconfigured rule sees it stop firing fleet-wide within rulesCacheTTL, never later It doubles as the safety net for paths that mutate rules without going through Service, like direct DB editing during testing or a long-running CLI seed
+// The engine's per-store cached snapshot of active rules plus their conditions and actions - without it every cart read, applyCoupon and placeOrder costs 3 DB queries, which at any reasonable traffic dominates the engine's footprint Invalidation is event-driven, with every rule mutation calling EvictAll - a per-rule mutation can't tell whether the store scope is changing too, so it wipes the cache entirely, and reorder is the only high-frequency path where the cost is still small Evict only reaches the replica that served the mutation, so the TTL is also the hard staleness bound every OTHER replica pays: an operator who disables a misconfigured rule sees it stop firing fleet-wide within rulesCacheTTL, never later It doubles as the safety net for paths that mutate rules without going through Service, like direct DB editing during testing or a long-running CLI seed
 type rulesCache struct {
 	mu      sync.RWMutex
 	entries map[uuid.UUID]*cachedRules // key: channel_id, uuid.Nil for the "all stores" bucket
 	ttl     time.Duration
+	// Bumped by every eviction - a load that started before one must not store what it read, or the pre-edit rules outlive the edit for a full TTL
+	gen uint64
 }
 
 type cachedRules struct {
@@ -63,7 +65,17 @@ func (c *rulesCache) load(channelID *uuid.UUID) ([]Rule, bool) {
 	return out, true
 }
 
-func (c *rulesCache) store(channelID *uuid.UUID, rules []Rule) {
+func (c *rulesCache) generation() uint64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.gen
+}
+
+// Stores only when no eviction has happened since gen was read
+func (c *rulesCache) store(channelID *uuid.UUID, rules []Rule, gen uint64) {
 	if c == nil {
 		return
 	}
@@ -75,21 +87,14 @@ func (c *rulesCache) store(channelID *uuid.UUID, rules []Rule) {
 		clean[i] = r
 	}
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.gen != gen {
+		return
+	}
 	c.entries[cacheKey(channelID)] = &cachedRules{
 		rules:    clean,
 		expireAt: time.Now().Add(c.ttl),
 	}
-	c.mu.Unlock()
-}
-
-// Drops the cache entry for one store - the service calls it after any rule mutation, so the next Evaluate hits the DB instead of returning stale state
-func (c *rulesCache) Evict(channelID *uuid.UUID) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	delete(c.entries, cacheKey(channelID))
-	c.mu.Unlock()
 }
 
 // Wipes every entry, for a mutation that might affect rules across multiple store buckets like a priority reorder - cheaper than tracking precise scope changes
@@ -99,6 +104,7 @@ func (c *rulesCache) EvictAll() {
 	}
 	c.mu.Lock()
 	c.entries = make(map[uuid.UUID]*cachedRules)
+	c.gen++
 	c.mu.Unlock()
 }
 
@@ -112,10 +118,11 @@ func loadCachedActiveRules(
 	if cached, ok := cache.load(channelID); ok {
 		return cached, nil
 	}
+	gen := cache.generation()
 	rules, err := repo.ListActiveRulesForChannel(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	cache.store(channelID, rules)
+	cache.store(channelID, rules, gen)
 	return rules, nil
 }

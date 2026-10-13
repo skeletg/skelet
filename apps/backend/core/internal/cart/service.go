@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
+	coredb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
-	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -27,8 +28,17 @@ type Service struct {
 	products      ProductResolver
 	files         FileAssetResolver
 	bus           *events.Bus
-	remotePricing RemotePricingSource // overrides the catalog price for B2B or dynamic pricing, consulted through resolvePricing - nil means catalog price (remote_pricing.go)
+	remotePricing RemotePricingSource // overrides the catalog price for B2B or dynamic pricing, consulted through resolvePricing - nil means catalog price
 }
+
+const (
+	minLineQuantity = 0.0001 // the smallest step numeric(14,4) keeps - anything finer rounds to a zero the quantity check refuses
+	maxLineQuantity = 1e9    // well inside numeric(14,4), and a line total at any sane price still fits int64 cents
+	maxNoteRunes    = 2000
+	maxEmailBytes   = 254
+)
+
+var errNoCatalog = errors.New("cart: product resolver is not configured") // nothing to price from, and storing the caller's own price is exactly what the catalog lookup exists to prevent
 
 func NewService(repo Repository, txMgr *txrunner.Manager, products ProductResolver) *Service { // products looks up a kind at add time, so non-SIMPLE products are rejected before they reach placement
 	return &Service{repo: repo, tx: txMgr, products: products}
@@ -39,6 +49,16 @@ func (s *Service) Repo() Repository { return s.repo } // exposed so the order pa
 func (s *Service) SetEventBus(b *events.Bus) { s.bus = b } // optional - without it the service emits no events
 
 func (s *Service) SetFileResolver(f FileAssetResolver) { s.files = f } // optional - without it FILE option picks carrying an asset id are rejected, since the cart can't verify the upload
+
+func (s *Service) SetRemotePricing(src RemotePricingSource) { s.remotePricing = src }
+
+// Runs fn on a transaction-bound repo, or on the plain one when no manager is wired (unit tests)
+func (s *Service) inTx(ctx context.Context, fn func(r Repository) error) error {
+	if s.tx == nil {
+		return fn(s.repo)
+	}
+	return s.tx.InTransaction(ctx, func(tx *sql.Tx) error { return fn(s.repo.WithTx(tx)) })
+}
 
 func (s *Service) GetOrCreateCart(ctx context.Context, customerID, channelID uuid.UUID) (Cart, error) {
 	return GetOrCreateCustomerCart(ctx, s.repo, customerID, channelID)
@@ -51,6 +71,9 @@ func GetOrCreateCustomerCart(ctx context.Context, repo Repository, customerID, c
 			return Cart{}, fmt.Errorf("get cart: %w", err)
 		}
 		cart, err = repo.CreateCart(ctx, &customerID, channelID)
+		if coredb.IsUniqueViolation(err) { // a second tab created it between our read and insert - the one active cart per store is theirs too
+			cart, err = repo.GetCartByCustomerAndChannel(ctx, customerID, channelID)
+		}
 		if err != nil {
 			return Cart{}, fmt.Errorf("create cart: %w", err)
 		}
@@ -84,10 +107,14 @@ func (s *Service) GetCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.
 	return cart, nil
 }
 
+func (s *Service) AuthorizeCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID) (Cart, error) { // GetCart's gate without the lines, for a caller that only needs to know the cart is theirs and where it lives
+	return authorizeCart(ctx, s.repo, cartID, callerID)
+}
+
 func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, email string) error { // a checkout-entry email makes an abandoned cart recoverable before any account or order exists
-	email = strings.TrimSpace(email)
-	if email == "" || !strings.Contains(email, "@") {
-		return ErrCartEmailInvalid
+	email, err := normalizeCartEmail(email)
+	if err != nil {
+		return err
 	}
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
@@ -97,15 +124,16 @@ func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *
 }
 
 func (s *Service) SetCartNote(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, note string) error { // note-to-merchant, carried to the order at checkout - an empty string clears it
+	note = strings.TrimSpace(note)
+	if utf8.RuneCountInString(note) > maxNoteRunes {
+		return fmt.Errorf("%w: at most %d characters", ErrCartNoteTooLong, maxNoteRunes)
+	}
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return err
 	}
-	return s.repo.SetNote(ctx, cart.ID, strings.TrimSpace(note))
+	return s.repo.SetNote(ctx, cart.ID, note)
 }
-
-// ErrCartEmailInvalid is a checkout email with no @ - the same rule SetCartEmail applies
-var ErrCartEmailInvalid = apperr.New("CART_EMAIL_INVALID", apperr.ClassValidation, "a valid email is required")
 
 // UpdateCheckout applies one checkout step under a row lock, so concurrent step saves can't overwrite each other. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards before calling this - the cart only stores what it's given
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
@@ -130,9 +158,9 @@ func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID
 		if err := apply(&next); err != nil {
 			return err
 		}
-		if next.Email = strings.TrimSpace(next.Email); next.Email != cart.Email {
-			if !strings.Contains(next.Email, "@") {
-				return ErrCartEmailInvalid
+		if strings.TrimSpace(next.Email) != cart.Email {
+			if next.Email, err = normalizeCartEmail(next.Email); err != nil {
+				return err
 			}
 			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
 				return err
@@ -149,93 +177,24 @@ func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int6
 	return s.repo.PruneStale(ctx, time.Now().Add(-olderThan))
 }
 
-func (s *Service) ListSavedItems(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID) ([]SavedItem, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return nil, err
-	}
-	return s.repo.ListSavedItems(ctx, cart.ID)
-}
-
-func (s *Service) SaveForLater(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID) (Cart, error) { // bundle and configured lines aren't saveable in v1, since their snapshot can't round-trip through the simple add path
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return Cart{}, err
-	}
-	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
-	if err != nil {
-		return Cart{}, apperr.New("CART_LINE_NOT_FOUND", apperr.ClassNotFound, "cart line not found")
-	}
-	if len(line.Components) > 0 || len(line.Options) > 0 {
-		return Cart{}, apperr.New("CART_LINE_NOT_SAVEABLE", apperr.ClassValidation,
-			"bundle and configured items can't be saved for later yet")
-	}
-	if _, err := s.repo.SaveItem(ctx, cart.ID, line.ProductSku, line.ProductName, line.Quantity); err != nil {
-		return Cart{}, err
-	}
-	if err := s.repo.RemoveCartLine(ctx, lineID); err != nil {
-		return Cart{}, fmt.Errorf("remove saved line: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) MoveSavedToCart(ctx context.Context, cartID, savedID uuid.UUID, callerID *uuid.UUID) (Cart, error) { // goes back through AddToCart so it re-prices and hits the stock guard
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return Cart{}, err
-	}
-	saved, err := s.repo.GetSavedItem(ctx, savedID)
-	if err != nil || saved.CartID != cart.ID {
-		return Cart{}, apperr.New("SAVED_ITEM_NOT_FOUND", apperr.ClassNotFound, "saved item not found")
-	}
-	if _, err := s.AddToCart(ctx, cart.ID, callerID, saved.ProductSku, saved.Quantity); err != nil {
-		return Cart{}, err
-	}
-	if err := s.repo.DeleteSavedItem(ctx, savedID, cart.ID); err != nil {
-		return Cart{}, fmt.Errorf("delete saved item: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) RemoveSavedItem(ctx context.Context, cartID, savedID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return Cart{}, err
-	}
-	if err := s.repo.DeleteSavedItem(ctx, savedID, cart.ID); err != nil {
-		return Cart{}, err
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) CurrentSimpleLinePrices(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID) (map[uuid.UUID]int64, error) { // effective price (base plus best tier) for flagging drift - bundle and configured lines are snapshot-locked and omitted
+// Effective price (base plus best tier) of each simple line of an already-authorized cart, for flagging drift - bundle and configured lines are snapshot-locked and omitted, and a pricing miss just leaves the line out
+func (s *Service) CurrentSimpleLinePrices(ctx context.Context, c Cart) map[uuid.UUID]int64 {
+	out := make(map[uuid.UUID]int64, len(c.Lines))
 	if s.products == nil {
-		return map[uuid.UUID]int64{}, nil
+		return out
 	}
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return nil, err
-	}
-	lines, err := s.repo.ListCartLinesByCart(ctx, cart.ID)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[uuid.UUID]int64, len(lines))
-	for _, l := range lines {
+	for _, l := range c.Lines {
 		if len(l.Components) > 0 || len(l.Options) > 0 {
 			continue
 		}
-		p, err := s.resolvePricing(ctx, cart.ChannelID, l.ProductSku, cart.CustomerID)
+		p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
 		if err != nil {
 			continue
 		}
-		unit := p.UnitPrice
-		if best := pricing.BestTier(p.Tiers, l.Quantity, nil, ""); best != nil && *best < unit {
-			unit = *best
-		}
+		unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, l.Quantity)
 		out[l.ID] = unit
 	}
-	return out, nil
+	return out
 }
 
 func (s *Service) GetCartByIDReadOnly(ctx context.Context, cartID uuid.UUID) (Cart, error) { // bypasses the ownership check - trusted server-side callers only (the REST API gates it behind orders.view), never wire it to a storefront resolver
@@ -244,64 +203,28 @@ func (s *Service) GetCartByIDReadOnly(ctx context.Context, cartID uuid.UUID) (Ca
 
 // Sums quantity on a same-SKU conflict where the incoming unit_price wins - the direct-line-kinds admission check lives in the catalog adapter's ResolveSimplePricing, so the cart stays decoupled and placement inherits the invariant
 func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, sku string, quantity float64) (Cart, error) {
-	input := AddCartLineInput{ProductSku: sku, Quantity: quantity} // name and price are filled from the catalog below, never by the caller
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return Cart{}, err
 	}
-	if s.products == nil { // nothing to price from, and storing the caller's own price is exactly what the catalog lookup exists to prevent
-		return Cart{}, fmt.Errorf("cart: product resolver is not configured")
-	}
-	// Catalog price wins - whatever name and price the caller sent are overwritten, so a hostile caller can't buy a $25 shirt for a cent; a LineAdding hook may still move it, which is intentional for dynamic-pricing plugins running with operator trust
-	p, err := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
+	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
 	if err != nil {
-		return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, err)
-	}
-	input.ProductName = p.ProductName
-	input.UnitPrice = p.UnitPrice
-	// Required-options gate - a plain add validates no options and folds no surcharges, so a REQUIRED-options product must go through AddConfiguredToCart or un-fulfillable under-priced lines reach checkout; fail closed on a resolve error, and count only options visible with NO picks since one hidden behind an unsatisfied visible_if is how a customer legitimately buys without it
-	res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
-		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
-	}
-	if oerr == nil && HasVisiblyRequiredOptions(res) {
-		return Cart{}, ErrProductOptionsRequired
-	}
-	total := input.Quantity // bounds-check the PROSPECTIVE total - the upsert sums into an existing same-SKU line, so adding one more of an at-max product must fail too
-	if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
-		for _, l := range lines {
-			if l.ProductSku == input.ProductSku {
-				if len(l.Options) > 0 { // the plain upsert would sum quantity but reset the price to base while leaving option rows attached - reject rather than corrupt the line
-					return Cart{}, ErrLineConfigured
-				}
-				total += l.Quantity
-				break
-			}
-		}
-	}
-	if err := validateQtyBounds(p, total); err != nil {
 		return Cart{}, err
 	}
-	if best := pricing.BestTier(p.Tiers, total, nil, ""); best != nil && *best < input.UnitPrice { // quantity break on the SUMMED line quantity, tiers pre-filtered to the caller's group and channel by the adapter - the upsert's incoming-price-wins rule then re-prices the whole line
-		input.UnitPrice = *best
-	}
-	unitPrice := input.UnitPrice // the pre-commit hook below may reject the add or mutate these through the pointer fields, and the mutated values flow into the repo upsert
-	qty := input.Quantity
-	if s.bus != nil {
+	if s.bus != nil { // a LineAdding hook may reject the add or move price and quantity - intentional for dynamic-pricing plugins running with operator trust
 		adding := &LineAdding{
 			CartID:      cart.ID,
 			ChannelID:   cart.ChannelID,
 			CustomerID:  cart.CustomerID,
 			ProductSku:  input.ProductSku,
 			ProductName: input.ProductName,
-			UnitPrice:   &unitPrice,
-			Quantity:    &qty,
+			UnitPrice:   &input.UnitPrice,
+			Quantity:    &input.Quantity,
 		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
 		}
-		input.UnitPrice = unitPrice
-		input.Quantity = qty
+		input.UnitPrice, input.Quantity = valueOr(adding.UnitPrice, input.UnitPrice), valueOr(adding.Quantity, input.Quantity) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
 	}
 	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
 	if err != nil {
@@ -322,364 +245,137 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
 
-type AddBundleSelectionInput struct { // SelectionIDs is at most one for radio and dropdown, zero-or-more for checkbox and multiselect
-	OptionID     uuid.UUID
-	SelectionIDs []uuid.UUID
-}
-
-type AddBundleToCartInput struct { // the bundle counterpart to AddCartLineInput, one Selections entry per option the customer picked for
-	ProductSku string
-	Quantity   float64
-	Selections []AddBundleSelectionInput
-}
-
-func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, input AddBundleToCartInput) (Cart, error) { // prices the line from the picked components - re-adding the same SKU REPLACES the prior selection set
+// Everything a plain add checks before its upsert, shared by the storefront and the admin console - catalog name and price whatever the caller sent, so a hostile caller can't buy a $25 shirt for a cent
+// A REQUIRED-options product must go through the configured add, or an under-priced line reaches checkout - only options visible with no picks count, since one hidden behind an unsatisfied visible_if is how a customer legitimately buys without it
+// Bounds and the tier break apply to the PROSPECTIVE total, since the upsert sums into an existing same-SKU line
+func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quantity float64) (AddCartLineInput, error) {
 	if s.products == nil {
-		return Cart{}, fmt.Errorf("bundle resolver is not configured")
+		return AddCartLineInput{}, errNoCatalog
 	}
-	if input.Quantity <= 0 {
-		return Cart{}, fmt.Errorf("quantity must be positive")
+	if err := validQuantity(quantity); err != nil {
+		return AddCartLineInput{}, err
 	}
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	p, err := s.resolvePricing(ctx, c.ChannelID, sku, c.CustomerID)
 	if err != nil {
-		return Cart{}, err
+		return AddCartLineInput{}, fmt.Errorf("resolve pricing for %q: %w", sku, err)
 	}
-	snap, err := s.products.ResolveBundleBySKU(ctx, cart.ChannelID, input.ProductSku)
-	if errors.Is(err, ErrProductNotPublished) {
-		return Cart{}, err
+	res, oerr := s.products.ResolveProductOptions(ctx, c.ChannelID, sku, c.CustomerID)
+	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
+		return AddCartLineInput{}, fmt.Errorf("resolve product options for %q: %w", sku, oerr)
 	}
+	if oerr == nil && HasVisiblyRequiredOptions(res) {
+		return AddCartLineInput{}, ErrProductOptionsRequired
+	}
+	lines, err := s.repo.ListCartLinesByCart(ctx, c.ID)
 	if err != nil {
-		return Cart{}, fmt.Errorf("%w: %w", ErrProductNotBundle, err)
+		return AddCartLineInput{}, fmt.Errorf("load cart lines: %w", err)
 	}
-
-	optByID := make(map[uuid.UUID]BundleOptionSnapshot, len(snap.Options)) // indexed for O(1) lookups while walking the selections
-	for _, o := range snap.Options {
-		optByID[o.ID] = o
-	}
-	selByID := func(opt BundleOptionSnapshot, id uuid.UUID) (BundleSelectionSnapshot, bool) {
-		for _, sel := range opt.Selections {
-			if sel.ID == id {
-				return sel, true
-			}
-		}
-		return BundleSelectionSnapshot{}, false
-	}
-
-	suppliedByOption := make(map[uuid.UUID][]uuid.UUID, len(input.Selections))
-	for _, e := range input.Selections {
-		opt, ok := optByID[e.OptionID]
-		if !ok {
-			return Cart{}, fmt.Errorf("%w: %s", ErrBundleOptionUnknown, e.OptionID)
-		}
-		if isSingleSelect(opt.InputType) && len(e.SelectionIDs) > 1 {
-			return Cart{}, fmt.Errorf("%w: option %s expected at most 1 selection, got %d", ErrBundleSelectionCardinality, opt.ID, len(e.SelectionIDs))
-		}
-		suppliedByOption[e.OptionID] = append(suppliedByOption[e.OptionID], e.SelectionIDs...)
-	}
-	for _, opt := range snap.Options { // auto-apply defaults for untouched options - a supplied option always wins, even an explicit empty list, so a customer can deselect an optional default
-		if _, supplied := suppliedByOption[opt.ID]; supplied {
+	total := quantity
+	for _, l := range lines {
+		if l.ProductSku != sku {
 			continue
 		}
-		var defaults []uuid.UUID
-		for _, sel := range opt.Selections {
-			if !sel.IsDefault {
-				continue
-			}
-			defaults = append(defaults, sel.ID)
-			if isSingleSelect(opt.InputType) {
-				break
-			}
+		if len(l.Options) > 0 || len(l.Components) > 0 { // the plain upsert would sum quantity but reset the price with the snapshot rows still attached
+			return AddCartLineInput{}, ErrLineConfigured
 		}
-		if len(defaults) > 0 {
-			suppliedByOption[opt.ID] = defaults
-		}
+		total += l.Quantity
+		break
 	}
-	for _, opt := range snap.Options { // bounds walk the bundle's own options so missing ones are caught - the effective minimum is min_selections, raised to 1 when required
-		count := int32(len(suppliedByOption[opt.ID]))
-		effMin := opt.MinSelections
-		if opt.IsRequired && effMin < 1 {
-			effMin = 1
-		}
-		if count < effMin {
-			if effMin == 1 {
-				return Cart{}, fmt.Errorf("%w: option %s", ErrBundleSelectionMissing, opt.ID)
-			}
-			return Cart{}, fmt.Errorf("%w: option %s needs at least %d selections, got %d", ErrBundleSelectionCardinality, opt.ID, effMin, count)
-		}
-		if opt.MaxSelections != nil && count > *opt.MaxSelections {
-			return Cart{}, fmt.Errorf("%w: option %s allows at most %d selections, got %d", ErrBundleSelectionCardinality, opt.ID, *opt.MaxSelections, count)
-		}
+	if err := validateQtyBounds(p, total); err != nil {
+		return AddCartLineInput{}, err
 	}
-
-	var components []AddCartLineComponentInput // materialized rows, summed into the line's unit_price below
-	var unitPrice int64
-	sortOrder := int32(0)
-	for _, opt := range snap.Options {
-		for _, selID := range suppliedByOption[opt.ID] {
-			sel, ok := selByID(opt, selID)
-			if !ok {
-				return Cart{}, fmt.Errorf("%w: selection %s on option %s", ErrBundleSelectionInvalid, selID, opt.ID)
-			}
-			lineQty := sel.QuantityPerBundle * input.Quantity
-			compUnit := sel.UnitPrice // the snapshot's catalog default misses listing overrides, specials and remote pricing, so a channel-priced deployment would charge the wrong bundle total - fail-open back to it below so a pricing hiccup never blocks the add
-			sp, perr := s.resolvePricing(ctx, cart.ChannelID, sel.ProductSKU, cart.CustomerID)
-			switch {
-			case perr == nil:
-				compUnit = sp.UnitPrice
-			case errors.Is(perr, ErrProductNotPublished), errors.Is(perr, ErrProductNotPurchasable):
-				return Cart{}, fmt.Errorf("bundle component %s: %w", sel.ProductSKU, perr)
-			}
-			components = append(components, AddCartLineComponentInput{
-				BundleOptionID:    opt.ID,
-				BundleSelectionID: sel.ID,
-				ProductID:         sel.ProductID,
-				ProductSku:        sel.ProductSKU,
-				ProductName:       sel.ProductName,
-				UnitPrice:         compUnit,
-				Quantity:          lineQty,
-				SortOrder:         sortOrder,
-			})
-			unitPrice += money.LineTotal(compUnit, sel.QuantityPerBundle)
-			sortOrder++
-		}
-	}
-
-	bundleName := snap.ProductName
-	if bundleName == "" {
-		bundleName = input.ProductSku
-	}
-	bundleUnitPrice := unitPrice // the pre-commit hook below may reject the bundle or override this summed price
-	bundleQty := input.Quantity
-	if s.bus != nil {
-		adding := &BundleAdding{
-			CartID:      cart.ID,
-			ChannelID:   cart.ChannelID,
-			CustomerID:  cart.CustomerID,
-			ProductSku:  input.ProductSku,
-			ProductName: bundleName,
-			UnitPrice:   &bundleUnitPrice,
-			Quantity:    &bundleQty,
-		}
-		if err := s.bus.PublishSync(ctx, adding); err != nil {
-			return Cart{}, fmt.Errorf("add bundle to cart rejected: %w", err)
-		}
-	}
-	bundleLine, err := s.repo.UpsertBundleCartLine(ctx, cart.ID, AddBundleLineInput{
-		ProductName: bundleName,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   bundleUnitPrice,
-		Quantity:    bundleQty,
-		Components:  components,
-	})
-	if err != nil {
-		return Cart{}, fmt.Errorf("add bundle to cart: %w", err)
-	}
-	if s.bus != nil {
-		s.bus.Publish(ctx, &BundleAdded{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			LineID:     bundleLine.ID,
-			ProductSku: input.ProductSku,
-			UnitPrice:  bundleUnitPrice,
-			Quantity:   bundleQty,
-		})
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
+	// the upsert's incoming-price-wins rule re-prices the whole line, so the tier reads the line's prospective total
+	return AddCartLineInput{ProductSku: sku, ProductName: p.ProductName, UnitPrice: pricing.ApplyTiers(p.UnitPrice, p.Tiers, total), Quantity: quantity}, nil
 }
 
-func (s *Service) AddConfiguredToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, input AddConfiguredToCartInput) (Cart, error) { // options and price resolve server-side and the deltas fold into the unit price - re-adding the same SKU REPLACES the config, like AddBundleToCart
-	if s.products == nil {
-		return Cart{}, fmt.Errorf("product resolver is not configured")
-	}
-	if input.Quantity <= 0 {
-		return Cart{}, fmt.Errorf("quantity must be positive")
-	}
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
-	if err != nil {
-		return Cart{}, err
-	}
-	return s.addConfiguredLine(ctx, cart, input)
-}
-
-func (s *Service) AdminAddConfiguredToCart(ctx context.Context, cartID uuid.UUID, input AddConfiguredToCartInput) (Cart, error) { // ownership-bypassing twin of AddConfiguredToCart - phone orders need option picks too, and without this any required-option SKU is un-orderable through the console
-	if s.products == nil {
-		return Cart{}, fmt.Errorf("product resolver is not configured")
-	}
-	if input.Quantity <= 0 {
-		return Cart{}, fmt.Errorf("quantity must be positive")
-	}
-	cart, err := s.adminActiveCart(ctx, cartID)
-	if err != nil {
-		return Cart{}, err
-	}
-	return s.addConfiguredLine(ctx, cart, input)
-}
-
-func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddConfiguredToCartInput) (Cart, error) { // shared by the customer and admin configured adds - callers have already authorized the cart
-	res, err := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-	if err != nil {
-		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, err)
-	}
-	fileAssets, err := s.resolveOptionFileAssets(ctx, input.Options)
-	if err != nil {
-		return Cart{}, err
-	}
-	options, optionDelta, forcedQty, err := buildConfiguredLineOptions(res, input.Options, fileAssets)
-	if err != nil {
-		return Cart{}, err
-	}
-	quantity := input.Quantity // a picked value may force this ("Set of 4" -> 4), and it replaces the request BEFORE tier pricing so breaks apply to what's actually charged
-	if forcedQty != nil {
-		quantity = *forcedQty
-	}
-	base := res.UnitPrice // quantity breaks apply to the BASE price, and option surcharges ride on top
-	if sp, perr := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID); perr == nil {
-		if err := validateQtyBounds(sp, quantity); err != nil { // same ordering rules as the plain add, so the configured path isn't a min/max/step bypass - this upsert REPLACES the line rather than summing, so the requested quantity is the whole prospective total
-			return Cart{}, err
-		}
-		if best := pricing.BestTier(sp.Tiers, quantity, nil, ""); best != nil && *best < base {
-			base = *best
-		}
-	}
-	unitPrice := max(base+optionDelta, 0) // a mistyped negative delta must not produce a negative line - free is the floor
-	name := res.ProductName
-	if name == "" {
-		name = input.ProductSku
-	}
-	if s.bus != nil { // pre-commit hook, same contract as AddToCart - the deltas are already folded into unitPrice
-		adding := &LineAdding{
-			CartID:      cart.ID,
-			ChannelID:   cart.ChannelID,
-			CustomerID:  cart.CustomerID,
-			ProductSku:  input.ProductSku,
-			ProductName: name,
-			UnitPrice:   &unitPrice,
-			Quantity:    &quantity,
-		}
-		if err := s.bus.PublishSync(ctx, adding); err != nil {
-			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
-		}
-	}
-	line, err := s.repo.UpsertConfiguredCartLine(ctx, cart.ID, AddConfiguredLineInput{
-		ProductName: name,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   unitPrice,
-		Quantity:    quantity,
-		Options:     options,
-	})
-	if err != nil {
-		return Cart{}, fmt.Errorf("add configured to cart: %w", err)
-	}
-	if s.bus != nil {
-		s.bus.Publish(ctx, &LineAdded{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			LineID:     line.ID,
-			ProductSku: input.ProductSku,
-			UnitPrice:  unitPrice,
-			Quantity:   quantity,
-		})
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) resolveOptionFileAssets(ctx context.Context, inputs []CartLineOptionInput) (map[uuid.UUID]FileAsset, error) { // resolved up front so the pure validation and pricing step has the real filename, size and URL - nil when there are no files
-	var out map[uuid.UUID]FileAsset
-	for _, in := range inputs {
-		if in.FileAssetID == nil {
-			continue
-		}
-		if s.files == nil {
-			return nil, fmt.Errorf("%w: file uploads are not configured", ErrProductOptionInvalid)
-		}
-		asset, err := s.files.ResolveFileAsset(ctx, *in.FileAssetID)
-		if err != nil {
-			return nil, fmt.Errorf("%w: file upload %s: %w", ErrProductOptionInvalid, *in.FileAssetID, err)
-		}
-		if out == nil {
-			out = make(map[uuid.UUID]FileAsset)
-		}
-		out[*in.FileAssetID] = asset
-	}
-	return out, nil
-}
-
-func isSingleSelect(inputType string) bool {
-	return inputType == "radio" || inputType == "dropdown"
-}
-
-func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, lineID uuid.UUID, quantity float64) (*int64, string, error) { // shared by customer and admin quantity edits - enforces the forced-qty lock (fail-closed on a resolve error, the lock is an invariant not a hint) and the min/max/step bounds, returning the tier-repriced unit with the line's snapshot option deltas back on top (nil = price unchanged)
-	if s.products == nil {
-		return nil, "", nil
-	}
-	line, lerr := s.findHydratedLine(ctx, cart.ID, lineID)
-	if lerr != nil {
-		return nil, "", nil // hydration hiccup - the line was already verified to exist, proceed as a plain quantity update
+// Shared by customer and admin quantity edits - enforces the forced-qty lock (fail-closed, the lock is an invariant not a hint) and the min/max/step bounds, returning the tier-repriced unit with the line's snapshot option deltas back on top (nil = price unchanged)
+// Bundle lines keep their snapshot price, since a bundle SKU has no simple pricing to re-resolve
+func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line CartLine, quantity float64) (*int64, error) {
+	if s.products == nil || len(line.Components) > 0 {
+		return nil, nil
 	}
 	if len(line.Options) > 0 {
 		res, rerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, line.ProductSku, cart.CustomerID)
 		if rerr != nil {
-			return nil, "", fmt.Errorf("resolve product options for %q: %w", line.ProductSku, rerr)
+			return nil, fmt.Errorf("resolve product options for %q: %w", line.ProductSku, rerr)
 		}
 		if forced := forcedQtyForSnapshot(res, line.Options); forced != nil && *forced != quantity {
-			return nil, "", fmt.Errorf("%w: quantity is fixed at %v", ErrProductOptionQtyForced, *forced)
+			return nil, fmt.Errorf("%w: quantity is fixed at %v", ErrProductOptionQtyForced, *forced)
 		}
 	}
 	p, perr := s.resolvePricing(ctx, cart.ChannelID, line.ProductSku, cart.CustomerID)
 	if perr != nil {
-		return nil, line.ProductSku, nil // pricing hiccup keeps the snapshot price rather than blocking the edit
+		return nil, nil // pricing hiccup keeps the snapshot price rather than blocking the edit
 	}
 	if err := validateQtyBounds(p, quantity); err != nil {
-		return nil, line.ProductSku, err
+		return nil, err
 	}
-	unit := p.UnitPrice // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
-	if best := pricing.BestTier(p.Tiers, quantity, nil, ""); best != nil && *best < unit {
-		unit = *best
-	}
+	unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, quantity) // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
 	for _, o := range line.Options {
 		unit += o.PriceDelta
 	}
 	if unit != line.UnitPrice {
-		return &unit, line.ProductSku, nil
+		return &unit, nil
 	}
-	return nil, line.ProductSku, nil
+	return nil, nil
+}
+
+// A bundle line's components scale with it, since reservation reads their totals as-is
+func (s *Service) writeLineQuantity(ctx context.Context, line CartLine, quantity float64, repricedUnit *int64) error {
+	var err error
+	switch {
+	case len(line.Components) > 0:
+		err = s.repo.SetBundleLineQuantity(ctx, line.ID, quantity)
+	case repricedUnit != nil:
+		_, err = s.repo.UpdateCartLineQuantityPrice(ctx, line.ID, quantity, *repricedUnit)
+	default:
+		_, err = s.repo.UpdateCartLineQuantity(ctx, line.ID, quantity)
+	}
+	if err != nil {
+		return fmt.Errorf("update cart line: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID, quantity float64) (Cart, error) {
+	if err := validQuantity(quantity); err != nil {
+		return Cart{}, err
+	}
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return Cart{}, err
 	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
+	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
+	if err != nil {
 		return Cart{}, err
 	}
-	repricedUnit, lineSku, err := s.validateQuantityEdit(ctx, cart, lineID, quantity)
+	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity)
 	if err != nil {
 		return Cart{}, err
 	}
 	if s.bus != nil {
+		requested := quantity
 		updating := &LineUpdating{
 			CartID:     cart.ID,
 			ChannelID:  cart.ChannelID,
 			CustomerID: cart.CustomerID,
 			LineID:     lineID,
-			ProductSku: lineSku,
+			ProductSku: line.ProductSku,
 			Quantity:   &quantity,
+			StockParts: OptionStockParts(line.Options),
 		}
 		if err := s.bus.PublishSync(ctx, updating); err != nil {
 			return Cart{}, fmt.Errorf("update cart line rejected: %w", err)
 		}
-	}
-	if repricedUnit != nil {
-		if _, err := s.repo.UpdateCartLineQuantityPrice(ctx, lineID, quantity, *repricedUnit); err != nil {
-			return Cart{}, fmt.Errorf("update cart line: %w", err)
+		quantity = valueOr(updating.Quantity, requested)
+		if quantity != requested { // a hook moved it, so the new quantity passes the same lock, bounds and tier as the requested one
+			if repricedUnit, err = s.validateQuantityEdit(ctx, cart, line, quantity); err != nil {
+				return Cart{}, err
+			}
 		}
-	} else if _, err := s.repo.UpdateCartLineQuantity(ctx, lineID, quantity); err != nil {
-		return Cart{}, fmt.Errorf("update cart line: %w", err)
+	}
+	if err := s.writeLineQuantity(ctx, line, quantity, repricedUnit); err != nil {
+		return Cart{}, err
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineUpdated{
@@ -734,7 +430,7 @@ func (s *Service) ClearCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 		return err
 	}
 	if err := s.repo.ClearCartLines(ctx, cart.ID); err != nil {
-		return err
+		return fmt.Errorf("clear cart: %w", err)
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Cleared{
@@ -747,365 +443,44 @@ func (s *Service) ClearCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	return nil
 }
 
-// Admin "Order Manager" console - these act on ANY active cart in a permitted channel WITHOUT the ownership check (the admin resolver enforces channel permission instead) and skip the Line* hooks on purpose, since an admin edit shouldn't fire a shopper's stock guards or recovery events; pricing is still resolved server-side, and v1 line editing is simple products only
-
-func (s *Service) adminActiveCart(ctx context.Context, cartID uuid.UUID) (Cart, error) { // must exist and be active - no owner check
-	cart, err := s.repo.GetCartByID(ctx, cartID)
-	if err != nil {
-		return Cart{}, fmt.Errorf("cart not found")
-	}
-	if cart.Status != "active" {
-		return Cart{}, fmt.Errorf("cart is not active")
-	}
-	return cart, nil
-}
-
-func (s *Service) AdminCreateCart(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID) (Cart, error) { // a fresh guest cart when customerID is nil, else the customer's one active cart, since the unique index forbids a second
-	if customerID == nil {
-		return s.CreateGuestCart(ctx, channelID)
-	}
-	return GetOrCreateCustomerCart(ctx, s.repo, *customerID, channelID)
-}
-
-func (s *Service) findHydratedLine(ctx context.Context, cartID, lineID uuid.UUID) (CartLine, error) { // WITH option rows - the bare GetCartLineByID doesn't load options, only the cart-wide list does
+func (s *Service) findHydratedLine(ctx context.Context, cartID, lineID uuid.UUID) (CartLine, error) { // WITH option and component rows - the bare GetCartLineByID loads neither, only the cart-wide list does; a line of another cart is simply not found here
 	lines, err := s.repo.ListCartLinesByCart(ctx, cartID)
 	if err != nil {
-		return CartLine{}, err
+		return CartLine{}, fmt.Errorf("load cart lines: %w", err)
 	}
 	for _, l := range lines {
 		if l.ID == lineID {
 			return l, nil
 		}
 	}
-	return CartLine{}, fmt.Errorf("cart line not found")
+	return CartLine{}, ErrCartLineNotFound
 }
 
-func (s *Service) AdminAddToCart(ctx context.Context, cartID uuid.UUID, sku string, quantity float64) (Cart, error) { // price and name come from the catalog, same as the customer path
-	cart, err := s.adminActiveCart(ctx, cartID)
-	if err != nil {
-		return Cart{}, err
-	}
-	if s.products == nil {
-		return Cart{}, fmt.Errorf("cart: product resolver is not configured")
-	}
-	input := AddCartLineInput{ProductSku: sku, Quantity: quantity}
-	p, perr := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-	if perr != nil {
-		return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, perr)
-	}
-	input.ProductName = p.ProductName
-	input.UnitPrice = p.UnitPrice
-	if best := pricing.BestTier(p.Tiers, input.Quantity, nil, ""); best != nil && *best < input.UnitPrice {
-		input.UnitPrice = *best
-	}
-	res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID) // same gates as the customer path - no plain add for required-options SKUs, no upsert onto a configured line, fail closed on a resolve error, and skip requireds hidden behind an unsatisfied visible_if
-	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
-		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
-	}
-	if oerr == nil && HasVisiblyRequiredOptions(res) {
-		return Cart{}, ErrProductOptionsRequired
-	}
-	if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
-		for _, l := range lines {
-			if l.ProductSku == input.ProductSku && len(l.Options) > 0 {
-				return Cart{}, ErrLineConfigured
-			}
-		}
-	}
-	if _, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input); err != nil {
-		return Cart{}, fmt.Errorf("add cart line: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) AdminUpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, quantity float64) (Cart, error) {
-	cart, err := s.adminActiveCart(ctx, cartID)
-	if err != nil {
-		return Cart{}, err
-	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
-		return Cart{}, err
-	}
-	repricedUnit, _, err := s.validateQuantityEdit(ctx, cart, lineID, quantity) // same guard as the customer path - the admin console must not break the forced-qty invariant or the ordering bounds
-	if err != nil {
-		return Cart{}, err
-	}
-	if repricedUnit != nil {
-		if _, err := s.repo.UpdateCartLineQuantityPrice(ctx, lineID, quantity, *repricedUnit); err != nil {
-			return Cart{}, fmt.Errorf("update cart line: %w", err)
-		}
-	} else if _, err := s.repo.UpdateCartLineQuantity(ctx, lineID, quantity); err != nil {
-		return Cart{}, fmt.Errorf("update cart line: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) AdminRemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID) (Cart, error) {
-	cart, err := s.adminActiveCart(ctx, cartID)
-	if err != nil {
-		return Cart{}, err
-	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
-		return Cart{}, err
-	}
-	if err := s.repo.RemoveCartLine(ctx, lineID); err != nil {
-		return Cart{}, fmt.Errorf("remove cart line: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) AdminClearCart(ctx context.Context, cartID uuid.UUID) (Cart, error) {
-	cart, err := s.adminActiveCart(ctx, cartID)
-	if err != nil {
-		return Cart{}, err
-	}
-	if err := s.repo.ClearCartLines(ctx, cart.ID); err != nil {
-		return Cart{}, fmt.Errorf("clear cart: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
-}
-
-func (s *Service) AdminDuplicateCart(ctx context.Context, sourceCartID uuid.UUID, targetCustomerID *uuid.UUID) (Cart, error) { // the clone lands on the SOURCE's channel - guest when targetCustomerID is nil, else the customer's active cart
-	src, err := s.repo.GetCartByID(ctx, sourceCartID)
-	if err != nil {
-		return Cart{}, fmt.Errorf("source cart not found")
-	}
-	lines, err := s.repo.ListCartLinesByCart(ctx, sourceCartID)
-	if err != nil {
-		return Cart{}, fmt.Errorf("load source lines: %w", err)
-	}
-	dest, err := s.AdminCreateCart(ctx, src.ChannelID, targetCustomerID)
-	if err != nil {
-		return Cart{}, err
-	}
-	for _, l := range lines {
-		switch {
-		case len(l.Components) > 0:
-			comps := make([]AddCartLineComponentInput, len(l.Components)) // cloned verbatim rather than re-resolved through the add path - a duplicate should preserve exactly what the shopper had
-			for i, c := range l.Components {
-				comps[i] = AddCartLineComponentInput{
-					BundleOptionID:    c.BundleOptionID,
-					BundleSelectionID: c.BundleSelectionID,
-					ProductID:         c.ProductID,
-					ProductSku:        c.ProductSku,
-					ProductName:       c.ProductName,
-					UnitPrice:         c.UnitPrice,
-					Quantity:          c.Quantity,
-					SortOrder:         c.SortOrder,
-				}
-			}
-			if _, err := s.repo.UpsertBundleCartLine(ctx, dest.ID, AddBundleLineInput{
-				ProductName: l.ProductName,
-				ProductSku:  l.ProductSku,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-				Components:  comps,
-			}); err != nil {
-				return Cart{}, fmt.Errorf("copy bundle line %q: %w", l.ProductSku, err)
-			}
-		case len(l.Options) > 0:
-			if _, err := s.repo.UpsertConfiguredCartLine(ctx, dest.ID, AddConfiguredLineInput{ // option snapshot rows cloned verbatim - UnitPrice already includes their deltas
-				ProductName: l.ProductName,
-				ProductSku:  l.ProductSku,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-				Options:     l.Options,
-			}); err != nil {
-				return Cart{}, fmt.Errorf("copy configured line %q: %w", l.ProductSku, err)
-			}
-		default:
-			if _, err := s.repo.UpsertCartLineBySku(ctx, dest.ID, AddCartLineInput{
-				ProductSku:  l.ProductSku,
-				ProductName: l.ProductName,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-			}); err != nil {
-				return Cart{}, fmt.Errorf("copy line %q: %w", l.ProductSku, err)
-			}
-		}
-	}
-	return loadCartWithLines(ctx, s.repo, dest.ID)
-}
-
-// Sums by SKU with the guest's unit_price winning, and with no active cart the guest cart is adopted outright - idempotent, so a guest cart already non-active just returns the current active cart
-func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uuid.UUID) (Cart, error) {
-	var resultID uuid.UUID
-	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
-		r := s.repo.WithTx(sqlTx)
-
-		guest, err := r.GetCartByID(ctx, guestCartID)
-		if err != nil {
-			return fmt.Errorf("guest cart not found")
-		}
-		if guest.CustomerID != nil {
-			return fmt.Errorf("not a guest cart")
-		}
-
-		if guest.Status != "active" { // already consumed, so hand back the customer's active cart, creating one if needed
-			cc, err := GetOrCreateCustomerCart(ctx, r, customerID, guest.ChannelID)
-			if err != nil {
-				return err
-			}
-			resultID = cc.ID
-			return nil
-		}
-
-		cc, err := r.GetCartByCustomerAndChannel(ctx, customerID, guest.ChannelID) // no active cart on this store takes the adoption path below, repurposing the guest cart - cross-store merges are rejected
-		if err != nil {
-			if !IsSQLNoRows(err) {
-				return err
-			}
-			adopted, err := r.ReassignCart(ctx, guest.ID, customerID)
-			if err != nil {
-				return err
-			}
-			resultID = adopted.ID
-			return nil
-		}
-		if cc.ChannelID != guest.ChannelID {
-			return ErrCartStoreMismatch
-		}
-
-		if s.bus != nil { // sync pre-commit hook, so a plugin can reject the merge - the bus inside the tx is fine, since subscribers run on the caller's goroutine with no detached fan-out
-			if err := s.bus.PublishSync(ctx, &Merging{
-				GuestCartID:    guest.ID,
-				CustomerCartID: cc.ID,
-				CustomerID:     customerID,
-				ChannelID:      cc.ChannelID,
-			}); err != nil {
-				return fmt.Errorf("merge rejected: %w", err)
-			}
-		}
-
-		if err := r.SetCartMerged(ctx, guest.ID); err != nil { // flipping status FIRST is the serialization point against a concurrent second merge - losing the race skips the upserts and returns the cart as-is
-			if errors.Is(err, ErrCartAlreadyConverted) {
-				resultID = cc.ID
-				return nil
-			}
-			return err
-		}
-		guestLines, err := r.ListCartLinesByCart(ctx, guest.ID)
-		if err != nil {
-			return err
-		}
-		existing, lerr := r.ListCartLinesByCart(ctx, cc.ID) // collision map: a plain guest upsert onto a configured line would sum quantity and reset unit_price with the option rows still attached (the corruption AddToCart rejects with ErrLineConfigured), and a configured guest upsert would silently replace the customer's picks - the customer's line wins either way
-		if lerr != nil {
-			return lerr
-		}
-		existingPlain := make(map[string]bool)
-		existingConfigured := make(map[string]bool)
-		for _, el := range existing {
-			if len(el.Options) > 0 || len(el.Components) > 0 {
-				existingConfigured[el.ProductSku] = true
-			} else {
-				existingPlain[el.ProductSku] = true
-			}
-		}
-		for _, l := range guestLines {
-			if len(l.Components) > 0 {
-				if existingPlain[l.ProductSku] || existingConfigured[l.ProductSku] {
-					continue
-				}
-				comps := make([]AddCartLineComponentInput, len(l.Components)) // the bundle upsert replaces selections wholesale, overwriting quantity and price
-				for i, c := range l.Components {
-					comps[i] = AddCartLineComponentInput{
-						BundleOptionID:    c.BundleOptionID,
-						BundleSelectionID: c.BundleSelectionID,
-						ProductID:         c.ProductID,
-						ProductSku:        c.ProductSku,
-						ProductName:       c.ProductName,
-						UnitPrice:         c.UnitPrice,
-						Quantity:          c.Quantity,
-						SortOrder:         c.SortOrder,
-					}
-				}
-				if _, err := r.UpsertBundleCartLine(ctx, cc.ID, AddBundleLineInput{
-					ProductName: l.ProductName,
-					ProductSku:  l.ProductSku,
-					UnitPrice:   l.UnitPrice,
-					Quantity:    l.Quantity,
-					Components:  comps,
-				}); err != nil {
-					return err
-				}
-				continue
-			}
-			if len(l.Options) > 0 { // same fidelity rule as AdminDuplicateCart - the plain SKU upsert would drop the option snapshots while keeping their price deltas
-				if existingPlain[l.ProductSku] || existingConfigured[l.ProductSku] {
-					continue
-				}
-				if _, err := r.UpsertConfiguredCartLine(ctx, cc.ID, AddConfiguredLineInput{
-					ProductName: l.ProductName,
-					ProductSku:  l.ProductSku,
-					UnitPrice:   l.UnitPrice,
-					Quantity:    l.Quantity,
-					Options:     l.Options,
-				}); err != nil {
-					return err
-				}
-				continue
-			}
-			if existingConfigured[l.ProductSku] {
-				continue
-			}
-			if _, err := r.UpsertCartLineBySku(ctx, cc.ID, AddCartLineInput{
-				ProductName: l.ProductName,
-				ProductSku:  l.ProductSku,
-				UnitPrice:   l.UnitPrice,
-				Quantity:    l.Quantity,
-			}); err != nil {
-				return err
-			}
-		}
-		if saved, serr := r.ListSavedItems(ctx, guest.ID); serr == nil { // saved-for-later comes along too - the adoption path keeps them via the same cart_id, but merging into an existing cart would drop them when the guest cart is tombstoned; the upsert dedupes by (cart_id, sku)
-			for _, si := range saved {
-				if _, err := r.SaveItem(ctx, cc.ID, si.ProductSku, si.ProductName, si.Quantity); err != nil {
-					return err
-				}
-			}
-		}
-		if err := r.SetCheckout(ctx, cc.ID, mergeCheckout(guest.Checkout, cc.Checkout)); err != nil { // the adoption path keeps checkout state on the same row; a merge carries it across
-			return err
-		}
-		if guest.Email != "" { // the receipt address the guest typed wins, like the rest of their checkout
-			if err := r.SetEmail(ctx, cc.ID, guest.Email); err != nil {
-				return err
-			}
-		}
-		resultID = cc.ID
-		return nil
-	})
-	if err != nil {
-		return Cart{}, err
-	}
-	if s.bus != nil {
-		merged, lookupErr := s.repo.GetCartByID(ctx, resultID) // the tx has committed, and resultID is either the adopted guest cart or the customer's existing one
-		if lookupErr == nil {
-			s.bus.Publish(ctx, &Merged{
-				CustomerCartID: resultID,
-				GuestCartID:    guestCartID,
-				CustomerID:     customerID,
-				ChannelID:      merged.ChannelID,
-			})
-		}
-	}
-	return loadCartWithLines(ctx, s.repo, resultID)
-}
-
-// A bundle line whose bundle or component left the channel can't be placed - only a not-sold answer refuses, never a pricing hiccup
-func (s *Service) ValidateBundleLines(ctx context.Context, c Cart) error {
+// Placement's last word on the lines - a bundle whose bundle or component left the channel can't be placed, and every other line must sit inside its product's min/max/step, since a merged guest cart or two concurrent adds can each sum a line past a bound the add path checked
+// Only a definite catalog answer refuses, never a pricing hiccup, and it reads the catalog directly - bounds don't depend on a remote price
+func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 	if s.products == nil {
 		return nil
 	}
 	for _, l := range c.Lines {
+		if l.IsGift {
+			continue
+		}
 		if len(l.Components) == 0 {
+			p, err := s.products.ResolveSimplePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
+			if err != nil {
+				continue
+			}
+			if err := validateQtyBounds(p, l.Quantity); err != nil {
+				return fmt.Errorf("%s: %w", l.ProductSku, err)
+			}
 			continue
 		}
 		if _, err := s.products.ResolveBundleBySKU(ctx, c.ChannelID, l.ProductSku); errors.Is(err, ErrProductNotPublished) {
 			return err
 		}
 		for _, comp := range l.Components {
-			if _, err := s.resolvePricing(ctx, c.ChannelID, comp.ProductSku, c.CustomerID); errors.Is(err, ErrProductNotPublished) || errors.Is(err, ErrProductNotPurchasable) {
+			if _, err := s.products.ResolveSimplePricing(ctx, c.ChannelID, comp.ProductSku, c.CustomerID); errors.Is(err, ErrProductNotPublished) || errors.Is(err, ErrProductNotPurchasable) {
 				return fmt.Errorf("bundle component %s: %w", comp.ProductSku, err)
 			}
 		}
@@ -1128,10 +503,7 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 		if err != nil {
 			continue
 		}
-		unit := p.UnitPrice
-		if best := pricing.BestTier(p.Tiers, l.Quantity, nil, ""); best != nil && *best < unit {
-			unit = *best
-		}
+		unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, l.Quantity)
 		for _, o := range l.Options {
 			unit += o.PriceDelta
 		}
@@ -1147,7 +519,41 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	return c
 }
 
+func (s *Service) resolvePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (SimplePricing, error) { // the single funnel for cart pricing, catalog price then the remote override when wired, so every call site applies it uniformly
+	p, err := s.products.ResolveSimplePricing(ctx, channelID, sku, customerID)
+	if err != nil {
+		return p, err
+	}
+	if s.remotePricing != nil {
+		cents, ok, rerr := s.remotePricing.Price(ctx, channelID, sku, customerID, p.UnitPrice)
+		if rerr != nil {
+			return SimplePricing{}, rerr
+		}
+		if ok {
+			p.UnitPrice = cents
+		}
+	}
+	return p, nil
+}
+
+func (s *Service) ListAbandoned(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) { // feeds the abandoned-cart scanner - one channel's active non-empty carts last touched between maxAge and threshold, not yet notified
+	return s.repo.ListAbandoned(ctx, channelID, threshold, maxAge, limit)
+}
+
+func (s *Service) MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) error { // stamped so each abandonment episode enrolls once
+	return s.repo.MarkAbandonedNotified(ctx, ids)
+}
+
 // --- helpers ---
+
+// The form customer emails take, so recovery and the guest-order claim match it - SetCartEmail and the details step share it
+func normalizeCartEmail(email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
+		return "", ErrCartEmailInvalid
+	}
+	return email, nil
+}
 
 // A nil callerID is the guest path, allowed only for guest carts - not-found and not-authorized both return "forbidden" to avoid UUID enumeration
 func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
@@ -1177,47 +583,18 @@ func checkCartAccess(cart Cart, callerID *uuid.UUID) error {
 	return nil
 }
 
-// mergeCheckout is what a customer cart holds after a guest cart merges into it - the guest's selections win, since that is what the shopper was just filling in, and the customer cart's fill only what the guest left empty
-func mergeCheckout(guest, customer Checkout) Checkout {
-	out := customer
-	if guest.ShippingAddress != nil {
-		out.ShippingAddress, out.ShippingAddressID = guest.ShippingAddress, guest.ShippingAddressID
+func valueOr[T any](p *T, fallback T) T { // a hook that nils an override field means "keep the input"
+	if p == nil {
+		return fallback
 	}
-	if guest.ShippingAddress != nil || guest.BillingAddress != nil { // billing travels as a unit with its same-as-shipping flag
-		out.BillingSameAsShipping = guest.BillingSameAsShipping
-		out.BillingAddress, out.BillingAddressID = guest.BillingAddress, guest.BillingAddressID
+	return *p
+}
+
+func validQuantity(q float64) error { // NaN fails every comparison, so it's refused explicitly rather than slipping past the bounds
+	if math.IsNaN(q) || q < minLineQuantity || q > maxLineQuantity {
+		return fmt.Errorf("%w, got %v", ErrQuantityInvalid, q)
 	}
-	if guest.ShippingCarrierSlug != "" {
-		out.ShippingCarrierSlug, out.ShippingMethodCode = guest.ShippingCarrierSlug, guest.ShippingMethodCode
-	}
-	if guest.PaymentProviderSlug != "" {
-		out.PaymentProviderSlug = guest.PaymentProviderSlug
-	}
-	if guest.PONumber != "" {
-		out.PONumber = guest.PONumber
-	}
-	if !guest.Destination.IsZero() {
-		out.Destination = guest.Destination
-	}
-	if guest.ContactPhone != "" {
-		out.ContactPhone = guest.ContactPhone
-	}
-	if guest.PurchaseType == PurchaseBusiness { // the business details travel as a unit with the purchase type
-		out.PurchaseType, out.Company, out.BusinessIDs = guest.PurchaseType, guest.Company, guest.BusinessIDs
-	}
-	if guest.PickupContact != nil {
-		out.PickupContact = guest.PickupContact
-	}
-	out.UseStoreCredit = customer.UseStoreCredit // a guest can't hold store credit
-	seen := make(map[string]bool)
-	out.GiftCardCodes = nil
-	for _, c := range append(append([]string(nil), guest.GiftCardCodes...), customer.GiftCardCodes...) {
-		if !seen[c] {
-			seen[c] = true
-			out.GiftCardCodes = append(out.GiftCardCodes, c)
-		}
-	}
-	return out
+	return nil
 }
 
 func validateQtyBounds(p SimplePricing, qty float64) error {
@@ -1261,12 +638,4 @@ func loadCartWithLines(ctx context.Context, repo Repository, cartID uuid.UUID) (
 	}
 	cart.Lines = lines
 	return cart, nil
-}
-
-func (s *Service) ListAbandoned(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) { // feeds the abandoned-cart scanner - one channel's active non-empty carts last touched between maxAge and threshold, not yet notified
-	return s.repo.ListAbandoned(ctx, channelID, threshold, maxAge, limit)
-}
-
-func (s *Service) MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) error { // stamped so each abandonment episode enrolls once
-	return s.repo.MarkAbandonedNotified(ctx, ids)
 }

@@ -22,15 +22,22 @@ RETURNING *;
 -- name: DeleteProductDownload :exec
 DELETE FROM catalog_product_downloads WHERE id = $1;
 
--- Download grants (per-buyer access, created at order placement)
+-- Download grants (per-buyer access, created once the order's payment is secured)
 
--- name: CreateDownloadGrant :one
+-- name: CreateDownloadGrant :execrows
+-- Zero rows when the order already holds a grant for this file - order.placed and payment changes both ask for grants
 INSERT INTO download_grants (
     token, order_id, customer_id, email, product_id, download_id,
     title, url, max_downloads, expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING *;
+ON CONFLICT (order_id, download_id) WHERE order_id IS NOT NULL DO NOTHING;
+
+-- name: RevokeOrderDownloadGrants :execrows
+-- Expires the order's live grants - a cancelled, voided or refunded order stops serving its files
+UPDATE download_grants
+SET    expires_at = NOW()
+WHERE  order_id = $1 AND (expires_at IS NULL OR expires_at > NOW());
 
 -- name: GetDownloadGrantByToken :one
 SELECT * FROM download_grants WHERE token = $1;

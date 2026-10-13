@@ -89,8 +89,8 @@ WHERE c.channel_id = $1
   AND ($4::timestamptz IS NULL OR c.updated_at < $4::timestamptz)
   AND (
     $5::text IS NULL
-    OR cu.email ILIKE '%' || $5::text || '%'
-    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || $5::text || '%'
+    OR cu.email ILIKE '%' || escape_like($5::text) || '%'
+    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like($5::text) || '%'
   )
 `
 
@@ -181,7 +181,7 @@ func (q *Queries) DeleteCartLinesByCart(ctx context.Context, cartID uuid.UUID) e
 	return err
 }
 
-const deleteSavedItem = `-- name: DeleteSavedItem :exec
+const deleteSavedItem = `-- name: DeleteSavedItem :execrows
 DELETE FROM cart_saved_items WHERE id = $1 AND cart_id = $2
 `
 
@@ -190,9 +190,12 @@ type DeleteSavedItemParams struct {
 	CartID uuid.UUID `json:"cart_id"`
 }
 
-func (q *Queries) DeleteSavedItem(ctx context.Context, arg DeleteSavedItemParams) error {
-	_, err := q.db.ExecContext(ctx, deleteSavedItem, arg.ID, arg.CartID)
-	return err
+func (q *Queries) DeleteSavedItem(ctx context.Context, arg DeleteSavedItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSavedItem, arg.ID, arg.CartID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getCartByCustomerAndChannel = `-- name: GetCartByCustomerAndChannel :one
@@ -368,37 +371,41 @@ func (q *Queries) ListCartLinesByCart(ctx context.Context, cartID uuid.UUID) ([]
 
 const listCarts = `-- name: ListCarts :many
 SELECT
-    c.id                                              AS id,
-    c.customer_id                                     AS customer_id,
-    c.channel_id                                      AS channel_id,
-    c.status                                          AS status,
-    c.created_at                                      AS created_at,
-    c.updated_at                                      AS updated_at,
-    cu.email                                          AS customer_email,
-    cu.first_name                                     AS customer_first_name,
-    cu.last_name                                      AS customer_last_name,
-    COALESCE(li.item_count, 0)::int                   AS item_count,
-    COALESCE(li.subtotal, 0)::bigint                  AS subtotal
-FROM carts c
-LEFT JOIN customers cu ON cu.id = c.customer_id
-LEFT JOIN (
-    SELECT cart_id,
-           COUNT(*)::int                              AS item_count,
-           ROUND(SUM(quantity * unit_price))::bigint  AS subtotal
-    FROM cart_lines
-    GROUP BY cart_id
-) li ON li.cart_id = c.id
-WHERE c.channel_id = $1
-  AND ($2::uuid IS NULL OR c.customer_id = $2::uuid)
-  AND ($3::text IS NULL OR c.status = $3::text)
-  AND ($4::timestamptz IS NULL OR c.updated_at < $4::timestamptz)
-  AND (
-    $5::text IS NULL
-    OR cu.email ILIKE '%' || $5::text || '%'
-    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || $5::text || '%'
-  )
-ORDER BY c.updated_at DESC
-LIMIT $7 OFFSET $6
+    p.id                                              AS id,
+    p.customer_id                                     AS customer_id,
+    p.channel_id                                      AS channel_id,
+    p.status                                          AS status,
+    p.created_at                                      AS created_at,
+    p.updated_at                                      AS updated_at,
+    p.customer_email                                  AS customer_email,
+    p.customer_first_name                             AS customer_first_name,
+    p.customer_last_name                              AS customer_last_name,
+    li.item_count::int                                AS item_count,
+    li.subtotal::bigint                               AS subtotal
+FROM (
+    SELECT c.id, c.customer_id, c.channel_id, c.status, c.created_at, c.updated_at,
+           cu.email AS customer_email, cu.first_name AS customer_first_name, cu.last_name AS customer_last_name
+    FROM carts c
+    LEFT JOIN customers cu ON cu.id = c.customer_id
+    WHERE c.channel_id = $1
+      AND ($2::uuid IS NULL OR c.customer_id = $2::uuid)
+      AND ($3::text IS NULL OR c.status = $3::text)
+      AND ($4::timestamptz IS NULL OR c.updated_at < $4::timestamptz)
+      AND (
+        $5::text IS NULL
+        OR cu.email ILIKE '%' || escape_like($5::text) || '%'
+        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || escape_like($5::text) || '%'
+      )
+    ORDER BY c.updated_at DESC
+    LIMIT $7 OFFSET $6
+) p
+CROSS JOIN LATERAL (
+    SELECT COUNT(*)::int                                              AS item_count,
+           COALESCE(ROUND(SUM(l.quantity * l.unit_price)), 0)::bigint AS subtotal
+    FROM cart_lines l
+    WHERE l.cart_id = p.id
+) li
+ORDER BY p.updated_at DESC
 `
 
 type ListCartsParams struct {
@@ -425,7 +432,7 @@ type ListCartsRow struct {
 	Subtotal          int64          `json:"subtotal"`
 }
 
-// Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. item_count + subtotal are computed from cart_lines (subtotal is an estimate - fractional-cent rounding, no tax/shipping)
+// Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
 func (q *Queries) ListCarts(ctx context.Context, arg ListCartsParams) ([]ListCartsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCarts,
 		arg.ChannelID,

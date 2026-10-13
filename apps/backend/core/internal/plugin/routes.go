@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -27,11 +28,22 @@ type pluginRoute struct {
 var routeRegistry struct {
 	mu     sync.Mutex
 	routes []pluginRoute
+	probe  *http.ServeMux
 }
 
-func (h *Host) RegisterRoute(slug, pattern string, handler sdk.RouteHandler) error {
+// A pattern the mux would refuse is an error naming the plugin here, not a bare net/http panic when RouteHandler builds the mux
+func (h *Host) RegisterRoute(slug, pattern string, handler sdk.RouteHandler) (err error) {
 	routeRegistry.mu.Lock()
 	defer routeRegistry.mu.Unlock()
+	if routeRegistry.probe == nil {
+		routeRegistry.probe = http.NewServeMux()
+	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("plugin %s: route %q: %v", slug, pattern, rec)
+		}
+	}()
+	routeRegistry.probe.HandleFunc(qualifyPattern(slug, pattern), func(http.ResponseWriter, *http.Request) {})
 	routeRegistry.routes = append(routeRegistry.routes, pluginRoute{slug: slug, pattern: pattern, handler: handler})
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 type TaxEstimateInput struct {
@@ -45,8 +45,13 @@ func (s *Service) EstimateTax(ctx context.Context, in TaxEstimateInput) (int64, 
 	cc := &checkoutContext{customer: c, shipping: addr, store: in.Store, cart: in.Cart, subtotal: subtotal}
 	discount := max(in.DiscountCents, 0)
 
+	// A fail-closed provider's error is returned, as placement does - quoting core tax here showed a number checkout would then refuse
 	if s.remoteTax != nil {
-		if cents, ok, err := s.remoteTax.Tax(ctx, remoteTaxInputFromCheckout(cc, discount, in.ShippingCents)); err == nil && ok {
+		cents, ok, err := s.remoteTax.Tax(ctx, remoteTaxInputFromCheckout(cc, discount, in.ShippingCents))
+		if err != nil {
+			return 0, err
+		}
+		if ok {
 			return cents, nil
 		}
 	}

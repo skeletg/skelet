@@ -3,13 +3,13 @@ package ordermail
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
@@ -137,8 +137,8 @@ func TestResendShipmentRejectsAFulfillmentFromAnotherOrder(t *testing.T) {
 
 	mail := &capturedMail{}
 	svc = resendService(o, fuls, mail)
-	if err := svc.Resend(context.Background(), o.ID, email.KeyOrderShipment, &foreign); err == nil {
-		t.Error("Resend accepted a foreign fulfillment id")
+	if err := svc.Resend(context.Background(), o.ID, email.KeyOrderShipment, &foreign); !errors.Is(err, ErrFulfillmentNotOnOrder) {
+		t.Errorf("a foreign fulfillment id = %v, want ErrFulfillmentNotOnOrder", err)
 	}
 	if len(mail.msgs) != 0 {
 		t.Errorf("sent %d mails on a refused resend, want none", len(mail.msgs))
@@ -153,8 +153,8 @@ func TestResendShipmentNeedsAShipment(t *testing.T) {
 	if err == nil {
 		t.Fatal("resent a shipment notice for an order with no shipments")
 	}
-	if !strings.Contains(err.Error(), "no shipment") {
-		t.Errorf("error = %q, want it to name the missing shipment", err)
+	if !errors.Is(err, ErrNoShipment) {
+		t.Errorf("error = %v, want ErrNoShipment", err)
 	}
 	if len(mail.msgs) != 0 {
 		t.Errorf("sent %d mails, want none", len(mail.msgs))
@@ -165,8 +165,8 @@ func TestResendShipmentNeedsAShipment(t *testing.T) {
 func TestResendRejectsAnUnknownMessage(t *testing.T) {
 	mail := &capturedMail{}
 	svc := resendService(placedOrder(), nil, mail)
-	if err := svc.Resend(context.Background(), uuid.New(), "password_reset", nil); err == nil {
-		t.Fatal("accepted a non-order message key")
+	if err := svc.Resend(context.Background(), uuid.New(), "password_reset", nil); !errors.Is(err, ErrNotResendable) {
+		t.Fatalf("a non-order message key = %v, want ErrNotResendable", err)
 	}
 	if len(mail.msgs) != 0 {
 		t.Errorf("sent %d mails for an unknown key, want none", len(mail.msgs))
@@ -185,5 +185,36 @@ func TestResendReportsFailures(t *testing.T) {
 	svc = resendService(order.Order{ID: o.ID, ChannelID: o.ChannelID, Number: "1002"}, nil, &capturedMail{})
 	if err := svc.Resend(context.Background(), o.ID, email.KeyOrderConfirmation, nil); err == nil {
 		t.Error("resent to an order with no email address, want an error")
+	}
+}
+
+type memLog struct{ sent map[string]bool }
+
+func (m *memLog) AlreadySent(_ context.Context, id uuid.UUID, kind, ref string) (bool, error) {
+	return m.sent[id.String()+kind+ref], nil
+}
+
+func (m *memLog) RecordSent(_ context.Context, id uuid.UUID, kind, ref string) error {
+	m.sent[id.String()+kind+ref] = true
+	return nil
+}
+
+// Keyed on the order's payment reference, which every refund shares, a second partial refund never mailed
+func TestEveryRefundMailsOnce(t *testing.T) {
+	o := placedOrder()
+	mail := &capturedMail{}
+	svc := resendService(o, nil, mail)
+	svc.sendLog = &memLog{sent: map[string]bool{}}
+	bus := events.NewBus()
+	svc.Register(bus)
+	ctx := context.Background()
+	first, second := uuid.New(), uuid.New()
+	for _, memo := range []uuid.UUID{first, first, second} {
+		if err := bus.DispatchAsyncNow(ctx, &order.OrderRefunded{OrderID: o.ID, ChannelID: o.ChannelID, CreditMemoID: memo}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(mail.msgs) != 2 {
+		t.Fatalf("sent %d refund mails for two refunds (one delivered twice), want 2", len(mail.msgs))
 	}
 }

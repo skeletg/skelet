@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
@@ -117,7 +118,7 @@ func TestStarterContentSeedsOnceAndTakesTheReceipt(t *testing.T) {
 	h.Settle(t)
 
 	blocks, emails, flows := h.SeedStarterContent(t, f.Channel.ID)
-	if blocks == 0 || emails != 6 || flows != 6 {
+	if blocks == 0 || emails != 8 || flows != 8 {
 		t.Fatalf("seeded %d blocks, %d emails, %d flows - want some blocks and one email and one flow per transactional slot", blocks, emails, flows)
 	}
 	if b, e, fl := h.SeedStarterContent(t, f.Channel.ID); b+e+fl != 0 {
@@ -139,5 +140,30 @@ func TestStarterContentSeedsOnceAndTakesTheReceipt(t *testing.T) {
 	runs := h.FlowRuns(t, flowID)
 	if len(runs) != 1 || runs[0].GetStatus() != "completed" {
 		t.Fatalf("seeded order_placed flow has %d runs, want the one order enrolled and completed", len(runs))
+	}
+}
+
+func TestTheSeededFlowTakesTheSignupConfirmation(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 5, 2500)
+	h.Settle(t)
+	h.SeedStarterContent(t, f.Channel.ID)
+	flowID := h.FlowIDByTrigger(t, f.Channel.ID, signalsapi.TriggerSignupConfirmation)
+
+	created, err := h.D.Form.Create(h.Ctx, signupform.SaveInput{ChannelID: f.Channel.ID, Slug: "e2e-seeded-" + uuid.NewString()[:8], Name: "News", Status: "active"})
+	if err != nil {
+		t.Fatalf("create form: %v", err)
+	}
+	addr := "seeded-" + uuid.NewString()[:8] + "@e2e.test"
+	h.Mail.Reset()
+	if _, err := h.D.Form.Submit(h.Ctx, f.Channel.ID, created.Slug, addr, "Ana"); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if got := len(h.Mail.To(addr)); got != 0 {
+		t.Errorf("core delivered %d mail(s) beside the seeded flow, want none (subjects: %v)", got, h.Mail.SubjectsTo(addr))
+	}
+	runs := h.FlowRuns(t, flowID)
+	if len(runs) != 1 || runs[0].GetStatus() != "completed" {
+		t.Fatalf("seeded signup_confirmation flow has %d runs, want the one guest run completed in the call", len(runs))
 	}
 }

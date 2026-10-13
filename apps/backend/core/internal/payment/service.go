@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -168,7 +169,7 @@ func (s *Service) ValidatePaymentForChannel(ctx context.Context, channelID uuid.
 			return nil
 		}
 	}
-	return fmt.Errorf("payment: provider %q not available in %s", providerSlug, country)
+	return fmt.Errorf("%w: %q in %s", ErrProviderNotInCountry, providerSlug, country)
 }
 
 // The channel's enabled methods accepting country - a "specific" mode method drops out unless the country is in its allow-list, case-insensitive
@@ -208,28 +209,31 @@ func (s *Service) ListEligiblePaymentMethods(ctx context.Context, channelID uuid
 	return out, nil
 }
 
-// Mirrors shipping's ReplaceMethodCountries
+// Mirrors shipping's ReplaceMethodCountries - one transaction, since a failure after the clear left a "specific countries" method with none, gone from checkout everywhere
 func (s *Service) SetPaymentMethodCountries(ctx context.Context, channelID uuid.UUID, providerSlug, mode string, countries []string) error {
 	if _, err := GetProvider(providerSlug); err != nil {
 		return err
 	}
-	m, err := s.repo.SetPaymentMethodCountryMode(ctx, channelID, providerSlug, mode)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.ClearPaymentMethodCountries(ctx, m.ID); err != nil {
-		return err
-	}
-	for _, c := range countries {
-		c = strings.ToUpper(strings.TrimSpace(c))
-		if c == "" {
-			continue
-		}
-		if err := s.repo.AddCountryToPaymentMethod(ctx, m.ID, c); err != nil {
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.repo.WithTx(t)
+		m, err := r.SetPaymentMethodCountryMode(ctx, channelID, providerSlug, mode)
+		if err != nil {
 			return err
 		}
-	}
-	return nil
+		if err := r.ClearPaymentMethodCountries(ctx, m.ID); err != nil {
+			return err
+		}
+		for _, c := range countries {
+			c = strings.ToUpper(strings.TrimSpace(c))
+			if c == "" {
+				continue
+			}
+			if err := r.AddCountryToPaymentMethod(ctx, m.ID, c); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ErrProviderNotInstalled when no row exists, i.e - Sync hasn't run for this provider - admins shouldn't see the option, but the API guards against direct mutation
@@ -285,7 +289,7 @@ func (s *Service) Vault(ctx context.Context, providerSlug string, req VaultReque
 	}
 	vaulter, ok := reg.Provider.(Vaulter)
 	if !ok || reg.IsOffline {
-		return VaultedMethod{}, fmt.Errorf("provider %q does not support saved payment methods", providerSlug)
+		return VaultedMethod{}, fmt.Errorf("%w: %q", ErrVaultUnsupported, providerSlug)
 	}
 	method, err := s.repo.GetPaymentMethod(ctx, req.ChannelID, providerSlug)
 	if err != nil {
@@ -305,7 +309,7 @@ func (s *Service) DeleteVaulted(ctx context.Context, providerSlug string, req Va
 	}
 	vaulter, ok := reg.Provider.(Vaulter)
 	if !ok {
-		return fmt.Errorf("provider %q does not support saved payment methods", providerSlug)
+		return fmt.Errorf("%w: %q", ErrVaultUnsupported, providerSlug)
 	}
 	return vaulter.DeleteVaultedPaymentMethod(ctx, req)
 }
@@ -335,13 +339,19 @@ func (s *Service) ChargeOffSession(ctx context.Context, providerSlug string, req
 		// No client is present to run a challenge, so treat it as declined and let dunning schedule a retry - the issuer may approve a later attempt
 		return "", fmt.Errorf("gateway requires customer action (3DS) - cannot complete off-session")
 	}
+	// The amount was missing, leaving it to each gateway what a capture of nothing means, and the key named only the invoice - a dunning retry is a new authorization under the same key, which a gateway answers from the first attempt or refuses
 	if _, err := reg.Provider.Capture(ctx, CaptureRequest{
 		OrderID:           req.OrderID,
 		ChannelID:         req.ChannelID,
 		ProviderReference: auth.ProviderReference,
+		AmountCents:       req.AmountCents,
 		CurrencyCode:      req.CurrencyCode,
-		IdempotencyKey:    "offsession-" + req.OrderID.String(),
+		IdempotencyKey:    "offsession-" + req.OrderID.String() + "-" + auth.ProviderReference,
 	}); err != nil {
+		// An authorization nobody captures holds the customer's money until it expires - release it
+		if _, verr := reg.Provider.Void(ctx, VoidRequest{OrderID: req.OrderID, ChannelID: req.ChannelID, ProviderReference: auth.ProviderReference}); verr != nil {
+			log.Printf("[payment] void uncaptured off-session authorization %s: %v", auth.ProviderReference, verr)
+		}
 		return "", fmt.Errorf("capture after authorize: %w", err)
 	}
 	return auth.ProviderReference, nil

@@ -7,20 +7,46 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
 const countLocaleReferences = `-- name: CountLocaleReferences :one
 SELECT (
-    (SELECT COUNT(*) FROM channels                WHERE default_locale = LOWER($1)) +
-    (SELECT COUNT(*) FROM channel_locales         WHERE locale_code    = LOWER($1)) +
-    (SELECT COUNT(*) FROM catalog_product_content    WHERE locale         = LOWER($1)) +
-    (SELECT COUNT(*) FROM admin_role_permission_scopes WHERE locale         = LOWER($1)) +
-    (SELECT COUNT(*) FROM config_values              WHERE locale         = LOWER($1))
+    (SELECT COUNT(*) FROM channels                                WHERE default_locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM channel_locales                         WHERE locale_code = LOWER($1)) +
+    (SELECT COUNT(*) FROM config_values                           WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM admin_role_permission_scopes            WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_attribute_content               WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_attribute_value_content         WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_category_content                WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_collection_content              WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_product_attribute_locale_values WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_product_bundle_option_content   WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_product_content                 WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_product_option_content          WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM catalog_product_option_value_content    WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM blog_author_content                     WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM blog_category_content                   WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM blog_post_content                       WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM blog_tag_content                        WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_attribute_content                   WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_attribute_group_content             WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_attribute_value_content             WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_page_content                        WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_page_type_content                   WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM cms_page_variant_content                WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM menu_item_translations                  WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM promotion_rule_contents                 WHERE locale = LOWER($1)) +
+    (SELECT COUNT(*) FROM review_question_content                 WHERE locale = LOWER($1))
 )::bigint AS total
 `
 
-// Total references across every locale-bearing column - used by the delete guard to refuse with a friendly count instead of a raw FK violation
+// Every column holding authored content or configuration in a locale - the FK tables would refuse the delete with a raw violation, and the rest (blog, CMS, menus, promotions) were orphaned silently
+// Reviews, page comments and page revisions are left out on purpose: they record what language something was written in, and counting them would make a locale undeletable forever
+// locale_references_test.go pins this list against the schema
 func (q *Queries) CountLocaleReferences(ctx context.Context, lower string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countLocaleReferences, lower)
 	var total int64
@@ -259,57 +285,68 @@ func (q *Queries) ListLocales(ctx context.Context) ([]Locale, error) {
 }
 
 const updateLocale = `-- name: UpdateLocale :one
-UPDATE locales
-SET name                     = $2,
-    native_name              = $3,
-    is_active                = $4,
-    is_rtl                   = $5,
-    sort_order               = $6,
-    date_format              = $7,
-    time_format              = $8,
-    decimal_separator        = $9,
-    thousands_separator      = $10,
-    first_day_of_week        = $11,
-    -- NULLIF: a locale with no default country round-trips as '' through the merge,
-    -- and '' violates the countries FK - blank means NULL here
-    default_country_code     = NULLIF(UPPER($12), ''),
-    flag_emoji               = $13,
-    hreflang_value           = LOWER($14),
-    script                   = $15,
-    plural_rule              = $16,
-    email_from_name_override = $17,
-    description              = $18,
-    metadata                 = $19,
+WITH prior AS (
+    SELECT code, is_active FROM locales WHERE code = LOWER($20) FOR UPDATE
+)
+UPDATE locales l
+SET name                     = COALESCE($1, l.name),
+    native_name              = COALESCE($2, l.native_name),
+    is_active                = COALESCE($3, l.is_active),
+    is_rtl                   = COALESCE($4, l.is_rtl),
+    sort_order               = COALESCE($5, l.sort_order),
+    date_format              = COALESCE($6, l.date_format),
+    time_format              = COALESCE($7, l.time_format),
+    decimal_separator        = COALESCE($8, l.decimal_separator),
+    thousands_separator      = COALESCE($9, l.thousands_separator),
+    first_day_of_week        = COALESCE($10, l.first_day_of_week),
+    -- Blank clears to NULL, since '' violates the countries FK
+    default_country_code     = CASE WHEN $11::bool
+                                    THEN NULLIF(UPPER($12::text), '')
+                                    ELSE l.default_country_code END,
+    flag_emoji               = COALESCE($13, l.flag_emoji),
+    hreflang_value           = COALESCE(LOWER($14::text), l.hreflang_value),
+    script                   = COALESCE($15, l.script),
+    plural_rule              = COALESCE($16, l.plural_rule),
+    email_from_name_override = COALESCE($17, l.email_from_name_override),
+    description              = COALESCE($18, l.description),
+    metadata                 = COALESCE($19::jsonb, l.metadata),
     updated_at               = NOW()
-WHERE code = LOWER($1)
-RETURNING code, name, native_name, is_active, is_rtl, sort_order, created_at, updated_at, date_format, time_format, decimal_separator, thousands_separator, first_day_of_week, default_country_code, flag_emoji, hreflang_value, script, plural_rule, email_from_name_override, description, metadata
+FROM prior
+WHERE l.code = prior.code
+RETURNING l.code, l.name, l.native_name, l.is_active, l.is_rtl, l.sort_order, l.created_at, l.updated_at, l.date_format, l.time_format, l.decimal_separator, l.thousands_separator, l.first_day_of_week, l.default_country_code, l.flag_emoji, l.hreflang_value, l.script, l.plural_rule, l.email_from_name_override, l.description, l.metadata, prior.is_active AS was_active
 `
 
 type UpdateLocaleParams struct {
-	Lower                 string          `json:"lower"`
-	Name                  string          `json:"name"`
-	NativeName            string          `json:"native_name"`
-	IsActive              bool            `json:"is_active"`
-	IsRtl                 bool            `json:"is_rtl"`
-	SortOrder             int32           `json:"sort_order"`
-	DateFormat            string          `json:"date_format"`
-	TimeFormat            string          `json:"time_format"`
-	DecimalSeparator      string          `json:"decimal_separator"`
-	ThousandsSeparator    string          `json:"thousands_separator"`
-	FirstDayOfWeek        int16           `json:"first_day_of_week"`
-	Upper                 interface{}     `json:"upper"`
-	FlagEmoji             string          `json:"flag_emoji"`
-	Lower_2               string          `json:"lower_2"`
-	Script                string          `json:"script"`
-	PluralRule            string          `json:"plural_rule"`
-	EmailFromNameOverride string          `json:"email_from_name_override"`
-	Description           string          `json:"description"`
-	Metadata              json.RawMessage `json:"metadata"`
+	Name                  sql.NullString        `json:"name"`
+	NativeName            sql.NullString        `json:"native_name"`
+	IsActive              sql.NullBool          `json:"is_active"`
+	IsRtl                 sql.NullBool          `json:"is_rtl"`
+	SortOrder             sql.NullInt32         `json:"sort_order"`
+	DateFormat            sql.NullString        `json:"date_format"`
+	TimeFormat            sql.NullString        `json:"time_format"`
+	DecimalSeparator      sql.NullString        `json:"decimal_separator"`
+	ThousandsSeparator    sql.NullString        `json:"thousands_separator"`
+	FirstDayOfWeek        sql.NullInt16         `json:"first_day_of_week"`
+	SetCountry            bool                  `json:"set_country"`
+	DefaultCountryCode    sql.NullString        `json:"default_country_code"`
+	FlagEmoji             sql.NullString        `json:"flag_emoji"`
+	HreflangValue         sql.NullString        `json:"hreflang_value"`
+	Script                sql.NullString        `json:"script"`
+	PluralRule            sql.NullString        `json:"plural_rule"`
+	EmailFromNameOverride sql.NullString        `json:"email_from_name_override"`
+	Description           sql.NullString        `json:"description"`
+	Metadata              pqtype.NullRawMessage `json:"metadata"`
+	Code                  string                `json:"code"`
 }
 
-func (q *Queries) UpdateLocale(ctx context.Context, arg UpdateLocaleParams) (Locale, error) {
+type UpdateLocaleRow struct {
+	Locale    Locale `json:"locale"`
+	WasActive bool   `json:"was_active"`
+}
+
+// One statement instead of read-merge-write: an unset field keeps its value, and the prior is_active comes back so the caller can tell a real flip
+func (q *Queries) UpdateLocale(ctx context.Context, arg UpdateLocaleParams) (UpdateLocaleRow, error) {
 	row := q.db.QueryRowContext(ctx, updateLocale,
-		arg.Lower,
 		arg.Name,
 		arg.NativeName,
 		arg.IsActive,
@@ -320,38 +357,41 @@ func (q *Queries) UpdateLocale(ctx context.Context, arg UpdateLocaleParams) (Loc
 		arg.DecimalSeparator,
 		arg.ThousandsSeparator,
 		arg.FirstDayOfWeek,
-		arg.Upper,
+		arg.SetCountry,
+		arg.DefaultCountryCode,
 		arg.FlagEmoji,
-		arg.Lower_2,
+		arg.HreflangValue,
 		arg.Script,
 		arg.PluralRule,
 		arg.EmailFromNameOverride,
 		arg.Description,
 		arg.Metadata,
+		arg.Code,
 	)
-	var i Locale
+	var i UpdateLocaleRow
 	err := row.Scan(
-		&i.Code,
-		&i.Name,
-		&i.NativeName,
-		&i.IsActive,
-		&i.IsRtl,
-		&i.SortOrder,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DateFormat,
-		&i.TimeFormat,
-		&i.DecimalSeparator,
-		&i.ThousandsSeparator,
-		&i.FirstDayOfWeek,
-		&i.DefaultCountryCode,
-		&i.FlagEmoji,
-		&i.HreflangValue,
-		&i.Script,
-		&i.PluralRule,
-		&i.EmailFromNameOverride,
-		&i.Description,
-		&i.Metadata,
+		&i.Locale.Code,
+		&i.Locale.Name,
+		&i.Locale.NativeName,
+		&i.Locale.IsActive,
+		&i.Locale.IsRtl,
+		&i.Locale.SortOrder,
+		&i.Locale.CreatedAt,
+		&i.Locale.UpdatedAt,
+		&i.Locale.DateFormat,
+		&i.Locale.TimeFormat,
+		&i.Locale.DecimalSeparator,
+		&i.Locale.ThousandsSeparator,
+		&i.Locale.FirstDayOfWeek,
+		&i.Locale.DefaultCountryCode,
+		&i.Locale.FlagEmoji,
+		&i.Locale.HreflangValue,
+		&i.Locale.Script,
+		&i.Locale.PluralRule,
+		&i.Locale.EmailFromNameOverride,
+		&i.Locale.Description,
+		&i.Locale.Metadata,
+		&i.WasActive,
 	)
 	return i, err
 }

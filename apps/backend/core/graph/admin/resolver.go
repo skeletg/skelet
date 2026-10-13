@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
@@ -26,7 +25,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
@@ -42,6 +41,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -50,6 +50,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -76,6 +77,7 @@ type Resolver struct {
 	OrderMailSvc      *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
 	ConfigSvc         *config.Service
 	ConsentSvc        *consent.Service
+	DSAR              *dsar.Builder
 	ActionSvc         *adminaction.Service
 	DataJobSvc        *datajob.Service // the one seam behind every bulk import and export
 	AuditSvc          *audit.Service
@@ -84,6 +86,7 @@ type Resolver struct {
 	WebhookSvc        *webhook.Service
 	RemoteProviderSvc *remoteprovider.Service
 	CatalogSvc        *catalog.Service
+	RecommendSvc      *recommend.Service
 	BlogSvc           *blog.Service
 	CMSSvc            *cms.Service
 	AISvc             *ai.Service
@@ -109,10 +112,10 @@ type Resolver struct {
 	SignalsAPI       *signalsclient.Client
 	NotificationSvc  *notification.Service
 	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
-	FormSvc          *form.Service
+	FormSvc          *signupform.Service
 	WebFormSvc       *webform.Service
 	DeliverySvc      *delivery.Service
-	ChatSvc          *chat.Service
+	ChatSvc          *ai.History
 	CacheClient      *revalidate.Client
 	CacheQueue       *revalidate.Queue
 	RefreshStore     *auth.RefreshStore // admin refresh tokens
@@ -159,10 +162,8 @@ func (r *Resolver) scopedChannelID(ctx context.Context, arg *string) (*uuid.UUID
 type defaultChannelLocale struct{ channels *channel.Service } // GetDefault is Valkey-cached, so this stays cheap
 
 func (c defaultChannelLocale) DefaultLocale(ctx context.Context) (string, error) {
-	if c.channels != nil {
-		if sv, err := c.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if c.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return c.channels.InstallDefaultLocale(ctx), nil
 }

@@ -449,7 +449,7 @@ waiting to be written rather than a setting with nothing to say.
 | `ai/llm/enabled` | Enable AI content assistant | bool | global |  | `false` |
 | `ai/llm/provider` | Provider | select | global |  | `anthropic` |
 | `ai/llm/api_key` | API key | secret | global |  | - |
-| `ai/llm/model` | Model (e.g. claude-sonnet-4-6, gpt-4o, gemini-2.0-flash) | string | global |  | `claude-sonnet-4-6` |
+| `ai/llm/model` | Model (e.g. claude-opus-5-5, claude-sonnet-5-5, gpt-4o, gemini-2.0-flash) | string | global |  | `claude-opus-5-5` |
 | `ai/llm/vision_model` | Vision model for alt-text (blank = use Model) | string | global |  | - |
 | `ai/llm/base_url` | API base URL (blank = provider default; set for Azure/OpenRouter/Ollama/local) | string | global |  | - |
 | `ai/llm/tools` | Let the assistant query data via tools (turn off for models without tool/function calling) | bool | global |  | `true` |

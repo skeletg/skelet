@@ -156,6 +156,27 @@ func (q *Queries) GetBundleOptionByID(ctx context.Context, id uuid.UUID) (Catalo
 	return i, err
 }
 
+const getBundleOptionByIDForUpdate = `-- name: GetBundleOptionByIDForUpdate :one
+SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductBundleOption, error) {
+	row := q.db.QueryRowContext(ctx, getBundleOptionByIDForUpdate, id)
+	var i CatalogProductBundleOption
+	err := row.Scan(
+		&i.ID,
+		&i.ProductID,
+		&i.InputType,
+		&i.IsRequired,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MinSelections,
+		&i.MaxSelections,
+	)
+	return i, err
+}
+
 const getBundleSelectionByID = `-- name: GetBundleSelectionByID :one
 SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections WHERE id = $1
 `
@@ -306,42 +327,6 @@ func (q *Queries) ListBundleSelectionLinksByProductIDs(ctx context.Context, prod
 			&i.IsDefault,
 			&i.SortOrder,
 			&i.BundleID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBundleSelectionsByOptionID = `-- name: ListBundleSelectionsByOptionID :many
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections
-WHERE option_id = $1
-ORDER BY sort_order, id
-`
-
-func (q *Queries) ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]CatalogProductBundleSelection, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleSelectionsByOptionID, optionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CatalogProductBundleSelection{}
-	for rows.Next() {
-		var i CatalogProductBundleSelection
-		if err := rows.Scan(
-			&i.ID,
-			&i.OptionID,
-			&i.ProductID,
-			&i.Quantity,
-			&i.IsDefault,
-			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}

@@ -125,6 +125,8 @@ export const TRIGGER_LABELS: Record<string, string> = {
   payment_refunded: 'Payment refunded',
   email_verification: 'Email verification',
   password_reset: 'Password reset',
+  signup_confirmation: 'Signup confirmation',
+  account_exists: 'Account already exists',
   cart_abandoned: 'Abandoned cart',
   browse_abandoned: 'Browse abandonment',
   email_opened: 'Email opened',
@@ -143,6 +145,8 @@ export const TRANSACTIONAL_TRIGGERS = new Set([
   'payment_refunded',
   'email_verification',
   'password_reset',
+  'signup_confirmation',
+  'account_exists',
 ])
 
 // nodeSummary is the one-liner shown on the node body in the canvas

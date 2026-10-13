@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 // Use these constants when subscribing, to avoid typos
@@ -19,6 +21,33 @@ const (
 	EventProfileUpdated  = "customer.profile_updated"
 	EventPasswordChanged = "customer.password_changed"
 	EventAddressChanged  = "customer.address_changed"
+)
+
+// The names customer.updated and customer.profile_updated list in ChangedFields - camelCase, like every other event's
+const (
+	FieldEmail                  = "email"
+	FieldFirstName              = "firstName"
+	FieldLastName               = "lastName"
+	FieldPhone                  = "phone"
+	FieldIsActive               = "isActive"
+	FieldIsEmailVerified        = "isEmailVerified"
+	FieldNote                   = "note"
+	FieldCustomerGroup          = "customerGroup"
+	FieldMetadata               = "metadata"
+	FieldDefaultBillingAddress  = "defaultBillingAddress"
+	FieldDefaultShippingAddress = "defaultShippingAddress"
+	FieldTaxExempt              = "taxExempt"
+	FieldTaxExemptionNote       = "taxExemptionNote"
+	FieldVatID                  = "vatId"
+)
+
+// Where a customer.registered or customer.updated came from
+const (
+	SourceSelf       = "self"
+	SourceAdmin      = "admin"
+	SourceSignupForm = "signup_form"
+	SourceGDPR       = "gdpr"
+	SourceImport     = "import"
 )
 
 // Fires BEFORE a self-registration is persisted - sync handlers abort by returning an error or enrich by mutating exported fields, which the emitting service reads after the chain
@@ -47,9 +76,8 @@ func (c *CustomerRegistering) ApplyWebhookResponse(body []byte) (bool, string, e
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -96,9 +124,8 @@ func (c *CustomerUpdating) ApplyWebhookResponse(body []byte) (bool, string, erro
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -124,8 +151,6 @@ type CustomerUpdated struct {
 	Tags          []string
 }
 
-const SourceGDPR = "gdpr"
-
 func (*CustomerUpdated) Type() string { return EventUpdated }
 
 func (c *CustomerUpdated) EventChannelID() uuid.UUID { return c.ChannelID }
@@ -141,20 +166,7 @@ func (*CustomerDeleting) Type() string                { return EventDeleting }
 func (c *CustomerDeleting) EventChannelID() uuid.UUID { return c.ChannelID }
 
 func (c *CustomerDeleting) ApplyWebhookResponse(body []byte) (bool, string, error) {
-	if len(body) == 0 {
-		return false, "", nil
-	}
-	var resp struct {
-		Reject bool   `json:"reject"`
-		Reason string `json:"reason"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return false, "", err
-	}
-	if resp.Reject {
-		return true, resp.Reason, nil
-	}
-	return false, "", nil
+	return syncveto.Decode(body)
 }
 
 type CustomerDeleted struct {
@@ -175,11 +187,12 @@ type CustomerEmailVerified struct {
 func (*CustomerEmailVerified) Type() string                { return EventEmailVerified }
 func (c *CustomerEmailVerified) EventChannelID() uuid.UUID { return c.ChannelID }
 
-// Storefront self-service, async-only - ChangedFields lists the fields that actually changed
+// Storefront self-service or a bulk import, async-only - ChangedFields lists the fields that actually changed
 type CustomerProfileUpdated struct {
 	CustomerID    uuid.UUID
 	ChannelID     uuid.UUID
 	ChangedFields []string
+	Source        string
 }
 
 func (*CustomerProfileUpdated) Type() string                { return EventProfileUpdated }
@@ -194,7 +207,7 @@ type CustomerPasswordChanged struct {
 func (*CustomerPasswordChanged) Type() string                { return EventPasswordChanged }
 func (c *CustomerPasswordChanged) EventChannelID() uuid.UUID { return c.ChannelID }
 
-// Action is "add" | "update" | "delete" - async-only
+// Action is one of the Address* constants - async-only
 type CustomerAddressChanged struct {
 	CustomerID uuid.UUID
 	ChannelID  uuid.UUID

@@ -1,4 +1,4 @@
-# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records marketing consent, optionally adds the subscriber to a segment, and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
+# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records the lead and emails a double opt-in link; only confirming it records marketing consent (source signup_form), adds the subscriber to the target segment and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
 
 type SignupFormDisplay {
   trigger:       String!   # immediate | delay | scroll | exit_intent

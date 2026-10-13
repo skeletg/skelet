@@ -3,7 +3,10 @@ package paymentvault
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +20,20 @@ import (
 // different customer (indistinguishable on purpose)
 var ErrNotFound = apperr.New("PAYMENT_METHOD_NOT_FOUND", apperr.ClassNotFound, "saved payment method not found")
 
+// Each save asks the gateway to vault a card, so an unbounded save is how a signed-in account tests stolen card numbers one call at a time
+var (
+	ErrTooManyMethods = apperr.New("PAYMENT_METHOD_LIMIT", apperr.ClassConflict, "remove a saved payment method before adding another")
+	ErrSaveThrottled  = apperr.New("PAYMENT_METHOD_SAVE_THROTTLED", apperr.ClassRateLimited, "too many attempts to save a payment method - try again later")
+)
+
+const maxMethodsPerCustomer = 10
+
+// A per-key allowance - the shared ratelimit limiter in production
+type Budget interface {
+	Allow(ctx context.Context, key string) bool
+}
+
+// A GDPR erasure deletes these rows only - the card stays in the provider's vault until removed there
 type Method struct {
 	ID           uuid.UUID
 	CustomerID   uuid.UUID
@@ -31,12 +48,22 @@ type Method struct {
 
 type Service struct {
 	queries  *db.Queries
-	payments *payment.Service
+	payments Vaulter
+	budget   Budget
 }
 
-func NewService(queries *db.Queries, payments *payment.Service) *Service {
+// The gateway surface saving and removing needs - *payment.Service in production
+type Vaulter interface {
+	Vault(ctx context.Context, providerSlug string, req payment.VaultRequest) (payment.VaultedMethod, error)
+	DeleteVaulted(ctx context.Context, providerSlug string, req payment.VaultDeleteRequest) error
+}
+
+func NewService(queries *db.Queries, payments Vaulter) *Service {
 	return &Service{queries: queries, payments: payments}
 }
+
+// Optional - nil leaves only the per-customer cap
+func (s *Service) SetSaveBudget(b Budget) { s.budget = b }
 
 func (s *Service) List(ctx context.Context, customerID uuid.UUID) ([]Method, error) {
 	rows, err := s.queries.ListCustomerPaymentMethods(ctx, customerID)
@@ -55,14 +82,28 @@ func (s *Service) Get(ctx context.Context, customerID, id uuid.UUID) (Method, er
 		ID:         id,
 		CustomerID: customerID,
 	})
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Method{}, ErrNotFound
+	}
+	if err != nil {
+		return Method{}, fmt.Errorf("get payment method: %w", err)
 	}
 	return toMethod(row), nil
 }
 
 // Vaults the client-tokenized method with the provider and records the returned token
 func (s *Service) Save(ctx context.Context, customerID uuid.UUID, email, providerSlug, token string, channelID uuid.UUID) (Method, error) {
+	// Counted before the gateway call, failures included - a declined card is exactly what card testing produces
+	if s.budget != nil && !s.budget.Allow(ctx, "pmsave:"+customerID.String()) {
+		return Method{}, ErrSaveThrottled
+	}
+	existing, err := s.queries.ListCustomerPaymentMethods(ctx, customerID)
+	if err != nil {
+		return Method{}, fmt.Errorf("list payment methods: %w", err)
+	}
+	if len(existing) >= maxMethodsPerCustomer {
+		return Method{}, ErrTooManyMethods
+	}
 	vaulted, err := s.payments.Vault(ctx, providerSlug, payment.VaultRequest{
 		CustomerID: customerID,
 		Email:      email,
@@ -82,6 +123,10 @@ func (s *Service) Save(ctx context.Context, customerID uuid.UUID, email, provide
 		ExpYear:      int32(vaulted.ExpYear),
 	})
 	if err != nil {
+		// The gateway already holds the card - left there with no row, it's chargeable and nobody can see or remove it
+		if derr := s.payments.DeleteVaulted(ctx, providerSlug, payment.VaultDeleteRequest{ProviderToken: vaulted.ProviderToken, ChannelID: channelID}); derr != nil {
+			log.Printf("[paymentvault] remove unrecorded vault token at %s: %v", providerSlug, derr)
+		}
 		return Method{}, fmt.Errorf("record payment method: %w", err)
 	}
 	return toMethod(row), nil

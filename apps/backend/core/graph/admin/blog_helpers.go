@@ -116,6 +116,7 @@ func fromCreateBlogAuthorInput(in model.CreateBlogAuthorInput) (blog.CreateAutho
 		Slug:        in.Slug,
 		DisplayName: in.DisplayName,
 		Email:       in.Email,
+		EmailPublic: boolDeref(in.EmailPublic, false),
 		Metadata:    blogMetadataFromInput(in.Metadata),
 		Locale:      ptr.Deref(in.Locale),
 		Name:        ptr.Deref(in.Name),
@@ -145,6 +146,7 @@ func fromUpdateBlogAuthorInput(in model.UpdateBlogAuthorInput) (blog.UpdateAutho
 		DisplayName: in.DisplayName,
 		Email:       in.Email,
 		ClearEmail:  boolDeref(in.ClearEmail, false),
+		EmailPublic: in.EmailPublic,
 		ClearAvatar: boolDeref(in.ClearAvatar, false),
 		ClearAdmin:  boolDeref(in.ClearLinkedAdmin, false),
 	}

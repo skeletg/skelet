@@ -29,21 +29,21 @@ func TestGiftCardTenderAndCancelRestore(t *testing.T) {
 	if o.GiftCardAmount != 1000 {
 		t.Errorf("gift_card_amount = %d, want 1000", o.GiftCardAmount)
 	}
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != 0 {
+	if bal, _ := h.giftcardBalance(card.Code); bal != 0 {
 		t.Errorf("card balance after redeem = %d, want 0", bal)
 	}
 	h.Settle(t)
 
 	h.Cancel(t, o.ID)
 	h.Settle(t)
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != 1000 {
+	if bal, _ := h.giftcardBalance(card.Code); bal != 1000 {
 		t.Errorf("card balance after cancel = %d, want 1000 restored", bal)
 	}
 
 	// The exactly-once proof: a second full delivery must see "already restored" and add nothing
 	h.RearmOutbox(t, "order.cancelled", o.ID.String(), 1)
 	h.Settle(t)
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != 1000 {
+	if bal, _ := h.giftcardBalance(card.Code); bal != 1000 {
 		t.Errorf("card balance after replayed cancel = %d, want still 1000", bal)
 	}
 }
@@ -68,7 +68,7 @@ func TestGiftCardFullCoverPlacesPaid(t *testing.T) {
 	if o.PaymentStatus != "paid" || o.GiftCardAmount != 2000 {
 		t.Errorf("payment/gift = %q/%d, want paid/2000", o.PaymentStatus, o.GiftCardAmount)
 	}
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != 3000 {
+	if bal, _ := h.giftcardBalance(card.Code); bal != 3000 {
 		t.Errorf("card balance = %d, want 3000 left", bal)
 	}
 	h.Settle(t)
@@ -108,12 +108,13 @@ func TestRefundDoesNotRestoreTenders(t *testing.T) {
 	}
 	h.Settle(t)
 
-	if bal, _ := h.D.Giftcard.Balance(h.Ctx, card.Code); bal != 0 {
+	if bal, _ := h.giftcardBalance(card.Code); bal != 0 {
 		t.Errorf("card balance after refund = %d, want 0 - refunds must not restore tenders", bal)
 	}
 }
 
-// Scenario: buying gift-card products mints one card per unit, exactly once under replay
+// Scenario: buying gift-card products mints one card per unit once the order is paid, exactly once under replay
+// Cash on delivery places unpaid - a card minted at placement was spendable before anyone paid for it
 func TestGiftCardPurchaseMintsOncePerUnit(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 5, 1000)
@@ -125,6 +126,10 @@ func TestGiftCardPurchaseMintsOncePerUnit(t *testing.T) {
 		t.Fatalf("place gift card purchase: %v", err)
 	}
 	h.Settle(t)
+	if unpaid, _ := h.D.Queries.ListGiftCardsByIssuedOrder(h.Ctx, uuid.NullUUID{UUID: o.ID, Valid: true}); len(unpaid) != 0 {
+		t.Fatalf("an unpaid cash-on-delivery order minted %d cards", len(unpaid))
+	}
+	h.collectCOD(t, o.ID)
 
 	minted, err := h.D.Queries.ListGiftCardsByIssuedOrder(h.Ctx, uuid.NullUUID{UUID: o.ID, Valid: true})
 	if err != nil {
@@ -190,5 +195,32 @@ func TestStoreCreditTenderAndCancelRestore(t *testing.T) {
 	h.Settle(t)
 	if bal, _ := h.D.StoreCredit.Balance(h.Ctx, c.ID, "USD"); bal != 800 {
 		t.Errorf("credit balance after replayed cancel = %d, want still 800", bal)
+	}
+}
+
+// Scenario: cancelling a paid gift-card order takes its cards back - zeroed and disabled, so they can't be spent after the money is returned
+func TestCancellingAGiftCardOrderRevokesItsCards(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 5, 1000)
+	gc := h.AddGiftcardProduct(t, f, 1500)
+	o, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, gc.SKU, 1))
+	if err != nil {
+		t.Fatalf("place gift card purchase: %v", err)
+	}
+	h.Settle(t)
+	h.collectCOD(t, o.ID)
+	minted, err := h.D.Queries.ListGiftCardsByIssuedOrder(h.Ctx, uuid.NullUUID{UUID: o.ID, Valid: true})
+	if err != nil || len(minted) != 1 {
+		t.Fatalf("minted %d cards (%v), want 1", len(minted), err)
+	}
+
+	h.Cancel(t, o.ID)
+	h.Settle(t)
+	card, err := h.D.Giftcard.GetByID(h.Ctx, minted[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.Balance != 0 || card.Status != giftcard.StatusDisabled {
+		t.Fatalf("a cancelled order's card is %s with %d left, want disabled and empty", card.Status, card.Balance)
 	}
 }

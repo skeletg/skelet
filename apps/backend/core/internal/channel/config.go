@@ -5,6 +5,9 @@ import "github.com/skeletg/skelet/apps/backend/core/lib/config"
 // Per-channel knobs live in the config registry rather than as channels-table columns, so admins edit them on Settings while the Channels page stays focused on identity
 // Nested under general/<group>/<field>, with new groups registering lazily - Empty string is the default
 
+// The customer-facing store name account and order mail sign with
+const ConfigStoreName = "general/branding/store_name"
+
 func init() {
 	config.RegisterGroup(config.Group{Section: "general", Slug: "branding", Label: "Branding", SortOrder: 5, Scoping: config.ScopingChannel})
 	config.RegisterGroup(config.Group{Section: "general", Slug: "contact", Label: "Contact", SortOrder: 6, Scoping: config.ScopingChannel})
@@ -20,7 +23,7 @@ func init() {
 	// The customer-facing store name, public so storefronts read it from PublicConfig - channels.name stays the operator's internal label ("US Wholesale B2B")
 	// Read by the transactional emails (order confirmation, shipment, refund, cancellation); empty falls back to the channel name
 	config.Register(config.Definition{
-		Path: "general/branding/store_name", Type: config.TypeString,
+		Path: ConfigStoreName, Type: config.TypeString,
 		Default: "", Label: "Store name (customer-facing)", Description: "The name transactional emails sign off with. Empty falls back to the channel's own name, which is the operator-facing label. Also served to storefronts, though the bundled one shows the channel name.", Public: true,
 	})
 	config.Register(config.Definition{

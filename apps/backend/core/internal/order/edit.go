@@ -10,10 +10,10 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // rateItemsFromLines summarizes order lines for a carrier rate request
@@ -59,7 +59,7 @@ type EditOrderInput struct {
 func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
@@ -108,6 +108,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		sku, name string
 		unit      int64
 		qty       float64
+		kit       []cart.CartLineStockPart
 	}
 	adds := make([]resolvedAdd, 0, len(in.AddLine))
 	for _, a := range in.AddLine {
@@ -125,6 +126,13 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			return Order{}, err
 		}
 		adds = append(adds, resolvedAdd{sku: a.ProductSku, name: p.ProductName, unit: p.UnitPriceCents, qty: a.Quantity})
+	}
+	if s.kits != nil {
+		for i := range adds {
+			if adds[i].kit, err = s.kits.KitComponentsBySKU(ctx, adds[i].sku); err != nil {
+				return Order{}, fmt.Errorf("kit components for %q: %w", adds[i].sku, err)
+			}
+		}
 	}
 
 	store, err := s.channels.LoadChannel(ctx, o.ChannelID)
@@ -156,6 +164,10 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 	var updated Order
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
+		// Re-check under the order lock - the plan above comes from an unlocked read, so a shipment, a cancel or another edit committing meanwhile was edited over: a shipped line dropped, stock re-held on a cancelled order, totals from a line set that no longer existed
+		if err := lockForEdit(ctx, r, o); err != nil {
+			return err
+		}
 		for id := range removed {
 			if _, err := r.SoftDeleteOrderLine(ctx, id); err != nil {
 				return err
@@ -177,6 +189,10 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				TotalPrice:  money.LineTotal(a.unit, a.qty),
 			})
 			if err != nil {
+				return err
+			}
+			line.StockParts = orderStockParts(a.kit)
+			if err := r.AddOrderLineStockParts(ctx, line.ID, line.StockParts); err != nil {
 				return err
 			}
 			active = append(active, line)
@@ -304,6 +320,10 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 				Quantity:    c.Quantity,
 			}
 		}
+		parts := make([]cart.CartLineStockPart, len(l.StockParts))
+		for j, p := range l.StockParts {
+			parts[j] = cart.CartLineStockPart{ProductID: p.ProductID, Quantity: p.Quantity, Source: p.Source}
+		}
 		cl[i] = cart.CartLine{
 			ID:          l.ID,
 			ProductSku:  l.ProductSku,
@@ -311,6 +331,7 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 			UnitPrice:   l.UnitPrice,
 			Quantity:    l.Quantity,
 			Components:  comps,
+			StockParts:  parts,
 		}
 	}
 	return cart.Cart{ChannelID: o.ChannelID, CustomerID: o.CustomerID, Lines: cl}
@@ -335,7 +356,7 @@ func validEditAddress(a OrderAddress) error {
 func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput) (Order, error) {
 	o, err := s.repo.GetOrderByID(ctx, in.OrderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if !editableStatuses[o.Status] {
 		return Order{}, apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
@@ -373,6 +394,10 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 	var updated Order
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
+		// Re-check under the order lock - the plan above comes from an unlocked read, so a shipment, a cancel or another edit committing meanwhile was edited over: a shipped line dropped, stock re-held on a cancelled order, totals from a line set that no longer existed
+		if err := lockForEdit(ctx, r, o); err != nil {
+			return err
+		}
 		if updated, err = r.UpdateOrderAddresses(ctx, o.ID, billing, shipping); err != nil {
 			return err
 		}
@@ -446,4 +471,22 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 		s.publishDurable(ctx, &OrderEdited{OrderID: o.ID, ChannelID: o.ChannelID, OldAmountDue: oldAmountDue, NewAmountDue: newAmountDue})
 	}
 	return s.repo.GetOrderByID(ctx, o.ID)
+}
+
+func lockForEdit(ctx context.Context, r Repository, read Order) error {
+	if err := r.LockOrder(ctx, read.ID); err != nil {
+		return fmt.Errorf("lock order: %w", err)
+	}
+	fresh, err := r.GetOrderByID(ctx, read.ID)
+	if err != nil {
+		return err
+	}
+	if !editableStatuses[fresh.Status] {
+		return apperr.New("ORDER_NOT_EDITABLE", apperr.ClassConflict,
+			fmt.Sprintf("an order in status %q cannot be edited", fresh.Status))
+	}
+	if !fresh.UpdatedAt.Equal(read.UpdatedAt) {
+		return apperr.New("ORDER_CHANGED", apperr.ClassConflict, "the order changed while this edit was being prepared - reload it and try again")
+	}
+	return nil
 }

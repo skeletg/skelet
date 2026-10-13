@@ -2,6 +2,7 @@ package ordermail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -84,31 +85,45 @@ func NewService(orders OrderReader, channels ChannelReader, render Renderer, sen
 // Optional - without it every order email goes out directly, which is the correct behaviour for an install with no flow engine
 func (s *Service) SetFlowDispatcher(d FlowDispatcher) { s.flows = d }
 
+// A draft, or an order whose contact never resolved - no retry will find an address
+var errNoAddress = errors.New("order has no email address")
+
 func (s *Service) send(ctx context.Context, ch channel.Channel, o order.Order, messageKey, subject, htmlBody, textBody string) error {
 	if o.Email == "" {
-		return fmt.Errorf("order %s has no email address", o.Number) // a draft, or an order whose contact never resolved
+		return fmt.Errorf("%w: %s", errNoAddress, o.Number)
 	}
 	orderID := o.ID
 	if err := s.sender.Send(ctx, mailsend.Spec{
 		ChannelID: ch.ID, FallbackName: ch.Name, CustomerID: o.CustomerID, To: o.Email,
 		MessageKey: messageKey, OrderID: &orderID,
 	}, subject, htmlBody, textBody); err != nil {
-		return fmt.Errorf("send %s to %s for order %s: %w", messageKey, o.Email, o.Number, err)
+		return fmt.Errorf("send %s for order %s: %w", messageKey, o.Number, err)
 	}
 	return nil
 }
 
-// Loads the order and its channel - either failing skips the mail rather than sending a half-rendered one
-func (s *Service) context(ctx context.Context, orderID uuid.UUID) (order.Order, channel.Channel, bool) {
+// Loads the order and its channel - a failure sends nothing rather than a half-rendered mail, and returns so the event is delivered again, except for an order that no longer exists
+func (s *Service) context(ctx context.Context, orderID uuid.UUID) (order.Order, channel.Channel, error) {
 	o, err := s.orders.GetByID(ctx, orderID)
+	if errors.Is(err, order.ErrOrderNotFound) {
+		log.Printf("[ordermail] order %s is gone, no mail", orderID)
+		return order.Order{}, channel.Channel{}, errSkip
+	}
 	if err != nil {
-		log.Printf("[ordermail] load order %s: %v", orderID, err)
-		return order.Order{}, channel.Channel{}, false
+		return order.Order{}, channel.Channel{}, fmt.Errorf("load order %s: %w", orderID, err)
 	}
 	ch, err := s.channels.GetByID(ctx, o.ChannelID)
 	if err != nil {
-		log.Printf("[ordermail] load channel %s for order %s: %v", o.ChannelID, o.Number, err)
-		return order.Order{}, channel.Channel{}, false
+		return order.Order{}, channel.Channel{}, fmt.Errorf("load channel %s for order %s: %w", o.ChannelID, o.Number, err)
 	}
-	return o, ch, true
+	return o, ch, nil
+}
+
+var errSkip = errors.New("skip")
+
+func dropSkip(err error) error {
+	if errors.Is(err, errSkip) {
+		return nil
+	}
+	return err
 }

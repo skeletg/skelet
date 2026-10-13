@@ -35,17 +35,31 @@ var (
 	mu                sync.RWMutex
 	registeredGroups  []Group
 	registeredPermiss []Definition
+	groupIdx          = map[string]int{}
+	permIdx           = map[string]int{}
 )
 
 // Panics on a duplicate slug - two packages declaring the same one is a bug that should surface immediately
 func RegisterGroup(g Group) {
 	mu.Lock()
 	defer mu.Unlock()
-	for _, existing := range registeredGroups {
-		if existing.Slug == g.Slug {
-			panic(fmt.Sprintf("permission: group %q already registered", g.Slug))
-		}
+	if _, exists := groupIdx[g.Slug]; exists {
+		panic(fmt.Sprintf("permission: group %q already registered", g.Slug))
 	}
+	registerGroupLocked(g)
+}
+
+// For a group several registrants may share (plugins adding to one group) - the check and the insert hold one lock
+func RegisterGroupIfAbsent(g Group) {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, exists := groupIdx[g.Slug]; !exists {
+		registerGroupLocked(g)
+	}
+}
+
+func registerGroupLocked(g Group) {
+	groupIdx[g.Slug] = len(registeredGroups)
 	registeredGroups = append(registeredGroups, g)
 }
 
@@ -53,11 +67,10 @@ func RegisterGroup(g Group) {
 func Register(d Definition) {
 	mu.Lock()
 	defer mu.Unlock()
-	for _, existing := range registeredPermiss {
-		if existing.Slug == d.Slug {
-			panic(fmt.Sprintf("permission: slug %q already registered", d.Slug))
-		}
+	if _, exists := permIdx[d.Slug]; exists {
+		panic(fmt.Sprintf("permission: slug %q already registered", d.Slug))
 	}
+	permIdx[d.Slug] = len(registeredPermiss)
 	registeredPermiss = append(registeredPermiss, d)
 }
 
@@ -97,10 +110,8 @@ func AllPermissions() []Definition {
 func Find(slug string) (Definition, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
-	for _, p := range registeredPermiss {
-		if p.Slug == slug {
-			return p, true
-		}
+	if i, ok := permIdx[slug]; ok {
+		return registeredPermiss[i], true
 	}
 	return Definition{}, false
 }
@@ -161,10 +172,8 @@ func Sync(ctx context.Context, queries *db.Queries, txMgr *txrunner.Manager) err
 }
 
 func findGroupLocked(slug string) (Group, bool) {
-	for _, g := range registeredGroups {
-		if g.Slug == slug {
-			return g, true
-		}
+	if i, ok := groupIdx[slug]; ok {
+		return registeredGroups[i], true
 	}
 	return Group{}, false
 }

@@ -3,6 +3,7 @@ package medialibrary
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"mime"
 	"path"
 	"regexp"
@@ -25,13 +26,32 @@ var allowedDocumentMimeTypes = []string{
 
 var filenameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
+// The object storage the library manages - *objstore.Storage in production
+type Storage interface {
+	PublicURL(key string) string
+	MaxUploadBytes() int64
+	PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (string, error)
+	PutBytes(ctx context.Context, key string, data []byte, contentType string) error
+	PutEmptyObject(ctx context.Context, key string) error
+	Head(ctx context.Context, key string) (int64, string, bool, error)
+	Copy(ctx context.Context, fromKey, toKey string) error
+	Delete(ctx context.Context, key string) error
+	ListPrefix(ctx context.Context, prefix string) ([]string, error)
+	ListImmediatePrefixes(ctx context.Context, prefix string) ([]string, error)
+	ListDirectoryContents(ctx context.Context, prefix string) ([]string, []objstore.StorageObject, error)
+}
+
+// What the rest of the platform writes into the same bucket - product, category and collection images, customers' form uploads, data export and import files, image derivatives
+// With no root prefix the library spans the whole bucket, so without this a media.view admin browsed customer exports and one recursive delete took every product image with it
+var reservedTopLevel = []string{"catalog", "webforms", "data", "derived"}
+
 type Service struct {
 	repo       Repository
-	storage    *objstore.Storage
+	storage    Storage
 	rootPrefix string
 }
 
-func NewService(repo Repository, storage *objstore.Storage, rootPrefix string) *Service {
+func NewService(repo Repository, storage Storage, rootPrefix string) *Service {
 	rootPrefix = strings.Trim(strings.TrimSpace(rootPrefix), "/")
 	return &Service{repo: repo, storage: storage, rootPrefix: rootPrefix}
 }
@@ -46,8 +66,29 @@ func (s *Service) MaxUploadBytes() int64 {
 	return s.storage.MaxUploadBytes()
 }
 
+// A library path the platform owns - only possible when the library spans the whole bucket
+func (s *Service) reserved(cleanPath string) bool {
+	if s.rootPrefix != "" {
+		return false
+	}
+	top, _, _ := strings.Cut(cleanPath, "/")
+	return slices.Contains(reservedTopLevel, top)
+}
+
+// sanitizeDirectoryPath plus the reserved-prefix refusal every library operation shares
+func (s *Service) libraryPath(dirPath string) (string, error) {
+	p, err := sanitizeDirectoryPath(dirPath)
+	if err != nil {
+		return "", err
+	}
+	if s.reserved(p) {
+		return "", fmt.Errorf("%w: %s", ErrReservedPath, p)
+	}
+	return p, nil
+}
+
 func (s *Service) GetDirectory(ctx context.Context, dirPath string) (Directory, error) {
-	cleanPath, err := sanitizeDirectoryPath(dirPath)
+	cleanPath, err := s.libraryPath(dirPath)
 	if err != nil {
 		return Directory{}, err
 	}
@@ -71,7 +112,7 @@ func (s *Service) GetDirectory(ctx context.Context, dirPath string) (Directory, 
 	seen := map[string]struct{}{}
 	for _, prefix := range prefixes {
 		childPath := strings.TrimSuffix(strings.TrimPrefix(prefix, s.rootPrefix+"/"), "/")
-		if childPath == "" || childPath == cleanPath {
+		if childPath == "" || childPath == cleanPath || s.reserved(childPath) {
 			continue
 		}
 		if _, ok := seen[childPath]; ok {
@@ -115,14 +156,15 @@ func (s *Service) GetDirectory(ctx context.Context, dirPath string) (Directory, 
 }
 
 func (s *Service) SearchAssets(ctx context.Context, input SearchInput) (SearchResult, error) {
-	if input.Limit <= 0 || input.Limit > 200 {
+	if input.Limit <= 0 {
 		input.Limit = 50
 	}
+	input.Limit = min(input.Limit, 200)
 	if input.Offset < 0 {
 		input.Offset = 0
 	}
 	if input.Path != nil {
-		p, err := sanitizeDirectoryPath(*input.Path)
+		p, err := s.libraryPath(*input.Path)
 		if err != nil {
 			return SearchResult{}, err
 		}
@@ -140,7 +182,7 @@ func (s *Service) SearchAssets(ctx context.Context, input SearchInput) (SearchRe
 }
 
 func (s *Service) CreateDirectory(ctx context.Context, parentPath, name string) (DirectoryChild, error) {
-	parentPath, err := sanitizeDirectoryPath(parentPath)
+	parentPath, err := s.libraryPath(parentPath)
 	if err != nil {
 		return DirectoryChild{}, err
 	}
@@ -152,6 +194,9 @@ func (s *Service) CreateDirectory(ctx context.Context, parentPath, name string) 
 	if parentPath != "" {
 		childPath = parentPath + "/" + name
 	}
+	if s.reserved(childPath) {
+		return DirectoryChild{}, fmt.Errorf("%w: %s", ErrReservedPath, childPath)
+	}
 	if err := s.storage.PutEmptyObject(ctx, s.markerKey(childPath)); err != nil {
 		return DirectoryChild{}, fmt.Errorf("create directory marker: %w", err)
 	}
@@ -159,7 +204,7 @@ func (s *Service) CreateDirectory(ctx context.Context, parentPath, name string) 
 }
 
 func (s *Service) RequestUpload(ctx context.Context, input RequestUploadInput) (RequestUploadResult, error) {
-	cleanPath, err := sanitizeDirectoryPath(input.Path)
+	cleanPath, err := s.libraryPath(input.Path)
 	if err != nil {
 		return RequestUploadResult{}, err
 	}
@@ -171,7 +216,7 @@ func (s *Service) RequestUpload(ctx context.Context, input RequestUploadInput) (
 		return RequestUploadResult{}, fmt.Errorf("%w: %s", ErrInvalidMimeType, input.MimeType)
 	}
 	if input.SizeBytes <= 0 {
-		return RequestUploadResult{}, fmt.Errorf("size_bytes must be positive")
+		return RequestUploadResult{}, ErrInvalidSize
 	}
 	if input.SizeBytes > s.storage.MaxUploadBytes() {
 		return RequestUploadResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.storage.MaxUploadBytes())
@@ -225,7 +270,7 @@ type UploadSVGInput struct {
 
 // UploadSVG sanitizes an SVG and stores the RESULT, returning a ready asset. The bytes the caller supplied are never written anywhere - only what SanitizeSVG produced is, so there is no window in which the original is fetchable
 func (s *Service) UploadSVG(ctx context.Context, input UploadSVGInput) (Asset, error) {
-	cleanPath, err := sanitizeDirectoryPath(input.Path)
+	cleanPath, err := s.libraryPath(input.Path)
 	if err != nil {
 		return Asset{}, err
 	}
@@ -286,7 +331,7 @@ func (s *Service) ConfirmUpload(ctx context.Context, input ConfirmUploadInput) (
 		return Asset{}, ErrUploadNotReceived
 	}
 	if asset.MimeGroup() == MimeGroupImage && (input.Width == nil || input.Height == nil || *input.Width <= 0 || *input.Height <= 0) {
-		return Asset{}, fmt.Errorf("width and height are required for images")
+		return Asset{}, ErrInvalidDimensions
 	}
 	asset, err = s.repo.ConfirmAssetUpload(ctx, input.AssetID, input.Width, input.Height, adminIDFromContext(ctx))
 	if err != nil {
@@ -332,7 +377,7 @@ func (s *Service) MoveAsset(ctx context.Context, input MoveAssetInput) (Asset, e
 	if err != nil {
 		return Asset{}, err
 	}
-	targetPath, err := sanitizeDirectoryPath(input.TargetPath)
+	targetPath, err := s.libraryPath(input.TargetPath)
 	if err != nil {
 		return Asset{}, err
 	}
@@ -343,18 +388,20 @@ func (s *Service) MoveAsset(ctx context.Context, input MoveAssetInput) (Asset, e
 			return Asset{}, err
 		}
 	}
+	oldKey := asset.ObjectKey
 	newKey := s.buildObjectKey(targetPath, asset.ID, filename, asset.MimeType)
-	if newKey != asset.ObjectKey {
-		if err := s.storage.Copy(ctx, asset.ObjectKey, newKey); err != nil {
+	// Copy, repoint the row, THEN drop the old object - deleting first left a failed row update pointing at a key that no longer existed
+	if newKey != oldKey {
+		if err := s.storage.Copy(ctx, oldKey, newKey); err != nil {
 			return Asset{}, fmt.Errorf("copy media asset: %w", err)
-		}
-		if err := s.storage.Delete(ctx, asset.ObjectKey); err != nil {
-			return Asset{}, fmt.Errorf("delete old media asset: %w", err)
 		}
 	}
 	asset, err = s.repo.UpdateAssetLocation(ctx, asset.ID, targetPath, filename, newKey, adminIDFromContext(ctx))
 	if err != nil {
 		return Asset{}, err
+	}
+	if newKey != oldKey {
+		s.dropOld(ctx, oldKey)
 	}
 	asset.URL = s.storage.PublicURL(asset.ObjectKey)
 	return asset, nil
@@ -365,15 +412,20 @@ func (s *Service) DeleteAsset(ctx context.Context, id uuid.UUID, deleteFromStora
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteAsset(ctx, id); err != nil {
-		return err
-	}
+	// Object first, the way the orphan sweep does it - dropping the row first leaked the object for good when the storage delete then failed, with nothing left to retry from
 	if deleteFromStorage {
 		if err := s.storage.Delete(ctx, asset.ObjectKey); err != nil {
 			return fmt.Errorf("delete storage object: %w", err)
 		}
 	}
-	return nil
+	return s.repo.DeleteAsset(ctx, id)
+}
+
+// The superseded copy after a move - the row already points at the new key, so a failure here only leaves a stray object for the orphan tooling, never a broken asset
+func (s *Service) dropOld(ctx context.Context, key string) {
+	if err := s.storage.Delete(ctx, key); err != nil {
+		slog.Warn("media library: old object left behind", "key", key, "err", err)
+	}
 }
 
 // CleanupProductOptionUploads deletes customer option uploads that never attached to a cart line (or whose line was removed) - presigned uploads land here with no confirm step, so without this sweep abandoned artwork accumulates forever. Assets referenced by any cart or order line are kept
@@ -397,9 +449,12 @@ func (s *Service) CleanupProductOptionUploads(ctx context.Context, olderThan tim
 }
 
 func (s *Service) DeleteDirectory(ctx context.Context, dirPath string, recursive bool) error {
-	cleanPath, err := sanitizeDirectoryPath(dirPath)
+	cleanPath, err := s.libraryPath(dirPath)
 	if err != nil {
 		return err
+	}
+	if cleanPath == "" && recursive {
+		return ErrRootDeleteNotAllowed
 	}
 	objectPrefix := s.objectPrefix(cleanPath)
 	if !recursive {
@@ -438,35 +493,24 @@ func (s *Service) DeleteDirectory(ctx context.Context, dirPath string, recursive
 	return nil
 }
 
-// ListAllDirectories derives every unique directory from the bucket's object keys
-// Purely S3-driven (no DB), so it includes dirs holding only untracked files
+// ListAllDirectories walks the directory prefixes breadth-first - listing every key to derive them read the whole bucket, every image derivative included, on each call
 func (s *Service) ListAllDirectories(ctx context.Context) ([]DirectoryChild, error) {
-	keys, err := s.storage.ListPrefix(ctx, s.rootPrefix)
-	if err != nil {
-		return nil, fmt.Errorf("list bucket: %w", err)
-	}
-	seen := map[string]struct{}{}
 	var dirs []DirectoryChild
-	for _, key := range keys {
-		// Strip rootPrefix so paths are relative to rootPrefix (or bucket root)
-		rel := key
-		if s.rootPrefix != "" {
-			rel = strings.TrimPrefix(key, s.rootPrefix+"/")
+	queue := []string{s.objectPrefix("")}
+	for len(queue) > 0 {
+		prefix := queue[0]
+		queue = queue[1:]
+		children, err := s.storage.ListImmediatePrefixes(ctx, prefix)
+		if err != nil {
+			return nil, fmt.Errorf("list directories: %w", err)
 		}
-		parts := strings.Split(rel, "/")
-		// Each intermediate segment is a directory level
-		for i := 1; i < len(parts); i++ {
-			var dirPath string
-			if s.rootPrefix != "" {
-				dirPath = strings.Join(parts[:i], "/")
-			} else {
-				dirPath = strings.Join(parts[:i], "/")
-			}
-			if _, ok := seen[dirPath]; ok {
+		for _, child := range children {
+			rel := strings.TrimSuffix(strings.TrimPrefix(child, s.objectPrefix("")), "/")
+			if rel == "" || s.reserved(rel) {
 				continue
 			}
-			seen[dirPath] = struct{}{}
-			dirs = append(dirs, DirectoryChild{Path: dirPath, Name: path.Base(dirPath)})
+			dirs = append(dirs, DirectoryChild{Path: rel, Name: path.Base(rel)})
+			queue = append(queue, child)
 		}
 	}
 	slices.SortFunc(dirs, func(a, b DirectoryChild) int { return strings.Compare(a.Path, b.Path) })
@@ -474,7 +518,7 @@ func (s *Service) ListAllDirectories(ctx context.Context) ([]DirectoryChild, err
 }
 
 func (s *Service) RenameDirectory(ctx context.Context, dirPath, newName string) (DirectoryChild, error) {
-	oldPath, err := sanitizeDirectoryPath(dirPath)
+	oldPath, err := s.libraryPath(dirPath)
 	if err != nil {
 		return DirectoryChild{}, err
 	}
@@ -493,19 +537,25 @@ func (s *Service) RenameDirectory(ctx context.Context, dirPath, newName string) 
 	if parent != "" {
 		newPath = parent + "/" + newName
 	}
+	if s.reserved(newPath) {
+		return DirectoryChild{}, fmt.Errorf("%w: %s", ErrReservedPath, newPath)
+	}
 	oldPrefix := s.objectPrefix(oldPath)
 	newPrefix := s.objectPrefix(newPath)
+	// Renaming onto a directory that already exists merged the two and overwrote whatever shared a key
+	if existing, err := s.storage.ListPrefix(ctx, newPrefix); err != nil {
+		return DirectoryChild{}, fmt.Errorf("check rename target: %w", err)
+	} else if len(existing) > 0 {
+		return DirectoryChild{}, fmt.Errorf("%w: %s", ErrPathTaken, newPath)
+	}
 	keys, err := s.storage.ListPrefix(ctx, oldPrefix)
 	if err != nil {
 		return DirectoryChild{}, fmt.Errorf("list directory objects: %w", err)
 	}
+	// Copy everything, repoint the rows, then drop the originals - deleting as it went left a mid-rename failure with rows pointing at keys already gone
 	for _, key := range keys {
-		newKey := newPrefix + strings.TrimPrefix(key, oldPrefix)
-		if err := s.storage.Copy(ctx, key, newKey); err != nil {
+		if err := s.storage.Copy(ctx, key, newPrefix+strings.TrimPrefix(key, oldPrefix)); err != nil {
 			return DirectoryChild{}, fmt.Errorf("copy object during directory rename: %w", err)
-		}
-		if err := s.storage.Delete(ctx, key); err != nil {
-			return DirectoryChild{}, fmt.Errorf("delete old object during directory rename: %w", err)
 		}
 	}
 	assets, err := s.repo.ListAssetsByPathRecursive(ctx, oldPrefix)
@@ -524,6 +574,9 @@ func (s *Service) RenameDirectory(ctx context.Context, dirPath, newName string) 
 		if _, err := s.repo.UpdateAssetLocation(ctx, asset.ID, newDirPrefix, asset.Filename, newKey, adminID); err != nil {
 			return DirectoryChild{}, err
 		}
+	}
+	for _, key := range keys {
+		s.dropOld(ctx, key)
 	}
 	return DirectoryChild{Path: newPath, Name: newName}, nil
 }
@@ -644,10 +697,10 @@ func adminIDFromContext(ctx context.Context) *uuid.UUID {
 // validating the 0..1 range and requiring both or neither coordinate
 func (s *Service) SetFocalPoint(ctx context.Context, id uuid.UUID, x, y *float64) (Asset, error) {
 	if (x == nil) != (y == nil) {
-		return Asset{}, fmt.Errorf("focal point needs both x and y (or neither, to clear)")
+		return Asset{}, ErrInvalidFocalPoint
 	}
 	if x != nil && (*x < 0 || *x > 1 || *y < 0 || *y > 1) {
-		return Asset{}, fmt.Errorf("focal coordinates must be within 0..1")
+		return Asset{}, ErrInvalidFocalPoint
 	}
 	a, err := s.repo.SetFocalPoint(ctx, id, x, y)
 	if err != nil {

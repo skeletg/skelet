@@ -48,16 +48,23 @@ DELETE FROM promotion_rules WHERE id = $1;
 -- name: GetPromotionRule :one
 SELECT * FROM promotion_rules WHERE id = $1;
 
--- name: GetPromotionRuleBySlug :one
-SELECT * FROM promotion_rules WHERE slug = $1;
+-- name: ListPromotionRulesByIDs :many
+SELECT * FROM promotion_rules WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: ListPromotionRules :many
+-- Scoped in SQL so LIMIT/OFFSET page through what the caller may see, not through rules filtered away afterwards
 SELECT * FROM promotion_rules
+WHERE  sqlc.arg(all_channels)::boolean
+   OR  channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+   OR  (sqlc.arg(include_global)::boolean AND channel_id IS NULL)
 ORDER BY priority, created_at DESC
-LIMIT $1 OFFSET $2;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountPromotionRules :one
-SELECT COUNT(*)::INTEGER FROM promotion_rules;
+SELECT COUNT(*)::INTEGER FROM promotion_rules
+WHERE  sqlc.arg(all_channels)::boolean
+   OR  channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+   OR  (sqlc.arg(include_global)::boolean AND channel_id IS NULL);
 
 -- name: ListActiveRulesForChannel :many
 -- Loaded by the engine - NULL channel_id matches everything; otherwise must match the request's store The max_uses cap is enforced here, not just at redemption - a used-up rule that still fires discounts the cart and then fails placement, with no applied-code row to remove when the rule auto-applies
@@ -133,19 +140,22 @@ SELECT COUNT(*)::INTEGER FROM promotion_codes WHERE rule_id = $1;
 UPDATE promotion_codes SET used_count = used_count + 1, updated_at = NOW()
 WHERE id = $1 AND (max_uses IS NULL OR used_count < max_uses);
 
--- name: CountCodeUsageByCustomer :one
-SELECT COUNT(*)::INTEGER FROM promotion_redemptions
-WHERE code_id = $1 AND customer_id = $2;
+-- name: CountCustomerRedemptions :many
+-- A shopper is the account OR the order email, so a guest checkout can't reuse a once-per-customer code - email arrives lowercased and trimmed
+SELECT r.rule_id, r.code_id, COUNT(*)::INTEGER AS n
+FROM   promotion_redemptions r
+LEFT JOIN orders o ON o.id = r.order_id
+WHERE  (r.rule_id = ANY(sqlc.arg(rule_ids)::uuid[]) OR r.code_id = ANY(sqlc.arg(code_ids)::uuid[]))
+  AND  ((sqlc.narg(customer_id)::uuid IS NOT NULL AND r.customer_id = sqlc.narg(customer_id)::uuid)
+        OR (sqlc.arg(email)::text <> '' AND lower(btrim(o.email)) = sqlc.arg(email)::text))
+GROUP BY r.rule_id, r.code_id;
 
--- name: CountRuleUsageByCustomer :one
-SELECT COUNT(*)::INTEGER FROM promotion_redemptions
-WHERE rule_id = $1 AND customer_id = $2;
-
--- name: BulkInsertPromotionCodes :execrows
+-- name: BulkInsertPromotionCodes :many
 -- Used by the batch-code generator - codes are passed as parallel arrays so a 10k-code batch fits in one round-trip - ON CONFLICT skips dupes - the generator regenerates collisions and retries
 INSERT INTO promotion_codes (rule_id, code)
 SELECT $1, unnest(sqlc.arg(codes)::TEXT[])
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO NOTHING
+RETURNING code;
 
 -- ===== Conditions =====
 
@@ -209,9 +219,6 @@ RETURNING *;
 DELETE FROM cart_applied_codes
 WHERE cart_id = $1
   AND code_id IN (SELECT id FROM promotion_codes WHERE code = $2);
-
--- name: RemoveCodeFromCartByRule :exec
-DELETE FROM cart_applied_codes WHERE cart_id = $1 AND rule_id = $2;
 
 -- name: ClearCartAppliedCodes :exec
 DELETE FROM cart_applied_codes WHERE cart_id = $1;

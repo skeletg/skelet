@@ -5,7 +5,6 @@ package e2ekit
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"os"
 	"sync"
 	"time"
@@ -25,7 +24,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -42,6 +40,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -57,6 +56,7 @@ import (
 // The slice of *testing.T the kit needs - a local interface so this package imports no testing
 type TB interface {
 	Helper()
+	Cleanup(func())
 	Fatal(args ...any)
 	Fatalf(format string, args ...any)
 	Skip(args ...any)
@@ -96,7 +96,7 @@ type Deps struct {
 	Tax           *tax.Service
 	Shipping      *shipping.Service
 	OrderMail     *ordermail.Service
-	Form          *form.Service
+	Form          *signupform.Service
 	BackInStock   *backinstock.Service
 	Integration   *integration.Service
 	Admin         *admin.Service
@@ -235,6 +235,12 @@ func New(t TB) *Harness {
 	} else {
 		_ = conn.Close()
 	}
+	// The app container's own SIGNALS_GRPC_ADDR is the dev stack's Signals process - reading it would push this run's channels,
+	// flows and enrollments into the dev suite, so the address arrives under a name only bin/test-e2e sets
+	signalsAddr := os.Getenv("E2E_SIGNALS_GRPC_ADDR")
+	if signalsAddr == "" {
+		t.Skip("E2E_SIGNALS_GRPC_ADDR is unset - run the e2e suite with ./skelet test e2e, which starts a Signals process of its own")
+	}
 	harnessOnce.Do(func() {
 		// The graph constructs media storage unconditionally - dummy credentials keep it inert
 		// (nothing here touches S3) and the metadata kill switch keeps the AWS chain off IMDS
@@ -246,12 +252,8 @@ func New(t TB) *Harness {
 		// so the suite opts in explicitly (memory limiter - no Valkey in the Harness)
 		setenvDefault("RATE_LIMIT_ENABLED", "true")
 
-		// Core reaches the suite over the contract even here, so a Signals process speaking for THIS
-		// harness's signals database has to be running - bin/test-e2e starts one and hands its address over
-		if os.Getenv("SIGNALS_GRPC_ADDR") == "" {
-			harnessErr = errors.New("SIGNALS_GRPC_ADDR is unset - the e2e scenarios need a running Signals process, which bin/test-e2e starts beside them")
-			return
-		}
+		// Core reaches the suite over the contract even here, so it talks to the Signals process bin/test-e2e started for this run's database
+		os.Setenv("SIGNALS_GRPC_ADDR", signalsAddr)
 
 		ctx := context.Background()
 		var bg sync.WaitGroup
@@ -289,6 +291,7 @@ func (h *Harness) Settle(t TB) {
 	ctx, cancel := context.WithTimeout(h.Ctx, 30*time.Second)
 	defer cancel()
 	for range 20 {
+		h.D.Customer.FlushMail()
 		n := h.D.Outbox.DrainPending(ctx)
 		if err := h.D.Bus.WaitIdle(ctx); err != nil {
 			t.Fatalf("settle: %v", err)

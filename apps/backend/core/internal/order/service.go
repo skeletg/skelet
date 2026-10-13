@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"log"
 	"reflect"
 	"slices"
@@ -34,7 +35,17 @@ var ErrAddressNotFound = errors.New("address not found in the customer's address
 
 var ErrAddressInvalid = errors.New("address is missing or incomplete")
 
+// Missing and not-yours read the same, so a caller can't learn which order ids exist
+var ErrOrderNotFound = errors.New("order not found")
+
+var ErrReturnNotFound = errors.New("return not found")
+
+var ErrFulfillmentNotFound = errors.New("fulfillment not found")
+
 func init() {
+	apperr.RegisterSentinel(ErrOrderNotFound, "ORDER_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrReturnNotFound, "RETURN_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrFulfillmentNotFound, "FULFILLMENT_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrStoreRequired, "STORE_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrAddressNotFound, "ADDRESS_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrAddressInvalid, "ADDRESS_INVALID", apperr.ClassValidation)
@@ -79,6 +90,12 @@ type Service struct {
 	inventoryEditor InventoryEditor
 	// Gates promotion free gifts on salable stock - nil grants them unconditionally
 	giftStock GiftStockChecker
+	kits      KitComponentLookup
+}
+
+// A kit SKU's per-unit components, nil for anything that isn't a kit
+type KitComponentLookup interface {
+	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error)
 }
 
 // Loads a channel for the edit recompute (tax-inclusive, currency) so order doesn't import channel directly
@@ -225,6 +242,7 @@ func (s *Service) SetInventoryEditor(e InventoryEditor)             { s.inventor
 func (s *Service) SetGiftStockChecker(c GiftStockChecker)           { s.giftStock = c }
 func (s *Service) SetProductTaxClassLookup(l ProductTaxClassLookup) { s.taxClasses = l }
 func (s *Service) SetProductCostLookup(l ProductCostLookup)         { s.costs = l }
+func (s *Service) SetKitComponentLookup(l KitComponentLookup)       { s.kits = l }
 func (s *Service) SetCountryValidator(v CountryValidator)           { s.countries = v }
 func (s *Service) SetPaymentValidator(v PaymentValidator)           { s.payments = v }
 func (s *Service) SetGiftCardTender(g GiftCardTender)               { s.giftcard = g }
@@ -252,7 +270,7 @@ func (s *Service) HoldOrder(ctx context.Context, orderID uuid.UUID, reason strin
 		return Order{}, err
 	}
 	if !validTransition(o.Status, OrderStatusOnHold) {
-		return Order{}, fmt.Errorf("cannot hold an order in status %q", o.Status)
+		return Order{}, errInvalidTransition(o.Status, OrderStatusOnHold)
 	}
 	updated, err := s.repo.HoldOrderFrom(ctx, orderID, o.Status) // stamps where it came from, so releasing doesn't confirm a pending order behind the operator's back
 	if err != nil {
@@ -274,7 +292,7 @@ func (s *Service) ReleaseOrder(ctx context.Context, orderID uuid.UUID) (Order, e
 		return Order{}, err
 	}
 	if o.Status != OrderStatusOnHold {
-		return Order{}, fmt.Errorf("order is not on hold (status %q)", o.Status)
+		return Order{}, errInvalidTransition(o.Status, "released")
 	}
 	updated, err := s.repo.ReleaseOrderToHeldFrom(ctx, orderID)
 	if err != nil {
@@ -405,6 +423,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		cartObj = s.appendFreeGiftLines(ctx, cartObj, store.ID, evalResult.Ledger.FreeGifts())
 		cc.cart = cartObj
 	}
+	stamped, err := s.stampStockParts(ctx, cartObj.Lines)
+	if err != nil {
+		return Order{}, err
+	}
+	cartObj.Lines = stamped
+	cc.cart = cartObj
 
 	// Pre-tx gate for validators that don't write in the placement tx - fraud, address, B2B - A veto aborts before any tx opens, and enrichment seeds the order.placing payload below
 	validating := &CheckoutValidating{
@@ -446,7 +470,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			return Order{}, fmt.Errorf("checkout rejected: %w", err)
 		}
 		if reject {
-			return Order{}, fmt.Errorf("checkout rejected: %s", reason)
+			return Order{}, apperr.New("CHECKOUT_REJECTED", apperr.ClassValidation, "checkout rejected: "+reason)
 		}
 		if score > validating.RiskScore {
 			validating.RiskScore = score
@@ -548,7 +572,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			Email:               in.Email,
 			ChannelID:           store.ID,
 			Status:              OrderStatusPending,
-			PaymentStatus:       "unpaid",
+			PaymentStatus:       PaymentUnpaid,
 			PaymentProvider:     paymentProvider,
 			BillingAddress:      billing,
 			ShippingAddress:     storedShipping(cc),
@@ -563,8 +587,8 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			PONumber:            in.PONumber,
 			BusinessIDs:         in.BusinessIDs,
 			ShippingMethodID:    shipSel.MethodID,
-			ShippingCarrierSlug: stringPtr(shipSel.CarrierSlug),
-			ShippingMethodCode:  stringPtr(shipSel.MethodCode),
+			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
+			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              auth.AnonID(ctx),
 		})
 		if err != nil {
@@ -728,10 +752,10 @@ func computeOrderTotal(subtotal, discount, tax, shipping int64, taxInclusive boo
 func (s *Service) GetOrderForCustomer(ctx context.Context, customerID, orderID uuid.UUID) (Order, error) {
 	order, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if order.CustomerID == nil || *order.CustomerID != customerID {
-		return Order{}, fmt.Errorf("forbidden")
+		return Order{}, ErrOrderNotFound
 	}
 	return order, nil
 }
@@ -739,7 +763,7 @@ func (s *Service) GetOrderForCustomer(ctx context.Context, customerID, orderID u
 // Guest orders only, for unauthenticated confirmation pages where the (id, email) pair is the bearer credential
 func (s *Service) GetGuestOrder(ctx context.Context, orderID uuid.UUID, email string) (Order, error) {
 	if email == "" {
-		return Order{}, fmt.Errorf("email required")
+		return Order{}, apperr.New("EMAIL_REQUIRED", apperr.ClassValidation, "email required")
 	}
 	return s.repo.GetGuestOrder(ctx, orderID, email)
 }
@@ -788,9 +812,9 @@ func (s *Service) CancelOrder(ctx context.Context, customerID, orderID uuid.UUID
 		return Order{}, err
 	}
 	if order.Status != OrderStatusPending && order.Status != OrderStatusConfirmed {
-		return Order{}, fmt.Errorf("cannot cancel order in status %q", order.Status)
+		return Order{}, errInvalidTransition(order.Status, OrderStatusCancelled)
 	}
-	return s.updateStatusWithEvent(ctx, order.ID, OrderStatusCancelled, "order_cancelled", "Order cancelled by customer", "", "")
+	return s.updateStatusWithEvent(ctx, order, OrderStatusCancelled, "order_cancelled", "Order cancelled by customer", "", "")
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus string) (Order, error) {
@@ -801,13 +825,13 @@ func (s *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus
 func (s *Service) UpdateStatusWithTracking(ctx context.Context, orderID uuid.UUID, newStatus, carrier, trackingNumber string) (Order, error) {
 	order, err := s.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return Order{}, fmt.Errorf("order not found")
+		return Order{}, err
 	}
 	if !validTransition(order.Status, newStatus) {
-		return Order{}, fmt.Errorf("invalid status transition from %q to %q", order.Status, newStatus)
+		return Order{}, errInvalidTransition(order.Status, newStatus)
 	}
 	return s.updateStatusWithEvent(
-		ctx, order.ID, newStatus, "order_status_changed",
+		ctx, order, newStatus, "order_status_changed",
 		fmt.Sprintf("Status changed to %s", newStatus),
 		carrier, trackingNumber,
 	)
@@ -815,11 +839,9 @@ func (s *Service) UpdateStatusWithTracking(ctx context.Context, orderID uuid.UUI
 
 // --- helpers ---
 
-func (s *Service) updateStatusWithEvent(ctx context.Context, orderID uuid.UUID, status, eventType, message, carrier, trackingNumber string) (Order, error) {
-	prior, err := s.repo.GetOrderByID(ctx, orderID)
-	if err != nil {
-		return Order{}, err
-	}
+// prior is the caller's own read - re-reading it here hydrated the whole order a second time for nothing
+func (s *Service) updateStatusWithEvent(ctx context.Context, prior Order, status, eventType, message, carrier, trackingNumber string) (Order, error) {
+	orderID := prior.ID
 	// Sync pre-commit hooks for the gate-able transitions - refund-on-cancel, dispatch-on-fulfill - which can reject or enrich the audit message
 	if s.bus != nil {
 		switch status {
@@ -854,15 +876,15 @@ func (s *Service) updateStatusWithEvent(ctx context.Context, orderID uuid.UUID, 
 			}
 		}
 	}
-	// Read the shipped split BEFORE the tx - the tender reversals scale by it, and reading it inside would hold the order row while querying fulfillments
 	refundable := 1.0
-	if status == OrderStatusCancelled {
-		refundable = s.unshippedFraction(ctx, prior)
-	}
-	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
 		if _, err := r.UpdateOrderStatusFrom(ctx, orderID, prior.Status, status); err != nil {
 			return err
+		}
+		// Read the shipped split with the order row held - read before, a shipment landing on a partially fulfilled order (whose status doesn't change) slipped in and the reversals refunded tenders for goods that had just left
+		if status == OrderStatusCancelled {
+			refundable = unshippedFraction(ctx, r, prior)
 		}
 		// Stamp tracking only on the fulfilled transition
 		if status == OrderStatusFulfilled && (carrier != "" || trackingNumber != "") {
@@ -1048,11 +1070,21 @@ var orderStatusTransitions = map[string][]string{
 	OrderStatusCancelled:          {},
 }
 
+func IsStatus(s string) bool {
+	_, ok := orderStatusTransitions[s]
+	return ok
+}
+
 func validTransition(from, to string) bool {
 	return slices.Contains(orderStatusTransitions[from], to)
 }
 
 // The status-guarded UPDATEs match no row when someone else moved the order between the caller's read and the write - a conflict the caller can retry against the new status, not a server fault
+func errInvalidTransition(from, to string) error {
+	return apperr.New("ORDER_INVALID_TRANSITION", apperr.ClassConflict,
+		fmt.Sprintf("an order in status %q cannot be %s", from, to))
+}
+
 func errStatusRaced(from, to string) error {
 	return apperr.New("ORDER_STATUS_RACED", apperr.ClassConflict,
 		fmt.Sprintf("the order left %q before it could move to %q - reload it and try again", from, to))

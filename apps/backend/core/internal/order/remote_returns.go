@@ -86,7 +86,17 @@ func (r *remoteReturnsPolicy) Allowed(ctx context.Context, in RemoteReturnInput)
 		if reason == "" {
 			reason = "return not permitted by policy"
 		}
-		return false, reason
+		return false, capPolicyReason(reason)
 	}
 	return true, ""
+}
+
+const maxPolicyReasonRunes = 300
+
+// An endpoint's free text lands in the admin's error banner verbatim, so it is capped
+func capPolicyReason(reason string) string {
+	if r := []rune(reason); len(r) > maxPolicyReasonRunes {
+		return string(r[:maxPolicyReasonRunes]) + "…"
+	}
+	return reason
 }

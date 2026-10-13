@@ -10,3 +10,20 @@ func Deref[T any](p *T) T {
 	}
 	return *p
 }
+
+// DerefOr reads through a pointer, giving def for nil - for an optional argument whose absence means something other than the zero value
+func DerefOr[T any](p *T, def T) T {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+
+// NonZero points at v, or is nil when v is the zero value - an empty string written to a nullable column reads as unset
+func NonZero[T comparable](v T) *T {
+	var zero T
+	if v == zero {
+		return nil
+	}
+	return &v
+}

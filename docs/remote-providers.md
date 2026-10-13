@@ -39,7 +39,7 @@ Core sends `POST` to your URL with:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `RemoteProvider/1.0` |
 | `X-Provider-Kind` | the kind, e.g. `tax_provider` |
-| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.2.1` |
+| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.2.2` |
 | `X-Provider-Slug` | the slug the merchant registered |
 | `X-Provider-Timestamp` | unix seconds |
 | `X-Provider-Signature-256` | `sha256=<hex>` |

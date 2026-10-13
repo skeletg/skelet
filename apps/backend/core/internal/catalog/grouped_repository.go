@@ -50,21 +50,6 @@ func (r *postgresRepository) ListGroupedMembersByParentID(ctx context.Context, p
 	return out, nil
 }
 
-func (r *postgresRepository) ListGroupedMembersByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]GroupedMember, error) {
-	if len(parentIDs) == 0 {
-		return map[uuid.UUID][]GroupedMember{}, nil
-	}
-	rows, err := r.queries.ListGroupedMembersByParentIDs(ctx, parentIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list grouped members by ids: %w", err)
-	}
-	out := make(map[uuid.UUID][]GroupedMember, len(parentIDs))
-	for _, row := range rows {
-		out[row.ParentID] = append(out[row.ParentID], toGroupedMember(row))
-	}
-	return out, nil
-}
-
 func (r *postgresRepository) ListGroupedMemberLinksByMemberIDs(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]GroupedMemberLink, error) {
 	out := make(map[uuid.UUID][]GroupedMemberLink, len(memberIDs))
 	if len(memberIDs) == 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
-	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
@@ -40,6 +40,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -48,6 +49,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
+	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 )
 
 // The wiring the graph can't express through constructors: seams that would be import cycles if the dependency were declared, the ordered event subscriptions, and registries that can only be filled once services exist
@@ -57,6 +59,7 @@ var Wiring = fx.Module("wiring",
 		wireValidators,
 		wireOrderPlacement,
 		WireRemoteProviders,
+		wireCurrencyRates,
 		RegisterBuiltinCarriers,
 		wireDelivery,
 		wirePayments,
@@ -84,7 +87,6 @@ type validatorDeps struct {
 	Locale    *locale.Service
 	Channel   *channel.Service
 	Inventory *inventory.Service
-	Catalog   *catalog.Service
 	Currency  *currency.Service
 }
 
@@ -96,8 +98,6 @@ func wireValidators(d validatorDeps) {
 	d.Locale.SetCountryValidator(d.Country)
 	d.Channel.SetLocaleValidator(d.Locale)
 	d.Channel.SetLocationAssigner(d.Inventory)
-	// Currency-change guards: channel.Update rejects when listings inherit, and config.Set on the global currency path rejects when listings would be stranded under a new one
-	d.Channel.SetListingCounter(d.Catalog)
 	d.Channel.SetCurrencyValidator(d.Currency)
 }
 
@@ -129,12 +129,13 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetCountryValidator(d.Country)
 	d.Order.SetProductTaxClassLookup(d.Catalog) // per-line tax needs each line's product tax class, resolved by SKU at placement time
 	d.Order.SetProductCostLookup(d.Catalog)
+	d.Order.SetKitComponentLookup(OrderKitLookup{svc: d.Catalog})
 	d.Order.SetGiftCardTender(NewGiftcardTender(d.Giftcard)) // gift-card codes redeem as a tender, inside the placement tx
 	d.Order.SetStoreCreditTender(NewStoreCreditTender(d.StoreCredit))
 	d.Order.SetGiftStockChecker(d.Inventory) // lets placement drop a promotion free gift stock can't cover, rather than appending a line the reservation rejects and taking the whole paid order down
 	d.Order.SetInventoryEditor(d.Inventory)
 	d.Order.SetChannelLoader(NewOrderChannelLoader(d.Channel)) // pre-fulfillment editing: the order's channel drives the tax-inclusive recompute
-	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer)))
+	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.Channel)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 	d.Order.SetShippingTax(NewShippingTax(d.Config))
 	d.Order.SetAddressChecker(d.Address)
@@ -208,6 +209,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 	d.Inventory.SetLedgerToggle(NewInventoryLedgerToggle(d.Config))
 	d.Inventory.SetFlatModeToggle(NewInventoryFlatModeToggle(d.Config))
 	d.Inventory.SetDeductionStepToggle(NewInventoryDeductionStep(d.Config))
+	d.Inventory.SetDefaultLocationSource(NewInventoryDefaultLocation(d.Config))
 	d.Inventory.SetEventBus(d.Bus)
 	d.Catalog.SetInventoryEnsurer(NewCatalogInventoryEnsurer(d.Inventory))
 
@@ -224,7 +226,7 @@ type marketingDeps struct {
 	fx.In
 	Flows         *enroll.Enroller
 	Customer      *customer.Service
-	Form          *form.Service
+	Form          *signupform.Service
 	Consent       *consent.Service
 	SegmentReads  *SegmentLookup
 	OrderMail     *ordermail.Service
@@ -233,6 +235,7 @@ type marketingDeps struct {
 	TransactionalSender *mailsend.Sender
 	BackInStock         *backinstock.Service
 	Lifecycle           fx.Lifecycle
+	Limits              LimitsRedis
 }
 
 // Appended after the signals client's close, so the unwind lets the in-flight send reports land first
@@ -259,7 +262,9 @@ func wireMarketing(d marketingDeps) {
 	d.TransactionalSender.SetRecorder(NewTransactionalRecorder(d.SignalsClient))
 	drainSendReportsOnStop(d.Lifecycle, d.TransactionalSender)
 	d.BackInStock.SetDirectSender(d.TransactionalSender)
-	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.SegmentReads, d.Flows) // storefront email capture → contact + consent + segment + form_submitted flow
+	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.SegmentReads, d.Flows) // a confirmed signup → contact + consent + segment + form_submitted flow
+	// The double opt-in mail goes out like verification, and each address gets a small hourly budget of them so a form can't flood an inbox
+	d.Form.SetConfirmation(d.Customer, ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR", 3), time.Hour))
 }
 
 func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms *objstore.Storage) {

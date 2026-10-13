@@ -2,7 +2,8 @@
 //
 // SYNC SENTINEL - contract shared three ways with
 // backend internal/blockkit and the dashboard features/cms descriptors
-// A body that doesn't parse to a Document is treated as freeform content
+// A body that doesn't parse to a Document is treated as freeform content - one that claims to be a Document (a blocks key) but
+// isn't well-formed is refused outright, matching the backend, which drops such a body before it ships
 
 export type Block = {
   id: string;
@@ -16,24 +17,44 @@ export type Document = {
   blocks: Block[];
 };
 
+const MAX_DEPTH = 8;
+
+// Any malformed node rejects the whole document rather than being dropped, so a body the backend never sanitized can't reach a renderer
 export function parseDocument(body: unknown): Document | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  const obj = body as Record<string, unknown>;
-  const blocks = obj.blocks;
-  if (!Array.isArray(blocks)) return null;
-  // Keep only well-formed block nodes; a malformed node is dropped rather than failing
-  // the whole document, so one bad block can't blank the page
-  const normalized = (blocks.filter(isBlock) as Block[]).map((b) =>
-    b.props && typeof b.props === "object" ? b : { ...b, props: {} },
-  );
-  const version = typeof obj.version === "number" ? obj.version : 1;
-  return { version, blocks: normalized };
+  if (!isPlainObject(body)) return null;
+  if (!Number.isInteger(body.version) || (body.version as number) < 0) return null;
+  const blocks = parseBlocks(body.blocks, 1);
+  if (!blocks) return null;
+  return { version: body.version as number, blocks };
 }
 
-function isBlock(value: unknown): value is Block {
-  if (!value || typeof value !== "object") return false;
-  const b = value as Record<string, unknown>;
-  return typeof b.id === "string" && typeof b.type === "string";
+function parseBlocks(value: unknown, depth: number): Block[] | null {
+  if (!Array.isArray(value) || depth > MAX_DEPTH) return null;
+  const out: Block[] = [];
+  for (const node of value) {
+    const block = parseBlock(node, depth);
+    if (!block) return null;
+    out.push(block);
+  }
+  return out;
+}
+
+function parseBlock(value: unknown, depth: number): Block | null {
+  if (!isPlainObject(value)) return null;
+  const { id, type, props, blocks } = value;
+  if (typeof id !== "string" || id === "" || typeof type !== "string" || type === "") return null;
+  if (props !== undefined && props !== null && !isPlainObject(props)) return null;
+  const block: Block = { id, type, props: (props as Record<string, unknown> | null | undefined) ?? {} };
+  if (blocks !== undefined && blocks !== null) {
+    const children = parseBlocks(blocks, depth + 1);
+    if (!children) return null;
+    block.blocks = children;
+  }
+  return block;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function readString(

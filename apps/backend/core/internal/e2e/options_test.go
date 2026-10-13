@@ -24,7 +24,7 @@ func (h *harness) addSelectOption(t *testing.T, productID uuid.UUID, title strin
 	for i, d := range deltas {
 		v, err := h.D.Catalog.AddProductOptionValue(h.Ctx, catalog.AddProductOptionValueInput{
 			OptionID: opt.ID, Locale: "en", Title: title + " choice", SortOrder: int32(i),
-			PriceValue: d, PriceType: catalog.OptionPriceFixed,
+			PriceValue: d, PriceType: catalog.OptionPriceFixed, Quantity: 1,
 		})
 		if err != nil {
 			t.Fatalf("add option value: %v", err)

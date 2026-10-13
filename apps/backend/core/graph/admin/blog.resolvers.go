@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -515,12 +516,16 @@ func (r *mutationResolver) MintBlogPostPreviewToken(ctx context.Context, input m
 	if err != nil {
 		return nil, err
 	}
-	// Confirm the post exists before minting - minting tokens for non-existent posts is a leak vector (an attacker that
-	// gets the mint endpoint could fish for valid post IDs)
-	if _, err := r.BlogSvc.GetPost(ctx, postID, ""); err != nil {
+	// Access first, then existence - the other order answered "not found" for posts on channels the caller can't touch, which told a channel-scoped admin which ids exist elsewhere
+	if err := r.requireOnPostChannels(ctx, "blog.manage", postID, ""); err != nil {
 		return nil, err
 	}
-	if err := r.requireOnPostChannels(ctx, "blog.manage", postID, ""); err != nil {
+	if _, err := r.BlogSvc.GetPost(ctx, postID, ""); err != nil { // no tokens for posts that don't exist
+		if errors.Is(err, blog.ErrPostNotFound) { // a post listed nowhere passes the channel check, so only a global holder learns an id is unused
+			if gerr := auth.RequireGlobalPermission(ctx, r.AdminSvc, "blog.manage"); gerr != nil {
+				return nil, gerr
+			}
+		}
 		return nil, err
 	}
 	claims, ok := auth.AdminFromContext(ctx)

@@ -1629,6 +1629,10 @@ fragment ProductOptionValueFields on ProductOptionValue {
     defaultPrice
     defaultCurrencyCode
   }
+  channelPrices {
+    channelId
+    priceValue
+  }
   createdAt
   updatedAt
 }
@@ -1651,6 +1655,10 @@ fragment ProductOptionFields on ProductOption {
   maxFileBytes
   fileExtensions
   visibleIf
+  channelPrices {
+    channelId
+    priceValue
+  }
   values {
     ...ProductOptionValueFields
   }
@@ -1730,6 +1738,20 @@ mutation DeleteProductOptionValueContent($valueId: ID!, $locale: String!) {
 
 mutation DeleteProductOptionValue($id: ID!) {
   deleteProductOptionValue(id: $id) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation SetProductOptionChannelPrice($optionId: ID!, $channelId: ID!, $priceValue: Int) {
+  setProductOptionChannelPrice(optionId: $optionId, channelId: $channelId, priceValue: $priceValue) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation SetProductOptionValueChannelPrice($valueId: ID!, $channelId: ID!, $priceValue: Int) {
+  setProductOptionValueChannelPrice(valueId: $valueId, channelId: $channelId, priceValue: $priceValue) {
     id
     productOptions { ...ProductOptionFields }
   }

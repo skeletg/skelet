@@ -25,10 +25,9 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
-	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
@@ -175,10 +174,10 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.Middleware(infra.Config.JWTSecret)(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))
-	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public and unauthenticated like the storefront GraphQL endpoint, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
+	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public like the storefront GraphQL endpoint, with its customer session so sdk.CustomerID and ReadCart see a signed-in shopper, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
 	if pluginRoutes := pluginhost.RouteHandler(); pluginRoutes != nil {
 		mux.Handle(pluginhost.RoutePrefix, otelx.WrapHTTP(
-			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(channel.Middleware(s.Channel)(pluginRoutes))),
+			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(pluginRouteAuth(infra.Config.JWTSecret, s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
 			"plugins.routes"))
 	}
 	// No separate REST tier - machine callers hit the admin GraphQL endpoint above with an X-Api-Token integration token; a dedicated /api/v1/ REST surface may still come back once a real consumer needs one
@@ -200,63 +199,28 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		},
 	}))
 
-	// Blog public routes - XML responses don't fit the GraphQL surface so they live as plain HTTP - the channel middleware resolves the active store from the X-Channel-Id header / Host so the handlers can scope posts via per-store listings; non-store requests fall back to global (admin / single-store deployments)
-	mux.Handle("/blog/feed.rss.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindRSS)))
-	mux.Handle("/blog/feed.atom.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindAtom)))
-	mux.Handle("/sitemap.xml", channel.Middleware(s.Channel)(blogSitemapHandler(s.Blog)))
-	feed := catalog.NewMerchantFeed(infra.Queries, s.MediaStorage)
-	feed.SetSalable(s.Inventory)
+	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
+	feed := catalogio.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory, s.Catalog)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
 
 	// consume enforces the grant's use-count + expiry under a row lock before the 302; the per-IP budget is shared with the other token-keyed public endpoints - tokens are unguessable so forgery isn't the threat, replay-flooding is, since each hit costs a token verify plus DB work and doubles as a brute-force oracle
 	tokenLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
-	mux.HandleFunc("/download/", func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.URL.Path, "/download/")
-		if token == "" {
-			http.NotFound(w, r)
-			return
-		}
-		if !tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r)) {
-			http.Error(w, "too many requests", http.StatusTooManyRequests)
-			return
-		}
-		grant, err := s.Download.Consume(r.Context(), token)
-		if err != nil {
-			switch {
-			case errors.Is(err, download.ErrNotFound):
-				http.NotFound(w, r)
-			case errors.Is(err, download.ErrExpired) || errors.Is(err, download.ErrLimitReached):
-				http.Error(w, err.Error(), http.StatusGone)
-			default:
-				http.Error(w, "download error", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, grant.URL, http.StatusFound)
-	})
+	var downloadFiles download.FileStore
+	if s.MediaStorage != nil {
+		downloadFiles = storedDownloads{s.MediaStorage}
+	}
+	mux.Handle("/download/", s.Download.Handler(downloadFiles, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "download:"+authpkg.ClientIP(r))
+	}))
 
-	// One-click unsubscribe - the suite signs the link over the customer id with the shared key, so it works without auth
-	// Following it records a marketing_email opt-out where consent lives, which is here
+	// The suite signs the unsubscribe link over the customer id with the shared key, so it works without auth, and the opt-out lands where consent lives, which is here
 	unsubscribes := emailtrack.NewSigner([]byte(infra.Config.JWTSecret))
-	mux.HandleFunc("/unsubscribe/", func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.URL.Path, "/unsubscribe/")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if !tokenLimiter.Allow(r.Context(), "unsub:"+authpkg.ClientIP(r)) {
-			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>Too many requests</h1><p>Please try again in a minute.</p></body></html>`))
-			return
-		}
-		customerID, err := unsubscribes.VerifyUnsubscribe(token)
-		if err == nil {
-			_, err = s.Consent.SetConsent(r.Context(), customerID, marketingConsentKind, false, consent.SourceUnsubscribeLink)
-		}
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>Link invalid</h1><p>This unsubscribe link is invalid or has expired.</p></body></html>`))
-			return
-		}
-		_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>You're unsubscribed</h1><p>You will no longer receive marketing emails from us.</p></body></html>`))
-	})
+	mux.HandleFunc(unsubscribePath, unsubscribeHandler(unsubscribes.VerifyUnsubscribe, s.Consent, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "unsub:"+authpkg.ClientIP(r))
+	}))
+	mux.HandleFunc(customer.SignupConfirmPath, signupConfirmHandler(s.Form, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "subconfirm:"+authpkg.ClientIP(r))
+	}))
 
 	// The open pixel and click redirect are the suite's, beside the send log they name - proxied there
 	// like /t, and reached via the storefront /e rewrite
@@ -351,7 +315,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   AllowedOrigins(infra.Config),
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", "X-Channel-Id"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", channel.HeaderChannelID},
 		AllowCredentials: false, // JWT travels in Authorization header, not cookies
 		MaxAge:           300,
 	}).Handler(mux)
@@ -369,7 +333,6 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 }
 
 // The consent kind a marketing mail's unsubscribe link opts out of, as consent names it
-const marketingConsentKind = "marketing_email"
 
 func maxBody(n int64) func(http.Handler) http.Handler { // GraphQL's complexity limit bounds resolver work but not raw payload size; MaxBytesReader makes oversized POSTs fail fast with 413 semantics
 	return func(next http.Handler) http.Handler {
@@ -411,39 +374,10 @@ func frontRateLimit(limiter ratelimit.Limiter, serviceSecret string) func(http.H
 	}
 }
 
-// blogFeedHandler returns an HTTP handler that renders a blog RSS or Atom feed - locale, channel, and base URL are pulled from the channel context; the `locale` query parameter still wins if provided - without a resolved store the feed is global (suitable for single-store deployments)
-func blogFeedHandler(svc *blog.Service, kind blog.FeedKind) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		locale := r.URL.Query().Get("locale")
-		baseURL := os.Getenv("STOREFRONT_URL")
-		opts := blog.FeedOptions{BaseURL: baseURL, Locale: locale}
-		if sv, ok := channel.FromContext(ctx); ok && sv != nil {
-			id := sv.ID
-			opts.ChannelID = &id
-			if locale == "" {
-				opts.Locale = sv.DefaultLocale
-			}
-			if sv.PublicURL != "" {
-				opts.BaseURL = sv.PublicURL
-			}
-			if opts.Title == "" {
-				opts.Title = sv.Name
-			}
-		}
-		body, contentType, err := svc.RenderFeed(ctx, kind, opts)
-		if err != nil {
-			slog.Error("render feed", "kind", kind, "err", err) // public endpoint - the cause names queries, tables and channel internals
-			http.Error(w, "feed unavailable", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=300")
-		_, _ = w.Write(body)
-	}
-}
+// Feeds are pulled by Merchant Center on a schedule - an hour of staleness is fine and keeps the flat query off the hot path
+const merchantFeedCacheControl = "public, max-age=3600"
 
-func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // prices and currency are channel-bound, so a request that doesn't resolve to a channel gets 404 rather than a mispriced global feed
+func merchantFeedHandler(feed *catalogio.MerchantFeed) http.HandlerFunc { // prices and currency are channel-bound, so a request that doesn't resolve to a channel gets 404 rather than a mispriced global feed
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		sv, ok := channel.FromContext(ctx)
@@ -455,11 +389,8 @@ func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // price
 		if baseURL == "" {
 			baseURL = os.Getenv("STOREFRONT_URL")
 		}
-		locale := r.URL.Query().Get("locale")
-		if locale == "" {
-			locale = sv.DefaultLocale
-		}
-		body, contentType, err := feed.Render(ctx, catalog.MerchantFeedOptions{
+		locale := channel.ClampLocale(*sv, r.URL.Query().Get("locale")) // an unknown code renders the default - the render cache is keyed on it, so arbitrary values must not each mint an entry
+		body, contentType, err := feed.Render(ctx, catalogio.MerchantFeedOptions{
 			ChannelID:    sv.ID,
 			BaseURL:      baseURL,
 			CurrencyCode: sv.CurrencyCode,
@@ -472,31 +403,7 @@ func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // price
 			return
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=3600") // feeds are pulled by Merchant Center on a schedule; an hour of staleness is fine and keeps the flat query off the hot path
-		_, _ = w.Write(body)
-	}
-}
-
-func blogSitemapHandler(svc *blog.Service) http.HandlerFunc { // scoped to the resolved channel when present so each store gets its own URL set
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		baseURL := os.Getenv("STOREFRONT_URL")
-		opts := blog.SitemapOptions{BaseURL: baseURL}
-		if sv, ok := channel.FromContext(ctx); ok && sv != nil {
-			id := sv.ID
-			opts.ChannelID = &id
-			if sv.PublicURL != "" {
-				opts.BaseURL = sv.PublicURL
-			}
-		}
-		body, contentType, err := svc.RenderSitemap(ctx, opts)
-		if err != nil {
-			slog.Error("render sitemap", "err", err)
-			http.Error(w, "sitemap unavailable", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=600")
+		w.Header().Set("Cache-Control", merchantFeedCacheControl)
 		_, _ = w.Write(body)
 	}
 }
@@ -552,4 +459,14 @@ func beaconProxy(enabled bool) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	}
 	return proxy
+}
+
+// Plugin routes are a storefront surface - the customer session rides along, an admin token must not reach a plugin's admin gates
+func pluginRouteAuth(secret string, active authpkg.CustomerActiveFunc) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		guarded := authpkg.CustomerSessionGuard(active)(next)
+		return authpkg.Middleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			guarded.ServeHTTP(w, r.WithContext(authpkg.WithAdmin(r.Context(), nil)))
+		}))
+	}
 }

@@ -11,6 +11,16 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 )
 
+// Page and bucket bounds for the Postgres tier - a request outside them gets the default rather than an error
+const (
+	browseFallbackDefaultLimit = 24
+	browseFallbackMaxLimit     = 100
+	searchFallbackDefaultLimit = 20
+	searchFallbackMaxLimit     = 100
+	facetCountDefaultValues    = 50
+	facetCountMaxValues        = 200
+)
+
 type BrowseFallbackFilter struct { // the subset of the index's browse contract Postgres can answer - relevance scoring is deliberately absent, this keeps the store shoppable when OpenSearch is down rather than replacing it
 	ChannelID     uuid.UUID
 	Query         string
@@ -28,8 +38,8 @@ type BrowseFallbackFilter struct { // the subset of the index's browse contract 
 }
 
 func (s *productService) BrowseFallback(ctx context.Context, f BrowseFallbackFilter) ([]uuid.UUID, int64, error) { // returns ids so the caller hydrates through the same path the indexed browse uses
-	if f.Limit <= 0 || f.Limit > 100 {
-		f.Limit = 24
+	if f.Limit <= 0 || f.Limit > browseFallbackMaxLimit {
+		f.Limit = browseFallbackDefaultLimit
 	}
 	if f.Offset < 0 {
 		f.Offset = 0
@@ -89,8 +99,8 @@ func (s *productService) SearchFallback(ctx context.Context, channelID uuid.UUID
 	if query == "" {
 		return []SearchHit{}, 0, nil
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	if limit <= 0 || limit > searchFallbackMaxLimit {
+		limit = searchFallbackDefaultLimit
 	}
 	if offset < 0 {
 		offset = 0
@@ -135,8 +145,8 @@ type FacetCountFilter struct {
 
 // One query per facet - at the scale this tier targets that is cheaper than it sounds (a full GROUP BY over the EAV join measures well under a millisecond), and it keeps the multi-select exclusion expressible without building SQL per request
 func (s *productService) FacetCounts(ctx context.Context, targetAttributeID uuid.UUID, f FacetCountFilter) ([]FacetBucketCount, error) {
-	if f.MaxValues <= 0 || f.MaxValues > 200 {
-		f.MaxValues = 50
+	if f.MaxValues <= 0 || f.MaxValues > facetCountMaxValues {
+		f.MaxValues = facetCountDefaultValues
 	}
 	var otherValues []uuid.UUID
 	otherAttrs := 0

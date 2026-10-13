@@ -7,6 +7,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -24,7 +25,7 @@ func (r *mutationResolver) StartDataExport(ctx context.Context, input model.Star
 		return nil, err
 	}
 	// Scoped to the channel the run targets when there is one - an all-channel export needs the grant to hold everywhere
-	if err := r.requireDataPermission(ctx, res.ViewPermission, channelID, res.RequireGlobalPermission); err != nil {
+	if err := r.requireViewPermission(ctx, res, channelID); err != nil {
 		return nil, err
 	}
 	claims, err := auth.RequireAuth(ctx)
@@ -37,7 +38,7 @@ func (r *mutationResolver) StartDataExport(ctx context.Context, input model.Star
 		Format:    dataio.Format(input.Format),
 		Options:   optionValues(input.Options),
 		ChannelID: channelID,
-		Locale:    derefString(input.Locale),
+		Locale:    ptr.Deref(input.Locale),
 		AdminID:   claims.AdminID,
 	})
 	if err != nil {
@@ -79,7 +80,7 @@ func (r *queryResolver) DataResources(ctx context.Context) ([]*model.DataResourc
 	all := r.DataJobSvc.Registry().List()
 	out := make([]*model.DataResource, 0, len(all))
 	for _, res := range all {
-		if !r.holdsAnywhere(ctx, res.ViewPermission) {
+		if !r.holdsViewAnywhere(ctx, res) {
 			continue // a resource the caller can't read is not on their menu at all
 		}
 		out = append(out, toDataResourceModel(ctx, r.DataJobSvc.Registry(), res, r.holdsAnywhere(ctx, res.ImportPermission)))
@@ -98,7 +99,7 @@ func (r *queryResolver) DataResource(ctx context.Context, slug string) (*model.D
 	if err != nil {
 		return nil, nil
 	}
-	if !r.holdsAnywhere(ctx, res.ViewPermission) {
+	if !r.holdsViewAnywhere(ctx, res) {
 		return nil, auth.ErrForbidden
 	}
 	return toDataResourceModel(ctx, r.DataJobSvc.Registry(), res, r.holdsAnywhere(ctx, res.ImportPermission)), nil
@@ -134,7 +135,7 @@ func (r *queryResolver) DataJobs(ctx context.Context, resources []string, direct
 	}
 	jobs, total, err := r.DataJobSvc.List(ctx, datajob.ListFilter{
 		Resources:  visible,
-		Direction:  dataio.Direction(derefString(direction)),
+		Direction:  dataio.Direction(ptr.Deref(direction)),
 		Statuses:   statuses,
 		Limit:      int(derefInt32Default(limit, 50)),
 		Offset:     int(derefInt32Default(offset, 0)),

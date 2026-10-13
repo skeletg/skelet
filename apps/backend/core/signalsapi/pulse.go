@@ -21,21 +21,25 @@ const (
 	// go out in the request, not on the engine's next tick
 	TriggerEmailVerification = "email_verification"
 	TriggerPasswordReset     = "password_reset"
+	// A signup-form subscriber's double opt-in link, addressed by email since no account exists yet
+	TriggerSignupConfirmation = "signup_confirmation"
+	// Mailed to an account's owner when someone tries to register with the address it already holds
+	TriggerAccountExists = "account_exists"
 )
 
 // FlowTriggerTypes is every trigger something fires - the composer offers these and nothing else
 func FlowTriggerTypes() []string {
 	return []string{
 		TriggerOrderPlaced, TriggerOrderShipped, TriggerOrderCancelled, TriggerPaymentRefunded,
-		TriggerEmailVerification, TriggerPasswordReset,
+		TriggerEmailVerification, TriggerPasswordReset, TriggerSignupConfirmation, TriggerAccountExists,
 		TriggerCustomerRegistered, TriggerCartAbandoned, TriggerBrowseAbandoned, TriggerBackInStock,
 		TriggerFormSubmitted, TriggerEmailOpened, TriggerEmailClicked, TriggerSegmentEntered,
 	}
 }
 
-// IsAuthTrigger names the two that enroll synchronously
+// IsAuthTrigger names the one-time-link triggers that enroll synchronously
 func IsAuthTrigger(t string) bool {
-	return t == TriggerEmailVerification || t == TriggerPasswordReset
+	return t == TriggerEmailVerification || t == TriggerPasswordReset || t == TriggerSignupConfirmation || t == TriggerAccountExists
 }
 
 // The keys an enrollment payload carries, read back by the run as it renders - what each trigger
@@ -49,6 +53,10 @@ const (
 	PayloadVerifyLink     = "verify_link"
 	PayloadResetLink      = "reset_link"
 	PayloadResetExpiresIn = "reset_expires_in"
+	PayloadConfirmLink    = "confirm_link"
+	PayloadConfirmExpires = "confirm_expires_in"
+	PayloadSignInLink     = "signin_link"
+	PayloadForgotLink     = "forgot_link"
 	PayloadStoreName      = "store_name"
 	PayloadFirstName      = "first_name"
 	PayloadCartID         = "cart_id"

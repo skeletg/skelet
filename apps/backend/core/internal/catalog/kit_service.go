@@ -11,8 +11,8 @@ func (s *kitService) AddKitComponent(ctx context.Context, input AddKitComponentI
 	if input.ProductID == input.ComponentProductID {
 		return KitComponent{}, ErrKitComponentIsParent
 	}
-	if input.Quantity <= 0 {
-		input.Quantity = 1
+	if err := validPositiveQuantity(input.Quantity); err != nil {
+		return KitComponent{}, err
 	}
 	parent, err := s.repo.GetProductByID(ctx, input.ProductID)
 	if err != nil {
@@ -31,21 +31,24 @@ func (s *kitService) AddKitComponent(ctx context.Context, input AddKitComponentI
 	return s.repo.CreateKitComponent(ctx, input)
 }
 
-// Hydrates each component product's display fields (slug/sku/price) for admin + storefront reads - the inventory expansion path uses KitComponentRefs instead, which skips the per-component loads
-func (s *kitService) ListKitComponents(ctx context.Context, productID uuid.UUID) ([]KitComponent, error) {
+// Hydrates each component product's display fields for admin + storefront reads - the inventory expansion path uses KitComponentRefs, which skips them
+func (s *kitService) ListKitComponents(ctx context.Context, productID uuid.UUID, locale string) ([]KitComponent, error) {
 	comps, err := s.repo.ListKitComponentsByProductID(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
+	ids := uniqueIDs(len(comps), func(i int) uuid.UUID { return comps[i].ComponentProductID })
+	products, content, err := s.loadProductsWithContent(ctx, ids, locale, true)
+	if err != nil {
+		return nil, fmt.Errorf("kit components: %w", err)
+	}
 	for i := range comps {
-		p, err := s.repo.GetProductByID(ctx, comps[i].ComponentProductID)
-		if err != nil {
-			continue // leave display fields empty on a lookup miss
-		}
+		p := products[comps[i].ComponentProductID]
 		comps[i].ComponentURL = p.URL
 		comps[i].ComponentSKU = p.SKU
 		comps[i].ComponentDefaultPrice = p.DefaultPrice
 		comps[i].ComponentCurrency = p.DefaultCurrencyCode
+		comps[i].ComponentName = content[p.ID].Name
 	}
 	return comps, nil
 }
@@ -62,8 +65,8 @@ func (s *kitService) UpdateKitComponent(ctx context.Context, input UpdateKitComp
 	}
 	quantity := current.Quantity
 	if input.Quantity != nil {
-		if *input.Quantity <= 0 {
-			return KitComponent{}, fmt.Errorf("quantity must be positive")
+		if err := validPositiveQuantity(*input.Quantity); err != nil {
+			return KitComponent{}, err
 		}
 		quantity = *input.Quantity
 	}

@@ -3,6 +3,7 @@ package ordermail
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -61,8 +62,8 @@ func TestContextSkipsOnLookupFailure(t *testing.T) {
 		{"order lookup fails", &Service{orders: fakeOrders{err: errors.New("gone")}, channels: fakeChannels{}}},
 		{"channel lookup fails", &Service{orders: fakeOrders{}, channels: fakeChannels{err: errors.New("gone")}}},
 	} {
-		if _, _, ok := tc.svc.context(context.Background(), uuid.New()); ok {
-			t.Errorf("%s: context reported ok, want the mail skipped", tc.name)
+		if _, _, err := tc.svc.context(context.Background(), uuid.New()); err == nil || dropSkip(err) == nil {
+			t.Errorf("%s: context = %v, want an error the outbox retries", tc.name, err)
 		}
 	}
 }
@@ -73,8 +74,8 @@ func TestContextResolvesOrderAndChannel(t *testing.T) {
 		orders:   fakeOrders{o: order.Order{Email: "guest@example.com", ChannelID: chID}},
 		channels: fakeChannels{ch: channel.Channel{ID: chID, Name: "Shop"}},
 	}
-	o, ch, ok := svc.context(context.Background(), uuid.New())
-	if !ok {
+	o, ch, err := svc.context(context.Background(), uuid.New())
+	if err != nil {
 		t.Fatal("context failed on two good lookups")
 	}
 	if o.Email != "guest@example.com" {
@@ -98,16 +99,16 @@ func TestDeliverReadsTheSendLogBeforeAskingAFlow(t *testing.T) {
 	send := func() error { sends++; return nil }
 	enroll := func(FlowDispatcher) int { return d.answer() }
 
-	svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
 	svc.flows = stubDispatcher{}
 	d.took = 1
-	svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
 	if sends != 1 || d.asked != 0 {
 		t.Fatalf("sends=%d flow asks=%d, want core's one receipt and no flow asked on the replay", sends, d.asked)
 	}
 
 	other := uuid.New()
-	svc.deliver(context.Background(), other, kindConfirmation, "", enroll, send)
+	_ = svc.deliver(context.Background(), other, kindConfirmation, "", enroll, send)
 	if sends != 1 || d.asked != 1 {
 		t.Fatalf("sends=%d flow asks=%d, want the flow to take a fresh order", sends, d.asked)
 	}
@@ -160,8 +161,8 @@ func TestSendOnceSuppressesAReplay(t *testing.T) {
 	sends := 0
 	send := func() error { sends++; return nil }
 
-	svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
-	svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
 	if sends != 1 {
 		t.Fatalf("a replayed event sent %d times, want 1", sends)
 	}
@@ -174,9 +175,9 @@ func TestSendOnceKeepsRefsApart(t *testing.T) {
 	sends := 0
 	send := func() error { sends++; return nil }
 
-	svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
-	svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
-	svc.deliver(context.Background(), id, kindCancellation, "", nil, send)
+	_ = svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
+	_ = svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
+	_ = svc.deliver(context.Background(), id, kindCancellation, "", nil, send)
 	if sends != 3 {
 		t.Fatalf("distinct emails sent %d times, want 3", sends)
 	}
@@ -188,11 +189,11 @@ func TestSendOnceDoesNotRecordAFailedSend(t *testing.T) {
 	svc := &Service{sendLog: log}
 	id := uuid.New()
 	sends := 0
-	svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return errors.New("smtp down") })
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return errors.New("smtp down") })
 	if len(log.rows) != 0 {
 		t.Fatalf("a failed send was recorded: %v", log.rows)
 	}
-	svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return nil })
+	_ = svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 2 {
 		t.Fatalf("the retry sent %d times total, want 2", sends)
 	}
@@ -202,7 +203,7 @@ func TestSendOnceDoesNotRecordAFailedSend(t *testing.T) {
 func TestSendOnceSendsWhenTheLogIsUnreadable(t *testing.T) {
 	svc := &Service{sendLog: &fakeSendLog{rows: map[string]bool{}, readErr: errors.New("db down")}}
 	sends := 0
-	svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
+	_ = svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 1 {
 		t.Fatalf("sent %d times with an unreadable log, want 1", sends)
 	}
@@ -212,8 +213,28 @@ func TestSendOnceSendsWhenTheLogIsUnreadable(t *testing.T) {
 func TestSendOnceSendsWithoutALog(t *testing.T) {
 	svc := &Service{}
 	sends := 0
-	svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
+	_ = svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 1 {
 		t.Fatalf("sent %d times with no log, want 1", sends)
+	}
+}
+
+// A transient send failure returned nil, so the outbox never retried and the customer never got the mail
+func TestAFailedSendIsRetriedButAMissingAddressIsNot(t *testing.T) {
+	svc := &Service{}
+	if err := svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { return errors.New("smtp down") }); err == nil {
+		t.Error("a failed send returned nil, so it was never delivered again")
+	}
+	noAddr := func() error { return fmt.Errorf("%w: 1001", errNoAddress) }
+	if err := svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, noAddr); err != nil {
+		t.Errorf("an order with no address asked for a retry (%v) - none will find one", err)
+	}
+}
+
+func TestAGoneOrderSendsNothingAndIsNotRetried(t *testing.T) {
+	svc := &Service{orders: fakeOrders{err: order.ErrOrderNotFound}, channels: fakeChannels{}}
+	_, _, err := svc.context(context.Background(), uuid.New())
+	if dropSkip(err) != nil {
+		t.Fatalf("a deleted order = %v, want it skipped without a retry", err)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 )
 
 // entityLookupSignalTools returns the page-aware entity lookups (operational, not Signals).
@@ -315,15 +316,9 @@ func toolLowStock(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) s
 }
 
 func toolListPromotions(ctx context.Context, r *Resolver, cid uuid.UUID) string {
-	all, _, err := r.PromotionSvc.ListRules(ctx, 100, 0)
+	rules, _, err := r.PromotionSvc.ListRules(ctx, promotion.RuleFilter{ChannelIDs: []uuid.UUID{cid}, IncludeGlobal: true}, 100, 0)
 	if err != nil {
 		return "Could not load promotions."
-	}
-	rules := all[:0:0]
-	for _, rl := range all {
-		if rl.ChannelID == nil || *rl.ChannelID == cid {
-			rules = append(rules, rl)
-		}
 	}
 	if len(rules) == 0 {
 		return "No promotions defined."

@@ -12,9 +12,9 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // Split delivery at placement - one ShipmentInput per package the checkout planned (a delivery group's lines leaving one origin). Each is re-priced on its own at its own destination and the order's shipping is their sum, the order keeping one row per package. Order doesn't know what a delivery kind or a point is: the point snapshot arrives as JSON and is stored as given

@@ -76,6 +76,9 @@ func (b pgRefreshBackend) Rotate(ctx context.Context, oldHash, newHash, newRaw s
 	if row.SuccessorToken.Valid && row.GraceExpiresAt.Valid && row.GraceExpiresAt.Time.After(time.Now()) {
 		return auth.RotateResult{Outcome: auth.RotateGrace, Owner: row.OwnerID, Successor: row.SuccessorToken.String}, nil
 	}
+	if row.SuccessorToken.Valid { // grace is over, so the raw successor has no reader left - drop it now rather than at the next prune
+		_ = b.q.ClearRefreshSuccessor(ctx, db.ClearRefreshSuccessorParams{TokenHash: oldHash, Scope: b.scope})
+	}
 	return auth.RotateResult{Outcome: auth.RotateInvalid}, nil
 }
 
@@ -85,10 +88,10 @@ func (b pgRefreshBackend) MarkRotated(context.Context, string, uuid.UUID, time.D
 
 func (b pgRefreshBackend) RotatedOwner(ctx context.Context, hash string) (uuid.UUID, bool) {
 	row, err := b.q.GetRotatedRefreshToken(ctx, db.GetRotatedRefreshTokenParams{TokenHash: hash, Scope: b.scope})
-	if err != nil || !row.RotatedAt.Valid {
-		return uuid.Nil, false
+	if err != nil || !row.RotatedAt.Valid || time.Since(row.RotatedAt.Time) > auth.ReuseDetectWindow {
+		return uuid.Nil, false // past the window a replay is just a stale token, as on Valkey - not theft that logs the customer out everywhere
 	}
-	return row.OwnerID, true // the prune job drops rows once the reuse window lapses, so a surviving rotated row is inside it by definition
+	return row.OwnerID, true
 }
 
 func (b pgRefreshBackend) Delete(ctx context.Context, hash string) error {

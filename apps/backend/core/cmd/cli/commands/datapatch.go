@@ -15,7 +15,7 @@ import (
 	_ "github.com/skeletg/skelet/apps/backend/core/internal/datapatch/patches" // core patches register via init() - plugin patches come through the SDK when linked in
 )
 
-// The migrate one-shot runs `data-patch up` after the schema, so this is for inspecting
+// The migrate one-shot runs `data-patch up` after core and plugin schema, so this is for inspecting
 // what ran and for applying by hand - the Long text below covers the rest
 var DataPatchCmd = &cobra.Command{
 	Use:   "data-patch",
@@ -28,8 +28,8 @@ registry. Each runs at most once (tracked in data_patches).
 Reference data does NOT belong here - it goes in the reference-data migration,
 which is why core ships no patches. Plugins register theirs through the SDK.
 
-The migrate one-shot runs 'data-patch up' straight after the schema, so a
-normal deploy needs nothing from you. Run it by hand after
+The migrate one-shot runs 'data-patch up' after core's and the plugins'
+schema, so a normal deploy needs nothing from you. Run it by hand after
 'bin/cli plugin migrate up' if you have applied plugin schema separately.`,
 }
 

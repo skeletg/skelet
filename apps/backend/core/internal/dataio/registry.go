@@ -3,6 +3,7 @@ package dataio
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -82,6 +83,11 @@ func validate(res Resource) error {
 	case len(res.Fields) == 0:
 		return fmt.Errorf("at least one field is required")
 	}
+	for i, p := range res.ViewAlsoRequires {
+		if p == "" || p == res.ViewPermission || slices.Contains(res.ViewAlsoRequires[:i], p) {
+			return fmt.Errorf("view-also permission %q must be non-empty and distinct", p)
+		}
+	}
 	seen := map[string]bool{}
 	for _, f := range res.Fields {
 		if f.Name == "" {
@@ -94,6 +100,14 @@ func validate(res Resource) error {
 			return fmt.Errorf("duplicate field %q", f.Name)
 		}
 		seen[f.Name] = true
+	}
+	for _, f := range res.Fields {
+		for _, a := range f.Aliases {
+			if seen[a] || a != strings.ToLower(a) {
+				return fmt.Errorf("field %q alias %q must be lowercase and unique", f.Name, a)
+			}
+			seen[a] = true
+		}
 	}
 	// An importer with no identifier has nothing to upsert on, so every row would create a duplicate
 	if res.NewImporter != nil && len(res.identifiers()) == 0 {

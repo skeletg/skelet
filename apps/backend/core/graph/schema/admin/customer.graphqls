@@ -53,6 +53,16 @@ type CustomerConsent {
   isDefault:  Boolean!
 }
 
+# One recorded consent change, append-only. adminId is set when a dashboard user made the change and cleared if that admin is later deleted.
+type CustomerConsentEvent {
+  id:        ID!
+  kind:      String!
+  optedIn:   Boolean!
+  source:    String!
+  adminId:   ID
+  createdAt: Time!
+}
+
 type CustomerGroup {
   id:          ID!
   name:        String!
@@ -120,11 +130,11 @@ type Address {
   phone:       String
 }
 
-# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens are nullable because registration withholds the session while require_email_verification is on.
+# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens and customer are nullable because registration can answer without a session.
 type CustomerAuthPayload {
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
+  customer:     Customer
   verificationRequired: Boolean!
 }
 
@@ -169,6 +179,8 @@ extend type Query {
   customer(id: ID!):           Customer!
   customerGroups:              [CustomerGroup!]!
   customerGroup(id: ID!):      CustomerGroup!
+  # Every consent change for the customer, newest first (default and max 500). Requires customers.view on the customer's channel.
+  customerConsentHistory(customerId: ID!, limit: Int): [CustomerConsentEvent!]!
 }
 
 extend type Mutation {
@@ -188,7 +200,7 @@ extend type Mutation {
   adminDeleteAddress(id: ID!):                                    Boolean!
   deleteCustomer(id: ID!):                                        Boolean!
   setCustomerActive(id: ID!, active: Boolean!):                   Customer!
-  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
+  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" and the acting admin in the consent history, so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
   adminSetCustomerConsent(
     customerId: ID!,
     kind: String!,

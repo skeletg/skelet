@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 )
 
@@ -162,7 +163,7 @@ func (r *productResolver) LinkedProducts(ctx context.Context, obj *model.Product
 	if err != nil {
 		return []*model.Product{}, nil
 	}
-	ids, err := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))))
+	ids, err := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))))
 	if err != nil {
 		return nil, err
 	}
@@ -174,21 +175,13 @@ func (r *productResolver) AlsoBought(ctx context.Context, obj *model.Product, li
 	if err != nil {
 		return []*model.Product{}, nil
 	}
-	lim := int32(8)
-	if limit != nil {
-		lim = *limit
-	}
-	if lim < 1 { // clamped (unbounded before) so a deep nested query can't amplify each node's fan-out
-		lim = 1
-	}
-	if lim > 24 {
-		lim = 24
-	}
-	ids, err := r.CatalogSvc.ListAlsoBought(ctx, pid, lim)
+	lim := recommend.ClampAlsoBoughtLimit(limit) // clamped so a deep nested query can't amplify each node's fan-out
+	ids, err := r.RecommendSvc.ListAlsoBought(ctx, pid, lim*recommend.AlsoBoughtOverfetch)
 	if err != nil {
 		return nil, err
 	}
-	return r.renderProductsByIDs(ctx, ids), nil
+	out := r.renderProductsByIDs(ctx, ids)
+	return out[:min(len(out), int(lim))], nil
 }
 
 func (r *productResolver) AttributeValues(ctx context.Context, obj *model.Product) ([]*model.ProductAttributeValue, error) {
@@ -253,8 +246,22 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			}
 		}
 	}
+	visibleSources, err := r.visibleOptionSources(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	// The same per-channel surcharge the cart charges - a choice the cart would refuse here isn't offered
+	chID, chCur, perChannel := optionPricingChannel(ctx)
 	out := make([]*model1.ProductCustomOption, 0, len(opts))
 	for _, o := range opts {
+		priceValue := o.PriceValue
+		if perChannel {
+			pv, ok := o.ChannelPriceValue(chID, chCur)
+			if !ok {
+				continue
+			}
+			priceValue = pv
+		}
 		mo := &model1.ProductCustomOption{
 			ID:         o.ID.String(),
 			InputType:  string(o.InputType),
@@ -263,7 +270,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			Title:      o.Title,
 			HelpText:   o.HelpText,
 			MaxChars:   o.MaxChars,
-			PriceValue: o.PriceValue,
+			PriceValue: priceValue,
 		}
 		if o.MaxFileBytes != nil {
 			v := int32(*o.MaxFileBytes)
@@ -280,10 +287,18 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			mo.VisibleIf = visibleIfToAny(o.VisibleIf)
 		}
 		for _, v := range o.Values {
+			vp := v.PriceValue
+			if perChannel {
+				p, ok := v.ChannelPriceValue(chID, chCur, o.Currency)
+				if !ok {
+					continue
+				}
+				vp = p
+			}
 			mv := &model1.ProductCustomOptionValue{
 				ID:         v.ID.String(),
 				Title:      v.Title,
-				PriceValue: v.PriceValue,
+				PriceValue: vp,
 				PriceType:  string(v.PriceType),
 				Quantity:   v.Quantity,
 				IsDefault:  v.IsDefault,
@@ -293,7 +308,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 				mv.ForcedLineQty = &q
 			}
 			// Slim stand-in built from what GetProductOptions already hydrated - no extra fetch, mirroring the admin toProductOptionValueModel mapping
-			if v.SourceProductID != nil {
+			if v.SourceProductID != nil && hasKey(visibleSources, *v.SourceProductID) {
 				prod := &model.Product{
 					ID:                  v.SourceProductID.String(),
 					URL:                 v.SourceProductURL,
@@ -595,9 +610,15 @@ func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string) (
 	if err != nil {
 		return nil, err
 	}
+	parent, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	pm := toCategoryModel(parent)
 	out := make([]*model.Category, len(cats))
 	for i, c := range cats {
 		out[i] = toCategoryModel(c)
+		out[i].Parent = pm
 	}
 	return out, nil
 }
@@ -766,10 +787,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		}
 		// Private attributes aren't probeable through filters - the native engines gate this themselves, but an external engine tier answers before their gate, so enforce at the seam
 		if len(indexerFilter.AttributeIn) > 0 {
-			private := r.privateAttributeSlugs(ctx)
+			private, known := r.privateAttributeSlugs(ctx)
 			kept := indexerFilter.AttributeIn[:0]
 			for _, af := range indexerFilter.AttributeIn {
-				if !private[af.Slug] {
+				if known && !private[af.Slug] {
 					kept = append(kept, af)
 				}
 			}
@@ -811,10 +832,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		return empty, nil
 	}
 	// Same seam rule as the filter input above - a facet on a private attribute never renders, whichever tier built it
-	if private := r.privateAttributeSlugs(ctx); len(private) > 0 {
+	if private, known := r.privateAttributeSlugs(ctx); !known || len(private) > 0 {
 		kept := res.Facets[:0]
 		for _, fg := range res.Facets {
-			if !private[fg.Slug] {
+			if known && !private[fg.Slug] {
 				kept = append(kept, fg)
 			}
 		}

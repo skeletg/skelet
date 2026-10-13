@@ -22,6 +22,20 @@ var ErrCartNotActive = errors.New("cart is no longer active")
 
 var ErrCartLineNotFound = errors.New("cart line not found")
 
+var ErrCartNotFound = errors.New("cart not found") // admin console only - the storefront answers ErrCartForbidden for both
+
+var ErrQuantityInvalid = errors.New("quantity must be a positive number")
+
+var ErrSavedItemNotFound = errors.New("saved item not found")
+
+var ErrLineNotSaveable = errors.New("bundle and configured items can't be saved for later yet")
+
+var ErrDuplicateOntoSource = errors.New("a cart can't be duplicated onto itself")
+
+var ErrCartEmailInvalid = errors.New("a valid email is required")
+
+var ErrCartNoteTooLong = errors.New("the note is too long")
+
 var ErrCartStoreMismatch = errors.New("cart store mismatch")
 
 var ErrQuantityOutOfBounds = errors.New("quantity outside the allowed range for this product")
@@ -49,6 +63,8 @@ var (
 	ErrProductOptionHidden      = errors.New("product option is not available with the current selections") // loud by design - dropping it silently would desync the client's price from the server's
 	ErrProductOptionQtyConflict = errors.New("selected options force conflicting quantities")               // two picked values force DIFFERENT line quantities
 	ErrProductOptionQtyForced   = errors.New("quantity is set by the selected product options")
+	ErrOptionValueUnavailable   = errors.New("this option choice is not sold on this channel")
+	ErrOptionPriceUnavailable   = errors.New("this option choice has no surcharge set in this channel's currency")
 	ErrProductOptionCardinality = errors.New("product option does not allow this many values")
 	ErrOptionsUnsupportedKind   = errors.New("product kind does not support custom options") // sentinel the catalog adapter returns for kinds that never carry options (bundle, grouped, ...) - gates treat it as "no options" while any OTHER resolve error fails closed instead of skipping enforcement
 )
@@ -60,8 +76,8 @@ type ProductResolver interface {
 	ResolveProductOptions(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (ProductOptionsResolution, error) // customerID scopes pricing to B2B contract prices and customer-group tiers - nil for guests
 }
 
-type FileAssetResolver interface { // resolving also confirms the upload actually landed
-	ResolveFileAsset(ctx context.Context, id uuid.UUID) (FileAsset, error)
+type FileAssetResolver interface { // resolving also confirms the upload actually landed, and that it was uploaded for this product
+	ResolveFileAsset(ctx context.Context, productID, id uuid.UUID) (FileAsset, error)
 }
 
 // Copied onto the line at add time so the client can't tamper with name or price
@@ -233,9 +249,44 @@ type CartLine struct {
 	Quantity    float64
 	IsGift      bool // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
 	Components  []CartLineComponent
-	Options     []CartLineOption
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
+	StockParts []CartLineStockPart `json:"-"`
+	Options    []CartLineOption
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+const (
+	StockPartKit    = "kit"    // a kit component - the kit line itself owns no stock
+	StockPartOption = "option" // a picked value's linked source, taken on top of the line's own product
+)
+
+type CartLineStockPart struct {
+	ProductID uuid.UUID
+	Quantity  float64
+	Source    string
+}
+
+// Whether the line's own product is reserved - a kit line takes only its components
+func OwnsStock(parts []CartLineStockPart) bool {
+	for _, p := range parts {
+		if p.Source == StockPartKit {
+			return false
+		}
+	}
+	return true
+}
+
+// The linked sources a configured line's picks take stock from, per line unit
+func OptionStockParts(opts []CartLineOption) []CartLineStockPart {
+	var out []CartLineStockPart
+	for _, o := range opts {
+		if o.SourceProductID == nil || o.Quantity <= 0 {
+			continue
+		}
+		out = append(out, CartLineStockPart{ProductID: *o.SourceProductID, Quantity: o.Quantity, Source: StockPartOption})
+	}
+	return out
 }
 
 type CartLineOptionInput struct { // ValueIDs for select-family options, TextValue for free-text, ISO-date and the file reference
@@ -257,6 +308,7 @@ type CartLineOption struct { // PriceDelta is the cents added to the UNIT price,
 	Quantity        float64
 	SortOrder       int32
 	FileURL         string
+	SourceProductID *uuid.UUID // snapshot of the value's linked source, so a later relink can't change what the line takes stock from
 }
 
 type AddConfiguredToCartInput struct { // re-adding the same SKU replaces the configuration rather than summing, like AddBundleToCartInput
@@ -265,7 +317,7 @@ type AddConfiguredToCartInput struct { // re-adding the same SKU replaces the co
 	Options    []CartLineOptionInput
 }
 
-// Quantity is per-bundle-unit, multiplied by the parent at reservation - the option and selection ids are snapshots rather than FKs, so editing the bundle later can't break the line
+// Quantity is the line's total (per-bundle quantity times the line quantity), read as-is at reservation - the option and selection ids are snapshots rather than FKs, so editing the bundle later can't break the line
 type CartLineComponent struct {
 	ID                uuid.UUID
 	CartLineID        uuid.UUID
@@ -335,6 +387,7 @@ type Repository interface {
 	UpsertConfiguredCartLine(ctx context.Context, cartID uuid.UUID, input AddConfiguredLineInput) (CartLine, error) // REPLACES quantity and unit_price, and replaces the option rows in place
 	UpdateCartLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64) (CartLine, error)
 	UpdateCartLineQuantityPrice(ctx context.Context, lineID uuid.UUID, quantity float64, unitPrice int64) (CartLine, error)
+	SetBundleLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64) error // rescales the component rows with the line
 	RemoveCartLine(ctx context.Context, lineID uuid.UUID) error
 	ClearCartLines(ctx context.Context, cartID uuid.UUID) error
 	ConvertCart(ctx context.Context, cartID uuid.UUID) error
@@ -357,7 +410,7 @@ type Repository interface {
 
 	SaveItem(ctx context.Context, cartID uuid.UUID, sku, name string, qty float64) (SavedItem, error)
 	GetSavedItem(ctx context.Context, id uuid.UUID) (SavedItem, error)
-	DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) error
+	DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) (bool, error) // false when nothing was there to delete
 	ListSavedItems(ctx context.Context, cartID uuid.UUID) ([]SavedItem, error)
 
 	WithTx(tx *sql.Tx) Repository

@@ -29,8 +29,8 @@ func TestPhoneRulesFollowTheSetting(t *testing.T) {
 		{"allowed keeps phones to the allow-list", phoneCfg(PhoneCountriesAllowed, "us, ca", "US"), "US", []string{"US", "CA"}},
 		// One country: every phone is that country's, even a national one typed with no address
 		{"a single allowed country becomes the default", phoneCfg(PhoneCountriesAllowed, "RS", "US"), "RS", []string{"RS"}},
-		// No allow-list means the store sells to every active country - the fake repository has none
-		{"allowed with no allow-list and no active countries takes every number", phoneCfg(PhoneCountriesAllowed, "", "DE"), "DE", nil},
+		// No allow-list means the store sells to every active country - the fake repository lists none
+		{"allowed with no allow-list and no active countries takes every number", phoneCfg(PhoneCountriesAllowed, "", "US"), "US", nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -72,12 +72,20 @@ func TestPhoneSettingsListTheAllowedCountriesInOrder(t *testing.T) {
 // With no allow-list the store sells to every active country, so those are the ones a form offers
 type activeRepo struct{ fakeRepo }
 
+// The default country has to be an active one, so the repository knows the ones List returns
+func newActiveRepo() activeRepo {
+	return activeRepo{fakeRepo{countries: map[string]Country{
+		"US": {Code: "US", IsActive: true},
+		"GB": {Code: "GB", IsActive: true},
+	}}}
+}
+
 func (activeRepo) List(context.Context, bool) ([]Country, error) {
 	return []Country{{Code: "US", IsActive: true}, {Code: "GB", IsActive: true}}, nil
 }
 
 func TestPhoneSettingsFallBackToTheActiveCountries(t *testing.T) {
-	svc := NewService(activeRepo{})
+	svc := NewService(newActiveRepo())
 	svc.SetConfigService(phoneCfg(PhoneCountriesAny, "", "US"))
 	s, err := svc.PhoneSettings(context.Background(), config.DefaultScope)
 	if err != nil {
@@ -90,7 +98,7 @@ func TestPhoneSettingsFallBackToTheActiveCountries(t *testing.T) {
 
 // With no allow-list, "allowed" keeps phones to the active countries - the store sells to those
 func TestPhoneRulesWithNoAllowListKeepToTheActiveCountries(t *testing.T) {
-	svc := NewService(activeRepo{})
+	svc := NewService(newActiveRepo())
 	svc.SetConfigService(phoneCfg(PhoneCountriesAllowed, "", "US"))
 	r := svc.PhoneRules(context.Background(), config.DefaultScope)
 	if !slices.Equal(r.Allowed, []string{"US", "GB"}) || r.Default != "US" {

@@ -14,12 +14,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // The resolved pre-transaction state for a PlaceOrder call, produced by resolveCheckout and read by the tx and post-commit steps - one struct instead of threading a dozen values through every helper
@@ -120,8 +120,8 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 	// Reprice BEFORE the subtotal so promotions, tax and fraud all see today's prices - the fail-open contract lives in the repricer
 	if s.repricer != nil {
 		cartObj = s.repricer.RepriceCartLines(ctx, cartObj)
-		if v, ok := s.repricer.(bundleValidator); ok {
-			if err := v.ValidateBundleLines(ctx, cartObj); err != nil {
+		if v, ok := s.repricer.(lineValidator); ok {
+			if err := v.ValidateCheckoutLines(ctx, cartObj); err != nil {
 				return nil, err
 			}
 		}
@@ -467,6 +467,9 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 				return fmt.Errorf("add order line component: %w", err)
 			}
 		}
+		if err := orderR.AddOrderLineStockParts(ctx, orderLine.ID, orderStockParts(l.StockParts)); err != nil {
+			return err
+		}
 		for _, o := range l.Options {
 			if _, err := orderR.AddOrderLineOption(ctx, OrderLineOption{
 				OrderLineID:     orderLine.ID,
@@ -486,6 +489,35 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 		}
 	}
 	return nil
+}
+
+// Snapshots what each line takes stock from - a kit's current recipe, a configured line's linked option sources - so the order takes and later gives back the same stock even after the catalog changes
+func (s *Service) stampStockParts(ctx context.Context, lines []cart.CartLine) ([]cart.CartLine, error) {
+	out := make([]cart.CartLine, len(lines))
+	copy(out, lines)
+	for i := range out {
+		l := &out[i]
+		if len(l.Components) > 0 || len(l.StockParts) > 0 || l.ProductSku == "" {
+			continue
+		}
+		if s.kits != nil {
+			comps, err := s.kits.KitComponentsBySKU(ctx, l.ProductSku)
+			if err != nil {
+				return nil, fmt.Errorf("kit components for %q: %w", l.ProductSku, err)
+			}
+			l.StockParts = comps
+		}
+		l.StockParts = append(l.StockParts, cart.OptionStockParts(l.Options)...)
+	}
+	return out, nil
+}
+
+func orderStockParts(in []cart.CartLineStockPart) []OrderLineStockPart {
+	out := make([]OrderLineStockPart, len(in))
+	for i, p := range in {
+		out[i] = OrderLineStockPart{ProductID: p.ProductID, Quantity: p.Quantity, Source: p.Source}
+	}
+	return out
 }
 
 // Redeems checkout gift-card codes against the total in the placement tx - each covers what it can, the provider takes the remainder, and payment_status flips to paid when they cover the whole total
@@ -508,9 +540,9 @@ func (s *Service) applyGiftCardTenders(ctx context.Context, sqlTx *sql.Tx, order
 		remaining -= applied
 	}
 	if giftCardApplied > 0 {
-		paymentStatus := "unpaid"
+		paymentStatus := PaymentUnpaid
 		if giftCardApplied >= total {
-			paymentStatus = "paid"
+			paymentStatus = PaymentPaid
 		}
 		if _, err := orderR.SetGiftCardTender(ctx, orderID, giftCardApplied, paymentStatus); err != nil {
 			return 0, fmt.Errorf("record gift card tender: %w", err)
@@ -535,9 +567,9 @@ func (s *Service) applyStoreCreditTender(ctx context.Context, sqlTx *sql.Tx, ord
 	if applied <= 0 {
 		return 0, nil
 	}
-	paymentStatus := "unpaid"
+	paymentStatus := PaymentUnpaid
 	if alreadyTendered+applied >= total {
-		paymentStatus = "paid"
+		paymentStatus = PaymentPaid
 	}
 	if _, err := orderR.SetStoreCreditTender(ctx, orderID, applied, paymentStatus); err != nil {
 		return 0, fmt.Errorf("record store credit tender: %w", err)
@@ -687,7 +719,7 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 		// park the provider reference on the order - without it an abandoned redirect/3DS order carries
 		// nothing the payment-sync sweep or finalizeOrderPayment could ask the gateway about
 		if outcome.ProviderReference != "" {
-			if _, perr := s.repo.SetPaymentState(ctx, placed.ID, placed.PaymentStatus, outcome.ProviderReference); perr != nil {
+			if _, perr := s.repo.SetPaymentReference(ctx, placed.ID, outcome.ProviderReference); perr != nil {
 				log.Printf("[order] park provider reference for order %s: %v", placed.ID, perr)
 				// Without the parked reference the sync sweep has nothing to ask the gateway about, so a
 				// customer who completes 3DS is never settled - surface it on the timeline
@@ -711,6 +743,6 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 	return outcome
 }
 
-type bundleValidator interface {
-	ValidateBundleLines(context.Context, cart.Cart) error
+type lineValidator interface { // bundle availability plus each line's min/max/step
+	ValidateCheckoutLines(context.Context, cart.Cart) error
 }

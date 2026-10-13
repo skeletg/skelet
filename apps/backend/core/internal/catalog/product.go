@@ -206,13 +206,14 @@ type UpdateProductInput struct {
 	SpecialTo           *time.Time
 	ClearSpecialPrice   bool
 	// Pointer-to-zero clears - 0 is stored as NULL, "unspecified" rather than "weightless"
-	WeightGrams *int32
-	LengthMm    *int32
-	WidthMm     *int32
-	HeightMm    *int32
-	MinOrderQty *float64
-	MaxOrderQty *float64
-	CostCents   *int64
+	WeightGrams    *int32
+	LengthMm       *int32
+	WidthMm        *int32
+	HeightMm       *int32
+	MinOrderQty    *float64
+	MaxOrderQty    *float64
+	CostCents      *int64 // 0 is a real cost (a free sample) - clearing is ClearCostCents
+	ClearCostCents bool
 }
 
 type Dimensions struct {
@@ -285,4 +286,12 @@ var (
 	ErrTemplateMissingCategory            = errors.New("url path template requires a primary category")
 	ErrTemplateMissingAttribute           = errors.New("url path template requires an attribute value that is not set on the product")
 	ErrManualPathWhileAuto                = errors.New("urlPath cannot be set manually while urlPathAuto is true")
+	ErrNegativePrice                      = errors.New("prices must be non-negative")
+	ErrSKURequired                        = errors.New("sku is required and cannot be cleared")
+	ErrSKUInActiveCarts                   = errors.New("sku is in active carts; it cannot be renamed until they check out or expire")
+	ErrConfigurableOptionsLocked          = errors.New("cannot change configurable options while children are linked; remove all children first")
+	ErrDuplicateConfigurableOption        = errors.New("duplicate attribute in configurable options")
+	ErrInvalidVariantMode                 = errors.New("invalid variant mode")
+	ErrNoVariants                         = errors.New("at least one variant is required")
+	ErrInvalidVariantSelection            = errors.New("variant option values do not match the parent's configurable options")
 )

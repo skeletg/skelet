@@ -1,4 +1,5 @@
 // events.Bus.Publish is fire-and-forget from a detached goroutine, so a crash between commit and the handlers finishing loses the event permanently - webhooks, search indexing and order notifications all hang off it Emitters call Enqueue INSIDE the state change's transaction, so the row commits or rolls back atomically with it The relay claims due rows under a short lease, re-materializes the concrete type, dispatches to the bus's async handlers and marks the row delivered - the claim is one UPDATE…RETURNING, so no transaction is held while subscribers run and a slow webhook can't pin a connection A crash mid-dispatch leaves the row undelivered until the lease expires, making delivery at-least-once - subscribers must tolerate replays
+// Rows dispatch concurrently, so two events about one order can reach a subscriber in either order - a subscriber reads the entity's current state rather than trusting the sequence
 package outbox
 
 import (
@@ -6,11 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"log"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -27,7 +29,17 @@ const (
 	maxAttempts        = 10
 	deliveredRetention = 24 * time.Hour
 	cleanupEvery       = time.Hour
+	// The first retry after a subscriber failure - it doubles per attempt up to the lease, where a fixed lease made a two-second mail outage cost ten minutes
+	firstRetry = 30 * time.Second
 )
+
+func retryDelay(attempts int32) time.Duration {
+	d := firstRetry
+	for i := int32(1); i < attempts && d < leaseSeconds*time.Second; i++ {
+		d *= 2
+	}
+	return min(d, leaseSeconds*time.Second)
+}
 
 type Outbox struct {
 	queries *db.Queries
@@ -201,7 +213,13 @@ func (o *Outbox) dispatchRow(ctx context.Context, row db.EventOutbox) {
 			o.dropRow(ctx, row, "subscribers kept failing: "+err.Error())
 			return
 		}
-		log.Printf("[outbox] %s (row %s) subscriber failure, will replay (attempt %d/%d): %v", row.EventType, row.ID, row.Attempts, maxAttempts, err)
+		delay := retryDelay(row.Attempts)
+		log.Printf("[outbox] %s (row %s) subscriber failure, will replay in %s (attempt %d/%d): %v", row.EventType, row.ID, delay, row.Attempts, maxAttempts, err)
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if rerr := o.queries.RescheduleOutboxEvent(rctx, db.RescheduleOutboxEventParams{ID: row.ID, DelaySeconds: int32(delay / time.Second)}); rerr != nil {
+			log.Printf("[outbox] reschedule %s: %v (will replay after lease)", row.ID, rerr)
+		}
 		return
 	}
 
@@ -217,6 +235,9 @@ func (o *Outbox) dispatchRow(ctx context.Context, row db.EventOutbox) {
 // so the abandonment is an operator event rather than a grep exercise
 func (o *Outbox) dropRow(ctx context.Context, row db.EventOutbox, reason string) {
 	log.Printf("[outbox] DROPPING row %s (%s) after %d attempts: %s", row.ID, row.EventType, row.Attempts, reason)
+	// The relay's context may already be cancelled - the abandonment still has to be told and recorded
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
 	if o.dropAlert != nil {
 		o.dropAlert(ctx, row.EventType, row.ID, reason)
 	}

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 )
 
 // GetProductOption returns the raw option row (no resolved content, no values) - Callers that need the full view should go through GetProductOptions instead
@@ -28,7 +30,7 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 		return ProductOption{}, fmt.Errorf("%w: %q", ErrInvalidProductOptionInputType, string(input.InputType))
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return ProductOption{}, fmt.Errorf("title is required")
+		return ProductOption{}, ErrTitleRequired
 	}
 	parent, err := s.repo.GetProductByID(ctx, input.ProductID)
 	if err != nil {
@@ -38,7 +40,7 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 		return ProductOption{}, fmt.Errorf("%w: product %q is kind %q", ErrOptionInputKindNotPurchasable, parent.SKU, string(parent.Kind))
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return ProductOption{}, fmt.Errorf("locale is required")
+		return ProductOption{}, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
 		return ProductOption{}, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
@@ -58,7 +60,8 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 			return ProductOption{}, err
 		}
 	}
-	return s.repo.CreateProductOption(ctx, input)
+	created, err := s.repo.CreateProductOption(ctx, input)
+	return created, s.announced(ctx, input.ProductID, err)
 }
 
 // UpdateProductOption applies pointer-style "no change = nil" updates - Input-type transitions are allowed but constrained: changing from a select-family type to a non-select type or vice-versa is rejected when the option already has values (would leave orphan rows / mismatched shape)
@@ -98,8 +101,8 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 	if input.IsRequired != nil {
 		finalRequired = *input.IsRequired
 	}
-	// A required select with zero values can never validate at add-to-cart - the product would be silently unpurchasable
-	if finalRequired && !current.IsRequired && finalInputType.IsSelect() {
+	// A required select with zero values can never validate at add-to-cart - checked on the final state, so a field turning into a required dropdown counts too
+	if finalRequired && finalInputType.IsSelect() {
 		existing, err := s.repo.ListProductOptionValuesByOptionID(ctx, current.ID)
 		if err != nil {
 			return ProductOption{}, err
@@ -174,23 +177,23 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 	}
 	// A sort_order move can break SIBLING conditions that reference this option (they require strictly lower parent order) - re-check them against the new ordering before committing
 	if finalSortOrder != current.SortOrder {
+		adjusted := make([]ProductOption, len(siblings))
+		copy(adjusted, siblings)
+		for i := range adjusted {
+			if adjusted[i].ID == current.ID {
+				adjusted[i].SortOrder = finalSortOrder
+			}
+		}
 		for _, sib := range siblings {
 			if sib.ID == current.ID || sib.VisibleIf == nil {
 				continue
-			}
-			adjusted := make([]ProductOption, len(siblings))
-			copy(adjusted, siblings)
-			for i := range adjusted {
-				if adjusted[i].ID == current.ID {
-					adjusted[i].SortOrder = finalSortOrder
-				}
 			}
 			if err := validateOptionVisibility(sib.VisibleIf, sib.SortOrder, sib.ID, adjusted); err != nil {
 				return ProductOption{}, fmt.Errorf("reorder would break the visibility rule on option %q: %w", sib.Title, err)
 			}
 		}
 	}
-	return s.repo.UpdateProductOption(ctx, current.ID, UpdateProductOptionFields{
+	updated, err := s.repo.UpdateProductOption(ctx, current.ID, UpdateProductOptionFields{
 		InputType:      finalInputType,
 		IsRequired:     finalRequired,
 		SortOrder:      finalSortOrder,
@@ -201,6 +204,7 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 		FileExtensions: finalFileExtensions,
 		VisibleIf:      finalVisibleIf,
 	})
+	return updated, s.announced(ctx, current.ProductID, err)
 }
 
 // DeleteProductOption removes an option and cascades its content + values (FK CASCADE handles those)
@@ -219,35 +223,36 @@ func (s *optionService) DeleteProductOption(ctx context.Context, id uuid.UUID) e
 			return fmt.Errorf("%w: option %q depends on this one - remove its visibility rule first", ErrOptionVisibilityInvalid, sib.Title)
 		}
 	}
-	return s.repo.DeleteProductOption(ctx, id)
+	return s.announced(ctx, current.ProductID, s.repo.DeleteProductOption(ctx, id))
 }
 
 // DuplicateProductOption clones an option (with all its content rows and, for select-family types, all its values + their content rows) onto the same parent product
 // The clone lands at sort_order = max+1 so it doesn't collide with the source - Returns the new option's id
 func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID) (ProductOption, error) {
-	source, err := s.repo.GetProductOptionByID(ctx, id)
-	if err != nil {
-		return ProductOption{}, err
-	}
-	sourceContent, err := s.repo.ListProductOptionContent(ctx, source.ID)
-	if err != nil {
-		return ProductOption{}, err
-	}
-	if len(sourceContent) == 0 {
-		return ProductOption{}, fmt.Errorf("source option %s has no content rows", source.ID)
-	}
 	def := s.resolveDefaultLocale(ctx)
-	// Find default-locale row for the initial create - fall back to first
-	var initial ProductOptionContent
-	initial = sourceContent[0]
-	for _, c := range sourceContent {
-		if c.Locale == def {
-			initial = c
-			break
-		}
+	var out ProductOption
+	err := s.inTx(ctx, func(r Repository) error {
+		var err error
+		out, err = duplicateProductOption(ctx, r, id, def)
+		return err
+	})
+	return out, s.announced(ctx, out.ProductID, err)
+}
+
+func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUID, def string) (ProductOption, error) {
+	source, err := r.GetProductOptionByID(ctx, id)
+	if err != nil {
+		return ProductOption{}, err
 	}
-	// Sort order: max existing + 1, computed against the current option set
-	existing, err := s.repo.ListProductOptionsByProductID(ctx, source.ProductID)
+	sourceContent, err := r.ListProductOptionContent(ctx, source.ID)
+	if err != nil {
+		return ProductOption{}, err
+	}
+	initial, ok := pickLocalized(sourceContent, optionContentLocale, def, def)
+	if !ok {
+		return ProductOption{}, fmt.Errorf("%w: %s", ErrOptionHasNoContent, source.ID)
+	}
+	existing, err := r.ListProductOptionsByProductID(ctx, source.ProductID)
 	if err != nil {
 		return ProductOption{}, err
 	}
@@ -258,7 +263,7 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 		}
 	}
 
-	created, err := s.repo.CreateProductOption(ctx, AddProductOptionInput{
+	created, err := r.CreateProductOption(ctx, AddProductOptionInput{
 		ProductID:      source.ProductID,
 		InputType:      source.InputType,
 		IsRequired:     source.IsRequired,
@@ -276,54 +281,50 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 	if err != nil {
 		return ProductOption{}, err
 	}
-
-	// Copy every non-default-locale content row (the default-locale row landed via CreateProductOption above)
 	for _, c := range sourceContent {
 		if c.Locale == initial.Locale {
 			continue
 		}
-		if _, err := s.repo.UpsertProductOptionContent(ctx, UpsertProductOptionContentInput{
-			OptionID: created.ID,
-			Locale:   c.Locale,
-			Title:    c.Title,
-			HelpText: c.HelpText,
+		if _, err := r.UpsertProductOptionContent(ctx, UpsertProductOptionContentInput{
+			OptionID: created.ID, Locale: c.Locale, Title: c.Title, HelpText: c.HelpText,
 		}); err != nil {
 			return ProductOption{}, fmt.Errorf("clone option content %q: %w", c.Locale, err)
 		}
 	}
+	optPrices, err := r.ListProductOptionChannelPricesByOptionIDs(ctx, []uuid.UUID{source.ID})
+	if err != nil {
+		return ProductOption{}, err
+	}
+	for _, p := range optPrices[source.ID] {
+		if err := r.SetProductOptionChannelPrice(ctx, created.ID, p.ChannelID, &p.PriceValue); err != nil {
+			return ProductOption{}, err
+		}
+	}
 
-	// Copy values + their content for select-family options
 	if source.InputType.IsSelect() {
-		sourceValues, err := s.repo.ListProductOptionValuesByOptionID(ctx, source.ID)
+		sourceValues, err := r.ListProductOptionValuesByOptionID(ctx, source.ID)
 		if err != nil {
 			return ProductOption{}, err
 		}
-		// Batch-load all value content up front (was an N+1 per-value loop)
 		valueIDs := make([]uuid.UUID, len(sourceValues))
 		for i, v := range sourceValues {
 			valueIDs[i] = v.ID
 		}
-		vcByValue := map[uuid.UUID][]ProductOptionValueContent{}
-		if len(valueIDs) > 0 {
-			vcByValue, err = s.repo.ListProductOptionValueContentByValueIDs(ctx, valueIDs)
-			if err != nil {
-				return ProductOption{}, err
-			}
+		vcByValue, err := r.ListProductOptionValueContentByValueIDs(ctx, valueIDs)
+		if err != nil {
+			return ProductOption{}, err
+		}
+		valPrices, err := r.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
+		if err != nil {
+			return ProductOption{}, err
 		}
 		for _, v := range sourceValues {
 			vc := vcByValue[v.ID]
-			if len(vc) == 0 {
-				continue // shouldn't happen but skip cleanly
+			vInitial, ok := pickLocalized(vc, valueContentLocale, def, def)
+			if !ok {
+				continue
 			}
-			var vInitial ProductOptionValueContent
-			vInitial = vc[0]
-			for _, c := range vc {
-				if c.Locale == def {
-					vInitial = c
-					break
-				}
-			}
-			newValue, err := s.repo.CreateProductOptionValue(ctx, AddProductOptionValueInput{
+			newValue, err := r.CreateProductOptionValue(ctx, AddProductOptionValueInput{
 				OptionID:        created.ID,
 				SortOrder:       v.SortOrder,
 				PriceValue:      v.PriceValue,
@@ -338,58 +339,57 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 			if err != nil {
 				return ProductOption{}, fmt.Errorf("clone option value: %w", err)
 			}
+			for _, p := range valPrices[v.ID] {
+				if err := r.SetProductOptionValueChannelPrice(ctx, newValue.ID, p.ChannelID, &p.PriceValue); err != nil {
+					return ProductOption{}, err
+				}
+			}
 			for _, c := range vc {
 				if c.Locale == vInitial.Locale {
 					continue
 				}
-				if _, err := s.repo.UpsertProductOptionValueContent(ctx, UpsertProductOptionValueContentInput{
-					ValueID: newValue.ID,
-					Locale:  c.Locale,
-					Title:   c.Title,
+				if _, err := r.UpsertProductOptionValueContent(ctx, UpsertProductOptionValueContentInput{
+					ValueID: newValue.ID, Locale: c.Locale, Title: c.Title,
 				}); err != nil {
 					return ProductOption{}, fmt.Errorf("clone option value content %q: %w", c.Locale, err)
 				}
 			}
 		}
 	}
-
-	return s.repo.GetProductOptionByID(ctx, created.ID)
+	return r.GetProductOptionByID(ctx, created.ID)
 }
 
 func (s *optionService) UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error) {
 	if strings.TrimSpace(input.Locale) == "" {
-		return ProductOptionContent{}, fmt.Errorf("locale is required")
+		return ProductOptionContent{}, ErrLocaleRequired
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return ProductOptionContent{}, fmt.Errorf("title is required")
+		return ProductOptionContent{}, ErrTitleRequired
 	}
-	// help_text is optional and may be the empty string
-	if _, err := s.repo.GetProductOptionByID(ctx, input.OptionID); err != nil {
+	if err := s.ensureLocale(ctx, input.Locale); err != nil {
 		return ProductOptionContent{}, err
 	}
-	return s.repo.UpsertProductOptionContent(ctx, input)
+	opt, err := s.repo.GetProductOptionByID(ctx, input.OptionID)
+	if err != nil {
+		return ProductOptionContent{}, err
+	}
+	content, err := s.repo.UpsertProductOptionContent(ctx, input)
+	return content, s.announced(ctx, opt.ProductID, err)
 }
 
 // DeleteProductOptionContent: removing the default-locale translation while other translations still exist is rejected - same rule as ProductContent / BundleOptionContent
 func (s *optionService) DeleteProductOptionContent(ctx context.Context, optionID uuid.UUID, locale string) error {
-	def := s.resolveDefaultLocale(ctx)
-	if def != "" && locale == def {
-		others, err := s.repo.ListProductOptionContent(ctx, optionID)
-		if err != nil {
-			return err
-		}
-		hasTranslations := false
-		for _, c := range others {
-			if c.Locale != def {
-				hasTranslations = true
-				break
-			}
-		}
-		if hasTranslations {
-			return ErrCannotDeleteDefaultLocale
-		}
+	if err := s.refuseDefaultLocaleDelete(ctx, locale, func() ([]string, error) {
+		rows, err := s.repo.ListProductOptionContent(ctx, optionID)
+		return localesOf(rows, optionContentLocale), err
+	}); err != nil {
+		return err
 	}
-	return s.repo.DeleteProductOptionContent(ctx, optionID, locale)
+	opt, err := s.repo.GetProductOptionByID(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	return s.announced(ctx, opt.ProductID, s.repo.DeleteProductOptionContent(ctx, optionID, locale))
 }
 
 // ==================== Option values ====================
@@ -397,7 +397,10 @@ func (s *optionService) DeleteProductOptionContent(ctx context.Context, optionID
 // AddProductOptionValue adds one pre-defined choice to a select-family option (dropdown/radio/checkbox/multiselect) - Single-select options reject a second default; multi-select options allow zero or more - When SourceProductID is set, the referenced product must exist and be of kind SIMPLE, and PriceType must be FIXED - see validateValueSourceProduct
 func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProductOptionValueInput) (ProductOptionValue, error) {
 	if strings.TrimSpace(input.Title) == "" {
-		return ProductOptionValue{}, fmt.Errorf("title is required")
+		return ProductOptionValue{}, ErrTitleRequired
+	}
+	if err := validUnitQuantity(input.Quantity); err != nil {
+		return ProductOptionValue{}, err
 	}
 	if err := validateForcedLineQty(input.ForcedLineQty); err != nil {
 		return ProductOptionValue{}, err
@@ -416,24 +419,44 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 		return ProductOptionValue{}, fmt.Errorf("%w: option is %q", ErrOptionValueOnNonSelect, string(option.InputType))
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return ProductOptionValue{}, fmt.Errorf("locale is required")
+		return ProductOptionValue{}, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
 		return ProductOptionValue{}, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
 	}
-	if input.IsDefault && option.InputType.IsSingleSelect() {
-		n, err := s.repo.CountProductOptionValueDefaultsForOption(ctx, option.ID)
-		if err != nil {
-			return ProductOptionValue{}, err
-		}
-		if n > 0 {
-			return ProductOptionValue{}, fmt.Errorf("%w: option already has a default value", ErrOptionMultiDefaultOnSingle)
-		}
-	}
 	if err := s.validateValueSourceProduct(ctx, input.SourceProductID, input.PriceType); err != nil {
 		return ProductOptionValue{}, err
 	}
-	return s.repo.CreateProductOptionValue(ctx, input)
+	var created ProductOptionValue
+	err = s.inTx(ctx, func(r Repository) error {
+		if input.IsDefault {
+			if err := addingOptionDefault(ctx, r, option.ID); err != nil {
+				return err
+			}
+		}
+		created, err = r.CreateProductOptionValue(ctx, input)
+		return err
+	})
+	return created, s.announced(ctx, option.ProductID, err)
+}
+
+// A single-select option takes one default - the option row lock serializes concurrent default flips
+func addingOptionDefault(ctx context.Context, r OptionRepository, optionID uuid.UUID) error {
+	option, err := r.GetProductOptionByIDForUpdate(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	if !option.InputType.IsSingleSelect() {
+		return nil
+	}
+	n, err := r.CountProductOptionValueDefaultsForOption(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: option already has a default value", ErrOptionMultiDefaultOnSingle)
+	}
+	return nil
 }
 
 // validateValueSourceProduct enforces: source product (if set) exists and is KindSimple; PriceType is FIXED whenever source is set
@@ -480,8 +503,8 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 	}
 	finalQuantity := current.Quantity
 	if input.Quantity != nil {
-		if *input.Quantity < 1 {
-			return ProductOptionValue{}, fmt.Errorf("quantity must be positive")
+		if err := validUnitQuantity(*input.Quantity); err != nil {
+			return ProductOptionValue{}, err
 		}
 		finalQuantity = *input.Quantity
 	}
@@ -515,23 +538,17 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 		return ProductOptionValue{}, err
 	}
 
-	if finalIsDefault && !current.IsDefault {
-		option, err := s.repo.GetProductOptionByID(ctx, current.OptionID)
-		if err != nil {
-			return ProductOptionValue{}, err
-		}
-		if option.InputType.IsSingleSelect() {
-			n, err := s.repo.CountProductOptionValueDefaultsForOption(ctx, option.ID)
-			if err != nil {
-				return ProductOptionValue{}, err
-			}
-			if n > 0 {
-				return ProductOptionValue{}, fmt.Errorf("%w: option already has a default value", ErrOptionMultiDefaultOnSingle)
+	var updated ProductOptionValue
+	err = s.inTx(ctx, func(r Repository) error {
+		if finalIsDefault && !current.IsDefault {
+			if err := addingOptionDefault(ctx, r, current.OptionID); err != nil {
+				return err
 			}
 		}
-	}
-
-	return s.repo.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty)
+		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty)
+		return err
+	})
+	return updated, s.announcedForOption(ctx, current.OptionID, err)
 }
 
 func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UUID) error {
@@ -563,41 +580,39 @@ func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UU
 			return fmt.Errorf("%w: make the option optional before removing its last value", ErrOptionRequiredNeedsValues)
 		}
 	}
-	return s.repo.DeleteProductOptionValue(ctx, id)
+	return s.announced(ctx, option.ProductID, s.repo.DeleteProductOptionValue(ctx, id))
 }
 
 func (s *optionService) UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error) {
 	if strings.TrimSpace(input.Locale) == "" {
-		return ProductOptionValueContent{}, fmt.Errorf("locale is required")
+		return ProductOptionValueContent{}, ErrLocaleRequired
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return ProductOptionValueContent{}, fmt.Errorf("title is required")
+		return ProductOptionValueContent{}, ErrTitleRequired
 	}
-	if _, err := s.repo.GetProductOptionValueByID(ctx, input.ValueID); err != nil {
+	if err := s.ensureLocale(ctx, input.Locale); err != nil {
 		return ProductOptionValueContent{}, err
 	}
-	return s.repo.UpsertProductOptionValueContent(ctx, input)
+	val, err := s.repo.GetProductOptionValueByID(ctx, input.ValueID)
+	if err != nil {
+		return ProductOptionValueContent{}, err
+	}
+	content, err := s.repo.UpsertProductOptionValueContent(ctx, input)
+	return content, s.announcedForOption(ctx, val.OptionID, err)
 }
 
 func (s *optionService) DeleteProductOptionValueContent(ctx context.Context, valueID uuid.UUID, locale string) error {
-	def := s.resolveDefaultLocale(ctx)
-	if def != "" && locale == def {
-		others, err := s.repo.ListProductOptionValueContent(ctx, valueID)
-		if err != nil {
-			return err
-		}
-		hasTranslations := false
-		for _, c := range others {
-			if c.Locale != def {
-				hasTranslations = true
-				break
-			}
-		}
-		if hasTranslations {
-			return ErrCannotDeleteDefaultLocale
-		}
+	if err := s.refuseDefaultLocaleDelete(ctx, locale, func() ([]string, error) {
+		rows, err := s.repo.ListProductOptionValueContent(ctx, valueID)
+		return localesOf(rows, valueContentLocale), err
+	}); err != nil {
+		return err
 	}
-	return s.repo.DeleteProductOptionValueContent(ctx, valueID, locale)
+	val, err := s.repo.GetProductOptionValueByID(ctx, valueID)
+	if err != nil {
+		return err
+	}
+	return s.announcedForOption(ctx, val.OptionID, s.repo.DeleteProductOptionValueContent(ctx, valueID, locale))
 }
 
 // ==================== Read-side: full options view ====================
@@ -672,46 +687,39 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 		}
 	}
 
-	// Load referenced products + their content (locale fallback)
-	sourceByID := make(map[uuid.UUID]Product, len(sourceProductIDs))
-	sourceContentByID := map[uuid.UUID]ProductContent{}
-	if len(sourceProductIDs) > 0 {
-		// Batch-load the referenced source products (was an N+1 GetProductByID loop) - A since-deleted source product simply
-		// drops out of the map and is handled by the ok-check below rather than as a hard error
-		sources, err := s.repo.ListProductsWithAttributesByIDs(ctx, sourceProductIDs)
-		if err != nil {
-			return nil, fmt.Errorf("load option value source products: %w", err)
-		}
-		for _, p := range sources {
-			sourceByID[p.ID] = p
-		}
-		sourceContentByID, err = s.repo.ListProductContentByScope(ctx, sourceProductIDs, locale)
-		if err != nil {
-			return nil, fmt.Errorf("load option value source content: %w", err)
-		}
-		if locale != defLocale && defLocale != "" {
-			fallback, err := s.repo.ListProductContentByScope(ctx, sourceProductIDs, defLocale)
-			if err != nil {
-				return nil, fmt.Errorf("load option value source fallback content: %w", err)
-			}
-			for pid, c := range fallback {
-				if _, ok := sourceContentByID[pid]; !ok {
-					sourceContentByID[pid] = c
-				}
-			}
-		}
+	// A since-deleted source product simply drops out of the maps and the value renders unlinked
+	sourceByID, sourceContentByID, err := s.loadProductsWithContent(ctx, sourceProductIDs, locale, false)
+	if err != nil {
+		return nil, fmt.Errorf("option value sources: %w", err)
+	}
+	owners, err := s.repo.ListProductRowsByIDs(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("option owners: %w", err)
+	}
+	optPrices, err := s.repo.ListProductOptionChannelPricesByOptionIDs(ctx, optionIDs)
+	if err != nil {
+		return nil, err
+	}
+	valPrices, err := s.repo.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	for i := range options {
 		opt := &options[i]
 		opt.AllContent = contentByOption[opt.ID]
-		opt.Title, opt.HelpText = resolveProductOptionContent(opt.AllContent, locale, defLocale)
+		oc, _ := pickLocalized(opt.AllContent, optionContentLocale, locale, defLocale)
+		opt.Title, opt.HelpText = oc.Title, oc.HelpText
+		opt.Currency = owners[opt.ProductID].DefaultCurrencyCode
+		opt.ChannelPrices = optPrices[opt.ID]
 
 		vals := valuesByOption[opt.ID]
 		for j := range vals {
 			v := &vals[j]
 			v.AllContent = valueContentByValue[v.ID]
-			v.Title = resolveProductOptionValueTitle(v.AllContent, locale, defLocale)
+			vc, _ := pickLocalized(v.AllContent, valueContentLocale, locale, defLocale)
+			v.Title = vc.Title
+			v.ChannelPrices = valPrices[v.ID]
 			if v.SourceProductID != nil {
 				if p, ok := sourceByID[*v.SourceProductID]; ok {
 					v.SourceProductURL = p.URL
@@ -734,45 +742,8 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 	return out, nil
 }
 
-// resolveProductOptionContent returns the resolved (title, help_text) pair for an option, picking the requested locale
-// first then falling back to default-locale then the first available row
-func resolveProductOptionContent(all []ProductOptionContent, locale, defLocale string) (string, string) {
-	for _, c := range all {
-		if c.Locale == locale {
-			return c.Title, c.HelpText
-		}
-	}
-	if defLocale != "" && defLocale != locale {
-		for _, c := range all {
-			if c.Locale == defLocale {
-				return c.Title, c.HelpText
-			}
-		}
-	}
-	if len(all) > 0 {
-		return all[0].Title, all[0].HelpText
-	}
-	return "", ""
-}
-
-func resolveProductOptionValueTitle(all []ProductOptionValueContent, locale, defLocale string) string {
-	for _, c := range all {
-		if c.Locale == locale {
-			return c.Title
-		}
-	}
-	if defLocale != "" && defLocale != locale {
-		for _, c := range all {
-			if c.Locale == defLocale {
-				return c.Title
-			}
-		}
-	}
-	if len(all) > 0 {
-		return all[0].Title
-	}
-	return ""
-}
+func optionContentLocale(c ProductOptionContent) string     { return c.Locale }
+func valueContentLocale(c ProductOptionValueContent) string { return c.Locale }
 
 // --- shape validators ---
 
@@ -785,7 +756,7 @@ func validateOptionPriceShape(t ProductOptionInputType, priceValue *int32, price
 	}
 	// Non-select: price columns either both set or both unset
 	if (priceValue == nil) != (priceType == nil) {
-		return fmt.Errorf("price_value and price_type must be set together")
+		return ErrOptionPriceIncomplete
 	}
 	if priceType != nil && !priceType.IsKnown() {
 		return fmt.Errorf("%w: %q", ErrInvalidProductOptionPriceType, string(*priceType))
@@ -798,13 +769,12 @@ func validateOptionPriceShape(t ProductOptionInputType, priceValue *int32, price
 	return nil
 }
 
-// A percent delta outside [-100, 1000] is a typo, not a price - below -100 the line goes negative by definition, and the cart clamps but shouldn't have to
 func validatePercentRange(t ProductOptionPriceType, v int32) error {
 	if t != OptionPricePercent {
 		return nil
 	}
-	if v < -100 || v > 1000 {
-		return fmt.Errorf("%w: percent adjustment must be between -100 and 1000, got %d", ErrInvalidProductOptionPriceType, v)
+	if v < MinOptionPercent || v > MaxOptionPercent {
+		return fmt.Errorf("%w: percent adjustment must be between %d and %d, got %d", ErrInvalidProductOptionPriceType, MinOptionPercent, MaxOptionPercent, v)
 	}
 	return nil
 }
@@ -814,11 +784,8 @@ func validateForcedLineQty(q *float64) error {
 	if q == nil {
 		return nil
 	}
-	if *q <= 0 {
-		return fmt.Errorf("forced line quantity must be positive")
-	}
-	if *q != math.Trunc(*q) {
-		return fmt.Errorf("forced line quantity must be a whole number, got %v", *q)
+	if math.IsNaN(*q) || *q <= 0 || *q > MaxStructureQuantity || *q != math.Trunc(*q) {
+		return fmt.Errorf("%w: got %v", ErrInvalidForcedLineQty, *q)
 	}
 	return nil
 }
@@ -875,18 +842,22 @@ func (s *optionService) optionsWithValues(ctx context.Context, productID uuid.UU
 
 // validateOptionVisibility structurally checks a visibility condition: known ops/logic, no self-reference, parents exist on the product with STRICTLY lower sort_order (canonical order (sort_order, created_at) - the strict-order rule is what makes evaluation a cycle-free single pass), anyOf/noneOf only on select-family parents with value_ids that belong to them
 func validateOptionVisibility(g *OptionConditionGroup, ownOrder int32, ownID uuid.UUID, siblings []ProductOption) error {
+	byID := make(map[uuid.UUID]ProductOption, len(siblings))
+	for _, sib := range siblings {
+		byID[sib.ID] = sib
+	}
+	return validateVisibilityGroup(g, ownOrder, ownID, byID)
+}
+
+func validateVisibilityGroup(g *OptionConditionGroup, ownOrder int32, ownID uuid.UUID, byID map[uuid.UUID]ProductOption) error {
 	if g == nil {
 		return nil
 	}
-	if g.Logic != "" && g.Logic != "and" && g.Logic != "or" {
+	if g.Logic != "" && g.Logic != OptionLogicAnd && g.Logic != OptionLogicOr {
 		return fmt.Errorf("%w: logic must be \"and\" or \"or\"", ErrOptionVisibilityInvalid)
 	}
 	if len(g.Rules) == 0 && len(g.Groups) == 0 {
 		return fmt.Errorf("%w: a group needs at least one rule", ErrOptionVisibilityInvalid)
-	}
-	byID := make(map[uuid.UUID]ProductOption, len(siblings))
-	for _, sib := range siblings {
-		byID[sib.ID] = sib
 	}
 	for _, r := range g.Rules {
 		if !OptionRuleOps[r.Op] {
@@ -902,7 +873,7 @@ func validateOptionVisibility(g *OptionConditionGroup, ownOrder int32, ownID uui
 		if parent.SortOrder >= ownOrder {
 			return fmt.Errorf("%w: may only depend on options ordered BEFORE this one - move %q above it first", ErrOptionVisibilityInvalid, parent.Title)
 		}
-		if r.Op == "anyOf" || r.Op == "noneOf" {
+		if r.Op == OptionRuleAnyOf || r.Op == OptionRuleNoneOf {
 			if !parent.InputType.IsSelect() {
 				return fmt.Errorf("%w: op %q needs a choice-type parent option (%q is %s)", ErrOptionVisibilityInvalid, r.Op, parent.Title, parent.InputType)
 			}
@@ -921,7 +892,7 @@ func validateOptionVisibility(g *OptionConditionGroup, ownOrder int32, ownID uui
 		}
 	}
 	for i := range g.Groups {
-		if err := validateOptionVisibility(&g.Groups[i], ownOrder, ownID, siblings); err != nil {
+		if err := validateVisibilityGroup(&g.Groups[i], ownOrder, ownID, byID); err != nil {
 			return err
 		}
 	}
@@ -962,4 +933,82 @@ func groupReferencesOption(g *OptionConditionGroup, id uuid.UUID) bool {
 		}
 	}
 	return false
+}
+
+func (s *optionService) SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) (ProductOption, error) {
+	opt, err := s.repo.GetProductOptionByID(ctx, optionID)
+	if err != nil {
+		return ProductOption{}, err
+	}
+	if priceValue != nil && (opt.PriceType == nil || *opt.PriceType != OptionPriceFixed) {
+		return ProductOption{}, ErrOptionChannelPriceNotFixed
+	}
+	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+		return ProductOption{}, err
+	}
+	if err := s.repo.SetProductOptionChannelPrice(ctx, optionID, channelID, priceValue); err != nil {
+		return ProductOption{}, err
+	}
+	return opt, s.announced(ctx, opt.ProductID, nil)
+}
+
+// Sets or (nil) clears a value's FIXED surcharge, or a linked value's markup, for one channel the product is listed on
+func (s *optionService) SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) (ProductOptionValue, error) {
+	val, err := s.repo.GetProductOptionValueByID(ctx, valueID)
+	if err != nil {
+		return ProductOptionValue{}, err
+	}
+	if priceValue != nil && val.PriceType == OptionPricePercent && val.SourceProductID == nil {
+		return ProductOptionValue{}, ErrOptionChannelPriceNotFixed
+	}
+	opt, err := s.repo.GetProductOptionByID(ctx, val.OptionID)
+	if err != nil {
+		return ProductOptionValue{}, err
+	}
+	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+		return ProductOptionValue{}, err
+	}
+	if err := s.repo.SetProductOptionValueChannelPrice(ctx, valueID, channelID, priceValue); err != nil {
+		return ProductOptionValue{}, err
+	}
+	return val, s.announced(ctx, opt.ProductID, nil)
+}
+
+func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, channelID uuid.UUID, priceValue *int32) error {
+	if priceValue != nil && (*priceValue > MaxOptionChannelSurcharge || *priceValue < -MaxOptionChannelSurcharge) {
+		return fmt.Errorf("%w: %d", ErrOptionChannelPriceRange, *priceValue)
+	}
+	if priceValue == nil {
+		return nil // clearing is always allowed, even for a channel the product has since left
+	}
+	listings, err := s.core.repo.ListProductChannelListingsByProduct(ctx, productID)
+	if err != nil {
+		return err
+	}
+	for _, l := range listings {
+		if l.ChannelID == channelID {
+			return nil
+		}
+	}
+	return ErrOptionChannelNotListed
+}
+
+// Every option write changes what the product page renders and what the cart charges, so a successful one announces the product - err passes through untouched
+func (s *optionService) announced(ctx context.Context, productID uuid.UUID, err error) error {
+	if err == nil {
+		s.publishProductUpdatedByID(ctx, productID, "options")
+	}
+	return err
+}
+
+func (s *optionService) announcedForOption(ctx context.Context, optionID uuid.UUID, err error) error {
+	if err != nil {
+		return err
+	}
+	opt, oerr := s.repo.GetProductOptionByID(ctx, optionID)
+	if oerr != nil {
+		applog.From(ctx).Warn("announce option change", "option_id", optionID, "err", oerr) // the write stands - only the cache purge is lost
+		return nil
+	}
+	return s.announced(ctx, opt.ProductID, nil)
 }

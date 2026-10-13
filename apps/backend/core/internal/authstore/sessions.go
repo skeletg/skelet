@@ -56,6 +56,10 @@ func (l sessionLog) DeleteExcept(ctx context.Context, adminID uuid.UUID, keepHas
 	return l.q.DeleteAdminSessionsExcept(ctx, db.DeleteAdminSessionsExceptParams{AdminID: adminID, TokenHash: keepHash})
 }
 
+func (l sessionLog) Exists(ctx context.Context, adminID, sessionID uuid.UUID) (bool, error) {
+	return l.q.AdminSessionExists(ctx, db.AdminSessionExistsParams{ID: sessionID, AdminID: adminID})
+}
+
 func (l sessionLog) List(ctx context.Context, adminID uuid.UUID) ([]auth.AdminSession, error) {
 	rows, err := l.q.ListAdminSessionsByAdminID(ctx, adminID)
 	if err != nil {

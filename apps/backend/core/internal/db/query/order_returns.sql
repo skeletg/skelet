@@ -24,9 +24,10 @@ WHERE return_id = ANY($1::uuid[])
 ORDER BY created_at ASC;
 
 -- name: UpdateOrderReturnStatus :one
+-- Only from the status the caller validated - Receive racing Reject left a restocked return rejected, which made its units returnable again
 UPDATE order_returns
-SET status = $2, updated_at = NOW()
-WHERE id = $1
+SET status = sqlc.arg(status), updated_at = NOW()
+WHERE id = sqlc.arg(id) AND status = sqlc.arg(from_status)
 RETURNING *;
 
 -- name: MarkOrderReturnRefunded :one

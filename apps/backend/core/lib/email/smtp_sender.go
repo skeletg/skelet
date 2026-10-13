@@ -2,10 +2,15 @@ package email
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
+	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -80,13 +85,23 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	return c.Quit()
 }
 
-// Builds a multipart/alternative email with both text and HTML parts - the boundary is a fixed dev-friendly string, which real deliverability infra would randomize, though it isn't correctness-critical
+// Builds a multipart/alternative email with both text and HTML parts
+// The boundary is random per message - a fixed one let any body text containing it (a review, a customer's name) forge or cut off a part
 func buildMIMEMessage(msg Message) []byte {
-	boundary := "skelet-mime-boundary"
+	boundary := randomBoundary()
 	var b strings.Builder
-	fmt.Fprintf(&b, "From: %s\r\n", msg.From)
-	fmt.Fprintf(&b, "To: %s\r\n", msg.To)
-	fmt.Fprintf(&b, "Subject: %s\r\n", msg.Subject)
+	fmt.Fprintf(&b, "From: %s\r\n", addressHeader(msg.From))
+	fmt.Fprintf(&b, "To: %s\r\n", addressHeader(msg.To))
+	// Core headers went out raw: a line break in a sender name or subject started a header of its own, and non-ASCII ones weren't encoded at all
+	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", headerSafe(msg.Subject)))
+	keys := make([]string, 0, len(msg.Headers))
+	for k := range msg.Headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s: %s\r\n", headerSafe(k), headerSafe(msg.Headers[k]))
+	}
 	fmt.Fprintf(&b, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
 
@@ -102,8 +117,30 @@ func buildMIMEMessage(msg Message) []byte {
 	return []byte(b.String())
 }
 
+// A CR or LF in a header value would let it start a header of its own
+func headerSafe(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+}
+
+// One mailbox as a wire header - the display name quoted or RFC 2047-encoded as it needs, so "Shop, Inc" stays one address and "Prodavnica Čačak" survives
+func addressHeader(v string) string {
+	if a, err := mail.ParseAddress(v); err == nil {
+		return a.String()
+	}
+	return headerSafe(v)
+}
+
+func randomBoundary() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:]) // crypto/rand.Read never fails on supported platforms
+	return "skelet-" + hex.EncodeToString(b[:])
+}
+
 // Pulls the bare email address out of a "Display <addr@domain>" header - SMTP's MAIL FROM envelope wants just the address
 func extractAddr(from string) string {
+	if a, err := mail.ParseAddress(from); err == nil {
+		return a.Address
+	}
 	if i := strings.LastIndex(from, "<"); i != -1 {
 		if j := strings.LastIndex(from, ">"); j > i {
 			return from[i+1 : j]

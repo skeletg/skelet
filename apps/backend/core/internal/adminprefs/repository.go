@@ -54,6 +54,14 @@ func (r *postgresRepository) Set(ctx context.Context, adminID uuid.UUID, key str
 	return nil
 }
 
+func (r *postgresRepository) CountOthers(ctx context.Context, adminID uuid.UUID, key string) (int64, error) {
+	n, err := r.queries.CountOtherAdminPreferences(ctx, db.CountOtherAdminPreferencesParams{AdminID: adminID, Key: key})
+	if err != nil {
+		return 0, fmt.Errorf("count admin preferences: %w", err)
+	}
+	return n, nil
+}
+
 func (r *postgresRepository) Delete(ctx context.Context, adminID uuid.UUID, key string) error {
 	if err := r.queries.DeleteAdminPreference(ctx, db.DeleteAdminPreferenceParams{
 		AdminID: adminID,

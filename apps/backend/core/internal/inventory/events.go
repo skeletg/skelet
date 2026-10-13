@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -71,8 +72,7 @@ func (e *Allocating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 		return false, "", nil
 	}
 	var resp struct {
-		Reject  bool              `json:"reject"`
-		Reason  string            `json:"reason"`
+		syncveto.Response
 		Routing map[string]string `json:"routing"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -140,7 +140,7 @@ func (s *Service) onCartLineAdding(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
 }
 
 func (s *Service) onCartBundleAdding(ctx context.Context, e events.Event) error {
@@ -157,7 +157,27 @@ func (s *Service) onCartLineUpdating(ctx context.Context, e events.Event) error 
 	if !ok {
 		return nil
 	}
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
+}
+
+// The line's own SKU plus every linked option source it takes per unit
+func (s *Service) guardCartLine(ctx context.Context, channelID uuid.UUID, sku string, qty float64, parts []cart.CartLineStockPart) error {
+	if err := s.guardCartStock(ctx, channelID, sku, qty); err != nil {
+		return err
+	}
+	if channelID == uuid.Nil || qty <= 0 || !s.ledgerEnabled(ctx) {
+		return nil
+	}
+	need := make(map[uuid.UUID]float64, len(parts))
+	for _, p := range parts {
+		need[p.ProductID] += p.Quantity * qty
+	}
+	for productID, q := range need {
+		if err := s.guardProductStock(ctx, channelID, productID, q); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func qtyOrOne(q *float64) float64 {
@@ -185,6 +205,10 @@ func (s *Service) guardCartStock(ctx context.Context, channelID uuid.UUID, sku s
 	if err != nil {
 		return nil // not a catalog product we can resolve → don't gate
 	}
+	return s.guardProductStock(ctx, channelID, productID, qty)
+}
+
+func (s *Service) guardProductStock(ctx context.Context, channelID, productID uuid.UUID, qty float64) error {
 	item, err := s.repo.GetItemByProductID(ctx, productID)
 	if err != nil {
 		return nil // no inventory item (always in stock) or a lookup blip → fail open
@@ -250,6 +274,18 @@ func (s *Service) linesFromCart(ctx context.Context, c cart.Cart) ([]ReserveLine
 			}
 			continue
 		}
+		if len(line.StockParts) > 0 {
+			for _, part := range line.StockParts {
+				out = append(out, ReserveLine{
+					ProductID:   part.ProductID,
+					OrderLineID: line.ID,
+					Quantity:    part.Quantity * line.Quantity,
+				})
+			}
+			if !cart.OwnsStock(line.StockParts) {
+				continue
+			}
+		}
 		if line.ProductSku == "" {
 			continue
 		}
@@ -311,7 +347,7 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 	return nil
 }
 
-// Flat mode writes no ledger, so the placement's movement is rebuilt from the order's lines - kits expand into the components that actually own the stock
+// Flat mode writes no ledger, so the placement's movement is rebuilt from the order's lines, which already come expanded into the components that own the stock
 func (s *Service) publishFlatPlacementStock(ctx context.Context, orderID uuid.UUID) {
 	if s.orders == nil {
 		return
@@ -323,16 +359,6 @@ func (s *Service) publishFlatPlacementStock(ctx context.Context, orderID uuid.UU
 	}
 	byProduct := make(map[uuid.UUID]float64, len(lines))
 	for _, l := range lines {
-		var comps []KitComponentRef
-		if s.products != nil {
-			comps, _ = s.products.KitComponents(ctx, l.ProductID)
-		}
-		if len(comps) > 0 {
-			for _, c := range comps {
-				byProduct[c.ProductID] -= c.Quantity * l.Quantity
-			}
-			continue
-		}
 		byProduct[l.ProductID] -= l.Quantity
 	}
 	s.publishStockChangedForProducts(ctx, byProduct, ReasonOrderPlaced)

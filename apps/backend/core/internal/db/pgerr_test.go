@@ -35,3 +35,20 @@ func TestAMessageThatOnlyMentionsAConstraintIsNotOne(t *testing.T) {
 		}
 	}
 }
+
+func TestAnOverflowingValueIsStringTooLong(t *testing.T) {
+	for code, want := range map[string]bool{"22001": true, "23503": false} {
+		if got := IsStringTooLong(stateErr(code)); got != want {
+			t.Errorf("IsStringTooLong(%s) = %v, want %v", code, got, want)
+		}
+	}
+	if !IsStringTooLong(errors.New("ERROR: value too long for type character(2) (SQLSTATE 22001)")) {
+		t.Error("a flattened overflow lost its classification")
+	}
+}
+
+func TestTheTextFallbackReadsOnlyTheDriverSuffix(t *testing.T) {
+	if IsUniqueViolation(errors.New("provider said: SQLSTATE 23505 is their duplicate code")) {
+		t.Error("a bare SQLSTATE mention outside pgx's suffix was classified")
+	}
+}

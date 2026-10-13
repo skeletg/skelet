@@ -552,17 +552,6 @@ func (r *postgresRepository) InsertReservation(ctx context.Context, res Reservat
 	return toReservation(row), nil
 }
 
-func (r *postgresRepository) AdjustLevelReserved(ctx context.Context, itemID, locationID uuid.UUID, delta float64) error {
-	if err := r.queries.AdjustInventoryLevelReserved(ctx, db.AdjustInventoryLevelReservedParams{
-		InventoryItemID:  itemID,
-		LocationID:       locationID,
-		ReservedQuantity: delta,
-	}); err != nil {
-		return fmt.Errorf("adjust level reserved: %w", err)
-	}
-	return nil
-}
-
 func (r *postgresRepository) RecomputeAllReserved(ctx context.Context) error {
 	if err := r.queries.RecomputeAllLevelReserved(ctx); err != nil {
 		return fmt.Errorf("recompute reserved: %w", err)
@@ -606,40 +595,6 @@ func (r *postgresRepository) ZeroLevelsOutsideLocation(ctx context.Context, loca
 	return n, nil
 }
 
-func (r *postgresRepository) NetReservation(ctx context.Context, itemID, locationID uuid.UUID) (float64, error) {
-	v, err := r.queries.SumReservationsForItemLocation(ctx, db.SumReservationsForItemLocationParams{
-		InventoryItemID: itemID,
-		LocationID:      locationID,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("sum reservations: %w", err)
-	}
-	return v, nil
-}
-
-func (r *postgresRepository) NetReservationsByPairs(ctx context.Context, itemIDs, locationIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID]float64, error) {
-	out := make(map[uuid.UUID]map[uuid.UUID]float64)
-	if len(itemIDs) == 0 || len(locationIDs) == 0 {
-		return out, nil
-	}
-	rows, err := r.queries.SumReservationsByItemLocations(ctx, db.SumReservationsByItemLocationsParams{
-		Column1: itemIDs,
-		Column2: locationIDs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("sum reservations batch: %w", err)
-	}
-	for _, row := range rows {
-		byLoc, ok := out[row.InventoryItemID]
-		if !ok {
-			byLoc = make(map[uuid.UUID]float64)
-			out[row.InventoryItemID] = byLoc
-		}
-		byLoc[row.LocationID] = row.NetDelta
-	}
-	return out, nil
-}
-
 func (r *postgresRepository) ListReservationsForOrder(ctx context.Context, orderID uuid.UUID) ([]Reservation, error) {
 	rows, err := r.queries.ListReservationsForOrder(ctx, uuid.NullUUID{UUID: orderID, Valid: true})
 	if err != nil {
@@ -648,27 +603,6 @@ func (r *postgresRepository) ListReservationsForOrder(ctx context.Context, order
 	out := make([]Reservation, len(rows))
 	for i, row := range rows {
 		out[i] = toReservation(row)
-	}
-	return out, nil
-}
-
-func (r *postgresRepository) DeleteReservationsForOrder(ctx context.Context, orderID uuid.UUID) error {
-	if err := r.queries.DeleteSettledReservationsForOrder(ctx, uuid.NullUUID{UUID: orderID, Valid: true}); err != nil {
-		return fmt.Errorf("delete reservations: %w", err)
-	}
-	return nil
-}
-
-func (r *postgresRepository) ListSettledOrderIDsBefore(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error) {
-	rows, err := r.queries.ListSettledOrderIDsBefore(ctx, cutoff)
-	if err != nil {
-		return nil, fmt.Errorf("list settled orders: %w", err)
-	}
-	out := make([]uuid.UUID, 0, len(rows))
-	for _, n := range rows {
-		if n.Valid {
-			out = append(out, n.UUID)
-		}
 	}
 	return out, nil
 }
@@ -895,4 +829,42 @@ func (r *postgresRepository) SetLocationPickup(ctx context.Context, id uuid.UUID
 		return Location{}, fmt.Errorf("set location pickup: %w", err)
 	}
 	return toLocation(row), nil
+}
+
+func (r *postgresRepository) EnsureLevel(ctx context.Context, itemID, locationID uuid.UUID) error {
+	if err := r.queries.EnsureInventoryLevel(ctx, db.EnsureInventoryLevelParams{InventoryItemID: itemID, LocationID: locationID}); err != nil {
+		return fmt.Errorf("ensure level: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) LockOrder(ctx context.Context, orderID uuid.UUID) error {
+	if err := r.queries.LockOrderLedger(ctx, orderID); err != nil {
+		return fmt.Errorf("lock order ledger: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) MarkFlatRestored(ctx context.Context, orderID uuid.UUID, reason Reason) (bool, error) {
+	n, err := r.queries.MarkFlatRestored(ctx, db.MarkFlatRestoredParams{OrderID: orderID, Reason: string(reason)})
+	if err != nil {
+		return false, fmt.Errorf("mark flat restore: %w", err)
+	}
+	return n == 1, nil
+}
+
+func (r *postgresRepository) PruneSettledReservations(ctx context.Context, cutoff time.Time) (int64, error) {
+	n, err := r.queries.PruneSettledReservations(ctx, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("prune settled reservations: %w", err)
+	}
+	return n, nil
+}
+
+func (r *postgresRepository) CountLocationCommitments(ctx context.Context, locationID uuid.UUID) (int64, error) {
+	n, err := r.queries.CountLocationCommitments(ctx, locationID)
+	if err != nil {
+		return 0, fmt.Errorf("count location commitments: %w", err)
+	}
+	return n, nil
 }

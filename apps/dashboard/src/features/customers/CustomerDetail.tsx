@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
@@ -30,6 +30,7 @@ import { toAddressInput, toAddressValues } from '@/shared/schemas/address'
 import { GdprActions } from './GdprActions'
 import { MasqueradeButton } from '@/features/customers/MasqueradeButton'
 import { LoyaltySection } from './LoyaltySection'
+import { ConsentHistorySection } from './ConsentHistorySection'
 import { StoreCreditSection } from './StoreCreditSection'
 import { useConfigScope } from '@/lib/config-scope'
 import { formatPhone } from '@/lib/phone'
@@ -38,6 +39,7 @@ import {
   AdminDeleteAddressDocument,
   AdminSetCustomerConsentDocument,
   AdminUpdateCustomerDocument,
+  CustomerConsentHistoryDocument,
   CustomerDocument,
   DeleteCustomerDocument,
   SetCustomerGroupDocument,
@@ -120,7 +122,9 @@ function CustomerForm({ customer }: { customer: Customer }) {
   const [setGroup] = useMutation(SetCustomerGroupDocument, { refetchQueries: refetch })
   const [setTaxStatus] = useMutation(SetCustomerTaxStatusDocument, { refetchQueries: refetch })
   const [setVatId] = useMutation(SetCustomerVatIdDocument, { refetchQueries: refetch })
-  const [setConsent] = useMutation(AdminSetCustomerConsentDocument, { refetchQueries: refetch })
+  const [setConsent] = useMutation(AdminSetCustomerConsentDocument, {
+    refetchQueries: [...refetch, { query: CustomerConsentHistoryDocument, variables: { customerId: id } }],
+  })
   const [addAddress] = useMutation(AdminAddAddressDocument, { refetchQueries: refetch })
   const [deleteAddress] = useMutation(AdminDeleteAddressDocument, { refetchQueries: refetch })
   const [deleteCustomer, deleteState] = useMutation(DeleteCustomerDocument)
@@ -133,13 +137,17 @@ function CustomerForm({ customer }: { customer: Customer }) {
 
   const baseline = useMemo(() => toCustomerValues(customer), [customer])
   // Group NAMES in the diff (ids are an implementation detail); the id while the list loads
+  const consentName = useCallback(
+    (kind: string) => customer.consents.find((c) => c.kind === kind)?.definition.name ?? kind,
+    [customer.consents],
+  )
   const diff = useMemo(
     () =>
       customerDiff({
         group: (groupId) => groups.find((g) => g.id === groupId)?.name ?? groupId,
-        consent: (kind) => customer.consents.find((c) => c.kind === kind)?.definition.name ?? kind,
+        consent: consentName,
       }),
-    [groups, customer.consents],
+    [groups, consentName],
   )
   const name = `${customer.firstName} ${customer.lastName}`
 
@@ -225,6 +233,13 @@ function CustomerForm({ customer }: { customer: Customer }) {
             description="Credit spendable at checkout as a payment tender. Balance is restored automatically if a paying order is cancelled."
           >
             <StoreCreditSection customerId={id} />
+          </DetailPageSection>
+
+          <DetailPageSection
+            title="Consent history"
+            description="Every opt-in and opt-out, newest first. A signup-form opt-in is only recorded once the address owner followed the confirmation link."
+          >
+            <ConsentHistorySection customerId={id} kindName={consentName} />
           </DetailPageSection>
 
           <DetailPageSection

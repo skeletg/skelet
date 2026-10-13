@@ -139,8 +139,8 @@ export type BlogAuthor = {
   __typename?: 'BlogAuthor';
   content?: Maybe<BlogAuthorContent>;
   displayName: Scalars['String']['output'];
-  email?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  publicEmail?: Maybe<Scalars['String']['output']>;
   slug: Scalars['String']['output'];
 };
 
@@ -793,7 +793,7 @@ export type Customer = {
 export type CustomerAuthPayload = {
   __typename?: 'CustomerAuthPayload';
   accessToken?: Maybe<Scalars['String']['output']>;
-  customer: Customer;
+  customer?: Maybe<Customer>;
   refreshToken?: Maybe<Scalars['String']['output']>;
   verificationRequired: Scalars['Boolean']['output'];
 };
@@ -1056,6 +1056,7 @@ export type Mutation = {
   requestProductOptionFileUpload: ProductOptionFileUpload;
   requestReturn: OrderReturn;
   requestReviewMediaUpload: ReviewMediaUpload;
+  resendVerification: Scalars['Boolean']['output'];
   resendVerificationEmail: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
   saveForLater: Cart;
@@ -1270,6 +1271,11 @@ export type MutationRequestReviewMediaUploadArgs = {
   mimeType: Scalars['String']['input'];
   productId: Scalars['ID']['input'];
   sizeBytes: Scalars['Int']['input'];
+};
+
+
+export type MutationResendVerificationArgs = {
+  email: Scalars['String']['input'];
 };
 
 

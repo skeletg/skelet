@@ -23,6 +23,14 @@ func (n *namingFallback) SendPasswordReset(_ context.Context, _ uuid.UUID, _, _,
 	return nil
 }
 
+func (n *namingFallback) SendSignupConfirmation(context.Context, uuid.UUID, string, string, string, email.SignupConfirmationEmailData) error {
+	return nil
+}
+
+func (n *namingFallback) SendAccountExists(context.Context, uuid.UUID, string, string, string, email.AccountExistsEmailData) error {
+	return nil
+}
+
 type namingDispatcher struct{ verifyName, resetName *string }
 
 func (d namingDispatcher) OnEmailVerification(_ context.Context, _, _ uuid.UUID, _, storeName, _ string) int {
@@ -32,6 +40,14 @@ func (d namingDispatcher) OnEmailVerification(_ context.Context, _, _ uuid.UUID,
 
 func (d namingDispatcher) OnPasswordReset(_ context.Context, _, _ uuid.UUID, _, _, storeName, _ string) int {
 	*d.resetName = storeName
+	return 0
+}
+
+func (d namingDispatcher) OnSignupConfirmation(context.Context, uuid.UUID, string, string, string, string, string) int {
+	return 0
+}
+
+func (d namingDispatcher) OnAccountExists(context.Context, uuid.UUID, uuid.UUID, string, string, string, string) int {
 	return 0
 }
 
@@ -50,6 +66,7 @@ func TestAccountMailSignsWithTheCustomerFacingStoreName(t *testing.T) {
 	if err := f.svc.RequestPasswordReset(f.ctx, ch, addr); err != nil {
 		t.Fatal(err)
 	}
+	f.svc.FlushMail()
 	for what, got := range map[string]string{"verification": fb.verifyName, "reset": fb.resetName, "verification flow": flowVerify, "reset flow": flowReset} {
 		if got != "Acme Outfitters" {
 			t.Errorf("%s mail signed as %q, want the channel's customer-facing store name", what, got)

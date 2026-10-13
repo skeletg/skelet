@@ -71,7 +71,7 @@ extend type Mutation {
   createProductType(input: CreateProductTypeInput!): ProductType!
   updateProductType(input: UpdateProductTypeInput!): ProductType!
   deleteProductType(id: ID!):                        Boolean!
-  # Focused mutation for setting just the URL path template. Pre-flights every affected product (auto + no override) and rejects the change if any can't render against the new template.
+  # Focused mutation for setting just the URL path template. Validates it against the type's attributes, saves it, and recomputes every affected product (auto + no override) asynchronously - a product whose data can't fill the template falls back to a safe slug.
   setProductTypeURLPathTemplate(productTypeId: ID!, template: String!): ProductType!
 
   assignAttribute(

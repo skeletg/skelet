@@ -142,9 +142,9 @@ func (q *Queries) BackfillLevelsFromItemQuantity(ctx context.Context, locationID
 const countInventoryLocations = `-- name: CountInventoryLocations :one
 SELECT COUNT(*) FROM inventory_locations
 WHERE $1::text = ''
-   OR name ILIKE '%' || $1 || '%'
-   OR slug ILIKE '%' || $1 || '%'
-   OR city ILIKE '%' || $1 || '%'
+   OR name ILIKE '%' || escape_like($1::text) || '%'
+   OR slug ILIKE '%' || escape_like($1::text) || '%'
+   OR city ILIKE '%' || escape_like($1::text) || '%'
 `
 
 func (q *Queries) CountInventoryLocations(ctx context.Context, search string) (int64, error) {
@@ -152,6 +152,27 @@ func (q *Queries) CountInventoryLocations(ctx context.Context, search string) (i
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countLocationCommitments = `-- name: CountLocationCommitments :one
+SELECT (
+    (SELECT count(*) FROM inventory_levels l
+     WHERE l.location_id = $1::uuid AND (l.quantity <> 0 OR l.reserved_quantity <> 0)) +
+    (SELECT count(*) FROM (
+        SELECT 1 FROM inventory_reservations r
+        WHERE r.location_id = $1::uuid AND r.order_id IS NOT NULL AND r.reason <> 'manual_adjustment'
+        GROUP BY r.order_id, r.inventory_item_id, r.order_line_id
+        HAVING SUM(r.quantity_delta) <> 0
+    ) open_chains)
+)::bigint AS total
+`
+
+// What deleting a location would silently destroy: stock on its shelves, and order holds whose chains are still open there
+func (q *Queries) CountLocationCommitments(ctx context.Context, locationID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLocationCommitments, locationID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
 }
 
 const createInventoryItem = `-- name: CreateInventoryItem :one
@@ -315,13 +336,18 @@ func (q *Queries) DeleteInventoryLocation(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
-const deleteSettledReservationsForOrder = `-- name: DeleteSettledReservationsForOrder :exec
-DELETE FROM inventory_reservations WHERE order_id = $1
+const ensureInventoryLevel = `-- name: EnsureInventoryLevel :exec
+INSERT INTO inventory_levels (inventory_item_id, location_id, quantity) VALUES ($1, $2, 0)
+ON CONFLICT (inventory_item_id, location_id) DO NOTHING
 `
 
-// Used by retention cron once an order's reservation chain nets to zero
-func (q *Queries) DeleteSettledReservationsForOrder(ctx context.Context, orderID uuid.NullUUID) error {
-	_, err := q.db.ExecContext(ctx, deleteSettledReservationsForOrder, orderID)
+type EnsureInventoryLevelParams struct {
+	InventoryItemID uuid.UUID `json:"inventory_item_id"`
+	LocationID      uuid.UUID `json:"location_id"`
+}
+
+func (q *Queries) EnsureInventoryLevel(ctx context.Context, arg EnsureInventoryLevelParams) error {
+	_, err := q.db.ExecContext(ctx, ensureInventoryLevel, arg.InventoryItemID, arg.LocationID)
 	return err
 }
 
@@ -987,9 +1013,9 @@ func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uu
 const listInventoryLocationsPage = `-- name: ListInventoryLocationsPage :many
 SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations
 WHERE $1::text = ''
-   OR name ILIKE '%' || $1 || '%'
-   OR slug ILIKE '%' || $1 || '%'
-   OR city ILIKE '%' || $1 || '%'
+   OR name ILIKE '%' || escape_like($1::text) || '%'
+   OR slug ILIKE '%' || escape_like($1::text) || '%'
+   OR city ILIKE '%' || escape_like($1::text) || '%'
 ORDER BY name
 LIMIT $3 OFFSET $2
 `
@@ -1330,36 +1356,32 @@ func (q *Queries) ListReservationsForOrder(ctx context.Context, orderID uuid.Nul
 	return items, nil
 }
 
-const listSettledOrderIDsBefore = `-- name: ListSettledOrderIDsBefore :many
-SELECT order_id
-FROM inventory_reservations
-WHERE order_id IS NOT NULL
-GROUP BY order_id
-HAVING SUM(quantity_delta) = 0 AND MAX(created_at) < $1::timestamptz
+const lockOrderLedger = `-- name: LockOrderLedger :exec
+SELECT pg_advisory_xact_lock(hashtextextended('inventory-order:' || $1::uuid::text, 0))
 `
 
-// Find order IDs whose reservation chains are net-zero AND whose most-recent reservation row is older than the retention cutoff - cron uses this to pick chains safe to delete
-func (q *Queries) ListSettledOrderIDsBefore(ctx context.Context, dollar_1 time.Time) ([]uuid.NullUUID, error) {
-	rows, err := q.db.QueryContext(ctx, listSettledOrderIDsBefore, dollar_1)
+// Serialises every read-then-compensate pass over one order's ledger - a replayed or racing event must see the winner's rows, which READ COMMITTED alone does not promise
+func (q *Queries) LockOrderLedger(ctx context.Context, orderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockOrderLedger, orderID)
+	return err
+}
+
+const markFlatRestored = `-- name: MarkFlatRestored :execrows
+INSERT INTO inventory_flat_restores (order_id, reason) VALUES ($1, $2)
+ON CONFLICT (order_id) DO NOTHING
+`
+
+type MarkFlatRestoredParams struct {
+	OrderID uuid.UUID `json:"order_id"`
+	Reason  string    `json:"reason"`
+}
+
+func (q *Queries) MarkFlatRestored(ctx context.Context, arg MarkFlatRestoredParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markFlatRestored, arg.OrderID, arg.Reason)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	items := []uuid.NullUUID{}
-	for rows.Next() {
-		var order_id uuid.NullUUID
-		if err := rows.Scan(&order_id); err != nil {
-			return nil, err
-		}
-		items = append(items, order_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected()
 }
 
 const previewItemQuantityFromLevels = `-- name: PreviewItemQuantityFromLevels :many
@@ -1401,6 +1423,30 @@ func (q *Queries) PreviewItemQuantityFromLevels(ctx context.Context) ([]PreviewI
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneSettledReservations = `-- name: PruneSettledReservations :one
+WITH settled AS (
+    SELECT order_id
+    FROM inventory_reservations
+    WHERE order_id IS NOT NULL
+    GROUP BY order_id
+    HAVING SUM(quantity_delta) = 0 AND MAX(created_at) < $1::timestamptz
+), gone AS (
+    DELETE FROM inventory_reservations r
+    USING settled
+    WHERE r.order_id = settled.order_id
+    RETURNING r.order_id
+)
+SELECT count(DISTINCT order_id)::bigint FROM gone
+`
+
+// Deletes every order's chain that nets to zero and has been quiet since the cutoff, in one statement, so the settled check and the delete read the same snapshot
+func (q *Queries) PruneSettledReservations(ctx context.Context, cutoff time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, pruneSettledReservations, cutoff)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const recomputeAllLevelReserved = `-- name: RecomputeAllLevelReserved :exec
@@ -1502,69 +1548,6 @@ func (q *Queries) SetLocationPickup(ctx context.Context, arg SetLocationPickupPa
 		&i.PickupInstructions,
 	)
 	return i, err
-}
-
-const sumReservationsByItemLocations = `-- name: SumReservationsByItemLocations :many
-SELECT inventory_item_id, location_id, COALESCE(SUM(quantity_delta), 0)::numeric AS net_delta
-FROM inventory_reservations
-WHERE inventory_item_id = ANY($1::uuid[]) AND location_id = ANY($2::uuid[])
-  AND reason <> 'manual_adjustment'
-GROUP BY inventory_item_id, location_id
-`
-
-type SumReservationsByItemLocationsParams struct {
-	Column1 []uuid.UUID `json:"column_1"`
-	Column2 []uuid.UUID `json:"column_2"`
-}
-
-type SumReservationsByItemLocationsRow struct {
-	InventoryItemID uuid.UUID `json:"inventory_item_id"`
-	LocationID      uuid.UUID `json:"location_id"`
-	NetDelta        float64   `json:"net_delta"`
-}
-
-// Batch version: returns net reservation per (item, location) pair
-func (q *Queries) SumReservationsByItemLocations(ctx context.Context, arg SumReservationsByItemLocationsParams) ([]SumReservationsByItemLocationsRow, error) {
-	rows, err := q.db.QueryContext(ctx, sumReservationsByItemLocations, pq.Array(arg.Column1), pq.Array(arg.Column2))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SumReservationsByItemLocationsRow{}
-	for rows.Next() {
-		var i SumReservationsByItemLocationsRow
-		if err := rows.Scan(&i.InventoryItemID, &i.LocationID, &i.NetDelta); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const sumReservationsForItemLocation = `-- name: SumReservationsForItemLocation :one
-SELECT COALESCE(SUM(quantity_delta), 0)::numeric AS net_delta
-FROM inventory_reservations
-WHERE inventory_item_id = $1 AND location_id = $2
-  AND reason <> 'manual_adjustment'
-`
-
-type SumReservationsForItemLocationParams struct {
-	InventoryItemID uuid.UUID `json:"inventory_item_id"`
-	LocationID      uuid.UUID `json:"location_id"`
-}
-
-// Returns the net reservation total (positive = restocked, negative = held) Excludes manual_adjustment audit rows - their quantity change lives on the level row, so summing them double-counted every admin adjustment into the allocation availability math
-func (q *Queries) SumReservationsForItemLocation(ctx context.Context, arg SumReservationsForItemLocationParams) (float64, error) {
-	row := q.db.QueryRowContext(ctx, sumReservationsForItemLocation, arg.InventoryItemID, arg.LocationID)
-	var net_delta float64
-	err := row.Scan(&net_delta)
-	return net_delta, err
 }
 
 const updateInventoryItem = `-- name: UpdateInventoryItem :one

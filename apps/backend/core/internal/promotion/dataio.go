@@ -126,14 +126,20 @@ type codeImporter struct {
 	svc     *Service
 	rule    Rule
 	opts    dataio.Opts
-	pending []string
+	pending []pendingCode
 	seen    map[string]bool
+	taken   []dataio.RowError
+}
+
+type pendingCode struct {
+	code string
+	line int
 }
 
 const codeBatchSize = 1000
 
 func (im *codeImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome, error) {
-	code := strings.ToUpper(r.Str(colCode))
+	code := normalizeCode(r.Str(colCode))
 	r.Ref = code
 	if code == "" || strings.HasPrefix(code, "#") {
 		return dataio.OutcomeSkipped, nil // '#' lines let admins annotate their files
@@ -148,7 +154,7 @@ func (im *codeImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome,
 	if im.opts.DryRun {
 		return dataio.OutcomeCreated, nil
 	}
-	im.pending = append(im.pending, code)
+	im.pending = append(im.pending, pendingCode{code: code, line: r.Line})
 	if len(im.pending) >= codeBatchSize {
 		if err := im.flush(ctx); err != nil {
 			return dataio.OutcomeSkipped, err
@@ -157,16 +163,34 @@ func (im *codeImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome,
 	return dataio.OutcomeCreated, nil
 }
 
+// A code another rule already owns is skipped by the insert - it was counted as created when its row was read, so it comes back here as that row's error
 func (im *codeImporter) Finish(ctx context.Context) ([]dataio.RowError, error) {
-	return nil, im.flush(ctx)
+	if err := im.flush(ctx); err != nil {
+		return nil, err
+	}
+	return im.taken, nil
 }
 
 func (im *codeImporter) flush(ctx context.Context) error {
 	if len(im.pending) == 0 {
 		return nil
 	}
-	if _, err := im.svc.Repo().BulkInsertCodes(ctx, im.rule.ID, im.pending); err != nil {
+	codes := make([]string, len(im.pending))
+	for i, p := range im.pending {
+		codes[i] = p.code
+	}
+	inserted, err := im.svc.Repo().BulkInsertCodes(ctx, im.rule.ID, codes)
+	if err != nil {
 		return err
+	}
+	landed := make(map[string]bool, len(inserted))
+	for _, c := range inserted {
+		landed[c] = true
+	}
+	for _, p := range im.pending {
+		if !landed[p.code] {
+			im.taken = append(im.taken, dataio.RowError{Line: p.line, Ref: p.code, Message: "code already exists"})
+		}
 	}
 	im.pending = im.pending[:0]
 	return nil

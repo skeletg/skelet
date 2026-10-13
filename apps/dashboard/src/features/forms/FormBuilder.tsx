@@ -147,7 +147,7 @@ export function FormBuilder() {
         heading: '',
         body: '',
         buttonLabel: 'Subscribe',
-        successMessage: 'Thanks for signing up!',
+        successMessage: 'Check your inbox to confirm your subscription.',
         collectName: false,
         consentKind: 'marketing_email',
         targetSegmentId: null,
@@ -382,7 +382,10 @@ function Builder({
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="fsuccess">Success message</Label>
-                <Input id="fsuccess" value={successMessage} onChange={(e) => setSuccessMessage(e.target.value)} placeholder="Thanks for signing up!" />
+                <Input id="fsuccess" value={successMessage} onChange={(e) => setSuccessMessage(e.target.value)} placeholder="Check your inbox to confirm your subscription." />
+                <p className="text-xs text-muted-foreground">
+                  Shown right after the visitor submits. Nobody is subscribed until they follow the confirmation link we email them, so say that rather than welcoming them aboard.
+                </p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={collectName} onCheckedChange={setCollectName} />
@@ -391,7 +394,7 @@ function Builder({
             </div>
           </DetailPageSection>
 
-          <DetailPageSection title="After signup" description="What happens once someone subscribes.">
+          <DetailPageSection title="After signup" description="What happens once someone confirms their subscription from the emailed link.">
             <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
                 <Label>Add to segment</Label>
