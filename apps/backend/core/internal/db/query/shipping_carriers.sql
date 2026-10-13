@@ -34,6 +34,12 @@ SET country_mode = $3, updated_at = NOW()
 WHERE channel_id = $1 AND carrier_slug = $2
 RETURNING *;
 
+-- name: SetShippingCarrierWeekendDelivery :one
+UPDATE shipping_carriers
+SET delivers_on_weekends = $3, updated_at = NOW()
+WHERE channel_id = $1 AND carrier_slug = $2
+RETURNING *;
+
 -- Per-carrier ship-to country allow-list
 
 -- name: AddCountryToShippingCarrier :exec

@@ -303,12 +303,47 @@ func (q *Queries) SetPaymentMethodSortOrder(ctx context.Context, arg SetPaymentM
 	return i, err
 }
 
+const updatePaymentMethodPresentation = `-- name: UpdatePaymentMethodPresentation :one
+UPDATE payment_methods
+SET display_name = $3, sort_order = $4, updated_at = NOW()
+WHERE channel_id = $1 AND provider_slug = $2
+RETURNING id, channel_id, provider_slug, is_enabled, display_name, sort_order, created_at, updated_at, country_mode
+`
+
+type UpdatePaymentMethodPresentationParams struct {
+	ChannelID    uuid.UUID `json:"channel_id"`
+	ProviderSlug string    `json:"provider_slug"`
+	DisplayName  string    `json:"display_name"`
+	SortOrder    int32     `json:"sort_order"`
+}
+
+func (q *Queries) UpdatePaymentMethodPresentation(ctx context.Context, arg UpdatePaymentMethodPresentationParams) (PaymentMethod, error) {
+	row := q.db.QueryRowContext(ctx, updatePaymentMethodPresentation,
+		arg.ChannelID,
+		arg.ProviderSlug,
+		arg.DisplayName,
+		arg.SortOrder,
+	)
+	var i PaymentMethod
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.ProviderSlug,
+		&i.IsEnabled,
+		&i.DisplayName,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CountryMode,
+	)
+	return i, err
+}
+
 const upsertPaymentMethod = `-- name: UpsertPaymentMethod :one
 INSERT INTO payment_methods (channel_id, provider_slug, display_name)
 VALUES ($1, $2, $3)
 ON CONFLICT (channel_id, provider_slug) DO UPDATE
-SET display_name = EXCLUDED.display_name,
-    updated_at   = NOW()
+SET updated_at = NOW()
 RETURNING id, channel_id, provider_slug, is_enabled, display_name, sort_order, created_at, updated_at, country_mode
 `
 
