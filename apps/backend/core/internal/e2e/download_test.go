@@ -286,7 +286,7 @@ func TestDownloadGrantsAreListableByCustomer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	o := h.placeFor(t, f, c.ID, email, 1)
+	o := h.placeUnpaidFor(t, f, c.ID, email, 1)
 	h.Settle(t)
 	h.collectCOD(t, o.ID)
 

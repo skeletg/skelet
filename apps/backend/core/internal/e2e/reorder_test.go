@@ -136,7 +136,7 @@ func TestReorderRebuildsTheCartAtCurrentPrices(t *testing.T) {
 	f := h.NewStore(t, 50, 2000)
 	buyer, email, token := h.registeredBuyer(t, f)
 
-	o := h.placeFor(t, f, buyer, email, 2)
+	o := h.placeUnpaidFor(t, f, buyer, email, 2)
 	h.Settle(t)
 
 	// the catalog price moves after the order was placed
@@ -338,7 +338,7 @@ func TestReorderRefusesAnonymousAndForeignOrders(t *testing.T) {
 	owner, ownerEmail, ownerToken := h.registeredBuyer(t, f)
 	_, _, strangerToken := h.registeredBuyer(t, f)
 
-	o := h.placeFor(t, f, owner, ownerEmail, 1)
+	o := h.placeUnpaidFor(t, f, owner, ownerEmail, 1)
 	h.Settle(t)
 
 	// anonymous
