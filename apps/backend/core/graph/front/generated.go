@@ -804,6 +804,21 @@ type ComplexityRoot struct {
 		SortOrder    func(childComplexity int) int
 	}
 
+	PhoneCountryFormat struct {
+		CallingCode     func(childComplexity int) int
+		CountryCode     func(childComplexity int) int
+		Example         func(childComplexity int) int
+		NationalExample func(childComplexity int) int
+		Template        func(childComplexity int) int
+	}
+
+	PhoneSettings struct {
+		DefaultCountryCode         func(childComplexity int) int
+		Formats                    func(childComplexity int) int
+		LockedCountryCode          func(childComplexity int) int
+		RestrictedToStoreCountries func(childComplexity int) int
+	}
+
 	PickupLocation struct {
 		City         func(childComplexity int) int
 		CountryCode  func(childComplexity int) int
@@ -1060,6 +1075,7 @@ type ComplexityRoot struct {
 		MyWishlist            func(childComplexity int) int
 		MyWishlistShareToken  func(childComplexity int) int
 		PaymentMethods        func(childComplexity int, countryCode string) int
+		PhoneSettings         func(childComplexity int) int
 		PickupLocations       func(childComplexity int) int
 		PresentmentCurrencies func(childComplexity int) int
 		PreviewBlogPost       func(childComplexity int, token string) int
@@ -1449,6 +1465,7 @@ type QueryResolver interface {
 	Country(ctx context.Context, code string) (*model.Country, error)
 	Regions(ctx context.Context, countryCode string) ([]*model.Region, error)
 	CountrySettings(ctx context.Context) (*model1.CountrySettings, error)
+	PhoneSettings(ctx context.Context) (*model1.PhoneSettings, error)
 	Currencies(ctx context.Context, activeOnly *bool) ([]*model.Currency, error)
 	Currency(ctx context.Context, code string) (*model.Currency, error)
 	PresentmentCurrencies(ctx context.Context) ([]*model1.PresentmentCurrency, error)
@@ -5066,6 +5083,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PaymentMethodOption.SortOrder(childComplexity), true
 
+	case "PhoneCountryFormat.callingCode":
+		if e.ComplexityRoot.PhoneCountryFormat.CallingCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneCountryFormat.CallingCode(childComplexity), true
+	case "PhoneCountryFormat.countryCode":
+		if e.ComplexityRoot.PhoneCountryFormat.CountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneCountryFormat.CountryCode(childComplexity), true
+	case "PhoneCountryFormat.example":
+		if e.ComplexityRoot.PhoneCountryFormat.Example == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneCountryFormat.Example(childComplexity), true
+	case "PhoneCountryFormat.nationalExample":
+		if e.ComplexityRoot.PhoneCountryFormat.NationalExample == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneCountryFormat.NationalExample(childComplexity), true
+	case "PhoneCountryFormat.template":
+		if e.ComplexityRoot.PhoneCountryFormat.Template == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneCountryFormat.Template(childComplexity), true
+
+	case "PhoneSettings.defaultCountryCode":
+		if e.ComplexityRoot.PhoneSettings.DefaultCountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneSettings.DefaultCountryCode(childComplexity), true
+	case "PhoneSettings.formats":
+		if e.ComplexityRoot.PhoneSettings.Formats == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneSettings.Formats(childComplexity), true
+	case "PhoneSettings.lockedCountryCode":
+		if e.ComplexityRoot.PhoneSettings.LockedCountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneSettings.LockedCountryCode(childComplexity), true
+	case "PhoneSettings.restrictedToStoreCountries":
+		if e.ComplexityRoot.PhoneSettings.RestrictedToStoreCountries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PhoneSettings.RestrictedToStoreCountries(childComplexity), true
+
 	case "PickupLocation.city":
 		if e.ComplexityRoot.PickupLocation.City == nil {
 			break
@@ -6466,6 +6539,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PaymentMethods(childComplexity, args["countryCode"].(string)), true
+	case "Query.phoneSettings":
+		if e.ComplexityRoot.Query.PhoneSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.PhoneSettings(childComplexity), true
 	case "Query.pickupLocations":
 		if e.ComplexityRoot.Query.PickupLocations == nil {
 			break
@@ -8438,6 +8517,30 @@ type CountrySettings {
   euCountryCodes:             [String!]!
 }
 
+# How one country's phone numbers look - a form's fixed prefix, its placeholder and its input mask
+type PhoneCountryFormat {
+  countryCode:     String!
+  # "+381"
+  callingCode:     String!
+  # An example mobile, international - "+381 60 1234567"
+  example:         String!
+  # The same example as typed at home - "060 1234567"
+  nationalExample: String!
+  # nationalExample with every digit an x - "xxx xxxxxxx"
+  template:        String!
+}
+
+# The store's phone policy (general/country/phone_countries) with the formats of the countries a form can offer - its allowed countries, else every active one
+type PhoneSettings {
+  # A phone must be from one of the store's allowed countries
+  restrictedToStoreCountries: Boolean!
+  # Set when every phone must be from this one country - the form fixes the prefix and shows no country choice
+  lockedCountryCode:          String
+  # The country a phone typed without its + is read in, when the form has no address country of its own
+  defaultCountryCode:         String!
+  formats:                    [PhoneCountryFormat!]!
+}
+
 extend type Query {
   # Honors the channel's "allowed countries" setting (all active when
   # unset) and pins "top destinations" first.
@@ -8447,6 +8550,8 @@ extend type Query {
   regions(countryCode: String!): [Region!]!
   # Channel-scoped country option flags for the address forms.
   countrySettings: CountrySettings!
+  # The phone policy and formats for the store's phone fields.
+  phoneSettings: PhoneSettings!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/currencies.graphqls", Input: `type Currency {
@@ -10823,6 +10928,36 @@ func (ec *executionContext) childFields_PaymentMethodOption(ctx context.Context,
 		return ec.fieldContext_PaymentMethodOption_instructions(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PaymentMethodOption", field.Name)
+}
+
+func (ec *executionContext) childFields_PhoneCountryFormat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "countryCode":
+		return ec.fieldContext_PhoneCountryFormat_countryCode(ctx, field)
+	case "callingCode":
+		return ec.fieldContext_PhoneCountryFormat_callingCode(ctx, field)
+	case "example":
+		return ec.fieldContext_PhoneCountryFormat_example(ctx, field)
+	case "nationalExample":
+		return ec.fieldContext_PhoneCountryFormat_nationalExample(ctx, field)
+	case "template":
+		return ec.fieldContext_PhoneCountryFormat_template(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PhoneCountryFormat", field.Name)
+}
+
+func (ec *executionContext) childFields_PhoneSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "restrictedToStoreCountries":
+		return ec.fieldContext_PhoneSettings_restrictedToStoreCountries(ctx, field)
+	case "lockedCountryCode":
+		return ec.fieldContext_PhoneSettings_lockedCountryCode(ctx, field)
+	case "defaultCountryCode":
+		return ec.fieldContext_PhoneSettings_defaultCountryCode(ctx, field)
+	case "formats":
+		return ec.fieldContext_PhoneSettings_formats(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PhoneSettings", field.Name)
 }
 
 func (ec *executionContext) childFields_PickupLocation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -27893,6 +28028,222 @@ func (ec *executionContext) fieldContext_PaymentMethodOption_instructions(_ cont
 	return graphql.NewScalarFieldContext("PaymentMethodOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _PhoneCountryFormat_countryCode(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneCountryFormat_countryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneCountryFormat_countryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneCountryFormat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneCountryFormat_callingCode(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneCountryFormat_callingCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CallingCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneCountryFormat_callingCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneCountryFormat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneCountryFormat_example(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneCountryFormat_example(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Example, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneCountryFormat_example(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneCountryFormat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneCountryFormat_nationalExample(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneCountryFormat_nationalExample(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NationalExample, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneCountryFormat_nationalExample(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneCountryFormat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneCountryFormat_template(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneCountryFormat_template(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Template, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneCountryFormat_template(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneCountryFormat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneSettings_restrictedToStoreCountries(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneSettings_restrictedToStoreCountries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RestrictedToStoreCountries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneSettings_restrictedToStoreCountries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneSettings_lockedCountryCode(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneSettings_lockedCountryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LockedCountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneSettings_lockedCountryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneSettings", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneSettings_defaultCountryCode(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneSettings_defaultCountryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultCountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneSettings_defaultCountryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PhoneSettings", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PhoneSettings_formats(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PhoneSettings_formats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Formats, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PhoneCountryFormat) graphql.Marshaler {
+			return ec.marshalNPhoneCountryFormat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneCountryFormatᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PhoneSettings_formats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PhoneSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PhoneCountryFormat(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PickupLocation_slug(ctx context.Context, field graphql.CollectedField, obj *model1.PickupLocation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -33478,6 +33829,38 @@ func (ec *executionContext) fieldContext_Query_countrySettings(_ context.Context
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CountrySettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_phoneSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_phoneSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().PhoneSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.PhoneSettings) graphql.Marshaler {
+			return ec.marshalNPhoneSettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_phoneSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PhoneSettings(ctx, field)
 		},
 	}
 	return fc, nil
@@ -44812,6 +45195,117 @@ func (ec *executionContext) _PaymentMethodOption(ctx context.Context, sel ast.Se
 	return out
 }
 
+var phoneCountryFormatImplementors = []string{"PhoneCountryFormat"}
+
+func (ec *executionContext) _PhoneCountryFormat(ctx context.Context, sel ast.SelectionSet, obj *model1.PhoneCountryFormat) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, phoneCountryFormatImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PhoneCountryFormat")
+		case "countryCode":
+			out.Values[i] = ec._PhoneCountryFormat_countryCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "callingCode":
+			out.Values[i] = ec._PhoneCountryFormat_callingCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "example":
+			out.Values[i] = ec._PhoneCountryFormat_example(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nationalExample":
+			out.Values[i] = ec._PhoneCountryFormat_nationalExample(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "template":
+			out.Values[i] = ec._PhoneCountryFormat_template(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var phoneSettingsImplementors = []string{"PhoneSettings"}
+
+func (ec *executionContext) _PhoneSettings(ctx context.Context, sel ast.SelectionSet, obj *model1.PhoneSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, phoneSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PhoneSettings")
+		case "restrictedToStoreCountries":
+			out.Values[i] = ec._PhoneSettings_restrictedToStoreCountries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lockedCountryCode":
+			out.Values[i] = ec._PhoneSettings_lockedCountryCode(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "defaultCountryCode":
+			out.Values[i] = ec._PhoneSettings_defaultCountryCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "formats":
+			out.Values[i] = ec._PhoneSettings_formats(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var pickupLocationImplementors = []string{"PickupLocation"}
 
 func (ec *executionContext) _PickupLocation(ctx context.Context, sel ast.SelectionSet, obj *model1.PickupLocation) graphql.Marshaler {
@@ -48286,6 +48780,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_countrySettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "phoneSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_phoneSettings(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -52660,6 +53176,46 @@ func (ec *executionContext) unmarshalNPaymentStatus2githubᚗcomᚋskeletgᚋske
 
 func (ec *executionContext) marshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx context.Context, sel ast.SelectionSet, v model.PaymentStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNPhoneCountryFormat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneCountryFormatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PhoneCountryFormat) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPhoneCountryFormat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneCountryFormat(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPhoneCountryFormat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneCountryFormat(ctx context.Context, sel ast.SelectionSet, v *model1.PhoneCountryFormat) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PhoneCountryFormat(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPhoneSettings2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneSettings(ctx context.Context, sel ast.SelectionSet, v model1.PhoneSettings) graphql.Marshaler {
+	return ec._PhoneSettings(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPhoneSettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPhoneSettings(ctx context.Context, sel ast.SelectionSet, v *model1.PhoneSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PhoneSettings(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPickupLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PickupLocation) graphql.Marshaler {
