@@ -3,7 +3,8 @@
 # Runs Playwright in Microsoft's image inside the storefront dev container's network namespace, so the host
 # needs no Node and no browser. The image tag comes from the storefront's @playwright/test pin - the runner and the
 # browsers it drives are released together and refuse to talk across versions
-# Writes real customers, addresses and questions to the dev database - every run signs up fresh throwaway accounts
+# Writes real customers, addresses and questions to the dev database - every run signs up fresh throwaway accounts, and
+# makes one throwaway superuser the specs that seed store setup sign in as
 set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
@@ -39,6 +40,15 @@ fi
 tty_flag=()
 [ -t 0 ] && tty_flag=(-it)
 
+# Specs that set the store up (checkout's delivery choices seed shipping methods) sign in to the admin API as a superuser
+# made for this run - like the throwaway customers, one inert e2e-storefront-* admin account per run stays behind
+admin_email="e2e-storefront-$(date +%s)-$RANDOM@skelet.test"
+admin_password="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+docker compose exec -T "${USER_FLAG[@]}" app go run ./cmd/cli admin create-superuser \
+    --email "$admin_email" --password "$admin_password" --first-name E2E --last-name Storefront >/dev/null
+admin_slug=$(docker compose exec -T app printenv ADMIN_API_SLUG 2>/dev/null || true)
+channel_id=$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" | sed -n 's/^STOREFRONT_CHANNEL_ID=//p')
+
 # --volumes-from brings the source bind mount AND the container's node_modules volume, so the specs resolve
 # @playwright/test from the tree the dev server uses. HOME is somewhere the mapped uid can write
 # --network container: shares the storefront's own network namespace, so the browser reaches it as localhost - next dev
@@ -46,6 +56,8 @@ tty_flag=()
 exec docker run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" \
     -u "${SKELET_UID}:${SKELET_GID}" -e HOME=/tmp -e CI="${CI:-}" \
     -e E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:3000}" \
+    -e E2E_ADMIN_GRAPHQL="http://app:8080/api/admin${admin_slug:+/$admin_slug}/graphql" \
+    -e E2E_ADMIN_EMAIL="$admin_email" -e E2E_ADMIN_PASSWORD="$admin_password" -e E2E_CHANNEL_ID="$channel_id" \
     --network "container:$container" --volumes-from "$container" --ipc=host \
     -w /var/www/storefront \
     "mcr.microsoft.com/playwright:v${version}-noble" \
