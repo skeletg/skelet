@@ -120,7 +120,7 @@ waiting to be written rather than a setting with nothing to say.
 | `general/store_information/phone_mobile` | A second number, for stores that publish one. Served to storefronts; the bundled one doesn't show it. | phone | channel | yes | - |
 | `general/store_information/currency_list` | The currency every stored exchange rate is quoted against, refreshed twice daily from ECB. Storefront prices come from each channel's own currency, not from here. | select | global | yes | `USD` |
 | `general/store_information/working_hours` | Per-day opening times. Served to storefronts over publicConfig; the bundled one doesn't show them. | working_hours | channel | yes | `{}` |
-| `general/store_information/timezone` | Sets the timezone of the clock shown in the admin sidebar. Report boundaries, scheduled jobs and stored timestamps are unaffected - those are UTC, or carry their own timezone. | select | channel |  | `UTC` |
+| `general/store_information/timezone` | Sets the clock shown in the admin sidebar, and the day checkout counts delivery estimates from - an order placed late on Friday here counts from Friday. Report boundaries, scheduled jobs and stored timestamps are unaffected - those are UTC, or carry their own timezone. | select | channel |  | `UTC` |
 
 **Security**
 
