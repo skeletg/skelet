@@ -12,7 +12,16 @@ export type ExistingProductType = {
   isShippingRequired: boolean
   urlTemplate: string
   tracksInventory: boolean
+  deliveryKinds?: string[]
 }
+
+// The delivery kinds a product type can limit its products to - none ticked allows every one the channel offers
+export const DELIVERY_KINDS = [
+  { value: 'ship_to_address', label: 'Delivery to address' },
+  { value: 'store_pickup', label: 'Store pickup' },
+  { value: 'parcel_locker', label: 'Pickup point' },
+  { value: 'carrier_point', label: 'Nearest pickup point' },
+] as const
 
 export const productTypeSchema = z
   .object({
@@ -25,6 +34,9 @@ export const productTypeSchema = z
     urlTemplate: z
       .string()
       .describe('URL path template products derive their path from, such as {category}/{slug} - empty string turns auto-generation off'),
+    deliveryKinds: z
+      .array(z.enum(['ship_to_address', 'store_pickup', 'parcel_locker', 'carrier_point']))
+      .describe('Delivery kinds products of this type may use - an empty list allows every kind the channel offers. A fridge leaves out parcel_locker and carrier_point'),
   })
   .describe('A product type: the blueprint its products inherit')
 
@@ -38,6 +50,9 @@ export function toProductTypeValues(pt?: ExistingProductType): ProductTypeValues
     isShippingRequired: pt?.isShippingRequired ?? true,
     tracksInventory: pt?.tracksInventory ?? false,
     urlTemplate: pt?.urlTemplate ?? '',
+    deliveryKinds: (pt?.deliveryKinds ?? []).filter((k): k is ProductTypeValues['deliveryKinds'][number] =>
+      DELIVERY_KINDS.some((d) => d.value === k),
+    ),
   }
 }
 
@@ -77,15 +92,30 @@ export const PRODUCT_TYPE_LABELS: Record<keyof ProductTypeValues, string> = {
   isShippingRequired: 'Requires shipping',
   tracksInventory: 'Tracks inventory',
   urlTemplate: 'URL path template',
+  deliveryKinds: 'Allowed delivery kinds',
 }
+
+// The kinds to send setProductTypeDeliveryKinds - null clears the limit, and nothing is sent when unchanged
+export function deliveryKindsUpdate(v: ProductTypeValues, pt: ExistingProductType): string[] | null | undefined {
+  const before = [...(pt.deliveryKinds ?? [])].sort().join(',')
+  const after = [...v.deliveryKinds].sort().join(',')
+  if (before === after) return undefined
+  return v.deliveryKinds.length ? v.deliveryKinds : null
+}
+
+const deliveryKindsLabel = (kinds: string[]) =>
+  kinds.length ? kinds.map((k) => DELIVERY_KINDS.find((d) => d.value === k)?.label ?? k).join(', ') : 'Every method the channel offers'
 
 export function productTypeDiff(original: ProductTypeValues, draft: ProductTypeValues): SectionDiffEntry[] {
   return fieldDiff(
     original,
     draft,
-    (['name', 'isDigital', 'isShippingRequired', 'tracksInventory', 'urlTemplate'] as const).map((k) => ({
-      label: PRODUCT_TYPE_LABELS[k],
-      value: (v: ProductTypeValues) => v[k],
-    })),
+    [
+      ...(['name', 'isDigital', 'isShippingRequired', 'tracksInventory', 'urlTemplate'] as const).map((k) => ({
+        label: PRODUCT_TYPE_LABELS[k],
+        value: (v: ProductTypeValues) => v[k],
+      })),
+      { label: PRODUCT_TYPE_LABELS.deliveryKinds, value: (v: ProductTypeValues) => deliveryKindsLabel([...v.deliveryKinds].sort()) },
+    ],
   )
 }
