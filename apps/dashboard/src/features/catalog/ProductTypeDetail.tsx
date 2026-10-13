@@ -40,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -53,7 +54,9 @@ import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
 import { useStore } from '@tanstack/react-form'
 import {
+  DELIVERY_KINDS,
   PRODUCT_TYPE_LABELS,
+  deliveryKindsUpdate,
   productTypeDiff,
   productTypeSchema,
   toProductTypeUpdateInput,
@@ -94,6 +97,7 @@ import {
   ProductTypesDocument,
   UnassignAttributeDocument,
   UpdateAttributeGroupDocument,
+  SetProductTypeDeliveryKindsDocument,
   SetProductTypeUrlPathTemplateDocument,
   UpdateProductTypeDocument,
 } from './Catalog.gql'
@@ -950,6 +954,7 @@ function GeneralProductTypeSection({ productType, canManage }: { productType: Ex
   const refetchQueries = [{ query: ProductTypesDocument }, { query: ProductTypeDocument, variables: { id: productType.id } }]
   const [updateProductType] = useMutation(UpdateProductTypeDocument, { refetchQueries })
   const [setUrlTemplate] = useMutation(SetProductTypeUrlPathTemplateDocument, { refetchQueries })
+  const [setDeliveryKinds] = useMutation(SetProductTypeDeliveryKindsDocument, { refetchQueries })
 
   const baseline = useMemo(() => toProductTypeValues(productType), [productType])
   const { form, draft } = useSectionForm({
@@ -965,9 +970,12 @@ function GeneralProductTypeSection({ productType, canManage }: { productType: Ex
       const { input, newTemplate } = toProductTypeUpdateInput(value, productType)
       await updateProductType({ variables: { input } })
       if (newTemplate !== null) await setUrlTemplate({ variables: { productTypeId: productType.id, template: newTemplate } })
+      const kinds = deliveryKindsUpdate(value, productType)
+      if (kinds !== undefined) await setDeliveryKinds({ variables: { productTypeId: productType.id, kinds } })
     },
   })
   const isDigital = useStore(form.store, (s) => s.values.isDigital)
+  const isShippingRequired = useStore(form.store, (s) => s.values.isShippingRequired)
 
   return (
     <DetailPageSection title="General" description="Slug is immutable after creation. Other settings can be edited at any time.">
@@ -1017,6 +1025,42 @@ function GeneralProductTypeSection({ productType, canManage }: { productType: Ex
             )}
           </form.AppField>
         </div>
+
+        {isShippingRequired && !isDigital && (
+          <form.Field name="deliveryKinds">
+            {(f) => (
+              <div className="grid gap-2 rounded-md border p-4">
+                <div className="grid gap-0.5">
+                  <span className="text-sm font-medium">Allowed delivery kinds</span>
+                  <span className="text-xs text-muted-foreground">
+                    Limit how products of this type can be delivered - a fridge can&apos;t go to a PO box. Choose all offered kinds, or select the kinds allowed for these products.
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="delivery-kind-policy" checked={f.state.value.length === 0} onChange={() => f.handleChange([])} />
+                  All offered kinds
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="delivery-kind-policy" checked={f.state.value.length > 0} onChange={() => { if (!f.state.value.length) f.handleChange(DELIVERY_KINDS.map((k) => k.value)) }} />
+                  Selected kinds
+                </label>
+                {f.state.value.length > 0 && <p className="text-xs text-muted-foreground">Select at least one kind. Choose All offered kinds to remove the restriction.</p>}
+                {f.state.value.length > 0 && DELIVERY_KINDS.map((k) => (
+                  <label key={k.value} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={f.state.value.includes(k.value)}
+                      disabled={f.state.value.includes(k.value) && f.state.value.length === 1}
+                      onCheckedChange={(checked) =>
+                        f.handleChange(checked ? [...f.state.value, k.value] : f.state.value.filter((v) => v !== k.value))
+                      }
+                    />
+                    {k.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </form.Field>
+        )}
 
         <form.AppField name="urlTemplate">
           {(f) => (
