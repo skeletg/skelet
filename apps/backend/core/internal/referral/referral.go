@@ -12,9 +12,11 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -25,6 +27,11 @@ func init() {
 	config.Register(config.Definition{Path: "sales/referrals/referrer_reward_cents", Type: config.TypeInt, Default: "1000", Label: "Store credit for the referrer when the referee first orders (cents)", Public: true})
 	config.Register(config.Definition{Path: "sales/referrals/referee_reward_cents", Type: config.TypeInt, Default: "500", Label: "Store credit for the referee on their first order (cents)", Public: true})
 }
+
+var (
+	ErrUnknownCode  = apperr.New("REFERRAL_UNKNOWN_CODE", apperr.ClassValidation, "unknown referral code")
+	ErrSelfReferral = apperr.New("REFERRAL_SELF", apperr.ClassValidation, "a referral code can't refer its own owner")
+)
 
 // Omits easily-confused symbols - 0/O, 1/I/L
 const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -100,6 +107,9 @@ func (s *Service) CodeFor(ctx context.Context, customerID uuid.UUID) (string, er
 			return row.Code, nil
 		}
 		// Retry only on the astronomically rare code collision - an upsert conflict on customer_id returns the existing row instead
+		if !pgdb.IsUniqueViolation(err) {
+			return "", fmt.Errorf("insert referral code: %w", err)
+		}
 	}
 	return "", fmt.Errorf("referral: could not generate a unique code")
 }
@@ -114,12 +124,12 @@ func (s *Service) Attach(ctx context.Context, refereeID uuid.UUID, code string) 
 	owner, err := s.queries.GetReferralCodeForReferee(ctx, db.GetReferralCodeForRefereeParams{Code: code, RefereeID: refereeID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("unknown referral code")
+			return ErrUnknownCode
 		}
 		return fmt.Errorf("look up referral code: %w", err)
 	}
 	if owner.CustomerID == refereeID {
-		return fmt.Errorf("self-referral ignored")
+		return ErrSelfReferral
 	}
 	if _, err := s.queries.InsertReferral(ctx, db.InsertReferralParams{
 		ReferrerCustomerID: owner.CustomerID,
@@ -141,13 +151,17 @@ func (s *Service) StatsFor(ctx context.Context, customerID uuid.UUID) (Stats, er
 }
 
 func newCode() (string, error) {
-	raw := make([]byte, 8)
-	if _, err := crand.Read(raw); err != nil {
-		return "", fmt.Errorf("referral: read random: %w", err)
-	}
+	raw := make([]byte, 1)
+	// rejection sampling - 256 isn't a multiple of 31, so a plain modulo favoured the first eight symbols
+	const limit = 256 / len(codeAlphabet) * len(codeAlphabet)
 	out := make([]byte, 0, 8)
-	for _, b := range raw {
-		out = append(out, codeAlphabet[int(b)%len(codeAlphabet)])
+	for len(out) < 8 {
+		if _, err := crand.Read(raw[:1]); err != nil {
+			return "", fmt.Errorf("referral: read random: %w", err)
+		}
+		if int(raw[0]) < limit {
+			out = append(out, codeAlphabet[int(raw[0])%len(codeAlphabet)])
+		}
 	}
 	return string(out), nil
 }

@@ -573,3 +573,9 @@ func (s *Service) FinalizePaymentTransaction(ctx context.Context, txnID uuid.UUI
 	}
 	return updated, nil
 }
+
+// Whether the order is paid for - an authorization is the gateway's promise to pay the whole order, while unpaid (cash on delivery, bank transfer) isn't, and neither is a partial capture, which is how a cash deposit lands
+// Every reward or entitlement minted off an order (points, credit, cards, downloads) waits for this, or it's spendable before anyone pays
+func PaidFor(paymentStatus string) bool {
+	return paymentStatus == PaymentAuthorized || paymentStatus == PaymentPaid
+}

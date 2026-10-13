@@ -77,12 +77,6 @@ type OrderGiftcardLookup interface {
 	GiftcardLines(ctx context.Context, orderID uuid.UUID) (OrderGiftcards, error)
 }
 
-// An authorization is the gateway's promise to pay the whole order - unpaid (cash on delivery, bank transfer) isn't, or the card is spendable
-// before anyone pays for it, and neither is a partial capture, which is how a cash deposit lands
-func paidFor(paymentStatus string) bool {
-	return paymentStatus == order.PaymentAuthorized || paymentStatus == order.PaymentPaid
-}
-
 // Wires the order lifecycle, durable through the outbox and at-least-once: placement or a payment advance mints a paid-for order's cards, and
 // cancellation, a void or a full refund revokes them - cancellation also restores what the order spent from cards
 func (s *Service) SubscribeToOrderEvents(bus *events.Bus) {
@@ -108,7 +102,7 @@ func (s *Service) onPaymentStatusChanged(ctx context.Context, e events.Event) er
 		return nil
 	}
 	switch {
-	case paidFor(changed.Status):
+	case order.PaidFor(changed.Status):
 		return s.issueForOrder(ctx, changed.OrderID)
 	case changed.Status == order.PaymentVoided || changed.Status == order.PaymentRefunded:
 		return s.revokeIssuedForOrder(ctx, changed.OrderID)
@@ -268,7 +262,7 @@ func (s *Service) issueForOrder(ctx context.Context, orderID uuid.UUID) error {
 		log.Printf("[giftcard] resolve gift-card lines for order %s: %v", orderID, err)
 		return err
 	}
-	if len(o.Lines) == 0 || o.Status == order.OrderStatusCancelled || !paidFor(o.PaymentStatus) {
+	if len(o.Lines) == 0 || o.Status == order.OrderStatusCancelled || !order.PaidFor(o.PaymentStatus) {
 		return nil
 	}
 	existing, err := s.repo.ListByIssuedOrder(ctx, orderID)
