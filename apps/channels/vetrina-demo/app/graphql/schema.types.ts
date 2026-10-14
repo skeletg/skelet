@@ -1581,6 +1581,52 @@ export type PromotionalDisplay = {
   ruleSlug: Scalars['String']['output'];
 };
 
+export type PublicStore = {
+  __typename?: 'PublicStore';
+  city: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  distanceKm?: Maybe<Scalars['Float']['output']>;
+  hours: Scalars['JSON']['output'];
+  id: Scalars['ID']['output'];
+  latitude?: Maybe<Scalars['Float']['output']>;
+  line1: Scalars['String']['output'];
+  line2: Scalars['String']['output'];
+  longitude?: Maybe<Scalars['Float']['output']>;
+  name: Scalars['String']['output'];
+  phone: Scalars['String']['output'];
+  pickupEnabled: Scalars['Boolean']['output'];
+  postalCode: Scalars['String']['output'];
+  region: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+  stockStatus?: Maybe<StoreStockStatus>;
+  timezone: Scalars['String']['output'];
+};
+
+export type PublicStoresInput = {
+  city?: InputMaybe<Scalars['String']['input']>;
+  inStockOnly?: InputMaybe<Scalars['Boolean']['input']>;
+  latitude?: InputMaybe<Scalars['Float']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  longitude?: InputMaybe<Scalars['Float']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  pickupOnly?: InputMaybe<Scalars['Boolean']['input']>;
+  preferredStoreId?: InputMaybe<Scalars['ID']['input']>;
+  productId?: InputMaybe<Scalars['ID']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type PublicStoresResult = {
+  __typename?: 'PublicStoresResult';
+  cities: Array<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  hasPickupStores: Scalars['Boolean']['output'];
+  items: Array<PublicStore>;
+  preferredStore?: Maybe<PublicStore>;
+  productEligible: Scalars['Boolean']['output'];
+  stockCheckingAvailable: Scalars['Boolean']['output'];
+  totalCount: Scalars['Int']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   attribute: Attribute;
@@ -1643,6 +1689,7 @@ export type Query = {
   productsBySkus: Array<Product>;
   publicConfig: Array<ConfigValue>;
   publicConfigSections: Array<ConfigSection>;
+  publicStores: PublicStoresResult;
   regions: Array<Region>;
   rootCategories: Array<Category>;
   route?: Maybe<RouteResolution>;
@@ -1847,6 +1894,11 @@ export type QueryProductsByIdsArgs = {
 
 export type QueryProductsBySkusArgs = {
   skus: Array<Scalars['String']['input']>;
+};
+
+
+export type QueryPublicStoresArgs = {
+  input?: InputMaybe<PublicStoresInput>;
 };
 
 
@@ -2130,6 +2182,12 @@ export type StoreFeatures = {
   __typename?: 'StoreFeatures';
   signals: Scalars['Boolean']['output'];
 };
+
+export type StoreStockStatus =
+  | 'IN_STOCK'
+  | 'LOW_STOCK'
+  | 'OUT_OF_STOCK'
+  | 'UNKNOWN';
 
 export type SubmitReviewInput = {
   answers: Array<ReviewAnswerInput>;
