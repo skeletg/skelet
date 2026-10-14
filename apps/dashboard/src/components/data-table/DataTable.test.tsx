@@ -1,3 +1,4 @@
+import { cloneElement, type ReactElement, type ComponentProps } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DataTable } from './DataTable'
@@ -33,6 +34,16 @@ describe('DataTable', () => {
     const heads = Array.from(table().querySelectorAll('thead th')).map((h) => h.textContent?.trim())
     expect(heads).toEqual(expect.arrayContaining(['Name', 'Qty']))
     expect(body().getAllByRole('row')).toHaveLength(3)
+  })
+
+  it('lets a row wrapper preserve cells and click behavior', () => {
+    const onRowClick = vi.fn()
+    render(<DataTable columns={columns} data={rows} getRowId={(r) => r.id} onRowClick={onRowClick}
+      renderRow={(row, element) => cloneElement(element as ReactElement<ComponentProps<'tr'>>, { 'aria-label': `Wrapped ${row.id}` })} />)
+    const wrapped = screen.getByRole('row', { name: 'Wrapped 1' })
+    expect(within(wrapped).getByText('Anvil')).toBeTruthy()
+    fireEvent.click(wrapped)
+    expect(onRowClick).toHaveBeenCalledWith(rows[0])
   })
 
   it('reads cell values through the accessor', () => {
