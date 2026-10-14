@@ -127,24 +127,75 @@ type ComplexityRoot struct {
 		CustomerEmail func(childComplexity int) int
 		CustomerID    func(childComplexity int) int
 		CustomerName  func(childComplexity int) int
+		Email         func(childComplexity int) int
 		ID            func(childComplexity int) int
 		ItemCount     func(childComplexity int) int
+		Kind          func(childComplexity int) int
 		Lines         func(childComplexity int) int
+		Offer         func(childComplexity int) int
 		Status        func(childComplexity int) int
 		Subtotal      func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
 	}
 
+	AdminCartAddress struct {
+		City        func(childComplexity int) int
+		Company     func(childComplexity int) int
+		CountryCode func(childComplexity int) int
+		FirstName   func(childComplexity int) int
+		LastName    func(childComplexity int) int
+		Phone       func(childComplexity int) int
+		PostalCode  func(childComplexity int) int
+		State       func(childComplexity int) int
+		Street1     func(childComplexity int) int
+		Street2     func(childComplexity int) int
+	}
+
+	AdminCartDeliveryChoice struct {
+		CarrierSlug func(childComplexity int) int
+		Kind        func(childComplexity int) int
+		MethodCode  func(childComplexity int) int
+		MethodName  func(childComplexity int) int
+		NeedsPoint  func(childComplexity int) int
+		OptionID    func(childComplexity int) int
+		OptionName  func(childComplexity int) int
+		Price       func(childComplexity int) int
+	}
+
+	AdminCartDeliveryGroup struct {
+		Choices func(childComplexity int) int
+		Key     func(childComplexity int) int
+		Lines   func(childComplexity int) int
+	}
+
+	AdminCartDeliveryPoint struct {
+		Address func(childComplexity int) int
+		ID      func(childComplexity int) int
+		Name    func(childComplexity int) int
+	}
+
+	AdminCartDeliverySelection struct {
+		CarrierSlug func(childComplexity int) int
+		GroupKey    func(childComplexity int) int
+		MethodCode  func(childComplexity int) int
+		OptionID    func(childComplexity int) int
+		PointID     func(childComplexity int) int
+		PointName   func(childComplexity int) int
+	}
+
 	AdminCartLine struct {
-		Components func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IsSimple   func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Options    func(childComplexity int) int
-		Quantity   func(childComplexity int) int
-		Sku        func(childComplexity int) int
-		TotalPrice func(childComplexity int) int
-		UnitPrice  func(childComplexity int) int
+		Components    func(childComplexity int) int
+		ID            func(childComplexity int) int
+		IsCustom      func(childComplexity int) int
+		IsSimple      func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Options       func(childComplexity int) int
+		PriceOverride func(childComplexity int) int
+		Quantity      func(childComplexity int) int
+		Sku           func(childComplexity int) int
+		TaxClass      func(childComplexity int) int
+		TotalPrice    func(childComplexity int) int
+		UnitPrice     func(childComplexity int) int
 	}
 
 	AdminCartLineComponent struct {
@@ -162,6 +213,46 @@ type ComplexityRoot struct {
 		PriceDelta  func(childComplexity int) int
 		TextValue   func(childComplexity int) int
 		ValueLabel  func(childComplexity int) int
+	}
+
+	AdminCartOffer struct {
+		Checkout       func(childComplexity int) int
+		ExpiresAt      func(childComplexity int) int
+		Link           func(childComplexity int) int
+		LinkPath       func(childComplexity int) int
+		Locks          func(childComplexity int) int
+		Message        func(childComplexity int) int
+		NeedsShipping  func(childComplexity int) int
+		OpenedAt       func(childComplexity int) int
+		OrderID        func(childComplexity int) int
+		PaymentMethods func(childComplexity int) int
+		RevokedAt      func(childComplexity int) int
+		SendCount      func(childComplexity int) int
+		SentAt         func(childComplexity int) int
+		ShowInAccount  func(childComplexity int) int
+		State          func(childComplexity int) int
+	}
+
+	AdminCartOfferCheckout struct {
+		BillingAddress        func(childComplexity int) int
+		BillingSameAsShipping func(childComplexity int) int
+		Deliveries            func(childComplexity int) int
+		PaymentProviderSlug   func(childComplexity int) int
+		ShippingAddress       func(childComplexity int) int
+	}
+
+	AdminCartOfferEmailPreview struct {
+		HTML         func(childComplexity int) int
+		Link         func(childComplexity int) int
+		LinkComplete func(childComplexity int) int
+		Subject      func(childComplexity int) int
+		Text         func(childComplexity int) int
+		To           func(childComplexity int) int
+	}
+
+	AdminCartOfferPaymentMethod struct {
+		DisplayName func(childComplexity int) int
+		Slug        func(childComplexity int) int
 	}
 
 	AdminNotification struct {
@@ -793,16 +884,21 @@ type ComplexityRoot struct {
 	}
 
 	CartListItem struct {
-		ChannelID     func(childComplexity int) int
-		CurrencyCode  func(childComplexity int) int
-		CustomerEmail func(childComplexity int) int
-		CustomerID    func(childComplexity int) int
-		CustomerName  func(childComplexity int) int
-		ID            func(childComplexity int) int
-		ItemCount     func(childComplexity int) int
-		Status        func(childComplexity int) int
-		Subtotal      func(childComplexity int) int
-		UpdatedAt     func(childComplexity int) int
+		ChannelID      func(childComplexity int) int
+		CurrencyCode   func(childComplexity int) int
+		CustomerEmail  func(childComplexity int) int
+		CustomerID     func(childComplexity int) int
+		CustomerName   func(childComplexity int) int
+		Email          func(childComplexity int) int
+		ID             func(childComplexity int) int
+		ItemCount      func(childComplexity int) int
+		Kind           func(childComplexity int) int
+		OfferExpiresAt func(childComplexity int) int
+		OfferState     func(childComplexity int) int
+		OrderID        func(childComplexity int) int
+		Status         func(childComplexity int) int
+		Subtotal       func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
 	}
 
 	CascadeAttributeIndexableResult struct {
@@ -2272,18 +2368,25 @@ type ComplexityRoot struct {
 		AdjustStoreCredit                 func(childComplexity int, customerID string, amountCents int32, reason string) int
 		AdminAddAddress                   func(childComplexity int, customerID string, input model.AddressInput) int
 		AdminAddCartLine                  func(childComplexity int, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) int
+		AdminAddCustomCartLine            func(childComplexity int, cartID string, input model.AdminCustomCartLineInput) int
 		AdminClearCart                    func(childComplexity int, cartID string) int
 		AdminCreateCart                   func(childComplexity int, channelID string, customerID *string) int
+		AdminCreateCartOffer              func(childComplexity int, input model.AdminCreateCartOfferInput) int
 		AdminCreateCustomer               func(childComplexity int, input model.AdminCreateCustomerInput) int
 		AdminDeleteAddress                func(childComplexity int, id string) int
 		AdminDuplicateCart                func(childComplexity int, cartID string, targetCustomerID *string) int
 		AdminLogin                        func(childComplexity int, input model.AdminLoginInput) int
+		AdminRegenerateCartOfferLink      func(childComplexity int, cartID string) int
 		AdminRemoveCartLine               func(childComplexity int, cartID string, lineID string) int
+		AdminRevokeCartOffer              func(childComplexity int, cartID string) int
+		AdminSendCartOffer                func(childComplexity int, cartID string) int
+		AdminSetCartLinePrice             func(childComplexity int, cartID string, lineID string, unitPrice *int32) int
 		AdminSetCustomerConsent           func(childComplexity int, customerID string, kind string, optedIn bool) int
 		AdminTotpDisable                  func(childComplexity int, code string) int
 		AdminTotpEnable                   func(childComplexity int, code string) int
 		AdminTotpSetup                    func(childComplexity int) int
 		AdminUpdateCartLine               func(childComplexity int, cartID string, lineID string, quantity float64) int
+		AdminUpdateCartOffer              func(childComplexity int, cartID string, input model.AdminUpdateCartOfferInput) int
 		AdminUpdateCustomer               func(childComplexity int, id string, input model.AdminUpdateCustomerInput) int
 		AdoptDefaultDeliveryOptions       func(childComplexity int, channelID string) int
 		AnonymizeCustomer                 func(childComplexity int, customerID string) int
@@ -2803,6 +2906,7 @@ type ComplexityRoot struct {
 	OrderLine struct {
 		Components func(childComplexity int) int
 		ID         func(childComplexity int) int
+		IsCustom   func(childComplexity int) int
 		IsGift     func(childComplexity int) int
 		Name       func(childComplexity int) int
 		Options    func(childComplexity int) int
@@ -3355,6 +3459,10 @@ type ComplexityRoot struct {
 	Query struct {
 		Admin                        func(childComplexity int, id string) int
 		AdminActions                 func(childComplexity int) int
+		AdminCartDeliveryGroups      func(childComplexity int, cartID string) int
+		AdminCartDeliveryPoints      func(childComplexity int, cartID string, groupKey string, optionID string, search *string) int
+		AdminCartOfferEmailPreview   func(childComplexity int, cartID string) int
+		AdminCartOfferPaymentMethods func(childComplexity int, cartID string) int
 		Admins                       func(childComplexity int) int
 		AiStatus                     func(childComplexity int) int
 		AllMediaDirectories          func(childComplexity int) int
@@ -3377,7 +3485,7 @@ type ComplexityRoot struct {
 		CampaignMergeTags            func(childComplexity int) int
 		CampaignVariantStats         func(childComplexity int, id string) int
 		Cart                         func(childComplexity int, id string) int
-		Carts                        func(childComplexity int, channelID string, customerID *string, status *string, abandoned *bool, search *string, limit *int32, offset *int32) int
+		Carts                        func(childComplexity int, channelID string, customerID *string, status *string, kind *model.CartKind, abandoned *bool, search *string, limit *int32, offset *int32) int
 		Category                     func(childComplexity int, id string) int
 		CategoryChildren             func(childComplexity int, parentID string, channelID *string) int
 		CategoryOptions              func(childComplexity int, channelID *string) int
@@ -4683,6 +4791,13 @@ type MutationResolver interface {
 	AdminRemoveCartLine(ctx context.Context, cartID string, lineID string) (*model.AdminCart, error)
 	AdminClearCart(ctx context.Context, cartID string) (*model.AdminCart, error)
 	AdminDuplicateCart(ctx context.Context, cartID string, targetCustomerID *string) (*model.AdminCart, error)
+	AdminCreateCartOffer(ctx context.Context, input model.AdminCreateCartOfferInput) (*model.AdminCart, error)
+	AdminUpdateCartOffer(ctx context.Context, cartID string, input model.AdminUpdateCartOfferInput) (*model.AdminCart, error)
+	AdminSetCartLinePrice(ctx context.Context, cartID string, lineID string, unitPrice *int32) (*model.AdminCart, error)
+	AdminAddCustomCartLine(ctx context.Context, cartID string, input model.AdminCustomCartLineInput) (*model.AdminCart, error)
+	AdminSendCartOffer(ctx context.Context, cartID string) (*model.AdminCart, error)
+	AdminRegenerateCartOfferLink(ctx context.Context, cartID string) (*model.AdminCart, error)
+	AdminRevokeCartOffer(ctx context.Context, cartID string) (*model.AdminCart, error)
 	CreateAttribute(ctx context.Context, input model.CreateAttributeInput) (*model.Attribute, error)
 	UpdateAttribute(ctx context.Context, input model.UpdateAttributeInput) (*model.Attribute, error)
 	DeleteAttribute(ctx context.Context, id string) (bool, error)
@@ -5154,8 +5269,12 @@ type QueryResolver interface {
 	CampaignMergeTags(ctx context.Context) ([]string, error)
 	CampaignAudienceEstimate(ctx context.Context, channelID string, audienceKind string, audienceID *string) (*model.CampaignAudienceEstimate, error)
 	RenderCampaignPreview(ctx context.Context, channelID string, subject string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
-	Carts(ctx context.Context, channelID string, customerID *string, status *string, abandoned *bool, search *string, limit *int32, offset *int32) (*model.CartList, error)
+	Carts(ctx context.Context, channelID string, customerID *string, status *string, kind *model.CartKind, abandoned *bool, search *string, limit *int32, offset *int32) (*model.CartList, error)
 	Cart(ctx context.Context, id string) (*model.AdminCart, error)
+	AdminCartDeliveryGroups(ctx context.Context, cartID string) ([]*model.AdminCartDeliveryGroup, error)
+	AdminCartOfferPaymentMethods(ctx context.Context, cartID string) ([]*model.AdminCartOfferPaymentMethod, error)
+	AdminCartOfferEmailPreview(ctx context.Context, cartID string) (*model.AdminCartOfferEmailPreview, error)
+	AdminCartDeliveryPoints(ctx context.Context, cartID string, groupKey string, optionID string, search *string) ([]*model.AdminCartDeliveryPoint, error)
 	Attributes(ctx context.Context) ([]*model.Attribute, error)
 	Attribute(ctx context.Context, id string) (*model.Attribute, error)
 	ReferenceCandidates(ctx context.Context, target model.AttributeReferenceTarget, search *string, limit *int32) ([]*model.Linkable, error)
@@ -5665,6 +5784,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCart.CustomerName(childComplexity), true
+	case "AdminCart.email":
+		if e.ComplexityRoot.AdminCart.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.Email(childComplexity), true
 	case "AdminCart.id":
 		if e.ComplexityRoot.AdminCart.ID == nil {
 			break
@@ -5677,12 +5802,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCart.ItemCount(childComplexity), true
+	case "AdminCart.kind":
+		if e.ComplexityRoot.AdminCart.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.Kind(childComplexity), true
 	case "AdminCart.lines":
 		if e.ComplexityRoot.AdminCart.Lines == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCart.Lines(childComplexity), true
+	case "AdminCart.offer":
+		if e.ComplexityRoot.AdminCart.Offer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCart.Offer(childComplexity), true
 	case "AdminCart.status":
 		if e.ComplexityRoot.AdminCart.Status == nil {
 			break
@@ -5702,6 +5839,191 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AdminCart.UpdatedAt(childComplexity), true
 
+	case "AdminCartAddress.city":
+		if e.ComplexityRoot.AdminCartAddress.City == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.City(childComplexity), true
+	case "AdminCartAddress.company":
+		if e.ComplexityRoot.AdminCartAddress.Company == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.Company(childComplexity), true
+	case "AdminCartAddress.countryCode":
+		if e.ComplexityRoot.AdminCartAddress.CountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.CountryCode(childComplexity), true
+	case "AdminCartAddress.firstName":
+		if e.ComplexityRoot.AdminCartAddress.FirstName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.FirstName(childComplexity), true
+	case "AdminCartAddress.lastName":
+		if e.ComplexityRoot.AdminCartAddress.LastName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.LastName(childComplexity), true
+	case "AdminCartAddress.phone":
+		if e.ComplexityRoot.AdminCartAddress.Phone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.Phone(childComplexity), true
+	case "AdminCartAddress.postalCode":
+		if e.ComplexityRoot.AdminCartAddress.PostalCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.PostalCode(childComplexity), true
+	case "AdminCartAddress.state":
+		if e.ComplexityRoot.AdminCartAddress.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.State(childComplexity), true
+	case "AdminCartAddress.street1":
+		if e.ComplexityRoot.AdminCartAddress.Street1 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.Street1(childComplexity), true
+	case "AdminCartAddress.street2":
+		if e.ComplexityRoot.AdminCartAddress.Street2 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartAddress.Street2(childComplexity), true
+
+	case "AdminCartDeliveryChoice.carrierSlug":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.CarrierSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.CarrierSlug(childComplexity), true
+	case "AdminCartDeliveryChoice.kind":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.Kind(childComplexity), true
+	case "AdminCartDeliveryChoice.methodCode":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.MethodCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.MethodCode(childComplexity), true
+	case "AdminCartDeliveryChoice.methodName":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.MethodName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.MethodName(childComplexity), true
+	case "AdminCartDeliveryChoice.needsPoint":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.NeedsPoint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.NeedsPoint(childComplexity), true
+	case "AdminCartDeliveryChoice.optionId":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.OptionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.OptionID(childComplexity), true
+	case "AdminCartDeliveryChoice.optionName":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.OptionName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.OptionName(childComplexity), true
+	case "AdminCartDeliveryChoice.price":
+		if e.ComplexityRoot.AdminCartDeliveryChoice.Price == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryChoice.Price(childComplexity), true
+
+	case "AdminCartDeliveryGroup.choices":
+		if e.ComplexityRoot.AdminCartDeliveryGroup.Choices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryGroup.Choices(childComplexity), true
+	case "AdminCartDeliveryGroup.key":
+		if e.ComplexityRoot.AdminCartDeliveryGroup.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryGroup.Key(childComplexity), true
+	case "AdminCartDeliveryGroup.lines":
+		if e.ComplexityRoot.AdminCartDeliveryGroup.Lines == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryGroup.Lines(childComplexity), true
+
+	case "AdminCartDeliveryPoint.address":
+		if e.ComplexityRoot.AdminCartDeliveryPoint.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryPoint.Address(childComplexity), true
+	case "AdminCartDeliveryPoint.id":
+		if e.ComplexityRoot.AdminCartDeliveryPoint.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryPoint.ID(childComplexity), true
+	case "AdminCartDeliveryPoint.name":
+		if e.ComplexityRoot.AdminCartDeliveryPoint.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliveryPoint.Name(childComplexity), true
+
+	case "AdminCartDeliverySelection.carrierSlug":
+		if e.ComplexityRoot.AdminCartDeliverySelection.CarrierSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.CarrierSlug(childComplexity), true
+	case "AdminCartDeliverySelection.groupKey":
+		if e.ComplexityRoot.AdminCartDeliverySelection.GroupKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.GroupKey(childComplexity), true
+	case "AdminCartDeliverySelection.methodCode":
+		if e.ComplexityRoot.AdminCartDeliverySelection.MethodCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.MethodCode(childComplexity), true
+	case "AdminCartDeliverySelection.optionId":
+		if e.ComplexityRoot.AdminCartDeliverySelection.OptionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.OptionID(childComplexity), true
+	case "AdminCartDeliverySelection.pointId":
+		if e.ComplexityRoot.AdminCartDeliverySelection.PointID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.PointID(childComplexity), true
+	case "AdminCartDeliverySelection.pointName":
+		if e.ComplexityRoot.AdminCartDeliverySelection.PointName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartDeliverySelection.PointName(childComplexity), true
+
 	case "AdminCartLine.components":
 		if e.ComplexityRoot.AdminCartLine.Components == nil {
 			break
@@ -5714,6 +6036,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.ID(childComplexity), true
+	case "AdminCartLine.isCustom":
+		if e.ComplexityRoot.AdminCartLine.IsCustom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.IsCustom(childComplexity), true
 	case "AdminCartLine.isSimple":
 		if e.ComplexityRoot.AdminCartLine.IsSimple == nil {
 			break
@@ -5732,6 +6060,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Options(childComplexity), true
+	case "AdminCartLine.priceOverride":
+		if e.ComplexityRoot.AdminCartLine.PriceOverride == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.PriceOverride(childComplexity), true
 	case "AdminCartLine.quantity":
 		if e.ComplexityRoot.AdminCartLine.Quantity == nil {
 			break
@@ -5744,6 +6078,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Sku(childComplexity), true
+	case "AdminCartLine.taxClass":
+		if e.ComplexityRoot.AdminCartLine.TaxClass == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.TaxClass(childComplexity), true
 	case "AdminCartLine.totalPrice":
 		if e.ComplexityRoot.AdminCartLine.TotalPrice == nil {
 			break
@@ -5824,6 +6164,178 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLineOption.ValueLabel(childComplexity), true
+
+	case "AdminCartOffer.checkout":
+		if e.ComplexityRoot.AdminCartOffer.Checkout == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.Checkout(childComplexity), true
+	case "AdminCartOffer.expiresAt":
+		if e.ComplexityRoot.AdminCartOffer.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.ExpiresAt(childComplexity), true
+	case "AdminCartOffer.link":
+		if e.ComplexityRoot.AdminCartOffer.Link == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.Link(childComplexity), true
+	case "AdminCartOffer.linkPath":
+		if e.ComplexityRoot.AdminCartOffer.LinkPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.LinkPath(childComplexity), true
+	case "AdminCartOffer.locks":
+		if e.ComplexityRoot.AdminCartOffer.Locks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.Locks(childComplexity), true
+	case "AdminCartOffer.message":
+		if e.ComplexityRoot.AdminCartOffer.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.Message(childComplexity), true
+	case "AdminCartOffer.needsShipping":
+		if e.ComplexityRoot.AdminCartOffer.NeedsShipping == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.NeedsShipping(childComplexity), true
+	case "AdminCartOffer.openedAt":
+		if e.ComplexityRoot.AdminCartOffer.OpenedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.OpenedAt(childComplexity), true
+	case "AdminCartOffer.orderId":
+		if e.ComplexityRoot.AdminCartOffer.OrderID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.OrderID(childComplexity), true
+	case "AdminCartOffer.paymentMethods":
+		if e.ComplexityRoot.AdminCartOffer.PaymentMethods == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.PaymentMethods(childComplexity), true
+	case "AdminCartOffer.revokedAt":
+		if e.ComplexityRoot.AdminCartOffer.RevokedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.RevokedAt(childComplexity), true
+	case "AdminCartOffer.sendCount":
+		if e.ComplexityRoot.AdminCartOffer.SendCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.SendCount(childComplexity), true
+	case "AdminCartOffer.sentAt":
+		if e.ComplexityRoot.AdminCartOffer.SentAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.SentAt(childComplexity), true
+	case "AdminCartOffer.showInAccount":
+		if e.ComplexityRoot.AdminCartOffer.ShowInAccount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.ShowInAccount(childComplexity), true
+	case "AdminCartOffer.state":
+		if e.ComplexityRoot.AdminCartOffer.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOffer.State(childComplexity), true
+
+	case "AdminCartOfferCheckout.billingAddress":
+		if e.ComplexityRoot.AdminCartOfferCheckout.BillingAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferCheckout.BillingAddress(childComplexity), true
+	case "AdminCartOfferCheckout.billingSameAsShipping":
+		if e.ComplexityRoot.AdminCartOfferCheckout.BillingSameAsShipping == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferCheckout.BillingSameAsShipping(childComplexity), true
+	case "AdminCartOfferCheckout.deliveries":
+		if e.ComplexityRoot.AdminCartOfferCheckout.Deliveries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferCheckout.Deliveries(childComplexity), true
+	case "AdminCartOfferCheckout.paymentProviderSlug":
+		if e.ComplexityRoot.AdminCartOfferCheckout.PaymentProviderSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferCheckout.PaymentProviderSlug(childComplexity), true
+	case "AdminCartOfferCheckout.shippingAddress":
+		if e.ComplexityRoot.AdminCartOfferCheckout.ShippingAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferCheckout.ShippingAddress(childComplexity), true
+
+	case "AdminCartOfferEmailPreview.html":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.HTML == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.HTML(childComplexity), true
+	case "AdminCartOfferEmailPreview.link":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.Link == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.Link(childComplexity), true
+	case "AdminCartOfferEmailPreview.linkComplete":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.LinkComplete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.LinkComplete(childComplexity), true
+	case "AdminCartOfferEmailPreview.subject":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.Subject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.Subject(childComplexity), true
+	case "AdminCartOfferEmailPreview.text":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.Text(childComplexity), true
+	case "AdminCartOfferEmailPreview.to":
+		if e.ComplexityRoot.AdminCartOfferEmailPreview.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferEmailPreview.To(childComplexity), true
+
+	case "AdminCartOfferPaymentMethod.displayName":
+		if e.ComplexityRoot.AdminCartOfferPaymentMethod.DisplayName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferPaymentMethod.DisplayName(childComplexity), true
+	case "AdminCartOfferPaymentMethod.slug":
+		if e.ComplexityRoot.AdminCartOfferPaymentMethod.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartOfferPaymentMethod.Slug(childComplexity), true
 
 	case "AdminNotification.actionUrl":
 		if e.ComplexityRoot.AdminNotification.ActionURL == nil {
@@ -8484,6 +8996,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartListItem.CustomerName(childComplexity), true
+	case "CartListItem.email":
+		if e.ComplexityRoot.CartListItem.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.Email(childComplexity), true
 	case "CartListItem.id":
 		if e.ComplexityRoot.CartListItem.ID == nil {
 			break
@@ -8496,6 +9014,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartListItem.ItemCount(childComplexity), true
+	case "CartListItem.kind":
+		if e.ComplexityRoot.CartListItem.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.Kind(childComplexity), true
+	case "CartListItem.offerExpiresAt":
+		if e.ComplexityRoot.CartListItem.OfferExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.OfferExpiresAt(childComplexity), true
+	case "CartListItem.offerState":
+		if e.ComplexityRoot.CartListItem.OfferState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.OfferState(childComplexity), true
+	case "CartListItem.orderId":
+		if e.ComplexityRoot.CartListItem.OrderID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartListItem.OrderID(childComplexity), true
 	case "CartListItem.status":
 		if e.ComplexityRoot.CartListItem.Status == nil {
 			break
@@ -14985,6 +15527,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminAddCartLine(childComplexity, args["cartId"].(string), args["sku"].(string), args["quantity"].(float64), args["options"].([]*model.AdminCartLineOptionInput)), true
+	case "Mutation.adminAddCustomCartLine":
+		if e.ComplexityRoot.Mutation.AdminAddCustomCartLine == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminAddCustomCartLine_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminAddCustomCartLine(childComplexity, args["cartId"].(string), args["input"].(model.AdminCustomCartLineInput)), true
 	case "Mutation.adminClearCart":
 		if e.ComplexityRoot.Mutation.AdminClearCart == nil {
 			break
@@ -15007,6 +15560,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminCreateCart(childComplexity, args["channelId"].(string), args["customerId"].(*string)), true
+	case "Mutation.adminCreateCartOffer":
+		if e.ComplexityRoot.Mutation.AdminCreateCartOffer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminCreateCartOffer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminCreateCartOffer(childComplexity, args["input"].(model.AdminCreateCartOfferInput)), true
 	case "Mutation.adminCreateCustomer":
 		if e.ComplexityRoot.Mutation.AdminCreateCustomer == nil {
 			break
@@ -15051,6 +15615,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminLogin(childComplexity, args["input"].(model.AdminLoginInput)), true
+	case "Mutation.adminRegenerateCartOfferLink":
+		if e.ComplexityRoot.Mutation.AdminRegenerateCartOfferLink == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminRegenerateCartOfferLink_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminRegenerateCartOfferLink(childComplexity, args["cartId"].(string)), true
 	case "Mutation.adminRemoveCartLine":
 		if e.ComplexityRoot.Mutation.AdminRemoveCartLine == nil {
 			break
@@ -15062,6 +15637,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminRemoveCartLine(childComplexity, args["cartId"].(string), args["lineId"].(string)), true
+	case "Mutation.adminRevokeCartOffer":
+		if e.ComplexityRoot.Mutation.AdminRevokeCartOffer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminRevokeCartOffer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminRevokeCartOffer(childComplexity, args["cartId"].(string)), true
+	case "Mutation.adminSendCartOffer":
+		if e.ComplexityRoot.Mutation.AdminSendCartOffer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSendCartOffer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSendCartOffer(childComplexity, args["cartId"].(string)), true
+	case "Mutation.adminSetCartLinePrice":
+		if e.ComplexityRoot.Mutation.AdminSetCartLinePrice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminSetCartLinePrice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminSetCartLinePrice(childComplexity, args["cartId"].(string), args["lineId"].(string), args["unitPrice"].(*int32)), true
 	case "Mutation.adminSetCustomerConsent":
 		if e.ComplexityRoot.Mutation.AdminSetCustomerConsent == nil {
 			break
@@ -15112,6 +15720,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AdminUpdateCartLine(childComplexity, args["cartId"].(string), args["lineId"].(string), args["quantity"].(float64)), true
+	case "Mutation.adminUpdateCartOffer":
+		if e.ComplexityRoot.Mutation.AdminUpdateCartOffer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_adminUpdateCartOffer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AdminUpdateCartOffer(childComplexity, args["cartId"].(string), args["input"].(model.AdminUpdateCartOfferInput)), true
 	case "Mutation.adminUpdateCustomer":
 		if e.ComplexityRoot.Mutation.AdminUpdateCustomer == nil {
 			break
@@ -20324,6 +20943,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.ID(childComplexity), true
+	case "OrderLine.isCustom":
+		if e.ComplexityRoot.OrderLine.IsCustom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.IsCustom(childComplexity), true
 	case "OrderLine.isGift":
 		if e.ComplexityRoot.OrderLine.IsGift == nil {
 			break
@@ -22789,6 +23414,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AdminActions(childComplexity), true
+	case "Query.adminCartDeliveryGroups":
+		if e.ComplexityRoot.Query.AdminCartDeliveryGroups == nil {
+			break
+		}
+
+		args, err := ec.field_Query_adminCartDeliveryGroups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AdminCartDeliveryGroups(childComplexity, args["cartId"].(string)), true
+	case "Query.adminCartDeliveryPoints":
+		if e.ComplexityRoot.Query.AdminCartDeliveryPoints == nil {
+			break
+		}
+
+		args, err := ec.field_Query_adminCartDeliveryPoints_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AdminCartDeliveryPoints(childComplexity, args["cartId"].(string), args["groupKey"].(string), args["optionId"].(string), args["search"].(*string)), true
+	case "Query.adminCartOfferEmailPreview":
+		if e.ComplexityRoot.Query.AdminCartOfferEmailPreview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_adminCartOfferEmailPreview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AdminCartOfferEmailPreview(childComplexity, args["cartId"].(string)), true
+	case "Query.adminCartOfferPaymentMethods":
+		if e.ComplexityRoot.Query.AdminCartOfferPaymentMethods == nil {
+			break
+		}
+
+		args, err := ec.field_Query_adminCartOfferPaymentMethods_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AdminCartOfferPaymentMethods(childComplexity, args["cartId"].(string)), true
 	case "Query.admins":
 		if e.ComplexityRoot.Query.Admins == nil {
 			break
@@ -23001,7 +23670,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Carts(childComplexity, args["channelId"].(string), args["customerId"].(*string), args["status"].(*string), args["abandoned"].(*bool), args["search"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.Carts(childComplexity, args["channelId"].(string), args["customerId"].(*string), args["status"].(*string), args["kind"].(*model.CartKind), args["abandoned"].(*bool), args["search"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.category":
 		if e.ComplexityRoot.Query.Category == nil {
 			break
@@ -29081,9 +29750,14 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAddProductOptionValueInput,
 		ec.unmarshalInputAddressInput,
 		ec.unmarshalInputAdjustInventoryLevelInput,
+		ec.unmarshalInputAdminCartAddressInput,
+		ec.unmarshalInputAdminCartDeliveryInput,
 		ec.unmarshalInputAdminCartLineOptionInput,
+		ec.unmarshalInputAdminCreateCartOfferInput,
 		ec.unmarshalInputAdminCreateCustomerInput,
+		ec.unmarshalInputAdminCustomCartLineInput,
 		ec.unmarshalInputAdminLoginInput,
+		ec.unmarshalInputAdminUpdateCartOfferInput,
 		ec.unmarshalInputAdminUpdateCustomerInput,
 		ec.unmarshalInputAssignCMSAttributeInput,
 		ec.unmarshalInputAssignReviewQuestionInput,
@@ -30186,6 +30860,10 @@ type AdminCart {
   channelId:     ID!
   currencyCode:  String!      # the channel's currency
   status:        String!      # active | converted | merged
+  kind:          CartKind!
+  email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
+  # Set on an offer only
+  offer:         AdminCartOffer
   lines:         [AdminCartLine!]!
   subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
   itemCount:     Int!
@@ -30205,6 +30883,126 @@ type AdminCartLine {
   isSimple:    Boolean!
   components:  [AdminCartLineComponent!]!
   options:     [AdminCartLineOption!]!
+  # The admin set the price on an offer - it holds through checkout's repricing
+  priceOverride: Boolean!
+  # A free-form line added to an offer, with no catalog product behind it
+  isCustom:    Boolean!
+  taxClass:    String!
+}
+
+enum CartKind {
+  SHOPPER    # the cart a shopper builds - one active per customer and store
+  OFFER      # built by an admin for one recipient and sent as a link - never the customer's active cart
+}
+
+enum CartOfferState {
+  DRAFT      # not sent yet
+  SENT
+  OPENED     # the recipient followed the link
+  COMPLETED  # placed - orderId says which order
+  EXPIRED
+  REVOKED
+}
+
+enum CartOfferLock {
+  LINES      # items and quantities
+  BILLING    # billing address
+  SHIPPING   # shipping address
+  DELIVERY   # the delivery option and pickup point per group
+  COUPONS    # promotion codes, gift cards, store credit
+}
+
+type AdminCartOffer {
+  state:         CartOfferState!
+  expiresAt:     Time!
+  message:       String!
+  showInAccount: Boolean!
+  locks:         [CartOfferLock!]!
+  # The payment methods the recipient may choose from, by provider slug - empty leaves every method the store offers
+  paymentMethods: [String!]!
+  # The link the email carries - the same until the link is regenerated, so it can be copied and shared by hand. Empty when the channel has no public URL
+  link:          String!
+  # The link's path on the storefront (/offer/<token>) - there even when the channel has no public URL to put in front of it
+  linkPath:      String!
+  # Whether the cart has anything to deliver - SHIPPING and DELIVERY can only be locked when it does
+  needsShipping: Boolean!
+  sentAt:        Time
+  sendCount:     Int!
+  openedAt:      Time
+  revokedAt:     Time
+  orderId:       ID
+  # What the recipient will check out with - the admin fills these in, and the locks keep them
+  checkout:      AdminCartOfferCheckout!
+}
+
+type AdminCartOfferPaymentMethod {
+  slug:        String!
+  displayName: String!
+}
+
+type AdminCartOfferEmailPreview {
+  to:      String!
+  subject: String!
+  html:    String!
+  text:    String!
+  # The link the email carries
+  link:    String!
+  # False when the channel has no public URL - link is then the path alone, and the offer can't be sent
+  linkComplete: Boolean!
+}
+
+type AdminCartOfferCheckout {
+  shippingAddress:       AdminCartAddress
+  billingSameAsShipping: Boolean!
+  billingAddress:        AdminCartAddress
+  paymentProviderSlug:   String!
+  deliveries:            [AdminCartDeliverySelection!]!
+}
+
+type AdminCartAddress {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type AdminCartDeliverySelection {
+  groupKey:    String!
+  optionId:    ID!
+  carrierSlug: String!
+  methodCode:  String!
+  pointId:     String
+  pointName:   String
+}
+
+# The delivery choices for one group of an offer's lines, quoted for the offer's shipping address
+type AdminCartDeliveryGroup {
+  key:     String!
+  lines:   [String!]!     # line names, for the console to label the group
+  choices: [AdminCartDeliveryChoice!]!
+}
+
+type AdminCartDeliveryChoice {
+  optionId:    ID!
+  optionName:  String!
+  kind:        String!
+  carrierSlug: String!
+  methodCode:  String!
+  methodName:  String!
+  price:       Int!
+  needsPoint:  Boolean!    # the kind delivers to a point - pick one from adminCartDeliveryPoints
+}
+
+type AdminCartDeliveryPoint {
+  id:      String!
+  name:    String!
+  address: String!
 }
 
 type AdminCartLineComponent {
@@ -30233,6 +31031,11 @@ type CartListItem {
   channelId:     ID!
   currencyCode:  String!
   status:        String!
+  kind:          CartKind!
+  email:         String!
+  offerState:    CartOfferState  # set on offers
+  offerExpiresAt: Time
+  orderId:       ID
   itemCount:     Int!
   subtotal:      Int!
   updatedAt:     Time!
@@ -30249,12 +31052,70 @@ extend type Query {
     channelId: ID!
     customerId: ID
     status: String
+    kind: CartKind
     abandoned: Boolean
     search: String
     limit: Int = 50
     offset: Int = 0
   ): CartList!
   cart(id: ID!): AdminCart!
+  # The delivery choices of an offer's groups, quoted for the offer's shipping address - empty until one is set, and for a cart with nothing to deliver
+  adminCartDeliveryGroups(cartId: ID!): [AdminCartDeliveryGroup!]!
+  # The channel's enabled payment methods an offer can be narrowed to
+  adminCartOfferPaymentMethods(cartId: ID!): [AdminCartOfferPaymentMethod!]!
+  # The offer email as core's template renders it right now - what Send mails, unless an active Pulse flow on cart_offer sends its own design
+  adminCartOfferEmailPreview(cartId: ID!): AdminCartOfferEmailPreview!
+  # Points for a group's delivery option near the offer's shipping address
+  adminCartDeliveryPoints(cartId: ID!, groupKey: String!, optionId: ID!, search: String): [AdminCartDeliveryPoint!]!
+}
+
+input AdminCreateCartOfferInput {
+  channelId:  ID!
+  customerId: ID          # an account to make it out to - or
+  email:      String      # a guest email
+  expiresAt:  Time        # defaults from sales/cart/offer_expiry_days
+}
+
+input AdminCartAddressInput {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+input AdminCartDeliveryInput {
+  groupKey:    String!
+  optionId:    ID!
+  carrierSlug: String!
+  methodCode:  String!
+  pointId:     String     # for a kind that delivers to a point - one of adminCartDeliveryPoints
+}
+
+# Everything an admin edits on an offer in one save - the settings, and the checkout the recipient starts from
+input AdminUpdateCartOfferInput {
+  expiresAt:             Time!
+  message:               String!
+  showInAccount:         Boolean!
+  locks:                 [CartOfferLock!]!
+  shippingAddress:       AdminCartAddressInput
+  billingSameAsShipping: Boolean!
+  billingAddress:        AdminCartAddressInput
+  # The methods the recipient may pay with - one fixes it, none leaves every method the store offers
+  paymentMethods:        [String!]!
+  deliveries:            [AdminCartDeliveryInput!]!
+}
+
+input AdminCustomCartLineInput {
+  name:      String!
+  unitPrice: Int!
+  quantity:  Float!
+  taxClass:  String     # the tax class the line is taxed by - empty for the store's default
 }
 
 # Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
@@ -30277,6 +31138,19 @@ extend type Mutation {
   # Clone a cart's simple lines into a fresh cart for the target (guest or
   # existing customer) on the source's channel.
   adminDuplicateCart(cartId: ID!, targetCustomerId: ID): AdminCart!
+
+  # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
+  adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
+  adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
+  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int): AdminCart!
+  adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
+  # Emails the offer's link to its recipient - again on every call
+  adminSendCartOffer(cartId: ID!): AdminCart!
+  # Replaces the link - every link handed out so far stops working
+  adminRegenerateCartOfferLink(cartId: ID!): AdminCart!
+  # Withdraws the offer for good
+  adminRevokeCartOffer(cartId: ID!): AdminCart!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/catalog_attributes.graphqls", Input: `enum AttributeInputType {
@@ -35047,6 +35921,8 @@ type OrderLine {
   totalPrice:  Int!
   # A promotion free gift: zero-priced, granted by a rule rather than added by the customer. It contributes nothing to the subtotal, so a pro-rata refund must not pay money back for it.
   isGift:      Boolean!
+  # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
+  isCustom:    Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!
@@ -38259,6 +39135,12 @@ func (ec *executionContext) childFields_AdminCart(ctx context.Context, field gra
 		return ec.fieldContext_AdminCart_currencyCode(ctx, field)
 	case "status":
 		return ec.fieldContext_AdminCart_status(ctx, field)
+	case "kind":
+		return ec.fieldContext_AdminCart_kind(ctx, field)
+	case "email":
+		return ec.fieldContext_AdminCart_email(ctx, field)
+	case "offer":
+		return ec.fieldContext_AdminCart_offer(ctx, field)
 	case "lines":
 		return ec.fieldContext_AdminCart_lines(ctx, field)
 	case "subtotal":
@@ -38271,6 +39153,96 @@ func (ec *executionContext) childFields_AdminCart(ctx context.Context, field gra
 		return ec.fieldContext_AdminCart_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminCart", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartAddress(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "firstName":
+		return ec.fieldContext_AdminCartAddress_firstName(ctx, field)
+	case "lastName":
+		return ec.fieldContext_AdminCartAddress_lastName(ctx, field)
+	case "company":
+		return ec.fieldContext_AdminCartAddress_company(ctx, field)
+	case "street1":
+		return ec.fieldContext_AdminCartAddress_street1(ctx, field)
+	case "street2":
+		return ec.fieldContext_AdminCartAddress_street2(ctx, field)
+	case "city":
+		return ec.fieldContext_AdminCartAddress_city(ctx, field)
+	case "state":
+		return ec.fieldContext_AdminCartAddress_state(ctx, field)
+	case "postalCode":
+		return ec.fieldContext_AdminCartAddress_postalCode(ctx, field)
+	case "countryCode":
+		return ec.fieldContext_AdminCartAddress_countryCode(ctx, field)
+	case "phone":
+		return ec.fieldContext_AdminCartAddress_phone(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartAddress", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartDeliveryChoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "optionId":
+		return ec.fieldContext_AdminCartDeliveryChoice_optionId(ctx, field)
+	case "optionName":
+		return ec.fieldContext_AdminCartDeliveryChoice_optionName(ctx, field)
+	case "kind":
+		return ec.fieldContext_AdminCartDeliveryChoice_kind(ctx, field)
+	case "carrierSlug":
+		return ec.fieldContext_AdminCartDeliveryChoice_carrierSlug(ctx, field)
+	case "methodCode":
+		return ec.fieldContext_AdminCartDeliveryChoice_methodCode(ctx, field)
+	case "methodName":
+		return ec.fieldContext_AdminCartDeliveryChoice_methodName(ctx, field)
+	case "price":
+		return ec.fieldContext_AdminCartDeliveryChoice_price(ctx, field)
+	case "needsPoint":
+		return ec.fieldContext_AdminCartDeliveryChoice_needsPoint(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartDeliveryChoice", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartDeliveryGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_AdminCartDeliveryGroup_key(ctx, field)
+	case "lines":
+		return ec.fieldContext_AdminCartDeliveryGroup_lines(ctx, field)
+	case "choices":
+		return ec.fieldContext_AdminCartDeliveryGroup_choices(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartDeliveryGroup", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartDeliveryPoint(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminCartDeliveryPoint_id(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminCartDeliveryPoint_name(ctx, field)
+	case "address":
+		return ec.fieldContext_AdminCartDeliveryPoint_address(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartDeliveryPoint", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartDeliverySelection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "groupKey":
+		return ec.fieldContext_AdminCartDeliverySelection_groupKey(ctx, field)
+	case "optionId":
+		return ec.fieldContext_AdminCartDeliverySelection_optionId(ctx, field)
+	case "carrierSlug":
+		return ec.fieldContext_AdminCartDeliverySelection_carrierSlug(ctx, field)
+	case "methodCode":
+		return ec.fieldContext_AdminCartDeliverySelection_methodCode(ctx, field)
+	case "pointId":
+		return ec.fieldContext_AdminCartDeliverySelection_pointId(ctx, field)
+	case "pointName":
+		return ec.fieldContext_AdminCartDeliverySelection_pointName(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartDeliverySelection", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -38293,6 +39265,12 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 		return ec.fieldContext_AdminCartLine_components(ctx, field)
 	case "options":
 		return ec.fieldContext_AdminCartLine_options(ctx, field)
+	case "priceOverride":
+		return ec.fieldContext_AdminCartLine_priceOverride(ctx, field)
+	case "isCustom":
+		return ec.fieldContext_AdminCartLine_isCustom(ctx, field)
+	case "taxClass":
+		return ec.fieldContext_AdminCartLine_taxClass(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminCartLine", field.Name)
 }
@@ -38329,6 +39307,86 @@ func (ec *executionContext) childFields_AdminCartLineOption(ctx context.Context,
 		return ec.fieldContext_AdminCartLineOption_fileUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminCartLineOption", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartOffer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_AdminCartOffer_state(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_AdminCartOffer_expiresAt(ctx, field)
+	case "message":
+		return ec.fieldContext_AdminCartOffer_message(ctx, field)
+	case "showInAccount":
+		return ec.fieldContext_AdminCartOffer_showInAccount(ctx, field)
+	case "locks":
+		return ec.fieldContext_AdminCartOffer_locks(ctx, field)
+	case "paymentMethods":
+		return ec.fieldContext_AdminCartOffer_paymentMethods(ctx, field)
+	case "link":
+		return ec.fieldContext_AdminCartOffer_link(ctx, field)
+	case "linkPath":
+		return ec.fieldContext_AdminCartOffer_linkPath(ctx, field)
+	case "needsShipping":
+		return ec.fieldContext_AdminCartOffer_needsShipping(ctx, field)
+	case "sentAt":
+		return ec.fieldContext_AdminCartOffer_sentAt(ctx, field)
+	case "sendCount":
+		return ec.fieldContext_AdminCartOffer_sendCount(ctx, field)
+	case "openedAt":
+		return ec.fieldContext_AdminCartOffer_openedAt(ctx, field)
+	case "revokedAt":
+		return ec.fieldContext_AdminCartOffer_revokedAt(ctx, field)
+	case "orderId":
+		return ec.fieldContext_AdminCartOffer_orderId(ctx, field)
+	case "checkout":
+		return ec.fieldContext_AdminCartOffer_checkout(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartOffer", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartOfferCheckout(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "shippingAddress":
+		return ec.fieldContext_AdminCartOfferCheckout_shippingAddress(ctx, field)
+	case "billingSameAsShipping":
+		return ec.fieldContext_AdminCartOfferCheckout_billingSameAsShipping(ctx, field)
+	case "billingAddress":
+		return ec.fieldContext_AdminCartOfferCheckout_billingAddress(ctx, field)
+	case "paymentProviderSlug":
+		return ec.fieldContext_AdminCartOfferCheckout_paymentProviderSlug(ctx, field)
+	case "deliveries":
+		return ec.fieldContext_AdminCartOfferCheckout_deliveries(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartOfferCheckout", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartOfferEmailPreview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "to":
+		return ec.fieldContext_AdminCartOfferEmailPreview_to(ctx, field)
+	case "subject":
+		return ec.fieldContext_AdminCartOfferEmailPreview_subject(ctx, field)
+	case "html":
+		return ec.fieldContext_AdminCartOfferEmailPreview_html(ctx, field)
+	case "text":
+		return ec.fieldContext_AdminCartOfferEmailPreview_text(ctx, field)
+	case "link":
+		return ec.fieldContext_AdminCartOfferEmailPreview_link(ctx, field)
+	case "linkComplete":
+		return ec.fieldContext_AdminCartOfferEmailPreview_linkComplete(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartOfferEmailPreview", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminCartOfferPaymentMethod(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slug":
+		return ec.fieldContext_AdminCartOfferPaymentMethod_slug(ctx, field)
+	case "displayName":
+		return ec.fieldContext_AdminCartOfferPaymentMethod_displayName(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminCartOfferPaymentMethod", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminNotification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -39603,6 +40661,16 @@ func (ec *executionContext) childFields_CartListItem(ctx context.Context, field 
 		return ec.fieldContext_CartListItem_currencyCode(ctx, field)
 	case "status":
 		return ec.fieldContext_CartListItem_status(ctx, field)
+	case "kind":
+		return ec.fieldContext_CartListItem_kind(ctx, field)
+	case "email":
+		return ec.fieldContext_CartListItem_email(ctx, field)
+	case "offerState":
+		return ec.fieldContext_CartListItem_offerState(ctx, field)
+	case "offerExpiresAt":
+		return ec.fieldContext_CartListItem_offerExpiresAt(ctx, field)
+	case "orderId":
+		return ec.fieldContext_CartListItem_orderId(ctx, field)
 	case "itemCount":
 		return ec.fieldContext_CartListItem_itemCount(ctx, field)
 	case "subtotal":
@@ -42627,6 +43695,8 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_totalPrice(ctx, field)
 	case "isGift":
 		return ec.fieldContext_OrderLine_isGift(ctx, field)
+	case "isCustom":
+		return ec.fieldContext_OrderLine_isCustom(ctx, field)
 	case "options":
 		return ec.fieldContext_OrderLine_options(ctx, field)
 	case "components":
@@ -46243,6 +47313,28 @@ func (ec *executionContext) field_Mutation_adminAddCartLine_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_adminAddCustomCartLine_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.AdminCustomCartLineInput, error) {
+			return ec.unmarshalNAdminCustomCartLineInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCustomCartLineInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_adminClearCart_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -46254,6 +47346,20 @@ func (ec *executionContext) field_Mutation_adminClearCart_args(ctx context.Conte
 		return nil, err
 	}
 	args["cartId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminCreateCartOffer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.AdminCreateCartOfferInput, error) {
+			return ec.unmarshalNAdminCreateCartOfferInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCreateCartOfferInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -46343,6 +47449,20 @@ func (ec *executionContext) field_Mutation_adminLogin_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_adminRegenerateCartOfferLink_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_adminRemoveCartLine_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -46362,6 +47482,64 @@ func (ec *executionContext) field_Mutation_adminRemoveCartLine_args(ctx context.
 		return nil, err
 	}
 	args["lineId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminRevokeCartOffer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSendCartOffer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminSetCartLinePrice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "lineId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["lineId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "unitPrice",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["unitPrice"] = arg2
 	return args, nil
 }
 
@@ -46450,6 +47628,28 @@ func (ec *executionContext) field_Mutation_adminUpdateCartLine_args(ctx context.
 		return nil, err
 	}
 	args["quantity"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_adminUpdateCartOffer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.AdminUpdateCartOfferInput, error) {
+			return ec.unmarshalNAdminUpdateCartOfferInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminUpdateCartOfferInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -54725,6 +55925,86 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_adminCartDeliveryGroups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_adminCartDeliveryPoints_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "optionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["optionId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "search",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["search"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_adminCartOfferEmailPreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_adminCartOfferPaymentMethods_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_admin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -55074,38 +56354,46 @@ func (ec *executionContext) field_Query_carts_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["status"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "abandoned",
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
+		func(ctx context.Context, v any) (*model.CartKind, error) {
+			return ec.unmarshalOCartKind2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kind"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "abandoned",
 		func(ctx context.Context, v any) (*bool, error) {
 			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["abandoned"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "search",
+	args["abandoned"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "search",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["search"] = arg4
-	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	args["search"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg5
-	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+	args["limit"] = arg6
+	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg6
+	args["offset"] = arg7
 	return args, nil
 }
 
@@ -59948,6 +61236,84 @@ func (ec *executionContext) fieldContext_AdminCart_status(_ context.Context, fie
 	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _AdminCart_kind(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.CartKind) graphql.Marshaler {
+			return ec.marshalNCartKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type CartKind does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCart_email(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCart_offer(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCart_offer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Offer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCartOffer) graphql.Marshaler {
+			return ec.marshalOAdminCartOffer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOffer(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCart_offer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCart",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartOffer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AdminCart_lines(ctx context.Context, field graphql.CollectedField, obj *model.AdminCart) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -60070,6 +61436,705 @@ func (ec *executionContext) _AdminCart_updatedAt(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_AdminCart_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCart", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_firstName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_firstName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_firstName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_lastName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_lastName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_lastName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_company(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_company(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Company, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_company(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_street1(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_street1(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Street1, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_street1(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_street2(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_street2(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Street2, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_street2(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_city(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_city(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.City, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_city(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_state(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_postalCode(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_postalCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PostalCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_postalCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_countryCode(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_countryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_countryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartAddress_phone(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartAddress_phone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Phone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartAddress_phone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_optionId(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_optionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_optionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_optionName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_optionName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_optionName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_kind(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_carrierSlug(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_carrierSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CarrierSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_carrierSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_methodCode(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_methodCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_methodCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_methodName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_methodName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_methodName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_price(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_price(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Price, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_price(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryChoice_needsPoint(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryChoice_needsPoint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NeedsPoint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryChoice_needsPoint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryChoice", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryGroup_key(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryGroup_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryGroup_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryGroup_lines(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryGroup_lines(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lines, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryGroup_lines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryGroup_choices(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryGroup_choices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Choices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminCartDeliveryChoice) graphql.Marshaler {
+			return ec.marshalNAdminCartDeliveryChoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryChoiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryGroup_choices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCartDeliveryGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartDeliveryChoice(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartDeliveryPoint_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryPoint_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryPoint_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryPoint_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryPoint_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryPoint_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliveryPoint_address(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliveryPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliveryPoint_address(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliveryPoint_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliveryPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_groupKey(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_groupKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GroupKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_groupKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_optionId(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_optionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_optionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_carrierSlug(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_carrierSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CarrierSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_carrierSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_methodCode(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_methodCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MethodCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_methodCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_pointId(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_pointId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PointID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_pointId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartDeliverySelection_pointName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartDeliverySelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartDeliverySelection_pointName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PointName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartDeliverySelection_pointName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartDeliverySelection", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminCartLine_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
@@ -60295,6 +62360,75 @@ func (ec *executionContext) fieldContext_AdminCartLine_options(_ context.Context
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartLine_priceOverride(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_priceOverride(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceOverride, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_priceOverride(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_isCustom(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_isCustom(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsCustom, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_isCustom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartLine_taxClass(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartLine_taxClass(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TaxClass, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartLine_taxClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminCartLineComponent_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
@@ -60548,6 +62682,686 @@ func (ec *executionContext) _AdminCartLineOption_fileUrl(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_AdminCartLineOption_fileUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLineOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_state(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.CartOfferState) graphql.Marshaler {
+			return ec.marshalNCartOfferState2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type CartOfferState does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_message(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_showInAccount(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_showInAccount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShowInAccount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_showInAccount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_locks(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_locks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Locks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.CartOfferLock) graphql.Marshaler {
+			return ec.marshalNCartOfferLock2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLockᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_locks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type CartOfferLock does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_paymentMethods(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_paymentMethods(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentMethods, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_paymentMethods(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_link(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_link(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Link, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_link(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_linkPath(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_linkPath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinkPath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_linkPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_needsShipping(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_needsShipping(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NeedsShipping, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_needsShipping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_sentAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_sentAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SentAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_sentAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_sendCount(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_sendCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SendCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_sendCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_openedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_openedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OpenedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_openedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_revokedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_revokedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RevokedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_revokedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_orderId(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_orderId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrderID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_orderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOffer", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOffer_checkout(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOffer_checkout(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Checkout, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCartOfferCheckout) graphql.Marshaler {
+			return ec.marshalNAdminCartOfferCheckout2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferCheckout(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOffer_checkout(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCartOffer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartOfferCheckout(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartOfferCheckout_shippingAddress(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferCheckout_shippingAddress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShippingAddress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCartAddress) graphql.Marshaler {
+			return ec.marshalOAdminCartAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferCheckout_shippingAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCartOfferCheckout",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartAddress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartOfferCheckout_billingSameAsShipping(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferCheckout_billingSameAsShipping(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BillingSameAsShipping, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferCheckout_billingSameAsShipping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferCheckout", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferCheckout_billingAddress(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferCheckout_billingAddress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BillingAddress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCartAddress) graphql.Marshaler {
+			return ec.marshalOAdminCartAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferCheckout_billingAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCartOfferCheckout",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartAddress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartOfferCheckout_paymentProviderSlug(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferCheckout_paymentProviderSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PaymentProviderSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferCheckout_paymentProviderSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferCheckout", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferCheckout_deliveries(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferCheckout) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferCheckout_deliveries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Deliveries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminCartDeliverySelection) graphql.Marshaler {
+			return ec.marshalNAdminCartDeliverySelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliverySelectionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferCheckout_deliveries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminCartOfferCheckout",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartDeliverySelection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_to(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_to(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_subject(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_subject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subject, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_subject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_html(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_html(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HTML, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_html(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_text(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_link(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_link(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Link, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_link(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview_linkComplete(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferEmailPreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferEmailPreview_linkComplete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinkComplete, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferEmailPreview_linkComplete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferEmailPreview", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferPaymentMethod_slug(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferPaymentMethod) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferPaymentMethod_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferPaymentMethod_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferPaymentMethod", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminCartOfferPaymentMethod_displayName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartOfferPaymentMethod) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminCartOfferPaymentMethod_displayName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DisplayName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminCartOfferPaymentMethod_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminCartOfferPaymentMethod", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminNotification_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminNotification) (ret graphql.Marshaler) {
@@ -71079,6 +73893,121 @@ func (ec *executionContext) _CartListItem_status(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_CartListItem_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_kind(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.CartKind) graphql.Marshaler {
+			return ec.marshalNCartKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type CartKind does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_email(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_offerState(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_offerState(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OfferState, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CartOfferState) graphql.Marshaler {
+			return ec.marshalOCartOfferState2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_offerState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type CartOfferState does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_offerExpiresAt(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_offerExpiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OfferExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_offerExpiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CartListItem_orderId(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CartListItem_orderId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrderID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CartListItem_orderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CartListItem", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
 func (ec *executionContext) _CartListItem_itemCount(ctx context.Context, field graphql.CollectedField, obj *model.CartListItem) (ret graphql.Marshaler) {
@@ -98880,6 +101809,314 @@ func (ec *executionContext) fieldContext_Mutation_adminDuplicateCart(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_adminCreateCartOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminCreateCartOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminCreateCartOffer(ctx, fc.Args["input"].(model.AdminCreateCartOfferInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminCreateCartOffer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminCreateCartOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminUpdateCartOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminUpdateCartOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminUpdateCartOffer(ctx, fc.Args["cartId"].(string), fc.Args["input"].(model.AdminUpdateCartOfferInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminUpdateCartOffer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminUpdateCartOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSetCartLinePrice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSetCartLinePrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSetCartLinePrice(ctx, fc.Args["cartId"].(string), fc.Args["lineId"].(string), fc.Args["unitPrice"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSetCartLinePrice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSetCartLinePrice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminAddCustomCartLine(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminAddCustomCartLine(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminAddCustomCartLine(ctx, fc.Args["cartId"].(string), fc.Args["input"].(model.AdminCustomCartLineInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminAddCustomCartLine(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminAddCustomCartLine_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminSendCartOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminSendCartOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminSendCartOffer(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminSendCartOffer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminSendCartOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminRegenerateCartOfferLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminRegenerateCartOfferLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminRegenerateCartOfferLink(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminRegenerateCartOfferLink(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminRegenerateCartOfferLink_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_adminRevokeCartOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_adminRevokeCartOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AdminRevokeCartOffer(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
+			return ec.marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_adminRevokeCartOffer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_adminRevokeCartOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createAttribute(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -118297,6 +121534,29 @@ func (ec *executionContext) fieldContext_OrderLine_isGift(_ context.Context, fie
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLine_isCustom(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_isCustom(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsCustom, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_isCustom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLine_options(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -128985,7 +132245,7 @@ func (ec *executionContext) _Query_carts(ctx context.Context, field graphql.Coll
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Carts(ctx, fc.Args["channelId"].(string), fc.Args["customerId"].(*string), fc.Args["status"].(*string), fc.Args["abandoned"].(*bool), fc.Args["search"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().Carts(ctx, fc.Args["channelId"].(string), fc.Args["customerId"].(*string), fc.Args["status"].(*string), fc.Args["kind"].(*model.CartKind), fc.Args["abandoned"].(*bool), fc.Args["search"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CartList) graphql.Marshaler {
@@ -129057,6 +132317,182 @@ func (ec *executionContext) fieldContext_Query_cart(ctx context.Context, field g
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_cart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminCartDeliveryGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminCartDeliveryGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AdminCartDeliveryGroups(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminCartDeliveryGroup) graphql.Marshaler {
+			return ec.marshalNAdminCartDeliveryGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminCartDeliveryGroups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartDeliveryGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_adminCartDeliveryGroups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminCartOfferPaymentMethods(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminCartOfferPaymentMethods(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AdminCartOfferPaymentMethods(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminCartOfferPaymentMethod) graphql.Marshaler {
+			return ec.marshalNAdminCartOfferPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferPaymentMethodᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminCartOfferPaymentMethods(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartOfferPaymentMethod(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_adminCartOfferPaymentMethods_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminCartOfferEmailPreview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminCartOfferEmailPreview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AdminCartOfferEmailPreview(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCartOfferEmailPreview) graphql.Marshaler {
+			return ec.marshalNAdminCartOfferEmailPreview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferEmailPreview(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminCartOfferEmailPreview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartOfferEmailPreview(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_adminCartOfferEmailPreview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminCartDeliveryPoints(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminCartDeliveryPoints(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AdminCartDeliveryPoints(ctx, fc.Args["cartId"].(string), fc.Args["groupKey"].(string), fc.Args["optionId"].(string), fc.Args["search"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminCartDeliveryPoint) graphql.Marshaler {
+			return ec.marshalNAdminCartDeliveryPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryPointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminCartDeliveryPoints(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminCartDeliveryPoint(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_adminCartDeliveryPoints_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -154756,6 +158192,157 @@ func (ec *executionContext) unmarshalInputAdjustInventoryLevelInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputAdminCartAddressInput(ctx context.Context, obj any) (model.AdminCartAddressInput, error) {
+	var it model.AdminCartAddressInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"firstName", "lastName", "company", "street1", "street2", "city", "state", "postalCode", "countryCode", "phone"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "firstName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("firstName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FirstName = data
+		case "lastName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lastName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LastName = data
+		case "company":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("company"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Company = data
+		case "street1":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("street1"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Street1 = data
+		case "street2":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("street2"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Street2 = data
+		case "city":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("city"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.City = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "postalCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("postalCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PostalCode = data
+		case "countryCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("countryCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CountryCode = data
+		case "phone":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phone"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Phone = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAdminCartDeliveryInput(ctx context.Context, obj any) (model.AdminCartDeliveryInput, error) {
+	var it model.AdminCartDeliveryInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"groupKey", "optionId", "carrierSlug", "methodCode", "pointId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "groupKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("groupKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GroupKey = data
+		case "optionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("optionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OptionID = data
+		case "carrierSlug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("carrierSlug"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CarrierSlug = data
+		case "methodCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("methodCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MethodCode = data
+		case "pointId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pointId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PointID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAdminCartLineOptionInput(ctx context.Context, obj any) (model.AdminCartLineOptionInput, error) {
 	var it model.AdminCartLineOptionInput
 	if obj == nil {
@@ -154802,6 +158389,57 @@ func (ec *executionContext) unmarshalInputAdminCartLineOptionInput(ctx context.C
 				return it, err
 			}
 			it.FileAssetID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAdminCreateCartOfferInput(ctx context.Context, obj any) (model.AdminCreateCartOfferInput, error) {
+	var it model.AdminCreateCartOfferInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"channelId", "customerId", "email", "expiresAt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "channelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelID = data
+		case "customerId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerID = data
+		case "email":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Email = data
+		case "expiresAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expiresAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpiresAt = data
 		}
 	}
 	return it, nil
@@ -154893,6 +158531,57 @@ func (ec *executionContext) unmarshalInputAdminCreateCustomerInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputAdminCustomCartLineInput(ctx context.Context, obj any) (model.AdminCustomCartLineInput, error) {
+	var it model.AdminCustomCartLineInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "unitPrice", "quantity", "taxClass"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "unitPrice":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unitPrice"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnitPrice = data
+		case "quantity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quantity = data
+		case "taxClass":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taxClass"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaxClass = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAdminLoginInput(ctx context.Context, obj any) (model.AdminLoginInput, error) {
 	var it model.AdminLoginInput
 	if obj == nil {
@@ -154932,6 +158621,92 @@ func (ec *executionContext) unmarshalInputAdminLoginInput(ctx context.Context, o
 				return it, err
 			}
 			it.TotpCode = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAdminUpdateCartOfferInput(ctx context.Context, obj any) (model.AdminUpdateCartOfferInput, error) {
+	var it model.AdminUpdateCartOfferInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"expiresAt", "message", "showInAccount", "locks", "shippingAddress", "billingSameAsShipping", "billingAddress", "paymentMethods", "deliveries"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "expiresAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expiresAt"))
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpiresAt = data
+		case "message":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Message = data
+		case "showInAccount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("showInAccount"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ShowInAccount = data
+		case "locks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locks"))
+			data, err := ec.unmarshalNCartOfferLock2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLockᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Locks = data
+		case "shippingAddress":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("shippingAddress"))
+			data, err := ec.unmarshalOAdminCartAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddressInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ShippingAddress = data
+		case "billingSameAsShipping":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("billingSameAsShipping"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BillingSameAsShipping = data
+		case "billingAddress":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("billingAddress"))
+			data, err := ec.unmarshalOAdminCartAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddressInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BillingAddress = data
+		case "paymentMethods":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("paymentMethods"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PaymentMethods = data
+		case "deliveries":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliveries"))
+			data, err := ec.unmarshalNAdminCartDeliveryInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deliveries = data
 		}
 	}
 	return it, nil
@@ -168411,6 +172186,21 @@ func (ec *executionContext) _AdminCart(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "kind":
+			out.Values[i] = ec._AdminCart_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._AdminCart_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offer":
+			out.Values[i] = ec._AdminCart_offer(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "lines":
 			out.Values[i] = ec._AdminCart_lines(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -168434,6 +172224,321 @@ func (ec *executionContext) _AdminCart(ctx context.Context, sel ast.SelectionSet
 		case "updatedAt":
 			out.Values[i] = ec._AdminCart_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartAddressImplementors = []string{"AdminCartAddress"}
+
+func (ec *executionContext) _AdminCartAddress(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartAddress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartAddressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartAddress")
+		case "firstName":
+			out.Values[i] = ec._AdminCartAddress_firstName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastName":
+			out.Values[i] = ec._AdminCartAddress_lastName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "company":
+			out.Values[i] = ec._AdminCartAddress_company(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "street1":
+			out.Values[i] = ec._AdminCartAddress_street1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "street2":
+			out.Values[i] = ec._AdminCartAddress_street2(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "city":
+			out.Values[i] = ec._AdminCartAddress_city(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._AdminCartAddress_state(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "postalCode":
+			out.Values[i] = ec._AdminCartAddress_postalCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "countryCode":
+			out.Values[i] = ec._AdminCartAddress_countryCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "phone":
+			out.Values[i] = ec._AdminCartAddress_phone(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartDeliveryChoiceImplementors = []string{"AdminCartDeliveryChoice"}
+
+func (ec *executionContext) _AdminCartDeliveryChoice(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartDeliveryChoice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartDeliveryChoiceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartDeliveryChoice")
+		case "optionId":
+			out.Values[i] = ec._AdminCartDeliveryChoice_optionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optionName":
+			out.Values[i] = ec._AdminCartDeliveryChoice_optionName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._AdminCartDeliveryChoice_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "carrierSlug":
+			out.Values[i] = ec._AdminCartDeliveryChoice_carrierSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodCode":
+			out.Values[i] = ec._AdminCartDeliveryChoice_methodCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodName":
+			out.Values[i] = ec._AdminCartDeliveryChoice_methodName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "price":
+			out.Values[i] = ec._AdminCartDeliveryChoice_price(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "needsPoint":
+			out.Values[i] = ec._AdminCartDeliveryChoice_needsPoint(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartDeliveryGroupImplementors = []string{"AdminCartDeliveryGroup"}
+
+func (ec *executionContext) _AdminCartDeliveryGroup(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartDeliveryGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartDeliveryGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartDeliveryGroup")
+		case "key":
+			out.Values[i] = ec._AdminCartDeliveryGroup_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lines":
+			out.Values[i] = ec._AdminCartDeliveryGroup_lines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "choices":
+			out.Values[i] = ec._AdminCartDeliveryGroup_choices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartDeliveryPointImplementors = []string{"AdminCartDeliveryPoint"}
+
+func (ec *executionContext) _AdminCartDeliveryPoint(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartDeliveryPoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartDeliveryPointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartDeliveryPoint")
+		case "id":
+			out.Values[i] = ec._AdminCartDeliveryPoint_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminCartDeliveryPoint_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "address":
+			out.Values[i] = ec._AdminCartDeliveryPoint_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartDeliverySelectionImplementors = []string{"AdminCartDeliverySelection"}
+
+func (ec *executionContext) _AdminCartDeliverySelection(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartDeliverySelection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartDeliverySelectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartDeliverySelection")
+		case "groupKey":
+			out.Values[i] = ec._AdminCartDeliverySelection_groupKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optionId":
+			out.Values[i] = ec._AdminCartDeliverySelection_optionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "carrierSlug":
+			out.Values[i] = ec._AdminCartDeliverySelection_carrierSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "methodCode":
+			out.Values[i] = ec._AdminCartDeliverySelection_methodCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pointId":
+			out.Values[i] = ec._AdminCartDeliverySelection_pointId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "pointName":
+			out.Values[i] = ec._AdminCartDeliverySelection_pointName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -168511,6 +172616,21 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 			}
 		case "options":
 			out.Values[i] = ec._AdminCartLine_options(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceOverride":
+			out.Values[i] = ec._AdminCartLine_priceOverride(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isCustom":
+			out.Values[i] = ec._AdminCartLine_isCustom(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taxClass":
+			out.Values[i] = ec._AdminCartLine_taxClass(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -168632,6 +172752,278 @@ func (ec *executionContext) _AdminCartLineOption(ctx context.Context, sel ast.Se
 			}
 		case "fileUrl":
 			out.Values[i] = ec._AdminCartLineOption_fileUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartOfferImplementors = []string{"AdminCartOffer"}
+
+func (ec *executionContext) _AdminCartOffer(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartOffer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartOfferImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartOffer")
+		case "state":
+			out.Values[i] = ec._AdminCartOffer_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._AdminCartOffer_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._AdminCartOffer_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "showInAccount":
+			out.Values[i] = ec._AdminCartOffer_showInAccount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "locks":
+			out.Values[i] = ec._AdminCartOffer_locks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "paymentMethods":
+			out.Values[i] = ec._AdminCartOffer_paymentMethods(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "link":
+			out.Values[i] = ec._AdminCartOffer_link(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkPath":
+			out.Values[i] = ec._AdminCartOffer_linkPath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "needsShipping":
+			out.Values[i] = ec._AdminCartOffer_needsShipping(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sentAt":
+			out.Values[i] = ec._AdminCartOffer_sentAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sendCount":
+			out.Values[i] = ec._AdminCartOffer_sendCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "openedAt":
+			out.Values[i] = ec._AdminCartOffer_openedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "revokedAt":
+			out.Values[i] = ec._AdminCartOffer_revokedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "orderId":
+			out.Values[i] = ec._AdminCartOffer_orderId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "checkout":
+			out.Values[i] = ec._AdminCartOffer_checkout(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartOfferCheckoutImplementors = []string{"AdminCartOfferCheckout"}
+
+func (ec *executionContext) _AdminCartOfferCheckout(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartOfferCheckout) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartOfferCheckoutImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartOfferCheckout")
+		case "shippingAddress":
+			out.Values[i] = ec._AdminCartOfferCheckout_shippingAddress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "billingSameAsShipping":
+			out.Values[i] = ec._AdminCartOfferCheckout_billingSameAsShipping(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "billingAddress":
+			out.Values[i] = ec._AdminCartOfferCheckout_billingAddress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "paymentProviderSlug":
+			out.Values[i] = ec._AdminCartOfferCheckout_paymentProviderSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deliveries":
+			out.Values[i] = ec._AdminCartOfferCheckout_deliveries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartOfferEmailPreviewImplementors = []string{"AdminCartOfferEmailPreview"}
+
+func (ec *executionContext) _AdminCartOfferEmailPreview(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartOfferEmailPreview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartOfferEmailPreviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartOfferEmailPreview")
+		case "to":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subject":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_subject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "html":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_html(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "link":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_link(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkComplete":
+			out.Values[i] = ec._AdminCartOfferEmailPreview_linkComplete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var adminCartOfferPaymentMethodImplementors = []string{"AdminCartOfferPaymentMethod"}
+
+func (ec *executionContext) _AdminCartOfferPaymentMethod(ctx context.Context, sel ast.SelectionSet, obj *model.AdminCartOfferPaymentMethod) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminCartOfferPaymentMethodImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminCartOfferPaymentMethod")
+		case "slug":
+			out.Values[i] = ec._AdminCartOfferPaymentMethod_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "displayName":
+			out.Values[i] = ec._AdminCartOfferPaymentMethod_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -173146,6 +177538,31 @@ func (ec *executionContext) _CartListItem(ctx context.Context, sel ast.Selection
 		case "status":
 			out.Values[i] = ec._CartListItem_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._CartListItem_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._CartListItem_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offerState":
+			out.Values[i] = ec._CartListItem_offerState(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "offerExpiresAt":
+			out.Values[i] = ec._CartListItem_offerExpiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "orderId":
+			out.Values[i] = ec._CartListItem_orderId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "itemCount":
@@ -183946,6 +188363,55 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "adminCreateCartOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminCreateCartOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminUpdateCartOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminUpdateCartOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSetCartLinePrice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSetCartLinePrice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminAddCustomCartLine":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminAddCustomCartLine(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminSendCartOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminSendCartOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminRegenerateCartOfferLink":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminRegenerateCartOfferLink(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminRevokeCartOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_adminRevokeCartOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createAttribute":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createAttribute(ctx, field)
@@ -187532,6 +191998,11 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			}
 		case "isGift":
 			out.Values[i] = ec._OrderLine_isGift(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isCustom":
+			out.Values[i] = ec._OrderLine_isCustom(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -192274,6 +196745,94 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_cart(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminCartDeliveryGroups":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminCartDeliveryGroups(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminCartOfferPaymentMethods":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminCartOfferPaymentMethods(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminCartOfferEmailPreview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminCartOfferEmailPreview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminCartDeliveryPoints":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminCartDeliveryPoints(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -204422,6 +208981,129 @@ func (ec *executionContext) marshalNAdminCart2ᚖgithubᚗcomᚋskeletgᚋskelet
 	return ec._AdminCart(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAdminCartDeliveryChoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryChoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartDeliveryChoice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminCartDeliveryChoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryChoice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminCartDeliveryChoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryChoice(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartDeliveryChoice) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartDeliveryChoice(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminCartDeliveryGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartDeliveryGroup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminCartDeliveryGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryGroup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminCartDeliveryGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryGroup(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartDeliveryGroup) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartDeliveryGroup(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAdminCartDeliveryInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryInputᚄ(ctx context.Context, v any) ([]*model.AdminCartDeliveryInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.AdminCartDeliveryInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAdminCartDeliveryInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNAdminCartDeliveryInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryInput(ctx context.Context, v any) (*model.AdminCartDeliveryInput, error) {
+	res, err := ec.unmarshalInputAdminCartDeliveryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAdminCartDeliveryPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartDeliveryPoint) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminCartDeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryPoint(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminCartDeliveryPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliveryPoint(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartDeliveryPoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartDeliveryPoint(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminCartDeliverySelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliverySelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartDeliverySelection) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminCartDeliverySelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliverySelection(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminCartDeliverySelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartDeliverySelection(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartDeliverySelection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartDeliverySelection(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNAdminCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -204505,8 +209187,68 @@ func (ec *executionContext) unmarshalNAdminCartLineOptionInput2ᚖgithubᚗcom�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNAdminCartOfferCheckout2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferCheckout(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartOfferCheckout) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartOfferCheckout(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminCartOfferEmailPreview2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferEmailPreview(ctx context.Context, sel ast.SelectionSet, v model.AdminCartOfferEmailPreview) graphql.Marshaler {
+	return ec._AdminCartOfferEmailPreview(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminCartOfferEmailPreview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferEmailPreview(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartOfferEmailPreview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartOfferEmailPreview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminCartOfferPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferPaymentMethodᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminCartOfferPaymentMethod) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminCartOfferPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferPaymentMethod(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminCartOfferPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOfferPaymentMethod(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartOfferPaymentMethod) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminCartOfferPaymentMethod(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAdminCreateCartOfferInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCreateCartOfferInput(ctx context.Context, v any) (model.AdminCreateCartOfferInput, error) {
+	res, err := ec.unmarshalInputAdminCreateCartOfferInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNAdminCreateCustomerInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCreateCustomerInput(ctx context.Context, v any) (model.AdminCreateCustomerInput, error) {
 	res, err := ec.unmarshalInputAdminCreateCustomerInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNAdminCustomCartLineInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCustomCartLineInput(ctx context.Context, v any) (model.AdminCustomCartLineInput, error) {
+	res, err := ec.unmarshalInputAdminCustomCartLineInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -204639,6 +209381,11 @@ func (ec *executionContext) marshalNAdminTotpSetup2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return ec._AdminTotpSetup(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAdminUpdateCartOfferInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminUpdateCartOfferInput(ctx context.Context, v any) (model.AdminUpdateCartOfferInput, error) {
+	res, err := ec.unmarshalInputAdminUpdateCartOfferInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNAdminUpdateCustomerInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminUpdateCustomerInput(ctx context.Context, v any) (model.AdminUpdateCustomerInput, error) {
@@ -206411,6 +211158,16 @@ func (ec *executionContext) marshalNCarrierRef2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._CarrierRef(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCartKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx context.Context, v any) (model.CartKind, error) {
+	var res model.CartKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCartKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx context.Context, sel ast.SelectionSet, v model.CartKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNCartList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartList(ctx context.Context, sel ast.SelectionSet, v model.CartList) graphql.Marshaler {
 	return ec._CartList(ctx, sel, &v)
 }
@@ -206449,6 +211206,56 @@ func (ec *executionContext) marshalNCartListItem2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._CartListItem(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCartOfferLock2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLock(ctx context.Context, v any) (model.CartOfferLock, error) {
+	var res model.CartOfferLock
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCartOfferLock2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLock(ctx context.Context, sel ast.SelectionSet, v model.CartOfferLock) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNCartOfferLock2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLockᚄ(ctx context.Context, v any) ([]model.CartOfferLock, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.CartOfferLock, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCartOfferLock2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLock(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNCartOfferLock2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLockᚄ(ctx context.Context, sel ast.SelectionSet, v []model.CartOfferLock) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCartOfferLock2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferLock(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNCartOfferState2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx context.Context, v any) (model.CartOfferState, error) {
+	var res model.CartOfferState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCartOfferState2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx context.Context, sel ast.SelectionSet, v model.CartOfferState) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNCascadeAttributeIndexableResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCascadeAttributeIndexableResult(ctx context.Context, sel ast.SelectionSet, v model.CascadeAttributeIndexableResult) graphql.Marshaler {
@@ -215347,6 +220154,21 @@ func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋs
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalOAdminCartAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddress(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartAddress) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AdminCartAddress(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOAdminCartAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartAddressInput(ctx context.Context, v any) (*model.AdminCartAddressInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAdminCartAddressInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOAdminCartLineOptionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartLineOptionInputᚄ(ctx context.Context, v any) ([]*model.AdminCartLineOptionInput, error) {
 	if v == nil {
 		return nil, nil
@@ -215362,6 +220184,13 @@ func (ec *executionContext) unmarshalOAdminCartLineOptionInput2ᚕᚖgithubᚗco
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) marshalOAdminCartOffer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminCartOffer(ctx context.Context, sel ast.SelectionSet, v *model.AdminCartOffer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AdminCartOffer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOAdminUser2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAdminUser(ctx context.Context, sel ast.SelectionSet, v *model.AdminUser) graphql.Marshaler {
@@ -215720,6 +220549,38 @@ func (ec *executionContext) unmarshalOCMSWorkflowState2ᚖgithubᚗcomᚋskeletg
 }
 
 func (ec *executionContext) marshalOCMSWorkflowState2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCMSWorkflowState(ctx context.Context, sel ast.SelectionSet, v *model.CMSWorkflowState) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOCartKind2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx context.Context, v any) (*model.CartKind, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.CartKind)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOCartKind2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartKind(ctx context.Context, sel ast.SelectionSet, v *model.CartKind) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOCartOfferState2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx context.Context, v any) (*model.CartOfferState, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.CartOfferState)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOCartOfferState2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCartOfferState(ctx context.Context, sel ast.SelectionSet, v *model.CartOfferState) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

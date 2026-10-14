@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,6 +67,7 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 		ChannelID:     f.ChannelID,
 		CustomerID:    sqlnull.UUID(f.CustomerID),
 		Status:        sqlnull.String(f.Status),
+		Kind:          sqlnull.String(f.Kind),
 		UpdatedBefore: sqlnull.Time(f.UpdatedBefore),
 		Search:        sqlnull.String(f.Search),
 		Off:           f.Offset,
@@ -81,6 +83,13 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 			CustomerID:        sqlnull.UUIDPtr(row.CustomerID),
 			ChannelID:         row.ChannelID,
 			Status:            row.Status,
+			Kind:              row.Kind,
+			Email:             row.Email,
+			OfferExpiresAt:    sqlnull.TimePtr(row.OfferExpiresAt),
+			OfferSentAt:       sqlnull.TimePtr(row.OfferSentAt),
+			OfferOpenedAt:     sqlnull.TimePtr(row.OfferOpenedAt),
+			OfferRevokedAt:    sqlnull.TimePtr(row.OfferRevokedAt),
+			OrderID:           sqlnull.UUIDPtr(row.OrderID),
 			CustomerEmail:     sqlnull.StringPtr(row.CustomerEmail),
 			CustomerFirstName: sqlnull.StringPtr(row.CustomerFirstName),
 			CustomerLastName:  sqlnull.StringPtr(row.CustomerLastName),
@@ -98,6 +107,7 @@ func (r *postgresRepository) CountCarts(ctx context.Context, f CartFilter) (int3
 		ChannelID:     f.ChannelID,
 		CustomerID:    sqlnull.UUID(f.CustomerID),
 		Status:        sqlnull.String(f.Status),
+		Kind:          sqlnull.String(f.Kind),
 		UpdatedBefore: sqlnull.Time(f.UpdatedBefore),
 		Search:        sqlnull.String(f.Search),
 	})
@@ -496,6 +506,122 @@ func (r *postgresRepository) SetCartMerged(ctx context.Context, cartID uuid.UUID
 	return nil
 }
 
+func (r *postgresRepository) SetCartOrder(ctx context.Context, cartID, orderID uuid.UUID) error {
+	return r.queries.SetCartOrder(ctx, db.SetCartOrderParams{ID: cartID, OrderID: uuid.NullUUID{UUID: orderID, Valid: true}})
+}
+
+// --- offers ---
+
+func (r *postgresRepository) CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error) {
+	row, err := r.queries.CreateOfferCart(ctx, db.CreateOfferCartParams{
+		CustomerID: sqlnull.UUID(in.CustomerID),
+		ChannelID:  in.ChannelID,
+		Email:      in.Email,
+		ExpiresAt:  sql.NullTime{Time: in.ExpiresAt, Valid: true},
+		CreatedBy:  sqlnull.UUID(in.CreatedBy),
+	})
+	if err != nil {
+		return Cart{}, fmt.Errorf("create offer cart: %w", err)
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) SetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings) error {
+	locks := in.Locks
+	if locks == nil {
+		locks = []string{}
+	}
+	methods := in.PaymentMethods
+	if methods == nil {
+		methods = []string{}
+	}
+	return r.queries.SetCartOffer(ctx, db.SetCartOfferParams{
+		ID:             cartID,
+		ExpiresAt:      sql.NullTime{Time: in.ExpiresAt, Valid: true},
+		Message:        in.Message,
+		ShowInAccount:  in.ShowInAccount,
+		Locks:          locks,
+		PaymentMethods: methods,
+	})
+}
+
+func (r *postgresRepository) MarkOfferSent(ctx context.Context, cartID uuid.UUID) error {
+	return r.queries.MarkCartOfferSent(ctx, cartID)
+}
+
+func (r *postgresRepository) MarkOfferOpened(ctx context.Context, cartID uuid.UUID) error {
+	return r.queries.MarkCartOfferOpened(ctx, cartID)
+}
+
+func (r *postgresRepository) RevokeOffer(ctx context.Context, cartID uuid.UUID) error {
+	return r.queries.RevokeCartOffer(ctx, cartID)
+}
+
+func (r *postgresRepository) BumpOfferLink(ctx context.Context, cartID uuid.UUID) (int32, error) {
+	return r.queries.BumpCartOfferLink(ctx, cartID)
+}
+
+func (r *postgresRepository) ListCustomerOffers(ctx context.Context, customerID, channelID uuid.UUID) ([]Cart, error) {
+	rows, err := r.queries.ListCustomerCartOffers(ctx, db.ListCustomerCartOffersParams{
+		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true},
+		ChannelID:  channelID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list customer offers: %w", err)
+	}
+	return toCarts(rows), nil
+}
+
+func (r *postgresRepository) ListExpiredOffers(ctx context.Context, limit int32) ([]Cart, error) {
+	rows, err := r.queries.ExpiredCartOffers(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list expired offers: %w", err)
+	}
+	return toCarts(rows), nil
+}
+
+func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.queries.MarkCartOfferExpiredNotified(ctx, ids)
+}
+
+func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error) {
+	row, err := r.queries.SetCartLinePrice(ctx, db.SetCartLinePriceParams{ID: lineID, UnitPrice: unitPrice, PriceOverride: override})
+	if err != nil {
+		return CartLine{}, fmt.Errorf("set line price: %w", err)
+	}
+	return toCartLine(row), nil
+}
+
+func (r *postgresRepository) InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return CartLine{}, err
+	}
+	row, err := r.queries.InsertCustomCartLine(ctx, db.InsertCustomCartLineParams{
+		CartID:      cartID,
+		ProductName: in.Name,
+		ProductSku:  CustomLineSKUPrefix + strings.ToUpper(id.String()[24:]), // the line's unique key in the cart - no catalog product carries the prefix
+		UnitPrice:   in.UnitPrice,
+		Quantity:    in.Quantity,
+		TaxClass:    in.TaxClass,
+	})
+	if err != nil {
+		return CartLine{}, fmt.Errorf("add custom line: %w", err)
+	}
+	return toCartLine(row), nil
+}
+
+func toCarts(rows []db.Cart) []Cart {
+	out := make([]Cart, len(rows))
+	for i, row := range rows {
+		out[i] = toCart(row)
+	}
+	return out
+}
+
 // --- mappers ---
 
 func toCart(row db.Cart) Cart {
@@ -504,11 +630,12 @@ func toCart(row db.Cart) Cart {
 		id := row.CustomerID.UUID
 		customerID = &id
 	}
-	return Cart{
+	c := Cart{
 		ID:         row.ID,
 		CustomerID: customerID,
 		ChannelID:  row.ChannelID,
 		Status:     row.Status,
+		Kind:       row.Kind,
 		Email:      row.Email,
 		Note:       row.Note,
 		Checkout: Checkout{
@@ -539,6 +666,23 @@ func toCart(row db.Cart) Cart {
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
+	if row.Kind == KindOffer {
+		c.Offer = &Offer{
+			ExpiresAt:      row.OfferExpiresAt.Time,
+			Message:        row.OfferMessage,
+			ShowInAccount:  row.OfferShowInAccount,
+			Locks:          row.OfferLocks,
+			PaymentMethods: row.OfferPaymentMethods,
+			LinkVersion:    row.OfferLinkVersion,
+			SentAt:         sqlnull.TimePtr(row.OfferSentAt),
+			SendCount:      row.OfferSendCount,
+			OpenedAt:       sqlnull.TimePtr(row.OfferOpenedAt),
+			RevokedAt:      sqlnull.TimePtr(row.OfferRevokedAt),
+			CreatedBy:      sqlnull.UUIDPtr(row.OfferCreatedBy),
+			OrderID:        sqlnull.UUIDPtr(row.OrderID),
+		}
+	}
+	return c
 }
 
 func encodeAddress(a *Address) (pqtype.NullRawMessage, error) {
@@ -593,14 +737,17 @@ func decodeAddress(n pqtype.NullRawMessage) *Address {
 
 func toCartLine(row db.CartLine) CartLine {
 	return CartLine{
-		ID:          row.ID,
-		CartID:      row.CartID,
-		ProductName: row.ProductName,
-		ProductSku:  row.ProductSku,
-		UnitPrice:   row.UnitPrice,
-		Quantity:    row.Quantity,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:            row.ID,
+		CartID:        row.CartID,
+		ProductName:   row.ProductName,
+		ProductSku:    row.ProductSku,
+		UnitPrice:     row.UnitPrice,
+		Quantity:      row.Quantity,
+		PriceOverride: row.PriceOverride,
+		IsCustom:      row.IsCustom,
+		TaxClass:      row.TaxClass,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }
 

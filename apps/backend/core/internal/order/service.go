@@ -659,6 +659,11 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if err := cartR.ConvertCart(ctx, cartObj.ID); err != nil {
 			return err
 		}
+		if cartObj.IsOffer() { // the console links a completed offer to what it became
+			if err := cartR.SetCartOrder(ctx, cartObj.ID, order.ID); err != nil {
+				return fmt.Errorf("link offer to order: %w", err)
+			}
+		}
 		// Durable dispatch - OrderPlaced commits with the order and is relayed after commit, so a crash can't lose it
 		if s.outbox != nil {
 			if err := s.outbox.Enqueue(ctx, sqlTx, &OrderPlaced{

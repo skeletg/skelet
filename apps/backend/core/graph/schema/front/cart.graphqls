@@ -14,6 +14,48 @@ type Cart {
   totalDiscount: Int!
   # What the shopper has chosen at checkout so far, saved step by step. Resolved on demand - it prices shipping and tax, so select it on the checkout page rather than in every cart fragment.
   checkout: CartCheckout!
+  # Set when the cart is an offer the store built and sent to the shopper - its terms and the parts they can't change. Null on the shopper's own cart. An offer is opened through its link (openCartOffer), and every call for it carries the link's token in the X-Cart-Offer header.
+  offer: CartOffer
+}
+
+# An offer's terms as the shopper sees them
+type CartOffer {
+  expiresAt: Time!
+  # The store's note to the shopper, empty when none
+  message:   String!
+  state:     CartOfferState!
+  # The parts the store fixed - the storefront shows them read-only, and the server refuses a change to any of them
+  locks:     [CartOfferLock!]!
+  # Made out to an email rather than an account - it checks out as a guest order for that email, whoever is signed in
+  isGuest:   Boolean!
+  # The payment methods the shopper may choose from, by provider slug - empty leaves every method the store offers
+  paymentMethods: [String!]!
+}
+
+enum CartOfferLock {
+  LINES
+  BILLING
+  SHIPPING
+  DELIVERY
+  COUPONS
+}
+
+enum CartOfferState {
+  DRAFT
+  SENT
+  OPENED
+  COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+# Where a followed offer link leads
+type CartOfferOpening {
+  cartId:        ID!
+  # COMPLETED, EXPIRED and REVOKED offers still answer, so the storefront can say why the offer can't be opened
+  state:         CartOfferState!
+  # The offer was made out to an account and nobody is signed in - send the shopper to sign in, then follow the link again
+  requiresLogin: Boolean!
 }
 
 type CartCheckout {
@@ -353,6 +395,8 @@ type CartLine {
   # The customer's product custom-option picks, snapshotted at add time.
   # Empty for plain and bundle lines.
   options:     [CartLineOption!]!
+  # A charge the store added to an offer by hand - no product page behind it, and nothing to deliver
+  isCustom:    Boolean!
 }
 
 # Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).
@@ -417,6 +461,8 @@ input AddBundleToCartInput {
 extend type Query {
   myCart:        Cart!
   cart(id: ID!): Cart
+  # The offers the signed-in customer can open from their account - only the ones the store chose to show there, still open. Empty for guests.
+  myCartOffers:  [Cart!]!
   # Active shipping methods priced for a cart at a destination, the way placement will price them - post-discount subtotal, product weights, region and postal code. cartId names a guest cart; without it a signed-in customer's own cart is used, and no cart at all quotes an empty one. Empty list when nothing covers the destination (storefront UI shows "delivery not available").
   shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
   # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
@@ -439,6 +485,8 @@ type ProductOptionFileUpload {
 }
 
 extend type Mutation {
+  # Follows an offer link - stamps the first open and says where the offer stands. The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
+  openCartOffer(token: String!): CartOfferOpening!
   createGuestCart:                                                                                    Cart!
   # Names and prices the line from the catalog by SKU
   addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!
