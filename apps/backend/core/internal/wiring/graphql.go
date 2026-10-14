@@ -293,7 +293,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		Bus:                  s.Bus,
 	}
 	// Offers: links signed off the app secret, the console quoting through the storefront's own checkout so the admin picks what the recipient will be offered
-	s.Cart.SetOfferLinks(cart.NewOfferLinks([]byte(infra.Config.JWTSecret)))
+	s.Cart.SetOfferLinks(cart.NewOfferLinks([]byte(infra.Config.JWTSecret), s.Cart.Repo()))
 	adminResolver.OfferCheckout = frontResolver
 	adminResolver.OfferMail = NewOfferMail(s.Flows, s.TransactionalSender, s.Config, s.Customer)
 	frontSrv := handler.New(graphfront.NewExecutableSchema(graphfront.Config{Resolvers: frontResolver}))

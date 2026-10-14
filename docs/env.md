@@ -113,7 +113,7 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, plus the email unsubscribe links and cart offer links ([cart-offers.md](cart-offers.md)); rotating it signs everyone out and invalidates every offer link sent so far. The default value is rejected in production. |
+| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, plus the email unsubscribe links and legacy signed cart offer links ([cart-offers.md](cart-offers.md)); rotating it signs everyone out and invalidates those legacy links. New opaque offer links are unaffected. The default value is rejected in production. |
 | `SIGNALS_SERVICE_SECRET` | A second `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value. Compose hands it to core and the Signals processes alone: the storefront holds `JWT_SECRET`, and a storefront that could mint service tokens could call the contract as core. Production refuses it empty, short, or equal to `JWT_SECRET`. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |

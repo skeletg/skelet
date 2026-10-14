@@ -87,6 +87,10 @@ func (f fakeRepo) SetBundleLineQuantity(context.Context, uuid.UUID, float64) err
 func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error)  { return nil, nil }
 func (f fakeRepo) WithTx(*sql.Tx) Repository                                       { return f }
 func (f fakeRepo) SetCartOrder(context.Context, uuid.UUID, uuid.UUID) error        { return nil }
+func (f fakeRepo) GetOfferByToken(context.Context, string) (Cart, error) {
+	return Cart{}, sql.ErrNoRows
+}
+
 func (f fakeRepo) CreateOfferCart(context.Context, CreateOfferInput) (Cart, error) {
 	return Cart{}, nil
 }

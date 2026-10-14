@@ -400,6 +400,7 @@ type Repository interface {
 	SetCartOrder(ctx context.Context, cartID, orderID uuid.UUID) error
 
 	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
+	GetOfferByToken(ctx context.Context, token string) (Cart, error)
 	SetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings) error
 	MarkOfferSent(ctx context.Context, cartID uuid.UUID) error
 	MarkOfferOpened(ctx context.Context, cartID uuid.UUID) error // the first open only

@@ -70,7 +70,8 @@ type Offer struct {
 	Locks         []string
 	// The payment methods the recipient may choose from, by provider slug - empty leaves every method the store offers
 	PaymentMethods []string
-	LinkVersion    int32 // part of every link handed out - bumping it kills them all
+	LinkVersion    int32  // invalidates grants and legacy signed links when replaced
+	LinkToken      string // random URL-safe credential, replaced together with the version
 	SentAt         *time.Time
 	SendCount      int32
 	OpenedAt       *time.Time

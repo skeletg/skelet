@@ -84,13 +84,17 @@ rules. The backend refuses a method outside the list with
 The link is `<channel public URL>/offer/<token>`. The channel needs a public URL before an
 offer can be sent.
 
-The token is `<cart id>.<link version>.<mac>`. It is an HMAC signature, derived from
-`JWT_SECRET` and kept separate from its other uses, so nothing is stored:
+The token is a 22-character URL-safe random credential (128 bits), stored on the offer.
+It contains no cart id or other offer details:
 
-- **Showing it again:** the console can always show the link.
-- **Replacing it:** bumps the cart's link version, which kills every older token.
+- **Showing it again:** the console reads the stored token.
+- **Replacing it:** generates a new token and bumps the link version, invalidating all
+  earlier tokens and any legacy signed links.
 - **Expiry:** read from the cart each time the link is used, so extending an offer needs no
   new link.
+
+Existing signed links remain valid until the offer's link is replaced. New links do not
+use `JWT_SECRET`; rotating that secret only invalidates legacy signed offer links.
 
 The storefront route `app/offer/[token]` handles a followed link:
 

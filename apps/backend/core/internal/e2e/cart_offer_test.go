@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http/httptest"
@@ -32,6 +33,17 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create offer: %v", err)
 	}
+	oldToken := offer.Offer.LinkToken
+	if decoded, err := base64.RawURLEncoding.DecodeString(oldToken); err != nil || len(oldToken) != 22 || len(decoded) != 16 {
+		t.Fatalf("offer token is not a 22-character random credential")
+	}
+	offer, err = h.D.Cart.AdminRegenerateOfferLink(h.Ctx, offer.ID)
+	if err != nil || offer.Offer.LinkToken == oldToken {
+		t.Fatalf("replace offer link: %v", err)
+	}
+	if _, err := h.D.Cart.OpenOffer(h.Ctx, oldToken, nil); !errors.Is(err, cart.ErrOfferLinkInvalid) {
+		t.Fatalf("old opaque link still opens: %v", err)
+	}
 	c, err := h.D.Cart.AdminAddToCart(h.Ctx, offer.ID, f.Product.SKU, 2)
 	if err != nil {
 		t.Fatalf("add line: %v", err)
@@ -48,7 +60,7 @@ func TestCartOfferMoneyPath(t *testing.T) {
 		t.Fatalf("set offer: %v", err)
 	}
 	offerID := offer.ID.String()
-	link := map[string]string{cart.OfferLinkHeader: h.D.Cart.OfferLinks().Sign(offer.ID, 1)}
+	link := map[string]string{cart.OfferLinkHeader: offer.Offer.LinkToken}
 
 	// The id alone is no way in, and a shopper cart was never touched by it
 	if data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`{ cart(id: %q) { id } }`, offerID)); len(errs) > 0 || data["cart"] != nil {

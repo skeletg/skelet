@@ -557,6 +557,7 @@ type Cart struct {
 	OfferExpiredNotifiedAt sql.NullTime          `json:"offer_expired_notified_at"`
 	OfferCreatedBy         uuid.NullUUID         `json:"offer_created_by"`
 	OrderID                uuid.NullUUID         `json:"order_id"`
+	OfferLinkToken         string                `json:"offer_link_token"`
 }
 
 type CartAppliedCode struct {
