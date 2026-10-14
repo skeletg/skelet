@@ -19,13 +19,14 @@ import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { CountriesPickerDocument } from '@/features/countries/Countries.gql'
+import { LOCATION_TYPES, LOCATION_TYPE_LABELS, LOCATION_TYPE_DESCRIPTIONS } from './location-types'
+import { LocationTypeBadge } from './LocationTypeBadge'
 import { FlatModeDormancyBanner } from './FlatModeDormancyBanner'
 import {
   CreateInventoryLocationDocument,
   InventoryLocationDocument,
   InventoryLocationsDocument,
   UpdateInventoryLocationDocument,
-  SetLocationPickupDocument,
 } from './Inventory.gql'
 import {
   DAYS,
@@ -36,10 +37,6 @@ import {
   toLocationValues,
   type ExistingLocation,
 } from './schemas/location'
-
-// Common type values surfaced as datalist suggestions - The column is
-// free-form so admins can type anything; these are just hints
-const TYPE_SUGGESTIONS = ['warehouse', 'retail', 'drop-shipper', 'fulfillment-center']
 
 // Create + edit render full-width from InventoryLocationsList - They accept an optional locationId prop so the parent
 // passes the URL param down; standalone usage falls back to useParams so the entry points still work
@@ -99,7 +96,6 @@ function InventoryLocationFormPage({
     : [{ query: InventoryLocationsDocument }]
   const [createLocation] = useMutation(CreateInventoryLocationDocument, { refetchQueries })
   const [updateLocation] = useMutation(UpdateInventoryLocationDocument, { refetchQueries })
-  const [setPickup] = useMutation(SetLocationPickupDocument, { refetchQueries })
 
   // Keyed on the record - it's the form's defaultValues and what the diff and stored draft compare to
   const baseline = useMemo(() => toLocationValues(location), [location])
@@ -132,15 +128,7 @@ function InventoryLocationFormPage({
           },
         },
       })
-      // Pickup is its own mutation - staged with everything else, sent only when it moved
-      if (
-        value.pickupEnabled !== baseline.pickupEnabled ||
-        value.pickupInstructions !== baseline.pickupInstructions
-      ) {
-        await setPickup({
-          variables: { id: location.id, enabled: value.pickupEnabled, instructions: value.pickupInstructions },
-        })
-      }
+
     },
     onSaved: () => navigate('/inventory/locations'),
   })
@@ -204,23 +192,13 @@ function InventoryLocationFormPage({
           </form.AppField>
         </div>
 
-        <form.AppField name="type">
-          {(f) => (
-            <f.TextField
-              id="loc-type"
-              label="Type"
-              placeholder="warehouse"
-              list="loc-type-suggestions"
-              hint="Free-form classifier. Common values: warehouse, retail, drop-shipper, fulfillment-center."
-              note={clash('type')}
-            />
-          )}
-        </form.AppField>
-        <datalist id="loc-type-suggestions">
-          {TYPE_SUGGESTIONS.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
+        <form.Subscribe selector={(s) => s.values.type}>
+          {(type) => <div className="space-y-2">
+            <form.AppField name="type">{(f) => <f.SelectField id="loc-type" label="Location type" options={LOCATION_TYPES.map(value => ({ value, label: LOCATION_TYPE_LABELS[value] }))} hint={LOCATION_TYPE_DESCRIPTIONS[type]} note={clash('type')} />}</form.AppField>
+            <LocationTypeBadge type={type} />
+            {baseline.type === 'RETAIL_STORE' && type !== 'RETAIL_STORE' && <p className="text-sm text-warning">Saving this type change removes the location from the store finder and disables online pickup. Review these changes with Save.</p>}
+          </div>}
+        </form.Subscribe>
 
         <form.AppField name="isActive">
           {(f) => (
@@ -236,7 +214,7 @@ function InventoryLocationFormPage({
 
       <DetailPageSection
         title="Address"
-        description="Used in subsidiary documents and warehouse-side fulfillment exports. Empty fields are stored as empty strings, not nulls."
+        description="Address for inventory operations. Public retail stores also show it to customers in the store finder."
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <form.AppField name="line1">
@@ -419,35 +397,20 @@ function InventoryLocationFormPage({
         </div>
       </DetailPageSection>
 
-      {location && (
-        <DetailPageSection
-          title="Pickup point"
-          description="When enabled (and the location is active), checkout offers this location as a free click-and-collect option."
-        >
-          <div className="grid gap-3">
-            <form.AppField name="pickupEnabled">
-              {(f) => (
-                <f.SwitchField id="loc-pickup-enabled" label="Offer pickup at this location" note={clash('pickupEnabled')} />
-              )}
-            </form.AppField>
-            <form.Subscribe selector={(s) => s.values.pickupEnabled}>
-              {(enabled) => (
-                <form.AppField name="pickupInstructions">
-                  {(f) => (
-                    <f.TextField
-                      id="loc-pickup-instructions"
-                      label="Pickup instructions"
-                      placeholder="Enter through the side door, bring your order number…"
-                      disabled={!enabled}
-                      note={clash('pickupInstructions')}
-                    />
-                  )}
-                </form.AppField>
-              )}
-            </form.Subscribe>
-          </div>
-        </DetailPageSection>
-      )}
+      <form.Subscribe selector={(s) => ({ type: s.values.type, visible: s.values.storefrontVisible, pickup: s.values.pickupEnabled, active: s.values.isActive })}>
+        {({ type, visible, pickup, active }) => type === 'RETAIL_STORE' ? (
+          <DetailPageSection title="Customer access" description="A retail store can welcome walk-in shoppers without offering online pickup.">
+            <div className="space-y-4">
+              <form.AppField name="storefrontVisible">{(f) => <f.SwitchField id="loc-storefront-visible" label="List in store finder" description="Show this store and its stock on assigned channels when Store availability is enabled." note={clash('storefrontVisible')} />}</form.AppField>
+              <form.AppField name="pickupEnabled">{(f) => <f.SwitchField id="loc-pickup-enabled" label="Accept online orders for pickup" description="Offer this active store as a free click-and-collect option at checkout." note={clash('pickupEnabled')} />}</form.AppField>
+              <form.AppField name="pickupInstructions">{(f) => <f.TextField id="loc-pickup-instructions" label="Pickup instructions" placeholder="Bring your order number…" disabled={!pickup} note={clash('pickupInstructions')} />}</form.AppField>
+              <p className="rounded-md border p-3 text-sm" role="status">
+                {!active ? 'This store is inactive and unavailable to customers.' : `${visible ? 'Customers can check stock and visit this store on its assigned channels when Store availability is enabled.' : 'This store is hidden from the store finder.'} ${pickup ? 'Online pickup is enabled.' : 'Online pickup is disabled.'}`}
+              </p>
+            </div>
+          </DetailPageSection>
+        ) : <DetailPageSection title="Customer access"><p className="text-sm text-muted-foreground">This location is internal. Only retail stores can appear in the store finder or accept online pickup orders.</p></DetailPageSection>}
+      </form.Subscribe>
 
       <DetailPageSection
         title="Free-form metadata"

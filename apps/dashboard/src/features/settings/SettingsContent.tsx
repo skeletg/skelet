@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client/react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { LoadError } from '@/shared/errors/LoadError'
 import { cn } from '@/lib/utils'
+import { FlatModeDormancyBanner } from '@/features/inventory/FlatModeDormancyBanner'
 import { ConfigField } from '@/features/settings/ConfigField'
 import { ConfigSectionsDocument } from '@/features/settings/Settings.gql'
 import type { ConfigScopeInput } from '@/graphql/schema.types'
@@ -231,6 +232,7 @@ export function SettingsContent({
                     {groupLock}
                   </p>
                 )}
+                {group.slug === 'store_availability' && <FlatModeDormancyBanner />}
                 <form
                   className={cn('divide-y', !groupLock && drawTopRule && 'border-t')}
                   autoComplete="off"
