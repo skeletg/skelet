@@ -4,6 +4,9 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { useDebounced } from '@/shared/hooks/useDebounced'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PackageCheckIcon, PlusIcon } from 'lucide-react'
+import { locationFiltersForQuery } from './location-filters'
+import { LOCATION_TYPES, LOCATION_TYPE_LABELS } from './location-types'
+import { LocationTypeBadge } from './LocationTypeBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +37,7 @@ type LocationRow = {
   city: string
   region: string
   countryCode: string
+  storefrontVisible: boolean
   pickupEnabled: boolean
 }
 
@@ -51,6 +55,7 @@ export function InventoryLocationsList() {
     setPagination,
   } = useListUrlState()
   const debouncedSearch = useDebounced(search.trim(), 300)
+  const locationFilter = useMemo(() => locationFiltersForQuery(columnFilters), [columnFilters])
   const navigate = useNavigate()
   const params = useParams<{ id?: string }>()
   // /inventory/locations/new is its own literal route (no :id) to this same component, so match the path - the
@@ -65,6 +70,7 @@ export function InventoryLocationsList() {
   const { data, loading, error } = useQuery(InventoryLocationsPagedDocument, {
     variables: {
       search: debouncedSearch || null,
+      filter: locationFilter,
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pagination.pageSize,
     },
@@ -81,6 +87,7 @@ export function InventoryLocationsList() {
         region: l.region,
         countryCode: l.countryCode,
         pickupEnabled: l.pickupEnabled,
+        storefrontVisible: l.storefrontVisible,
       })),
     [data],
   )
@@ -135,22 +142,19 @@ export function InventoryLocationsList() {
         header: 'Type',
         size: 120,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">{row.original.type || '-'}</span>
+          <LocationTypeBadge type={row.original.type} />
         ),
       },
       {
-        id: 'address',
-        header: 'Location',
-        // accessorFn not just cell - the global filter only sees columns that resolve a value, and city has to stay searchable
-        accessorFn: (row) => formatLocation(row),
+        accessorKey: 'city',
+        header: 'City',
+        // Keep city as an accessor so its filter is available in the shared table toolbar.
         enableSorting: false,
-        cell: ({ getValue }) => (
-          <span className="text-xs text-muted-foreground">{(getValue() as string) || '-'}</span>
-        ),
+        cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatLocation(row.original) || '-'}</span>,
       },
       {
-        id: 'pickup',
-        header: 'Pickup',
+        accessorKey: 'pickupEnabled',
+        header: 'Online pickup',
         size: 110,
         cell: ({ row }) =>
           row.original.pickupEnabled ? (
@@ -161,6 +165,8 @@ export function InventoryLocationsList() {
             <span className="text-xs text-muted-foreground">-</span>
           ),
       },
+      { accessorKey: 'isActive', header: 'Status', cell: ({ row }) => <Badge variant="outline">{row.original.isActive ? 'Active' : 'Inactive'}</Badge> },
+      { accessorKey: 'storefrontVisible', header: 'Public listing', cell: ({ row }) => <span className="text-xs">{row.original.type !== 'RETAIL_STORE' ? 'Not applicable' : row.original.storefrontVisible ? 'Listed' : 'Hidden'}</span> },
       {
         id: 'actions',
         size: 48,
@@ -213,8 +219,15 @@ export function InventoryLocationsList() {
         loading={loading && rows.length === 0}
         error={error ? { message: error.message } : null}
         getRowId={(row) => row.id}
-        emptyState="No locations yet."
+        emptyState={search || columnFilters.length ? "No locations match your filters." : "No locations yet."}
         searchPlaceholder="Search name, slug or city…"
+        filters={[
+          { column: 'type', title: 'Location type', options: LOCATION_TYPES.map(value => ({ value, label: LOCATION_TYPE_LABELS[value] })) },
+          { column: 'city', title: 'City', kind: 'text', placeholder: 'Search city…' },
+          { column: 'isActive', title: 'Status', kind: 'boolean', trueLabel: 'Active', falseLabel: 'Inactive' },
+          { column: 'storefrontVisible', title: 'Public listing', kind: 'boolean', trueLabel: 'Listed', falseLabel: 'Hidden' },
+          { column: 'pickupEnabled', title: 'Online pickup', kind: 'boolean', trueLabel: 'Enabled', falseLabel: 'Disabled' },
+        ]}
         manual={{
           rowCount: totalCount,
           pagination,

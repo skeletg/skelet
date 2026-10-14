@@ -65,3 +65,39 @@ describe('location schema', () => {
     expect(input.metadata).toEqual([])
   })
 })
+
+
+describe('public storefront visibility', () => {
+  it('defaults to hidden and includes visibility in the mutation and confirmation diff', () => {
+    const before = { ...toLocationValues(), type: 'RETAIL_STORE' as const }
+    expect(before.storefrontVisible).toBe(false)
+    const after = { ...before, storefrontVisible: true }
+    expect(toLocationInput(after).storefrontVisible).toBe(true)
+    expect(locationDiff(before, after)).toEqual([
+      { kind: 'change', label: 'List in store finder', before: 'no', after: 'yes' },
+    ])
+    expect(toLocationValues({ ...stored, storefrontVisible: true }).storefrontVisible).toBe(true)
+  })
+})
+
+
+describe('location classification and customer access', () => {
+  it('normalizes known legacy labels and rejects arbitrary purposes', () => {
+    expect(toLocationValues(stored).type).toBe('WAREHOUSE')
+    expect(toLocationValues({ ...stored, type: 'custom' }).type).toBe('UNCLASSIFIED')
+    expect(locationSchema.safeParse({ ...toLocationValues(stored), type: 'custom' }).success).toBe(false)
+  })
+  it('reviews and submits removal of both services when converting a retail store', () => {
+    const before = { ...toLocationValues(stored), type: 'RETAIL_STORE' as const, storefrontVisible: true, pickupEnabled: true }
+    const after = { ...before, type: 'WAREHOUSE' as const }
+    expect(locationDiff(before, after)).toEqual(expect.arrayContaining([
+      { kind: 'change', label: 'Type', before: 'Retail store', after: 'Warehouse' },
+      { kind: 'change', label: 'List in store finder', before: 'yes', after: 'no' },
+      { kind: 'change', label: 'Accept online orders for pickup', before: 'yes', after: 'no' },
+    ]))
+    expect(toLocationInput(after)).toMatchObject({ type: 'WAREHOUSE', storefrontVisible: false, pickupEnabled: false })
+  })
+  it('keeps a walk-in retail store visible without online pickup', () => {
+    expect(toLocationInput({ ...toLocationValues(stored), type: 'RETAIL_STORE', storefrontVisible: true, pickupEnabled: false })).toMatchObject({ storefrontVisible: true, pickupEnabled: false })
+  })
+})

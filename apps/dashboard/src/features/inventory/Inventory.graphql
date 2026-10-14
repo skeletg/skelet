@@ -1,16 +1,17 @@
-query InventoryLocationsPaged($search: String, $limit: Int, $offset: Int) {
-  inventoryLocations(search: $search, limit: $limit, offset: $offset) {
+query InventoryLocationsPaged($search: String, $limit: Int, $offset: Int, $filter: InventoryLocationFilter) {
+  inventoryLocations(search: $search, limit: $limit, offset: $offset, filter: $filter) {
     id
     slug
     name
     isActive
+    storefrontVisible
     type
     city
     region
     countryCode
     pickupEnabled
   }
-  inventoryLocationsCount(search: $search)
+  inventoryLocationsCount(search: $search, filter: $filter)
 }
 
 query InventoryLocations {
@@ -19,6 +20,7 @@ query InventoryLocations {
     slug
     name
     isActive
+    storefrontVisible
     type
     line1
     line2
@@ -51,6 +53,7 @@ query InventoryLocation($id: ID!) {
     slug
     name
     isActive
+    storefrontVisible
     type
     line1
     line2
@@ -92,6 +95,7 @@ query ProductInventory($productId: ID!) {
         slug
         name
         isActive
+    storefrontVisible
       }
       quantity
       reservedQuantity
@@ -140,6 +144,7 @@ query ChannelWithLocations($id: ID!) {
         slug
         name
         isActive
+    storefrontVisible
       }
     }
   }
@@ -151,6 +156,7 @@ mutation CreateInventoryLocation($input: CreateInventoryLocationInput!) {
     slug
     name
     isActive
+    storefrontVisible
     type
     line1
     line2
@@ -181,6 +187,7 @@ mutation UpdateInventoryLocation($input: UpdateInventoryLocationInput!) {
     slug
     name
     isActive
+    storefrontVisible
     type
     line1
     line2
@@ -221,6 +228,7 @@ mutation SetChannelLocations(
         slug
         name
         isActive
+    storefrontVisible
       }
     }
   }
