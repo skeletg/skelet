@@ -199,7 +199,7 @@ func (r *postgresRepository) Update(ctx context.Context, id uuid.UUID, input Upd
 		ID:        id,
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
-		Phone:     sqlnull.String(input.Phone),
+		Phone:     sqlnull.StringNonEmpty(input.Phone),
 	})
 	if err != nil {
 		return Customer{}, fmt.Errorf("update customer: %w", err)
@@ -241,7 +241,7 @@ func (r *postgresRepository) AdminCreate(ctx context.Context, input AdminCreateC
 		PasswordHash:    passwordHash,
 		FirstName:       input.FirstName,
 		LastName:        input.LastName,
-		Phone:           sqlnull.String(input.Phone),
+		Phone:           sqlnull.StringNonEmpty(input.Phone),
 		IsActive:        *input.IsActive,
 		IsEmailVerified: *input.IsEmailVerified,
 		CustomerGroupID: groupID,
@@ -281,7 +281,7 @@ func (r *postgresRepository) AdminUpdate(ctx context.Context, id uuid.UUID, inpu
 		p.LastName = *input.LastName
 	}
 	if input.Phone != nil {
-		p.Phone = sqlnull.String(input.Phone)
+		p.Phone = sqlnull.StringNonEmpty(input.Phone)
 	}
 	if input.IsActive != nil {
 		p.IsActive = *input.IsActive
