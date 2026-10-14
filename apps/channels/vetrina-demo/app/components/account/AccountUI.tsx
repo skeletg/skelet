@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
+import { PasswordInput } from "@/app/components/account/PasswordInput";
 
 export function AccountPageHeader({
   title,
@@ -186,26 +187,29 @@ export function Field({
       ? field.initialValue
       : undefined
     : defaultValue;
+  const inputProps = {
+    id,
+    name: field?.name ?? name,
+    required,
+    defaultValue: value,
+    autoComplete,
+    maxLength,
+    minLength,
+    placeholder,
+    "aria-invalid": errors ? true : undefined,
+    "aria-describedby": describedBy,
+    className: `${inputClass} w-full ${errors ? "border-red-400" : ""}`,
+  };
   return (
     <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
-      <input
-        key={field?.key}
-        id={id}
-        name={field?.name ?? name}
-        type={type}
-        required={required}
-        defaultValue={value}
-        autoComplete={autoComplete}
-        maxLength={maxLength}
-        minLength={minLength}
-        placeholder={placeholder}
-        aria-invalid={errors ? true : undefined}
-        aria-describedby={describedBy}
-        className={`${inputClass} w-full ${errors ? "border-red-400" : ""}`}
-      />
+      {type === "password" ? (
+        <PasswordInput key={field?.key} {...inputProps} />
+      ) : (
+        <input key={field?.key} type={type} {...inputProps} />
+      )}
       {hint ? (
         <span id={hintId} className="text-xs text-muted-foreground">
           {hint}

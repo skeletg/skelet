@@ -8,8 +8,9 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
 import { ProductListShell } from "@/app/components/ProductListShell";
-import { browseProducts, getCategory, productSortOptions } from "@/app/lib/catalog/read";
-import { getBrowsePageSize, getSeoConfig } from "@/app/lib/config/read";
+import { getCategory, productSortOptions } from "@/app/lib/catalog/read";
+import { listingIndexability } from "@/app/lib/catalog/indexability";
+import { getSeoConfig } from "@/app/lib/config/read";
 import { displayName } from "@/app/lib/display";
 import { categoryHref } from "@/app/lib/entity-href";
 import { breadcrumbJsonLd } from "@/app/lib/json-ld";
@@ -18,7 +19,6 @@ import {
 import { absUrl } from "@/app/lib/sitemap/read";
 import {
   assembleH1,
-  evaluateFilterIndexability,
   isSortUrlIndexable,
   parseFilterSegments,
   parseSortFromSegments,
@@ -43,7 +43,7 @@ export async function generateMetadata(
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
   const [{ indexable: filtersIndexable }, sortOpts] = await Promise.all([
-    evaluateIndexability({ categoryId: id }, pathFilters),
+    listingIndexability({ categoryId: id }, pathFilters),
     productSortOptions(),
   ]);
   const page = parsePageFromSegments(filter ?? []);
@@ -68,33 +68,6 @@ export async function generateMetadata(
     openGraph: { type: "website", title, url: absUrl(pagedHref, await getSiteUrl()) },
     twitter: { card: "summary", title },
   };
-}
-
-async function evaluateIndexability(
-  baseFilter: { categoryId?: string; collectionId?: string },
-  pathFilters: { slug: string; values: string[] }[],
-) {
-  const { data } = await browseProducts({
-    filter: {
-      ...baseFilter,
-      attributes: pathFilters.length > 0 ? pathFilters : null,
-    },
-    limit: await getBrowsePageSize(), // the grid's page size, so both share one cached fetch
-    offset: 0,
-  });
-  const seo = await getSeoConfig();
-  const idx = evaluateFilterIndexability(pathFilters, data.facets, {
-    combinations: seo.facetCombinations,
-  });
-  // Thin-page guard - only for FILTERED pages, a sparse base listing stays indexable
-  if (
-    pathFilters.length > 0 &&
-    seo.minFacetResults > 0 &&
-    data.totalCount < seo.minFacetResults
-  ) {
-    idx.indexable = false;
-  }
-  return idx;
 }
 
 export default async function CategoryPage(
@@ -126,7 +99,7 @@ export default async function CategoryPage(
   const basePath = prettyBasePath ?? `/categories/${id}`;
   // Reuse the cached browseProducts call from generateMetadata
   const [idx, sortOpts] = await Promise.all([
-    evaluateIndexability({ categoryId: id }, pathFilters),
+    listingIndexability({ categoryId: id }, pathFilters),
     productSortOptions(),
   ]);
   // Effective indexability folds in the sort URL - a non-indexable sort drops the H1
