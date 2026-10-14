@@ -14,6 +14,7 @@ import { ReviewInsightsContent } from './ReviewInsights'
 import { ReviewQuestionsTable } from './ReviewQuestionsTable'
 import { ReviewCategoriesContent } from './ReviewCategoriesList'
 import { ReviewModerationTagsContent } from './ReviewModerationTagsList'
+import { Tile } from '@/components/layout/panels'
 
 // ReviewsHome is the single tabbed shell for the whole Reviews area: the
 // moderation queue, issue insights, the question library, categories, and
@@ -102,15 +103,5 @@ function ReviewsOverview() {
         <ReviewsList />
       </DetailPageSection>
     </DetailPageBody>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
   )
 }

@@ -12,10 +12,10 @@ import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseRetentionDocument } from './Synapse.gql'
+import { formatNumber } from '@/lib/format'
 
 type Unit = 'day' | 'week'
 type Bucket = { period: number; count: number; eligible: number }
-const nfmt = (n: number) => n.toLocaleString()
 const pctOf = (b?: Bucket | null): number | null => (b && b.eligible > 0 ? Math.round((b.count / b.eligible) * 100) : null)
 
 export function SynapseRetention() {
@@ -113,7 +113,7 @@ export function SynapseRetention() {
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <Tile label="Cohort" value={nfmt(ret.cohort)} sub={`did ${eventLabel(startEvent)}`} />
+                  <Tile label="Cohort" value={formatNumber(ret.cohort)} sub={`did ${eventLabel(startEvent)}`} />
                   <Tile label={`${unitLabel} 1 retention`} value={p1 === null ? '-' : `${p1}%`} sub={`came back & did ${eventLabel(returnEvent)}`} />
                   <Tile label={lastMature ? `${unitLabel} ${lastMature.period} retention` : 'Latest'} value={lastPct === null ? '-' : `${lastPct}%`} sub="most recent mature period" />
                 </div>
@@ -156,7 +156,7 @@ function CohortRow({ label, size, buckets, emphasize }: { label: string; size: n
   return (
     <tr className={cn('border-t', emphasize && 'bg-muted/40 font-medium')}>
       <td className={cn('sticky left-0 z-10 whitespace-nowrap px-3 py-1.5', emphasize ? 'bg-muted/40 font-medium' : 'bg-background')}>{label}</td>
-      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{nfmt(size)}</td>
+      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{formatNumber(size)}</td>
       {buckets.map((b) => {
         const p = pctOf(b)
         return (
@@ -164,7 +164,7 @@ function CohortRow({ label, size, buckets, emphasize }: { label: string; size: n
             {p === null ? (
               <div className="mx-auto grid h-8 w-12 place-items-center rounded bg-muted/20 text-muted-foreground/30">·</div>
             ) : (
-              <div className="relative mx-auto grid h-8 w-12 place-items-center overflow-hidden rounded" title={`${nfmt(b.count)} of ${nfmt(b.eligible)}`}>
+              <div className="relative mx-auto grid h-8 w-12 place-items-center overflow-hidden rounded" title={`${formatNumber(b.count)} of ${formatNumber(b.eligible)}`}>
                 <div className="absolute inset-0 bg-primary" style={{ opacity: Math.max(0.06, p / 100) }} aria-hidden />
                 <span className={cn('relative text-[11px] tabular-nums', p >= 55 ? 'text-primary-foreground' : 'text-foreground')}>{p}%</span>
               </div>

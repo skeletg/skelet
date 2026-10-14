@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -31,6 +31,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, PrismSegmentsDocument, UpdateExperimentDocument } from './Prism.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { Panel } from '@/components/layout/panels'
 
 type Variation = { key: string; name: string; weight: number; value: string }
 type Draft = {
@@ -490,17 +491,6 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
         </>
       )}
     </DetailPageSection>
-  )
-}
-
-// A bordered panel with a header strip - matches the flat skelet style used by
-// the Lens / Prism hubs
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
   )
 }
 

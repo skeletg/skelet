@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -18,12 +18,10 @@ import { useConfigScope } from '@/lib/config-scope'
 import { type LensOverviewQuery, LensFrustrationDocument, LensOverviewDocument, LensVitalsSummaryDocument } from './Lens.gql'
 import { VITAL_ORDER, isVitalMetric } from './vitals'
 import { VitalGauge } from './VitalGauge'
+import { Empty, Panel, Tile } from '@/components/layout/panels'
+import { formatNumber } from '@/lib/format'
 
 type PageRow = LensOverviewQuery['lensOverview']['topPages'][number]
-
-function nfmt(n: number): string {
-  return n.toLocaleString()
-}
 
 export function LensHome() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -68,7 +66,7 @@ export function LensHome() {
           const pct = totalViews > 0 ? Math.round((row.original.views / totalViews) * 100) : 0
           return (
             <div className="flex items-center gap-2">
-              <span className="w-14 shrink-0 tabular-nums">{nfmt(row.original.views)}</span>
+              <span className="w-14 shrink-0 tabular-nums">{formatNumber(row.original.views)}</span>
               <Bar value={pct} suffix={`${pct}%`} />
             </div>
           )
@@ -77,7 +75,7 @@ export function LensHome() {
       {
         accessorKey: 'clicks',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Clicks" />,
-        cell: ({ row }) => <span className="tabular-nums">{nfmt(row.original.clicks)}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.clicks)}</span>,
       },
       {
         accessorKey: 'avgScroll',
@@ -118,18 +116,18 @@ export function LensHome() {
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-sm font-medium">Traffic</span>
                   <span className="text-xs text-muted-foreground">
-                    {nfmt(ov.views)} views · {nfmt(ov.visitors)} visitors
+                    {formatNumber(ov.views)} views · {formatNumber(ov.visitors)} visitors
                   </span>
                 </div>
                 <TrafficTrend daily={ov.daily} />
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Tile label="Page views" value={nfmt(ov.views)} sub="last 30 days" />
-                <Tile label="Unique visitors" value={nfmt(ov.visitors)} sub="distinct anonymous ids" />
+                <Tile label="Page views" value={formatNumber(ov.views)} sub="last 30 days" />
+                <Tile label="Unique visitors" value={formatNumber(ov.visitors)} sub="distinct anonymous ids" />
                 <Tile label="Views / visitor" value={viewsPerVisitor.toFixed(1)} sub="browsing depth" />
-                <Tile label="Clicks" value={nfmt(totalClicks)} sub="across tracked pages" />
+                <Tile label="Clicks" value={formatNumber(totalClicks)} sub="across tracked pages" />
                 <Tile label="Avg scroll depth" value={`${avgScroll}%`} sub="view-weighted" />
-                <Tile label="Pages" value={nfmt(ov.topPages.length)} sub="with traffic" />
+                <Tile label="Pages" value={formatNumber(ov.topPages.length)} sub="with traffic" />
               </div>
             </DetailPageSection>
 
@@ -206,7 +204,7 @@ export function LensHome() {
                           <li key={d.label} className="flex items-center gap-3 text-sm">
                             <span className="w-20 shrink-0 capitalize text-muted-foreground">{d.label}</span>
                             <Bar value={p} />
-                            <span className="w-12 shrink-0 text-right tabular-nums">{nfmt(d.views)}</span>
+                            <span className="w-12 shrink-0 text-right tabular-nums">{formatNumber(d.views)}</span>
                             <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{p}%</span>
                           </li>
                         )
@@ -224,7 +222,7 @@ export function LensHome() {
                         <li key={r.label} className="flex items-center gap-3 text-sm">
                           <span className="w-32 shrink-0 truncate text-muted-foreground" title={r.label}>{r.label}</span>
                           <Bar value={Math.round((r.views / maxReferrer) * 100)} />
-                          <span className="w-12 shrink-0 text-right tabular-nums">{nfmt(r.views)}</span>
+                          <span className="w-12 shrink-0 text-right tabular-nums">{formatNumber(r.views)}</span>
                         </li>
                       ))}
                     </ul>
@@ -256,7 +254,7 @@ export function LensHome() {
                       {ov.interactions.map((i) => (
                         <tr key={i.label} className="border-b last:border-0">
                           <td className="px-3 py-2">{i.label}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{nfmt(i.views)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(i.views)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -351,7 +349,7 @@ function FrustrationSection({ channelId }: { channelId: string }) {
           <li key={p.pageKey} className="flex items-center gap-3 text-sm">
             <span className="w-32 shrink-0 truncate font-mono text-xs text-muted-foreground" title={p.pageKey}>{p.pageKey || '/'}</span>
             <Bar value={Math.round((p.count / max) * 100)} />
-            <span className="w-10 shrink-0 text-right tabular-nums">{nfmt(p.count)}</span>
+            <span className="w-10 shrink-0 text-right tabular-nums">{formatNumber(p.count)}</span>
           </li>
         ))}
       </ul>
@@ -375,7 +373,7 @@ function FrustrationSection({ channelId }: { channelId: string }) {
                     <span className="block truncate">{el.text || el.selector}</span>
                     <span className="block truncate font-mono text-[11px] text-muted-foreground">{el.selector}</span>
                   </span>
-                  <span className="shrink-0 tabular-nums">{nfmt(el.count)}</span>
+                  <span className="shrink-0 tabular-nums">{formatNumber(el.count)}</span>
                 </li>
               ))}
             </ul>
@@ -467,28 +465,6 @@ function NavCard({ to, icon: Icon, title, desc }: { to: string; icon: LucideIcon
   )
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-// A bordered panel with a header strip - the flat alternative to a Card
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  )
-}
-
 function Bar({ value, suffix }: { value: number; suffix?: string }) {
   return (
     <span className="flex flex-1 items-center gap-2">
@@ -498,8 +474,4 @@ function Bar({ value, suffix }: { value: number; suffix?: string }) {
       {suffix && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{suffix}</span>}
     </span>
   )
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }

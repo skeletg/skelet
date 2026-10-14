@@ -13,9 +13,9 @@ import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { type SynapseFlowQuery, SynapseFlowDocument, SynapseOverviewDocument } from './Synapse.gql'
+import { formatNumber } from '@/lib/format'
 
 type FlowNode = { id: string; parentId: string; event: string; depth: number; count: number }
-const nfmt = (n: number) => n.toLocaleString()
 const TOP = 12 // show the busiest next steps; rarer ones fold into "show more"
 
 export function SynapseFlow() {
@@ -138,7 +138,7 @@ function FlowDrilldown({
           <div className="truncate font-medium">{currentLabel}</div>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-2xl font-semibold leading-none tabular-nums">{nfmt(currentCount)}</div>
+          <div className="text-2xl font-semibold leading-none tabular-nums">{formatNumber(currentCount)}</div>
           <div className="mt-0.5 text-xs text-muted-foreground">{trail.length === 0 ? 'people' : 'reached here'}</div>
         </div>
       </div>
@@ -187,7 +187,7 @@ function FlowSummary({ focus, cohort, continued, avgSteps }: { focus: string; co
         <span className="bg-primary" style={{ width: `${contPct}%` }} />
       </div>
       <div className="mt-2 text-xs text-muted-foreground">
-        {nfmt(continued)} of {nfmt(cohort)} took a next step{continued > 0 ? ` · averaging ${avgSteps.toFixed(1)} steps deep` : ''}
+        {formatNumber(continued)} of {formatNumber(cohort)} took a next step{continued > 0 ? ` · averaging ${avgSteps.toFixed(1)} steps deep` : ''}
       </div>
     </div>
   )
@@ -214,7 +214,7 @@ function TopPaths({ focus, paths, cohort }: { focus: string; paths: { events: st
                 ))}
               </div>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                {nfmt(p.count)}
+                {formatNumber(p.count)}
                 <span className="ml-1.5 font-semibold text-foreground">{pct}%</span>
               </span>
             </div>
@@ -292,7 +292,7 @@ function NextSteps({ steps, cohort, byParent, onDrill }: { steps: FlowNode[]; co
             <span className="relative flex h-full items-center gap-2 px-3">
               <span className="truncate text-sm font-medium">{eventLabel(n.event)}</span>
               <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                {nfmt(n.count)}
+                {formatNumber(n.count)}
                 <span className="ml-1.5 font-semibold text-foreground">{pct}%</span>
               </span>
               {drillable ? <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" /> : <span className="w-4 shrink-0" aria-hidden />}
@@ -312,7 +312,7 @@ function NextSteps({ steps, cohort, byParent, onDrill }: { steps: FlowNode[]; co
           <span className="size-1.5 rounded-full bg-muted-foreground/40" aria-hidden />
           <span>No further activity</span>
           <span className="ml-auto tabular-nums">
-            {nfmt(dropped)}
+            {formatNumber(dropped)}
             <span className="ml-1.5 font-medium">{dropPct}%</span>
           </span>
         </div>

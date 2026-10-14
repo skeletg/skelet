@@ -27,10 +27,9 @@ import {
 } from './Synapse.gql'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { newGroup, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
+import { formatNumber } from '@/lib/format'
 
 type SegRow = SynapseSegmentsQuery['synapseSegments'][number]
-
-const nfmt = (n: number) => n.toLocaleString()
 
 export function SynapseSegments() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -166,7 +165,7 @@ export function SynapseSegments() {
                     <span className="text-muted-foreground">Counting…</span>
                   ) : (
                     <span>
-                      <span className="text-lg font-semibold tabular-nums">{nfmt(previewCount ?? 0)}</span>{' '}
+                      <span className="text-lg font-semibold tabular-nums">{formatNumber(previewCount ?? 0)}</span>{' '}
                       <span className="text-muted-foreground">customers match</span>
                     </span>
                   )}
