@@ -8,7 +8,9 @@ import { refresh, revalidatePath } from "next/cache";
 import { AccountAddAddressDocument } from "@/app/lib/auth/operations.gql";
 import { ACCESS_TOKEN_COOKIE } from "@/app/lib/auth/session";
 import { SetCartNoteDocument } from "@/app/lib/cart/mutations.gql";
-import { CART_COOKIE, getCart } from "@/app/lib/cart/read";
+import { CART_COOKIE } from "@/app/lib/cart/read";
+import { getCheckoutCart, isOfferCheckout } from "@/app/lib/cart/offer";
+import { OFFER_CHECKOUT_COOKIE, OFFER_COOKIE } from "@/app/lib/cart/offer-cookie";
 import {
   ApplyCheckoutGiftCardDocument,
   FinalizeOrderPaymentDocument,
@@ -81,6 +83,10 @@ const CODE_KEYS: Record<string, string> = {
   INSUFFICIENT_STOCK: "insufficientStock",
   ORDER_MINIMUM_NOT_MET: "orderMinimumNotMet",
   GUEST_CHECKOUT_DISABLED: "guestCheckoutDisabled",
+  CART_OFFER_PAYMENT_NOT_ALLOWED: "offerPaymentNotAllowed",
+  CART_OFFER_LOCKED: "offerLocked",
+  CART_OFFER_EXPIRED: "offerExpired",
+  CART_OFFER_REVOKED: "offerRevoked",
   // The front API scrubs an unavailable-class message, so the code is all that survives
   ADDRESS_VALIDATION_UNAVAILABLE: "addressValidationUnavailable",
 };
@@ -91,8 +97,9 @@ function checkoutError(submission: AnySubmission, err: unknown, fallbackKey: str
   return submission.reply({ formErrors: [key ?? errorMessage(err, fallbackKey)] });
 }
 
+// The offer while the shopper is completing one, else their own cart
 async function currentCartId(): Promise<string | null> {
-  return (await getCart())?.id ?? null;
+  return (await getCheckoutCart())?.id ?? null;
 }
 
 async function runStep(
@@ -312,7 +319,9 @@ export async function placeOrderAction(
   _prev: PlaceOrderResult | undefined,
   formData: FormData,
 ): Promise<PlaceOrderResult> {
-  const cartId = await currentCartId();
+  const cart = await getCheckoutCart();
+  const cartId = cart?.id ?? null;
+  const offer = (await isOfferCheckout()) ? (cart?.offer ?? null) : null;
   const [settings, checkout] = await Promise.all([
     getCheckoutSettings(),
     cartId ? getCheckoutState(cartId) : null,
@@ -345,10 +354,17 @@ export async function placeOrderAction(
   }
 
   const cookieStore = await cookies();
-  cookieStore.delete(CART_COOKIE);
+  if (offer) {
+    // The offer is history - the shopper's own cart is untouched and takes over again
+    cookieStore.delete(OFFER_COOKIE);
+    cookieStore.delete(OFFER_CHECKOUT_COOKIE);
+  } else {
+    cookieStore.delete(CART_COOKIE);
+  }
   revalidatePath("/", "layout");
 
-  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined;
+  // A guest offer places a guest order for its recipient, whoever is signed in on this browser
+  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
   const redirectTo = await withLocalePrefix(
     signedIn
       ? `/account/orders/${orderId}?just_placed=1`

@@ -28,6 +28,8 @@ export async function OrderSummary({
   currency: Currency;
   locale: string;
 }) {
+  // An offer's price is the store's - the code box would apply to the shopper's own cart anyway
+  const coupons = !cart.offer;
   const t = await getTranslations({ locale, namespace: "checkout" });
   const to = await getTranslations({ locale, namespace: "order" });
   const priced = checkout.destination !== null;
@@ -96,7 +98,7 @@ export async function OrderSummary({
         </ul>
       ) : null}
 
-      <CheckoutCoupon />
+      {coupons ? <CheckoutCoupon /> : null}
 
       <Totals
         totals={checkout.totals}

@@ -423,6 +423,7 @@ export type Cart = {
   id: Scalars['ID']['output'];
   lines: Array<CartLine>;
   note: Scalars['String']['output'];
+  offer?: Maybe<CartOffer>;
   savedItems: Array<SavedItem>;
   subtotal: Scalars['Int']['output'];
   totalDiscount: Scalars['Int']['output'];
@@ -494,6 +495,7 @@ export type CartLine = {
   currentUnitPrice?: Maybe<Scalars['Int']['output']>;
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
+  isCustom: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   options: Array<CartLineOption>;
   quantity: Scalars['Float']['output'];
@@ -528,6 +530,38 @@ export type CartLineOption = {
   textValue: Scalars['String']['output'];
   valueLabel: Scalars['String']['output'];
 };
+
+export type CartOffer = {
+  __typename?: 'CartOffer';
+  expiresAt: Scalars['Time']['output'];
+  isGuest: Scalars['Boolean']['output'];
+  locks: Array<CartOfferLock>;
+  message: Scalars['String']['output'];
+  paymentMethods: Array<Scalars['String']['output']>;
+  state: CartOfferState;
+};
+
+export type CartOfferLock =
+  | 'BILLING'
+  | 'COUPONS'
+  | 'DELIVERY'
+  | 'LINES'
+  | 'SHIPPING';
+
+export type CartOfferOpening = {
+  __typename?: 'CartOfferOpening';
+  cartId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
+  state: CartOfferState;
+};
+
+export type CartOfferState =
+  | 'COMPLETED'
+  | 'DRAFT'
+  | 'EXPIRED'
+  | 'OPENED'
+  | 'REVOKED'
+  | 'SENT';
 
 export type Category = {
   __typename?: 'Category';
@@ -1043,6 +1077,7 @@ export type Mutation = {
   mergeGuestCart: Cart;
   moveSavedToCart: Cart;
   moveToCart: Cart;
+  openCartOffer: CartOfferOpening;
   placeOrder: Order;
   presignWebFormUpload: WebFormUploadTicket;
   redeemLoyaltyPoints: LoyaltyRedeemResult;
@@ -1189,6 +1224,11 @@ export type MutationMoveSavedToCartArgs = {
 
 export type MutationMoveToCartArgs = {
   productId: Scalars['ID']['input'];
+};
+
+
+export type MutationOpenCartOfferArgs = {
+  token: Scalars['String']['input'];
 };
 
 
@@ -1919,6 +1959,7 @@ export type Query = {
   menu?: Maybe<Menu>;
   menus: Array<Menu>;
   myCart: Cart;
+  myCartOffers: Array<Cart>;
   myDataExport: Scalars['String']['output'];
   myDownloads: Array<DownloadGrant>;
   myOrder: Order;
