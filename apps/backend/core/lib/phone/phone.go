@@ -73,7 +73,7 @@ func Normalize(raw, region string) (string, error) {
 		return "", nil
 	}
 	num, err := phonenumbers.Parse(raw, strings.ToUpper(strings.TrimSpace(region)))
-	if err != nil || !phonenumbers.IsValidNumber(num) {
+	if err != nil || num.GetExtension() != "" || !phonenumbers.IsValidNumber(num) {
 		return "", ErrInvalid
 	}
 	return phonenumbers.Format(num, phonenumbers.E164), nil
