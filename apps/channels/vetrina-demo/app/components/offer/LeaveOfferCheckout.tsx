@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { Link } from "@/app/components/LocaleLink";
 import { OFFER_CHECKOUT_COOKIE } from "@/app/lib/cart/offer-cookie";
 
-// Checkout works on an offer while its flag cookie is set - going back to the shopper's own cart, or into its
-// checkout, clears it first. Not httpOnly, so the browser can drop it without a round trip
+// Drop the legacy browser-wide checkout marker on cart navigation. Current checkout
+// uses explicit offer URLs, so another tab cannot change the cart this link selects.
 export function clearOfferCheckout() {
   document.cookie = `${OFFER_CHECKOUT_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
 }
