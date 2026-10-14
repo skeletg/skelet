@@ -1,5 +1,7 @@
 "use client";
 
+import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
+
 import {
   startTransition,
   useActionState,
@@ -412,6 +414,7 @@ export function ConfigurablePDP({
           <AddToCartFeedback state={hasOptions ? cfgState : addState} />
         </section>
 
+        <StoreAvailability key={matched?.id ?? "unselected"} productId={matched?.id} productName={matched?.name ?? heading} needsVariant />
       </PdpBuyBox>
 
       <Description

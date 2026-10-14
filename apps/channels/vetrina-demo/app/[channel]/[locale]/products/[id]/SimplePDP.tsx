@@ -1,5 +1,6 @@
 // SIMPLE PDP shell - server-rendered, since a plain product has nothing to pick before the add
 
+import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
 import { getTranslations } from "next-intl/server";
 
 import { formatPrice } from "@/app/lib/cart/read";
@@ -102,6 +103,7 @@ export async function SimplePDP({
             </p>
           </ExperimentGate>
         </div>
+        <StoreAvailability productId={product.kind === "SIMPLE" ? product.id : undefined} productName={heading} />
       </PdpBuyBox>
 
       <Description

@@ -1,3 +1,4 @@
+import { StoresLink } from "./stores/StoreAvailability";
 import { Link } from "@/app/components/LocaleLink";
 import { getTranslations } from "next-intl/server";
 
@@ -119,6 +120,7 @@ export async function Header() {
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <StoresLink />
             <SearchModal />
             {/* The currency switcher (approx-price presentment) is deliberately not rendered - the
                 provider, cookie plumbing and backend rates all still work, so restoring it is just
