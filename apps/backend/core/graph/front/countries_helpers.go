@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	frontmodel "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -46,4 +47,22 @@ func (r *Resolver) toCountryModel(ctx context.Context, c country.Country) *model
 		}
 	}
 	return m
+}
+
+func toPhoneSettingsModel(s country.PhoneSettings) *frontmodel.PhoneSettings {
+	out := &frontmodel.PhoneSettings{
+		RestrictedToStoreCountries: s.Rules.Allowed != nil,
+		DefaultCountryCode:         s.Rules.Default,
+		Formats:                    make([]*frontmodel.PhoneCountryFormat, len(s.Formats)),
+	}
+	if s.Locked != "" {
+		out.LockedCountryCode = &s.Locked
+	}
+	for i, f := range s.Formats {
+		out.Formats[i] = &frontmodel.PhoneCountryFormat{
+			CountryCode: f.Country, CallingCode: f.CallingCode, Example: f.Example,
+			NationalExample: f.NationalExample, Template: f.Template,
+		}
+	}
+	return out
 }

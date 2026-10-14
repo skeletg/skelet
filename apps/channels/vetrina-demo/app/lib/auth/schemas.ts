@@ -7,6 +7,7 @@ import {
   passwordField,
   requiredText,
 } from "@/app/lib/forms/schema";
+import { refinePhone } from "@/app/lib/forms/phone";
 
 // The auth and account forms' shapes, validated on the client first and again in the action. returnTo and the reset
 // token stay out of these on purpose - returnTo goes through safeReturnTo, the token is a bound argument
@@ -56,13 +57,20 @@ export const changePasswordSchema = z
     error: "passwordMismatch",
   });
 
-export const profileSchema = z.object({
-  firstName: requiredText(),
-  lastName: requiredText(),
-  phone: optionalText(),
-});
+// phoneCountry and phoneAllowed are PhoneInput's hidden companions (refinePhone) - a profile phone has no address, so
+// its country is the store's default or the one it's locked to, as the backend reads it
+export const profileSchema = z
+  .object({
+    firstName: requiredText(),
+    lastName: requiredText(),
+    phone: optionalText(),
+    phoneCountry: optionalText(),
+    phoneAllowed: optionalText(),
+  })
+  .superRefine(refinePhone("phone"));
 
-export const addressSchema = z.object({
+// The bare shape, for the checkout steps that make every field optional - the phone check needs the whole object
+export const addressFields = z.object({
   firstName: requiredText(),
   lastName: requiredText(),
   company: optionalText(),
@@ -77,3 +85,8 @@ export const addressSchema = z.object({
     .regex(/^[A-Z]{2}$/, "countryCode"),
   phone: optionalText(),
 });
+
+// The address plus PhoneInput's hidden companions - an action strips those before sending the address on
+export const addressSchema = addressFields
+  .extend({ phoneCountry: optionalText(), phoneAllowed: optionalText() })
+  .superRefine(refinePhone("phone", "countryCode"));

@@ -6,13 +6,25 @@ import { gqlFetch } from "@/app/lib/graphql";
 import {
   CountriesDocument,
   CountrySettingsDocument,
+  PhoneSettingsDocument,
   RegionsDocument,
+  type PhoneSettingsQuery,
 } from "@/app/lib/countries/operations.gql";
 
 export type CountryOption = {
   code: string;
   name: string;
   emojiFlag: string;
+  // The company identifiers a business purchase from the country asks for - empty means the generic tax ID
+  businessIdFields?: BusinessIdField[];
+};
+
+export type BusinessIdField = {
+  key: string;
+  label: string;
+  required: boolean;
+  pattern: string;
+  hint: string;
 };
 
 export type RegionOption = { code: string; name: string };
@@ -63,3 +75,30 @@ export const getRegionsByCountry = cache(
     return map;
   },
 );
+
+export type AddressFormOptions = {
+  countries: CountryOption[];
+  regionsByCountry: Record<string, RegionOption[]>;
+  defaultCountry: string;
+  phone: PhoneSettings;
+};
+
+// What an address form outside the checkout needs to offer the store's countries and each one's regions
+export const getAddressFormOptions = cache(async (): Promise<AddressFormOptions> => {
+  const [countries, settings, phone] = await Promise.all([getCountries(), getCountrySettings(), getPhoneSettings()]);
+  const regionsByCountry = await getRegionsByCountry(countries.map((c) => c.code));
+  return { countries, regionsByCountry, defaultCountry: settings.defaultCountryCode, phone };
+});
+
+export type PhoneSettings = PhoneSettingsQuery["phoneSettings"];
+
+// The store's phone policy and the formats of the countries its forms offer. A read failure falls back to taking any
+// number with no examples - the backend still enforces the real policy on save
+export const getPhoneSettings = cache(async (): Promise<PhoneSettings> => {
+  try {
+    const res = await gqlFetch(PhoneSettingsDocument);
+    return res.data.phoneSettings;
+  } catch {
+    return { restrictedToStoreCountries: false, lockedCountryCode: null, defaultCountryCode: "", formats: [] };
+  }
+});

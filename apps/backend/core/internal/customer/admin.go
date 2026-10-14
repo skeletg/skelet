@@ -75,6 +75,9 @@ func (s *Service) AdminCreateCustomer(ctx context.Context, input AdminCreateCust
 
 	// Normalized copy so we don't mutate the caller's input
 	normalized := input
+	if normalized.Phone, err = s.NormalizeProfilePhone(ctx, input.ChannelID, input.Phone); err != nil {
+		return Customer{}, err
+	}
 	if normalized.IsActive == nil {
 		t := true
 		normalized.IsActive = &t
@@ -125,6 +128,9 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	// Load the customer first so events carry its store - subscribers filter on that
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		return Customer{}, err
+	}
+	if input.Phone, err = s.NormalizeProfilePhone(ctx, existing.ChannelID, input.Phone); err != nil {
 		return Customer{}, err
 	}
 	updatingEvt, err := s.vetoUpdate(ctx, existing, changed)

@@ -20,3 +20,18 @@ query CountrySettings {
     requiredRegionCountryCodes
   }
 }
+
+query PhoneSettings {
+  phoneSettings {
+    restrictedToStoreCountries
+    lockedCountryCode
+    defaultCountryCode
+    formats {
+      countryCode
+      callingCode
+      example
+      nationalExample
+      template
+    }
+  }
+}

@@ -33,6 +33,7 @@ import { LoyaltySection } from './LoyaltySection'
 import { ConsentHistorySection } from './ConsentHistorySection'
 import { StoreCreditSection } from './StoreCreditSection'
 import { useConfigScope } from '@/lib/config-scope'
+import { formatPhone } from '@/lib/phone'
 import {
   AdminAddAddressDocument,
   AdminDeleteAddressDocument,
@@ -292,7 +293,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
               <form.AppField name="lastName">{(f) => <f.TextField id="cd-last" label="Last name" />}</form.AppField>
             </div>
             <form.AppField name="email">{(f) => <f.TextField id="cd-email" label="Email" type="email" />}</form.AppField>
-            <form.AppField name="phone">{(f) => <f.TextField id="cd-phone" label="Phone" type="tel" />}</form.AppField>
+            <form.AppField name="phone">{(f) => <f.PhoneField id="cd-phone" label="Phone" hint="Start with + and the country code" />}</form.AppField>
             <div className="grid gap-2">
               <form.AppField name="isActive">
                 {(f) => <f.CheckboxField id="cd-active" label="Active - inactive customers can't sign in" />}
@@ -593,7 +594,7 @@ function AddressesSection({
                 {a.state ? `, ${a.state}` : ''} {a.postalCode}
               </div>
               <div className="text-muted-foreground">{a.countryCode}</div>
-              {a.phone && <div className="text-muted-foreground">{a.phone}</div>}
+              {a.phone && <div className="text-muted-foreground">{formatPhone(a.phone)}</div>}
               <div className={`mt-2 flex flex-wrap gap-1.5 ${canManage ? '' : 'hidden'}`}>
                 {a.id !== defaultBillingId && (
                   <Button size="sm" variant="outline" className="h-7 text-xs" disabled={saving} onClick={() => onSetDefault('billing', a.id)}>
