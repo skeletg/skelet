@@ -215,7 +215,11 @@ func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput)
 		region := ""
 		if input.CountryCode != nil {
 			region = *input.CountryCode
-		} else if current, err := s.repo.GetLocationByID(ctx, input.ID); err == nil {
+		} else {
+			current, err := s.repo.GetLocationByID(ctx, input.ID)
+			if err != nil {
+				return Location{}, err
+			}
 			region = current.CountryCode
 		}
 		var err error
