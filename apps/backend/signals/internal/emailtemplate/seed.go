@@ -103,6 +103,8 @@ func SlotLabel(slot string) string {
 		return "Signup confirmation"
 	case KeyAccountExists:
 		return "Account already exists"
+	case KeyCartOffer:
+		return "Cart offer"
 	default:
 		return slot
 	}

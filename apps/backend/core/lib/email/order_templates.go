@@ -107,6 +107,7 @@ const (
 	KeyPasswordReset      = "password_reset"
 	KeySignupConfirmation = "signup_confirmation"
 	KeyAccountExists      = "account_exists"
+	KeyCartOffer          = "cart_offer"
 )
 
 const greetingFallback = "there"

@@ -32,6 +32,7 @@ const (
 	TriggerPasswordReset      = signalsapi.TriggerPasswordReset
 	TriggerSignupConfirmation = signalsapi.TriggerSignupConfirmation
 	TriggerAccountExists      = signalsapi.TriggerAccountExists
+	TriggerCartOffer          = signalsapi.TriggerCartOffer
 )
 
 const (
