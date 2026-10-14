@@ -106,11 +106,16 @@ The storefront route `app/offer/[token]` handles a followed link:
 Without the header, an offer's id opens nothing. An offer listed in a customer's account
 opens for that customer without the link.
 
-Checkout works on the offer while the `storefront_checkout_offer` cookie is set:
+Checkout selects an offer through `/checkout?offer=<cart id>`; plain `/checkout` always
+uses the shopper's own cart. Every checkout form submits the cart id it rendered, and the
+backend checks access again. Cookies carry the offer credential, not the checkout selection,
+so opening an offer in another tab cannot redirect a regular-cart submission onto it.
+An older guest-offer tab whose credential was replaced must reopen its original link.
 
-- The offer page's **Continue to checkout** sets it.
-- The shopper's own cart links clear it.
-- Placing the order clears both offer cookies and leaves the shopper's own cart untouched.
+- The offer page's **Continue to checkout** opens that offer's checkout URL.
+- **Edit cart** returns to the same offer; regular-cart links open the shopper's own cart.
+- Placing an offer order clears its matching offer cookie and leaves the shopper's cart
+  and any different offer session untouched.
 
 A guest offer places a guest order for its recipient, even when someone is signed in on
 that browser.
