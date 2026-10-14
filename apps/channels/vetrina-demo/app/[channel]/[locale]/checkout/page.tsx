@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 
+import { CheckoutCartProvider } from "@/app/components/offer/CheckoutCartContext";
+import { checkoutHref } from "@/app/lib/checkout/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { formatPrice, getFreeShippingThreshold } from "@/app/lib/cart/read";
-import { getCheckoutCart, isOfferCheckout } from "@/app/lib/cart/offer";
+import { getCheckoutCart } from "@/app/lib/cart/offer";
 import { offerLocks, type CartOfferLock } from "@/app/lib/cart/types";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { detailsAsks } from "@/app/lib/checkout/asks";
@@ -52,16 +54,18 @@ export default async function CheckoutPage({
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
-  const { step: requestedStep, notice, pointGroup, pointSearch } = await searchParams;
+  const { step: requestedStep, notice, pointGroup, pointSearch, offer: requestedOffer } = await searchParams;
+  const offerId = typeof requestedOffer === "string" ? requestedOffer : undefined;
+  const offerCheckout = !!offerId;
   const t = await getTranslations({ locale, namespace: "checkout" });
   const tc = await getTranslations({ locale, namespace: "common" });
   const to = await getTranslations({ locale, namespace: "offer" });
   const format = await getFormatter({ locale });
 
-  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings, offerCheckout] =
+  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
     await Promise.all([
       getCurrentCustomer(),
-      getCheckoutCart(),
+      getCheckoutCart(offerId),
       getChannel(),
       getResolvedConsent(),
       getCountries(),
@@ -70,11 +74,11 @@ export default async function CheckoutPage({
       getCheckoutSettings(),
       getFreeShippingThreshold(),
       getPhoneSettings(),
-      isOfferCheckout(),
     ]);
 
-  if (!cart || cart.lines.length === 0) {
-    redirect(await withLocalePrefix(offerCheckout ? "/cart/offer" : "/cart", locale));
+  const cartHref = offerId ? `/cart/offer?cartId=${encodeURIComponent(offerId)}` : "/cart";
+  if (!cart || cart.lines.length === 0 || (offerCheckout && !cart.offer)) {
+    redirect(await withLocalePrefix(cartHref, locale));
   }
   // An offer is the store's own terms - it checks out whatever the guest-checkout setting says, and what it locks
   // isn't offered for editing here (the backend refuses a change to it either way)
@@ -87,12 +91,12 @@ export default async function CheckoutPage({
     : [];
   const checkout = await getCheckoutState(cart.id);
   if (!checkout) {
-    redirect(await withLocalePrefix("/cart", locale));
+    redirect(await withLocalePrefix(cartHref, locale));
   }
 
   const currency = channel?.currency ?? "USD";
-  const loginHref = await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent("/checkout")}`, locale);
-  const registerHref = await withLocalePrefix(`/account/register?returnTo=${encodeURIComponent("/checkout")}`, locale);
+  const loginHref = await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent(checkoutHref(offerId))}`, locale);
+  const registerHref = await withLocalePrefix(`/account/register?returnTo=${encodeURIComponent(checkoutHref(offerId))}`, locale);
 
   const businessOk = businessComplete(
     {
@@ -151,13 +155,14 @@ export default async function CheckoutPage({
   const n = (step: (typeof steps)[number]) => steps.indexOf(step) + 1;
 
   const defaultAddress = customer?.defaultShippingAddress ?? null;
-  const edit = (step: string) => `/checkout?step=${step}`;
+  const edit = (step: string) => checkoutHref(offerId, { step });
   const shownTotal =
     checkout.totals.giftCardCents + checkout.totals.storeCreditCents > 0
       ? checkout.totals.amountDueCents
       : checkout.totals.totalCents;
 
   return (
+    <CheckoutCartProvider cartId={cart.id} offerId={offer ? cart.id : undefined}>
     <main className="mx-auto grid w-full max-w-8xl gap-10 px-4 pt-6 pb-12 sm:px-6 md:grid-cols-[1fr_22rem] md:px-10">
       <AnalyticsEvent
         enabled={consent.marketing}
@@ -321,6 +326,7 @@ export default async function CheckoutPage({
         <OrderSummary cart={cart} checkout={checkout} currency={currency} locale={locale} />
       </aside>
     </main>
+    </CheckoutCartProvider>
   );
 }
 

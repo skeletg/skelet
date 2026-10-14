@@ -3,8 +3,8 @@
 
 // httpOnly - the token is what opens the offer, so client JS never reads it
 export const OFFER_COOKIE = "storefront_offer";
-// Set while checkout works on the offer rather than the shopper's own cart - not a secret, so the cart links can
-// clear it from the browser when the shopper goes back to their own cart
+// Legacy checkout selector, cleared on navigation. Checkout now selects offers by URL
+// and pins every action to the rendered cart id, so this cookie no longer selects a cart.
 export const OFFER_CHECKOUT_COOKIE = "storefront_checkout_offer";
 export const OFFER_HEADER = "X-Cart-Offer";
 

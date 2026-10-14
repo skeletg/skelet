@@ -7,7 +7,8 @@ import { refresh } from "next/cache";
 import { RemoveFromCartDocument, UpdateCartLineDocument } from "@/app/lib/cart/mutations.gql";
 import { MyCartOffersDocument } from "@/app/lib/cart/offer.gql";
 import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@/app/lib/cart/offer-cookie";
-import { getOfferSession } from "@/app/lib/cart/offer";
+import { checkoutHref } from "@/app/lib/checkout/path";
+import { getCheckoutCart, getOfferSession } from "@/app/lib/cart/offer";
 import { gqlFetch } from "@/app/lib/graphql";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { getCurrentLocale } from "@/app/lib/locale/read";
@@ -19,17 +20,13 @@ async function offerCartId(): Promise<string | null> {
 }
 
 // Checkout works on the offer from here until the shopper goes back to their own cart or places the order
-export async function continueOfferCheckout(): Promise<void> {
-  if (!(await offerCartId())) redirect(await withLocalePrefix("/cart/offer?state=invalid", await getCurrentLocale()));
+export async function continueOfferCheckout(formData: FormData): Promise<void> {
+  const id = String(formData.get("cartId") ?? "");
+  const cart = id ? await getCheckoutCart(id) : null;
+  if (!cart?.offer) redirect(await withLocalePrefix("/cart/offer?state=invalid", await getCurrentLocale()));
   const store = await cookies();
-  store.set(OFFER_CHECKOUT_COOKIE, "1", {
-    path: "/",
-    // Not a secret - the cart links clear it from the browser when the shopper goes back to their own cart
-    httpOnly: false,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-  redirect(await withLocalePrefix("/checkout", await getCurrentLocale()));
+  store.delete(OFFER_CHECKOUT_COOKIE); // retire the browser-wide checkout selector
+  redirect(await withLocalePrefix(checkoutHref(cart.id), await getCurrentLocale()));
 }
 
 export async function updateOfferLine(formData: FormData): Promise<void> {

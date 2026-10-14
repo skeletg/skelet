@@ -1,11 +1,11 @@
 // Offer cart reads - an offer is a cart the store built for one shopper and sent as a link. It is never the
-// shopper's own cart: it lives beside it, and checkout works on it only while OFFER_CHECKOUT_COOKIE says so
+// shopper's own cart: it lives beside it, and checkout works on it only when its id is explicitly selected
 
 import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { CartByIdDocument } from "@/app/lib/cart/queries.gql";
-import { decodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, type OfferSession } from "@/app/lib/cart/offer-cookie";
+import { decodeOfferSession, OFFER_COOKIE, type OfferSession } from "@/app/lib/cart/offer-cookie";
 import { getCart } from "@/app/lib/cart/read";
 import type { Cart } from "@/app/lib/cart/types";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
@@ -19,11 +19,11 @@ export type OfferRead = { cart: Cart; state: null } | { cart: null; state: "inva
 
 // The offer this browser holds - or why it can't be opened: none held, a replaced link or a finished offer read as
 // invalid, and an expired or withdrawn one says so
-export const readOffer = cache(async (): Promise<OfferRead> => {
+export const readOffer = cache(async (cartId?: string): Promise<OfferRead> => {
   const session = await getOfferSession();
-  if (!session) return { cart: null, state: "invalid" };
+  if (!session && !cartId) return { cart: null, state: "invalid" };
   try {
-    const res = await gqlFetch(CartByIdDocument, { id: session.cartId });
+    const res = await gqlFetch(CartByIdDocument, { id: cartId ?? session!.cartId });
     return res.data.cart?.offer ? { cart: res.data.cart, state: null } : { cart: null, state: "invalid" };
   } catch (err) {
     const code = err instanceof GraphQLRequestError ? err.errors[0]?.extensions?.code : undefined;
@@ -38,13 +38,14 @@ export async function getOfferCart(): Promise<Cart | null> {
   return (await readOffer()).cart;
 }
 
-export async function isOfferCheckout(): Promise<boolean> {
-  const store = await cookies();
-  return store.get(OFFER_CHECKOUT_COOKIE)?.value === "1" && !!(await getOfferSession());
-}
-
-// The cart checkout works on - the offer while the shopper is completing one, else their own
-export const getCheckoutCart = cache(async (): Promise<Cart | null> => {
-  if (await isOfferCheckout()) return getOfferCart();
-  return getCart();
+// No explicit id means the shopper's own cart, regardless of offer cookies in another tab.
+// An explicit id is reauthorized by the backend with the current session/link credentials.
+export const getCheckoutCart = cache(async (cartId?: string): Promise<Cart | null> => {
+  if (cartId === undefined) return getCart();
+  if (!cartId) return null;
+  try {
+    return (await gqlFetch(CartByIdDocument, { id: cartId })).data.cart;
+  } catch {
+    return null;
+  }
 });
