@@ -2,6 +2,7 @@ package country
 
 import (
 	"context"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"slices"
 	"testing"
 
@@ -120,6 +121,15 @@ func TestCallingCodeIsDerived(t *testing.T) {
 	for _, tc := range cases {
 		if got := callingCodeFor(tc.code, tc.typed); got != tc.want {
 			t.Errorf("callingCodeFor(%q, %q) = %q, want %q", tc.code, tc.typed, got, tc.want)
+		}
+	}
+}
+
+func TestKnownCountryRejectsPhoneCodeInput(t *testing.T) {
+	svc := newSvc(nil)
+	for _, code := range []string{"+49", "+1", ""} {
+		if _, err := svc.Update(context.Background(), UpdateCountryInput{Code: "de", PhoneCode: &code}); apperr.CodeOf(err) != "COUNTRY_PHONE_CODE_READ_ONLY" {
+			t.Fatalf("phoneCode %q: error = %v, want read-only validation", code, err)
 		}
 	}
 }
