@@ -10,38 +10,42 @@ import { useDialogForm } from '@/components/form/useDialogForm'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AdminCreateCustomerDocument, CustomersPagedDocument } from '@/features/customers/Customers.gql'
-import { AdminCreateCartDocument, CartsDocument } from './Carts.gql'
+import { AdminCreateCartDocument, AdminCreateCartOfferDocument, CartsDocument } from './Carts.gql'
 import { CustomerSearch } from './pickers'
 import { emptyNewCart, newCartSchema, randomPassword, type NewCartValues } from './schemas/newCart'
 
 // Creates a cart for a guest, an existing customer, or a brand-new customer (created inline), then
-// opens the cart
+// opens the cart - or, as an offer, a separate cart made out to that recipient and sent as a link
 export function NewCartDialog({
   open,
   onOpenChange,
   channelId,
+  offer = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   channelId: string | undefined
+  // Opened from the Offers list - the cart is made out to the recipient and sent as a link
+  offer?: boolean
 }) {
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
-      {(close) => <NewCartForm channelId={channelId} onClose={close} />}
+      {(close) => <NewCartForm channelId={channelId} offer={offer} onClose={close} />}
     </FormDialog>
   )
 }
 
-function NewCartForm({ channelId, onClose }: { channelId: string | undefined; onClose: () => void }) {
+function NewCartForm({ channelId, offer, onClose }: { channelId: string | undefined; offer: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const [createCart] = useMutation(AdminCreateCartDocument, {
     refetchQueries: channelId ? [{ query: CartsDocument, variables: { channelId, status: 'active' } }] : [],
   })
+  const [createOffer] = useMutation(AdminCreateCartOfferDocument, { refetchQueries: [CartsDocument] })
   const [createCustomer] = useMutation(AdminCreateCustomerDocument, { refetchQueries: [CustomersPagedDocument] })
   const createdId = useRef('')
 
   const dialog = useDialogForm({
-    baseline: emptyNewCart,
+    baseline: { ...emptyNewCart, offer },
     schema: newCartSchema,
     submit: async (v: NewCartValues) => {
       if (!channelId) throw new Error('Pick a channel in the header scope picker first.')
@@ -62,14 +66,22 @@ function NewCartForm({ channelId, onClose }: { channelId: string | undefined; on
         customerId = res.data?.adminCreateCustomer.id ?? null
         if (!customerId) throw new Error('Customer creation returned no id.')
       }
-      const res = await createCart({ variables: { channelId, customerId } })
-      const id = res.data?.adminCreateCart.id
+      let id: string | undefined
+      if (v.offer) {
+        const res = await createOffer({
+          variables: { input: { channelId, customerId, email: v.mode === 'guest' ? v.guestEmail.trim() : null } },
+        })
+        id = res.data?.adminCreateCartOffer.id
+      } else {
+        const res = await createCart({ variables: { channelId, customerId } })
+        id = res.data?.adminCreateCart.id
+      }
       if (!id) throw new Error('Cart creation returned no id.')
       createdId.current = id
     },
     onSaved: () => {
       onClose()
-      navigate(`/carts/${createdId.current}`)
+      navigate(`${offer ? '/offers' : '/carts'}/${createdId.current}`)
     },
   })
   const { form } = dialog
@@ -78,9 +90,15 @@ function NewCartForm({ channelId, onClose }: { channelId: string | undefined; on
   return (
     <FormDialogBody
       dialog={dialog}
-      title="New cart"
-      description={channelId ? 'Start a cart for a guest, an existing customer, or a new one.' : 'Pick a channel in the header scope picker first.'}
-      submitLabel="Create cart"
+      title={offer ? 'New offer' : 'New cart'}
+      description={
+        !channelId
+          ? 'Pick a channel in the header scope picker first.'
+          : offer
+            ? 'Build an offer for an existing customer, a new one, or a guest email, then send it as a link. A customer signs in to open it.'
+            : 'Start a cart for a guest, an existing customer, or a new one.'
+      }
+      submitLabel={offer ? 'Create offer' : 'Create cart'}
       canSubmit={!!channelId}
       onCancel={onClose}
     >
@@ -133,9 +151,15 @@ function NewCartForm({ channelId, onClose }: { channelId: string | undefined; on
         </div>
       )}
 
-      {mode === 'guest' && (
-        <p className="text-sm text-muted-foreground">Creates an unowned guest cart you can build and later finish or assign.</p>
-      )}
+      {mode === 'guest' &&
+        (offer ? (
+          <form.AppField name="guestEmail">
+            {(f) => <f.TextField id="nc-guest-email" label="Send to" type="email" placeholder="name@example.com" />}
+          </form.AppField>
+        ) : (
+          <p className="text-sm text-muted-foreground">Creates an unowned guest cart you can build and later finish or assign.</p>
+        ))}
+
     </FormDialogBody>
   )
 }

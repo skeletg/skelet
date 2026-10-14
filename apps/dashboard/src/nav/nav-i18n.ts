@@ -19,6 +19,7 @@ const NAV_LABELS: Record<string, MessageDescriptor> = {
   'Orders': msg`Orders`,
   'All orders': msg`All orders`,
   'Carts': msg`Carts`,
+  'Offers': msg`Offers`,
   'Catalog': msg`Catalog`,
   'Products': msg`Products`,
   'Categories': msg`Categories`,
