@@ -138,4 +138,39 @@ test.describe("cart offers", () => {
     await expect(page.getByLabel("1 offer, 1 new offer")).toHaveCount(0);
     await expect(main(page).getByText("New", { exact: true })).toHaveCount(0);
   });
+
+  test("regular checkout stays on its cart across offer checkout in another tab", async ({ page, context }) => {
+    await open(page, "/casual-t-shirt");
+    await main(page).getByRole("button", { name: "Add to cart" }).first().click();
+    await expect(page.getByRole("button", { name: /Open cart \([1-9]/ })).toBeVisible();
+    await open(page, "/checkout");
+    const regularId = await main(page).locator('input[name="cartId"]').first().inputValue();
+    expect(regularId).toBeTruthy();
+
+    const offer = await guestOffer(admin, `e2e-tabs-${Date.now()}@skelet.test`);
+    const other = await context.newPage();
+    await open(other, offer.path);
+    await main(other).getByRole("button", { name: /Continue to checkout/ }).click();
+    await expect(other).toHaveURL(new RegExp(`/checkout\\?offer=${offer.id}$`));
+    // Even an old browser-wide marker must not retarget the first tab's submission.
+    await context.addCookies([{ name: "storefront_checkout_offer", value: "1", url: "http://localhost:3000" }]);
+    const country = main(page).getByLabel("Country", { exact: true });
+    if (await country.isVisible()) await country.selectOption("US");
+    await main(page).getByLabel("Postcode", { exact: true }).fill("12345");
+    await main(page).getByRole("button", { name: "Show options" }).click();
+    await expect(page).toHaveURL(/\/checkout\?step=delivery$/);
+    await expect(main(page).locator('input[name="cartId"]').first()).toHaveValue(regularId);
+    await expect(main(page).getByText("You’re checking out an offer the store prepared for you.")).toHaveCount(0);
+    await expect(main(other).locator('input[name="cartId"]').first()).toHaveValue(offer.id);
+
+    await main(other).getByRole("link", { name: /Edit cart/ }).last().click();
+    await expect(other).toHaveURL(new RegExp(`/cart/offer\\?cartId=${offer.id}$`));
+    await expect(main(other).getByRole("heading", { name: "Your offer" })).toBeVisible();
+    await main(other).getByRole("button", { name: /Continue to checkout/ }).click();
+    await other.getByRole("button", { name: /Open cart \([1-9]/ }).click();
+    await other.getByRole("dialog").getByRole("link", { name: /View full cart/ }).click();
+    await expect(other).toHaveURL(/\/cart$/);
+    expect((await context.cookies()).some((c) => c.name === "storefront_checkout_offer")).toBe(false);
+    await expect(main(other).getByText("Installation", { exact: true })).toHaveCount(0);
+  });
 });

@@ -231,7 +231,10 @@ export function CartSidebar({
             <div className="mt-4 flex flex-col gap-2">
               <Link
                 href="/cart"
-                onClick={closeCart}
+                onClick={() => {
+                  clearOfferCheckout();
+                  closeCart();
+                }}
                 className="flex h-10 items-center justify-center rounded-md border border-foreground/25 text-sm font-semibold transition-colors hover:border-foreground"
               >
                 {t("viewFull")}
