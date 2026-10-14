@@ -1,0 +1,55 @@
+enum StoreStockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  UNKNOWN
+}
+
+# Customer-facing projection: never exposes operational inventory fields.
+type PublicStore {
+  id: ID!
+  slug: String!
+  name: String!
+  line1: String!
+  line2: String!
+  city: String!
+  region: String!
+  postalCode: String!
+  countryCode: String!
+  latitude: Float
+  longitude: Float
+  timezone: String!
+  hours: JSON!
+  phone: String!
+  pickupEnabled: Boolean!
+  distanceKm: Float
+  stockStatus: StoreStockStatus
+}
+
+input PublicStoresInput {
+  productId: ID
+  city: String
+  search: String
+  inStockOnly: Boolean
+  pickupOnly: Boolean
+  latitude: Float
+  longitude: Float
+  preferredStoreId: ID
+  limit: Int
+  offset: Int
+}
+
+type PublicStoresResult {
+  enabled: Boolean!
+  stockCheckingAvailable: Boolean!
+  productEligible: Boolean!
+  hasPickupStores: Boolean!
+  cities: [String!]!
+  preferredStore: PublicStore
+  items: [PublicStore!]!
+  totalCount: Int!
+}
+
+extend type Query {
+  publicStores(input: PublicStoresInput): PublicStoresResult!
+}

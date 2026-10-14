@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 )
 
 // Lives in its own file so gqlgen's regen of inventory.resolvers.go doesn't strip it on every schema change
@@ -52,13 +53,14 @@ func toInventoryLocationModel(l inventory.Location) *model.InventoryLocation {
 		hoursAny = map[string]any{}
 	}
 	return &model.InventoryLocation{
+		StorefrontVisible:  l.StorefrontVisible,
 		PickupEnabled:      l.PickupEnabled,
 		PickupInstructions: l.PickupInstructions,
 		ID:                 l.ID.String(),
 		Slug:               l.Slug,
 		Name:               l.Name,
 		IsActive:           l.IsActive,
-		Type:               l.Type,
+		Type:               toInventoryLocationType(l.Type),
 		Line1:              l.Line1,
 		Line2:              l.Line2,
 		City:               l.City,
@@ -169,6 +171,41 @@ func invMetadataFromInput(in []*model.MetadataInput) inventory.Metadata {
 			continue
 		}
 		out[item.Key] = item.Value
+	}
+	return out
+}
+
+func toInventoryLocationType(value string) model.InventoryLocationType {
+	switch value {
+	case inventory.LocationRetail:
+		return model.InventoryLocationTypeRetailStore
+	case inventory.LocationWarehouse:
+		return model.InventoryLocationTypeWarehouse
+	case inventory.LocationStorage:
+		return model.InventoryLocationTypeStorage
+	case inventory.LocationDropshipper:
+		return model.InventoryLocationTypeDropshipper
+	case inventory.LocationFulfillment:
+		return model.InventoryLocationTypeFulfillmentPartner
+	default:
+		return model.InventoryLocationTypeUnclassified
+	}
+}
+func inventoryLocationTypeInput(value *model.InventoryLocationType) *string {
+	if value == nil {
+		return nil
+	}
+	values := map[model.InventoryLocationType]string{model.InventoryLocationTypeRetailStore: inventory.LocationRetail, model.InventoryLocationTypeWarehouse: inventory.LocationWarehouse, model.InventoryLocationTypeStorage: inventory.LocationStorage, model.InventoryLocationTypeDropshipper: inventory.LocationDropshipper, model.InventoryLocationTypeFulfillmentPartner: inventory.LocationFulfillment, model.InventoryLocationTypeUnclassified: inventory.LocationUnclassified}
+	v := values[*value]
+	return &v
+}
+func inventoryLocationFilter(input *model.InventoryLocationFilter) inventory.LocationFilter {
+	if input == nil {
+		return inventory.LocationFilter{}
+	}
+	out := inventory.LocationFilter{City: ptr.Deref(input.City), IsActive: input.IsActive, StorefrontVisible: input.StorefrontVisible, PickupEnabled: input.PickupEnabled}
+	for _, typ := range input.Types {
+		out.Types = append(out.Types, *inventoryLocationTypeInput(&typ))
 	}
 	return out
 }

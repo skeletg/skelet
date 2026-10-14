@@ -139,6 +139,42 @@ func (q *Queries) BackfillLevelsFromItemQuantity(ctx context.Context, locationID
 	return result.RowsAffected()
 }
 
+const countFilteredInventoryLocations = `-- name: CountFilteredInventoryLocations :one
+SELECT COUNT(*) FROM inventory_locations
+WHERE ($1::text = ''
+ OR name ILIKE '%' || escape_like($1::text) || '%'
+ OR slug ILIKE '%' || escape_like($1::text) || '%'
+ OR city ILIKE '%' || escape_like($1::text) || '%')
+ AND (cardinality($2::text[]) = 0 OR type = ANY($2::text[]))
+ AND ($3::text = '' OR city ILIKE '%' || escape_like($3::text) || '%')
+ AND ($4::boolean IS NULL OR is_active = $4)
+ AND ($5::boolean IS NULL OR storefront_visible = $5)
+ AND ($6::boolean IS NULL OR pickup_enabled = $6)
+`
+
+type CountFilteredInventoryLocationsParams struct {
+	Search  string       `json:"search"`
+	Types   []string     `json:"types"`
+	City    string       `json:"city"`
+	Active  sql.NullBool `json:"active"`
+	Visible sql.NullBool `json:"visible"`
+	Pickup  sql.NullBool `json:"pickup"`
+}
+
+func (q *Queries) CountFilteredInventoryLocations(ctx context.Context, arg CountFilteredInventoryLocationsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countFilteredInventoryLocations,
+		arg.Search,
+		pq.Array(arg.Types),
+		arg.City,
+		arg.Active,
+		arg.Visible,
+		arg.Pickup,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countInventoryLocations = `-- name: CountInventoryLocations :one
 SELECT COUNT(*) FROM inventory_locations
 WHERE $1::text = ''
@@ -221,7 +257,7 @@ INSERT INTO inventory_locations (
     latitude, longitude,
     type, timezone, hours,
     email, phone, contact_name, external_reference,
-    metadata
+    metadata, storefront_visible, pickup_enabled, pickup_instructions
 )
 VALUES (
     $1, $2, $3,
@@ -229,31 +265,34 @@ VALUES (
     $10, $11,
     $12, $13, $14,
     $15, $16, $17, $18,
-    $19
+    $19, $20, $21, $22
 )
-RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions
+RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible
 `
 
 type CreateInventoryLocationParams struct {
-	Slug              string          `json:"slug"`
-	Name              string          `json:"name"`
-	IsActive          bool            `json:"is_active"`
-	Line1             string          `json:"line1"`
-	Line2             string          `json:"line2"`
-	City              string          `json:"city"`
-	Region            string          `json:"region"`
-	PostalCode        string          `json:"postal_code"`
-	CountryCode       sql.NullString  `json:"country_code"`
-	Latitude          sql.NullString  `json:"latitude"`
-	Longitude         sql.NullString  `json:"longitude"`
-	Type              string          `json:"type"`
-	Timezone          string          `json:"timezone"`
-	Hours             json.RawMessage `json:"hours"`
-	Email             string          `json:"email"`
-	Phone             string          `json:"phone"`
-	ContactName       string          `json:"contact_name"`
-	ExternalReference string          `json:"external_reference"`
-	Metadata          json.RawMessage `json:"metadata"`
+	Slug               string          `json:"slug"`
+	Name               string          `json:"name"`
+	IsActive           bool            `json:"is_active"`
+	Line1              string          `json:"line1"`
+	Line2              string          `json:"line2"`
+	City               string          `json:"city"`
+	Region             string          `json:"region"`
+	PostalCode         string          `json:"postal_code"`
+	CountryCode        sql.NullString  `json:"country_code"`
+	Latitude           sql.NullString  `json:"latitude"`
+	Longitude          sql.NullString  `json:"longitude"`
+	Type               string          `json:"type"`
+	Timezone           string          `json:"timezone"`
+	Hours              json.RawMessage `json:"hours"`
+	Email              string          `json:"email"`
+	Phone              string          `json:"phone"`
+	ContactName        string          `json:"contact_name"`
+	ExternalReference  string          `json:"external_reference"`
+	Metadata           json.RawMessage `json:"metadata"`
+	StorefrontVisible  bool            `json:"storefront_visible"`
+	PickupEnabled      bool            `json:"pickup_enabled"`
+	PickupInstructions string          `json:"pickup_instructions"`
 }
 
 // ==================== Inventory Locations ====================
@@ -278,6 +317,9 @@ func (q *Queries) CreateInventoryLocation(ctx context.Context, arg CreateInvento
 		arg.ContactName,
 		arg.ExternalReference,
 		arg.Metadata,
+		arg.StorefrontVisible,
+		arg.PickupEnabled,
+		arg.PickupInstructions,
 	)
 	var i InventoryLocation
 	err := row.Scan(
@@ -305,6 +347,7 @@ func (q *Queries) CreateInventoryLocation(ctx context.Context, arg CreateInvento
 		&i.ExternalReference,
 		&i.PickupEnabled,
 		&i.PickupInstructions,
+		&i.StorefrontVisible,
 	)
 	return i, err
 }
@@ -577,7 +620,7 @@ func (q *Queries) GetInventoryLevelForUpdate(ctx context.Context, arg GetInvento
 }
 
 const getInventoryLocationByID = `-- name: GetInventoryLocationByID :one
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations WHERE id = $1
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations WHERE id = $1
 `
 
 func (q *Queries) GetInventoryLocationByID(ctx context.Context, id uuid.UUID) (InventoryLocation, error) {
@@ -608,12 +651,13 @@ func (q *Queries) GetInventoryLocationByID(ctx context.Context, id uuid.UUID) (I
 		&i.ExternalReference,
 		&i.PickupEnabled,
 		&i.PickupInstructions,
+		&i.StorefrontVisible,
 	)
 	return i, err
 }
 
 const getInventoryLocationBySlug = `-- name: GetInventoryLocationBySlug :one
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations WHERE slug = $1
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations WHERE slug = $1
 `
 
 func (q *Queries) GetInventoryLocationBySlug(ctx context.Context, slug string) (InventoryLocation, error) {
@@ -644,6 +688,7 @@ func (q *Queries) GetInventoryLocationBySlug(ctx context.Context, slug string) (
 		&i.ExternalReference,
 		&i.PickupEnabled,
 		&i.PickupInstructions,
+		&i.StorefrontVisible,
 	)
 	return i, err
 }
@@ -713,7 +758,7 @@ func (q *Queries) InsertInventoryReservation(ctx context.Context, arg InsertInve
 
 const listChannelLocations = `-- name: ListChannelLocations :many
 
-SELECT l.id, l.slug, l.name, l.is_active, l.metadata, l.created_at, l.updated_at, l.line1, l.line2, l.city, l.region, l.postal_code, l.country_code, l.latitude, l.longitude, l.type, l.timezone, l.hours, l.email, l.phone, l.contact_name, l.external_reference, l.pickup_enabled, l.pickup_instructions, svl.priority
+SELECT l.id, l.slug, l.name, l.is_active, l.metadata, l.created_at, l.updated_at, l.line1, l.line2, l.city, l.region, l.postal_code, l.country_code, l.latitude, l.longitude, l.type, l.timezone, l.hours, l.email, l.phone, l.contact_name, l.external_reference, l.pickup_enabled, l.pickup_instructions, l.storefront_visible, svl.priority
 FROM inventory_channel_locations svl
 JOIN inventory_locations l ON l.id = svl.location_id
 WHERE svl.channel_id = $1
@@ -745,6 +790,7 @@ type ListChannelLocationsRow struct {
 	ExternalReference  string          `json:"external_reference"`
 	PickupEnabled      bool            `json:"pickup_enabled"`
 	PickupInstructions string          `json:"pickup_instructions"`
+	StorefrontVisible  bool            `json:"storefront_visible"`
 	Priority           int32           `json:"priority"`
 }
 
@@ -783,7 +829,92 @@ func (q *Queries) ListChannelLocations(ctx context.Context, channelID uuid.UUID)
 			&i.ExternalReference,
 			&i.PickupEnabled,
 			&i.PickupInstructions,
+			&i.StorefrontVisible,
 			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilteredInventoryLocations = `-- name: ListFilteredInventoryLocations :many
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
+WHERE ($1::text = ''
+ OR name ILIKE '%' || escape_like($1::text) || '%'
+ OR slug ILIKE '%' || escape_like($1::text) || '%'
+ OR city ILIKE '%' || escape_like($1::text) || '%')
+ AND (cardinality($2::text[]) = 0 OR type = ANY($2::text[]))
+ AND ($3::text = '' OR city ILIKE '%' || escape_like($3::text) || '%')
+ AND ($4::boolean IS NULL OR is_active = $4)
+ AND ($5::boolean IS NULL OR storefront_visible = $5)
+ AND ($6::boolean IS NULL OR pickup_enabled = $6)
+ORDER BY lower(name), id
+LIMIT $8 OFFSET $7
+`
+
+type ListFilteredInventoryLocationsParams struct {
+	Search  string       `json:"search"`
+	Types   []string     `json:"types"`
+	City    string       `json:"city"`
+	Active  sql.NullBool `json:"active"`
+	Visible sql.NullBool `json:"visible"`
+	Pickup  sql.NullBool `json:"pickup"`
+	Off     int32        `json:"off"`
+	Lim     int32        `json:"lim"`
+}
+
+func (q *Queries) ListFilteredInventoryLocations(ctx context.Context, arg ListFilteredInventoryLocationsParams) ([]InventoryLocation, error) {
+	rows, err := q.db.QueryContext(ctx, listFilteredInventoryLocations,
+		arg.Search,
+		pq.Array(arg.Types),
+		arg.City,
+		arg.Active,
+		arg.Visible,
+		arg.Pickup,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InventoryLocation{}
+	for rows.Next() {
+		var i InventoryLocation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.IsActive,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Line1,
+			&i.Line2,
+			&i.City,
+			&i.Region,
+			&i.PostalCode,
+			&i.CountryCode,
+			&i.Latitude,
+			&i.Longitude,
+			&i.Type,
+			&i.Timezone,
+			&i.Hours,
+			&i.Email,
+			&i.Phone,
+			&i.ContactName,
+			&i.ExternalReference,
+			&i.PickupEnabled,
+			&i.PickupInstructions,
+			&i.StorefrontVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -907,7 +1038,7 @@ func (q *Queries) ListInventoryLevelsByItems(ctx context.Context, dollar_1 []uui
 }
 
 const listInventoryLocations = `-- name: ListInventoryLocations :many
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations ORDER BY name
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations ORDER BY name
 `
 
 func (q *Queries) ListInventoryLocations(ctx context.Context) ([]InventoryLocation, error) {
@@ -944,6 +1075,7 @@ func (q *Queries) ListInventoryLocations(ctx context.Context) ([]InventoryLocati
 			&i.ExternalReference,
 			&i.PickupEnabled,
 			&i.PickupInstructions,
+			&i.StorefrontVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -959,7 +1091,7 @@ func (q *Queries) ListInventoryLocations(ctx context.Context) ([]InventoryLocati
 }
 
 const listInventoryLocationsByIDs = `-- name: ListInventoryLocationsByIDs :many
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations WHERE id = ANY($1::uuid[])
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]InventoryLocation, error) {
@@ -996,6 +1128,7 @@ func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uu
 			&i.ExternalReference,
 			&i.PickupEnabled,
 			&i.PickupInstructions,
+			&i.StorefrontVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -1011,7 +1144,7 @@ func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uu
 }
 
 const listInventoryLocationsPage = `-- name: ListInventoryLocationsPage :many
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
 WHERE $1::text = ''
    OR name ILIKE '%' || escape_like($1::text) || '%'
    OR slug ILIKE '%' || escape_like($1::text) || '%'
@@ -1061,6 +1194,7 @@ func (q *Queries) ListInventoryLocationsPage(ctx context.Context, arg ListInvent
 			&i.ExternalReference,
 			&i.PickupEnabled,
 			&i.PickupInstructions,
+			&i.StorefrontVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -1263,8 +1397,8 @@ func (q *Queries) ListLowStockLevels(ctx context.Context, lim int32) ([]ListLowS
 }
 
 const listPickupLocations = `-- name: ListPickupLocations :many
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions FROM inventory_locations
-WHERE pickup_enabled AND is_active
+SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
+WHERE pickup_enabled AND is_active AND type = 'retail'
 ORDER BY name
 `
 
@@ -1302,6 +1436,63 @@ func (q *Queries) ListPickupLocations(ctx context.Context) ([]InventoryLocation,
 			&i.ExternalReference,
 			&i.PickupEnabled,
 			&i.PickupInstructions,
+			&i.StorefrontVisible,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicInventoryLocations = `-- name: ListPublicInventoryLocations :many
+SELECT l.id, l.slug, l.name, l.is_active, l.metadata, l.created_at, l.updated_at, l.line1, l.line2, l.city, l.region, l.postal_code, l.country_code, l.latitude, l.longitude, l.type, l.timezone, l.hours, l.email, l.phone, l.contact_name, l.external_reference, l.pickup_enabled, l.pickup_instructions, l.storefront_visible FROM inventory_locations l
+JOIN inventory_channel_locations cl ON cl.location_id = l.id
+WHERE cl.channel_id = $1 AND l.is_active AND l.storefront_visible AND l.type = 'retail'
+ORDER BY lower(l.name), l.id
+`
+
+func (q *Queries) ListPublicInventoryLocations(ctx context.Context, channelID uuid.UUID) ([]InventoryLocation, error) {
+	rows, err := q.db.QueryContext(ctx, listPublicInventoryLocations, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InventoryLocation{}
+	for rows.Next() {
+		var i InventoryLocation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.IsActive,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Line1,
+			&i.Line2,
+			&i.City,
+			&i.Region,
+			&i.PostalCode,
+			&i.CountryCode,
+			&i.Latitude,
+			&i.Longitude,
+			&i.Type,
+			&i.Timezone,
+			&i.Hours,
+			&i.Email,
+			&i.Phone,
+			&i.ContactName,
+			&i.ExternalReference,
+			&i.PickupEnabled,
+			&i.PickupInstructions,
+			&i.StorefrontVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -1507,7 +1698,7 @@ const setLocationPickup = `-- name: SetLocationPickup :one
 UPDATE inventory_locations
 SET pickup_enabled = $2, pickup_instructions = $3, updated_at = NOW()
 WHERE id = $1
-RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions
+RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible
 `
 
 type SetLocationPickupParams struct {
@@ -1546,6 +1737,7 @@ func (q *Queries) SetLocationPickup(ctx context.Context, arg SetLocationPickupPa
 		&i.ExternalReference,
 		&i.PickupEnabled,
 		&i.PickupInstructions,
+		&i.StorefrontVisible,
 	)
 	return i, err
 }
@@ -1610,31 +1802,37 @@ SET name                = $2,
     contact_name        = $17,
     external_reference  = $18,
     metadata            = $19,
+    storefront_visible  = CASE WHEN $12 = 'retail' THEN $20 ELSE false END,
+    pickup_enabled      = CASE WHEN $12 = 'retail' THEN COALESCE($21::boolean, pickup_enabled) ELSE false END,
+    pickup_instructions = COALESCE($22::text, pickup_instructions),
     updated_at          = NOW()
 WHERE id = $1
-RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions
+RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible
 `
 
 type UpdateInventoryLocationParams struct {
-	ID                uuid.UUID       `json:"id"`
-	Name              string          `json:"name"`
-	IsActive          bool            `json:"is_active"`
-	Line1             string          `json:"line1"`
-	Line2             string          `json:"line2"`
-	City              string          `json:"city"`
-	Region            string          `json:"region"`
-	PostalCode        string          `json:"postal_code"`
-	CountryCode       sql.NullString  `json:"country_code"`
-	Latitude          sql.NullString  `json:"latitude"`
-	Longitude         sql.NullString  `json:"longitude"`
-	Type              string          `json:"type"`
-	Timezone          string          `json:"timezone"`
-	Hours             json.RawMessage `json:"hours"`
-	Email             string          `json:"email"`
-	Phone             string          `json:"phone"`
-	ContactName       string          `json:"contact_name"`
-	ExternalReference string          `json:"external_reference"`
-	Metadata          json.RawMessage `json:"metadata"`
+	ID                 uuid.UUID       `json:"id"`
+	Name               string          `json:"name"`
+	IsActive           bool            `json:"is_active"`
+	Line1              string          `json:"line1"`
+	Line2              string          `json:"line2"`
+	City               string          `json:"city"`
+	Region             string          `json:"region"`
+	PostalCode         string          `json:"postal_code"`
+	CountryCode        sql.NullString  `json:"country_code"`
+	Latitude           sql.NullString  `json:"latitude"`
+	Longitude          sql.NullString  `json:"longitude"`
+	Type               string          `json:"type"`
+	Timezone           string          `json:"timezone"`
+	Hours              json.RawMessage `json:"hours"`
+	Email              string          `json:"email"`
+	Phone              string          `json:"phone"`
+	ContactName        string          `json:"contact_name"`
+	ExternalReference  string          `json:"external_reference"`
+	Metadata           json.RawMessage `json:"metadata"`
+	StorefrontVisible  bool            `json:"storefront_visible"`
+	PickupEnabled      sql.NullBool    `json:"pickup_enabled"`
+	PickupInstructions sql.NullString  `json:"pickup_instructions"`
 }
 
 func (q *Queries) UpdateInventoryLocation(ctx context.Context, arg UpdateInventoryLocationParams) (InventoryLocation, error) {
@@ -1658,6 +1856,9 @@ func (q *Queries) UpdateInventoryLocation(ctx context.Context, arg UpdateInvento
 		arg.ContactName,
 		arg.ExternalReference,
 		arg.Metadata,
+		arg.StorefrontVisible,
+		arg.PickupEnabled,
+		arg.PickupInstructions,
 	)
 	var i InventoryLocation
 	err := row.Scan(
@@ -1685,6 +1886,7 @@ func (q *Queries) UpdateInventoryLocation(ctx context.Context, arg UpdateInvento
 		&i.ExternalReference,
 		&i.PickupEnabled,
 		&i.PickupInstructions,
+		&i.StorefrontVisible,
 	)
 	return i, err
 }

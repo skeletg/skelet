@@ -12,14 +12,31 @@ enum InventoryMode {
   FLAT
 }
 
+enum InventoryLocationType {
+  RETAIL_STORE
+  WAREHOUSE
+  STORAGE
+  DROPSHIPPER
+  FULFILLMENT_PARTNER
+  UNCLASSIFIED
+}
+
+input InventoryLocationFilter {
+  types: [InventoryLocationType!]
+  city: String
+  isActive: Boolean
+  storefrontVisible: Boolean
+  pickupEnabled: Boolean
+}
+
 type InventoryLocation {
   id:        ID!
   slug:      String!
   name:      String!
   isActive:  Boolean!
-  # Free-form classifier (admin types it). Examples: "warehouse",
-  # "retail", "drop-shipper", "fulfillment-center". Empty when unset.
-  type:      String!
+  storefrontVisible: Boolean!
+  # Purpose, independent of online pickup eligibility.
+  type:      InventoryLocationType!
   # Structured address.
   line1:        String!
   line2:        String!
@@ -114,10 +131,13 @@ type InventoryReservation {
 }
 
 input CreateInventoryLocationInput {
+  pickupEnabled: Boolean
+  pickupInstructions: String
   slug:               String!
   name:               String!
+  storefrontVisible:  Boolean
   isActive:           Boolean
-  type:               String
+  type:               InventoryLocationType
   line1:              String
   line2:              String
   city:               String
@@ -136,10 +156,13 @@ input CreateInventoryLocationInput {
 }
 
 input UpdateInventoryLocationInput {
+  pickupEnabled: Boolean
+  pickupInstructions: String
   id:                 ID!
   name:               String
+  storefrontVisible:  Boolean
   isActive:           Boolean
-  type:               String
+  type:               InventoryLocationType
   line1:              String
   line2:              String
   city:               String
@@ -194,8 +217,8 @@ type SyncProductInventoryBatchResult {
 extend type Query {
   # All args optional for compatibility - search matches name/slug/city,
   # limit defaults to everything so pickers keep their full list
-  inventoryLocations(search: String, limit: Int, offset: Int): [InventoryLocation!]!  # requires inventory.view
-  inventoryLocationsCount(search: String): Int!             # requires inventory.view
+  inventoryLocations(search: String, limit: Int, offset: Int, filter: InventoryLocationFilter): [InventoryLocation!]!  # requires inventory.view
+  inventoryLocationsCount(search: String, filter: InventoryLocationFilter): Int!             # requires inventory.view
   inventoryLocation(id: ID!): InventoryLocation!            # requires inventory.view
   # Returns the inventory item for a product, or null when the product
   # isn't tracked.

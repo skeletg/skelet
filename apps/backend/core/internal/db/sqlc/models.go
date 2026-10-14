@@ -1443,6 +1443,7 @@ type InventoryLocation struct {
 	ExternalReference  string          `json:"external_reference"`
 	PickupEnabled      bool            `json:"pickup_enabled"`
 	PickupInstructions string          `json:"pickup_instructions"`
+	StorefrontVisible  bool            `json:"storefront_visible"`
 }
 
 type InventoryReservation struct {
