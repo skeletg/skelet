@@ -10,6 +10,7 @@ import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
 import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 import { isPublicOp } from "@/app/lib/public-ops";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
+import { decodeOfferSession, OFFER_COOKIE, OFFER_HEADER } from "@/app/lib/cart/offer-cookie";
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
 const FRONT_API_PATH = process.env.FRONT_API_SLUG
@@ -153,6 +154,11 @@ export async function gqlFetch<TData, TVariables>(
     const jar = await cookies();
     const aid = jar.get("lens_aid")?.value;
     if (aid) headers["X-Anon-Id"] = aid;
+    // An offer cart answers to its link, not its id - the link's token goes with every private call
+    if (!isPublicOp(opName)) {
+      const offerToken = decodeOfferSession(jar.get(OFFER_COOKIE)?.value)?.token;
+      if (offerToken) headers[OFFER_HEADER] = offerToken;
+    }
   } catch (err) {
     rethrowIfDynamicBailout(err);
     // not in a request scope - nothing to forward

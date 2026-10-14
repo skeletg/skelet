@@ -1,10 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ gqlFetch: vi.fn(), redirect: vi.fn(() => { throw new Error("redirect"); }), refresh: vi.fn() }));
-vi.mock("@/app/lib/graphql", () => ({ gqlFetch: mocks.gqlFetch, GraphQLRequestError: class extends Error {} }));
+vi.mock("@/app/lib/graphql", () => ({ gqlFetch: mocks.gqlFetch, GraphQLRequestError: class extends Error { constructor(message: string, readonly errors: unknown[]) { super(message); } } }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, RedirectType: { replace: "replace" } }));
 vi.mock("next/cache", () => ({ refresh: mocks.refresh, revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/app/lib/cart/read", () => ({ getCart: async () => ({ id: "cart-1" }), CART_COOKIE: "cart" }));
+vi.mock("@/app/lib/cart/offer", () => ({ getCheckoutCart: async () => ({ id: "cart-1" }), isOfferCheckout: async () => false }));
 vi.mock("@/app/lib/config/read", () => ({ getCheckoutSettings: vi.fn() }));
 vi.mock("@/app/lib/countries/read", () => ({ getCountries: vi.fn() }));
 vi.mock("@/app/lib/customer/read", () => ({ getCustomerOrNull: vi.fn() }));
@@ -35,4 +36,16 @@ it.each([
   data.set("selection", selection);
   await expect(saveGroupDeliveryAction(undefined, data)).rejects.toThrow("redirect");
   expect(mocks.gqlFetch).toHaveBeenCalledWith(expect.anything(), { cartId: "cart-1", groupKey: "group-0", ...sent });
+});
+
+
+it("translates an offer payment restriction into a form error", async () => {
+  const { GraphQLRequestError } = await import("@/app/lib/graphql");
+  mocks.gqlFetch.mockRejectedValue(new GraphQLRequestError("Payment not allowed", [{ message: "Payment not allowed", extensions: { code: "CART_OFFER_PAYMENT_NOT_ALLOWED" } }]));
+  const data = new FormData();
+  data.set("countryCode", "RS");
+  data.set("postalCode", "11000");
+  const result = await saveDestinationStep(undefined, data);
+  expect(result.error?.[""]).toEqual(["offerPaymentNotAllowed"]);
+  expect(mocks.redirect).not.toHaveBeenCalled();
 });

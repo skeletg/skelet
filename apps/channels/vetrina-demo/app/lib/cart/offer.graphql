@@ -1,0 +1,15 @@
+# Follows an offer link - the storefront then keeps the token and sends it as X-Cart-Offer
+mutation OpenCartOffer($token: String!) {
+  openCartOffer(token: $token) {
+    cartId
+    state
+    requiresLogin
+  }
+}
+
+# The offers the signed-in customer may open from their account
+query MyCartOffers {
+  myCartOffers {
+    ...CartFull
+  }
+}

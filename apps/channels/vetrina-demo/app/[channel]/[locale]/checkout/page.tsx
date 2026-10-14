@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
-import { getCart, formatPrice, getFreeShippingThreshold } from "@/app/lib/cart/read";
+import { formatPrice, getFreeShippingThreshold } from "@/app/lib/cart/read";
+import { getCheckoutCart, isOfferCheckout } from "@/app/lib/cart/offer";
+import { offerLocks, type CartOfferLock } from "@/app/lib/cart/types";
+import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { detailsAsks } from "@/app/lib/checkout/asks";
 import { choiceKey, choiceLabel } from "@/app/lib/checkout/choice";
 import {
@@ -52,12 +55,13 @@ export default async function CheckoutPage({
   const { step: requestedStep, notice, pointGroup, pointSearch } = await searchParams;
   const t = await getTranslations({ locale, namespace: "checkout" });
   const tc = await getTranslations({ locale, namespace: "common" });
+  const to = await getTranslations({ locale, namespace: "offer" });
   const format = await getFormatter({ locale });
 
-  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings] =
+  const [customer, cart, channel, consent, countries, countrySettings, guestAllowed, settings, freeShipThreshold, phoneSettings, offerCheckout] =
     await Promise.all([
       getCurrentCustomer(),
-      getCart(),
+      getCheckoutCart(),
       getChannel(),
       getResolvedConsent(),
       getCountries(),
@@ -66,11 +70,21 @@ export default async function CheckoutPage({
       getCheckoutSettings(),
       getFreeShippingThreshold(),
       getPhoneSettings(),
+      isOfferCheckout(),
     ]);
 
   if (!cart || cart.lines.length === 0) {
-    redirect(await withLocalePrefix("/cart", locale));
+    redirect(await withLocalePrefix(offerCheckout ? "/cart/offer" : "/cart", locale));
   }
+  // An offer is the store's own terms - it checks out whatever the guest-checkout setting says, and what it locks
+  // isn't offered for editing here (the backend refuses a change to it either way)
+  const offer = offerCheckout ? (cart.offer ?? null) : null;
+  const deliveryLocked = offerLocks(cart, "DELIVERY");
+  const lockedParts = offer
+    ? (["LINES", "SHIPPING", "BILLING", "DELIVERY", "COUPONS"] as CartOfferLock[])
+        .filter((l) => offer.locks.includes(l))
+        .map((l) => to(`lock.${l}`))
+    : [];
   const checkout = await getCheckoutState(cart.id);
   if (!checkout) {
     redirect(await withLocalePrefix("/cart", locale));
@@ -100,7 +114,8 @@ export default async function CheckoutPage({
     settings,
   );
   const progress = progressOf(checkout, businessOk);
-  const active = activeStep(progress, typeof requestedStep === "string" ? requestedStep : null);
+  const reopened = typeof requestedStep === "string" && !(deliveryLocked && requestedStep === "delivery") ? requestedStep : null;
+  const active = activeStep(progress, reopened);
   const status = (s: Parameters<typeof stepStatus>[0]) => stepStatus(s, active, progress);
   const steps = stepsFor(progress);
   const asks = detailsAsks(checkout.requirements);
@@ -110,12 +125,15 @@ export default async function CheckoutPage({
   const pointGroups = active === "delivery" ? checkout.deliveryGroups.filter((g) => g.selection && asked(g.key, "point")) : [];
   // Payment eligibility follows the destination, or the billing address of a cart with nothing to ship
   const paymentCountry = checkout.destination?.countryCode ?? checkout.billingAddress?.countryCode ?? null;
-  const [regionsByCountry, pointLists, paymentMethods, savedCards] = await Promise.all([
+  const [regionsByCountry, pointLists, availablePaymentMethods, savedCards] = await Promise.all([
     active === "details" ? getRegionsByCountry(countries.map((c) => c.code)) : {},
     Promise.all(pointGroups.map((g) => getDeliveryPoints(cart.id, g.key, pointGroup === g.key && typeof pointSearch === "string" ? pointSearch : undefined))),
     active === "payment" && paymentCountry ? getPaymentMethods(paymentCountry) : [],
     active === "payment" && customer ? getMyPaymentMethods() : [],
   ]);
+  const paymentMethods = offer?.paymentMethods.length
+    ? availablePaymentMethods.filter((method) => offer.paymentMethods.includes(method.providerSlug))
+    : availablePaymentMethods;
   const points: Record<string, DeliveryPointsResult> = Object.fromEntries(pointGroups.map((g, i) => [g.key, pointLists[i]]));
   // Where each pickup is collected from, for the details step's "who collects" block
   const collectFrom = checkout.deliveryGroups.flatMap((g) =>
@@ -171,7 +189,17 @@ export default async function CheckoutPage({
           </div>
         </details>
 
-        {!customer && !guestAllowed ? (
+        {offer ? (
+          <div className="mt-4 rounded-xl border border-border p-4 text-sm">
+            <p>{to("checkoutBanner")}</p>
+            {lockedParts.length > 0 ? <p className="mt-1 text-muted-foreground">{to("locked", { parts: lockedParts.join(", ") })}</p> : null}
+            <OwnCartLink href="/cart" className="mt-2 inline-block underline underline-offset-2">
+              {to("backToCart")}
+            </OwnCartLink>
+          </div>
+        ) : null}
+
+        {!customer && !guestAllowed && !offer ? (
           // The backend refuses guest placement outright when this is off (GUEST_CHECKOUT_DISABLED) -
           // saying so up front beats letting someone fill the whole form and get rejected at submit
           <div className="mt-6 border border-border p-6">
@@ -207,7 +235,7 @@ export default async function CheckoutPage({
         )}
 
         {/* Gated: the steps are not rendered at all, so nobody fills in a checkout the API will refuse */}
-        {(customer || guestAllowed) && (
+        {(customer || guestAllowed || offer) && (
           <div className="mt-8 grid gap-4">
             {progress.needsDelivery ? (
               <StepCard
@@ -215,8 +243,13 @@ export default async function CheckoutPage({
                 title={t("steps.delivery")}
                 status={status("delivery")}
                 editLabel={tc("edit")}
-                editHref={edit("delivery")}
-                summary={<DeliverySummary checkout={checkout} currency={currency} free={t("delivery.free")} />}
+                editHref={deliveryLocked ? undefined : edit("delivery")}
+                summary={
+                  <>
+                    <DeliverySummary checkout={checkout} currency={currency} free={t("delivery.free")} />
+                    {deliveryLocked ? <span className="block text-xs">{to("lockedStep")}</span> : null}
+                  </>
+                }
               >
                 <DeliveryStep
                   checkout={checkout}

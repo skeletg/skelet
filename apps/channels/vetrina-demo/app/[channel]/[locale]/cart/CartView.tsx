@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Link } from "@/app/components/LocaleLink";
+import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { useTranslations } from "next-intl";
 
 import { CartQuantity } from "@/app/components/CartQuantity";
@@ -222,12 +223,12 @@ export function CartView({
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
-            <Link
+            <OwnCartLink
               href="/checkout"
               className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               {t("proceed")}
-            </Link>
+            </OwnCartLink>
             <Slots zone="cart:actions" />
           </div>
 
