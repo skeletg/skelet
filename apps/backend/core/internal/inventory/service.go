@@ -138,6 +138,14 @@ func (s *Service) CreateLocation(ctx context.Context, input CreateLocationInput)
 	if err := validateCoords(input.Latitude, input.Longitude); err != nil {
 		return Location{}, err
 	}
+	typ, err := NormalizeLocationType(input.Type)
+	if err != nil {
+		return Location{}, err
+	}
+	input.Type = typ
+	if (input.StorefrontVisible || input.PickupEnabled) && typ != LocationRetail {
+		return Location{}, ErrRetailLocationRequired
+	}
 	return s.repo.CreateLocation(ctx, input)
 }
 
@@ -190,6 +198,15 @@ func (s *Service) PickupLocations(ctx context.Context) ([]Location, error) {
 }
 
 func (s *Service) SetLocationPickup(ctx context.Context, id uuid.UUID, enabled bool, instructions string) (Location, error) {
+	if enabled {
+		location, err := s.repo.GetLocationByID(ctx, id)
+		if err != nil {
+			return Location{}, err
+		}
+		if location.Type != LocationRetail {
+			return Location{}, ErrRetailLocationRequired
+		}
+	}
 	return s.repo.SetLocationPickup(ctx, id, enabled, instructions)
 }
 
@@ -203,6 +220,33 @@ func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput)
 	}
 	if err := validateCoords(input.Latitude, input.Longitude); err != nil {
 		return Location{}, err
+	}
+	if input.Type != nil {
+		typ, err := NormalizeLocationType(*input.Type)
+		if err != nil {
+			return Location{}, err
+		}
+		input.Type = &typ
+		if typ != LocationRetail {
+			hidden := false
+			input.StorefrontVisible = &hidden
+			input.PickupEnabled = &hidden
+		}
+	}
+	if (input.StorefrontVisible != nil && *input.StorefrontVisible) || (input.PickupEnabled != nil && *input.PickupEnabled) {
+		typ := ""
+		if input.Type != nil {
+			typ = *input.Type
+		} else {
+			current, err := s.repo.GetLocationByID(ctx, input.ID)
+			if err != nil {
+				return Location{}, err
+			}
+			typ = current.Type
+		}
+		if typ != LocationRetail {
+			return Location{}, ErrRetailLocationRequired
+		}
 	}
 	return s.repo.UpdateLocation(ctx, input)
 }

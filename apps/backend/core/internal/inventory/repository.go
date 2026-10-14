@@ -39,25 +39,28 @@ func (r *postgresRepository) CreateLocation(ctx context.Context, input CreateLoc
 		hours = json.RawMessage(`{}`)
 	}
 	row, err := r.queries.CreateInventoryLocation(ctx, db.CreateInventoryLocationParams{
-		Slug:              input.Slug,
-		Name:              input.Name,
-		IsActive:          input.IsActive,
-		Line1:             input.Line1,
-		Line2:             input.Line2,
-		City:              input.City,
-		Region:            input.Region,
-		PostalCode:        input.PostalCode,
-		CountryCode:       sqlnull.StringValueNonEmpty(input.CountryCode),
-		Latitude:          floatToNullString(input.Latitude),
-		Longitude:         floatToNullString(input.Longitude),
-		Type:              input.Type,
-		Timezone:          input.Timezone,
-		Hours:             hours,
-		Email:             input.Email,
-		Phone:             input.Phone,
-		ContactName:       input.ContactName,
-		ExternalReference: input.ExternalReference,
-		Metadata:          metadataToJSON(input.Metadata),
+		PickupEnabled:      input.PickupEnabled,
+		PickupInstructions: input.PickupInstructions,
+		StorefrontVisible:  input.StorefrontVisible,
+		Slug:               input.Slug,
+		Name:               input.Name,
+		IsActive:           input.IsActive,
+		Line1:              input.Line1,
+		Line2:              input.Line2,
+		City:               input.City,
+		Region:             input.Region,
+		PostalCode:         input.PostalCode,
+		CountryCode:        sqlnull.StringValueNonEmpty(input.CountryCode),
+		Latitude:           floatToNullString(input.Latitude),
+		Longitude:          floatToNullString(input.Longitude),
+		Type:               input.Type,
+		Timezone:           input.Timezone,
+		Hours:              hours,
+		Email:              input.Email,
+		Phone:              input.Phone,
+		ContactName:        input.ContactName,
+		ExternalReference:  input.ExternalReference,
+		Metadata:           metadataToJSON(input.Metadata),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -228,26 +231,33 @@ func (r *postgresRepository) UpdateLocation(ctx context.Context, input UpdateLoc
 		metadata = metadataToJSON(*input.Metadata)
 	}
 
+	visible := current.StorefrontVisible
+	if input.StorefrontVisible != nil {
+		visible = *input.StorefrontVisible
+	}
 	row, err := r.queries.UpdateInventoryLocation(ctx, db.UpdateInventoryLocationParams{
-		ID:                input.ID,
-		Name:              name,
-		IsActive:          isActive,
-		Line1:             line1,
-		Line2:             line2,
-		City:              city,
-		Region:            region,
-		PostalCode:        postalCode,
-		CountryCode:       countryCode,
-		Latitude:          latitude,
-		Longitude:         longitude,
-		Type:              typ,
-		Timezone:          timezone,
-		Hours:             hours,
-		Email:             email,
-		Phone:             phone,
-		ContactName:       contactName,
-		ExternalReference: externalReference,
-		Metadata:          metadata,
+		PickupEnabled:      locationFilterBool(input.PickupEnabled),
+		PickupInstructions: optionalLocationText(input.PickupInstructions),
+		StorefrontVisible:  visible,
+		ID:                 input.ID,
+		Name:               name,
+		IsActive:           isActive,
+		Line1:              line1,
+		Line2:              line2,
+		City:               city,
+		Region:             region,
+		PostalCode:         postalCode,
+		CountryCode:        countryCode,
+		Latitude:           latitude,
+		Longitude:          longitude,
+		Type:               typ,
+		Timezone:           timezone,
+		Hours:              hours,
+		Email:              email,
+		Phone:              phone,
+		ContactName:        contactName,
+		ExternalReference:  externalReference,
+		Metadata:           metadata,
 	})
 	if err != nil {
 		return Location{}, fmt.Errorf("update location: %w", err)
@@ -275,6 +285,7 @@ func (r *postgresRepository) ListChannelLocations(ctx context.Context, channelID
 			ID:                row.ID,
 			Slug:              row.Slug,
 			Name:              row.Name,
+			StorefrontVisible: row.StorefrontVisible,
 			IsActive:          row.IsActive,
 			Type:              row.Type,
 			Line1:             row.Line1,
@@ -672,6 +683,7 @@ func (r *postgresRepository) ListLowStockItemsFlat(ctx context.Context, limit in
 
 func toLocation(row db.InventoryLocation) Location {
 	return Location{
+		StorefrontVisible:  row.StorefrontVisible,
 		PickupEnabled:      row.PickupEnabled,
 		PickupInstructions: row.PickupInstructions,
 		ID:                 row.ID,
@@ -865,4 +877,53 @@ func (r *postgresRepository) CountLocationCommitments(ctx context.Context, locat
 		return 0, fmt.Errorf("count location commitments: %w", err)
 	}
 	return n, nil
+}
+
+func (r *postgresRepository) ListPublicLocations(ctx context.Context, channelID uuid.UUID) ([]Location, error) {
+	rows, err := r.queries.ListPublicInventoryLocations(ctx, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("list public locations: %w", err)
+	}
+	out := make([]Location, len(rows))
+	for i, row := range rows {
+		out[i] = toLocation(row)
+	}
+	return out, nil
+}
+
+func locationFilterBool(v *bool) sql.NullBool {
+	if v == nil {
+		return sql.NullBool{}
+	}
+	return sql.NullBool{Bool: *v, Valid: true}
+}
+
+func (r *postgresRepository) ListFilteredLocationsPage(ctx context.Context, search string, filter LocationFilter, limit, offset int32) ([]Location, error) {
+	types := filter.Types
+	if types == nil {
+		types = []string{}
+	}
+	rows, err := r.queries.ListFilteredInventoryLocations(ctx, db.ListFilteredInventoryLocationsParams{Search: search, Types: types, City: filter.City, Active: locationFilterBool(filter.IsActive), Visible: locationFilterBool(filter.StorefrontVisible), Pickup: locationFilterBool(filter.PickupEnabled), Lim: limit, Off: offset})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Location, len(rows))
+	for i, row := range rows {
+		out[i] = toLocation(row)
+	}
+	return out, nil
+}
+func (r *postgresRepository) CountFilteredLocations(ctx context.Context, search string, filter LocationFilter) (int64, error) {
+	types := filter.Types
+	if types == nil {
+		types = []string{}
+	}
+	return r.queries.CountFilteredInventoryLocations(ctx, db.CountFilteredInventoryLocationsParams{Search: search, Types: types, City: filter.City, Active: locationFilterBool(filter.IsActive), Visible: locationFilterBool(filter.StorefrontVisible), Pickup: locationFilterBool(filter.PickupEnabled)})
+}
+
+func optionalLocationText(value *string) sql.NullString {
+	if value == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *value, Valid: true}
 }

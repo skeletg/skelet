@@ -1010,6 +1010,37 @@ type ComplexityRoot struct {
 		RuleSlug      func(childComplexity int) int
 	}
 
+	PublicStore struct {
+		City          func(childComplexity int) int
+		CountryCode   func(childComplexity int) int
+		DistanceKm    func(childComplexity int) int
+		Hours         func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Latitude      func(childComplexity int) int
+		Line1         func(childComplexity int) int
+		Line2         func(childComplexity int) int
+		Longitude     func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Phone         func(childComplexity int) int
+		PickupEnabled func(childComplexity int) int
+		PostalCode    func(childComplexity int) int
+		Region        func(childComplexity int) int
+		Slug          func(childComplexity int) int
+		StockStatus   func(childComplexity int) int
+		Timezone      func(childComplexity int) int
+	}
+
+	PublicStoresResult struct {
+		Cities                 func(childComplexity int) int
+		Enabled                func(childComplexity int) int
+		HasPickupStores        func(childComplexity int) int
+		Items                  func(childComplexity int) int
+		PreferredStore         func(childComplexity int) int
+		ProductEligible        func(childComplexity int) int
+		StockCheckingAvailable func(childComplexity int) int
+		TotalCount             func(childComplexity int) int
+	}
+
 	Query struct {
 		Attribute             func(childComplexity int, id string) int
 		Attributes            func(childComplexity int) int
@@ -1071,6 +1102,7 @@ type ComplexityRoot struct {
 		ProductsBySkus        func(childComplexity int, skus []string) int
 		PublicConfig          func(childComplexity int) int
 		PublicConfigSections  func(childComplexity int) int
+		PublicStores          func(childComplexity int, input *model1.PublicStoresInput) int
 		Regions               func(childComplexity int, countryCode string) int
 		RootCategories        func(childComplexity int) int
 		Route                 func(childComplexity int, path string) int
@@ -1472,6 +1504,7 @@ type QueryResolver interface {
 	ProductQuestions(ctx context.Context, productID string, limit *int32) ([]*model1.ProductQuestion, error)
 	SitemapCounts(ctx context.Context) (*model1.SitemapCounts, error)
 	SitemapEntries(ctx context.Context, entityType model1.SitemapEntityType, limit int32, offset int32) ([]*model1.SitemapEntry, error)
+	PublicStores(ctx context.Context, input *model1.PublicStoresInput) (*model1.PublicStoresResult, error)
 	MySubscriptions(ctx context.Context) ([]*model.CustomerSubscription, error)
 	Route(ctx context.Context, path string) (*model1.RouteResolution, error)
 	WishlistProductIds(ctx context.Context) ([]string, error)
@@ -6026,6 +6059,158 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PromotionalDisplay.RuleSlug(childComplexity), true
 
+	case "PublicStore.city":
+		if e.ComplexityRoot.PublicStore.City == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.City(childComplexity), true
+	case "PublicStore.countryCode":
+		if e.ComplexityRoot.PublicStore.CountryCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.CountryCode(childComplexity), true
+	case "PublicStore.distanceKm":
+		if e.ComplexityRoot.PublicStore.DistanceKm == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.DistanceKm(childComplexity), true
+	case "PublicStore.hours":
+		if e.ComplexityRoot.PublicStore.Hours == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Hours(childComplexity), true
+	case "PublicStore.id":
+		if e.ComplexityRoot.PublicStore.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.ID(childComplexity), true
+	case "PublicStore.latitude":
+		if e.ComplexityRoot.PublicStore.Latitude == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Latitude(childComplexity), true
+	case "PublicStore.line1":
+		if e.ComplexityRoot.PublicStore.Line1 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Line1(childComplexity), true
+	case "PublicStore.line2":
+		if e.ComplexityRoot.PublicStore.Line2 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Line2(childComplexity), true
+	case "PublicStore.longitude":
+		if e.ComplexityRoot.PublicStore.Longitude == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Longitude(childComplexity), true
+	case "PublicStore.name":
+		if e.ComplexityRoot.PublicStore.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Name(childComplexity), true
+	case "PublicStore.phone":
+		if e.ComplexityRoot.PublicStore.Phone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Phone(childComplexity), true
+	case "PublicStore.pickupEnabled":
+		if e.ComplexityRoot.PublicStore.PickupEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.PickupEnabled(childComplexity), true
+	case "PublicStore.postalCode":
+		if e.ComplexityRoot.PublicStore.PostalCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.PostalCode(childComplexity), true
+	case "PublicStore.region":
+		if e.ComplexityRoot.PublicStore.Region == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Region(childComplexity), true
+	case "PublicStore.slug":
+		if e.ComplexityRoot.PublicStore.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Slug(childComplexity), true
+	case "PublicStore.stockStatus":
+		if e.ComplexityRoot.PublicStore.StockStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.StockStatus(childComplexity), true
+	case "PublicStore.timezone":
+		if e.ComplexityRoot.PublicStore.Timezone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStore.Timezone(childComplexity), true
+
+	case "PublicStoresResult.cities":
+		if e.ComplexityRoot.PublicStoresResult.Cities == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.Cities(childComplexity), true
+	case "PublicStoresResult.enabled":
+		if e.ComplexityRoot.PublicStoresResult.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.Enabled(childComplexity), true
+	case "PublicStoresResult.hasPickupStores":
+		if e.ComplexityRoot.PublicStoresResult.HasPickupStores == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.HasPickupStores(childComplexity), true
+	case "PublicStoresResult.items":
+		if e.ComplexityRoot.PublicStoresResult.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.Items(childComplexity), true
+	case "PublicStoresResult.preferredStore":
+		if e.ComplexityRoot.PublicStoresResult.PreferredStore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.PreferredStore(childComplexity), true
+	case "PublicStoresResult.productEligible":
+		if e.ComplexityRoot.PublicStoresResult.ProductEligible == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.ProductEligible(childComplexity), true
+	case "PublicStoresResult.stockCheckingAvailable":
+		if e.ComplexityRoot.PublicStoresResult.StockCheckingAvailable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.StockCheckingAvailable(childComplexity), true
+	case "PublicStoresResult.totalCount":
+		if e.ComplexityRoot.PublicStoresResult.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PublicStoresResult.TotalCount(childComplexity), true
+
 	case "Query.attribute":
 		if e.ComplexityRoot.Query.Attribute == nil {
 			break
@@ -6562,6 +6747,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PublicConfigSections(childComplexity), true
+	case "Query.publicStores":
+		if e.ComplexityRoot.Query.PublicStores == nil {
+			break
+		}
+
+		args, err := ec.field_Query_publicStores_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.PublicStores(childComplexity, args["input"].(*model1.PublicStoresInput)), true
 	case "Query.regions":
 		if e.ComplexityRoot.Query.Regions == nil {
 			break
@@ -7344,6 +7540,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCustomerLoginInput,
 		ec.unmarshalInputCustomerRegisterInput,
 		ec.unmarshalInputProductOptionSelectionInput,
+		ec.unmarshalInputPublicStoresInput,
 		ec.unmarshalInputRequestReturnInput,
 		ec.unmarshalInputReturnLineInput,
 		ec.unmarshalInputReviewAnswerInput,
@@ -9305,6 +9502,62 @@ extend type Query {
   sitemapEntries(entityType: SitemapEntityType!, limit: Int!, offset: Int!): [SitemapEntry!]!
 }
 `, BuiltIn: false},
+	{Name: "../schema/front/stores.graphqls", Input: `enum StoreStockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  UNKNOWN
+}
+
+# Customer-facing projection: never exposes operational inventory fields.
+type PublicStore {
+  id: ID!
+  slug: String!
+  name: String!
+  line1: String!
+  line2: String!
+  city: String!
+  region: String!
+  postalCode: String!
+  countryCode: String!
+  latitude: Float
+  longitude: Float
+  timezone: String!
+  hours: JSON!
+  phone: String!
+  pickupEnabled: Boolean!
+  distanceKm: Float
+  stockStatus: StoreStockStatus
+}
+
+input PublicStoresInput {
+  productId: ID
+  city: String
+  search: String
+  inStockOnly: Boolean
+  pickupOnly: Boolean
+  latitude: Float
+  longitude: Float
+  preferredStoreId: ID
+  limit: Int
+  offset: Int
+}
+
+type PublicStoresResult {
+  enabled: Boolean!
+  stockCheckingAvailable: Boolean!
+  productEligible: Boolean!
+  hasPickupStores: Boolean!
+  cities: [String!]!
+  preferredStore: PublicStore
+  items: [PublicStore!]!
+  totalCount: Int!
+}
+
+extend type Query {
+  publicStores(input: PublicStoresInput): PublicStoresResult!
+}
+`, BuiltIn: false},
 	{Name: "../schema/front/subscriptions.graphqls", Input: `# Subscriptions (storefront). A kind=SUBSCRIPTION product carries recurring terms; purchasing it starts a subscription the customer can view and cancel from their account. Billing advances on a schedule server-side.
 
 enum SubscriptionInterval {
@@ -11213,6 +11466,68 @@ func (ec *executionContext) childFields_PromotionalDisplay(ctx context.Context, 
 		return ec.fieldContext_PromotionalDisplay_pillBgColor(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PromotionalDisplay", field.Name)
+}
+
+func (ec *executionContext) childFields_PublicStore(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_PublicStore_id(ctx, field)
+	case "slug":
+		return ec.fieldContext_PublicStore_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_PublicStore_name(ctx, field)
+	case "line1":
+		return ec.fieldContext_PublicStore_line1(ctx, field)
+	case "line2":
+		return ec.fieldContext_PublicStore_line2(ctx, field)
+	case "city":
+		return ec.fieldContext_PublicStore_city(ctx, field)
+	case "region":
+		return ec.fieldContext_PublicStore_region(ctx, field)
+	case "postalCode":
+		return ec.fieldContext_PublicStore_postalCode(ctx, field)
+	case "countryCode":
+		return ec.fieldContext_PublicStore_countryCode(ctx, field)
+	case "latitude":
+		return ec.fieldContext_PublicStore_latitude(ctx, field)
+	case "longitude":
+		return ec.fieldContext_PublicStore_longitude(ctx, field)
+	case "timezone":
+		return ec.fieldContext_PublicStore_timezone(ctx, field)
+	case "hours":
+		return ec.fieldContext_PublicStore_hours(ctx, field)
+	case "phone":
+		return ec.fieldContext_PublicStore_phone(ctx, field)
+	case "pickupEnabled":
+		return ec.fieldContext_PublicStore_pickupEnabled(ctx, field)
+	case "distanceKm":
+		return ec.fieldContext_PublicStore_distanceKm(ctx, field)
+	case "stockStatus":
+		return ec.fieldContext_PublicStore_stockStatus(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PublicStore", field.Name)
+}
+
+func (ec *executionContext) childFields_PublicStoresResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_PublicStoresResult_enabled(ctx, field)
+	case "stockCheckingAvailable":
+		return ec.fieldContext_PublicStoresResult_stockCheckingAvailable(ctx, field)
+	case "productEligible":
+		return ec.fieldContext_PublicStoresResult_productEligible(ctx, field)
+	case "hasPickupStores":
+		return ec.fieldContext_PublicStoresResult_hasPickupStores(ctx, field)
+	case "cities":
+		return ec.fieldContext_PublicStoresResult_cities(ctx, field)
+	case "preferredStore":
+		return ec.fieldContext_PublicStoresResult_preferredStore(ctx, field)
+	case "items":
+		return ec.fieldContext_PublicStoresResult_items(ctx, field)
+	case "totalCount":
+		return ec.fieldContext_PublicStoresResult_totalCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PublicStoresResult", field.Name)
 }
 
 func (ec *executionContext) childFields_ReferralInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -13536,6 +13851,20 @@ func (ec *executionContext) field_Query_productsBySkus_args(ctx context.Context,
 		return nil, err
 	}
 	args["skus"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_publicStores_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (*model1.PublicStoresInput, error) {
+			return ec.unmarshalOPublicStoresInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoresInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -31803,6 +32132,599 @@ func (ec *executionContext) fieldContext_PromotionalDisplay_pillBgColor(_ contex
 	return graphql.NewScalarFieldContext("PromotionalDisplay", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _PublicStore_id(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_slug(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_name(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_line1(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_line1(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Line1, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_line1(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_line2(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_line2(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Line2, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_line2(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_city(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_city(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.City, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_city(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_region(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_region(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Region, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_region(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_postalCode(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_postalCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PostalCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_postalCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_countryCode(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_countryCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountryCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_countryCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_latitude(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_latitude(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Latitude, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_latitude(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_longitude(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_longitude(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Longitude, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_longitude(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_timezone(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_timezone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Timezone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_timezone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_hours(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_hours(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hours, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_hours(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_phone(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_phone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Phone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_phone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_pickupEnabled(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_pickupEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PickupEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_pickupEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_distanceKm(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_distanceKm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DistanceKm, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_distanceKm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStore_stockStatus(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStore) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStore_stockStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StockStatus, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.StoreStockStatus) graphql.Marshaler {
+			return ec.marshalOStoreStockStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStoreStockStatus(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStore_stockStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStore", field, false, false, errors.New("field of type StoreStockStatus does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_enabled(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_stockCheckingAvailable(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_stockCheckingAvailable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StockCheckingAvailable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_stockCheckingAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_productEligible(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_productEligible(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProductEligible, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_productEligible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_hasPickupStores(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_hasPickupStores(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HasPickupStores, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_hasPickupStores(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_cities(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_cities(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cities, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_cities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PublicStoresResult_preferredStore(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_preferredStore(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PreferredStore, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.PublicStore) graphql.Marshaler {
+			return ec.marshalOPublicStore2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStore(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_preferredStore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PublicStoresResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PublicStore(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PublicStoresResult_items(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PublicStore) graphql.Marshaler {
+			return ec.marshalNPublicStore2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoreᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PublicStoresResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PublicStore(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PublicStoresResult_totalCount(ctx context.Context, field graphql.CollectedField, obj *model1.PublicStoresResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PublicStoresResult_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PublicStoresResult_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PublicStoresResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Query_blogPost(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34360,6 +35282,50 @@ func (ec *executionContext) fieldContext_Query_sitemapEntries(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_sitemapEntries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_publicStores(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_publicStores(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().PublicStores(ctx, fc.Args["input"].(*model1.PublicStoresInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.PublicStoresResult) graphql.Marshaler {
+			return ec.marshalNPublicStoresResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoresResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_publicStores(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PublicStoresResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_publicStores_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -38765,6 +39731,99 @@ func (ec *executionContext) unmarshalInputProductOptionSelectionInput(ctx contex
 				return it, err
 			}
 			it.FileAssetID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPublicStoresInput(ctx context.Context, obj any) (model1.PublicStoresInput, error) {
+	var it model1.PublicStoresInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"productId", "city", "search", "inStockOnly", "pickupOnly", "latitude", "longitude", "preferredStoreId", "limit", "offset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "productId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProductID = data
+		case "city":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("city"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.City = data
+		case "search":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("search"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Search = data
+		case "inStockOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inStockOnly"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InStockOnly = data
+		case "pickupOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupOnly"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupOnly = data
+		case "latitude":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("latitude"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Latitude = data
+		case "longitude":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("longitude"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Longitude = data
+		case "preferredStoreId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferredStoreId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PreferredStoreID = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
 		}
 	}
 	return it, nil
@@ -47354,6 +48413,197 @@ func (ec *executionContext) _PromotionalDisplay(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var publicStoreImplementors = []string{"PublicStore"}
+
+func (ec *executionContext) _PublicStore(ctx context.Context, sel ast.SelectionSet, obj *model1.PublicStore) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, publicStoreImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PublicStore")
+		case "id":
+			out.Values[i] = ec._PublicStore_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slug":
+			out.Values[i] = ec._PublicStore_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._PublicStore_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "line1":
+			out.Values[i] = ec._PublicStore_line1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "line2":
+			out.Values[i] = ec._PublicStore_line2(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "city":
+			out.Values[i] = ec._PublicStore_city(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "region":
+			out.Values[i] = ec._PublicStore_region(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "postalCode":
+			out.Values[i] = ec._PublicStore_postalCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "countryCode":
+			out.Values[i] = ec._PublicStore_countryCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "latitude":
+			out.Values[i] = ec._PublicStore_latitude(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "longitude":
+			out.Values[i] = ec._PublicStore_longitude(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "timezone":
+			out.Values[i] = ec._PublicStore_timezone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hours":
+			out.Values[i] = ec._PublicStore_hours(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "phone":
+			out.Values[i] = ec._PublicStore_phone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pickupEnabled":
+			out.Values[i] = ec._PublicStore_pickupEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "distanceKm":
+			out.Values[i] = ec._PublicStore_distanceKm(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "stockStatus":
+			out.Values[i] = ec._PublicStore_stockStatus(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var publicStoresResultImplementors = []string{"PublicStoresResult"}
+
+func (ec *executionContext) _PublicStoresResult(ctx context.Context, sel ast.SelectionSet, obj *model1.PublicStoresResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, publicStoresResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PublicStoresResult")
+		case "enabled":
+			out.Values[i] = ec._PublicStoresResult_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stockCheckingAvailable":
+			out.Values[i] = ec._PublicStoresResult_stockCheckingAvailable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "productEligible":
+			out.Values[i] = ec._PublicStoresResult_productEligible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasPickupStores":
+			out.Values[i] = ec._PublicStoresResult_hasPickupStores(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cities":
+			out.Values[i] = ec._PublicStoresResult_cities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "preferredStore":
+			out.Values[i] = ec._PublicStoresResult_preferredStore(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._PublicStoresResult_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._PublicStoresResult_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -48792,6 +50042,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_sitemapEntries(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "publicStores":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_publicStores(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -53099,6 +54371,46 @@ func (ec *executionContext) marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletg
 	return ec._PromotionalDisplay(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNPublicStore2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoreᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PublicStore) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPublicStore2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStore(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPublicStore2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStore(ctx context.Context, sel ast.SelectionSet, v *model1.PublicStore) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PublicStore(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPublicStoresResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoresResult(ctx context.Context, sel ast.SelectionSet, v model1.PublicStoresResult) graphql.Marshaler {
+	return ec._PublicStoresResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPublicStoresResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoresResult(ctx context.Context, sel ast.SelectionSet, v *model1.PublicStoresResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PublicStoresResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNReferralInfo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx context.Context, sel ast.SelectionSet, v model1.ReferralInfo) graphql.Marshaler {
 	return ec._ReferralInfo(ctx, sel, &v)
 }
@@ -54356,6 +55668,21 @@ func (ec *executionContext) marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._ProductMedia(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOPublicStore2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStore(ctx context.Context, sel ast.SelectionSet, v *model1.PublicStore) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PublicStore(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPublicStoresInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐPublicStoresInput(ctx context.Context, v any) (*model1.PublicStoresInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputPublicStoresInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx context.Context, v any) (*model1.ReviewIneligibilityReason, error) {
 	if v == nil {
 		return nil, nil
@@ -54393,6 +55720,22 @@ func (ec *executionContext) marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._RouteResolution(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOStoreStockStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStoreStockStatus(ctx context.Context, v any) (*model1.StoreStockStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model1.StoreStockStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOStoreStockStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐStoreStockStatus(ctx context.Context, sel ast.SelectionSet, v *model1.StoreStockStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

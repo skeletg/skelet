@@ -7,7 +7,7 @@ INSERT INTO inventory_locations (
     latitude, longitude,
     type, timezone, hours,
     email, phone, contact_name, external_reference,
-    metadata
+    metadata, storefront_visible, pickup_enabled, pickup_instructions
 )
 VALUES (
     $1, $2, $3,
@@ -15,7 +15,7 @@ VALUES (
     $10, $11,
     $12, $13, $14,
     $15, $16, $17, $18,
-    $19
+    $19, $20, $21, $22
 )
 RETURNING *;
 
@@ -68,6 +68,9 @@ SET name                = $2,
     contact_name        = $17,
     external_reference  = $18,
     metadata            = $19,
+    storefront_visible  = CASE WHEN $12 = 'retail' THEN $20 ELSE false END,
+    pickup_enabled      = CASE WHEN $12 = 'retail' THEN COALESCE(sqlc.narg(pickup_enabled)::boolean, pickup_enabled) ELSE false END,
+    pickup_instructions = COALESCE(sqlc.narg(pickup_instructions)::text, pickup_instructions),
     updated_at          = NOW()
 WHERE id = $1
 RETURNING *;
@@ -303,7 +306,7 @@ RETURNING *;
 
 -- name: ListPickupLocations :many
 SELECT * FROM inventory_locations
-WHERE pickup_enabled AND is_active
+WHERE pickup_enabled AND is_active AND type = 'retail'
 ORDER BY name;
 
 -- name: ExportInventoryLevels :many
@@ -414,3 +417,35 @@ SELECT (
         HAVING SUM(r.quantity_delta) <> 0
     ) open_chains)
 )::bigint AS total;
+
+-- name: ListPublicInventoryLocations :many
+SELECT l.* FROM inventory_locations l
+JOIN inventory_channel_locations cl ON cl.location_id = l.id
+WHERE cl.channel_id = $1 AND l.is_active AND l.storefront_visible AND l.type = 'retail'
+ORDER BY lower(l.name), l.id;
+
+-- name: ListFilteredInventoryLocations :many
+SELECT * FROM inventory_locations
+WHERE (sqlc.arg(search)::text = ''
+ OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
+ AND (cardinality(sqlc.arg(types)::text[]) = 0 OR type = ANY(sqlc.arg(types)::text[]))
+ AND (sqlc.arg(city)::text = '' OR city ILIKE '%' || escape_like(sqlc.arg(city)::text) || '%')
+ AND (sqlc.narg(active)::boolean IS NULL OR is_active = sqlc.narg(active))
+ AND (sqlc.narg(visible)::boolean IS NULL OR storefront_visible = sqlc.narg(visible))
+ AND (sqlc.narg(pickup)::boolean IS NULL OR pickup_enabled = sqlc.narg(pickup))
+ORDER BY lower(name), id
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountFilteredInventoryLocations :one
+SELECT COUNT(*) FROM inventory_locations
+WHERE (sqlc.arg(search)::text = ''
+ OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
+ AND (cardinality(sqlc.arg(types)::text[]) = 0 OR type = ANY(sqlc.arg(types)::text[]))
+ AND (sqlc.arg(city)::text = '' OR city ILIKE '%' || escape_like(sqlc.arg(city)::text) || '%')
+ AND (sqlc.narg(active)::boolean IS NULL OR is_active = sqlc.narg(active))
+ AND (sqlc.narg(visible)::boolean IS NULL OR storefront_visible = sqlc.narg(visible))
+ AND (sqlc.narg(pickup)::boolean IS NULL OR pickup_enabled = sqlc.narg(pickup));
