@@ -2,6 +2,8 @@ import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 import { PasswordInput } from "@/app/components/account/PasswordInput";
+import { PhoneInput } from "@/app/components/account/PhoneInput";
+import type { PhoneFieldSetup } from "@/app/lib/forms/phone";
 
 export function AccountPageHeader({
   title,
@@ -155,6 +157,8 @@ export function Field({
   minLength,
   placeholder,
   hint,
+  phoneCountry,
+  phone,
   className = "",
 }: {
   label: string;
@@ -169,6 +173,10 @@ export function Field({
   minLength?: number;
   placeholder?: string;
   hint?: string;
+  // type="tel" only: the store's phone setup for this field (phoneFieldFor), or just the country a nationally typed
+  // number is read in
+  phone?: PhoneFieldSetup;
+  phoneCountry?: string;
   className?: string;
 }) {
   // The label names the input and nothing else - hint and errors sit outside it and are linked by aria-describedby,
@@ -207,6 +215,8 @@ export function Field({
       </label>
       {type === "password" ? (
         <PasswordInput key={field?.key} {...inputProps} />
+      ) : type === "tel" ? (
+        <PhoneInput key={field?.key} setup={phone ?? { country: phoneCountry ?? "", locked: false, allowed: [] }} {...inputProps} />
       ) : (
         <input key={field?.key} type={type} {...inputProps} />
       )}

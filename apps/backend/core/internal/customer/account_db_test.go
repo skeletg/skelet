@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	phonepkg "github.com/skeletg/skelet/apps/backend/core/lib/phone"
 )
 
 // Address ids come off the client, so ownership is all that stands between a customer and someone else's
@@ -46,9 +48,14 @@ func TestUpdateProfileMergesRatherThanBlanks(t *testing.T) {
 	f := newFixture(t)
 	ch := f.newChannel(t)
 	c := f.register(t, ch, randomEmail(), "password123")
-	phone := "+15550000001"
+	phone := "+12015550123"
 
-	got, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &phone})
+	bad := "+1 555 000"
+	if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &bad}); !errors.Is(err, phonepkg.ErrInvalid) {
+		t.Fatalf("update with an invalid phone = %v, want phone.ErrInvalid", err)
+	}
+	spaced := "+1 (201) 555-0123"
+	got, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &spaced})
 	if err != nil {
 		t.Fatalf("update phone: %v", err)
 	}

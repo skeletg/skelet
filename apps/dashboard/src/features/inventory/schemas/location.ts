@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { phoneIssue } from '@/lib/phone'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import {
@@ -101,6 +102,11 @@ export const locationSchema = z
     metadata: metadataSchema,
   })
   .describe('An inventory location: a place that holds stock')
+  .superRefine((v, ctx) => {
+    // Read in the location's own country, as the backend does
+    const message = phoneIssue(v.phone, v.countryCode)
+    if (message) ctx.addIssue({ code: 'custom', path: ['phone'], message })
+  })
 
 export type LocationValues = z.infer<typeof locationSchema>
 
