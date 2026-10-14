@@ -153,15 +153,8 @@ type CartRepricer interface {
 // Enforces the channel's country and region options on addresses, and its phone rules on their phones - nil skips
 // both, leaving a phone read in its address's country alone
 type CountryValidator interface {
-	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
 	PhoneRulesForChannel(ctx context.Context, channelID uuid.UUID) phone.Rules
-}
-
-func (s *Service) phoneRules(ctx context.Context, channelID uuid.UUID) phone.Rules {
-	if s.countries == nil {
-		return phone.Rules{}
-	}
-	return s.countries.PhoneRulesForChannel(ctx, channelID)
+	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
 }
 
 // Enforces that a chosen provider is enabled for the channel and shipping country, nil skips - here so order to payment stays a one-way interface dep
@@ -946,7 +939,7 @@ func findAddress(c customer.Customer, id uuid.UUID) (customer.Address, error) {
 
 // Picks an OrderAddress for one slot from an inline payload (guests, one-off addresses) or an id in the customer's book (logged-in only) - inline wins when both are set, so a caller can override a stale book pick
 // A quote prices a checkout still being filled in, so it accepts a destination-only address - country, region and postcode are all shipping and tax read
-func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string, quote bool, rules phone.Rules) (OrderAddress, error) {
+func resolveAddress(rules phone.Rules, inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string, quote bool) (OrderAddress, error) {
 	if inline != nil {
 		if quote && inline.CountryCode != "" {
 			return *inline, nil
@@ -954,15 +947,7 @@ func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c cus
 		if inline.Street1 == "" || inline.City == "" || inline.PostalCode == "" || inline.CountryCode == "" {
 			return OrderAddress{}, fmt.Errorf("%w: %s address is missing required fields", ErrAddressInvalid, slot)
 		}
-		a := *inline
-		if a.Phone != nil {
-			p, err := rules.Normalize(*a.Phone, a.CountryCode)
-			if err != nil {
-				return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
-			}
-			a.Phone = &p
-		}
-		return a, nil
+		return normalizeOrderAddress(rules, *inline, slot)
 	}
 	if id != nil {
 		if !hasCustomer {
@@ -972,7 +957,7 @@ func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c cus
 		if err != nil {
 			return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
 		}
-		return toOrderAddress(addr), nil
+		return normalizeOrderAddress(rules, toOrderAddress(addr), slot)
 	}
 	return OrderAddress{}, fmt.Errorf("%w: %s address is required", ErrAddressInvalid, slot)
 }
@@ -1056,4 +1041,20 @@ func errInvalidTransition(from, to string) error {
 func errStatusRaced(from, to string) error {
 	return apperr.New("ORDER_STATUS_RACED", apperr.ClassConflict,
 		fmt.Sprintf("the order left %q before it could move to %q - reload it and try again", from, to))
+}
+
+// Resolve once per operation, before taking any order lock.
+func (s *Service) phoneRules(ctx context.Context, channelID uuid.UUID) phone.Rules {
+	if s.countries != nil {
+		return s.countries.PhoneRulesForChannel(ctx, channelID)
+	}
+	return phone.Rules{}
+}
+
+func normalizeOrderAddress(rules phone.Rules, a OrderAddress, slot string) (OrderAddress, error) {
+	var err error
+	if a.Phone, err = rules.NormalizePtr(a.Phone, a.CountryCode); err != nil {
+		return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
+	}
+	return a, nil
 }

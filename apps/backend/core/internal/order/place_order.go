@@ -53,26 +53,22 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 		c = loaded
 	}
 
-	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
-	// The store is only required further down, so a missing one reads its phones under the default rules until then
-	var storeID uuid.UUID
-	if st, ok := channel.FromContext(ctx); ok {
-		storeID = st.ID
-	}
-	rules := s.phoneRules(ctx, storeID)
-	billing, err := resolveAddress(in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote, rules)
-	if err != nil {
-		return nil, err
-	}
-	shipping, err := resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote, rules)
-	if err != nil {
-		return nil, err
-	}
-
 	// PlaceOrder is storefront-only - without a store there's no currency to stamp
 	store, ok := channel.FromContext(ctx)
 	if !ok {
 		return nil, ErrStoreRequired
+	}
+
+	rules := s.phoneRules(ctx, store.ID)
+
+	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
+	billing, err := resolveAddress(rules, in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote)
+	if err != nil {
+		return nil, err
+	}
+	shipping, err := resolveAddress(rules, in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote)
+	if err != nil {
+		return nil, err
 	}
 
 	// Enforce the channel's country/region options on both addresses, no-op without a validator

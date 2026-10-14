@@ -135,18 +135,6 @@ func (s *Service) NormalizeProfilePhone(ctx context.Context, channelID uuid.UUID
 	return s.phoneRules(ctx, channelID).NormalizePtr(raw, "")
 }
 
-// An address phone is read in the address's own country, under its store's rules
-func (s *Service) normalizeAddressPhone(ctx context.Context, customerID uuid.UUID, input AddressInput) (*string, error) {
-	if input.Phone == nil {
-		return nil, nil
-	}
-	cust, err := s.repo.GetByID(ctx, customerID)
-	if err != nil {
-		return nil, err
-	}
-	return s.phoneRules(ctx, cust.ChannelID).NormalizePtr(input.Phone, input.CountryCode)
-}
-
 // RequiresEmailVerification exposes the channel's gate so the registration resolver can withhold the session - minting one before the address is proven would make the whole setting a no-op
 func (s *Service) RequiresEmailVerification(ctx context.Context, channelID uuid.UUID) bool {
 	return s.requireEmailVerification(ctx, channelID)
@@ -267,13 +255,19 @@ func (s *Service) UpdateProfileFrom(ctx context.Context, id uuid.UUID, input Upd
 	if err := ValidateProfile(input); err != nil {
 		return Customer{}, err
 	}
+	if input.Phone != nil {
+		existing, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			return Customer{}, err
+		}
+		if input.Phone, err = s.NormalizeProfilePhone(ctx, existing.ChannelID, input.Phone); err != nil {
+			return Customer{}, err
+		}
+	}
 	var updated Customer
 	err := s.atomically(ctx, func(r *postgresRepository) ([]events.Event, error) {
 		existing, err := r.GetByIDForUpdate(ctx, id)
 		if err != nil {
-			return nil, err
-		}
-		if input.Phone, err = s.NormalizeProfilePhone(ctx, existing.ChannelID, input.Phone); err != nil {
 			return nil, err
 		}
 		merged := UpdateCustomerInput{FirstName: existing.FirstName, LastName: existing.LastName, Phone: existing.Phone}
