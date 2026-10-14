@@ -33,6 +33,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/core/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/core/internal/notification"
@@ -165,8 +166,9 @@ type Svcs struct {
 	Recommend *recommend.Service
 	Outbox    *outbox.Outbox
 
-	Flows       *enroll.Enroller
-	BackInStock *backinstock.Service
+	Flows               *enroll.Enroller
+	BackInStock         *backinstock.Service
+	TransactionalSender *mailsend.Sender
 
 	Scheduler  *scheduler.Service
 	SearchTier SearchTier

@@ -109,12 +109,16 @@ type Resolver struct {
 	SubscriptionSvc   *subscription.Service
 	SalesSvc          *sales.Service
 	// Core's plug into the Signals service - Pulse, the chat's suite tools and every other Signals read relay through it
-	SignalsAPI       *signalsclient.Client
-	NotificationSvc  *notification.Service
-	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
-	FormSvc          *signupform.Service
-	WebFormSvc       *webform.Service
-	DeliverySvc      *delivery.Service
+	SignalsAPI      *signalsclient.Client
+	NotificationSvc *notification.Service
+	NotificationHub *notification.Hub // live push fan-out for the notificationAdded subscription
+	FormSvc         *signupform.Service
+	WebFormSvc      *webform.Service
+	DeliverySvc     *delivery.Service
+	// The storefront checkout's view of a cart, so an offer's delivery and payment are filled in from exactly what the recipient's checkout offers - nil leaves offers without them
+	OfferCheckout OfferCheckout
+	// Emails an offer's link to its recipient - nil refuses the send
+	OfferMail        OfferMailer
 	ChatSvc          *ai.History
 	CacheClient      *revalidate.Client
 	CacheQueue       *revalidate.Queue

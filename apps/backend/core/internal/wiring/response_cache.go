@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
@@ -71,7 +72,7 @@ func storableFrontResponse(status int, body []byte) bool {
 func frontResponseCache(c *cachepkg.Cache, ttl time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil || r.Method != http.MethodPost || r.Header.Get("Authorization") != "" || r.Header.Get("X-Review-Voter-Token") != "" { // Anything carrying credentials or a voter identity is personal - bypass
+			if c == nil || r.Method != http.MethodPost || r.Header.Get("Authorization") != "" || r.Header.Get("X-Review-Voter-Token") != "" || r.Header.Get(cart.OfferLinkHeader) != "" { // Anything carrying credentials or a voter identity is personal - bypass
 				next.ServeHTTP(w, r)
 				return
 			}

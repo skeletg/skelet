@@ -512,37 +512,51 @@ type CacheRevalidation struct {
 }
 
 type Cart struct {
-	ID                    uuid.UUID             `json:"id"`
-	CustomerID            uuid.NullUUID         `json:"customer_id"`
-	Status                string                `json:"status"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
-	ChannelID             uuid.UUID             `json:"channel_id"`
-	AbandonedNotifiedAt   sql.NullTime          `json:"abandoned_notified_at"`
-	Email                 string                `json:"email"`
-	Note                  string                `json:"note"`
-	LastActivityAt        time.Time             `json:"last_activity_at"`
-	ShippingAddress       pqtype.NullRawMessage `json:"shipping_address"`
-	ShippingAddressID     uuid.NullUUID         `json:"shipping_address_id"`
-	BillingSameAsShipping bool                  `json:"billing_same_as_shipping"`
-	BillingAddress        pqtype.NullRawMessage `json:"billing_address"`
-	BillingAddressID      uuid.NullUUID         `json:"billing_address_id"`
-	ShippingCarrierSlug   string                `json:"shipping_carrier_slug"`
-	ShippingMethodCode    string                `json:"shipping_method_code"`
-	PaymentProviderSlug   string                `json:"payment_provider_slug"`
-	PoNumber              string                `json:"po_number"`
-	UseStoreCredit        bool                  `json:"use_store_credit"`
-	GiftCardCodes         []string              `json:"gift_card_codes"`
-	DestinationCountry    string                `json:"destination_country"`
-	DestinationRegion     string                `json:"destination_region"`
-	DestinationPostalCode string                `json:"destination_postal_code"`
-	ContactPhone          string                `json:"contact_phone"`
-	PurchaseType          string                `json:"purchase_type"`
-	CompanyName           string                `json:"company_name"`
-	BusinessIds           json.RawMessage       `json:"business_ids"`
-	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
-	Deliveries            json.RawMessage       `json:"deliveries"`
-	SplitDelivery         bool                  `json:"split_delivery"`
+	ID                     uuid.UUID             `json:"id"`
+	CustomerID             uuid.NullUUID         `json:"customer_id"`
+	Status                 string                `json:"status"`
+	CreatedAt              time.Time             `json:"created_at"`
+	UpdatedAt              time.Time             `json:"updated_at"`
+	ChannelID              uuid.UUID             `json:"channel_id"`
+	AbandonedNotifiedAt    sql.NullTime          `json:"abandoned_notified_at"`
+	Email                  string                `json:"email"`
+	Note                   string                `json:"note"`
+	LastActivityAt         time.Time             `json:"last_activity_at"`
+	ShippingAddress        pqtype.NullRawMessage `json:"shipping_address"`
+	ShippingAddressID      uuid.NullUUID         `json:"shipping_address_id"`
+	BillingSameAsShipping  bool                  `json:"billing_same_as_shipping"`
+	BillingAddress         pqtype.NullRawMessage `json:"billing_address"`
+	BillingAddressID       uuid.NullUUID         `json:"billing_address_id"`
+	ShippingCarrierSlug    string                `json:"shipping_carrier_slug"`
+	ShippingMethodCode     string                `json:"shipping_method_code"`
+	PaymentProviderSlug    string                `json:"payment_provider_slug"`
+	PoNumber               string                `json:"po_number"`
+	UseStoreCredit         bool                  `json:"use_store_credit"`
+	GiftCardCodes          []string              `json:"gift_card_codes"`
+	DestinationCountry     string                `json:"destination_country"`
+	DestinationRegion      string                `json:"destination_region"`
+	DestinationPostalCode  string                `json:"destination_postal_code"`
+	ContactPhone           string                `json:"contact_phone"`
+	PurchaseType           string                `json:"purchase_type"`
+	CompanyName            string                `json:"company_name"`
+	BusinessIds            json.RawMessage       `json:"business_ids"`
+	PickupContact          pqtype.NullRawMessage `json:"pickup_contact"`
+	Deliveries             json.RawMessage       `json:"deliveries"`
+	SplitDelivery          bool                  `json:"split_delivery"`
+	Kind                   string                `json:"kind"`
+	OfferExpiresAt         sql.NullTime          `json:"offer_expires_at"`
+	OfferMessage           string                `json:"offer_message"`
+	OfferShowInAccount     bool                  `json:"offer_show_in_account"`
+	OfferLocks             []string              `json:"offer_locks"`
+	OfferPaymentMethods    []string              `json:"offer_payment_methods"`
+	OfferLinkVersion       int32                 `json:"offer_link_version"`
+	OfferSentAt            sql.NullTime          `json:"offer_sent_at"`
+	OfferSendCount         int32                 `json:"offer_send_count"`
+	OfferOpenedAt          sql.NullTime          `json:"offer_opened_at"`
+	OfferRevokedAt         sql.NullTime          `json:"offer_revoked_at"`
+	OfferExpiredNotifiedAt sql.NullTime          `json:"offer_expired_notified_at"`
+	OfferCreatedBy         uuid.NullUUID         `json:"offer_created_by"`
+	OrderID                uuid.NullUUID         `json:"order_id"`
 }
 
 type CartAppliedCode struct {
@@ -565,6 +579,9 @@ type CartLine struct {
 	UpdatedAt       time.Time     `json:"updated_at"`
 	IsGift          bool          `json:"is_gift"`
 	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
+	PriceOverride   bool          `json:"price_override"`
+	IsCustom        bool          `json:"is_custom"`
+	TaxClass        string        `json:"tax_class"`
 }
 
 type CartLineComponent struct {
@@ -1717,6 +1734,7 @@ type OrderLine struct {
 	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
 	RemovedAt       sql.NullTime  `json:"removed_at"`
 	CostCents       sql.NullInt64 `json:"cost_cents"`
+	IsCustom        bool          `json:"is_custom"`
 }
 
 type OrderLineComponent struct {

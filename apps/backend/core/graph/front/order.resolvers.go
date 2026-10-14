@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
@@ -161,8 +162,14 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 	if err := r.checkoutComplete(ctx, v); err != nil {
 		return nil, err
 	}
+	if c.IsOffer() && slug != "" && !c.Offer.PaymentAllowed(slug) { // the offer was narrowed after the method was chosen
+		return nil, cart.ErrOfferPaymentNotAllowed
+	}
 	input := r.placeOrderInput(ctx, v, paymentOK)
 	input.CustomerID = channel.OptionalCustomerID(ctx)
+	if c.IsOffer() && c.CustomerID == nil { // a guest offer stays a guest order for its recipient, whoever is signed in on the browser that follows the link
+		input.CustomerID = nil
+	}
 	if paymentToken != nil && *paymentToken != "" {
 		input.PaymentToken = paymentToken
 	}
@@ -186,13 +193,14 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 
 	scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &c.ChannelID}
 	// sales/checkout/allow_guest - a nil CustomerID IS the guest predicate, same value the input carries above Only this resolver reaches OrderSvc.PlaceOrder; admin drafts, B2B quotes and subscription renewals take other service methods entirely, so an operator disabling guest checkout can't strand them
-	if input.CustomerID == nil {
+	// An offer is the admin's own terms - they chose the guest recipient and the amount, so neither store-wide gate applies to it
+	if input.CustomerID == nil && !c.IsOffer() {
 		if allowGuest, gerr := r.ConfigSvc.GetBool(ctx, "sales/checkout/allow_guest", scope); gerr == nil && !allowGuest {
 			return nil, apperr.New("GUEST_CHECKOUT_DISABLED", apperr.ClassAuth, "sign in or create an account to place this order")
 		}
 	}
 	// sales/checkout/min_order in cents, channel-scoped, checked against the cart's line subtotal
-	if minOrder, _ := r.ConfigSvc.GetInt(ctx, "sales/checkout/min_order", scope); minOrder > 0 {
+	if minOrder, _ := r.ConfigSvc.GetInt(ctx, "sales/checkout/min_order", scope); minOrder > 0 && !c.IsOffer() {
 		var subtotal int64
 		for _, l := range c.Lines {
 			subtotal += money.LineTotal(l.UnitPrice, l.Quantity)

@@ -120,6 +120,7 @@ func toCartModel(c cart.Cart) *frontmodel.Cart {
 		Note:     c.Note,
 		Lines:    lines,
 		Subtotal: int32(subtotal),
+		Offer:    toCartOfferModel(c),
 	}
 }
 
@@ -435,6 +436,7 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 		TotalPrice: int32(money.LineTotal(l.UnitPrice, l.Quantity)),
 		Components: components,
 		Options:    options,
+		IsCustom:   l.IsCustom,
 	}
 }
 

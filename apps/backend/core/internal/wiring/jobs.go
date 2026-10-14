@@ -221,6 +221,14 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			}
 			return err
 		})
+	jobScheduler.Register("cart-offer-expiry", "@every 5m", "Announce cart offers that reached their expiry unfinished (cart.offer.expired). The link stops working at the expiry itself; this only tells subscribers.",
+		func(ctx context.Context) error {
+			n, err := d.Cart.AnnounceExpiredOffers(ctx, 500)
+			if n > 0 {
+				log.Printf("[cart] %d offers expired", n)
+			}
+			return err
+		})
 	jobScheduler.Register("urlrewrite-redirect-retention", "@every 24h", "Delete system-generated rename redirects (from URL auto-moves) past the retention window. Operator-authored redirects are kept.",
 		func(ctx context.Context) error {
 			days, err := d.Config.GetInt(ctx, "general/urls/redirect_retention_days", config.DefaultScope)

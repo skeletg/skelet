@@ -32,6 +32,21 @@ func (r *cartResolver) Checkout(ctx context.Context, obj *model1.Cart) (*model1.
 	return r.checkoutModel(ctx, c), nil
 }
 
+func (r *mutationResolver) OpenCartOffer(ctx context.Context, token string) (*model1.CartOfferOpening, error) {
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return nil, storeRequired()
+	}
+	o, err := r.CartSvc.OpenOffer(ctx, token, channel.OptionalCustomerID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if o.ChannelID != sv.ID { // a link answers only on the store it was made for
+		return nil, cart.ErrOfferLinkInvalid
+	}
+	return &model1.CartOfferOpening{CartID: o.CartID.String(), State: offerStateModel(o.State), RequiresLogin: o.RequiresLogin}, nil
+}
+
 func (r *mutationResolver) CreateGuestCart(ctx context.Context) (*model1.Cart, error) {
 	store, ok := channel.FromContext(ctx)
 	if !ok {
@@ -348,6 +363,9 @@ func (r *mutationResolver) ApplyCoupon(ctx context.Context, cartID string, code 
 	if err != nil {
 		return nil, err
 	}
+	if err := c.Unlocked(cart.LockCoupons); err != nil {
+		return nil, err
+	}
 	if _, err := r.PromotionSvc.ApplyCode(ctx, cid, c.ChannelID, code, channel.OptionalCustomerID(ctx)); err != nil {
 		return nil, err
 	}
@@ -368,6 +386,9 @@ func (r *mutationResolver) RemoveCoupon(ctx context.Context, cartID string, code
 	}
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
 	if err != nil {
+		return nil, err
+	}
+	if err := c.Unlocked(cart.LockCoupons); err != nil {
 		return nil, err
 	}
 	if err := r.PromotionSvc.RemoveCode(ctx, cid, code); err != nil {
@@ -547,7 +568,25 @@ func (r *queryResolver) Cart(ctx context.Context, id string) (*model1.Cart, erro
 	if !ok || sv == nil || c.ChannelID != sv.ID {
 		return nil, nil
 	}
+	r.CartSvc.RecordOfferOpened(ctx, &c)
 	return r.fullCartModel(ctx, c), nil
+}
+
+func (r *queryResolver) MyCartOffers(ctx context.Context) ([]*model1.Cart, error) {
+	sv, ok := channel.FromContext(ctx)
+	customerID := channel.OptionalCustomerID(ctx)
+	if !ok || sv == nil || customerID == nil {
+		return []*model1.Cart{}, nil
+	}
+	offers, err := r.CartSvc.CustomerOffers(ctx, *customerID, sv.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model1.Cart, len(offers))
+	for i, c := range offers {
+		out[i] = r.fullCartModel(ctx, c)
+	}
+	return out, nil
 }
 
 // Empty list when no zone covers the country - the storefront checkout renders this as the "Standard / Express / Free over $50" picker
