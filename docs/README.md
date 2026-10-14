@@ -26,6 +26,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 
 | Doc | What's in it |
 |---|---|
+| [store-availability.md](store-availability.md) | Public stores, per-store product stock, and development demo fixtures |
 | [channels.md](channels.md) | What's global vs per-channel, the scope ladder, how locale and currency resolve |
 | [deploying.md](deploying.md) | The two deployment shapes, putting an edge in front, health, backups, logs |
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |
