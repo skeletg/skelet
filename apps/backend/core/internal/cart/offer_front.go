@@ -14,7 +14,7 @@ var ErrOfferOtherAccount = errors.New("this offer was sent to a different accoun
 
 func (s *Service) SetOfferLinks(l *OfferLinks) { s.links = l }
 
-// OfferLinks signs the links offers are sent with - nil until wired
+// OfferLinks resolves the credentials offers are sent with - nil until wired
 func (s *Service) OfferLinks() *OfferLinks { return s.links }
 
 // OfferOpening is what a followed offer link leads to - the cart, where the offer stands, and whether the recipient has to sign in first
@@ -30,7 +30,7 @@ func (s *Service) OpenOffer(ctx context.Context, token string, callerID *uuid.UU
 	if s.links == nil {
 		return OfferOpening{}, ErrOfferLinkInvalid
 	}
-	grant, err := s.links.Verify(token)
+	grant, err := s.links.Verify(ctx, token)
 	if err != nil {
 		return OfferOpening{}, err
 	}

@@ -2,6 +2,7 @@ package cart
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -175,20 +176,20 @@ func TestNormalizeOfferLocks(t *testing.T) {
 }
 
 func TestOfferLinks(t *testing.T) {
-	links := NewOfferLinks([]byte("secret"))
+	links := NewOfferLinks([]byte("secret"), nil)
 	id := uuid.New()
-	tok := links.Sign(id, 4)
-	g, err := links.Verify(tok)
+	tok := links.signLegacy(id, 4)
+	g, err := links.Verify(context.Background(), tok)
 	if err != nil || g.CartID != id || g.LinkVersion != 4 {
 		t.Fatalf("round trip: %+v, %v", g, err)
 	}
 	for name, bad := range map[string]string{
 		"tampered version": id.String() + ".5." + tok[len(id.String())+3:],
-		"other secret":     NewOfferLinks([]byte("other")).Sign(id, 4),
+		"other secret":     NewOfferLinks([]byte("other"), nil).signLegacy(id, 4),
 		"garbage":          "nope",
 		"empty":            "",
 	} {
-		if _, err := links.Verify(bad); !errors.Is(err, ErrOfferLinkInvalid) {
+		if _, err := links.Verify(context.Background(), bad); !errors.Is(err, ErrOfferLinkInvalid) {
 			t.Errorf("%s verified: %v", name, err)
 		}
 	}
@@ -330,5 +331,63 @@ func TestRecordOfferOpened(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+type offerTokenRepository struct {
+	Repository
+	cart  Cart
+	err   error
+	reads int
+}
+
+func (r *offerTokenRepository) GetOfferByToken(_ context.Context, token string) (Cart, error) {
+	r.reads++
+	if r.err != nil {
+		return Cart{}, r.err
+	}
+	if token != r.cart.Offer.LinkToken {
+		return Cart{}, sql.ErrNoRows
+	}
+	return r.cart, nil
+}
+
+func (r *offerTokenRepository) GetCartByID(context.Context, uuid.UUID) (Cart, error) {
+	return r.cart, nil
+}
+func (r *offerTokenRepository) MarkOfferOpened(context.Context, uuid.UUID) error { return nil }
+
+func TestOpaqueOfferLinks(t *testing.T) {
+	ctx := context.Background()
+	c := offerCart(nil, nil)
+	c.Offer.LinkToken = "AAAAAAAAAAAAAAAAAAAAAA"
+	repo := &offerTokenRepository{cart: c}
+	links := NewOfferLinks([]byte("secret"), repo)
+	for _, secret := range []string{"secret", "rotated secret"} {
+		grant, err := NewOfferLinks([]byte(secret), repo).Verify(ctx, c.Offer.LinkToken)
+		if err != nil || grant.CartID != c.ID || grant.LinkVersion != c.Offer.LinkVersion {
+			t.Fatalf("opaque token after secret %q: %+v, %v", secret, grant, err)
+		}
+	}
+	for _, token := range []string{"", "short", "AAAAAAAAAAAAAAAAAAAAA!", "AAAAAAAAAAAAAAAAAAAAAB", "BBBBBBBBBBBBBBBBBBBBBA"} {
+		if _, err := links.Verify(ctx, token); !errors.Is(err, ErrOfferLinkInvalid) {
+			t.Fatalf("invalid token %q: %v", token, err)
+		}
+	}
+	old := c.Offer.LinkToken
+	legacy := links.signLegacy(c.ID, c.Offer.LinkVersion)
+	if _, err := (&Service{repo: repo, links: links}).OpenOffer(ctx, legacy, nil); err != nil {
+		t.Fatalf("existing signed link: %v", err)
+	}
+	repo.cart.Offer.LinkToken = "CCCCCCCCCCCCCCCCCCCCCA"
+	repo.cart.Offer.LinkVersion++
+	for _, token := range []string{old, legacy} {
+		if _, err := (&Service{repo: repo, links: links}).OpenOffer(ctx, token, nil); !errors.Is(err, ErrOfferLinkInvalid) {
+			t.Fatalf("replaced link %q: %v", token, err)
+		}
+	}
+	repo.err = errors.New("database unavailable")
+	if _, err := links.Verify(ctx, repo.cart.Offer.LinkToken); !errors.Is(err, repo.err) {
+		t.Fatalf("database failure lost: %v", err)
 	}
 }

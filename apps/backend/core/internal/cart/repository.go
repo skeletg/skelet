@@ -512,6 +512,14 @@ func (r *postgresRepository) SetCartOrder(ctx context.Context, cartID, orderID u
 
 // --- offers ---
 
+func (r *postgresRepository) GetOfferByToken(ctx context.Context, token string) (Cart, error) {
+	row, err := r.queries.GetCartByOfferToken(ctx, token)
+	if err != nil {
+		return Cart{}, fmt.Errorf("load offer by token: %w", err)
+	}
+	return toCart(row), nil
+}
+
 func (r *postgresRepository) CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error) {
 	row, err := r.queries.CreateOfferCart(ctx, db.CreateOfferCartParams{
 		CustomerID: sqlnull.UUID(in.CustomerID),
@@ -674,6 +682,7 @@ func toCart(row db.Cart) Cart {
 			Locks:          row.OfferLocks,
 			PaymentMethods: row.OfferPaymentMethods,
 			LinkVersion:    row.OfferLinkVersion,
+			LinkToken:      row.OfferLinkToken,
 			SentAt:         sqlnull.TimePtr(row.OfferSentAt),
 			SendCount:      row.OfferSendCount,
 			OpenedAt:       sqlnull.TimePtr(row.OfferOpenedAt),

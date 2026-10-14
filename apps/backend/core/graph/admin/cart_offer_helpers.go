@@ -84,16 +84,16 @@ func (r *Resolver) offerChannel(ctx context.Context, channelID uuid.UUID) (*chan
 	return &ch, nil
 }
 
-// offerLinkPath is the link's path on the storefront - empty when no signer is wired
+// offerLinkPath is the link's path on the storefront - empty when no link resolver is wired
 func (r *Resolver) offerLinkPath(c cart.Cart) string {
 	links := r.CartSvc.OfferLinks()
 	if links == nil || !c.IsOffer() {
 		return ""
 	}
-	return cart.OfferLinkPath + links.Sign(c.ID, c.Offer.LinkVersion)
+	return cart.OfferLinkPath + c.Offer.LinkToken
 }
 
-// offerLink is the link the offer's email carries - empty when the channel has no public URL or no signer is wired
+// offerLink is the link the offer's email carries - empty when the channel has no public URL or no link resolver is wired
 func (r *Resolver) offerLink(ch *channel.Channel, c cart.Cart) string {
 	path := r.offerLinkPath(c)
 	if ch == nil || path == "" || strings.TrimSpace(ch.PublicURL) == "" {

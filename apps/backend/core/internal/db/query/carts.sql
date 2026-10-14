@@ -8,8 +8,8 @@ INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING *;
 
 -- name: CreateOfferCart :one
 -- A guest offer carries its recipient in email, a customer offer its owner in customer_id - either way it never takes the shopper-cart slot
-INSERT INTO carts (customer_id, channel_id, kind, email, offer_expires_at, offer_created_by)
-VALUES (sqlc.narg(customer_id), sqlc.arg(channel_id), 'offer', sqlc.arg(email), sqlc.arg(expires_at), sqlc.narg(created_by))
+INSERT INTO carts (customer_id, channel_id, kind, email, offer_expires_at, offer_created_by, offer_link_token)
+VALUES (sqlc.narg(customer_id), sqlc.arg(channel_id), 'offer', sqlc.arg(email), sqlc.arg(expires_at), sqlc.narg(created_by), translate(rtrim(encode(public.gen_random_bytes(16), 'base64'), '='), '+/', '-_'))
 RETURNING *;
 
 -- name: SetCartStatus :one
@@ -19,6 +19,9 @@ RETURNING *;
 
 -- name: GetCartByID :one
 SELECT * FROM carts WHERE id = $1 LIMIT 1;
+
+-- name: GetCartByOfferToken :one
+SELECT * FROM carts WHERE kind = 'offer' AND offer_link_token = $1 LIMIT 1;
 
 -- name: ListCarts :many
 -- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
@@ -223,7 +226,8 @@ UPDATE carts SET offer_opened_at = NOW() WHERE id = $1 AND kind = 'offer' AND of
 UPDATE carts SET offer_revoked_at = NOW(), updated_at = NOW() WHERE id = $1 AND kind = 'offer' AND offer_revoked_at IS NULL;
 
 -- name: BumpCartOfferLink :one
-UPDATE carts SET offer_link_version = offer_link_version + 1, updated_at = NOW() WHERE id = $1 AND kind = 'offer'
+UPDATE carts SET offer_link_version = offer_link_version + 1,
+    offer_link_token = translate(rtrim(encode(public.gen_random_bytes(16), 'base64'), '='), '+/', '-_'), updated_at = NOW() WHERE id = $1 AND kind = 'offer'
 RETURNING offer_link_version;
 
 -- name: SetCartOrder :exec

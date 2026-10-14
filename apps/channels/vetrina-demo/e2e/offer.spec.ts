@@ -40,6 +40,7 @@ async function finish(admin: Admin, id: string): Promise<{ id: string; path: str
       },
     },
   );
+  expect(cart.offer.linkPath).toMatch(/^\/offer\/[A-Za-z0-9_-]{22}$/);
   return { id, path: cart.offer.linkPath };
 }
 
