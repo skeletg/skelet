@@ -36,6 +36,7 @@ import {
   DeleteLocaleDocument,
   LocalesAdminListDocument,
 } from './Locales.gql'
+import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
 
 type LocaleRow = {
   code: string
@@ -47,13 +48,6 @@ type LocaleRow = {
   flagEmoji: string
   defaultCountryCode: string
   updatedAt: string
-}
-
-function parseReferenceCount(message: string): number | null {
-  const match = message.match(/(\d+)\s+references?/i)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
 }
 
 function friendlyDeleteError(message: string): string {

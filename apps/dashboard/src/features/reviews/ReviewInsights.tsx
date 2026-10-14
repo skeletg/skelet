@@ -12,6 +12,7 @@ import { DetailPageBody, DetailPageSection } from '@/components/layout/detail-pa
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { ReviewInsightsDocument } from './Reviews.gql'
+import { formatNumber } from '@/lib/format'
 
 type Bucket = 'day' | 'week' | 'month'
 
@@ -25,8 +26,6 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Pending', color: CHART_WARNING },
   REJECTED: { label: 'Rejected', color: CHART_DESTRUCTIVE },
 }
-
-const nfmt = (n: number) => n.toLocaleString()
 
 function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -243,7 +242,7 @@ export function ReviewInsightsContent() {
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Total reviews</p>
                 <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold tabular-nums">{nfmt(total)}</span>
+                  <span className="text-2xl font-semibold tabular-nums">{formatNumber(total)}</span>
                   {totalDelta !== null ? (
                     <span
                       className={cn(
@@ -256,18 +255,18 @@ export function ReviewInsightsContent() {
                   ) : null}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {totalDelta !== null ? `vs ${nfmt(prevTotal)} prior period` : 'no prior-period data'}
+                  {totalDelta !== null ? `vs ${formatNumber(prevTotal)} prior period` : 'no prior-period data'}
                 </p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Avg per {bucket}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{nfmt(avgPerBucket)}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(avgPerBucket)}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">across {volumeData.length} {bucket}s</p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Top category</p>
                 <p className="mt-1 truncate text-2xl font-semibold">{breakdown[0] ? (breakdown[0].slug ? breakdown[0].name : 'Uncategorized') : '-'}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{breakdown[0] ? `${nfmt(breakdown[0].count)} reviews` : ''}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{breakdown[0] ? `${formatNumber(breakdown[0].count)} reviews` : ''}</p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Biggest mover</p>
@@ -276,7 +275,7 @@ export function ReviewInsightsContent() {
                   {mover ? (
                     <span className={mover.change > 0 ? 'text-success' : 'text-destructive'}>
                       {mover.change > 0 ? '▲ +' : '▼ '}
-                      {nfmt(Math.abs(mover.change))} vs prior
+                      {formatNumber(Math.abs(mover.change))} vs prior
                     </span>
                   ) : (
                     'no change'
@@ -342,7 +341,7 @@ export function ReviewInsightsContent() {
                         <span className="inline-block size-2 rounded-full" style={{ background: meta.color }} />
                         {meta.label}
                       </span>
-                      <span className="tabular-nums text-muted-foreground">{nfmt(s.count)} · {share}%</span>
+                      <span className="tabular-nums text-muted-foreground">{formatNumber(s.count)} · {share}%</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full" style={{ width: `${share}%`, background: meta.color }} />
@@ -436,7 +435,7 @@ function ShareTable({
                   <span className="mr-2 inline-block size-2 rounded-full align-middle" style={{ background: r.color }} />
                   {r.muted ? <span className="text-muted-foreground">{r.label}</span> : r.label}
                 </td>
-                <td className="px-3 py-1.5 text-right tabular-nums">{nfmt(r.count)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{formatNumber(r.count)}</td>
                 <td className="px-3 py-1.5">
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -451,7 +450,7 @@ function ShareTable({
                       <span className="text-muted-foreground">-</span>
                     ) : (
                       <span className={r.change > 0 ? 'text-success' : 'text-destructive'}>
-                        {r.change > 0 ? `+${nfmt(r.change)}` : nfmt(r.change)}
+                        {r.change > 0 ? `+${formatNumber(r.change)}` : formatNumber(r.change)}
                       </span>
                     )}
                   </td>
@@ -480,7 +479,7 @@ function SimpleTooltip({
   return (
     <div className="rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="font-medium">{String(label ?? '')}</div>
-      <div className="mt-1 text-muted-foreground tabular-nums">{nfmt(payload[0].value ?? 0)} reviews</div>
+      <div className="mt-1 text-muted-foreground tabular-nums">{formatNumber(payload[0].value ?? 0)} reviews</div>
     </div>
   )
 }

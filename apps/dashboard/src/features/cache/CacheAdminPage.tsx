@@ -23,11 +23,7 @@ import {
   EnqueueRebuildDocument,
   RebuildQueueDocument,
 } from './Cache.gql'
-
-function fmtWhen(v: unknown): string {
-  const d = new Date(v as string)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatDateTime } from '@/lib/format'
 
 // CacheAdminPage - the abstract storefront cache console - Lists every registered
 // cacheable surface (CMS now; products/categories later) with an enable toggle
@@ -309,7 +305,7 @@ export function CacheAdminPage() {
                 <tbody>
                   {log.map((e) => (
                     <tr key={e.id} className="border-b last:border-0">
-                      <td className="whitespace-nowrap py-1.5 pr-3 text-muted-foreground">{fmtWhen(e.createdAt)}</td>
+                      <td className="whitespace-nowrap py-1.5 pr-3 text-muted-foreground">{formatDateTime(e.createdAt)}</td>
                       <td className="py-1.5 pr-3">{e.surface ? <Badge variant="secondary">{e.surface}</Badge> : '-'}</td>
                       <td className="py-1.5 pr-3">
                         <code className="text-xs">{[...e.tags, ...e.paths].join(', ') || '-'}</code>

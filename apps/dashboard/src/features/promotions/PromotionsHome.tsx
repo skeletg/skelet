@@ -33,6 +33,7 @@ import { ACCENT, formatCents } from './promoFormat'
 import { PromotionSimulatorDialog } from './PromotionSimulatorDialog'
 import { RedemptionsTrend } from './analyticsShared'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { Panel, Tile } from '@/components/layout/panels'
 
 type HubRow = {
   id: string
@@ -424,27 +425,6 @@ export function PromotionsHome() {
         </DetailPageSection>
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
-  )
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
   )
 }
 

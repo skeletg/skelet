@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { added, changed, removed } from '@/shared/saving/diff'
+import { added, changed, removed, sameSet } from '@/shared/saving/diff'
 
 // A channel's languages on the Settings page - THE field list (docs/conventions.md, "Record forms"):
 // the supported set and the default, which must be one of them
@@ -21,8 +21,6 @@ export type ChannelLocalesValues = z.infer<typeof channelLocalesSchema>
 export function toChannelLocalesValues(channel: { defaultLocale: string; locales: { code: string }[] }): ChannelLocalesValues {
   return { codes: channel.locales.map((l) => l.code), defaultLocale: channel.defaultLocale }
 }
-
-const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((c) => b.includes(c))
 
 export type LocalesStep = { kind: 'codes'; codes: string[] } | { kind: 'default'; code: string }
 

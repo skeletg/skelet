@@ -4,6 +4,8 @@ import { type LucideIcon, ActivityIcon, GlobeIcon, MailIcon, PackageIcon, Shoppi
 import { cn } from '@/lib/utils'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { eventLabel } from './eventLabel'
+import { Tile } from '@/components/layout/panels'
+import { formatCents, formatDate, formatDateTime } from '@/lib/format'
 
 // Shared behavioural-profile renderer for Synapse: KPI tiles + a by-event
 // breakdown + the activity timeline (List ↔ visual day-grouped rail toggle)
@@ -93,23 +95,10 @@ function sourceStyle(s: string): { dot: string; fg: string; Icon: LucideIcon } {
   }
 }
 
-function fmtDate(v?: string | null): string {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-function fmtDateTime(v?: string | null): string {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 function fmtTime(v?: string | null): string {
   if (!v) return '-'
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? '-' : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-}
-function fmtMoney(cents: number, currency: string): string {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
 }
 type TimelineItem = ProfileData['timeline'][number]
 type View = 'sessions' | 'channels' | 'story' | 'rhythm' | 'list'
@@ -188,8 +177,8 @@ export function ActivityProfile({
     <>
       <DetailPageSection title="Overview">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Tile label="First seen" value={fmtDate(p.firstSeen)} />
-          <Tile label="Last seen" value={fmtDate(p.lastSeen)} />
+          <Tile label="First seen" value={formatDate(p.firstSeen)} />
+          <Tile label="Last seen" value={formatDate(p.lastSeen)} />
           <Tile label="Visits" value={p.sessions.toLocaleString()} sub="distinct sessions" />
           <Tile label="Total events" value={p.totalEvents.toLocaleString()} />
           <Tile
@@ -197,7 +186,7 @@ export function ActivityProfile({
             value={p.pageViews.toLocaleString()}
             sub={
               p.conversions > 0
-                ? `${p.conversions} conversion${p.conversions === 1 ? '' : 's'}${p.revenue.length ? ' · ' + p.revenue.map((r) => fmtMoney(r.cents, r.currency)).join(', ') : ''}`
+                ? `${p.conversions} conversion${p.conversions === 1 ? '' : 's'}${p.revenue.length ? ' · ' + p.revenue.map((r) => formatCents(r.cents, r.currency)).join(', ') : ''}`
                 : 'no conversions'
             }
           />
@@ -428,7 +417,7 @@ function ExperimentsBody({ arms }: { arms: NonNullable<ProfileData['experiments'
           <span className="font-mono text-xs">{a.experiment}</span>
           <span className="flex items-center gap-2">
             <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{a.variation}</span>
-            <span className="text-xs text-muted-foreground">{fmtDate(a.lastExposedAt)}</span>
+            <span className="text-xs text-muted-foreground">{formatDate(a.lastExposedAt)}</span>
           </span>
         </li>
       ))}
@@ -632,7 +621,7 @@ function SessionCard({ events }: { events: TimelineItem[] }) {
   return (
     <li className="overflow-hidden rounded-lg border">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted/30 px-3 py-2 text-xs">
-        <span className="font-medium text-foreground">{fmtDate(asc[0].occurredAt)}</span>
+        <span className="font-medium text-foreground">{formatDate(asc[0].occurredAt)}</span>
         <span className="text-muted-foreground">{fmtTime(asc[0].occurredAt)}</span>
         {durSec >= 60 ? <span className="text-muted-foreground">· {fmtDuration(durSec)}</span> : null}
         <span className="ml-auto text-muted-foreground tabular-nums">
@@ -681,7 +670,7 @@ function CompactList({ items }: { items: TimelineItem[] }) {
                 {det.sub ? <span className="font-normal text-muted-foreground"> · {det.sub}</span> : null}
               </div>
               <div className="text-xs text-muted-foreground">
-                {sourceLabel(e.source)} · {fmtDateTime(e.occurredAt)}
+                {sourceLabel(e.source)} · {formatDateTime(e.occurredAt)}
               </div>
             </div>
           </li>
@@ -729,7 +718,7 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
                   return (
                     <span
                       key={i}
-                      title={`${det.primary} · ${fmtDateTime(e.occurredAt)}`}
+                      title={`${det.primary} · ${formatDateTime(e.occurredAt)}`}
                       className={cn('absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-background', sourceStyle(e.source).dot)}
                       style={{ left: `${left}%` }}
                     />
@@ -740,8 +729,8 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
         ))}
       </div>
       <div className="mt-1.5 flex justify-between pl-[88px] text-[11px] text-muted-foreground">
-        <span>{fmtDate(new Date(min).toISOString())}</span>
-        <span>{fmtDate(new Date(max).toISOString())}</span>
+        <span>{formatDate(new Date(min).toISOString())}</span>
+        <span>{formatDate(new Date(max).toISOString())}</span>
       </div>
     </div>
   )
@@ -752,7 +741,7 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
 function StoryView({ items }: { items: TimelineItem[] }) {
   const groups: { day: string; events: TimelineItem[] }[] = []
   for (const e of items) {
-    const day = fmtDate(e.occurredAt)
+    const day = formatDate(e.occurredAt)
     const last = groups[groups.length - 1]
     if (last && last.day === day) last.events.push(e)
     else groups.push({ day, events: [e] })
@@ -872,16 +861,6 @@ function Legend({ className }: { className?: string }) {
           </span>
         )
       })}
-    </div>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
 }

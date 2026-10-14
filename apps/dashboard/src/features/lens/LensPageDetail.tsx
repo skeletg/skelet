@@ -22,6 +22,8 @@ import {
 import { AutocompletePicker } from '@/features/promotions/widgets/AutocompletePicker'
 import { useConfigScope } from '@/lib/config-scope'
 import { LensHeatmapDocument, LensPagesDocument, LensPageStatsDocument, LensStatesDocument } from './Lens.gql'
+import { Tile } from '@/components/layout/panels'
+import { formatNumber } from '@/lib/format'
 
 const CELL = 10 // must match the backend cellSize
 type Kind = 'click' | 'move' | 'scroll'
@@ -36,10 +38,6 @@ const KIND_OPTS = [
   { value: 'move', label: 'Moves', icon: MoveIcon },
   { value: 'scroll', label: 'Scroll', icon: MoveVerticalIcon },
 ] as const
-
-function nfmt(n: number): string {
-  return n.toLocaleString()
-}
 
 // rrweb keeps <script> elements in the snapshot (their content replaced with
 // the literal "SCRIPT_PLACEHOLDER") to stay structurally faithful - For a static
@@ -129,7 +127,7 @@ export function LensPageDetail() {
               <div className="grid max-w-xl gap-1.5">
                 <span className="text-xs text-muted-foreground">Page</span>
                 <AutocompletePicker
-                  options={pages.map((p) => ({ value: p.pageKey, label: p.pageKey || '/', hint: `${nfmt(p.views)} views` }))}
+                  options={pages.map((p) => ({ value: p.pageKey, label: p.pageKey || '/', hint: `${formatNumber(p.views)} views` }))}
                   value={pageKey}
                   onChange={(v) => setParam('page', String(v))}
                   placeholder="Search pages…"
@@ -171,9 +169,9 @@ export function LensPageDetail() {
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Tile label="Page views" value={nfmt(stats.views)} />
-                  <Tile label="Unique visitors" value={nfmt(stats.visitors)} />
-                  <Tile label="Clicks" value={nfmt(stats.clicks)} sub="all-time" />
+                  <Tile label="Page views" value={formatNumber(stats.views)} />
+                  <Tile label="Unique visitors" value={formatNumber(stats.visitors)} />
+                  <Tile label="Clicks" value={formatNumber(stats.clicks)} sub="all-time" />
                   <Tile label="Avg scroll" value={`${stats.avgScroll}%`} sub="all-time" />
                 </div>
 
@@ -215,7 +213,7 @@ export function LensPageDetail() {
                                 <span className="min-w-0 truncate" title={el.selector}>
                                   {el.text || el.selector}
                                 </span>
-                                <span className="shrink-0 font-medium tabular-nums">{nfmt(el.count)}</span>
+                                <span className="shrink-0 font-medium tabular-nums">{formatNumber(el.count)}</span>
                               </li>
                             ))}
                           </ul>
@@ -244,16 +242,6 @@ export function LensPageDetail() {
         )}
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
   )
 }
 
