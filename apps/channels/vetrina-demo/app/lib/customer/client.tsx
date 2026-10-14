@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { loadHeaderIdentity, type HeaderIdentity } from "@/app/lib/customer/actions-client";
@@ -9,17 +10,35 @@ type State = { identity: HeaderIdentity; resolved: boolean }; // resolved distin
 const Ctx = createContext<State>({ identity: null, resolved: false });
 
 export function CustomerProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [state, setState] = useState<State>({ identity: null, resolved: false });
 
   useEffect(() => {
     let live = true;
-    loadHeaderIdentity()
-      .then((identity) => live && setState({ identity, resolved: true }))
-      .catch(() => live && setState({ identity: null, resolved: true }));
+    let latest = 0;
+    const refresh = () => {
+      const request = ++latest;
+      void loadHeaderIdentity()
+        .then((identity) => {
+          if (live && request === latest) setState({ identity, resolved: true });
+        })
+        .catch(() => {
+          // A failed read does not mean signed out. Keep the last known identity;
+          // navigation or returning to this tab gives the request another chance.
+        });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       live = false;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [pathname]);
 
   return <Ctx.Provider value={state}>{children}</Ctx.Provider>;
 }
