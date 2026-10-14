@@ -13,9 +13,10 @@ import (
 // Records what the service hands the repository - the phone is normalized before it gets there
 type locationRepo struct {
 	Repository
-	current Location
-	created *CreateLocationInput
-	updated *UpdateLocationInput
+	current   Location
+	lookupErr error
+	created   *CreateLocationInput
+	updated   *UpdateLocationInput
 }
 
 func (r *locationRepo) CreateLocation(_ context.Context, in CreateLocationInput) (Location, error) {
@@ -29,7 +30,7 @@ func (r *locationRepo) UpdateLocation(_ context.Context, in UpdateLocationInput)
 }
 
 func (r *locationRepo) GetLocationByID(context.Context, uuid.UUID) (Location, error) {
-	return r.current, nil
+	return r.current, r.lookupErr
 }
 
 func TestCreateLocationReadsThePhoneInItsCountry(t *testing.T) {
@@ -88,5 +89,18 @@ func TestUpdateLocationReadsThePhoneInTheCountryItHasOrGets(t *testing.T) {
 	name := "Renamed"
 	if _, err := svc.UpdateLocation(ctx, UpdateLocationInput{ID: uuid.New(), Name: &name}); err != nil || repo.updated.Phone != nil {
 		t.Fatalf("an update without a phone = %v, %v, want the phone left out", repo.updated.Phone, err)
+	}
+}
+
+func TestUpdateLocationReturnsLookupError(t *testing.T) {
+	lookupErr := errors.New("location lookup failed")
+	repo := &locationRepo{lookupErr: lookupErr}
+	svc := NewService(repo, newInvTxManager(t))
+	number := "+12015550123"
+	if _, err := svc.UpdateLocation(context.Background(), UpdateLocationInput{ID: uuid.New(), Phone: &number}); !errors.Is(err, lookupErr) {
+		t.Fatalf("error = %v, want lookup failure", err)
+	}
+	if repo.updated != nil {
+		t.Fatal("failed lookup still wrote the location")
 	}
 }
