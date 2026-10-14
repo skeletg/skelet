@@ -365,18 +365,23 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 	if in.Shipping == nil && in.Billing == nil {
 		return Order{}, apperr.New("ORDER_EDIT_EMPTY", apperr.ClassValidation, "provide a shipping and/or billing address")
 	}
+	rules := s.phoneRules(ctx, o.ChannelID)
 	billing, shipping := o.BillingAddress, o.ShippingAddress
 	if in.Billing != nil {
 		if err := validEditAddress(*in.Billing); err != nil {
 			return Order{}, err
 		}
-		billing = *in.Billing
+		if billing, err = normalizeOrderAddress(rules, *in.Billing, "billing"); err != nil {
+			return Order{}, err
+		}
 	}
 	if in.Shipping != nil {
 		if err := validEditAddress(*in.Shipping); err != nil {
 			return Order{}, err
 		}
-		shipping = *in.Shipping
+		if shipping, err = normalizeOrderAddress(rules, *in.Shipping, "shipping"); err != nil {
+			return Order{}, err
+		}
 	}
 
 	store, err := s.channels.LoadChannel(ctx, o.ChannelID)
