@@ -66,6 +66,7 @@ async function apply(changes: RegExp) {
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   const dialog = await screen.findByRole('alertdialog')
   fireEvent.click(within(dialog).getByRole('button', { name: changes }))
+  await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
   return dialog
 }
 
@@ -82,6 +83,7 @@ describe('RecommendationsSection', () => {
     expect(within(dialog).getByText('Mug (MUG), Cap (CAP)')).toBeTruthy()
     expect(within(dialog).getByText('Cap (CAP), Mug (MUG)')).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
+    await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
     await vi.waitFor(() => expect(write).toHaveBeenCalledWith({ productId: 'p1', kind: 'RELATED', linkedProductIds: ['p3', 'p2'] }), SLOW)
   })
 
