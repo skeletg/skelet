@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { readCookie } from "@/app/lib/cookies";
+
 type Display = {
   trigger: string;
   delaySeconds: number;
@@ -26,11 +28,6 @@ type FormDef = {
   display: Display;
 };
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
 function setCookie(name: string, value: string, days: number) {
   const maxAge = Math.max(1, days) * 24 * 60 * 60;
   document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; samesite=lax`;
