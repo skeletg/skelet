@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckoutCartFields } from "@/app/components/offer/CheckoutCartContext";
+
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
@@ -141,6 +143,7 @@ export function DetailsStep(props: Props) {
 
   return (
     <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-5">
+        <CheckoutCartFields />
       <input type="hidden" name="locale" value={props.locale} />
       <FormErrors errors={form.errors} />
 

@@ -30,11 +30,12 @@ const LOCK_ORDER: CartOfferLock[] = ["LINES", "SHIPPING", "BILLING", "DELIVERY",
 // account's Offers list. It sits beside the shopper's own cart; Continue moves checkout onto it
 export default async function OfferPage({ params, searchParams }: PageProps<"/[channel]/[locale]/cart/offer">) {
   const { locale } = await params;
-  const { state: requested } = await searchParams;
+  const { state: requested, cartId: requestedCart } = await searchParams;
+  const cartId = typeof requestedCart === "string" ? requestedCart : undefined;
   const t = await getTranslations({ locale, namespace: "offer" });
   const format = await getFormatter({ locale });
   const [{ cart, state: unreadable }, channel, session, signedIn] = await Promise.all([
-    readOffer(),
+    readOffer(cartId),
     getChannel(),
     getOfferSession(),
     getAccessToken().then(Boolean),
@@ -43,10 +44,10 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
 
   // A held link to an account's offer opens once its owner signs in
   if (unreadable === "invalid" && session?.token && !signedIn) {
-    redirect(await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent("/cart/offer")}`, locale));
+    redirect(await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent(cartId ? `/cart/offer?cartId=${encodeURIComponent(cartId)}` : "/cart/offer")}`, locale));
   }
   // The link route stamps the first open, except for an offer whose owner had to sign in first - that open lands here
-  if (cart?.offer && session?.token && (cart.offer.state === "DRAFT" || cart.offer.state === "SENT")) {
+  if (cart?.offer && session?.cartId === cart.id && session.token && (cart.offer.state === "DRAFT" || cart.offer.state === "SENT")) {
     await gqlFetch(OpenCartOfferDocument, { token: session.token }).catch(() => undefined);
   }
 
@@ -148,6 +149,7 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
       </div>
 
       <form action={continueOfferCheckout} className="mt-8 flex justify-end">
+        <input type="hidden" name="cartId" value={cart.id} />
         <button
           type="submit"
           disabled={cart.lines.length === 0}
