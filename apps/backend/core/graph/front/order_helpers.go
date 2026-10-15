@@ -2,6 +2,7 @@ package front
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -171,6 +172,9 @@ func (r *Resolver) checkoutCart(ctx context.Context, cartID *string) (cart.Cart,
 
 // checkoutComplete names the first thing the cart still owes, as a code the storefront can send the shopper back to - the delivery requirements first, then what a business purchase owes. A missing payment method isn't refused here: gift cards or store credit may cover the total, and placement refuses with PAYMENT_REQUIRED when they don't
 func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error {
+	if v.profilesErr != nil {
+		return fmt.Errorf("read the cart's delivery profiles: %w", v.profilesErr)
+	}
 	// A carrier that couldn't answer refuses placement rather than reading as "nothing chosen" or "nothing to choose" - falling back would charge for a delivery the shopper didn't pick
 	for _, g := range v.groups {
 		if g.quoteFailed() {
@@ -179,6 +183,14 @@ func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error 
 		// A choice the carriers no longer offer is refused, never swapped for another - the shopper picks again
 		if g.hasSel && g.chosen == nil {
 			return errShippingMethodOffered
+		}
+		// The point was read when the shopper picked it - read it again, so one that closed since is refused and the order carries what the source says now
+		if g.chosen != nil && g.sel.Point != nil && g.kind.Needs(delivery.BlockPoint) && r.DeliverySvc != nil {
+			p, err := r.DeliverySvc.GetPoint(ctx, *g.option, g.sel.Point.ID)
+			if err != nil {
+				return err
+			}
+			g.sel.Point = &p
 		}
 	}
 	for _, q := range delivery.Requirements(r.checkoutSnapshot(ctx, v)) {

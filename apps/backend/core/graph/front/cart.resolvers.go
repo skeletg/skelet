@@ -633,6 +633,10 @@ func (r *queryResolver) PickupLocations(ctx context.Context) ([]*model1.PickupLo
 }
 
 func (r *queryResolver) DeliveryPoints(ctx context.Context, cartID string, groupKey string, search *string) ([]*model1.DeliveryPoint, error) {
+	// A search box fires on every keystroke and a remote source is asked uncached - the checkout's budget bounds what one address can send it
+	if err := r.checkCheckoutRate(ctx, "delivery-points"); err != nil {
+		return nil, err
+	}
 	c, err := r.storeCart(ctx, cartID)
 	if err != nil {
 		return nil, err
