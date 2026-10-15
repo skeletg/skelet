@@ -541,6 +541,7 @@ type Cart struct {
 	CompanyName           string                `json:"company_name"`
 	BusinessIds           json.RawMessage       `json:"business_ids"`
 	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
+	CheckoutVersion       int64                 `json:"checkout_version"`
 }
 
 type CartAppliedCode struct {

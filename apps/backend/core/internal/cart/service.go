@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -135,29 +137,60 @@ func (s *Service) SetCartNote(ctx context.Context, cartID uuid.UUID, callerID *u
 	return s.repo.SetNote(ctx, cart.ID, note)
 }
 
-// UpdateCheckout applies one checkout step under a row lock, so concurrent step saves can't overwrite each other. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards before calling this - the cart only stores what it's given
+// How many times a step is recomputed when the checkout moves under it before the shopper is told to reload
+const checkoutSaveAttempts = 3
+
+// errCheckoutMoved is one attempt losing the race - UpdateCheckout recomputes the step from the new row
+var errCheckoutMoved = errors.New("checkout moved")
+
+// UpdateCheckout saves one checkout step. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards inside apply - the cart only stores what it's given
+// apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	for range checkoutSaveAttempts {
+		err := s.updateCheckoutOnce(ctx, cartID, callerID, apply)
+		if !errors.Is(err, errCheckoutMoved) {
+			return err
+		}
+	}
+	return ErrCheckoutConflict
+}
+
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	// Prepare - no transaction and no lock
+	cart, err := s.GetCart(ctx, cartID, callerID)
+	if err != nil {
+		return err
+	}
+	next := cart
+	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
+	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
+	if err := apply(&next); err != nil {
+		return err
+	}
+	emailChanged := strings.TrimSpace(next.Email) != cart.Email
+	if emailChanged {
+		if next.Email, err = normalizeCartEmail(next.Email); err != nil {
+			return err
+		}
+	}
+
+	// Commit - re-read under the lock and write, nothing slower
 	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		cart, err := r.LockCart(ctx, cartID)
+		locked, err := r.LockCart(ctx, cartID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrCartForbidden
 			}
 			return fmt.Errorf("lock cart: %w", err)
 		}
-		if err := checkCartAccess(cart, callerID); err != nil {
+		if err := checkCartAccess(locked, callerID); err != nil {
 			return err
 		}
-		next := cart
-		next.Checkout.GiftCardCodes = append([]string(nil), cart.Checkout.GiftCardCodes...)
-		if err := apply(&next); err != nil {
-			return err
+		if locked.CheckoutVersion != cart.CheckoutVersion {
+			return errCheckoutMoved
 		}
-		if strings.TrimSpace(next.Email) != cart.Email {
-			if next.Email, err = normalizeCartEmail(next.Email); err != nil {
-				return err
-			}
+		if emailChanged {
 			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
 				return err
 			}

@@ -524,8 +524,9 @@ func toCart(row db.Cart) Cart {
 			BusinessIDs:   decodeBusinessIDs(row.BusinessIds),
 			PickupContact: decodePickupContact(row.PickupContact),
 		},
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		CheckoutVersion: row.CheckoutVersion,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
 }
 
