@@ -139,8 +139,14 @@ address or, for pickup, who collects it, in one write. A pickup order
 needs no shipping address: placement ships it to the pickup location,
 addressed to the collector. Then `setCartPaymentMethod`,
 `applyGiftCard` and `setCartStoreCredit`, plus `setCartEmail` and
-`setCartNote`. Each is validated in the resolver and saved under the
-cart's row lock, so a reload resumes where the shopper was. What the
+`setCartNote`. Each is validated in the resolver and saved on the cart,
+so a reload resumes where the shopper was. A step is computed from the
+cart as loaded, with no transaction open, since its quotes and checks
+may wait on a carrier or a remote validator; the write is a short
+transaction that takes the row lock and saves only if
+`carts.checkout_version` hasn't moved, recomputing the step otherwise
+(`CHECKOUT_CONFLICT` after three tries). The steps and `Cart.checkout`
+share a per-IP budget, `CHECKOUT_RATE_LIMIT_PER_MIN`. What the
 details step asks for and requires follows the `sales/checkout/*`
 settings (phone, business purchase, PO number, someone else
 collecting, a billing address on pickup orders), and placement
@@ -153,12 +159,22 @@ keeps them with their labels (`orders.business_ids`) for the invoice. Addresses 
 came from. Moving the destination, or saving an address in another
 postcode, drops a shipping or payment method it no longer supports, and
 `Cart.checkout` re-checks both on read, so a line change that alters the
-quotes shows up as an unchosen method. `Cart.checkout.totals` is priced
+quotes shows up as an unchosen method. A carrier that fails to answer
+isn't one that stopped offering the method: the choice is kept, and
+choosing or placing answers `SHIPPING_QUOTE_FAILED`. Purchase order is
+offered only on a business purchase whose details step asks for the PO
+number (`sales/checkout/po_number_field`), and payment eligibility is
+checked for the destination's country at every step and at placement,
+pickup included. A pickup with no billing address is billed to the
+collector by name, never to the store's address. `Cart.checkout.totals` is priced
 by `order.Service.QuoteCheckout`, the placement pricing path without the
 transaction, which quotes from the destination alone until there is an
-address. `placeOrder(cartId, paymentToken, savedPaymentMethodId)` reads
-everything else from the cart and refuses an incomplete checkout with a
-`CHECKOUT_*_REQUIRED` code. On merge the guest cart's selections and
+address. `placeOrder(cartId, paymentToken, savedPaymentMethodId,
+acceptTerms)` reads everything else from the cart and refuses an
+incomplete checkout with a `CHECKOUT_*_REQUIRED` code, a chosen method
+the carriers no longer offer with `SHIPPING_METHOD_UNAVAILABLE` rather
+than the cheapest one, and an unticked terms box with
+`TERMS_NOT_ACCEPTED` when `sales/checkout/terms_consent` is `checkbox`. On merge the guest cart's selections and
 email win.
 
 **Orders**: prices in **cents** (BIGINT). Address denormalized on

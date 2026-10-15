@@ -21,9 +21,16 @@ import (
 )
 
 func (r *cartResolver) Checkout(ctx context.Context, obj *model1.Cart) (*model1.CartCheckout, error) {
+	// Each read re-quotes carriers and prices the order, so it shares the step mutations' budget (one "checkout" counter per IP)
+	if err := r.checkCheckoutRate(ctx, "checkout"); err != nil {
+		return nil, err
+	}
 	cid, err := uuid.Parse(obj.ID)
 	if err != nil {
 		return nil, invalidID("cart")
+	}
+	if err := r.assertCartOnCurrentStore(ctx, cid); err != nil {
+		return nil, err
 	}
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
 	if err != nil {
@@ -429,6 +436,9 @@ func (r *mutationResolver) SetCartShippingMethod(ctx context.Context, cartID str
 				return nil
 			}
 		}
+		if g.carrierFailed(strings.TrimSpace(carrierSlug)) {
+			return errShippingQuoteFailed
+		}
 		return errShippingMethodOffered
 	})
 }
@@ -455,6 +465,9 @@ func (r *mutationResolver) SetCartDelivery(ctx context.Context, cartID string, g
 				r.selectDelivery(ctx, c, co, g, ch)
 				return nil
 			}
+		}
+		if g.carrierFailed(strings.TrimSpace(carrierSlug)) {
+			return errShippingQuoteFailed
 		}
 		return errDeliveryChoice
 	})
@@ -492,7 +505,11 @@ func (r *mutationResolver) SetCartPaymentMethod(ctx context.Context, cartID stri
 			return errCheckoutNeedsDestination
 		}
 		slug := strings.TrimSpace(providerSlug)
-		if !r.paymentMethodOffered(ctx, c.ChannelID, slug, paymentCountry(*co)) {
+		ok, err := r.paymentMethodOffered(ctx, c, *co, slug)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			return errPaymentMethodOffered
 		}
 		co.PaymentProviderSlug = slug
@@ -655,6 +672,10 @@ func (r *queryResolver) PickupLocations(ctx context.Context) ([]*model1.PickupLo
 }
 
 func (r *queryResolver) DeliveryPoints(ctx context.Context, cartID string, groupKey string, search *string) ([]*model1.DeliveryPoint, error) {
+	// A search box fires on every keystroke and a remote source is asked uncached - the checkout's budget bounds what one address can send it
+	if err := r.checkCheckoutRate(ctx, "delivery-points"); err != nil {
+		return nil, err
+	}
 	c, err := r.storeCart(ctx, cartID)
 	if err != nil {
 		return nil, err

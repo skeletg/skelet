@@ -84,6 +84,7 @@ func TestCheapestRatedQuote(t *testing.T) {
 	rq := func(slug, code string, cents int64) shipping.RatedQuote {
 		return shipping.RatedQuote{CarrierSlug: slug, Method: shipping.RatedMethod{Code: code, PriceCents: cents}}
 	}
+	pickup := shipping.RatedQuote{CarrierSlug: shipping.PickupCarrierSlug, Method: shipping.RatedMethod{Code: shipping.PickupMethodCode, Kind: "store_pickup"}}
 	tests := []struct {
 		name     string
 		quotes   []shipping.RatedQuote
@@ -95,6 +96,8 @@ func TestCheapestRatedQuote(t *testing.T) {
 		{"single", []shipping.RatedQuote{rq("builtin", "std", 500)}, true, "std", 500},
 		{"cheapest of many", []shipping.RatedQuote{rq("a", "x", 900), rq("b", "y", 350), rq("a", "z", 700)}, true, "y", 350},
 		{"cheapest is first", []shipping.RatedQuote{rq("a", "x", 100), rq("b", "y", 800)}, true, "x", 100},
+		{"pickup never wins", []shipping.RatedQuote{pickup, rq("b", "y", 800)}, true, "y", 800},
+		{"only pickup → not ok", []shipping.RatedQuote{pickup}, false, "", 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

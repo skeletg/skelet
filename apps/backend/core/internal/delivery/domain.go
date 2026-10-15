@@ -206,6 +206,9 @@ type Option struct {
 	UpdatedAt   time.Time
 }
 
+// Implicit - one of the defaults a channel offers before its admin saves any, with no row an order could point at
+func (o Option) Implicit() bool { return o.CreatedAt.IsZero() }
+
 // SaveOptionInput is a create or a full update - an update keeps the kind it was created with
 type SaveOptionInput struct {
 	Kind        string

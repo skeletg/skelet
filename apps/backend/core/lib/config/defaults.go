@@ -67,11 +67,11 @@ func init() {
 		{Value: "optional", Label: "Optional"},
 		{Value: "required", Label: "Required"},
 	}})
-	Register(Definition{Path: "sales/checkout/po_number_field", Type: TypeBool, Default: "false", Label: "Ask business buyers for a PO number", Description: "An optional purchase-order reference on business purchases, stored on the order for invoicing.", Public: true})
+	Register(Definition{Path: "sales/checkout/po_number_field", Type: TypeBool, Default: "false", Label: "Ask business buyers for a PO number", Description: "An optional purchase-order reference on business purchases, stored on the order for invoicing. The Purchase Order payment method is offered only on a business purchase while this is on, since it bills against that reference.", Public: true})
 	Register(Definition{Path: "sales/checkout/pickup_by_someone_else", Type: TypeBool, Default: "true", Label: "Let someone else collect a pickup order", Description: "Adds \"Someone else will collect it\" to pickup orders, with the collector's name. The payer's billing address is then required so the order still names who paid.", Public: true})
 	Register(Definition{Path: "sales/checkout/pickup_requires_billing_address", Type: TypeBool, Default: "false", Label: "Require a billing address on pickup orders", Description: "Off, a pickup order needs only a name, email and the store. On, the shopper also enters a billing address - some markets need one on every invoice.", Public: true})
 	Register(Definition{Path: "sales/checkout/threshold_progress", Type: TypeBool, Default: "true", Label: "Show spend-more progress at checkout", Description: "Shows how much more unlocks the minimum order or free shipping, with a link back to the cart, instead of only refusing the order.", Public: true})
-	Register(Definition{Path: "sales/checkout/terms_consent", Type: TypeSelect, Default: "checkbox", Label: "Terms consent at payment", Description: "Checkbox makes the shopper tick that they accept the terms before paying, which many EU markets need. Notice shows a line saying placing the order accepts them. Off shows neither.", Public: true, Options: []Option{
+	Register(Definition{Path: "sales/checkout/terms_consent", Type: TypeSelect, Default: "checkbox", Label: "Terms consent at payment", Description: "Checkbox makes the shopper tick that they accept the terms before paying, which many EU markets need, and placement refuses an order sent without it. Notice shows a line saying placing the order accepts them. Off shows neither.", Public: true, Options: []Option{
 		{Value: "checkbox", Label: "Checkbox"},
 		{Value: "notice", Label: "Notice"},
 		{Value: "off", Label: "Off"},

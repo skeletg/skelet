@@ -9,6 +9,7 @@ import (
 	"maps"
 	"math"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -143,7 +144,14 @@ func (s *Service) SetCartNote(ctx context.Context, cartID uuid.UUID, callerID *u
 	return s.repo.SetNote(ctx, cart.ID, note)
 }
 
-// UpdateCheckout applies one checkout step under a row lock, so concurrent step saves can't overwrite each other. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards before calling this - the cart only stores what it's given
+// How many times a step is recomputed when the checkout moves under it before the shopper is told to reload
+const checkoutSaveAttempts = 3
+
+// errCheckoutMoved is one attempt losing the race - UpdateCheckout recomputes the step from the new row
+var errCheckoutMoved = errors.New("checkout moved")
+
+// UpdateCheckout saves one checkout step. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards inside apply - the cart only stores what it's given
+// apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 // On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
 	return s.updateCheckout(ctx, cartID, func(c Cart) error { return checkCartAccess(ctx, c, callerID) }, true, apply)
@@ -160,40 +168,70 @@ func (s *Service) AdminUpdateCheckout(ctx context.Context, cartID uuid.UUID, app
 }
 
 func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error) error {
+	for range checkoutSaveAttempts {
+		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply)
+		if !errors.Is(err, errCheckoutMoved) {
+			return err
+		}
+	}
+	return ErrCheckoutConflict
+}
+
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error) error {
+	// Prepare - no transaction and no lock
+	cart, err := s.repo.GetCartByID(ctx, cartID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCartForbidden
+		}
+		return fmt.Errorf("load cart: %w", err)
+	}
+	if err := authorize(cart); err != nil {
+		return err
+	}
+	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+		return fmt.Errorf("load cart lines: %w", err)
+	}
+	next := cart
+	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
+	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
+	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
+	if err := apply(&next); err != nil {
+		return err
+	}
+	emailChanged := strings.TrimSpace(next.Email) != cart.Email
+	if emailChanged {
+		if next.Email, err = normalizeCartEmail(next.Email); err != nil {
+			return err
+		}
+	}
+
+	// Commit - re-read under the lock and write, nothing slower
 	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
-		cart, err := r.LockCart(ctx, cartID)
+		locked, err := r.LockCart(ctx, cartID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrCartForbidden
 			}
 			return fmt.Errorf("lock cart: %w", err)
 		}
-		if err := authorize(cart); err != nil {
+		if err := authorize(locked); err != nil {
 			return err
 		}
-		// A step plans deliveries from the lines, so it sees them - read under the cart's lock, never written here
-		if cart.Lines, err = r.ListCartLinesByCart(ctx, cart.ID); err != nil {
-			return fmt.Errorf("load cart lines: %w", err)
+		if locked.CheckoutVersion != cart.CheckoutVersion {
+			return errCheckoutMoved
 		}
-		next := cart
-		next.Checkout.GiftCardCodes = append([]string(nil), cart.Checkout.GiftCardCodes...)
-		next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
-		if err := apply(&next); err != nil {
-			return err
-		}
-		if enforceLocks && cart.IsOffer() {
-			if err := checkOfferLocks(cart, next); err != nil {
+		// Checked against the locked row - an admin changing the locks doesn't move checkout_version, and an unchanged version means locked holds the same checkout and email the step started from
+		if enforceLocks && locked.IsOffer() {
+			if err := checkOfferLocks(locked, next); err != nil {
 				return err
 			}
-			if !strings.EqualFold(strings.TrimSpace(next.Email), cart.Email) && cart.Email != "" {
+			if emailChanged && locked.Email != "" && !strings.EqualFold(next.Email, locked.Email) {
 				return lockedErr("email")
 			}
 		}
-		if strings.TrimSpace(next.Email) != cart.Email {
-			if next.Email, err = normalizeCartEmail(next.Email); err != nil {
-				return err
-			}
+		if emailChanged {
 			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
 				return err
 			}

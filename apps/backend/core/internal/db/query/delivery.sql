@@ -18,6 +18,17 @@ VALUES (
 )
 RETURNING *;
 
+-- name: AdoptDeliveryOption :exec
+-- Saves an implicit default under the id carts already hold it by - a second adoption racing the first inserts nothing
+INSERT INTO delivery_options (
+    id, channel_id, kind, name, description, enabled, sort_order, block_modes, point_source, carrier_slug
+)
+VALUES (
+    sqlc.arg(id), sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), sqlc.arg(description), sqlc.arg(enabled), sqlc.arg(sort_order),
+    sqlc.arg(block_modes), sqlc.arg(point_source), sqlc.arg(carrier_slug)
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- name: UpdateDeliveryOption :one
 UPDATE delivery_options SET
     name                 = sqlc.arg(name),
@@ -123,6 +134,20 @@ RETURNING *;
 
 -- name: ListOrderShipments :many
 SELECT * FROM order_shipments WHERE order_id = $1 ORDER BY position;
+
+-- name: CountOrderShipments :one
+SELECT count(*) FROM order_shipments WHERE order_id = $1;
+
+-- name: SetOrderShipmentAmount :exec
+-- An edit re-priced a one-package order - the package carries the order's shipping
+UPDATE order_shipments SET amount_cents = sqlc.arg(amount_cents) WHERE order_id = sqlc.arg(order_id);
+
+-- name: SetOrderShipmentLines :exec
+UPDATE order_shipments SET lines = sqlc.arg(lines) WHERE id = sqlc.arg(id);
+
+-- name: SetOrderShipmentShipTo :exec
+-- The order's shipping address moved - packages to the shopper follow it, packages to a point keep the point's
+UPDATE order_shipments SET ship_to = sqlc.narg(ship_to) WHERE order_id = sqlc.arg(order_id) AND point IS NULL;
 
 -- name: SetOrderFulfillmentNeed :exec
 UPDATE orders

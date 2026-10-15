@@ -1233,6 +1233,7 @@ export type MutationOpenCartOfferArgs = {
 
 
 export type MutationPlaceOrderArgs = {
+  acceptTerms?: InputMaybe<Scalars['Boolean']['input']>;
   cartId?: InputMaybe<Scalars['ID']['input']>;
   paymentToken?: InputMaybe<Scalars['String']['input']>;
   savedPaymentMethodId?: InputMaybe<Scalars['ID']['input']>;
@@ -2162,6 +2163,7 @@ export type QueryMyOrderArgs = {
 
 
 export type QueryPaymentMethodsArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
   countryCode: Scalars['String']['input'];
 };
 

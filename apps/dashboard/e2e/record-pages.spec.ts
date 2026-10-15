@@ -126,7 +126,8 @@ const cases: Case[] = [
         }`,
         {
           id,
-          a: { firstName: 'Seeded', lastName: 'Customer', company: 'Seeded Co', street1: 'Seeded street 1', street2: 'Floor 2', city: 'Belgrade', state: 'BG', postalCode: '11000', countryCode: 'DE', phone: '+381601234567' },
+          // In the dev store's own country - an address in one it doesn't sell to is refused
+          a: { firstName: 'Seeded', lastName: 'Customer', company: 'Seeded Co', street1: 'Seeded street 1', street2: 'Floor 2', city: 'New York', state: 'NY', postalCode: '10118', countryCode: 'US', phone: '+381601234567' },
           u: { note: 'Seeded note', metadata: [{ key: 'seeded', value: 'yes' }] },
         },
       )
@@ -174,7 +175,12 @@ const cases: Case[] = [
   {
     name: 'review question keeps the other locale',
     async seed() {
-      // A run stopped part way leaves it behind - its cleanup never ran
+      // A run stopped part way leaves its question and the locale behind - its cleanup never ran. The question goes
+      // first: while its xz translation exists, the locale refuses to be deleted
+      const { reviewQuestions } = await adminApi<{ reviewQuestions: { id: string; slug: string }[] }>('{ reviewQuestions { id slug } }')
+      for (const q of reviewQuestions.filter((q) => q.slug.startsWith('e2e-forms-') && q.slug.endsWith('-question'))) {
+        await adminApi('mutation($id:ID!){ deleteReviewQuestion(id:$id) }', { id: q.id }).catch(() => undefined)
+      }
       await adminApi('mutation($c:String!){ deleteLocale(code:$c) }', { c: 'xz' }).catch(() => undefined)
       await adminApi('mutation($i:CreateLocaleInput!){ createLocale(input:$i){ code } }', { i: { code: 'xz', name: 'E2E review locale', isActive: true, sortOrder: 99 } })
       cleanup(del('deleteLocale', 'xz', 'code', 'String!'))
@@ -482,7 +488,7 @@ const cases: Case[] = [
             longitude: 19.8335,
             timezone: 'Europe/Belgrade',
             email: 'seeded-location@e2e.test',
-            phone: '+381211234567',
+            phone: '+381601234567', // a valid number - phones are checked and stored as E.164
             contactName: 'Seeded contact',
             externalReference: 'EXT-1',
             metadata: [{ key: 'seeded', value: 'yes' }],

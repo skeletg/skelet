@@ -15,6 +15,47 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const adoptDeliveryOption = `-- name: AdoptDeliveryOption :exec
+INSERT INTO delivery_options (
+    id, channel_id, kind, name, description, enabled, sort_order, block_modes, point_source, carrier_slug
+)
+VALUES (
+    $1, $2, $3, $4, $5, $6, $7,
+    $8, $9, $10
+)
+ON CONFLICT (id) DO NOTHING
+`
+
+type AdoptDeliveryOptionParams struct {
+	ID          uuid.UUID       `json:"id"`
+	ChannelID   uuid.UUID       `json:"channel_id"`
+	Kind        string          `json:"kind"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Enabled     bool            `json:"enabled"`
+	SortOrder   int32           `json:"sort_order"`
+	BlockModes  json.RawMessage `json:"block_modes"`
+	PointSource string          `json:"point_source"`
+	CarrierSlug string          `json:"carrier_slug"`
+}
+
+// Saves an implicit default under the id carts already hold it by - a second adoption racing the first inserts nothing
+func (q *Queries) AdoptDeliveryOption(ctx context.Context, arg AdoptDeliveryOptionParams) error {
+	_, err := q.db.ExecContext(ctx, adoptDeliveryOption,
+		arg.ID,
+		arg.ChannelID,
+		arg.Kind,
+		arg.Name,
+		arg.Description,
+		arg.Enabled,
+		arg.SortOrder,
+		arg.BlockModes,
+		arg.PointSource,
+		arg.CarrierSlug,
+	)
+	return err
+}
+
 const countActiveDeliveryPoints = `-- name: CountActiveDeliveryPoints :one
 SELECT count(*) FROM delivery_points WHERE channel_id = $1 AND kind = $2 AND is_active
 `
@@ -26,6 +67,17 @@ type CountActiveDeliveryPointsParams struct {
 
 func (q *Queries) CountActiveDeliveryPoints(ctx context.Context, arg CountActiveDeliveryPointsParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countActiveDeliveryPoints, arg.ChannelID, arg.Kind)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOrderShipments = `-- name: CountOrderShipments :one
+SELECT count(*) FROM order_shipments WHERE order_id = $1
+`
+
+func (q *Queries) CountOrderShipments(ctx context.Context, orderID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrderShipments, orderID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -512,6 +564,50 @@ type SetOrderFulfillmentNeedParams struct {
 
 func (q *Queries) SetOrderFulfillmentNeed(ctx context.Context, arg SetOrderFulfillmentNeedParams) error {
 	_, err := q.db.ExecContext(ctx, setOrderFulfillmentNeed, arg.FulfillmentNeed, arg.ID)
+	return err
+}
+
+const setOrderShipmentAmount = `-- name: SetOrderShipmentAmount :exec
+UPDATE order_shipments SET amount_cents = $1 WHERE order_id = $2
+`
+
+type SetOrderShipmentAmountParams struct {
+	AmountCents int64     `json:"amount_cents"`
+	OrderID     uuid.UUID `json:"order_id"`
+}
+
+// An edit re-priced a one-package order - the package carries the order's shipping
+func (q *Queries) SetOrderShipmentAmount(ctx context.Context, arg SetOrderShipmentAmountParams) error {
+	_, err := q.db.ExecContext(ctx, setOrderShipmentAmount, arg.AmountCents, arg.OrderID)
+	return err
+}
+
+const setOrderShipmentLines = `-- name: SetOrderShipmentLines :exec
+UPDATE order_shipments SET lines = $1 WHERE id = $2
+`
+
+type SetOrderShipmentLinesParams struct {
+	Lines json.RawMessage `json:"lines"`
+	ID    uuid.UUID       `json:"id"`
+}
+
+func (q *Queries) SetOrderShipmentLines(ctx context.Context, arg SetOrderShipmentLinesParams) error {
+	_, err := q.db.ExecContext(ctx, setOrderShipmentLines, arg.Lines, arg.ID)
+	return err
+}
+
+const setOrderShipmentShipTo = `-- name: SetOrderShipmentShipTo :exec
+UPDATE order_shipments SET ship_to = $1 WHERE order_id = $2 AND point IS NULL
+`
+
+type SetOrderShipmentShipToParams struct {
+	ShipTo  pqtype.NullRawMessage `json:"ship_to"`
+	OrderID uuid.UUID             `json:"order_id"`
+}
+
+// The order's shipping address moved - packages to the shopper follow it, packages to a point keep the point's
+func (q *Queries) SetOrderShipmentShipTo(ctx context.Context, arg SetOrderShipmentShipToParams) error {
+	_, err := q.db.ExecContext(ctx, setOrderShipmentShipTo, arg.ShipTo, arg.OrderID)
 	return err
 }
 

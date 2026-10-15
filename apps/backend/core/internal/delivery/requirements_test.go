@@ -141,16 +141,29 @@ func TestRequirementsPickupBillingFollowsTheOption(t *testing.T) {
 	}
 }
 
-func TestRequirementsNothingQuotedLeavesDeliveryToTheStore(t *testing.T) {
+func TestRequirementsNothingQuotedBlocksPlacement(t *testing.T) {
 	reqs := Requirements(Snapshot{
 		Plan: Plan{Need: NeedPhysical}, Email: true, Billing: true, Payment: true,
 		Groups: []GroupSnapshot{{Group: Group{Key: CombinedGroupKey}, Choices: 0}},
 	})
 	d, _ := find(reqs, CombinedGroupKey, BlockDeliveryOption)
-	if d.Blocking() {
-		t.Fatalf("delivery = %+v, want it optional when nothing quotes", d)
+	if d.Status != StatusMissing || d.Code != codeNoDelivery {
+		t.Fatalf("delivery = %+v, want it missing when nothing quotes - it would ship unpriced", d)
 	}
 	if s, ok := find(reqs, ScopeOrder, BlockShippingAddress); !ok || s.Status != StatusMissing {
 		t.Fatalf("shipping address = %+v, want the shopper's address still owed", s)
+	}
+
+	// Beside a group that is chosen, the unquoted one still blocks - otherwise its lines leave without a package or a price
+	opt := Option{Kind: KindShipToAddress}
+	mixed := Snapshot{
+		Plan: Plan{Need: NeedPhysical}, Email: true, ShippingAddress: true, Billing: true, Payment: true,
+		Groups: []GroupSnapshot{
+			{Group: Group{Key: "a"}, Option: &opt, Kind: kindPtr(KindShipToAddress), MethodChosen: true, Choices: 1},
+			{Group: Group{Key: "b"}, Choices: 0},
+		},
+	}
+	if err := Blocking(Requirements(mixed)); apperr.CodeOf(err) != codeNoDelivery {
+		t.Fatalf("Blocking = %v, want %s", err, codeNoDelivery)
 	}
 }

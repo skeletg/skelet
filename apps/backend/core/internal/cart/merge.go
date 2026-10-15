@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/google/uuid"
 )
@@ -202,6 +203,14 @@ func mergeCheckout(guest, customer Checkout) Checkout {
 	}
 	if guest.PickupContact != nil {
 		out.PickupContact = guest.PickupContact
+	}
+	if len(guest.Deliveries) > 0 { // the guest's delivery choices win per group, and the split they chose them under travels with them
+		out.Deliveries = maps.Clone(customer.Deliveries)
+		if out.Deliveries == nil {
+			out.Deliveries = map[string]DeliverySelection{}
+		}
+		maps.Copy(out.Deliveries, guest.Deliveries)
+		out.SplitDelivery = guest.SplitDelivery
 	}
 	out.UseStoreCredit = customer.UseStoreCredit // a guest can't hold store credit
 	seen := make(map[string]bool)

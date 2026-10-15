@@ -38,6 +38,9 @@ var ErrCartNoteTooLong = errors.New("the note is too long")
 
 var ErrCartStoreMismatch = errors.New("cart store mismatch")
 
+// The checkout kept changing while a step was saving - another tab or a double submit won every retry
+var ErrCheckoutConflict = errors.New("the checkout changed while this step was saving - reload and try again")
+
 var ErrQuantityOutOfBounds = errors.New("quantity outside the allowed range for this product")
 
 var ErrProductNotPurchasable = errors.New("this product kind cannot be added to a cart directly") // simple, kit, gift-card and subscription can be direct lines - bundles go through AddBundleToCart with their selections, configurables resolve to a child SKU first
@@ -127,9 +130,11 @@ type Cart struct {
 	Email      string // a guest offer's recipient
 	Note       string
 	Checkout   Checkout
-	Lines      []CartLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// Moves on every checkout write, so a step computed from an earlier read can tell the row changed under it
+	CheckoutVersion int64
+	Lines           []CartLine
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Checkout is what the shopper has chosen so far, saved step by step so a reload resumes where they were - the cart stores it as given, and the resolvers validate each step before it lands here. Placement re-prices and re-validates all of it

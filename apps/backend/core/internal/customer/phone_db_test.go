@@ -157,3 +157,29 @@ func TestCustomerPhonesFollowTheStoresRules(t *testing.T) {
 		t.Fatalf("a Serbian national number = %q, %v, want +381641234567", deref(got.Phone), err)
 	}
 }
+
+func TestProfilePhoneCanBeCleared(t *testing.T) {
+	f := newFixture(t)
+	ch := f.newChannel(t)
+	c := f.register(t, ch, randomEmail(), "password123")
+	number, blank := "+381641234567", "  "
+	for _, admin := range []bool{false, true} {
+		if _, err := f.svc.UpdateProfile(f.ctx, c.ID, UpdateCustomerInput{Phone: &number}); err != nil {
+			t.Fatal(err)
+		}
+		var got Customer
+		var err error
+		if admin {
+			got, err = f.svc.AdminUpdateCustomer(f.ctx, c.ID, AdminUpdateCustomerInput{Phone: &blank})
+		} else {
+			got, err = f.svc.UpdateProfileFrom(f.ctx, c.ID, UpdateCustomerInput{Phone: &blank}, SourceSelf)
+		}
+		if err != nil || got.Phone != nil {
+			t.Fatalf("admin=%v: cleared phone = %v, %v", admin, got.Phone, err)
+		}
+		persisted, err := f.svc.GetByID(f.ctx, c.ID)
+		if err != nil || persisted.Phone != nil {
+			t.Fatalf("persisted phone = %v, %v", persisted.Phone, err)
+		}
+	}
+}

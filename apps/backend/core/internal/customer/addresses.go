@@ -32,11 +32,7 @@ func (s *Service) AddAddress(ctx context.Context, customerID uuid.UUID, input Ad
 	} else if n >= MaxAddressesPerCustomer {
 		return Address{}, ErrTooManyAddresses
 	}
-	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
-		return Address{}, err
-	}
-	var err error
-	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
+	if err := s.prepareAddress(ctx, customerID, &input); err != nil {
 		return Address{}, err
 	}
 	addr, err := s.repo.CreateAddress(ctx, customerID, input)
@@ -65,11 +61,7 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID uuid.
 	if err := validateAddressInput(input); err != nil {
 		return Address{}, err
 	}
-	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
-		return Address{}, err
-	}
-	var err error
-	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
+	if err := s.prepareAddress(ctx, customerID, &input); err != nil {
 		return Address{}, err
 	}
 	updated, err := s.repo.UpdateAddress(ctx, customerID, addressID, input)
@@ -80,16 +72,24 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID uuid.
 	return updated, nil
 }
 
-// Scoped to the customer's own channel - no-op when no validator is wired
-func (s *Service) validateAddressCountry(ctx context.Context, customerID uuid.UUID, input AddressInput) error {
-	if s.countries == nil {
+// Country validation and phone normalization share the customer's channel lookup.
+func (s *Service) prepareAddress(ctx context.Context, customerID uuid.UUID, input *AddressInput) error {
+	if s.countries == nil && input.Phone == nil {
 		return nil
 	}
 	cust, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
 		return err
 	}
-	return s.countries.ValidateAddressForChannel(ctx, cust.ChannelID, input.CountryCode, input.State)
+	if s.countries != nil {
+		if err := s.countries.ValidateAddressForChannel(ctx, cust.ChannelID, input.CountryCode, input.State); err != nil {
+			return err
+		}
+	}
+	if input.Phone != nil {
+		input.Phone, err = s.phoneRules(ctx, cust.ChannelID).NormalizePtr(input.Phone, input.CountryCode)
+	}
+	return err
 }
 
 func (s *Service) DeleteAddress(ctx context.Context, customerID, addressID uuid.UUID) error {
