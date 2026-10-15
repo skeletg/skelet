@@ -2,7 +2,6 @@ package delivery
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 
@@ -133,5 +132,5 @@ func (s *remotePointSource) Get(ctx context.Context, channelID uuid.UUID, id str
 			return p, nil
 		}
 	}
-	return Point{}, fmt.Errorf("point %q not found", id)
+	return Point{}, ErrPointNotFound
 }

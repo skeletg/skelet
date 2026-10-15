@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -46,14 +47,18 @@ func (s *Service) Readiness(ctx context.Context, channelID uuid.UUID, o Option) 
 
 	if k.Needs(BlockPoint) {
 		c := Check{Code: "point_source", Label: "Point source is active", Tab: "delivery"}
-		if src, err := s.pointSourceFor(ctx, o); err == nil && src != nil {
+		src, err := s.pointSourceFor(ctx, o)
+		if err == nil && src != nil {
 			c.OK = true
 			c.Detail = sourceName(o.PointSource, k)
 		} else {
 			c.Detail = "Choose where " + strings.ToLower(pointLabel(k)) + "s come from"
 		}
 		out = append(out, c)
-		if c.OK && (o.PointSource == ManualPointSource || (o.PointSource == "" && defaultPointSource(k.Slug) == ManualPointSource)) {
+		slug := cmp.Or(o.PointSource, defaultPointSource(k.Slug))
+		switch _, registered := pointSourceBySlug(slug); {
+		case !c.OK:
+		case slug == ManualPointSource:
 			pts := Check{Code: "points", Label: "At least one pickup point is listed", Tab: "points"}
 			n, err := s.repo.CountActivePoints(ctx, channelID, k.Slug)
 			pts.OK = err == nil && n > 0
@@ -61,6 +66,17 @@ func (s *Service) Readiness(ctx context.Context, channelID uuid.UUID, o Option) 
 				pts.Detail = fmt.Sprintf("%d listed", n)
 			} else {
 				pts.Detail = "Add pickup points on the Pickup points tab"
+			}
+			out = append(out, pts)
+		case registered:
+			// A store pickup with no pickup-enabled location is offered and then has nowhere to collect from. A remote source isn't asked here - it answers per search
+			pts := Check{Code: "points", Label: "At least one " + strings.ToLower(pointLabel(k)) + " to choose from", Tab: "delivery"}
+			found, err := src.Search(ctx, PointQuery{ChannelID: channelID, Kind: k.Slug, Limit: 1})
+			pts.OK = err == nil && len(found) > 0
+			if pts.OK {
+				pts.Detail = sourceName(slug, k)
+			} else {
+				pts.Detail = "Nothing to choose from " + strings.ToLower(sourceName(slug, k)) + " yet"
 			}
 			out = append(out, pts)
 		}
