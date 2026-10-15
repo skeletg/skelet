@@ -17,7 +17,7 @@ func (r *mutationResolver) UpdatePaymentMethodPresentation(ctx context.Context, 
 	}
 	id, err := uuid.Parse(channelID)
 	if err != nil {
-		return nil, err
+		return nil, errInvalidID("channel", err)
 	}
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "payments.manage", id, nil); err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (r *queryResolver) PaymentProviders(ctx context.Context, channelID *string)
 		var err error
 		id, err = uuid.Parse(*channelID)
 		if err != nil {
-			return nil, err
+			return nil, errInvalidID("channel", err)
 		}
 		if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "payments.view", id, nil); err != nil {
 			return nil, err
