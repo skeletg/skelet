@@ -118,7 +118,8 @@ DELETE FROM cart_lines WHERE cart_id = $1;
 
 -- name: SetCartEmail :exec
 -- Records the email a guest enters at checkout entry so an abandoned guest cart becomes recoverable - bumps updated_at (email entry is real activity, so it is the correct start of the abandonment clock)
-UPDATE carts SET email = $2, updated_at = NOW() WHERE id = $1;
+-- The details step writes the email with the rest of the checkout, so this moves checkout_version too
+UPDATE carts SET email = $2, checkout_version = checkout_version + 1, updated_at = NOW() WHERE id = $1;
 
 -- name: PruneStaleCarts :execrows
 -- Deletes abandoned carts past a retention window: unconverted carts (active or merged) whose last activity (cart or newest line) is older than the cutoff, plus converted carts older than the cutoff (their order carries the durable record) - cart lines / applied codes cascade on delete - guards the reaper from ever touching a recently-active cart
@@ -147,3 +148,32 @@ SELECT * FROM cart_saved_items WHERE cart_id = $1 ORDER BY created_at DESC;
 
 -- name: SetCartNote :exec
 UPDATE carts SET note = $2, updated_at = NOW() WHERE id = $1;
+
+-- name: LockCart :one
+-- Row lock for a checkout step's short commit - the step was computed from an unlocked read, and checkout_version says whether the row moved since
+SELECT * FROM carts WHERE id = $1 FOR UPDATE;
+
+-- name: SetCartCheckout :exec
+UPDATE carts SET
+    shipping_address         = sqlc.narg(shipping_address),
+    shipping_address_id      = sqlc.narg(shipping_address_id),
+    billing_same_as_shipping = sqlc.arg(billing_same_as_shipping),
+    billing_address          = sqlc.narg(billing_address),
+    billing_address_id       = sqlc.narg(billing_address_id),
+    shipping_carrier_slug    = sqlc.arg(shipping_carrier_slug),
+    shipping_method_code     = sqlc.arg(shipping_method_code),
+    payment_provider_slug    = sqlc.arg(payment_provider_slug),
+    po_number                = sqlc.arg(po_number),
+    use_store_credit         = sqlc.arg(use_store_credit),
+    gift_card_codes          = sqlc.arg(gift_card_codes)::text[],
+    destination_country      = sqlc.arg(destination_country),
+    destination_region       = sqlc.arg(destination_region),
+    destination_postal_code  = sqlc.arg(destination_postal_code),
+    contact_phone            = sqlc.arg(contact_phone),
+    purchase_type            = sqlc.arg(purchase_type),
+    company_name             = sqlc.arg(company_name),
+    business_ids             = sqlc.arg(business_ids),
+    pickup_contact           = sqlc.narg(pickup_contact),
+    checkout_version         = checkout_version + 1,
+    updated_at               = NOW()
+WHERE id = sqlc.arg(id);

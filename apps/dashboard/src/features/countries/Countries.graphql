@@ -48,6 +48,13 @@ query Country($code: String!) {
       key
       value
     }
+    businessIdFields {
+      key
+      label
+      required
+      pattern
+      hint
+    }
     regions {
       code
       name

@@ -139,6 +139,7 @@ func toOrderModel(o order.Order) *model.Order {
 		ChannelID:          o.ChannelID.String(),
 		Number:             o.Number,
 		PoNumber:           strPtrOrNil(o.PONumber),
+		BusinessIds:        toOrderBusinessIDs(o.BusinessIDs),
 		Status:             model.OrderStatus(strings.ToUpper(o.Status)),
 		PaymentStatus:      model.PaymentStatus(strings.ToUpper(o.PaymentStatus)),
 		PaymentProvider:    o.PaymentProvider,
@@ -445,4 +446,12 @@ func (r *queryResolver) orderChannelScope(ctx context.Context, channelID *string
 		return ids, len(ids) == 0, nil
 	}
 	return nil, false, nil
+}
+
+func toOrderBusinessIDs(ids []order.BusinessID) []*model.OrderBusinessID {
+	out := make([]*model.OrderBusinessID, len(ids))
+	for i, id := range ids {
+		out[i] = &model.OrderBusinessID{Key: id.Key, Label: id.Label, Value: id.Value}
+	}
+	return out
 }

@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -778,6 +779,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		CurrencyCode:        o.CurrencyCode,
 		CustomerNote:        sqlnull.StringValueNonEmpty(o.CustomerNote),
 		PoNumber:            sqlnull.StringValueNonEmpty(o.PONumber),
+		BusinessIds:         businessIDsJSON(o.BusinessIDs),
 		PaymentProvider:     o.PaymentProvider,
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
@@ -1249,6 +1251,7 @@ func toOrder(row db.Order) Order {
 		CurrencyCode:      row.CurrencyCode,
 		CustomerNote:      row.CustomerNote.String,
 		PONumber:          row.PoNumber.String,
+		BusinessIDs:       decodeBusinessIDs(row.BusinessIds),
 		Carrier:           row.Carrier,
 		TrackingNumber:    row.TrackingNumber,
 		CreatedAt:         row.CreatedAt,
@@ -1394,4 +1397,21 @@ func toOrderEvent(row db.OrderEvent) OrderEvent {
 		ActorEmail: row.ActorEmail.String,
 		CreatedAt:  row.CreatedAt,
 	}
+}
+
+func businessIDsJSON(ids []BusinessID) json.RawMessage {
+	if ids == nil {
+		ids = []BusinessID{}
+	}
+	b, _ := json.Marshal(ids) // plain strings - can't fail
+	return b
+}
+
+// Only placement writes the column, so an undecodable one reads as none rather than failing the order
+func decodeBusinessIDs(raw json.RawMessage) []BusinessID {
+	var ids []BusinessID
+	if json.Unmarshal(raw, &ids) != nil {
+		return nil
+	}
+	return ids
 }

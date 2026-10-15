@@ -3,11 +3,13 @@ package cart
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
@@ -138,6 +140,71 @@ func (r *postgresRepository) SetEmail(ctx context.Context, cartID uuid.UUID, ema
 
 func (r *postgresRepository) SetNote(ctx context.Context, cartID uuid.UUID, note string) error {
 	return r.queries.SetCartNote(ctx, db.SetCartNoteParams{ID: cartID, Note: note})
+}
+
+func (r *postgresRepository) LockCart(ctx context.Context, cartID uuid.UUID) (Cart, error) {
+	row, err := r.queries.LockCart(ctx, cartID)
+	if err != nil {
+		return Cart{}, err
+	}
+	return toCart(row), nil
+}
+
+func (r *postgresRepository) SetCheckout(ctx context.Context, cartID uuid.UUID, c Checkout) error {
+	shipping, err := encodeAddress(c.ShippingAddress)
+	if err != nil {
+		return err
+	}
+	billing, err := encodeAddress(c.BillingAddress)
+	if err != nil {
+		return err
+	}
+	codes := c.GiftCardCodes
+	if codes == nil {
+		codes = []string{}
+	}
+	var pickup pqtype.NullRawMessage
+	if c.PickupContact != nil {
+		b, err := json.Marshal(c.PickupContact)
+		if err != nil {
+			return fmt.Errorf("encode pickup contact: %w", err)
+		}
+		pickup = sqlnull.Raw(b)
+	}
+	ids := c.BusinessIDs
+	if ids == nil {
+		ids = map[string]string{}
+	}
+	idsJSON, err := json.Marshal(ids)
+	if err != nil {
+		return fmt.Errorf("encode business ids: %w", err)
+	}
+	purchase := c.PurchaseType
+	if purchase == "" {
+		purchase = PurchasePersonal
+	}
+	return r.queries.SetCartCheckout(ctx, db.SetCartCheckoutParams{
+		ID:                    cartID,
+		ShippingAddress:       shipping,
+		ShippingAddressID:     sqlnull.UUID(c.ShippingAddressID),
+		BillingSameAsShipping: c.BillingSameAsShipping,
+		BillingAddress:        billing,
+		BillingAddressID:      sqlnull.UUID(c.BillingAddressID),
+		ShippingCarrierSlug:   c.ShippingCarrierSlug,
+		ShippingMethodCode:    c.ShippingMethodCode,
+		PaymentProviderSlug:   c.PaymentProviderSlug,
+		PoNumber:              c.PONumber,
+		UseStoreCredit:        c.UseStoreCredit,
+		GiftCardCodes:         codes,
+		DestinationCountry:    c.Destination.CountryCode,
+		DestinationRegion:     c.Destination.Region,
+		DestinationPostalCode: c.Destination.PostalCode,
+		ContactPhone:          c.ContactPhone,
+		PurchaseType:          purchase,
+		CompanyName:           c.Company,
+		BusinessIds:           idsJSON,
+		PickupContact:         pickup,
+	})
 }
 
 func (r *postgresRepository) PruneStale(ctx context.Context, cutoff time.Time) (int64, error) {
@@ -432,10 +499,77 @@ func toCart(row db.Cart) Cart {
 		CustomerID: customerID,
 		ChannelID:  row.ChannelID,
 		Status:     row.Status,
+		Email:      row.Email,
 		Note:       row.Note,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
+		Checkout: Checkout{
+			ShippingAddress:       decodeAddress(row.ShippingAddress),
+			ShippingAddressID:     sqlnull.UUIDPtr(row.ShippingAddressID),
+			BillingSameAsShipping: row.BillingSameAsShipping,
+			BillingAddress:        decodeAddress(row.BillingAddress),
+			BillingAddressID:      sqlnull.UUIDPtr(row.BillingAddressID),
+			ShippingCarrierSlug:   row.ShippingCarrierSlug,
+			ShippingMethodCode:    row.ShippingMethodCode,
+			PaymentProviderSlug:   row.PaymentProviderSlug,
+			PONumber:              row.PoNumber,
+			UseStoreCredit:        row.UseStoreCredit,
+			GiftCardCodes:         row.GiftCardCodes,
+			Destination: Destination{
+				CountryCode: row.DestinationCountry,
+				Region:      row.DestinationRegion,
+				PostalCode:  row.DestinationPostalCode,
+			},
+			ContactPhone:  row.ContactPhone,
+			PurchaseType:  row.PurchaseType,
+			Company:       row.CompanyName,
+			BusinessIDs:   decodeBusinessIDs(row.BusinessIds),
+			PickupContact: decodePickupContact(row.PickupContact),
+		},
+		CheckoutVersion: row.CheckoutVersion,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
+}
+
+func encodeAddress(a *Address) (pqtype.NullRawMessage, error) {
+	if a == nil {
+		return pqtype.NullRawMessage{}, nil
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		return pqtype.NullRawMessage{}, fmt.Errorf("encode address: %w", err)
+	}
+	return sqlnull.Raw(b), nil
+}
+
+func decodeBusinessIDs(raw json.RawMessage) map[string]string {
+	var ids map[string]string
+	if json.Unmarshal(raw, &ids) != nil || len(ids) == 0 {
+		return nil
+	}
+	return ids
+}
+
+func decodePickupContact(n pqtype.NullRawMessage) *PickupContact {
+	if !n.Valid {
+		return nil
+	}
+	var p PickupContact
+	if json.Unmarshal(n.RawMessage, &p) != nil {
+		return nil
+	}
+	return &p
+}
+
+// Only SetCheckout writes these columns, so an undecodable one reads as unset and the shopper re-enters it rather than the cart failing to load
+func decodeAddress(n pqtype.NullRawMessage) *Address {
+	if !n.Valid {
+		return nil
+	}
+	var a Address
+	if json.Unmarshal(n.RawMessage, &a) != nil {
+		return nil
+	}
+	return &a
 }
 
 func toCartLine(row db.CartLine) CartLine {

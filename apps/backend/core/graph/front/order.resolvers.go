@@ -147,14 +147,30 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 }
 
 // Guest and authenticated checkout share this path - the customer claim comes off the auth context, email is required either way, and addresses arrive as address-book IDs or inline payloads (guests use inline, signed-in customers may too for a one-off)
-func (r *mutationResolver) PlaceOrder(ctx context.Context, email string, cartID *string, customerNote *string, poNumber *string, shippingCarrierSlug *string, shippingMethodCode *string, paymentProviderSlug *string, paymentToken *string, billingAddressID *string, shippingAddressID *string, billingAddress *model.AddressInput, shippingAddress *model.AddressInput, giftCardCodes []string, useStoreCredit *bool, savedPaymentMethodID *string) (*model.Order, error) {
-	input := order.PlaceOrderInput{
-		Email:          email,
-		CustomerID:     channel.OptionalCustomerID(ctx),
-		CustomerNote:   ptr.Deref(customerNote),
-		PONumber:       ptr.Deref(poNumber),
-		GiftCardCodes:  giftCardCodes,
-		UseStoreCredit: useStoreCredit != nil && *useStoreCredit,
+func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) (*model.Order, error) {
+	c, err := r.checkoutCart(ctx, cartID)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.termsAccepted(ctx, c.ChannelID, acceptTerms); err != nil {
+		return nil, err
+	}
+	// A carrier or the payment config that can't answer refuses placement - falling back would charge for a method the shopper didn't pick
+	method, err := r.offeredShippingMethod(ctx, c, c.Checkout)
+	if err != nil {
+		return nil, err
+	}
+	paymentOK, err := r.paymentMethodOffered(ctx, c, c.Checkout, c.Checkout.PaymentProviderSlug)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.checkoutComplete(ctx, c, method, paymentOK); err != nil {
+		return nil, err
+	}
+	input := r.placeOrderInput(ctx, c, method, paymentOK)
+	input.CustomerID = channel.OptionalCustomerID(ctx)
+	if paymentToken != nil && *paymentToken != "" {
+		input.PaymentToken = paymentToken
 	}
 	if savedPaymentMethodID != nil && *savedPaymentMethodID != "" { // resolves to a vaulted token under an ownership check, and the provider slugs must line up
 		if input.CustomerID == nil {
@@ -168,75 +184,27 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, email string, cartID 
 		if err != nil {
 			return nil, err
 		}
-		if paymentProviderSlug == nil || *paymentProviderSlug != m.ProviderSlug {
+		if input.PaymentProviderSlug == nil || *input.PaymentProviderSlug != m.ProviderSlug {
 			return nil, apperr.New("PAYMENT_METHOD_MISMATCH", apperr.ClassValidation, "saved method belongs to a different payment provider")
 		}
 		input.VaultedPaymentToken = m.Token
 	}
 
-	if cartID != nil && *cartID != "" {
-		cid, err := uuid.Parse(*cartID)
-		if err != nil {
-			return nil, invalidID("cart")
+	scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &c.ChannelID}
+	// sales/checkout/allow_guest - a nil CustomerID IS the guest predicate, same value the input carries above Only this resolver reaches OrderSvc.PlaceOrder; admin drafts, B2B quotes and subscription renewals take other service methods entirely, so an operator disabling guest checkout can't strand them
+	if input.CustomerID == nil {
+		if allowGuest, gerr := r.ConfigSvc.GetBool(ctx, "sales/checkout/allow_guest", scope); gerr == nil && !allowGuest {
+			return nil, apperr.New("GUEST_CHECKOUT_DISABLED", apperr.ClassAuth, "sign in or create an account to place this order")
 		}
-		input.CartID = &cid
 	}
-	if shippingCarrierSlug != nil && *shippingCarrierSlug != "" { // the (carrierSlug, methodCode) pair comes from shippingQuotes - price is re-derived server-side through the carrier, never trusted from the client
-		input.ShippingCarrierSlug = shippingCarrierSlug
-	}
-	if shippingMethodCode != nil && *shippingMethodCode != "" {
-		input.ShippingMethodCode = shippingMethodCode
-	}
-	if paymentProviderSlug != nil && *paymentProviderSlug != "" {
-		input.PaymentProviderSlug = paymentProviderSlug
-	}
-	if paymentToken != nil && *paymentToken != "" {
-		input.PaymentToken = paymentToken
-	}
-	if billingAddressID != nil && *billingAddressID != "" {
-		bid, err := uuid.Parse(*billingAddressID)
-		if err != nil {
-			return nil, invalidID("billing address")
+	// sales/checkout/min_order in cents, channel-scoped, checked against the cart's line subtotal
+	if minOrder, _ := r.ConfigSvc.GetInt(ctx, "sales/checkout/min_order", scope); minOrder > 0 {
+		var subtotal int64
+		for _, l := range c.Lines {
+			subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
 		}
-		input.BillingAddressID = &bid
-	}
-	if shippingAddressID != nil && *shippingAddressID != "" {
-		sid, err := uuid.Parse(*shippingAddressID)
-		if err != nil {
-			return nil, invalidID("shipping address")
-		}
-		input.ShippingAddressID = &sid
-	}
-	if billingAddress != nil {
-		addr := addressInputToOrderAddress(*billingAddress)
-		input.BillingAddress = &addr
-	}
-	if shippingAddress != nil {
-		addr := addressInputToOrderAddress(*shippingAddress)
-		input.ShippingAddress = &addr
-	}
-
-	// sales/checkout/min_order in cents, channel-scoped, checked against the cart's line subtotal - gated on the channel rather than cartId, which is optional for a signed-in customer and let anyone skip the minimum by omitting it
-	if sid := channelIDFromContext(ctx); sid != nil {
-		{
-			scope := config.Scope{Kind: config.ScopeChannel, ChannelID: sid}
-			// sales/checkout/allow_guest - a nil CustomerID IS the guest predicate, same value the input carries above Only this resolver reaches OrderSvc.PlaceOrder; admin drafts, B2B quotes and subscription renewals take other service methods entirely, so an operator disabling guest checkout can't strand them
-			if input.CustomerID == nil {
-				if allowGuest, gerr := r.ConfigSvc.GetBool(ctx, "sales/checkout/allow_guest", scope); gerr == nil && !allowGuest {
-					return nil, apperr.New("GUEST_CHECKOUT_DISABLED", apperr.ClassAuth, "sign in or create an account to place this order")
-				}
-			}
-			if minOrder, _ := r.ConfigSvc.GetInt(ctx, "sales/checkout/min_order", scope); minOrder > 0 {
-				if c, cerr := r.cartForMinimumCheck(ctx, input, *sid); cerr == nil {
-					var subtotal int64
-					for _, l := range c.Lines {
-						subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
-					}
-					if subtotal < int64(minOrder) {
-						return nil, apperr.New("ORDER_MINIMUM_NOT_MET", apperr.ClassValidation, fmt.Sprintf("order minimum not met: subtotal must be at least %d cents", minOrder))
-					}
-				}
-			}
+		if subtotal < int64(minOrder) {
+			return nil, apperr.New("ORDER_MINIMUM_NOT_MET", apperr.ClassValidation, fmt.Sprintf("order minimum not met: subtotal must be at least %d cents", minOrder))
 		}
 	}
 

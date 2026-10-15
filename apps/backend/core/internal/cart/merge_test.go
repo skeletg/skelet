@@ -48,6 +48,8 @@ type mergeRepo struct {
 	activeByCust map[uuid.UUID]Cart
 
 	mergedCarts []uuid.UUID
+	checkouts   map[uuid.UUID]Checkout
+	emails      map[uuid.UUID]string
 	reassigned  []uuid.UUID
 	simple      []AddCartLineInput
 	configured  []AddConfiguredLineInput
@@ -100,6 +102,22 @@ func (r *mergeRepo) UpsertConfiguredCartLine(_ context.Context, _ uuid.UUID, in 
 func (r *mergeRepo) UpsertBundleCartLine(_ context.Context, _ uuid.UUID, in AddBundleLineInput) (CartLine, error) {
 	r.bundles = append(r.bundles, in)
 	return CartLine{}, nil
+}
+
+func (r *mergeRepo) SetCheckout(_ context.Context, cartID uuid.UUID, c Checkout) error {
+	if r.checkouts == nil {
+		r.checkouts = map[uuid.UUID]Checkout{}
+	}
+	r.checkouts[cartID] = c
+	return nil
+}
+
+func (r *mergeRepo) SetEmail(_ context.Context, cartID uuid.UUID, email string) error {
+	if r.emails == nil {
+		r.emails = map[uuid.UUID]string{}
+	}
+	r.emails[cartID] = email
+	return nil
 }
 
 func (r *mergeRepo) WithTx(*sql.Tx) Repository { return r }

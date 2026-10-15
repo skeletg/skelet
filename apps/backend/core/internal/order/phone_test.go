@@ -18,9 +18,9 @@ func TestResolveAddressNormalizesInlineAndSavedPhones(t *testing.T) {
 		var a OrderAddress
 		var err error
 		if saved {
-			a, err = resolveAddress(rules, nil, &id, true, c, "shipping")
+			a, err = resolveAddress(rules, nil, &id, true, c, "shipping", false)
 		} else {
-			a, err = resolveAddress(rules, &inline, nil, false, c, "billing")
+			a, err = resolveAddress(rules, &inline, nil, false, c, "billing", false)
 		}
 		if err != nil || a.Phone == nil || *a.Phone != "+381641234567" {
 			t.Fatalf("saved=%v: phone=%v, error=%v", saved, a.Phone, err)
@@ -31,7 +31,7 @@ func TestResolveAddressNormalizesInlineAndSavedPhones(t *testing.T) {
 	}
 	foreign := "+4915123456789"
 	inline.Phone = &foreign
-	if _, err := resolveAddress(rules, &inline, nil, false, c, "billing"); !errors.Is(err, phone.ErrCountryNotAllowed) {
+	if _, err := resolveAddress(rules, &inline, nil, false, c, "billing", false); !errors.Is(err, phone.ErrCountryNotAllowed) {
 		t.Fatalf("error = %v, want disallowed country", err)
 	}
 }

@@ -24,6 +24,7 @@ UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
+    business_ids        = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -41,10 +42,16 @@ DELETE FROM wishlist_items WHERE customer_id = $1;
 
 -- name: ScrubCustomerCarts :execrows
 -- carts.email makes an abandoned cart addressable by the recovery flow, so an
--- un-scrubbed row keeps emailing a customer who asked to be erased
+-- un-scrubbed row keeps emailing a customer who asked to be erased - and a
+-- checkout in progress holds addresses, phone and tax details the same way
 UPDATE carts
-SET    email = ''
-WHERE  customer_id = $1 AND email <> '';
+SET    email = '', shipping_address = NULL, billing_address = NULL,
+       contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
+       pickup_contact = NULL, checkout_version = checkout_version + 1
+WHERE  customer_id = $1
+  AND  (email <> '' OR shipping_address IS NOT NULL OR billing_address IS NOT NULL
+        OR contact_phone <> '' OR company_name <> '' OR business_ids <> '{}'::jsonb OR po_number <> ''
+        OR pickup_contact IS NOT NULL);
 
 -- name: DeleteCustomerBackInStockRequests :execrows
 -- Keyed by email as well as customer_id (guests subscribe too), and only on the customer's channel - the same
@@ -73,6 +80,7 @@ UPDATE orders
 SET email               = 'redacted-' || sqlc.arg(customer_id)::uuid::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
+    business_ids        = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -86,6 +94,17 @@ SET email               = 'redacted-' || sqlc.arg(customer_id)::uuid::text || '@
 WHERE customer_id IS NULL
   AND channel_id = sqlc.arg(channel_id)
   AND lower(btrim(email)) = sqlc.arg(email)::text;
+
+-- name: ScrubGuestCartsByEmail :execrows
+-- Guest carts that entered the erased address at checkout, on the customer's channel - the same checkout state
+-- ScrubCustomerCarts clears, since a guest checkout in progress holds addresses, phone and tax details just the same
+UPDATE carts
+SET    email = '', shipping_address = NULL, billing_address = NULL,
+       contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
+       pickup_contact = NULL, checkout_version = checkout_version + 1
+WHERE  customer_id IS NULL
+  AND  channel_id = sqlc.arg(channel_id)
+  AND  lower(btrim(email)) = sqlc.arg(email)::text;
 
 -- name: ScrubCustomerProductQuestions :execrows
 -- The question text stays on the product page, the asker's name and address don't

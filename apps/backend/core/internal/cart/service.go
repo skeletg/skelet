@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -112,9 +114,9 @@ func (s *Service) AuthorizeCart(ctx context.Context, cartID uuid.UUID, callerID 
 }
 
 func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, email string) error { // a checkout-entry email makes an abandoned cart recoverable before any account or order exists
-	email = strings.ToLower(strings.TrimSpace(email)) // the form customer emails take, so recovery and the guest-order claim match it
-	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
-		return ErrCartEmailInvalid
+	email, err := normalizeCartEmail(email)
+	if err != nil {
+		return err
 	}
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
@@ -133,6 +135,68 @@ func (s *Service) SetCartNote(ctx context.Context, cartID uuid.UUID, callerID *u
 		return err
 	}
 	return s.repo.SetNote(ctx, cart.ID, note)
+}
+
+// How many times a step is recomputed when the checkout moves under it before the shopper is told to reload
+const checkoutSaveAttempts = 3
+
+// errCheckoutMoved is one attempt losing the race - UpdateCheckout recomputes the step from the new row
+var errCheckoutMoved = errors.New("checkout moved")
+
+// UpdateCheckout saves one checkout step. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards inside apply - the cart only stores what it's given
+// apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
+func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	for range checkoutSaveAttempts {
+		err := s.updateCheckoutOnce(ctx, cartID, callerID, apply)
+		if !errors.Is(err, errCheckoutMoved) {
+			return err
+		}
+	}
+	return ErrCheckoutConflict
+}
+
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	// Prepare - no transaction and no lock
+	cart, err := s.GetCart(ctx, cartID, callerID)
+	if err != nil {
+		return err
+	}
+	next := cart
+	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
+	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
+	if err := apply(&next); err != nil {
+		return err
+	}
+	emailChanged := strings.TrimSpace(next.Email) != cart.Email
+	if emailChanged {
+		if next.Email, err = normalizeCartEmail(next.Email); err != nil {
+			return err
+		}
+	}
+
+	// Commit - re-read under the lock and write, nothing slower
+	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+		r := s.repo.WithTx(sqlTx)
+		locked, err := r.LockCart(ctx, cartID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrCartForbidden
+			}
+			return fmt.Errorf("lock cart: %w", err)
+		}
+		if err := checkCartAccess(locked, callerID); err != nil {
+			return err
+		}
+		if locked.CheckoutVersion != cart.CheckoutVersion {
+			return errCheckoutMoved
+		}
+		if emailChanged {
+			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
+				return err
+			}
+		}
+		return r.SetCheckout(ctx, cart.ID, next.Checkout)
+	})
 }
 
 func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int64, error) { // retention reaper - a converted cart's durable record lives on its order, so dropping the stale row loses nothing
@@ -511,6 +575,15 @@ func (s *Service) MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) er
 
 // --- helpers ---
 
+// The form customer emails take, so recovery and the guest-order claim match it - SetCartEmail and the details step share it
+func normalizeCartEmail(email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
+		return "", ErrCartEmailInvalid
+	}
+	return email, nil
+}
+
 // A nil callerID is the guest path, allowed only for guest carts - not-found and not-authorized both return "forbidden" to avoid UUID enumeration
 func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
 	cart, err := repo.GetCartByID(ctx, cartID)
@@ -520,16 +593,23 @@ func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, calle
 		}
 		return Cart{}, fmt.Errorf("load cart: %w", err) // a DB failure is NOT a permission answer - masking it as forbidden told the shopper their own cart was gone
 	}
-	if cart.Status != "active" {
-		return Cart{}, ErrCartNotActive
-	}
-	if cart.CustomerID == nil {
-		return cart, nil
-	}
-	if callerID == nil || *callerID != *cart.CustomerID {
-		return Cart{}, ErrCartForbidden
+	if err := checkCartAccess(cart, callerID); err != nil {
+		return Cart{}, err
 	}
 	return cart, nil
+}
+
+func checkCartAccess(cart Cart, callerID *uuid.UUID) error {
+	if cart.Status != "active" {
+		return ErrCartNotActive
+	}
+	if cart.CustomerID == nil {
+		return nil
+	}
+	if callerID == nil || *callerID != *cart.CustomerID {
+		return ErrCartForbidden
+	}
+	return nil
 }
 
 func valueOr[T any](p *T, fallback T) T { // a hook that nils an override field means "keep the input"

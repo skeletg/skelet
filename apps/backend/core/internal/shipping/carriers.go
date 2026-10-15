@@ -74,9 +74,27 @@ func (s *Service) ListCarriersForChannel(ctx context.Context, channelID uuid.UUI
 
 // Aggregates rate options across every enabled carrier, run concurrently under quoteAllBudget Results are PARTIAL - a carrier that errors, panics or times out is skipped, so a flaky external API never blanks checkout, with the built-in as the baseline - Sorted by (sort_order, price, code) so completion order can't scramble it With no config row the built-in fail-opens and external carriers fail-closed, so a channel newer than the last SyncCarriers still quotes
 func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, error) {
+	res, err := s.QuoteCarriers(ctx, req)
+	return res.Quotes, err
+}
+
+// QuoteResult is every carrier's rated methods, with the carriers that couldn't answer - a method missing from Quotes
+// is not offered only when its carrier isn't among Failed
+type QuoteResult struct {
+	Quotes []RatedQuote
+	Failed []string // carrier slugs whose quote errored, panicked or ran out of time
+}
+
+// Answered reports whether the carrier gave an answer - an empty one counts, a failure doesn't
+func (r QuoteResult) Answered(carrierSlug string) bool {
+	return !slices.Contains(r.Failed, carrierSlug)
+}
+
+// QuoteCarriers is QuoteAll that also says which carriers failed, for a caller that must tell "not offered" from "couldn't ask"
+func (s *Service) QuoteCarriers(ctx context.Context, req RateRequest) (QuoteResult, error) {
 	configs, err := s.repo.ListCarrierConfigsByChannel(ctx, req.ChannelID)
 	if err != nil {
-		return nil, err
+		return QuoteResult{}, err
 	}
 	bySlug := make(map[string]CarrierConfig, len(configs))
 	for _, c := range configs {
@@ -100,7 +118,7 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 		if hasRow && cfg.CountryMode == "specific" {
 			allowed, err := s.repo.ListCountriesForCarrier(ctx, cfg.ID)
 			if err != nil {
-				return nil, err
+				return QuoteResult{}, err
 			}
 			if !containsFold(allowed, req.Destination.CountryCode) {
 				continue
@@ -110,7 +128,7 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 	}
 	// No registry carriers still allows rates - a channel may quote entirely through remote providers
 	if len(act) == 0 && s.remoteRates == nil {
-		return nil, nil
+		return QuoteResult{}, nil
 	}
 
 	req = s.withParcels(ctx, req)
@@ -119,10 +137,16 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 	defer cancel()
 
 	var (
-		mu  sync.Mutex
-		out []RatedQuote
-		wg  sync.WaitGroup
+		mu     sync.Mutex
+		out    []RatedQuote
+		failed []string
+		wg     sync.WaitGroup
 	)
+	fail := func(slug string) {
+		mu.Lock()
+		failed = append(failed, slug)
+		mu.Unlock()
+	}
 	for _, a := range act {
 		wg.Add(1)
 		go func(a active) {
@@ -131,11 +155,13 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("[shipping] carrier %q quote panicked (skipped): %v", a.reg.Slug, r)
+					fail(a.reg.Slug)
 				}
 			}()
 			methods, err := a.reg.Carrier.Quote(qctx, req)
 			if err != nil {
 				log.Printf("[shipping] carrier %q quote failed (skipped): %v", a.reg.Slug, err)
+				fail(a.reg.Slug)
 				return
 			}
 			name := carrierName(a.reg, a.cfg)
@@ -149,12 +175,10 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 	// Remote providers quote alongside the registered carriers on the same budget, failing open inside Quotes
 	if s.remoteRates != nil {
 		wg.Go(func() {
-			remote := s.remoteRates.Quotes(qctx, req)
-			if len(remote) == 0 {
-				return
-			}
+			remote, remoteFailed := s.remoteRates.Quotes(qctx, req)
 			mu.Lock()
 			out = append(out, remote...)
+			failed = append(failed, remoteFailed...)
 			mu.Unlock()
 		})
 	}
@@ -175,7 +199,7 @@ func (s *Service) QuoteAll(ctx context.Context, req RateRequest) ([]RatedQuote, 
 		}
 		return out[i].Method.Code < out[j].Method.Code
 	})
-	return out, nil
+	return QuoteResult{Quotes: out, Failed: failed}, nil
 }
 
 // Authoritatively re-prices the chosen carrier and method, never trusting the client's price - the built-in re-prices by code through ComputeForOrder and returns the method uuid, while external carriers re-quote and match by code

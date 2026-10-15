@@ -21,6 +21,7 @@ func (r *Resolver) toCountryModel(ctx context.Context, c country.Country) *model
 		IsActive:            c.IsActive,
 		SortOrder:           int32(c.SortOrder),
 		Metadata:            toStringMapItems(c.Metadata),
+		BusinessIDFields:    toBusinessIDFieldModels(c.BusinessIDFields),
 		CreatedAt:           c.CreatedAt,
 		UpdatedAt:           c.UpdatedAt,
 	}
@@ -30,4 +31,26 @@ func (r *Resolver) toCountryModel(ctx context.Context, c country.Country) *model
 		}
 	}
 	return m
+}
+
+func toBusinessIDFieldModels(fields []country.BusinessIDField) []*model.BusinessIDField {
+	out := make([]*model.BusinessIDField, len(fields))
+	for i, f := range fields {
+		out[i] = &model.BusinessIDField{Key: f.Key, Label: f.Label, Required: f.Required, Pattern: f.Pattern, Hint: f.Hint}
+	}
+	return out
+}
+
+func businessIDFieldInputs(in []*model.BusinessIDFieldInput) []country.BusinessIDField {
+	out := make([]country.BusinessIDField, 0, len(in))
+	for _, f := range in {
+		if f == nil {
+			continue
+		}
+		out = append(out, country.BusinessIDField{
+			Key: stringOr(f.Key, ""), Label: f.Label, Required: f.Required,
+			Pattern: stringOr(f.Pattern, ""), Hint: stringOr(f.Hint, ""),
+		})
+	}
+	return out
 }

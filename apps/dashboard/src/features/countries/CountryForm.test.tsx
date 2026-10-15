@@ -35,6 +35,7 @@ const stored = {
   updatedAt: '2026-01-01T00:00:00Z',
   defaultCurrency: { __typename: 'Currency' as const, code: 'EUR', symbol: '€' },
   metadata: [{ __typename: 'MetadataItem' as const, key: 'vat', value: 'DE123' }],
+  businessIdFields: [],
   regions: [],
 }
 

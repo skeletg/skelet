@@ -586,6 +586,7 @@ Once it's on, each surface has its own per-minute budget:
 | `GENERAL_RATE_LIMIT_PER_MIN` | 30 | admin + storefront resolver-level checks |
 | `AUTH_RATE_LIMIT_PER_MIN` | 10 | login / register / password reset |
 | `FRONT_RATE_LIMIT_PER_MIN` | 600 | the whole storefront GraphQL endpoint |
+| `CHECKOUT_RATE_LIMIT_PER_MIN` | 120 | checkout step saves and checkout reads, each its own budget |
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
