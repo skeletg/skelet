@@ -36,7 +36,9 @@ type RateLimiters struct {
 	General ratelimit.Limiter
 	Auth    ratelimit.Limiter
 	Front   ratelimit.Limiter
-	Login   *authpkg.LoginThrottle
+	// The checkout steps and reads - each quotes carriers and prices the order, and a shopper makes many in a minute
+	Checkout ratelimit.Limiter
+	Login    *authpkg.LoginThrottle
 }
 
 type ( // two *handler.Server values, so the graph needs them told apart
@@ -58,10 +60,11 @@ var GraphQL = fx.Module("graphql", // builds both executable schemas with their 
 
 func newRateLimiters(limits LimitsRedis) RateLimiters { // every budget goes through RateLimitPerMin, so all four are off until RATE_LIMIT_ENABLED
 	return RateLimiters{
-		General: ratelimit.NewRedis(limits.Client, RateLimitPerMin("GENERAL_RATE_LIMIT_PER_MIN", 30), time.Minute),
-		Auth:    ratelimit.NewRedis(limits.Client, RateLimitPerMin("AUTH_RATE_LIMIT_PER_MIN", 10), time.Minute),
-		Front:   ratelimit.NewRedis(limits.Client, RateLimitPerMin("FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
-		Login:   newLoginThrottle(limits.Client),
+		General:  ratelimit.NewRedis(limits.Client, RateLimitPerMin("GENERAL_RATE_LIMIT_PER_MIN", 30), time.Minute),
+		Auth:     ratelimit.NewRedis(limits.Client, RateLimitPerMin("AUTH_RATE_LIMIT_PER_MIN", 10), time.Minute),
+		Front:    ratelimit.NewRedis(limits.Client, RateLimitPerMin("FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
+		Checkout: ratelimit.NewRedis(limits.Client, RateLimitPerMin("CHECKOUT_RATE_LIMIT_PER_MIN", 120), time.Minute),
+		Login:    newLoginThrottle(limits.Client),
 	}
 }
 
@@ -288,6 +291,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		VoterTokenSecret:     infra.Config.VoterTokenSecret,
 		RateLimiter:          rl.General,
 		AuthLimiter:          rl.Auth,
+		CheckoutLimiter:      rl.Checkout,
 		LoginThrottle:        rl.Login,
 		Bus:                  s.Bus,
 	}

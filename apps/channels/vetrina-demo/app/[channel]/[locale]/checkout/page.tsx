@@ -113,7 +113,7 @@ export default async function CheckoutPage({
   const [regionsByCountry, pointLists, paymentMethods, savedCards] = await Promise.all([
     active === "details" ? getRegionsByCountry(countries.map((c) => c.code)) : {},
     Promise.all(pointGroups.map((g) => getDeliveryPoints(cart.id, g.key, pointGroup === g.key && typeof pointSearch === "string" ? pointSearch : undefined))),
-    active === "payment" && paymentCountry ? getPaymentMethods(paymentCountry) : [],
+    active === "payment" && paymentCountry ? getPaymentMethods(paymentCountry, cart.id) : [],
     active === "payment" && customer ? getMyPaymentMethods() : [],
   ]);
   const points: Record<string, DeliveryPointsResult> = Object.fromEntries(pointGroups.map((g, i) => [g.key, pointLists[i]]));

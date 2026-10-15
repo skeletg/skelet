@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func toOrderModel(o order.Order) *model.Order {
@@ -170,6 +171,12 @@ func (r *Resolver) checkoutCart(ctx context.Context, cartID *string) (cart.Cart,
 
 // checkoutComplete names the first thing the cart still owes, as a code the storefront can send the shopper back to - the delivery requirements first, then what a business purchase owes. A missing payment method isn't refused here: gift cards or store credit may cover the total, and placement refuses with PAYMENT_REQUIRED when they don't
 func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error {
+	// A carrier that couldn't answer refuses placement rather than reading as "nothing chosen" or "nothing to choose" - falling back would charge for a delivery the shopper didn't pick
+	for _, g := range v.groups {
+		if g.quoteFailed() {
+			return errShippingQuoteFailed
+		}
+	}
 	for _, q := range delivery.Requirements(r.checkoutSnapshot(ctx, v)) {
 		if !q.Blocking() || (q.Type == delivery.BlockPayment && q.Status == delivery.StatusMissing) {
 			continue
@@ -185,6 +192,22 @@ func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error 
 		if r.missingBusinessID(ctx, co, set) {
 			return apperr.New("CHECKOUT_BUSINESS_ID_REQUIRED", apperr.ClassValidation, "enter the company's identification numbers")
 		}
+	}
+	return nil
+}
+
+var errTermsNotAccepted = apperr.New("TERMS_NOT_ACCEPTED", apperr.ClassValidation, "accept the terms and conditions to place the order")
+
+// termsAccepted holds placement to the store's sales/checkout/terms_consent - under checkbox the shopper must have ticked it, which the storefront's form alone can't guarantee to a caller that skips it. Notice and off ask nothing
+func (r *Resolver) termsAccepted(ctx context.Context, channelID uuid.UUID, accepted *bool) error {
+	mode := "checkbox"
+	if r.ConfigSvc != nil {
+		if v, err := r.ConfigSvc.GetString(ctx, "sales/checkout/terms_consent", config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}); err == nil && v != "" {
+			mode = v
+		}
+	}
+	if mode == "checkbox" && (accepted == nil || !*accepted) {
+		return errTermsNotAccepted
 	}
 	return nil
 }

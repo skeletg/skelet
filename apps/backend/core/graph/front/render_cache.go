@@ -2,6 +2,7 @@ package front
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"net/http"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -63,6 +65,8 @@ type renderCache struct {
 	groupedMembers   map[string][]catalog.GroupedMember
 
 	promoAttrKVs map[uuid.UUID]map[string]string // by product_id, attribute KVs captured BEFORE the isPublic filter so promotion display rules keep matching private attributes
+
+	shippingQuotes map[string]shipping.QuoteResult // by the whole rate request - a checkout request quotes the same cart at the same destination several times
 }
 
 type attrNameMaps struct { // keyed by stringified attribute / value UUIDs, the shape the model walkers consume directly
@@ -135,6 +139,35 @@ func (r *Resolver) primeGroupOnce(ctx context.Context, what string, id uuid.UUID
 			c.mu.Unlock()
 		})
 	return err == nil
+}
+
+// The request's quotes for req, fetched once - req carries the destination, the lines and the discounted subtotal, so an identical request is an identical quote. A failed fetch isn't stored
+func cachedShippingQuotes(ctx context.Context, req shipping.RateRequest, fetch func() (shipping.QuoteResult, error)) (shipping.QuoteResult, error) {
+	c := getRenderCache(ctx)
+	if c == nil {
+		return fetch()
+	}
+	b, err := json.Marshal(req)
+	if err != nil {
+		return fetch()
+	}
+	key := string(b)
+	return renderMemo(c, "shipq:"+key,
+		func() (shipping.QuoteResult, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			v, ok := c.shippingQuotes[key]
+			return v, ok
+		},
+		fetch,
+		func(v shipping.QuoteResult) {
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			if c.shippingQuotes == nil {
+				c.shippingQuotes = map[string]shipping.QuoteResult{}
+			}
+			c.shippingQuotes[key] = v
+		})
 }
 
 func getRenderCache(ctx context.Context) *renderCache { // nil when no middleware ran - callers must nil-check

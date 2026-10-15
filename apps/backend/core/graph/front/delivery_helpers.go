@@ -5,6 +5,7 @@ package front
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"slices"
 	"strings"
 	"time"
@@ -54,6 +55,23 @@ type groupView struct {
 	option    *delivery.Option // the selection's option, while it's still offered for this group
 	kind      *delivery.Kind
 	chosen    *deliveryChoice // the selection's choice, while it's still quoted
+	// Carriers that couldn't be asked for some shipment, and quoteErr when quoting failed outright - a method missing from choices is not offered only when its carrier answered
+	failed   []string
+	quoteErr bool
+}
+
+func (g *groupView) carrierFailed(slug string) bool {
+	return g.quoteErr || slices.Contains(g.failed, slug)
+}
+
+// selectionUnconfirmed - the chosen method's carrier couldn't be asked, so its absence from choices says nothing about whether it's still offered
+func (g *groupView) selectionUnconfirmed() bool {
+	return g.option != nil && g.chosen == nil && g.carrierFailed(g.sel.CarrierSlug)
+}
+
+// quoteFailed - the group can't be completed because carriers failed, not because of anything the shopper did
+func (g *groupView) quoteFailed() bool {
+	return g.selectionUnconfirmed() || (len(g.choices) == 0 && (g.quoteErr || len(g.failed) > 0))
 }
 
 type deliveryChoice struct {
@@ -180,7 +198,7 @@ func (r *Resolver) checkoutView(ctx context.Context, c cart.Cart) *checkoutView 
 			}
 		}
 		if ok && sv != nil {
-			gv.choices = r.groupChoices(ctx, sv, v, gv)
+			gv.choices = r.groupChoices(ctx, c.ID, sv, v, gv)
 		}
 		if gv.option != nil {
 			for i := range gv.choices {
@@ -209,8 +227,8 @@ func groupDestination(co cart.Checkout, gv *groupView) shipping.Address {
 	return shipping.Address{CountryCode: d.CountryCode, Region: d.Region, PostalCode: d.PostalCode}
 }
 
-// groupChoices quotes every shipment of the group and offers each option a method every shipment can take, of the option's kind and carrier, priced as the sum
-func (r *Resolver) groupChoices(ctx context.Context, sv *channel.Channel, v *checkoutView, gv *groupView) []deliveryChoice {
+// groupChoices quotes every shipment of the group and offers each option a method every shipment can take, of the option's kind and carrier, priced as the sum. Carriers that couldn't answer are recorded on the group
+func (r *Resolver) groupChoices(ctx context.Context, cartID uuid.UUID, sv *channel.Channel, v *checkoutView, gv *groupView) []deliveryChoice {
 	dest := groupDestination(v.c.Checkout, gv)
 	if dest.CountryCode == "" || r.ShippingSvc == nil {
 		return nil
@@ -227,11 +245,18 @@ func (r *Resolver) groupChoices(ctx context.Context, sv *channel.Channel, v *che
 			sub -= v.discount * sub / v.subtotal
 		}
 		req.SubtotalCents = max(sub, 0)
-		quotes, err := r.ShippingSvc.QuoteAll(ctx, req)
+		res, err := cachedShippingQuotes(ctx, req, func() (shipping.QuoteResult, error) { return r.ShippingSvc.QuoteCarriers(ctx, req) })
 		if err != nil {
+			log.Printf("[checkout] quoting shipping for cart %s failed: %v", cartID, err)
+			gv.quoteErr = true
 			return nil
 		}
-		perShipment = append(perShipment, quotes)
+		perShipment = append(perShipment, res.Quotes)
+		for _, f := range res.Failed {
+			if !slices.Contains(gv.failed, f) {
+				gv.failed = append(gv.failed, f)
+			}
+		}
 	}
 	return matchChoices(v.options, gv.Kinds, perShipment, r.storeToday(ctx, sv.ID))
 }
@@ -333,8 +358,9 @@ func (r *Resolver) checkoutSnapshot(ctx context.Context, v *checkoutView) delive
 		ShippingAddress:   co.ShippingAddress != nil,
 		Billing:           billing != nil,
 		BillingMirrorable: v.shipsToShopper(),
-		Payment:           co.PaymentProviderSlug != "" && r.paymentMethodOffered(ctx, c.ChannelID, co.PaymentProviderSlug, paymentCountry(co)),
 	}
+	// One that couldn't be checked reads as missing here - placement re-checks and refuses on the outage itself
+	s.Payment, _ = r.paymentMethodOffered(ctx, c, co, co.PaymentProviderSlug)
 	if co.PickupContact != nil && co.PickupContact.SomeoneElse {
 		s.BillingFloor = delivery.ModeRequired
 	}
