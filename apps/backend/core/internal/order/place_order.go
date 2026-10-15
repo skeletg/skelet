@@ -1,6 +1,7 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -62,7 +63,15 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 	rules := s.phoneRules(ctx, store.ID)
 
 	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
-	billing, err := resolveAddress(rules, in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote)
+	var (
+		billing OrderAddress
+		err     error
+	)
+	if in.BillingNameOnly && in.BillingAddress != nil {
+		billing, err = normalizeOrderAddress(rules, *in.BillingAddress, "billing")
+	} else {
+		billing, err = resolveAddress(rules, in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +91,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 	}
 
 	if !quote {
-		if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing); err != nil {
+		if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing, in.BillingNameOnly); err != nil {
 			return nil, err
 		}
 	}
@@ -94,7 +103,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 		paymentProvider = strings.TrimSpace(*in.PaymentProviderSlug)
 	}
 	if paymentProvider != "" && s.payments != nil {
-		if err := s.payments.ValidatePaymentForChannel(ctx, store.ID, paymentProvider, shipping.CountryCode); err != nil {
+		if err := s.payments.ValidatePaymentForChannel(ctx, store.ID, paymentProvider, cmp.Or(in.PaymentCountry, shipping.CountryCode)); err != nil {
 			return nil, fmt.Errorf("payment method: %w", err)
 		}
 	}
@@ -140,7 +149,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote
 }
 
 // Only a fail_closed provider's outage refuses placement - any other validator failure lets the order through, same as the storefront
-func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID, shipping, billing OrderAddress) error {
+func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID, shipping, billing OrderAddress, billingNameOnly bool) error {
 	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
 		return nil
 	}
@@ -148,7 +157,7 @@ func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID,
 	if err := s.checkStrictAddress(ctx, channelID, "shipping", ship); err != nil {
 		return err
 	}
-	if bill == ship { // same address, already answered
+	if billingNameOnly || bill == ship { // a name with no address to check, or the same address, already answered
 		return nil
 	}
 	return s.checkStrictAddress(ctx, channelID, "billing", bill)

@@ -5,9 +5,11 @@ package front
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -37,19 +39,24 @@ var (
 	errCheckoutNeedsCollector   = apperr.New("CHECKOUT_PICKUP_CONTACT_REQUIRED", apperr.ClassValidation, "enter who will collect the order")
 	errCheckoutPostalCode       = apperr.New("CHECKOUT_POSTAL_CODE_REQUIRED", apperr.ClassValidation, "enter a postcode")
 	errShippingMethodOffered    = apperr.New("SHIPPING_METHOD_UNAVAILABLE", apperr.ClassValidation, "that shipping method isn't available for this address")
+	errShippingQuoteFailed      = apperr.New("SHIPPING_QUOTE_FAILED", apperr.ClassUnavailable, "delivery can't be priced right now - try again in a moment")
 	errPaymentMethodOffered     = apperr.New("PAYMENT_METHOD_UNAVAILABLE", apperr.ClassValidation, "that payment method isn't available for this address")
 	errGiftCardInvalid          = apperr.New("GIFT_CARD_INVALID", apperr.ClassValidation, "that gift card can't be used")
 	errCheckoutAddressChoice    = apperr.New("CHECKOUT_ADDRESS_CHOICE", apperr.ClassValidation, "give either a saved address or a new one")
 	errCheckoutAddressMissing   = apperr.New("ADDRESS_INVALID", apperr.ClassValidation, "first name, last name, street, city, postal code and country are required")
 )
 
-// checkoutStep is the shape of every step mutation - the cart must be on this store, the step runs under the cart's row lock, and the whole cart comes back so the storefront renders from one response
+// checkoutStep is the shape of every step mutation - the cart must be on this store, the step is computed from the cart as loaded and written only if nothing else saved meanwhile (cart.Service.UpdateCheckout), and the whole cart comes back so the storefront renders from one response
 func (r *Resolver) checkoutStep(ctx context.Context, cartID string, step func(c cart.Cart, co *cart.Checkout) error) (*frontmodel.Cart, error) {
 	return r.checkoutWrite(ctx, cartID, func(c *cart.Cart) error { return step(*c, &c.Checkout) })
 }
 
 // checkoutWrite is checkoutStep for a step that also sets the cart's email
 func (r *Resolver) checkoutWrite(ctx context.Context, cartID string, step func(c *cart.Cart) error) (*frontmodel.Cart, error) {
+	// Every step can quote carriers and ask remote validators, so an anonymous script saving steps in a loop pays for each
+	if err := r.checkCheckoutRate(ctx, "checkout"); err != nil {
+		return nil, err
+	}
 	cid, err := uuid.Parse(cartID)
 	if err != nil {
 		return nil, invalidID("cart")
@@ -149,52 +156,72 @@ func (r *Resolver) strictAddressCheck(ctx context.Context, channelID uuid.UUID, 
 	return apperr.New("ADDRESS_INVALID", apperr.ClassValidation, msg+".")
 }
 
-// offeredShippingMethod is the chosen method as currently quoted for the cart at its destination - nil when nothing is chosen or it is no longer offered
-func (r *Resolver) offeredShippingMethod(ctx context.Context, c cart.Cart, co cart.Checkout) *shipping.RatedQuote {
+// offeredShippingMethod is the chosen method as currently quoted for the cart at its destination - nil when nothing is chosen or its carrier answered without it. A carrier that couldn't be asked is errShippingQuoteFailed, not "not offered", so a caller never drops or replaces a choice over an outage
+func (r *Resolver) offeredShippingMethod(ctx context.Context, c cart.Cart, co cart.Checkout) (*shipping.RatedQuote, error) {
 	dest := co.QuoteDestination()
 	if co.ShippingCarrierSlug == "" || dest.IsZero() {
-		return nil
+		return nil, nil
 	}
-	quotes := r.quotesFor(ctx, c, dest)
-	for i, q := range quotes {
+	res, err := r.quotesFor(ctx, c, dest)
+	if err != nil {
+		return nil, err
+	}
+	for i, q := range res.Quotes {
 		if q.CarrierSlug == co.ShippingCarrierSlug && q.Method.Code == co.ShippingMethodCode {
-			return &quotes[i]
+			return &res.Quotes[i], nil
 		}
 	}
-	return nil
+	if !res.Answered(co.ShippingCarrierSlug) {
+		return nil, errShippingQuoteFailed
+	}
+	return nil, nil
 }
 
-func (r *Resolver) quotesFor(ctx context.Context, c cart.Cart, d cart.Destination) []shipping.RatedQuote {
+// quotesFor is every carrier's answer for the cart at d, memoised per request - a step mutation quotes before it saves and again rendering the cart it returns, and the checkout field reads the same quotes for the method and the totals
+func (r *Resolver) quotesFor(ctx context.Context, c cart.Cart, d cart.Destination) (shipping.QuoteResult, error) {
 	sv, ok := channel.FromContext(ctx)
 	if r.ShippingSvc == nil || !ok || sv == nil || d.IsZero() {
-		return nil
+		return shipping.QuoteResult{}, nil
 	}
 	req, _ := r.cartRateRequest(ctx, sv, c, d.CountryCode, d.Region, d.PostalCode)
-	quotes, err := r.ShippingSvc.QuoteAll(ctx, req)
+	res, err := cachedShippingQuotes(ctx, req, func() (shipping.QuoteResult, error) { return r.ShippingSvc.QuoteCarriers(ctx, req) })
 	if err != nil {
-		return nil
+		log.Printf("[checkout] quoting shipping for cart %s failed: %v", c.ID, err)
+		return shipping.QuoteResult{}, errShippingQuoteFailed
 	}
-	return quotes
+	return res, nil
 }
 
-func (r *Resolver) paymentMethodOffered(ctx context.Context, channelID uuid.UUID, slug, country string) bool {
+// The offline method that bills against the PO number the details step asks a business buyer for
+const purchaseOrderSlug = "purchase-order"
+
+// paymentMethodOffered is whether the cart may pay with slug - offered for where the order goes (ShippingCountry, which placement checks too, pickup included), and purchase order only on a business purchase whose details step asked for the PO number it bills against
+func (r *Resolver) paymentMethodOffered(ctx context.Context, c cart.Cart, co cart.Checkout, slug string) (bool, error) {
+	country := co.ShippingCountry()
 	if slug == "" || country == "" || r.PaymentSvc == nil {
-		return false
+		return false, nil
 	}
-	methods, err := r.PaymentSvc.ListEligiblePaymentMethods(ctx, channelID, country)
+	if slug == purchaseOrderSlug && !r.checkoutSettings(ctx, c.ChannelID).capturesPONumber(co) {
+		return false, nil
+	}
+	methods, err := r.PaymentSvc.ListEligiblePaymentMethods(ctx, c.ChannelID, country)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return slices.ContainsFunc(methods, func(m payment.PaymentMethod) bool { return m.ProviderSlug == slug })
+	return slices.ContainsFunc(methods, func(m payment.PaymentMethod) bool { return m.ProviderSlug == slug }), nil
 }
 
-// dropUnsupportedSelections runs after the destination changes - a method or payment option the new address doesn't support is cleared, so the cart never holds a combination placement would refuse
+// dropUnsupportedSelections runs after the destination or the details change - a method or payment option the cart no longer supports is cleared, so it never holds a combination placement would refuse. One that couldn't be checked (a carrier or the payment config failing) is kept: placement re-checks, and an outage shouldn't cost the shopper their choice
 func (r *Resolver) dropUnsupportedSelections(ctx context.Context, c cart.Cart, co *cart.Checkout) {
-	if co.ShippingCarrierSlug != "" && r.offeredShippingMethod(ctx, c, *co) == nil {
-		co.ShippingCarrierSlug, co.ShippingMethodCode = "", ""
+	if co.ShippingCarrierSlug != "" {
+		if m, err := r.offeredShippingMethod(ctx, c, *co); err == nil && m == nil {
+			co.ShippingCarrierSlug, co.ShippingMethodCode = "", ""
+		}
 	}
-	if co.PaymentProviderSlug != "" && !r.paymentMethodOffered(ctx, c.ChannelID, co.PaymentProviderSlug, co.ShippingCountry()) {
-		co.PaymentProviderSlug = ""
+	if co.PaymentProviderSlug != "" {
+		if ok, err := r.paymentMethodOffered(ctx, c, *co, co.PaymentProviderSlug); err == nil && !ok {
+			co.PaymentProviderSlug = ""
+		}
 	}
 }
 
@@ -233,11 +260,17 @@ func (r *Resolver) placeOrderInput(ctx context.Context, c cart.Cart, method *shi
 		CustomerNote:   c.Note,
 		GiftCardCodes:  co.GiftCardCodes,
 		UseStoreCredit: co.UseStoreCredit && c.CustomerID != nil,
+		// The country the steps checked the payment method against - for a pickup that's the destination, not the store's own address
+		PaymentCountry: co.ShippingCountry(),
 	}
-	business := co.PurchaseType == cart.PurchaseBusiness
+	set := r.checkoutSettings(ctx, c.ChannelID)
+	// A business purchase saved before the store turned business purchases off places as a personal one
+	business := set.Business && co.PurchaseType == cart.PurchaseBusiness
 	if business {
-		in.PONumber = co.PONumber
-		for _, f := range r.businessIDFieldsFor(ctx, companyCountry(co), r.checkoutSettings(ctx, c.ChannelID)) {
+		if set.capturesPONumber(co) {
+			in.PONumber = co.PONumber
+		}
+		for _, f := range r.businessIDFieldsFor(ctx, companyCountry(co), set) {
 			if v := co.BusinessIDs[f.Key]; v != "" {
 				in.BusinessIDs = append(in.BusinessIDs, order.BusinessID{Key: f.Key, Label: f.Label, Value: v})
 			}
@@ -258,9 +291,19 @@ func (r *Resolver) placeOrderInput(ctx context.Context, c cart.Cart, method *shi
 		if ship.Phone == nil && co.ContactPhone != "" {
 			ship.Phone = &co.ContactPhone
 		}
-		bill := *ship
-		if b, _ := co.EffectiveBilling(); b != nil {
+		var bill order.OrderAddress
+		switch b, _ := co.EffectiveBilling(); {
+		case b != nil:
 			bill = cartAddressToOrderAddress(*b)
+		case co.IsPickup():
+			// The store's address isn't the buyer's - with no billing address asked for, the invoice names whoever collects
+			bill = order.OrderAddress{CountryCode: co.ShippingCountry()}
+			if p := co.PickupContact; p != nil {
+				bill.FirstName, bill.LastName = p.FirstName, p.LastName
+			}
+			in.BillingNameOnly = true
+		default:
+			bill = *ship
 		}
 		if bill.Phone == nil && co.ContactPhone != "" {
 			bill.Phone = &co.ContactPhone
@@ -343,6 +386,11 @@ func (r *Resolver) checkoutSettings(ctx context.Context, channelID uuid.UUID) ch
 	return s
 }
 
+// capturesPONumber - the details step asks a business buyer for a PO number only when the store turns the field on, so that's the only checkout that can pay by purchase order
+func (s checkoutSettings) capturesPONumber(co cart.Checkout) bool {
+	return s.Business && s.PONumber && co.PurchaseType == cart.PurchaseBusiness
+}
+
 // pickupNeedsBilling - a pickup has no shipping address to name the payer, so one is asked for when the store wants it on every invoice or someone else collects
 func (s checkoutSettings) pickupNeedsBilling(co cart.Checkout) bool {
 	return s.PickupNeedsBilling || (co.PickupContact != nil && co.PickupContact.SomeoneElse)
@@ -376,11 +424,18 @@ func (r *Resolver) checkoutModel(ctx context.Context, c cart.Cart) *frontmodel.C
 	billing, billingID := co.EffectiveBilling()
 	m.BillingAddress = toCartAddressModel(billing, billingID)
 
-	method := r.offeredShippingMethod(ctx, c, co)
+	// A carrier or the payment config failing shows the selection as unconfirmed rather than failing the whole cart - nothing is cleared, and placement re-checks
+	method, err := r.offeredShippingMethod(ctx, c, co)
+	if err != nil {
+		log.Printf("[checkout] cart %s: the chosen shipping method couldn't be re-quoted: %v", c.ID, err)
+	}
 	if method != nil {
 		m.ShippingMethod = toShippingQuoteModel(*method)
 	}
-	paymentOK := r.paymentMethodOffered(ctx, c.ChannelID, co.PaymentProviderSlug, co.ShippingCountry())
+	paymentOK, err := r.paymentMethodOffered(ctx, c, co, co.PaymentProviderSlug)
+	if err != nil {
+		log.Printf("[checkout] cart %s: the chosen payment method couldn't be re-checked: %v", c.ID, err)
+	}
 	if paymentOK {
 		m.PaymentProviderSlug = &co.PaymentProviderSlug
 	}
@@ -544,8 +599,14 @@ func (r *Resolver) applyCheckoutDetails(ctx context.Context, c *cart.Cart, in fr
 		if co.Company = strings.TrimSpace(ptr.Deref(in.Company)); co.Company == "" {
 			return errCheckoutNeedsCompany
 		}
+		if err := maxLen("company name", co.Company, maxCompanyLen); err != nil {
+			return err
+		}
 		if set.PONumber {
 			co.PONumber = strings.TrimSpace(ptr.Deref(in.PoNumber))
+			if err := maxLen("PO number", co.PONumber, maxPONumberLen); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -555,12 +616,33 @@ func (r *Resolver) applyCheckoutDetails(ctx context.Context, c *cart.Cart, in fr
 	} else {
 		err = r.applyDeliveryDetails(ctx, c, co, in)
 	}
-	if err != nil || !business {
+	if err != nil {
 		return err
 	}
 	// Last, since which identifiers are owed follows the company's country - its billing address, else the destination
-	co.BusinessIDs, err = r.businessIDs(ctx, *co, set, in.BusinessIds)
-	return err
+	if business {
+		if co.BusinessIDs, err = r.businessIDs(ctx, *co, set, in.BusinessIds); err != nil {
+			return err
+		}
+	}
+	// A new address can drop the method, and a purchase that stopped being business can't pay by purchase order - the shopper picks again
+	r.dropUnsupportedSelections(ctx, *c, co)
+	return nil
+}
+
+// Free text the shopper types is stored on the cart and printed on the order, so each field has a ceiling - the same ones the storefront's form enforces
+const (
+	maxCompanyLen    = 200
+	maxBusinessIDLen = 100
+	maxPONumberLen   = 100
+	maxPickupNameLen = 100
+)
+
+func maxLen(what, v string, n int) error {
+	if utf8.RuneCountInString(v) > n {
+		return apperr.New("CHECKOUT_FIELD_TOO_LONG", apperr.ClassValidation, fmt.Sprintf("the %s is too long - at most %d characters", what, n))
+	}
+	return nil
 }
 
 func (r *Resolver) applyDeliveryDetails(ctx context.Context, c *cart.Cart, co *cart.Checkout, in frontmodel.CheckoutDetailsInput) error {
@@ -569,9 +651,8 @@ func (r *Resolver) applyDeliveryDetails(ctx context.Context, c *cart.Cart, co *c
 		return err
 	}
 	co.ShippingAddress, co.ShippingAddressID, co.PickupContact = a, source, nil
-	// The address is now the destination - a different country or postcode can drop the method, and the shopper picks again
+	// The address is now the destination - applyCheckoutDetails then drops a method it no longer supports
 	co.Destination = co.QuoteDestination()
-	r.dropUnsupportedSelections(ctx, *c, co)
 	if in.BillingSameAsShipping {
 		co.BillingSameAsShipping, co.BillingAddress, co.BillingAddressID = true, nil, nil
 		return nil
@@ -593,6 +674,12 @@ func (r *Resolver) applyPickupDetails(ctx context.Context, c cart.Cart, co *cart
 		FirstName:   strings.TrimSpace(p.FirstName),
 		LastName:    strings.TrimSpace(p.LastName),
 		SomeoneElse: p.SomeoneElse && set.PickupSomeoneElse,
+	}
+	if err := maxLen("collector's first name", co.PickupContact.FirstName, maxPickupNameLen); err != nil {
+		return err
+	}
+	if err := maxLen("collector's last name", co.PickupContact.LastName, maxPickupNameLen); err != nil {
+		return err
 	}
 	// A pickup has no shipping address to mirror, so billing is its own address or none at all
 	co.BillingSameAsShipping, co.BillingAddress, co.BillingAddressID = false, nil, nil
@@ -648,6 +735,9 @@ func (r *Resolver) businessIDs(ctx context.Context, co cart.Checkout, set checko
 	out := map[string]string{}
 	for _, f := range r.businessIDFieldsFor(ctx, companyCountry(co), set) {
 		v := given[f.Key]
+		if err := maxLen(f.Label, v, maxBusinessIDLen); err != nil {
+			return nil, err
+		}
 		switch {
 		case v == "" && f.Required:
 			return nil, apperr.New("CHECKOUT_BUSINESS_ID_REQUIRED", apperr.ClassValidation, "enter the "+f.Label)

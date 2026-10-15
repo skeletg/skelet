@@ -312,7 +312,9 @@ type PlaceOrderInput struct {
 	BillingAddress    *OrderAddress
 	ShippingAddressID *uuid.UUID
 	ShippingAddress   *OrderAddress
-	CustomerNote      string
+	// The inline BillingAddress only names the payer - a pickup where no billing address was asked for - so it isn't held to a postal address's required fields or the strict validator
+	BillingNameOnly bool
+	CustomerNote    string
 	// The buyer's PO reference, meaningful with the on-account tender but stored regardless
 	PONumber string
 	// The company identifiers on a business purchase, with the labels the shopper saw - printed on the invoice
@@ -320,9 +322,11 @@ type PlaceOrderInput struct {
 	// The chosen carrier and method - both empty falls back to the cheapest quote, and the price is always re-derived server-side
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
-	// The chosen method - optional, where nil skips validation and records none, otherwise it's validated as enabled and allowed for the country, then persisted
+	// The chosen method - optional, where nil skips validation and records none, otherwise it's validated as enabled and allowed for PaymentCountry, then persisted
 	PaymentProviderSlug *string
-	PaymentToken        *string
+	// The country the payment method must be allowed in - empty means the shipping address's. The checkout steps check the destination's, which for a pickup isn't the store's own address
+	PaymentCountry string
+	PaymentToken   *string
 	// Redeemed as tenders against the total, with the remainder owed to the provider
 	GiftCardCodes []string
 	// A saved method's token, routed to the provider's vaulted-token key

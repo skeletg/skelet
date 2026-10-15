@@ -11,5 +11,6 @@ type PaymentMethodOption {
 
 extend type Query {
   # Enabled payment methods for the request channel, filtered to those accepted for countryCode (a method in "specific" mode is omitted unless countryCode is in its allow-list). Re-fetch when the shipping country changes, like shippingQuotes.
-  paymentMethods(countryCode: String!): [PaymentMethodOption!]!
+  # With cartId, only what setCartPaymentMethod would accept for that cart's checkout - purchase order needs a business purchase on a store that asks for the PO number.
+  paymentMethods(countryCode: String!, cartId: ID): [PaymentMethodOption!]!
 }

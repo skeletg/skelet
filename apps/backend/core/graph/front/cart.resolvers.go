@@ -20,9 +20,16 @@ import (
 )
 
 func (r *cartResolver) Checkout(ctx context.Context, obj *model1.Cart) (*model1.CartCheckout, error) {
+	// Each read re-quotes carriers and prices the order, so it shares the step mutations' budget (one "checkout" counter per IP)
+	if err := r.checkCheckoutRate(ctx, "checkout"); err != nil {
+		return nil, err
+	}
 	cid, err := uuid.Parse(obj.ID)
 	if err != nil {
 		return nil, invalidID("cart")
+	}
+	if err := r.assertCartOnCurrentStore(ctx, cid); err != nil {
+		return nil, err
 	}
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
 	if err != nil {
@@ -397,7 +404,11 @@ func (r *mutationResolver) SetCartShippingMethod(ctx context.Context, cartID str
 			return errCheckoutNeedsDestination
 		}
 		co.ShippingCarrierSlug, co.ShippingMethodCode = strings.TrimSpace(carrierSlug), strings.TrimSpace(code)
-		if r.offeredShippingMethod(ctx, c, *co) == nil {
+		m, err := r.offeredShippingMethod(ctx, c, *co)
+		if err != nil {
+			return err
+		}
+		if m == nil {
 			return errShippingMethodOffered
 		}
 		return nil
@@ -416,7 +427,11 @@ func (r *mutationResolver) SetCartPaymentMethod(ctx context.Context, cartID stri
 			return errCheckoutNeedsDestination
 		}
 		slug := strings.TrimSpace(providerSlug)
-		if !r.paymentMethodOffered(ctx, c.ChannelID, slug, co.ShippingCountry()) {
+		ok, err := r.paymentMethodOffered(ctx, c, *co, slug)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			return errPaymentMethodOffered
 		}
 		co.PaymentProviderSlug = slug

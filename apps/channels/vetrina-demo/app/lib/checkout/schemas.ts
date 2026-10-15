@@ -145,7 +145,7 @@ export type DetailsValues = z.output<ReturnType<typeof detailsStepSchema>>;
 export type PaymentMode = { requireMethod: boolean; consent: CheckoutSettings["termsConsent"] };
 
 // The last step - submitting it saves the payment choice and the note, then places the order. A total covered by gift
-// cards or store credit needs no method; the terms box is the storefront's own gate, where the store asks for one
+// cards or store credit needs no method; the terms box goes to placeOrder, which refuses an unticked one when the store asks for it
 export function paymentStepSchema(mode: PaymentMode) {
   return z.object({
     providerSlug: mode.requireMethod

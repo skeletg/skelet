@@ -71,8 +71,9 @@ query ShippingQuotes($countryCode: String!, $cartId: ID, $regionCode: String, $p
   }
 }
 
-query PaymentMethods($countryCode: String!) {
-  paymentMethods(countryCode: $countryCode) {
+# With the cart, only the methods its checkout can pay with - purchase order needs a business purchase that asked for the PO number
+query PaymentMethods($countryCode: String!, $cartId: ID) {
+  paymentMethods(countryCode: $countryCode, cartId: $cartId) {
     providerSlug
     displayName
     sortOrder
@@ -151,8 +152,8 @@ mutation RequestReturn($input: RequestReturnInput!) {
 }
 
 # Everything placeOrder reads comes from the cart - the steps below saved it
-mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: ID) {
-  placeOrder(cartId: $cartId, paymentToken: $paymentToken, savedPaymentMethodId: $savedPaymentMethodId) {
+mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: ID, $acceptTerms: Boolean) {
+  placeOrder(cartId: $cartId, paymentToken: $paymentToken, savedPaymentMethodId: $savedPaymentMethodId, acceptTerms: $acceptTerms) {
     id
     number
     total

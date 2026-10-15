@@ -115,7 +115,7 @@ export default async function CheckoutPage({
   const [regionsByCountry, quotes, paymentMethods, savedCards] = await Promise.all([
     active === "details" ? getRegionsByCountry(countries.map((c) => c.code)) : {},
     active === "delivery" && checkout.destination ? getShippingQuotes(cart.id, checkout.destination) : [],
-    active === "payment" && checkout.destination ? getPaymentMethods(checkout.destination.countryCode) : [],
+    active === "payment" && checkout.destination ? getPaymentMethods(checkout.destination.countryCode, cart.id) : [],
     active === "payment" && customer ? getMyPaymentMethods() : [],
   ]);
   const needStores = quotes.some((q) => q.carrierSlug === "pickup") || checkout.isPickup;

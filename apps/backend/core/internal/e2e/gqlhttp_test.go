@@ -105,7 +105,7 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 		}
 	}
 	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(
-		`mutation { placeOrder(cartId: %q) { id number status paymentStatus paymentProvider } }`, cartID))
+		`mutation { placeOrder(cartId: %q, acceptTerms: true) { id number status paymentStatus paymentProvider } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
@@ -144,7 +144,7 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 	h.Settle(t)
 
 	// A converted cart is spent - the same cart id can't place twice
-	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID)); len(errs) == 0 {
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID)); len(errs) == 0 {
 		t.Fatal("a converted cart placed a second order")
 	}
 }
