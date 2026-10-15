@@ -24,6 +24,11 @@ func (r *Resolver) checkRate(ctx context.Context, op string) error {
 	return rateByIP(ctx, r.RateLimiter, op)
 }
 
+// The checkout's own budget - a shopper behind a shared address (an office, a mobile carrier's NAT) saves steps far more often than they post reviews
+func (r *Resolver) checkCheckoutRate(ctx context.Context, op string) error {
+	return rateByIP(ctx, r.CheckoutLimiter, op)
+}
+
 func (r *Resolver) checkAuthRate(ctx context.Context, op string) error { // tighter AuthLimiter for credential surfaces (login / register / password reset), falling back to the general one when it isn't wired
 	lim := r.AuthLimiter
 	if lim == nil {
