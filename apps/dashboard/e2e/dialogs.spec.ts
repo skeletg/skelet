@@ -251,15 +251,20 @@ const readOrder = async (id: string) =>
 test('order: edit a line, edit the shipping address, then ship it', async ({ page }) => {
   test.setTimeout(3 * 60_000)
   const channel = await firstChannel()
-  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
+  // A type of its own that keeps no stock, so placing the order reserves nothing the dev data would have to hold
+  const { createProductType } = await adminApi<{ createProductType: { id: string } }>('mutation($i:CreateProductTypeInput!){ createProductType(input:$i){ id } }', {
+    i: { slug: `${RUN}-order-type`, name: `${RUN} order type`, isShippingRequired: true, tracksInventory: false },
+  })
+  cleanup(del('deleteProductType', createProductType.id))
   const sku = `${RUN}-order-sku`
   const { createProduct } = await adminApi<{ createProduct: { id: string } }>('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', {
-    i: { productTypeId: productTypes[0]?.id, kind: 'SIMPLE', sku, locale: 'en', name: `${RUN} order product`, defaultPrice: 1000, defaultCurrencyCode: channel.currencyCode },
+    i: { productTypeId: createProductType.id, kind: 'SIMPLE', sku, locale: 'en', name: `${RUN} order product`, defaultPrice: 1000, defaultCurrencyCode: channel.currencyCode },
   })
   cleanup(del('deleteProduct', createProduct.id))
   await adminApi('mutation($i:SetProductListingInput!){ setProductListing(input:$i){ id } }', { i: { productId: createProduct.id, channelId: channel.id, isPublished: true, price: 1000 } })
 
-  const address = { firstName: 'Order', lastName: 'Tester', street1: 'Seeded street 1', city: 'Berlin', postalCode: '10115', countryCode: 'DE' }
+  // In the dev store's own country - an address in one it doesn't sell to is refused
+  const address = { firstName: 'Order', lastName: 'Tester', street1: 'Seeded street 1', city: 'Testville', postalCode: '12345', countryCode: 'US' }
   const { createDraftOrder } = await adminApi<{ createDraftOrder: { id: string } }>('mutation($i:CreateDraftOrderInput!){ createDraftOrder(input:$i){ id } }', {
     i: { channelId: channel.id, email: `${RUN}-order@e2e.test`, billingAddress: address, shippingAddress: address, lines: [{ sku, quantity: 1 }] },
   })
@@ -291,8 +296,8 @@ test('order: edit a line, edit the shipping address, then ship it', async ({ pag
   await expect(dialog.locator('#shipping-street1')).toHaveValue('Moved street 9')
   await submit(page, dialog, 'Save addresses')
   const moved = await readOrder(id)
-  expect(moved.shippingAddress).toMatchObject({ street1: 'Moved street 9', city: 'Berlin' })
-  expect(moved.billingAddress).toMatchObject({ street1: 'Seeded street 1', city: 'Berlin' })
+  expect(moved.shippingAddress).toMatchObject({ street1: 'Moved street 9', city: 'Testville' })
+  expect(moved.billingAddress).toMatchObject({ street1: 'Seeded street 1', city: 'Testville' })
 
   // Ship everything - a shipment needs the order in processing
   await adminApi('mutation($id:ID!){ markProcessing(id:$id){ id } }', { id })
