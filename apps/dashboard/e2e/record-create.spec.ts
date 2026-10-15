@@ -167,12 +167,13 @@ test('language, currency and country go back to their lists with the record stor
   })
 
   await page.goto('/countries/new', { waitUntil: 'domcontentloaded' })
-  await fill(page, { '#country-code': 'XV', '#country-name': 'Created land', '#country-phone': '+998' })
+  // The phone code isn't typed any more - it comes from the ISO code, and a made-up one has none
+  await fill(page, { '#country-code': 'XV', '#country-name': 'Created land' })
   await submitCreate(page, 'Create country')
   cleanup(del('deleteCountry', 'XV', 'code', 'String!'))
   expect((await adminApi<{ country: unknown }>('query($c:String!){ country(code:$c){ name phoneCode } }', { c: 'XV' })).country).toEqual({
     name: 'Created land',
-    phoneCode: '+998',
+    phoneCode: '',
   })
   await expectNoNewDraft(page)
 })
