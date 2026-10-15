@@ -194,7 +194,7 @@ func TestCheckoutPickupNeedsNoAddress(t *testing.T) {
 	email := "pickup-" + uuid.NewString()[:8] + "@e2e.test"
 
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
-	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: %q)`, cartID, "loc-"+f.Location.Slug))
+	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: "collect")`, cartID))
 	if co["isPickup"] != true {
 		t.Fatalf("isPickup = %v after choosing pickup", co["isPickup"])
 	}
@@ -569,7 +569,7 @@ func TestCheckoutPickupBillsTheCollectorInTheDestinationCountry(t *testing.T) {
 	email := "collector-" + uuid.NewString()[:8] + "@e2e.test"
 
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "GB", postalCode: "N1 1AA")`, cartID))
-	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: %q)`, cartID, "loc-"+f.Location.Slug))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: "collect")`, cartID))
 	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, pickupContact: {firstName: "Ana", lastName: "Self", someoneElse: false}, billingSameAsShipping: false`, email)))
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
 
