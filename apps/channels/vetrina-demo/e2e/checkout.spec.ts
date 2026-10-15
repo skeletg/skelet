@@ -12,15 +12,19 @@ async function addToCart(page: Page) {
   await expect(page.getByRole("button", { name: /Open cart \([1-9]/ })).toBeVisible();
 }
 
-// Step 1 on the dev store's US rate - a postcode alone brings up the options
+// The dev store's door delivery - one method, so its card is just the option's name, beside whatever pickup the store offers
+const DOOR = /^Delivery\b/;
+
+// Step 1 on the dev store's US rate - a postcode alone brings up the options, and picking one saves it
 async function chooseDelivery(page: Page, postalCode: string) {
   const form = main(page);
   const country = form.getByLabel("Country");
   if (await country.isVisible()) await country.selectOption("US");
   await form.getByLabel("Postcode").fill(postalCode);
   await form.getByRole("button", { name: "Show options" }).click();
-  await expect(form.getByRole("radio", { name: /Standard shipping/ })).toBeChecked();
-  await form.getByRole("button", { name: "Continue to details" }).click();
+  await form.getByRole("radio", { name: DOOR }).check();
+  await expect(form.getByRole("radio", { name: DOOR })).toBeChecked();
+  await form.getByRole("link", { name: "Continue to details" }).click();
 }
 
 // Clicks an address card's make-default button unless the card already carries that default. The button goes as soon
@@ -49,8 +53,9 @@ test.describe("checkout", () => {
     if (await country.isVisible()) await country.selectOption("US");
     await postcode.fill("12345");
     await form.getByRole("button", { name: "Show options" }).click();
-    await expect(form.getByRole("radio", { name: /Standard shipping/ })).toBeChecked();
-    await form.getByRole("button", { name: "Continue to details" }).click();
+    await form.getByRole("radio", { name: DOOR }).check();
+    await expect(form.getByRole("radio", { name: DOOR })).toBeChecked();
+    await form.getByRole("link", { name: "Continue to details" }).click();
 
     // Step 2 - the postcode carries over into the address
     const email = form.getByLabel("Email", { exact: true });
@@ -75,7 +80,7 @@ test.describe("checkout", () => {
     // A reload re-reads the cart - nothing chosen so far is lost
     await page.reload();
     await page.waitForLoadState("networkidle");
-    await expect(form.getByText(/Standard shipping/)).toBeVisible();
+    await expect(form.getByText(/Delivery · Free/)).toBeVisible();
     await expect(form.getByText(address)).toBeVisible();
 
     // Edit reopens the details with what the cart holds, and saving returns to payment
