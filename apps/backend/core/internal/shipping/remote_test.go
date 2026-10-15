@@ -12,10 +12,13 @@ import (
 // integration can be exercised without the remoteprovider HTTP stack
 type fakeRemoteRates struct {
 	quotes      []RatedQuote
+	failed      []string
 	priceByCode map[string]int64
 }
 
-func (f *fakeRemoteRates) Quotes(_ context.Context, _ RateRequest) []RatedQuote { return f.quotes }
+func (f *fakeRemoteRates) Quotes(_ context.Context, _ RateRequest) ([]RatedQuote, []string) {
+	return f.quotes, f.failed
+}
 func (f *fakeRemoteRates) Price(_ context.Context, _, code string, _ RateRequest) (int64, error) {
 	if c, ok := f.priceByCode[code]; ok {
 		return c, nil

@@ -95,9 +95,17 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 
 	email := "gql-" + uuid.NewString()[:8] + "@e2e.test"
 	addr := `{firstName: "E2E", lastName: "Guest", street1: "1 Test Way", city: "Testville", postalCode: "12345", countryCode: "US"}`
+	for _, step := range []string{
+		fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID),
+		fmt.Sprintf(`setCartDetails(cartId: %q, input: {email: %q, shippingAddress: %s, billingSameAsShipping: true})`, cartID, email, addr),
+		fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID),
+	} {
+		if _, errs := h.gqlPost(t, ts, chID, `mutation { `+step+` { id } }`); len(errs) > 0 {
+			t.Fatalf("%s: %v", step, errs)
+		}
+	}
 	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(
-		`mutation { placeOrder(email: %q, cartId: %q, paymentProviderSlug: "cod", billingAddress: %s, shippingAddress: %s) { id number status paymentStatus paymentProvider } }`,
-		email, cartID, addr, addr))
+		`mutation { placeOrder(cartId: %q, acceptTerms: true) { id number status paymentStatus paymentProvider } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
@@ -136,9 +144,7 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 	h.Settle(t)
 
 	// A converted cart is spent - the same cart id can't place twice
-	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(
-		`mutation { placeOrder(email: %q, cartId: %q, paymentProviderSlug: "cod", billingAddress: %s, shippingAddress: %s) { id } }`,
-		email, cartID, addr, addr)); len(errs) == 0 {
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID)); len(errs) == 0 {
 		t.Fatal("a converted cart placed a second order")
 	}
 }

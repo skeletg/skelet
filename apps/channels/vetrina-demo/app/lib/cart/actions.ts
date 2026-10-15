@@ -15,7 +15,6 @@ import {
   RemoveSavedItemDocument,
   SaveForLaterDocument,
   SetCartNoteDocument,
-  SetCartEmailDocument,
   RemoveFromCartDocument,
   RequestProductOptionFileUploadDocument,
   UpdateCartLineDocument,
@@ -476,19 +475,6 @@ export async function removeCouponAction(code: string): Promise<Cart | null> {
     return res.data.removeCoupon;
   } catch {
     return getCartFull(cartId);
-  }
-}
-
-export async function setCartEmailAction(email: string): Promise<void> {
-  const trimmed = email.trim();
-  if (!trimmed || !trimmed.includes("@")) return;
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
-  if (!cartId) return;
-  try {
-    await gqlFetch(SetCartEmailDocument, { cartId, email: trimmed });
-  } catch {
-    // Recovery capture is a nice-to-have; never surface it at checkout
   }
 }
 

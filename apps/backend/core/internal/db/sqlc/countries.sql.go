@@ -32,24 +32,25 @@ func (q *Queries) CountCountryReferences(ctx context.Context, upper interface{})
 const createCountry = `-- name: CreateCountry :one
 INSERT INTO countries (
     code, name, native_name, emoji_flag, phone_code,
-    default_currency_code, is_active, sort_order, metadata
+    default_currency_code, is_active, sort_order, metadata, business_id_fields
 ) VALUES (
     UPPER($1), $2, $3, $4, $5,
-    NULLIF(UPPER($6), ''), $7, $8, $9
+    NULLIF(UPPER($6), ''), $7, $8, $9, $10
 )
-RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code
+RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields
 `
 
 type CreateCountryParams struct {
-	Upper      interface{}     `json:"upper"`
-	Name       string          `json:"name"`
-	NativeName string          `json:"native_name"`
-	EmojiFlag  string          `json:"emoji_flag"`
-	PhoneCode  string          `json:"phone_code"`
-	Upper_2    interface{}     `json:"upper_2"`
-	IsActive   bool            `json:"is_active"`
-	SortOrder  int32           `json:"sort_order"`
-	Metadata   json.RawMessage `json:"metadata"`
+	Upper            interface{}     `json:"upper"`
+	Name             string          `json:"name"`
+	NativeName       string          `json:"native_name"`
+	EmojiFlag        string          `json:"emoji_flag"`
+	PhoneCode        string          `json:"phone_code"`
+	Upper_2          interface{}     `json:"upper_2"`
+	IsActive         bool            `json:"is_active"`
+	SortOrder        int32           `json:"sort_order"`
+	Metadata         json.RawMessage `json:"metadata"`
+	BusinessIDFields json.RawMessage `json:"business_id_fields"`
 }
 
 func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (Country, error) {
@@ -63,6 +64,7 @@ func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (C
 		arg.IsActive,
 		arg.SortOrder,
 		arg.Metadata,
+		arg.BusinessIDFields,
 	)
 	var i Country
 	err := row.Scan(
@@ -79,6 +81,7 @@ func (q *Queries) CreateCountry(ctx context.Context, arg CreateCountryParams) (C
 		&i.UpdatedAt,
 		&i.Iso3Code,
 		&i.NumericCode,
+		&i.BusinessIDFields,
 	)
 	return i, err
 }
@@ -93,7 +96,7 @@ func (q *Queries) DeleteCountry(ctx context.Context, upper interface{}) error {
 }
 
 const getCountryByCode = `-- name: GetCountryByCode :one
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code FROM countries WHERE code = UPPER($1)
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries WHERE code = UPPER($1)
 `
 
 func (q *Queries) GetCountryByCode(ctx context.Context, upper interface{}) (Country, error) {
@@ -113,12 +116,13 @@ func (q *Queries) GetCountryByCode(ctx context.Context, upper interface{}) (Coun
 		&i.UpdatedAt,
 		&i.Iso3Code,
 		&i.NumericCode,
+		&i.BusinessIDFields,
 	)
 	return i, err
 }
 
 const listActiveCountries = `-- name: ListActiveCountries :many
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code FROM countries WHERE is_active ORDER BY sort_order, code
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries WHERE is_active ORDER BY sort_order, code
 `
 
 func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
@@ -144,6 +148,7 @@ func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
 			&i.UpdatedAt,
 			&i.Iso3Code,
 			&i.NumericCode,
+			&i.BusinessIDFields,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +164,7 @@ func (q *Queries) ListActiveCountries(ctx context.Context) ([]Country, error) {
 }
 
 const listCountries = `-- name: ListCountries :many
-SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code FROM countries ORDER BY sort_order, code
+SELECT code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields FROM countries ORDER BY sort_order, code
 `
 
 func (q *Queries) ListCountries(ctx context.Context) ([]Country, error) {
@@ -185,6 +190,7 @@ func (q *Queries) ListCountries(ctx context.Context) ([]Country, error) {
 			&i.UpdatedAt,
 			&i.Iso3Code,
 			&i.NumericCode,
+			&i.BusinessIDFields,
 		); err != nil {
 			return nil, err
 		}
@@ -209,21 +215,23 @@ SET name                  = $2,
     is_active             = $7,
     sort_order            = $8,
     metadata              = $9,
+    business_id_fields    = $10,
     updated_at            = NOW()
 WHERE code = UPPER($1)
-RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code
+RETURNING code, name, native_name, emoji_flag, phone_code, default_currency_code, is_active, sort_order, metadata, created_at, updated_at, iso3_code, numeric_code, business_id_fields
 `
 
 type UpdateCountryParams struct {
-	Upper      interface{}     `json:"upper"`
-	Name       string          `json:"name"`
-	NativeName string          `json:"native_name"`
-	EmojiFlag  string          `json:"emoji_flag"`
-	PhoneCode  string          `json:"phone_code"`
-	Upper_2    interface{}     `json:"upper_2"`
-	IsActive   bool            `json:"is_active"`
-	SortOrder  int32           `json:"sort_order"`
-	Metadata   json.RawMessage `json:"metadata"`
+	Upper            interface{}     `json:"upper"`
+	Name             string          `json:"name"`
+	NativeName       string          `json:"native_name"`
+	EmojiFlag        string          `json:"emoji_flag"`
+	PhoneCode        string          `json:"phone_code"`
+	Upper_2          interface{}     `json:"upper_2"`
+	IsActive         bool            `json:"is_active"`
+	SortOrder        int32           `json:"sort_order"`
+	Metadata         json.RawMessage `json:"metadata"`
+	BusinessIDFields json.RawMessage `json:"business_id_fields"`
 }
 
 func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (Country, error) {
@@ -237,6 +245,7 @@ func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (C
 		arg.IsActive,
 		arg.SortOrder,
 		arg.Metadata,
+		arg.BusinessIDFields,
 	)
 	var i Country
 	err := row.Scan(
@@ -253,6 +262,7 @@ func (q *Queries) UpdateCountry(ctx context.Context, arg UpdateCountryParams) (C
 		&i.UpdatedAt,
 		&i.Iso3Code,
 		&i.NumericCode,
+		&i.BusinessIDFields,
 	)
 	return i, err
 }
