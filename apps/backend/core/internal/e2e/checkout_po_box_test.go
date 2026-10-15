@@ -61,7 +61,7 @@ func (h *harness) poBoxStore(t *testing.T) (*store, uuid.UUID) {
 	}}); err != nil {
 		t.Fatalf("PO box: %v", err)
 	}
-	if err := h.D.Delivery.AdoptDefaults(h.Ctx, f.Channel.ID); err != nil {
+	if err := h.D.Delivery.AdoptDefaults(h.Ctx, f.Channel.ID, false); err != nil {
 		t.Fatalf("adopt defaults: %v", err)
 	}
 	if _, err := h.D.Delivery.CreateOption(h.Ctx, f.Channel.ID, delivery.SaveOptionInput{Kind: delivery.KindParcelLocker, Name: "PO box", Enabled: true}); err != nil {

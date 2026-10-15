@@ -63,7 +63,7 @@ func (h *harness) choicesStore(t *testing.T) *store {
 	if _, err := h.D.Config.Set(h.Ctx, "general/store_information/timezone", storeTZ, config.Scope{Kind: config.ScopeChannel, ChannelID: &f.Channel.ID}); err != nil {
 		t.Fatalf("timezone: %v", err)
 	}
-	if err := h.D.Delivery.AdoptDefaults(h.Ctx, f.Channel.ID); err != nil {
+	if err := h.D.Delivery.AdoptDefaults(h.Ctx, f.Channel.ID, false); err != nil {
 		t.Fatalf("adopt defaults: %v", err)
 	}
 	return f

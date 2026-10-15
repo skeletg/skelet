@@ -17,6 +17,7 @@ type Repository interface {
 	ListOptions(ctx context.Context, channelID uuid.UUID) ([]Option, error)
 	GetOption(ctx context.Context, id uuid.UUID) (Option, error)
 	CreateOption(ctx context.Context, channelID uuid.UUID, in SaveOptionInput) (Option, error)
+	AdoptOptions(ctx context.Context, channelID uuid.UUID, opts []Option) error
 	UpdateOption(ctx context.Context, id uuid.UUID, in SaveOptionInput) (Option, error)
 	DeleteOption(ctx context.Context, id uuid.UUID) error
 	LineProfiles(ctx context.Context, skus []string) (map[string]LineProfile, error)
@@ -77,6 +78,33 @@ func (r *postgresRepository) CreateOption(ctx context.Context, channelID uuid.UU
 		return Option{}, err
 	}
 	return toOption(row), nil
+}
+
+// AdoptOptions saves the given options under their own ids in one transaction - unless the channel already has options of its own
+func (r *postgresRepository) AdoptOptions(ctx context.Context, channelID uuid.UUID, opts []Option) error {
+	save := func(q *db.Queries) error {
+		cur, err := q.ListDeliveryOptionsByChannel(ctx, channelID)
+		if err != nil || len(cur) > 0 {
+			return err
+		}
+		for _, o := range opts {
+			modes, err := json.Marshal(nonNilModes(o.BlockModes))
+			if err != nil {
+				return err
+			}
+			if err := q.AdoptDeliveryOption(ctx, db.AdoptDeliveryOptionParams{
+				ID: o.ID, ChannelID: channelID, Kind: o.Kind, Name: o.Name, Description: o.Description, Enabled: o.Enabled,
+				SortOrder: o.SortOrder, BlockModes: modes, PointSource: o.PointSource, CarrierSlug: o.CarrierSlug,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if r.tx == nil {
+		return save(r.q)
+	}
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error { return save(r.q.WithTx(t)) })
 }
 
 func (r *postgresRepository) UpdateOption(ctx context.Context, id uuid.UUID, in SaveOptionInput) (Option, error) {

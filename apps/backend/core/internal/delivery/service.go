@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 
@@ -76,14 +77,15 @@ func DefaultOptions(channelID uuid.UUID) []Option {
 	}
 }
 
-// IsDefaultOption reports whether an id is one of a channel's implicit options
-func IsDefaultOption(channelID, id uuid.UUID) bool {
-	for _, o := range DefaultOptions(channelID) {
-		if o.ID == id {
-			return true
+// DefaultOptionsFor are the defaults as checkout offers them - a store that asks billing of a pickup asks it of the default pickup too
+func DefaultOptionsFor(channelID uuid.UUID, pickupNeedsBilling bool) []Option {
+	opts := DefaultOptions(channelID)
+	for i, o := range opts {
+		if o.Kind == KindStorePickup && pickupNeedsBilling {
+			opts[i].BlockModes = map[string]Mode{BlockBillingAddress: ModeRequired}
 		}
 	}
-	return false
+	return opts
 }
 
 // OfferedKinds are the kinds the offered options cover, in option order
@@ -241,7 +243,9 @@ func (s *Service) SearchPoints(ctx context.Context, o Option, q PointQuery) ([]P
 	}
 	pts, err := src.Search(ctx, q)
 	if err != nil {
-		return nil, errors.Join(ErrSourceUnavailable, err)
+		// The source's own error can carry a provider's URL or response body - it is logged, and the shopper hears only that points are unavailable
+		log.Printf("[delivery] search points for option %s: %v", o.ID, err)
+		return nil, ErrSourceUnavailable
 	}
 	if len(pts) > q.Limit {
 		pts = pts[:q.Limit]
@@ -256,32 +260,18 @@ func (s *Service) GetPoint(ctx context.Context, o Option, id string) (Point, err
 		return Point{}, err
 	}
 	p, err := src.Get(ctx, o.ChannelID, id)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrPointNotFound):
 		return Point{}, ErrPointNotFound
+	case err != nil:
+		// A source that couldn't answer says nothing about the point - the shopper tries again rather than picking another that fails the same way
+		log.Printf("[delivery] get point %q for option %s: %v", id, o.ID, err)
+		return Point{}, ErrSourceUnavailable
 	}
 	return p, nil
 }
 
-// AdoptDefaults saves the implicit default options as real ones so the admin can edit them - a no-op once the channel has any. Each is enabled when it passes its checklist, so checkout keeps offering what it did
-func (s *Service) AdoptDefaults(ctx context.Context, channelID uuid.UUID) error {
-	cur, err := s.repo.ListOptions(ctx, channelID)
-	if err != nil || len(cur) > 0 {
-		return err
-	}
-	for _, d := range DefaultOptions(channelID) {
-		in := SaveOptionInput{
-			Kind: d.Kind, Name: d.Name, SortOrder: d.SortOrder, BlockModes: d.BlockModes, PointSource: d.PointSource,
-		}
-		o, err := s.repo.CreateOption(ctx, channelID, in)
-		if err != nil {
-			return err
-		}
-		if Ready(s.Readiness(ctx, channelID, o)) {
-			in.Enabled = true
-			if _, err := s.repo.UpdateOption(ctx, o.ID, in); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+// AdoptDefaults saves the implicit default options as real ones so the admin can edit them - a no-op once the channel has any. They keep the ids carts already chose them by, the pickup billing rule checkout applied to them, and stay switched on: checkout offered them a moment ago, and a readiness check failing now would leave the channel with nothing to offer. pickupNeedsBilling is sales/checkout/pickup_requires_billing_address
+func (s *Service) AdoptDefaults(ctx context.Context, channelID uuid.UUID, pickupNeedsBilling bool) error {
+	return s.repo.AdoptOptions(ctx, channelID, DefaultOptionsFor(channelID, pickupNeedsBilling))
 }
