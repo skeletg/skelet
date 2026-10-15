@@ -242,6 +242,31 @@ func (q *Queries) ScrubCustomerGiftCards(ctx context.Context, arg ScrubCustomerG
 	return result.RowsAffected()
 }
 
+const scrubCustomerOrderShipments = `-- name: ScrubCustomerOrderShipments :execrows
+UPDATE order_shipments s
+SET    ship_to = NULL
+FROM   orders o
+WHERE  o.id = s.order_id
+  AND  s.ship_to IS NOT NULL
+  AND  (o.customer_id = $1
+        OR (o.customer_id IS NULL AND o.channel_id = $2 AND lower(btrim(o.email)) = $3::text))
+`
+
+type ScrubCustomerOrderShipmentsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	Email      string        `json:"email"`
+}
+
+// A package's ship-to is the address it went to, addressed to the shopper or whoever collected - its own copy, beside the order's scrubbed columns. Runs before the guest orders lose the address they are matched by
+func (q *Queries) ScrubCustomerOrderShipments(ctx context.Context, arg ScrubCustomerOrderShipmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerOrderShipments, arg.CustomerID, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const scrubCustomerOrders = `-- name: ScrubCustomerOrders :execrows
 UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',

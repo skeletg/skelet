@@ -49,12 +49,16 @@ func (f *fixture) seedFootprint(t *testing.T, ch uuid.UUID, c Customer, withOrde
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = f.conn.Exec(`DELETE FROM orders WHERE id = $1`, fp.guest) })
+	f.exec(t, `INSERT INTO order_shipments (order_id, position, group_key, delivery_kind, ship_to)
+		VALUES ($1, 0, 'all', 'ship_to_address', '{"firstName":"Gina","street1":"1 Home St"}')`, fp.guest)
 	if withOrder {
 		if err := f.conn.QueryRow(`INSERT INTO orders (channel_id, currency_code, customer_id, email)
 			SELECT id, currency_code, $2, $3 FROM channels WHERE id = $1 RETURNING id`, ch, c.ID, c.Email).Scan(&fp.order); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _, _ = f.conn.Exec(`DELETE FROM orders WHERE id = $1`, fp.order) })
+		f.exec(t, `INSERT INTO order_shipments (order_id, position, group_key, delivery_kind, ship_to)
+			VALUES ($1, 0, 'all', 'ship_to_address', '{"firstName":"Ana","street1":"2 Home St"}')`, fp.order)
 	}
 	f.exec(t, `INSERT INTO product_questions (product_id, channel_id, customer_id, author_name, author_email, question)
 		VALUES ($1, $2, $3, 'Ana Own', $4, 'mine?'), ($1, $2, NULL, 'Ana Guest', $5, 'as a guest?')`, fp.product, ch, c.ID, c.Email, shout)
@@ -113,6 +117,7 @@ func (fp *footprint) assertScrubbed(t *testing.T, c Customer) {
 	addr := strings.ToLower(c.Email)
 	for what, n := range map[string]int{
 		"guest order still carrying the address":   fp.count(t, `SELECT count(*) FROM orders WHERE id = $1 AND (lower(email) LIKE '%'||$2||'%' OR customer_note <> '' OR billing_first_name <> 'Redacted')`, fp.guest, addr),
+		"package addresses":                        fp.count(t, `SELECT count(*) FROM order_shipments WHERE order_id IN ($1, $2) AND ship_to IS NOT NULL`, fp.guest, fp.order),
 		"product questions with a name or address": fp.count(t, `SELECT count(*) FROM product_questions WHERE product_id = $1 AND (author_email <> '' OR author_name <> 'Redacted')`, fp.product),
 		"signup submissions":                       fp.count(t, `SELECT count(*) FROM signup_form_submissions WHERE channel_id = $1`, fp.ch),
 		"web form submissions":                     fp.count(t, `SELECT count(*) FROM web_form_submissions WHERE channel_id = $1`, fp.ch),
