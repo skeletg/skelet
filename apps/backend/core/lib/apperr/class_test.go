@@ -102,3 +102,13 @@ func TestZeroValueSourceIsBlank(t *testing.T) { // confirms Source() returns (""
 		t.Fatalf("zero-value Source() = (%q,%d), want (\"\",0)", file, line)
 	}
 }
+
+// An error matching two sentinels resolves to the one registered first, every time - a map walk flipped its code and class between calls, and with them whether the front surface scrubbed the message
+func TestAnErrorMatchingTwoSentinelsResolvesTheSameEveryTime(t *testing.T) {
+	both := errors.Join(errFakeUnavailable, errFakeValidation)
+	for range 200 {
+		if code, class := apperr.CodeOf(both), apperr.ClassOf(both); code != "FAKE_VALIDATION" || class != apperr.ClassValidation {
+			t.Fatalf("CodeOf/ClassOf = %s/%v, want the first-registered FAKE_VALIDATION", code, class)
+		}
+	}
+}
