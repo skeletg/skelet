@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func toOrderModel(o order.Order) *model.Order {
@@ -175,9 +176,23 @@ func (r *Resolver) checkoutComplete(ctx context.Context, c cart.Cart, method *sh
 	if dest.IsZero() {
 		return errCheckoutNeedsDestination
 	}
+	// A choice the carriers no longer offer is refused, never swapped for the cheapest - the shopper picks again
+	if co.ShippingCarrierSlug != "" && method == nil {
+		return errShippingMethodOffered
+	}
 	// With nothing quoted for the destination there's nothing to choose, and placement prices shipping as it always has
-	if method == nil && len(r.quotesFor(ctx, c, dest)) > 0 {
-		return apperr.New("CHECKOUT_SHIPPING_METHOD_REQUIRED", apperr.ClassValidation, "choose a delivery or pickup option")
+	if method == nil {
+		quotes, err := r.quotesFor(ctx, c, dest)
+		if err != nil {
+			return err
+		}
+		if len(quotes.Quotes) > 0 {
+			return apperr.New("CHECKOUT_SHIPPING_METHOD_REQUIRED", apperr.ClassValidation, "choose a delivery or pickup option")
+		}
+		// Nothing quoted because carriers failed isn't "nothing to choose"
+		if len(quotes.Failed) > 0 {
+			return errShippingQuoteFailed
+		}
 	}
 	if err := r.detailsComplete(ctx, c); err != nil {
 		return err
@@ -221,6 +236,22 @@ func (r *Resolver) detailsComplete(ctx context.Context, c cart.Cart) error {
 	}
 	if !co.BillingSameAsShipping && co.BillingAddress == nil {
 		return errCheckoutNeedsBilling
+	}
+	return nil
+}
+
+var errTermsNotAccepted = apperr.New("TERMS_NOT_ACCEPTED", apperr.ClassValidation, "accept the terms and conditions to place the order")
+
+// termsAccepted holds placement to the store's sales/checkout/terms_consent - under checkbox the shopper must have ticked it, which the storefront's form alone can't guarantee to a caller that skips it. Notice and off ask nothing
+func (r *Resolver) termsAccepted(ctx context.Context, channelID uuid.UUID, accepted *bool) error {
+	mode := "checkbox"
+	if r.ConfigSvc != nil {
+		if v, err := r.ConfigSvc.GetString(ctx, "sales/checkout/terms_consent", config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}); err == nil && v != "" {
+			mode = v
+		}
+	}
+	if mode == "checkbox" && (accepted == nil || !*accepted) {
+		return errTermsNotAccepted
 	}
 	return nil
 }

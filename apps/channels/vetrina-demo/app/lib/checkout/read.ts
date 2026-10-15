@@ -63,9 +63,9 @@ export async function getShippingQuotes(cartId: string, d: CheckoutDestination):
   }
 }
 
-export async function getPaymentMethods(countryCode: string): Promise<PaymentMethodOption[]> {
+export async function getPaymentMethods(countryCode: string, cartId: string): Promise<PaymentMethodOption[]> {
   try {
-    const res = await gqlFetch(PaymentMethodsDocument, { countryCode });
+    const res = await gqlFetch(PaymentMethodsDocument, { countryCode, cartId });
     return res.data.paymentMethods.slice().sort((a, b) => a.sortOrder - b.sortOrder);
   } catch {
     return [];

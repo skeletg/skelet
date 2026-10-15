@@ -11,6 +11,9 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- `placeOrder` takes an `acceptTerms` argument. A store whose `sales/checkout/terms_consent` is `checkbox` (the
+  default) now refuses an order sent without it as `TERMS_NOT_ACCEPTED`, so a custom storefront must pass it.
+
 - **The Signals suite is its own Go module.** `apps/backend/signals` holds the event spine and its engines,
   Lens, Synapse's traits and segments, Prism, the event destinations, the beacon surface and the wire
   contract's server, with a `go.mod` that requires core's by relative path. Core cannot import it

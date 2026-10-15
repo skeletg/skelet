@@ -61,6 +61,11 @@ const CODE_KEYS: Record<string, string> = {
   CHECKOUT_SHIPPING_METHOD_REQUIRED: "shippingMethodRequired",
   CART_EMAIL_INVALID: "email",
   SHIPPING_METHOD_UNAVAILABLE: "shippingMethodUnavailable",
+  // Unavailable-class like the address validator's, so the code is all that survives here too
+  SHIPPING_QUOTE_FAILED: "shippingQuoteFailed",
+  CHECKOUT_CONFLICT: "checkoutConflict",
+  CHECKOUT_FIELD_TOO_LONG: "checkoutFieldTooLong",
+  TERMS_NOT_ACCEPTED: "tosRequired",
   PAYMENT_METHOD_UNAVAILABLE: "paymentMethodUnavailable",
   PAYMENT_REQUIRED: "paymentMethodRequired",
   GIFT_CARD_INVALID: "giftCardInvalid",
@@ -294,6 +299,8 @@ export async function placeOrderAction(
     const res = await gqlFetch(PlaceOrderDocument, {
       cartId,
       savedPaymentMethodId: v.savedPaymentMethodId,
+      // The backend holds a checkbox store to the same tick the form asked for
+      acceptTerms: v.tos === true,
     });
     orderId = res.data.placeOrder.id;
     needsAction = !!res.data.placeOrder.paymentClientSecret;
