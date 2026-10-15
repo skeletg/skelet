@@ -78,24 +78,25 @@ func (s *Service) priceShipments(ctx context.Context, cc *checkoutContext, shipm
 	for i, l := range cc.cart.Lines {
 		byID[l.ID] = i
 	}
-	out := make([]int64, len(shipments))
-	for i, sh := range shipments {
-		req := shippingpkg.RateRequest{ChannelID: cc.store.ID, CurrencyCode: cc.store.CurrencyCode}
-		var sub int64
+	// A "free above" threshold is judged on the whole group - splitting it across warehouses mustn't cost the shopper free shipping
+	groupSub := map[string]int64{}
+	for _, sh := range shipments {
 		for _, sl := range sh.Lines {
 			j, ok := byID[sl.CartLineID]
 			if !ok {
 				return nil, fmt.Errorf("shipment %s: line %s is not in the cart", sh.GroupKey, sl.CartLineID)
 			}
-			l := cc.cart.Lines[j]
+			groupSub[sh.GroupKey] += money.LineTotal(cc.cart.Lines[j].UnitPrice, cc.cart.Lines[j].Quantity)
+		}
+	}
+	out := make([]int64, len(shipments))
+	for i, sh := range shipments {
+		req := shippingpkg.RateRequest{ChannelID: cc.store.ID, CurrencyCode: cc.store.CurrencyCode}
+		for _, sl := range sh.Lines {
+			l := cc.cart.Lines[byID[sl.CartLineID]]
 			req.Items = append(req.Items, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
-			sub += money.LineTotal(l.UnitPrice, l.Quantity)
 		}
-		// The order-level discount is shared across packages by value, so a "free above" threshold sees roughly what the package is worth
-		if cc.subtotal > 0 {
-			sub -= discount * sub / cc.subtotal
-		}
-		req.SubtotalCents = sub
+		req.SubtotalCents = groupSubtotal(groupSub[sh.GroupKey], cc.subtotal, discount)
 		if sh.ShipTo != nil {
 			req.Destination = shippingpkg.Address{
 				Street1: sh.ShipTo.Street1, City: sh.ShipTo.City, PostalCode: sh.ShipTo.PostalCode,
@@ -109,6 +110,14 @@ func (s *Service) priceShipments(ctx context.Context, cc *checkoutContext, shipm
 		out[i] = cents
 	}
 	return out, nil
+}
+
+// groupSubtotal is a group's share of the order-level discount taken off its value - the order's discount is shared across groups by value. The checkout's quotes compute the same, so the price shown is the price charged
+func groupSubtotal(sub, orderSubtotal, discount int64) int64 {
+	if orderSubtotal > 0 {
+		sub -= discount * sub / orderSubtotal
+	}
+	return max(sub, 0)
 }
 
 // selectShipments prices a split delivery, or a digital order's none - the caller only reaches it with shipments or with nothing to ship
@@ -134,25 +143,36 @@ func (s *Service) resolveShipmentCents(ctx context.Context, in PlaceOrderInput, 
 	if err != nil {
 		return shippingSelection{}, nil, err
 	}
-	if freeShipping {
-		for i, sh := range in.Shipments {
-			if len(freeMethods) == 0 || slices.Contains(freeMethods, sh.MethodCode) {
-				amounts[i] = 0
-			}
-		}
-	}
-	if override != nil {
-		for i := range amounts {
-			amounts[i] = 0
-		}
-		amounts[0] = *override
-	}
+	applyShippingPromos(amounts, in.Shipments, freeShipping, freeMethods, override)
 	var total int64
 	for _, a := range amounts {
 		total += a
 	}
 	first := in.Shipments[0]
 	return shippingSelection{Cents: total, CarrierSlug: first.CarrierSlug, MethodCode: first.MethodCode}, amounts, nil
+}
+
+// singlePackage - the order has at most one package, so its one carrier and method can re-price it on an edit
+func (s *Service) singlePackage(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	n, err := s.repo.CountShipments(ctx, orderID)
+	return n <= 1, err
+}
+
+// applyShippingPromos waives the packages a free-shipping promotion covers - every one, or those of its named methods - and an override replaces the whole order's shipping, carried by the first package
+func applyShippingPromos(amounts []int64, shipments []ShipmentInput, freeShipping bool, freeMethods []string, override *int64) {
+	if freeShipping {
+		for i, sh := range shipments {
+			if len(freeMethods) == 0 || slices.Contains(freeMethods, sh.MethodCode) {
+				amounts[i] = 0
+			}
+		}
+	}
+	if override != nil && len(amounts) > 0 {
+		for i := range amounts {
+			amounts[i] = 0
+		}
+		amounts[0] = *override
+	}
 }
 
 func (s *Service) persistShipments(ctx context.Context, r Repository, orderID uuid.UUID, shipments []ShipmentInput, amounts []int64) error {
@@ -226,6 +246,55 @@ func (r *postgresRepository) ListShipments(ctx context.Context, orderID uuid.UUI
 		out = append(out, sh)
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) SetShipmentAmount(ctx context.Context, orderID uuid.UUID, amount int64) error {
+	return r.queries.SetOrderShipmentAmount(ctx, db.SetOrderShipmentAmountParams{OrderID: orderID, AmountCents: amount})
+}
+
+func (r *postgresRepository) CountShipments(ctx context.Context, orderID uuid.UUID) (int64, error) {
+	return r.queries.CountOrderShipments(ctx, orderID)
+}
+
+func (r *postgresRepository) SetShipmentLines(ctx context.Context, shipmentID uuid.UUID, lines []ShipmentLine) error {
+	b, err := json.Marshal(nonNilShipmentLines(lines))
+	if err != nil {
+		return fmt.Errorf("encode shipment lines: %w", err)
+	}
+	return r.queries.SetOrderShipmentLines(ctx, db.SetOrderShipmentLinesParams{ID: shipmentID, Lines: b})
+}
+
+// editShipmentLines keeps each package's lines in step with a line edit - a removed line leaves its package, a new quantity follows, and an added line joins the first package
+func editShipmentLines(ctx context.Context, r Repository, orderID uuid.UUID, removed map[uuid.UUID]bool, qty map[uuid.UUID]float64, added []OrderLine) error {
+	ships, err := r.ListShipments(ctx, orderID)
+	if err != nil || len(ships) == 0 {
+		return err
+	}
+	for i, sh := range ships {
+		lines := slices.DeleteFunc(sh.Lines, func(l ShipmentLine) bool { return removed[l.CartLineID] })
+		for j := range lines {
+			if q, ok := qty[lines[j].CartLineID]; ok {
+				lines[j].Quantity = q
+			}
+		}
+		if i == 0 {
+			for _, l := range added {
+				lines = append(lines, ShipmentLine{CartLineID: l.ID, SKU: l.ProductSku, Quantity: l.Quantity})
+			}
+		}
+		if err := r.SetShipmentLines(ctx, sh.ID, lines); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *postgresRepository) SetShipmentShipTo(ctx context.Context, orderID uuid.UUID, shipTo OrderAddress) error {
+	b, err := json.Marshal(shipTo)
+	if err != nil {
+		return fmt.Errorf("encode shipment address: %w", err)
+	}
+	return r.queries.SetOrderShipmentShipTo(ctx, db.SetOrderShipmentShipToParams{OrderID: orderID, ShipTo: rawOrNull(b)})
 }
 
 func (r *postgresRepository) SetFulfillmentNeed(ctx context.Context, orderID uuid.UUID, need string) error {
