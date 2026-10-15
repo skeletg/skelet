@@ -1,3 +1,4 @@
+DROP INDEX IF EXISTS public.idx_carts_guest_email;
 DROP INDEX IF EXISTS public.idx_carts_shipping_address_id;
 DROP INDEX IF EXISTS public.idx_carts_billing_address_id;
 

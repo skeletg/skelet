@@ -145,6 +145,10 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 		{"delete wishlist shares", func() error { _, err := q.DeleteCustomerWishlistShares(ctx, id); return err }},
 		// carts.email makes an abandoned cart addressable by the recovery flow
 		{"scrub carts", func() error { _, err := q.ScrubCustomerCarts(ctx, nid); return err }},
+		{"scrub guest carts", func() error {
+			_, err := q.ScrubGuestCartsByEmail(ctx, db.ScrubGuestCartsByEmailParams{ChannelID: ch, Email: addr})
+			return err
+		}},
 		{"delete back-in-stock requests", func() error {
 			_, err := q.DeleteCustomerBackInStockRequests(ctx, db.DeleteCustomerBackInStockRequestsParams{ChannelID: ch, CustomerID: nid, Email: addr})
 			return err
