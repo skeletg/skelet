@@ -176,6 +176,10 @@ func (r *Resolver) checkoutComplete(ctx context.Context, v *checkoutView) error 
 		if g.quoteFailed() {
 			return errShippingQuoteFailed
 		}
+		// A choice the carriers no longer offer is refused, never swapped for another - the shopper picks again
+		if g.hasSel && g.chosen == nil {
+			return errShippingMethodOffered
+		}
 	}
 	for _, q := range delivery.Requirements(r.checkoutSnapshot(ctx, v)) {
 		if !q.Blocking() || (q.Type == delivery.BlockPayment && q.Status == delivery.StatusMissing) {
