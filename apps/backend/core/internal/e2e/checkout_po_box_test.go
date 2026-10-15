@@ -163,7 +163,7 @@ func TestCheckoutShipsToAListedPOBox(t *testing.T) {
 	email := "pobox-" + uuid.NewString()[:8] + "@e2e.test"
 	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, phone: "+12025550123", billingSameAsShipping: false, billingAddress: %s`, email, usAddress)))
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
-	data, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID))
+	data, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
