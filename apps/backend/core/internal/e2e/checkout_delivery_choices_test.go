@@ -393,7 +393,7 @@ func TestDeliveryChoiceOfASecondOptionReachesTheOrder(t *testing.T) {
 	if got := co["totals"].(map[string]any)["shippingCents"].(float64); got != 1200 {
 		t.Fatalf("shipping = %v, want Express's 1200", got)
 	}
-	data, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID))
+	data, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
