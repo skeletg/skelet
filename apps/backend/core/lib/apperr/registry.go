@@ -14,6 +14,8 @@ type registration struct {
 var (
 	registryMu sync.RWMutex
 	registry   = make(map[error]registration)
+	// The sentinels in registration order - scanRegistry walks this, so an error matching two of them always resolves to the same one
+	registryOrder []error
 )
 
 // Call from a package init() so registration is in place before any request is served - it panics on a nil sentinel or a re-registration with a different code or class, which catches typos at boot
@@ -36,6 +38,7 @@ func RegisterSentinel(sentinel error, code string, class Class) {
 		return
 	}
 	registry[sentinel] = registration{code: code, class: class}
+	registryOrder = append(registryOrder, sentinel)
 }
 
 // Walks errors.As(*Error) first, since a wrapper may carry an explicit code, then errors.Is against every registered sentinel - "" when nothing matches, which the presenter treats as ClassInternal
@@ -67,9 +70,9 @@ func ClassOf(err error) Class { // resolves in the same order as CodeOf - *Error
 func scanRegistry(err error, on func(registration) string) string { // fires the callback on the first errors.Is match and forwards its return - O(N sentinels) per call, but only on error paths, so at 150+ sentinels that's microseconds
 	registryMu.RLock()
 	defer registryMu.RUnlock()
-	for sentinel, reg := range registry {
+	for _, sentinel := range registryOrder {
 		if errors.Is(err, sentinel) {
-			return on(reg)
+			return on(registry[sentinel])
 		}
 	}
 	return ""
