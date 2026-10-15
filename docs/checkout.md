@@ -28,7 +28,7 @@ renders the checkout from them, and `placeOrder` refuses while any requirement i
 
 1. **Overview** shows the go-live checklist. A channel with no saved options runs on the
    built-in two (Delivery and Store pickup). Choose **Start customising** to save them as
-   the channel's own.
+   the channel's own. They stay switched on, so carts that already chose one keep it.
 2. **Delivery** lists the channel's options. Add one by kind, and for each set:
    - its name
    - which configurable blocks are asked (phone, and billing for store pickup)
@@ -59,7 +59,9 @@ address* and *Store pickup*, so a fridge is never offered a PO box.
 
 A cart is offered only the kinds every line allows. When its lines have no kind in
 common, or the shopper asks to choose per group, the cart splits into delivery groups.
-Each group has its own delivery, and each group is priced per package and origin.
+Each group has its own delivery, and each group is priced per package and origin. A group
+that no carrier method quotes can't be placed: checkout says its items can't be delivered
+there, rather than sending them unpriced.
 
 ## What delivery costs: shipping methods
 
@@ -72,7 +74,8 @@ A method's price is worked out per package:
   For example, 5 € every 5 items charges 5 € for 1-5 items and 10 € for 6-10.
 - **Rates by product type** price that type's items on their own row instead of the
   method's price. For example, Fridge at 30 € every 1 item.
-- **Free above** waives the method's own price once the cart reaches the threshold. A
+- **Free above** waives the method's own price once the delivery group reaches the threshold,
+  judged on the whole group even when its packages leave from several warehouses. A
   product type's rate is waived only when its **Can ship free** box is ticked, so a fridge
   keeps costing 30 € unless the merchant allows otherwise.
 
