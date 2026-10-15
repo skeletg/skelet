@@ -13,8 +13,8 @@ import (
 
 // The seam QuoteAll and PriceSelected use for remote providers, wired through SetRemoteRateSource so shipping's tests can skip the remoteprovider stack
 type RemoteRateSource interface {
-	// Every remote carrier's rated methods - never errors, since failures are skipped
-	Quotes(ctx context.Context, req RateRequest) []RatedQuote
+	// Every remote carrier's rated methods, and the slugs of those that failed - never errors, since failures are skipped
+	Quotes(ctx context.Context, req RateRequest) ([]RatedQuote, []string)
 	// Re-quotes one remote carrier for the chosen code, or ErrMethodNotFound
 	Price(ctx context.Context, slug, code string, req RateRequest) (int64, error)
 }
@@ -114,18 +114,24 @@ func (r *remoteRateSource) providers(ctx context.Context, channelID uuid.UUID) [
 	return providers
 }
 
-func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQuote {
+func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) ([]RatedQuote, []string) {
 	providers := r.providers(ctx, req.ChannelID)
 	if len(providers) == 0 {
-		return nil
+		return nil, nil
 	}
 	payload := buildRemoteRateRequest(req)
 
 	var (
-		mu  sync.Mutex
-		out []RatedQuote
-		wg  sync.WaitGroup
+		mu     sync.Mutex
+		out    []RatedQuote
+		failed []string
+		wg     sync.WaitGroup
 	)
+	fail := func(slug string) {
+		mu.Lock()
+		failed = append(failed, slug)
+		mu.Unlock()
+	}
 	for _, p := range providers {
 		wg.Add(1)
 		go func(p remoteprovider.Provider) {
@@ -135,12 +141,14 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 			defer func() {
 				if rec := recover(); rec != nil {
 					log.Printf("[shipping] remote carrier %q quote panicked (skipped): %v", p.Slug, rec)
+					fail(p.Slug)
 				}
 			}()
 			var resp remoteRateResponse
 			if err := r.invoker.Invoke(ctx, p, payload, &resp); err != nil {
 				// Fail-open - a broken rate endpoint never blanks checkout
 				log.Printf("[shipping] remote carrier %q quote failed (skipped): %v", p.Slug, err)
+				fail(p.Slug)
 				return
 			}
 			mu.Lock()
@@ -158,7 +166,7 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 		}(p)
 	}
 	wg.Wait()
-	return out
+	return out, failed
 }
 
 func (r *remoteRateSource) Price(ctx context.Context, slug, code string, req RateRequest) (int64, error) {
