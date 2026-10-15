@@ -35,7 +35,7 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "PresentmentCurrencies",
   "BlogPostsForSitemap",
   "CmsPagesForSitemap",
-  "PaymentMethods",
+  // PaymentMethods is not here - it reads the cart, and a signed-in shopper's cart refuses a request without their token
 ])
 
 export function isPublicOp(opName: string): boolean {
