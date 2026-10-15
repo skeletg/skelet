@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func (r *mutationResolver) CreateDeliveryOption(ctx context.Context, channelID string, input model.DeliveryOptionInput) (*model.DeliveryOption, error) {
@@ -67,7 +68,8 @@ func (r *mutationResolver) AdoptDefaultDeliveryOptions(ctx context.Context, chan
 	if err := r.requireCheckout(ctx, chID, true); err != nil {
 		return nil, err
 	}
-	if err := r.DeliverySvc.AdoptDefaults(ctx, chID); err != nil {
+	pickupNeedsBilling, _ := r.ConfigSvc.GetBool(ctx, "sales/checkout/pickup_requires_billing_address", config.Scope{Kind: config.ScopeChannel, ChannelID: &chID})
+	if err := r.DeliverySvc.AdoptDefaults(ctx, chID, pickupNeedsBilling); err != nil {
 		return nil, err
 	}
 	return r.checkoutConfiguration(ctx, chID)
