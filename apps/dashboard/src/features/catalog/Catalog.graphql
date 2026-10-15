@@ -1929,3 +1929,22 @@ mutation SetProductTypeDeliveryKinds($productTypeId: ID!, $kinds: [String!]) {
     deliveryKinds
   }
 }
+
+# Recommendation metadata stays separate from the staged, ordered link IDs.
+query RecommendationProducts($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    id name sku
+    thumbnail { id url altText status }
+    displayImage { id url altText status }
+  }
+}
+
+query RecommendationSearch($search: String, $limit: Int) {
+  productsPaged(search: $search, limit: $limit) {
+    items {
+      id name sku
+      thumbnail { id url altText status }
+      displayImage { id url altText status }
+    }
+  }
+}

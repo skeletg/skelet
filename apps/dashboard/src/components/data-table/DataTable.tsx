@@ -4,7 +4,7 @@
 'use no memo'
 
 import { Trans } from '@lingui/react/macro'
-import { useMemo, useState, type ReactNode, Fragment } from 'react'
+import { useMemo, useState, type ReactNode, type ReactElement, Fragment } from 'react'
 import {
   features,
   flexRender,
@@ -105,6 +105,7 @@ export function DataTable<TData extends RowData>({
   compact = false,
   onRowClick,
   rowIsActive,
+  renderRow,
 }: {
   columns: ColumnDef<TData, unknown>[]
   data: TData[]
@@ -146,6 +147,8 @@ export function DataTable<TData extends RowData>({
   exportCsv?: { filename: string; onExport?: (scope: BulkScope) => void | Promise<void> }
   compact?: boolean // rows without the list chrome - an 8-row summary panel wants no search row and no "Page 1 of 1" footer
   onRowClick?: (row: TData) => void // click-to-filter lists, distinct from row SELECTION which is the checkbox column
+  /** Wrap or replace a data row, preserving default cell rendering and row behavior. */
+  renderRow?: (row: Row<TData>, defaultRow: ReactElement) => ReactNode
   rowIsActive?: (row: TData) => boolean
 }) {
   // Registered extensions merge in here rather than at each call site, so a plugin reaches a list
@@ -493,8 +496,8 @@ export function DataTable<TData extends RowData>({
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <Fragment key={row.id}>
+              table.getRowModel().rows.map((row) => {
+                const defaultRow = (
                   <TableRow
                     data-state={row.getIsSelected() && 'selected'}
                     className={cn(
@@ -515,15 +518,20 @@ export function DataTable<TData extends RowData>({
                       </TableCell>
                     ))}
                   </TableRow>
-                  {row.getIsExpanded() && renderSubComponent && (
-                    <TableRow className="bg-muted/30">
-                      <TableCell colSpan={row.getVisibleCells().length} className="p-0">
-                        {renderSubComponent({ row })}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              ))
+                )
+                return (
+                  <Fragment key={row.id}>
+                    {renderRow ? renderRow(row, defaultRow) : defaultRow}
+                    {row.getIsExpanded() && renderSubComponent && (
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                          {renderSubComponent({ row })}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })
             )}
           </TableBody>
         </Table>

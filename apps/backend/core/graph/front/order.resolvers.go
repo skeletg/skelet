@@ -147,14 +147,21 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 }
 
 // Guest and authenticated checkout share this path - the customer claim comes off the auth context, email is required either way, and addresses arrive as address-book IDs or inline payloads (guests use inline, signed-in customers may too for a one-off)
-func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string) (*model.Order, error) {
+func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) (*model.Order, error) {
 	c, err := r.checkoutCart(ctx, cartID)
 	if err != nil {
 		return nil, err
 	}
+	if err := r.termsAccepted(ctx, c.ChannelID, acceptTerms); err != nil {
+		return nil, err
+	}
 	v := r.checkoutView(ctx, c)
 	slug := c.Checkout.PaymentProviderSlug
-	paymentOK := r.paymentMethodOffered(ctx, c.ChannelID, slug, paymentCountry(c.Checkout))
+	// The payment config that can't answer refuses placement - it can't confirm the method the shopper picked
+	paymentOK, err := r.paymentMethodOffered(ctx, c, c.Checkout, slug)
+	if err != nil {
+		return nil, err
+	}
 	if slug != "" && !paymentOK {
 		return nil, errPaymentMethodOffered
 	}

@@ -91,6 +91,37 @@ func TestQuoteAll_PartialResultsAndOrder(t *testing.T) {
 	}
 }
 
+// A carrier that errored, panicked or failed remotely is named, so checkout can tell "not offered" from "couldn't ask"
+func TestQuoteCarriers_NamesFailedCarriers(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{methods: []RatedMethod{{Code: "std", PriceCents: 500}}}, DisplayName: "Store"})
+	RegisterCarrier(CarrierRegistration{Slug: "flaky", Carrier: rateStub{err: errors.New("boom")}, DisplayName: "Flaky"})
+	RegisterCarrier(CarrierRegistration{Slug: "boom", Carrier: rateStub{panics: true}, DisplayName: "Boom"})
+	repo := fakeCarrierRepo{configs: []CarrierConfig{
+		{ID: uuid.New(), CarrierSlug: "flaky", IsEnabled: true},
+		{ID: uuid.New(), CarrierSlug: "boom", IsEnabled: true},
+	}}
+	svc := NewService(repo)
+	svc.SetRemoteRateSource(&fakeRemoteRates{failed: []string{"acme-3pl"}})
+
+	res, err := svc.QuoteCarriers(context.Background(), RateRequest{ChannelID: uuid.New(), Destination: Address{CountryCode: "US"}, SubtotalCents: 1000})
+	if err != nil {
+		t.Fatalf("QuoteCarriers: %v", err)
+	}
+	if len(res.Quotes) != 1 || res.Quotes[0].CarrierSlug != BuiltinCarrierSlug {
+		t.Errorf("quotes = %+v, want only the builtin's", res.Quotes)
+	}
+	for _, slug := range []string{"flaky", "boom", "acme-3pl"} {
+		if res.Answered(slug) {
+			t.Errorf("Answered(%q) = true, want the failure reported (failed = %v)", slug, res.Failed)
+		}
+	}
+	if !res.Answered(BuiltinCarrierSlug) || !res.Answered("not-a-carrier") {
+		t.Errorf("a carrier that answered, or one that was never asked, reads as failed: %v", res.Failed)
+	}
+}
+
 func TestQuoteAll_DisabledExcluded_BuiltinFailOpen(t *testing.T) {
 	ResetForTest()
 	t.Cleanup(ResetForTest)

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 )
@@ -104,6 +105,9 @@ func (s *Service) Update(ctx context.Context, input UpdateCountryInput) (Country
 	}
 	// A known country's calling code isn't editable - it's re-derived, so a stored typo heals on the next save
 	if cc := phone.CallingCode(input.Code); cc != "" {
+		if input.PhoneCode != nil {
+			return Country{}, apperr.New("COUNTRY_PHONE_CODE_READ_ONLY", apperr.ClassValidation, "calling code is derived from the country and cannot be edited")
+		}
 		input.PhoneCode = &cc
 	}
 	if input.DefaultCurrencyCode != nil {

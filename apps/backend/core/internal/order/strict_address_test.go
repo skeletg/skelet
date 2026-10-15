@@ -54,7 +54,7 @@ func TestStrictModeChecksShippingAndBilling(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			checker := tc.checker
-			err := (&Service{addresses: &checker}).checkStrictAddresses(context.Background(), uuid.New(), tc.shipping, tc.billing)
+			err := (&Service{addresses: &checker}).checkStrictAddresses(context.Background(), uuid.New(), tc.shipping, tc.billing, false)
 			if len(checker.calls) != tc.wantCalls {
 				t.Errorf("validator called %d times (%v), want %d", len(checker.calls), checker.calls, tc.wantCalls)
 			}
@@ -77,7 +77,7 @@ func TestStrictModeChecksShippingAndBilling(t *testing.T) {
 
 func TestStrictModeRefusesWhenAFailClosedValidatorIsDown(t *testing.T) {
 	checker := &scriptedChecker{strict: true, err: address.ErrUnavailable}
-	err := (&Service{addresses: checker}).checkStrictAddresses(context.Background(), uuid.New(), addr("1 Ship St"), addr("2 Bill St"))
+	err := (&Service{addresses: checker}).checkStrictAddresses(context.Background(), uuid.New(), addr("1 Ship St"), addr("2 Bill St"), false)
 	if !errors.Is(err, address.ErrUnavailable) {
 		t.Fatalf("err = %v, want ErrUnavailable so the order is refused with its code", err)
 	}

@@ -22,7 +22,19 @@ ALTER TABLE public.carts
     ADD COLUMN business_ids jsonb DEFAULT '{}'::jsonb NOT NULL,
     -- Who collects a pickup order, {firstName, lastName, someoneElse} - null until the details step of a pickup checkout
     ADD COLUMN pickup_contact jsonb,
+    -- Bumped by every checkout write - a step computes its change without holding the row, then writes only if this
+    -- hasn't moved, so two step saves can't overwrite each other
+    ADD COLUMN checkout_version bigint DEFAULT 0 NOT NULL,
     ADD CONSTRAINT carts_purchase_type_check CHECK (purchase_type IN ('personal', 'business'));
+
+-- Deleting an address sets these to null, which scans carts without an index - partial, since most carts never hold
+-- a saved address
+CREATE INDEX idx_carts_shipping_address_id ON public.carts USING btree (shipping_address_id) WHERE shipping_address_id IS NOT NULL;
+CREATE INDEX idx_carts_billing_address_id ON public.carts USING btree (billing_address_id) WHERE billing_address_id IS NOT NULL;
+
+-- Erasing a customer scrubs the guest carts that entered their address (ScrubGuestCartsByEmail) - partial, since only
+-- guest carts with an email are ever looked up this way
+CREATE INDEX idx_carts_guest_email ON public.carts USING btree (channel_id, lower(btrim(email))) WHERE customer_id IS NULL AND email <> '';
 
 -- The company identifiers on a business purchase, snapshotted with their labels so the invoice reads as the shopper saw
 -- it ([{"key": "pib", "label": "PIB", "value": "..."}]) - empty for personal purchases

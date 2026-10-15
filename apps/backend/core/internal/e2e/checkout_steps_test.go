@@ -131,7 +131,7 @@ func TestCheckoutStepsPersistOnTheCart(t *testing.T) {
 	}
 
 	// placeOrder takes nothing but the cart, and charges what the checkout showed
-	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id total } }`, cartID))
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id total } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
@@ -164,7 +164,7 @@ func TestCheckoutStepsPersistOnTheCart(t *testing.T) {
 	// ...and placement names the step still owed rather than picking a method for the shopper
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cart2))
 	h.gqlCheckout(t, ts, f, details(cart2, fmt.Sprintf(`shippingAddress: %s, billingSameAsShipping: true`, usAddress)))
-	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cart2)); len(errs) == 0 || !strings.Contains(errs[0], "delivery or pickup") {
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cart2)); len(errs) == 0 || !strings.Contains(errs[0], "delivery or pickup") {
 		t.Errorf("placeOrder without a method = %v, want the CHECKOUT_DELIVERY_OPTION_REQUIRED refusal", errs)
 	}
 }
@@ -194,7 +194,7 @@ func TestCheckoutPickupNeedsNoAddress(t *testing.T) {
 	email := "pickup-" + uuid.NewString()[:8] + "@e2e.test"
 
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
-	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: "collect")`, cartID))
+	co := h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: %q)`, cartID, "loc-"+f.Location.Slug))
 	if co["isPickup"] != true {
 		t.Fatalf("isPickup = %v after choosing pickup", co["isPickup"])
 	}
@@ -229,7 +229,7 @@ func TestCheckoutPickupNeedsNoAddress(t *testing.T) {
 		t.Fatalf("amount due = %v, want the gift card to cover it", due)
 	}
 
-	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID))
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder with no payment method and nothing owed: %v", errs)
 	}
@@ -310,7 +310,7 @@ func TestCheckoutDetailsFollowTheSettings(t *testing.T) {
 	}
 
 	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
-	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID))
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
@@ -353,4 +353,240 @@ func TestCheckoutAddressPhoneIsReadInItsCountry(t *testing.T) {
 	if a := co["shippingAddress"].(map[string]any); a["phone"] != "+12125550123" {
 		t.Fatalf("shipping address phone = %v, want +12125550123", a["phone"])
 	}
+}
+
+// Scenario: placement holds the checkout to what the shopper chose and agreed to - an unticked terms box is refused
+// under the default checkbox setting, and a method the carriers stopped offering is refused rather than swapped for the
+// cheapest one, with the choice left on the cart for when it comes back
+func TestCheckoutPlacementRefusesWhatItCantHonour(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	if err := h.D.Shipping.SyncCarriers(h.Ctx, []uuid.UUID{f.Channel.ID}); err != nil {
+		t.Fatalf("sync carriers: %v", err)
+	}
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	chID := f.Channel.ID.String()
+	cartID := h.gqlGuestCart(t, ts, f, 1)
+	email := "honour-" + uuid.NewString()[:8] + "@e2e.test"
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "builtin", code: "standard")`, cartID))
+	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, usAddress)))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
+
+	for _, q := range []string{`placeOrder(cartId: %q)`, `placeOrder(cartId: %q, acceptTerms: false)`} {
+		if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { `+q+` { id } }`, cartID)); len(errs) == 0 || !strings.Contains(errs[0], "accept the terms") {
+			t.Errorf("%s = %v, want TERMS_NOT_ACCEPTED", q, errs)
+		}
+	}
+
+	// The carrier the shopper chose goes away between the delivery step and "Place order"
+	if _, err := h.D.Shipping.SetCarrierEnabled(h.Ctx, f.Channel.ID, "builtin", false); err != nil {
+		t.Fatalf("disable the builtin carrier: %v", err)
+	}
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID)); len(errs) == 0 || !strings.Contains(errs[0], "isn't available") {
+		t.Fatalf("placeOrder with the chosen method gone = %v, want SHIPPING_METHOD_UNAVAILABLE", errs)
+	}
+	if _, err := h.D.Shipping.SetCarrierEnabled(h.Ctx, f.Channel.ID, "builtin", true); err != nil {
+		t.Fatalf("re-enable the builtin carrier: %v", err)
+	}
+	co := h.gqlCartCheckout(t, ts, f, cartID)
+	if m, _ := co["shippingMethod"].(map[string]any); m == nil || m["code"] != "standard" {
+		t.Fatalf("shipping method after the refusal = %v, want the shopper's choice kept", co["shippingMethod"])
+	}
+
+	// Under notice the order line says placing it accepts the terms, so nothing has to be ticked
+	h.setChannelConfig(t, f, "sales/checkout/terms_consent", "notice")
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id } }`, cartID))
+	if len(errs) > 0 {
+		t.Fatalf("placeOrder under notice: %v", errs)
+	}
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, uuid.MustParse(data["placeOrder"].(map[string]any)["id"].(string)))
+	if err != nil {
+		t.Fatalf("order row: %v", err)
+	}
+	if row.ShippingMethodCode.String != "standard" {
+		t.Errorf("order shipping method = %q, want the chosen one", row.ShippingMethodCode.String)
+	}
+	h.Settle(t)
+}
+
+// Scenario: purchase order bills against the PO number the details step asks a business buyer for, so it's offered,
+// accepted and placed only on such a checkout - and the number lands on the order
+func TestCheckoutPurchaseOrderNeedsThePONumberField(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	if _, err := h.D.Payment.SetEnabled(h.Ctx, f.Channel.ID, "purchase-order", true); err != nil {
+		t.Fatalf("enable purchase order: %v", err)
+	}
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	chID := f.Channel.ID.String()
+	cartID := h.gqlGuestCart(t, ts, f, 1)
+	email := "po-" + uuid.NewString()[:8] + "@e2e.test"
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "builtin", code: "standard")`, cartID))
+	h.setChannelConfig(t, f, "sales/checkout/business_purchase", "true")
+
+	offered := func() []string {
+		t.Helper()
+		data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`{ paymentMethods(countryCode: "US", cartId: %q) { providerSlug } }`, cartID))
+		if len(errs) > 0 {
+			t.Fatalf("paymentMethods: %v", errs)
+		}
+		var out []string
+		for _, m := range data["paymentMethods"].([]any) {
+			out = append(out, m.(map[string]any)["providerSlug"].(string))
+		}
+		return out
+	}
+
+	// A personal purchase has no PO number to bill against
+	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, usAddress)))
+	if got := offered(); slices.Contains(got, "purchase-order") || !slices.Contains(got, "cod") {
+		t.Errorf("methods for a personal purchase = %v, want cod without purchase-order", got)
+	}
+	h.gqlCheckoutRefused(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "purchase-order")`, cartID))
+
+	// Business, but the store doesn't ask for the PO number either
+	business := fmt.Sprintf(`email: %q, purchaseType: BUSINESS, company: "Acme", poNumber: "PO-42", shippingAddress: %s, billingSameAsShipping: true`, email, usAddress)
+	h.gqlCheckout(t, ts, f, details(cartID, business))
+	if got := offered(); slices.Contains(got, "purchase-order") {
+		t.Errorf("methods with the PO field off = %v, want no purchase-order", got)
+	}
+
+	h.setChannelConfig(t, f, "sales/checkout/po_number_field", "true")
+	co := h.gqlCheckout(t, ts, f, details(cartID, business))
+	if co["poNumber"] != "PO-42" {
+		t.Fatalf("PO number = %v, want PO-42", co["poNumber"])
+	}
+	if got := offered(); !slices.Contains(got, "purchase-order") {
+		t.Errorf("methods for a business purchase with the PO field = %v, want purchase-order", got)
+	}
+	co = h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "purchase-order")`, cartID))
+	if co["paymentProviderSlug"] != "purchase-order" {
+		t.Fatalf("payment method = %v, want purchase-order", co["paymentProviderSlug"])
+	}
+
+	// Switching back to a personal purchase drops the method it can no longer pay with
+	co = h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, usAddress)))
+	if co["paymentProviderSlug"] != nil {
+		t.Errorf("payment method after going personal = %v, want purchase-order dropped", co["paymentProviderSlug"])
+	}
+	h.gqlCheckout(t, ts, f, details(cartID, business))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "purchase-order")`, cartID))
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
+	if len(errs) > 0 {
+		t.Fatalf("placeOrder: %v", errs)
+	}
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, uuid.MustParse(data["placeOrder"].(map[string]any)["id"].(string)))
+	if err != nil {
+		t.Fatalf("order row: %v", err)
+	}
+	if row.PaymentProvider != "purchase-order" || row.PoNumber.String != "PO-42" {
+		t.Errorf("order provider=%q po=%q, want purchase-order with PO-42", row.PaymentProvider, row.PoNumber.String)
+	}
+	h.Settle(t)
+}
+
+// Scenario: free text on the details step is capped, and a business purchase saved before the store turned business
+// purchases off places as a personal one
+func TestCheckoutDetailsAreCappedAndFollowTheSettingAtPlacement(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	chID := f.Channel.ID.String()
+	cartID := h.gqlGuestCart(t, ts, f, 1)
+	email := "caps-" + uuid.NewString()[:8] + "@e2e.test"
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345")`, cartID))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "builtin", code: "standard")`, cartID))
+	h.setChannelConfig(t, f, "sales/checkout/business_purchase", "true")
+	h.setChannelConfig(t, f, "sales/checkout/po_number_field", "true")
+	base := fmt.Sprintf(`email: %q, purchaseType: BUSINESS, shippingAddress: %s, billingSameAsShipping: true`, email, usAddress)
+	long := func(n int) string { return strings.Repeat("x", n) }
+
+	for _, tc := range []struct{ name, fields, want string }{
+		{"company", fmt.Sprintf(`company: %q`, long(201)), "company name is too long"},
+		{"PO number", fmt.Sprintf(`company: "Acme", poNumber: %q`, long(101)), "PO number is too long"},
+		{"tax ID", fmt.Sprintf(`company: "Acme", businessIds: [{key: "tax_id", value: %q}]`, long(101)), "Tax ID is too long"},
+	} {
+		if msg := h.gqlCheckoutRefused(t, ts, f, details(cartID, base+", "+tc.fields)); !strings.Contains(msg, tc.want) {
+			t.Errorf("%s over the cap = %q, want %q", tc.name, msg, tc.want)
+		}
+	}
+	co := h.gqlCheckout(t, ts, f, details(cartID, base+fmt.Sprintf(`, company: %q, poNumber: "PO-1", businessIds: [{key: "tax_id", value: "T-1"}]`, long(200))))
+	if co["purchaseType"] != "BUSINESS" {
+		t.Fatalf("a company name at the cap = %v, want it saved", co)
+	}
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
+
+	h.setChannelConfig(t, f, "sales/checkout/business_purchase", "false")
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
+	if len(errs) > 0 {
+		t.Fatalf("placeOrder: %v", errs)
+	}
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, uuid.MustParse(data["placeOrder"].(map[string]any)["id"].(string)))
+	if err != nil {
+		t.Fatalf("order row: %v", err)
+	}
+	if row.BillingCompany.String != "" || row.PoNumber.String != "" || string(row.BusinessIds) != "[]" {
+		t.Errorf("order company=%q po=%q ids=%s, want a personal purchase once business purchases are off",
+			row.BillingCompany.String, row.PoNumber.String, row.BusinessIds)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a pickup with no billing address asked for is billed to whoever collects, never to the store's own address,
+// and pays by a method checked against the destination's country - the same one the payment step offered it for
+func TestCheckoutPickupBillsTheCollectorInTheDestinationCountry(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	line1, city, postal, country, active := "9 Depot Rd", "Storeton", "54321", "US", true
+	if _, err := h.D.Inventory.UpdateLocation(h.Ctx, inventory.UpdateLocationInput{ID: f.Location.ID, IsActive: &active, Line1: &line1, City: &city, PostalCode: &postal, CountryCode: &country}); err != nil {
+		t.Fatalf("location address: %v", err)
+	}
+	if _, err := h.D.Inventory.SetLocationPickup(h.Ctx, f.Location.ID, true, ""); err != nil {
+		t.Fatalf("enable pickup: %v", err)
+	}
+	if err := h.D.Shipping.SyncCarriers(h.Ctx, []uuid.UUID{f.Channel.ID}); err != nil {
+		t.Fatalf("sync carriers: %v", err)
+	}
+	if _, err := h.D.Shipping.SetCarrierEnabled(h.Ctx, f.Channel.ID, "pickup", true); err != nil {
+		t.Fatalf("enable the pickup carrier: %v", err)
+	}
+	// Cash on delivery only for shoppers in GB - the store itself is in the US
+	if err := h.D.Payment.SetPaymentMethodCountries(h.Ctx, f.Channel.ID, "cod", "specific", []string{"GB"}); err != nil {
+		t.Fatalf("limit cod to GB: %v", err)
+	}
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	chID := f.Channel.ID.String()
+	cartID := h.gqlGuestCart(t, ts, f, 1)
+	email := "collector-" + uuid.NewString()[:8] + "@e2e.test"
+
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "GB", postalCode: "N1 1AA")`, cartID))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "pickup", code: %q)`, cartID, "loc-"+f.Location.Slug))
+	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, pickupContact: {firstName: "Ana", lastName: "Self", someoneElse: false}, billingSameAsShipping: false`, email)))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
+
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, cartID))
+	if len(errs) > 0 {
+		t.Fatalf("placeOrder: %v - the payment step offered cod for GB, so placement must check GB too", errs)
+	}
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, uuid.MustParse(data["placeOrder"].(map[string]any)["id"].(string)))
+	if err != nil {
+		t.Fatalf("order row: %v", err)
+	}
+	if row.ShippingStreet1 != line1 || row.ShippingFirstName != "Ana" {
+		t.Errorf("order ships to %q for %q, want the store for the collector", row.ShippingStreet1, row.ShippingFirstName)
+	}
+	if row.BillingStreet1 == line1 || row.BillingCity == city || row.BillingFirstName != "Ana" || row.BillingLastName != "Self" {
+		t.Errorf("order billed to %q %q at %q %q, want the collector and not the store's address",
+			row.BillingFirstName, row.BillingLastName, row.BillingStreet1, row.BillingCity)
+	}
+	h.Settle(t)
 }

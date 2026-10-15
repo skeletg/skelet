@@ -831,7 +831,7 @@ type ComplexityRoot struct {
 		MergeGuestCart                 func(childComplexity int, guestCartID string) int
 		MoveSavedToCart                func(childComplexity int, cartID string, savedItemID string) int
 		MoveToCart                     func(childComplexity int, productID string) int
-		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string) int
+		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) int
 		PresignWebFormUpload           func(childComplexity int, formID string, fieldKey string, filename string, contentType string, sizeBytes int32) int
 		RedeemLoyaltyPoints            func(childComplexity int, points int32) int
 		RemoveCoupon                   func(childComplexity int, cartID string, code string) int
@@ -1248,7 +1248,7 @@ type ComplexityRoot struct {
 		MySubscriptions       func(childComplexity int) int
 		MyWishlist            func(childComplexity int) int
 		MyWishlistShareToken  func(childComplexity int) int
-		PaymentMethods        func(childComplexity int, countryCode string) int
+		PaymentMethods        func(childComplexity int, countryCode string, cartID *string) int
 		PhoneSettings         func(childComplexity int) int
 		PickupLocations       func(childComplexity int) int
 		PresentmentCurrencies func(childComplexity int) int
@@ -1541,7 +1541,7 @@ type MutationResolver interface {
 	FinalizeOrderPayment(ctx context.Context, orderID string) (bool, error)
 	Reorder(ctx context.Context, orderID string) (*model1.ReorderResult, error)
 	RequestReturn(ctx context.Context, input model.RequestReturnInput) (*model.OrderReturn, error)
-	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string) (*model.Order, error)
+	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) (*model.Order, error)
 	SavePaymentMethod(ctx context.Context, providerSlug string, token string) (*model1.SavedPaymentMethod, error)
 	DeleteMyPaymentMethod(ctx context.Context, id string) (bool, error)
 	SubmitProductQuestion(ctx context.Context, productID string, question string, authorName *string, authorEmail *string) (bool, error)
@@ -1675,7 +1675,7 @@ type QueryResolver interface {
 	GuestOrder(ctx context.Context, id string, email string) (*model.Order, error)
 	MyPaymentMethods(ctx context.Context) ([]*model1.SavedPaymentMethod, error)
 	ValidateAddress(ctx context.Context, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) (*model1.AddressValidationResult, error)
-	PaymentMethods(ctx context.Context, countryCode string) ([]*model1.PaymentMethodOption, error)
+	PaymentMethods(ctx context.Context, countryCode string, cartID *string) ([]*model1.PaymentMethodOption, error)
 	ProductQuestions(ctx context.Context, productID string, limit *int32) ([]*model1.ProductQuestion, error)
 	SitemapCounts(ctx context.Context) (*model1.SitemapCounts, error)
 	SitemapEntries(ctx context.Context, entityType model1.SitemapEntityType, limit int32, offset int32) ([]*model1.SitemapEntry, error)
@@ -5220,7 +5220,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string)), true
+		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string), args["acceptTerms"].(*bool)), true
 	case "Mutation.presignWebFormUpload":
 		if e.ComplexityRoot.Mutation.PresignWebFormUpload == nil {
 			break
@@ -7583,7 +7583,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.PaymentMethods(childComplexity, args["countryCode"].(string)), true
+		return e.ComplexityRoot.Query.PaymentMethods(childComplexity, args["countryCode"].(string), args["cartId"].(*string)), true
 	case "Query.phoneSettings":
 		if e.ComplexityRoot.Query.PhoneSettings == nil {
 			break
@@ -10384,6 +10384,8 @@ extend type Mutation {
     paymentToken: String
     # Pay with a previously saved payment method (see myPaymentMethods) of the cart's payment provider. Mutually exclusive with paymentToken; requires a signed-in customer.
     savedPaymentMethodId: ID
+    # The shopper ticked "I accept the terms". Required true when the store's sales/checkout/terms_consent is checkbox - placement refuses with TERMS_NOT_ACCEPTED otherwise. Ignored under notice and off.
+    acceptTerms: Boolean
   ): Order!
 }
 
@@ -10454,7 +10456,8 @@ type PaymentMethodOption {
 
 extend type Query {
   # Enabled payment methods for the request channel, filtered to those accepted for countryCode (a method in "specific" mode is omitted unless countryCode is in its allow-list). Re-fetch when the shipping country changes, like shippingQuotes.
-  paymentMethods(countryCode: String!): [PaymentMethodOption!]!
+  # With cartId, only what setCartPaymentMethod would accept for that cart's checkout - purchase order needs a business purchase on a store that asks for the PO number.
+  paymentMethods(countryCode: String!, cartId: ID): [PaymentMethodOption!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/product_memberships.graphqls", Input: `# Product.partOf - the inverse of the parent→child relationships. Given a product, report what it belongs to: its configurable parent, the bundles it's a selection in, and the grouped products it's a member of - each with the relationship metadata and the sibling collection. Lazy: nothing loads until a sub-field is selected.
@@ -13838,6 +13841,14 @@ func (ec *executionContext) field_Mutation_placeOrder_args(ctx context.Context, 
 		return nil, err
 	}
 	args["savedPaymentMethodId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "acceptTerms",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["acceptTerms"] = arg3
 	return args, nil
 }
 
@@ -15440,6 +15451,14 @@ func (ec *executionContext) field_Query_paymentMethods_args(ctx context.Context,
 		return nil, err
 	}
 	args["countryCode"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg1
 	return args, nil
 }
 
@@ -30784,7 +30803,7 @@ func (ec *executionContext) _Mutation_placeOrder(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string))
+			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string), fc.Args["acceptTerms"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {
@@ -39844,7 +39863,7 @@ func (ec *executionContext) _Query_paymentMethods(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().PaymentMethods(ctx, fc.Args["countryCode"].(string))
+			return ec.Resolvers.Query().PaymentMethods(ctx, fc.Args["countryCode"].(string), fc.Args["cartId"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PaymentMethodOption) graphql.Marshaler {
