@@ -32,6 +32,10 @@ ALTER TABLE public.carts
 CREATE INDEX idx_carts_shipping_address_id ON public.carts USING btree (shipping_address_id) WHERE shipping_address_id IS NOT NULL;
 CREATE INDEX idx_carts_billing_address_id ON public.carts USING btree (billing_address_id) WHERE billing_address_id IS NOT NULL;
 
+-- Erasing a customer scrubs the guest carts that entered their address (ScrubGuestCartsByEmail) - partial, since only
+-- guest carts with an email are ever looked up this way
+CREATE INDEX idx_carts_guest_email ON public.carts USING btree (channel_id, lower(btrim(email))) WHERE customer_id IS NULL AND email <> '';
+
 -- The company identifiers on a business purchase, snapshotted with their labels so the invoice reads as the shopper saw
 -- it ([{"key": "pib", "label": "PIB", "value": "..."}]) - empty for personal purchases
 ALTER TABLE public.orders ADD COLUMN business_ids jsonb DEFAULT '[]'::jsonb NOT NULL;
