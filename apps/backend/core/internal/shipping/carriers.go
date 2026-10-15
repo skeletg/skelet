@@ -226,13 +226,44 @@ func (s *Service) EnabledCarrierKinds(ctx context.Context, channelID uuid.UUID) 
 		if !enabled {
 			continue
 		}
-		for _, k := range reg.DeliveryKinds() {
+		kinds := reg.DeliveryKinds()
+		if reg.Slug == BuiltinCarrierSlug {
+			// It declares every kind a zone method can name, but quotes only those some active method prices
+			if kinds, err = s.pricedKinds(ctx, channelID); err != nil {
+				return nil, err
+			}
+		}
+		for _, k := range kinds {
 			out[k] = append(out[k], reg.Slug+":"+carrierName(reg, cfg))
 		}
 	}
 	if kr, ok := s.remoteRates.(remoteKindReporter); ok {
 		for k, names := range kr.Kinds(ctx, channelID) {
 			out[k] = append(out[k], names...)
+		}
+	}
+	return out, nil
+}
+
+// pricedKinds are the kinds the channel's active zone methods price
+func (s *Service) pricedKinds(ctx context.Context, channelID uuid.UUID) ([]string, error) {
+	zones, err := s.repo.ListZonesByChannel(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, z := range zones {
+		if !z.IsActive {
+			continue
+		}
+		methods, err := s.repo.ListActiveMethodsByZone(ctx, z.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range methods {
+			if k := cmpOr(m.DeliveryKind, DefaultKind); !slices.Contains(out, k) {
+				out = append(out, k)
+			}
 		}
 	}
 	return out, nil
@@ -255,7 +286,10 @@ func (s *Service) PriceSelected(ctx context.Context, slug, code string, req Rate
 		if cfgErr == nil && !cfg.IsEnabled {
 			return 0, nil, ErrMethodNotFound
 		}
-		req = s.withDimensions(ctx, req)
+		req, err := s.withDimensions(ctx, req)
+		if err != nil {
+			return 0, nil, err
+		}
 		cents, method, err := s.ComputeForOrder(ctx, code, QuoteInput{
 			ChannelID:     req.ChannelID,
 			CountryCode:   req.Destination.CountryCode,
@@ -417,7 +451,12 @@ func (s *Service) withParcels(ctx context.Context, req RateRequest) RateRequest 
 	if req.Parcels != nil {
 		return req
 	}
-	req = s.withDimensions(ctx, req)
+	// Weights only shape the parcels an external carrier sees - it prices them itself, so a lookup failure packs what the cart says
+	if withDims, err := s.withDimensions(ctx, req); err != nil {
+		log.Printf("[shipping] product dimensions for cartonization: %v", err)
+	} else {
+		req = withDims
+	}
 	boxes, err := s.repo.ListActiveBoxesByChannel(ctx, req.ChannelID)
 	if err != nil {
 		log.Printf("[shipping] list boxes for cartonization: %v", err)
@@ -428,9 +467,9 @@ func (s *Service) withParcels(ctx context.Context, req RateRequest) RateRequest 
 }
 
 // Callers only know SKUs and quantities, so weights and product types come from the catalog here
-func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateRequest {
+func (s *Service) withDimensions(ctx context.Context, req RateRequest) (RateRequest, error) {
 	if s.dims == nil {
-		return req
+		return req, nil
 	}
 	var skus []string
 	for _, it := range req.Items {
@@ -439,12 +478,12 @@ func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateReque
 		}
 	}
 	if len(skus) == 0 {
-		return req
+		return req, nil
 	}
+	// Fail closed - without the product types a fridge's own rate would silently fall back to the method's cheap default
 	dims, err := s.dims.DimensionsBySKUs(ctx, skus)
 	if err != nil {
-		log.Printf("[shipping] product dimensions for rating: %v", err)
-		return req
+		return req, fmt.Errorf("product dimensions for rating: %w", err)
 	}
 	items := slices.Clone(req.Items)
 	for i, it := range items {
@@ -461,7 +500,7 @@ func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateReque
 		items[i].WeightGrams, items[i].LengthMm, items[i].WidthMm, items[i].HeightMm = d.WeightGrams, d.LengthMm, d.WidthMm, d.HeightMm
 	}
 	req.Items = items
-	return req
+	return req, nil
 }
 
 func (s *Service) ListBoxes(ctx context.Context, channelID uuid.UUID) ([]Box, error) {

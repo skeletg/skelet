@@ -267,6 +267,29 @@ func TestPriceSelected_FillsProductDimensions(t *testing.T) {
 	}
 }
 
+var errCatalogDown = errors.New("catalog down")
+
+type dimsDown struct{}
+
+func (dimsDown) DimensionsBySKUs(context.Context, []string) (map[string]Dimensions, error) {
+	return nil, errCatalogDown
+}
+
+// Without the product types the per-type rates can't apply, so the built-in carrier refuses rather than pricing a fridge at the default rate
+func TestBuiltinPricingFailsClosedWithoutProductTypes(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	svc := NewService(fakeCarrierRepo{})
+	svc.SetDimensionLookup(dimsDown{})
+	req := RateRequest{ChannelID: uuid.New(), Items: []RateItem{{SKU: "fridge", Quantity: 1}}}
+	if _, _, err := svc.PriceSelected(context.Background(), BuiltinCarrierSlug, "standard", req); !errors.Is(err, errCatalogDown) {
+		t.Errorf("PriceSelected = %v, want the lookup failure - it priced the order without its product types", err)
+	}
+	if _, err := NewBuiltinCarrier(svc).Quote(context.Background(), req); !errors.Is(err, errCatalogDown) {
+		t.Error("the built-in carrier quoted without its product types")
+	}
+}
+
 // The built-in carrier's methods carry their own weekend rule; every other carrier takes its channel row's, whatever its quote says
 func TestQuoteAll_WeekendDeliveryFollowsTheCarrierRow(t *testing.T) {
 	ResetForTest()
@@ -310,5 +333,37 @@ func TestSetCarrierWeekendDelivery_RefusesBuiltinAndUnknown(t *testing.T) {
 	}
 	if _, err := svc.SetCarrierWeekendDelivery(context.Background(), uuid.New(), "nobody", true); err == nil {
 		t.Error("unknown carrier: want an error")
+	}
+}
+
+type pricedKindsRepo struct {
+	fakeCarrierRepo
+	zones   []Zone
+	methods []Method
+}
+
+func (r pricedKindsRepo) ListZonesByChannel(context.Context, uuid.UUID) ([]Zone, error) {
+	return r.zones, nil
+}
+
+func (r pricedKindsRepo) ListActiveMethodsByZone(context.Context, uuid.UUID) ([]Method, error) {
+	return r.methods, nil
+}
+
+// The built-in carrier can price lockers and carrier points, but only once a method of that kind exists - before then a locker option must not read as ready and then never be offered
+func TestEnabledCarrierKindsCountsOnlyPricedBuiltinKinds(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{}, DisplayName: "Store rates", Kinds: []string{DefaultKind, "parcel_locker", "carrier_point"}})
+	repo := pricedKindsRepo{
+		zones:   []Zone{{ID: uuid.New(), IsActive: true}},
+		methods: []Method{{Code: "std", DeliveryKind: DefaultKind, IsActive: true}},
+	}
+	got, err := NewService(repo).EnabledCarrierKinds(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got[DefaultKind]) != 1 || len(got["parcel_locker"]) != 0 || len(got["carrier_point"]) != 0 {
+		t.Fatalf("kinds = %v, want only door delivery, the one kind a method prices", got)
 	}
 }
