@@ -246,6 +246,10 @@ type Repository interface {
 	InsertTaxLine(ctx context.Context, orderID uuid.UUID, line TaxLine) error
 	InsertShipment(ctx context.Context, orderID uuid.UUID, position int32, sh ShipmentInput, amount int64) error
 	ListShipments(ctx context.Context, orderID uuid.UUID) ([]Shipment, error)
+	CountShipments(ctx context.Context, orderID uuid.UUID) (int64, error)
+	SetShipmentAmount(ctx context.Context, orderID uuid.UUID, amount int64) error
+	SetShipmentLines(ctx context.Context, shipmentID uuid.UUID, lines []ShipmentLine) error
+	SetShipmentShipTo(ctx context.Context, orderID uuid.UUID, shipTo OrderAddress) error
 	SetFulfillmentNeed(ctx context.Context, orderID uuid.UUID, need string) error
 	ListTaxLines(ctx context.Context, orderID uuid.UUID) ([]TaxLine, error)
 	DeleteTaxLines(ctx context.Context, orderID uuid.UUID) error

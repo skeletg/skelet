@@ -1006,17 +1006,19 @@ func customerGroupSlug(c customer.Customer) string {
 }
 
 // The lowest-priced option across an aggregated quote, plus whether any existed - ties keep the first
+// cheapestRatedQuote picks among methods that deliver to the shopper's address - the fallback has no point or pickup to send the order to, so a $0 store "collect" must never win it
 func cheapestRatedQuote(quotes []shippingpkg.RatedQuote) (shippingpkg.RatedQuote, bool) {
-	if len(quotes) == 0 {
-		return shippingpkg.RatedQuote{}, false
-	}
-	best := quotes[0]
-	for _, q := range quotes[1:] {
-		if q.Method.PriceCents < best.Method.PriceCents {
-			best = q
+	var best shippingpkg.RatedQuote
+	ok := false
+	for _, q := range quotes {
+		if q.Method.Kind != "" && q.Method.Kind != shippingpkg.DefaultKind {
+			continue
+		}
+		if !ok || q.Method.PriceCents < best.Method.PriceCents {
+			best, ok = q, true
 		}
 	}
-	return best, true
+	return best, ok
 }
 
 func toOrderAddress(a customer.Address) OrderAddress {
