@@ -57,11 +57,11 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 	}
 
 	rules := s.phoneRules(ctx, in.ChannelID)
-	billing, err := resolveAddress(&in.BillingAddress, nil, false, customer.Customer{}, "billing", false, rules)
+	billing, err := resolveAddress(rules, &in.BillingAddress, nil, false, customer.Customer{}, "billing", false)
 	if err != nil {
 		return Order{}, err
 	}
-	shipping, err := resolveAddress(&in.ShippingAddress, nil, false, customer.Customer{}, "shipping", false, rules)
+	shipping, err := resolveAddress(rules, &in.ShippingAddress, nil, false, customer.Customer{}, "shipping", false)
 	if err != nil {
 		return Order{}, err
 	}

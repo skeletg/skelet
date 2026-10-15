@@ -34,7 +34,7 @@ func (m *manualPoints) Search(ctx context.Context, q PointQuery) ([]Point, error
 	if m.repo == nil {
 		return nil, ErrSourceUnavailable
 	}
-	rows, err := m.repo.SearchPoints(ctx, q.ChannelID, q.Kind, q.Near, strings.TrimSpace(q.Search), q.Limit)
+	rows, err := m.repo.SearchPoints(ctx, q.ChannelID, q.Kind, q.Near, likeEscaper.Replace(strings.TrimSpace(q.Search)), q.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +44,9 @@ func (m *manualPoints) Search(ctx context.Context, q PointQuery) ([]Point, error
 	}
 	return out, nil
 }
+
+// likeEscaper keeps a shopper's % or _ literal - the search is matched with ILIKE, where they'd otherwise match anything
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (m *manualPoints) Get(ctx context.Context, channelID uuid.UUID, id string) (Point, error) {
 	if m.repo == nil {

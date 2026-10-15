@@ -91,6 +91,37 @@ func TestQuoteAll_PartialResultsAndOrder(t *testing.T) {
 	}
 }
 
+// A carrier that errored, panicked or failed remotely is named, so checkout can tell "not offered" from "couldn't ask"
+func TestQuoteCarriers_NamesFailedCarriers(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{methods: []RatedMethod{{Code: "std", PriceCents: 500}}}, DisplayName: "Store"})
+	RegisterCarrier(CarrierRegistration{Slug: "flaky", Carrier: rateStub{err: errors.New("boom")}, DisplayName: "Flaky"})
+	RegisterCarrier(CarrierRegistration{Slug: "boom", Carrier: rateStub{panics: true}, DisplayName: "Boom"})
+	repo := fakeCarrierRepo{configs: []CarrierConfig{
+		{ID: uuid.New(), CarrierSlug: "flaky", IsEnabled: true},
+		{ID: uuid.New(), CarrierSlug: "boom", IsEnabled: true},
+	}}
+	svc := NewService(repo)
+	svc.SetRemoteRateSource(&fakeRemoteRates{failed: []string{"acme-3pl"}})
+
+	res, err := svc.QuoteCarriers(context.Background(), RateRequest{ChannelID: uuid.New(), Destination: Address{CountryCode: "US"}, SubtotalCents: 1000})
+	if err != nil {
+		t.Fatalf("QuoteCarriers: %v", err)
+	}
+	if len(res.Quotes) != 1 || res.Quotes[0].CarrierSlug != BuiltinCarrierSlug {
+		t.Errorf("quotes = %+v, want only the builtin's", res.Quotes)
+	}
+	for _, slug := range []string{"flaky", "boom", "acme-3pl"} {
+		if res.Answered(slug) {
+			t.Errorf("Answered(%q) = true, want the failure reported (failed = %v)", slug, res.Failed)
+		}
+	}
+	if !res.Answered(BuiltinCarrierSlug) || !res.Answered("not-a-carrier") {
+		t.Errorf("a carrier that answered, or one that was never asked, reads as failed: %v", res.Failed)
+	}
+}
+
 func TestQuoteAll_DisabledExcluded_BuiltinFailOpen(t *testing.T) {
 	ResetForTest()
 	t.Cleanup(ResetForTest)
@@ -236,6 +267,29 @@ func TestPriceSelected_FillsProductDimensions(t *testing.T) {
 	}
 }
 
+var errCatalogDown = errors.New("catalog down")
+
+type dimsDown struct{}
+
+func (dimsDown) DimensionsBySKUs(context.Context, []string) (map[string]Dimensions, error) {
+	return nil, errCatalogDown
+}
+
+// Without the product types the per-type rates can't apply, so the built-in carrier refuses rather than pricing a fridge at the default rate
+func TestBuiltinPricingFailsClosedWithoutProductTypes(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	svc := NewService(fakeCarrierRepo{})
+	svc.SetDimensionLookup(dimsDown{})
+	req := RateRequest{ChannelID: uuid.New(), Items: []RateItem{{SKU: "fridge", Quantity: 1}}}
+	if _, _, err := svc.PriceSelected(context.Background(), BuiltinCarrierSlug, "standard", req); !errors.Is(err, errCatalogDown) {
+		t.Errorf("PriceSelected = %v, want the lookup failure - it priced the order without its product types", err)
+	}
+	if _, err := NewBuiltinCarrier(svc).Quote(context.Background(), req); !errors.Is(err, errCatalogDown) {
+		t.Error("the built-in carrier quoted without its product types")
+	}
+}
+
 // The built-in carrier's methods carry their own weekend rule; every other carrier takes its channel row's, whatever its quote says
 func TestQuoteAll_WeekendDeliveryFollowsTheCarrierRow(t *testing.T) {
 	ResetForTest()
@@ -279,5 +333,37 @@ func TestSetCarrierWeekendDelivery_RefusesBuiltinAndUnknown(t *testing.T) {
 	}
 	if _, err := svc.SetCarrierWeekendDelivery(context.Background(), uuid.New(), "nobody", true); err == nil {
 		t.Error("unknown carrier: want an error")
+	}
+}
+
+type pricedKindsRepo struct {
+	fakeCarrierRepo
+	zones   []Zone
+	methods []Method
+}
+
+func (r pricedKindsRepo) ListZonesByChannel(context.Context, uuid.UUID) ([]Zone, error) {
+	return r.zones, nil
+}
+
+func (r pricedKindsRepo) ListActiveMethodsByZone(context.Context, uuid.UUID) ([]Method, error) {
+	return r.methods, nil
+}
+
+// The built-in carrier can price lockers and carrier points, but only once a method of that kind exists - before then a locker option must not read as ready and then never be offered
+func TestEnabledCarrierKindsCountsOnlyPricedBuiltinKinds(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	RegisterCarrier(CarrierRegistration{Slug: BuiltinCarrierSlug, Carrier: rateStub{}, DisplayName: "Store rates", Kinds: []string{DefaultKind, "parcel_locker", "carrier_point"}})
+	repo := pricedKindsRepo{
+		zones:   []Zone{{ID: uuid.New(), IsActive: true}},
+		methods: []Method{{Code: "std", DeliveryKind: DefaultKind, IsActive: true}},
+	}
+	got, err := NewService(repo).EnabledCarrierKinds(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got[DefaultKind]) != 1 || len(got["parcel_locker"]) != 0 || len(got["carrier_point"]) != 0 {
+		t.Fatalf("kinds = %v, want only door delivery, the one kind a method prices", got)
 	}
 }

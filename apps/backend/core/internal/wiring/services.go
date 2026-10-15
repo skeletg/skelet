@@ -86,8 +86,10 @@ func newTaxService(q *db.Queries) *tax.Service {
 	return tax.NewService(tax.NewRepository(q))
 }
 
-func newShippingService(q *db.Queries) *shipping.Service {
-	return shipping.NewService(shipping.NewRepository(q))
+func newShippingService(q *db.Queries, txMgr *txrunner.Manager) *shipping.Service {
+	s := shipping.NewService(shipping.NewRepository(q))
+	s.SetTx(txMgr)
+	return s
 }
 
 // The built-in rule types install here rather than from an entrypoint's blank import - without them the engine has no conditions and no actions, so a promotion silently matches nothing

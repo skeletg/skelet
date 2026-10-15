@@ -133,7 +133,7 @@ func (q *Queries) CountCarts(ctx context.Context, arg CountCartsParams) (int32, 
 }
 
 const createCart = `-- name: CreateCart :one
-INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
+INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
 `
 
 type CreateCartParams struct {
@@ -174,6 +174,7 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Cart, e
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -198,7 +199,7 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Cart, e
 const createOfferCart = `-- name: CreateOfferCart :one
 INSERT INTO carts (customer_id, channel_id, kind, email, offer_expires_at, offer_created_by, offer_link_token)
 VALUES ($1, $2, 'offer', $3, $4, $5, translate(rtrim(encode(public.gen_random_bytes(16), 'base64'), '='), '+/', '-_'))
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
 `
 
 type CreateOfferCartParams struct {
@@ -249,6 +250,7 @@ func (q *Queries) CreateOfferCart(ctx context.Context, arg CreateOfferCartParams
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -306,7 +308,7 @@ func (q *Queries) DeleteSavedItem(ctx context.Context, arg DeleteSavedItemParams
 }
 
 const expiredCartOffers = `-- name: ExpiredCartOffers :many
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
 WHERE kind = 'offer' AND status = 'active' AND offer_revoked_at IS NULL
   AND offer_expires_at <= NOW() AND offer_expired_notified_at IS NULL
 ORDER BY offer_expires_at
@@ -353,6 +355,7 @@ func (q *Queries) ExpiredCartOffers(ctx context.Context, lim int32) ([]Cart, err
 			&i.CompanyName,
 			&i.BusinessIds,
 			&i.PickupContact,
+			&i.CheckoutVersion,
 			&i.Deliveries,
 			&i.SplitDelivery,
 			&i.Kind,
@@ -385,7 +388,7 @@ func (q *Queries) ExpiredCartOffers(ctx context.Context, lim int32) ([]Cart, err
 }
 
 const getCartByCustomerAndChannel = `-- name: GetCartByCustomerAndChannel :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
 WHERE customer_id = $1 AND channel_id = $2 AND status = 'active' AND kind = 'shopper'
 LIMIT 1
 `
@@ -428,6 +431,7 @@ func (q *Queries) GetCartByCustomerAndChannel(ctx context.Context, arg GetCartBy
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -450,7 +454,7 @@ func (q *Queries) GetCartByCustomerAndChannel(ctx context.Context, arg GetCartBy
 }
 
 const getCartByID = `-- name: GetCartByID :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE id = $1 LIMIT 1
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
@@ -486,6 +490,7 @@ func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -508,7 +513,7 @@ func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
 }
 
 const getCartByOfferToken = `-- name: GetCartByOfferToken :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE kind = 'offer' AND offer_link_token = $1 LIMIT 1
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE kind = 'offer' AND offer_link_token = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartByOfferToken(ctx context.Context, offerLinkToken string) (Cart, error) {
@@ -544,6 +549,7 @@ func (q *Queries) GetCartByOfferToken(ctx context.Context, offerLinkToken string
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -826,7 +832,7 @@ func (q *Queries) ListCarts(ctx context.Context, arg ListCartsParams) ([]ListCar
 }
 
 const listCustomerCartOffers = `-- name: ListCustomerCartOffers :many
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts
 WHERE customer_id = $1 AND channel_id = $2 AND kind = 'offer' AND status = 'active'
   AND offer_show_in_account AND offer_revoked_at IS NULL AND offer_expires_at > NOW()
 ORDER BY offer_expires_at ASC
@@ -877,6 +883,7 @@ func (q *Queries) ListCustomerCartOffers(ctx context.Context, arg ListCustomerCa
 			&i.CompanyName,
 			&i.BusinessIds,
 			&i.PickupContact,
+			&i.CheckoutVersion,
 			&i.Deliveries,
 			&i.SplitDelivery,
 			&i.Kind,
@@ -943,10 +950,10 @@ func (q *Queries) ListSavedItemsByCart(ctx context.Context, cartID uuid.UUID) ([
 }
 
 const lockCart = `-- name: LockCart :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE id = $1 FOR UPDATE
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token FROM carts WHERE id = $1 FOR UPDATE
 `
 
-// Row lock for a checkout read-modify-write, so two step saves can't overwrite each other
+// Row lock for a checkout step's short commit - the step was computed from an unlocked read, and checkout_version says whether the row moved since
 func (q *Queries) LockCart(ctx context.Context, id uuid.UUID) (Cart, error) {
 	row := q.db.QueryRowContext(ctx, lockCart, id)
 	var i Cart
@@ -980,6 +987,7 @@ func (q *Queries) LockCart(ctx context.Context, id uuid.UUID) (Cart, error) {
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -1060,7 +1068,7 @@ func (q *Queries) PruneStaleCarts(ctx context.Context, cutoff time.Time) (int64,
 const reassignCartToCustomer = `-- name: ReassignCartToCustomer :one
 UPDATE carts SET customer_id = $2, updated_at = NOW()
 WHERE id = $1 AND customer_id IS NULL AND status = 'active' AND kind = 'shopper'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
 `
 
 type ReassignCartToCustomerParams struct {
@@ -1101,6 +1109,7 @@ func (q *Queries) ReassignCartToCustomer(ctx context.Context, arg ReassignCartTo
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,
@@ -1191,6 +1200,7 @@ UPDATE carts SET
     pickup_contact           = $19,
     deliveries               = $20,
     split_delivery           = $21,
+    checkout_version         = checkout_version + 1,
     updated_at               = NOW()
 WHERE id = $22
 `
@@ -1249,7 +1259,7 @@ func (q *Queries) SetCartCheckout(ctx context.Context, arg SetCartCheckoutParams
 }
 
 const setCartEmail = `-- name: SetCartEmail :exec
-UPDATE carts SET email = $2, updated_at = NOW() WHERE id = $1
+UPDATE carts SET email = $2, checkout_version = checkout_version + 1, updated_at = NOW() WHERE id = $1
 `
 
 type SetCartEmailParams struct {
@@ -1258,6 +1268,7 @@ type SetCartEmailParams struct {
 }
 
 // Records the email a guest enters at checkout entry so an abandoned guest cart becomes recoverable - bumps updated_at (email entry is real activity, so it is the correct start of the abandonment clock)
+// The details step writes the email with the rest of the checkout, so this moves checkout_version too
 func (q *Queries) SetCartEmail(ctx context.Context, arg SetCartEmailParams) error {
 	_, err := q.db.ExecContext(ctx, setCartEmail, arg.ID, arg.Email)
 	return err
@@ -1359,7 +1370,7 @@ func (q *Queries) SetCartOrder(ctx context.Context, arg SetCartOrderParams) erro
 const setCartStatus = `-- name: SetCartStatus :one
 UPDATE carts SET status = $2, updated_at = NOW()
 WHERE id = $1 AND status = 'active'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
 `
 
 type SetCartStatusParams struct {
@@ -1400,6 +1411,7 @@ func (q *Queries) SetCartStatus(ctx context.Context, arg SetCartStatusParams) (C
 		&i.CompanyName,
 		&i.BusinessIds,
 		&i.PickupContact,
+		&i.CheckoutVersion,
 		&i.Deliveries,
 		&i.SplitDelivery,
 		&i.Kind,

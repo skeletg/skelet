@@ -1,6 +1,8 @@
 package front
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -160,7 +162,7 @@ func TestMatchChoices(t *testing.T) {
 	}
 }
 
-// Each shipment's own price is kept, so the order records what every package cost
+// Each shipment's own price and days are kept, so the order records what every package cost and when it arrives
 func TestMatchChoicesKeepsPerShipmentPrices(t *testing.T) {
 	got := matchChoices(
 		[]delivery.Option{deliveryOpt("Delivery", delivery.KindShipToAddress, "")},
@@ -173,5 +175,17 @@ func TestMatchChoicesKeepsPerShipmentPrices(t *testing.T) {
 	)
 	if len(got) != 1 || !slices.Equal(got[0].perShipment, []int64{500, 300}) {
 		t.Fatalf("got %+v", got)
+	}
+	// Each package arrives on its own day - the choice shows the slowest
+	if !slices.Equal(got[0].perShipmentDays, []int{2, 3}) || got[0].estimatedDays != 3 || got[0].perShipmentArrival[0] == got[0].perShipmentArrival[1] {
+		t.Fatalf("days %v arrivals %v slowest %d, want each package's own and 3 for the choice", got[0].perShipmentDays, got[0].perShipmentArrival, got[0].estimatedDays)
+	}
+}
+
+// Products that couldn't be read plan every line as shipping by any kind - a fridge to a PO box, an e-book by courier - so placement refuses that plan
+func TestCheckoutCompleteRefusesAPlanBuiltWithoutProfiles(t *testing.T) {
+	down := errors.New("catalog down")
+	if err := (&Resolver{}).checkoutComplete(context.Background(), &checkoutView{profilesErr: down}); !errors.Is(err, down) {
+		t.Fatalf("checkoutComplete = %v, want the profile lookup failure", err)
 	}
 }

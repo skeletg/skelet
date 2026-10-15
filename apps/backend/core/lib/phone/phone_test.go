@@ -23,6 +23,8 @@ func TestNormalize(t *testing.T) {
 		{"national input needs a region", "064 123 4567", "", "", true},
 		{"national number valid in one country only", "064 123 4567", "US", "", true},
 		{"too short", "+381 64", "RS", "", true},
+		{"extension", "+1 201 555 0123 ext. 42", "US", "", true},
+		{"RFC3966 extension", "tel:+12015550123;ext=42", "US", "", true},
 		{"garbage", "call me maybe", "RS", "", true},
 	}
 	for _, tc := range cases {

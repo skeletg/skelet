@@ -82,10 +82,9 @@ func OrderModes(s Snapshot) (phone, billing Mode, shipToShopper bool) {
 	}
 	for _, g := range s.Groups {
 		if g.Option == nil || g.Kind == nil {
-			// Nothing quotes the group - the store arranges delivery itself, to the shopper's address, and bills it
+			// Nothing quotes the group yet - all it could take is delivery to the shopper's address, so keep asking for one
 			if g.Choices == 0 {
 				shipToShopper = true
-				billing = ModeRequired
 			}
 			continue
 		}
@@ -122,10 +121,10 @@ func Requirements(s Snapshot) []Requirement {
 	for _, g := range s.Groups {
 		scope := g.Group.Key
 		if g.Option == nil || g.Kind == nil || !g.MethodChosen {
-			// With nothing quoted there is nothing to choose - placement prices shipping as it always has, and the store arranges the delivery
+			// Nothing quotes the group - placement would have nothing to price it with, so it can't place until something does
 			if g.Choices == 0 && g.Option == nil {
-				add(Requirement{Scope: scope, Type: BlockDeliveryOption, Label: "Delivery", Mode: ModeOptional, Status: StatusOptional, Code: codeOption,
-					Message: "No delivery option to choose here - the store arranges delivery"})
+				add(Requirement{Scope: scope, Type: BlockDeliveryOption, Label: "Delivery", Mode: ModeRequired, Status: StatusMissing, Code: codeNoDelivery,
+					Message: "These items can't be delivered here with the options this store offers"})
 				continue
 			}
 			add(Requirement{Scope: scope, Type: BlockDeliveryOption, Label: "Delivery", Mode: ModeRequired, Status: StatusMissing, Code: codeOption, Message: "Choose a delivery or pickup option"})

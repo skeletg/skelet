@@ -15,6 +15,7 @@ func init() { // registers cart sentinels so the front presenter forwards their 
 	apperr.RegisterSentinel(ErrCartEmailInvalid, "CART_EMAIL_INVALID", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrCartNoteTooLong, "CART_NOTE_TOO_LONG", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrCartStoreMismatch, "CART_STORE_MISMATCH", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrCheckoutConflict, "CHECKOUT_CONFLICT", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrProductNotPurchasable, "PRODUCT_NOT_PURCHASABLE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductNotPublished, "PRODUCT_NOT_PUBLISHED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrQuantityOutOfBounds, "QUANTITY_OUT_OF_BOUNDS", apperr.ClassValidation)

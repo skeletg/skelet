@@ -136,5 +136,6 @@ func (r *Resolver) ApplyOfferDeliveries(ctx context.Context, ch *channel.Channel
 
 // OfferPaymentOffered says whether the store takes this payment method for the offer's destination
 func (r *Resolver) OfferPaymentOffered(ctx context.Context, c cart.Cart, slug string) bool {
-	return r.paymentMethodOffered(ctx, c.ChannelID, slug, paymentCountry(c.Checkout))
+	ok, err := r.paymentMethodOffered(ctx, c, c.Checkout, slug)
+	return err == nil && ok
 }

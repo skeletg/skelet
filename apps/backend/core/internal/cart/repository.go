@@ -671,8 +671,9 @@ func toCart(row db.Cart) Cart {
 			Deliveries:    decodeDeliveries(row.Deliveries),
 			SplitDelivery: row.SplitDelivery,
 		},
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		CheckoutVersion: row.CheckoutVersion,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
 	if row.Kind == KindOffer {
 		c.Offer = &Offer{

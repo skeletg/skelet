@@ -95,12 +95,20 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 	if _, err := conn.Exec(`INSERT INTO back_in_stock_requests (channel_id, product_id, sku, email) VALUES ($1, $2, 'sku-1', $3)`, ch, uuid.New(), strings.ToUpper(c.Email)); err != nil {
 		t.Fatal(err)
 	}
+	var orderID uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO orders (channel_id, currency_code, customer_id, email) SELECT id, currency_code, $2, $3 FROM channels WHERE id = $1 RETURNING id`, ch, c.ID, c.Email).Scan(&orderID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM orders WHERE id = $1`, orderID) })
+	if _, err := conn.Exec(`INSERT INTO order_shipments (order_id, position, group_key, delivery_kind, ship_to) VALUES ($1, 0, 'all', 'ship_to_address', '{"street1":"7 Parcel Way"}')`, orderID); err != nil {
+		t.Fatal(err)
+	}
 
 	bundle, err := b.Build(ctx, c.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"reviews", "productQuestions", "subscriptions", "giftCards", "savedPaymentMethods", "carts",
+	for _, key := range []string{"reviews", "productQuestions", "subscriptions", "giftCards", "savedPaymentMethods", "carts", "orderShipments",
 		"downloadGrants", "backInStockRequests", "signupFormSubmissions", "webFormSubmissions", "storeCredit", "loyaltyPoints"} {
 		if _, ok := bundle.Extra[key]; !ok {
 			t.Errorf("the bundle has no %s section", key)
@@ -117,6 +125,9 @@ func TestTheBundleCarriesEverySectionWhole(t *testing.T) {
 	}
 	if len(methods) != 1 || methods[0]["last4"] != "4242" || len(bis) != 1 {
 		t.Errorf("payment methods %v, back-in-stock %v - want the saved card and the request made under the address", methods, bis)
+	}
+	if ships := section(t, bundle, "orderShipments"); len(ships) != 1 || !strings.Contains(fmt.Sprint(ships[0]["shipTo"]), "7 Parcel Way") {
+		t.Errorf("order shipments = %v, want the package with the address it went to", ships)
 	}
 	blob, err := json.Marshal(bundle)
 	if err != nil {

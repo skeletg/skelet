@@ -5,6 +5,7 @@ package front
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
 // OriginPlanner says where each physical line would ship from
@@ -43,6 +45,8 @@ type checkoutView struct {
 	subtotal, discount int64
 	// Planning the cart split would give more than one group
 	splittable bool
+	// The products couldn't be read, so every line was planned as shipping by any kind - placement refuses rather than trust that plan
+	profilesErr error
 }
 
 type groupView struct {
@@ -54,6 +58,23 @@ type groupView struct {
 	option    *delivery.Option // the selection's option, while it's still offered for this group
 	kind      *delivery.Kind
 	chosen    *deliveryChoice // the selection's choice, while it's still quoted
+	// Carriers that couldn't be asked for some shipment, and quoteErr when quoting failed outright - a method missing from choices is not offered only when its carrier answered
+	failed   []string
+	quoteErr bool
+}
+
+func (g *groupView) carrierFailed(slug string) bool {
+	return g.quoteErr || slices.Contains(g.failed, slug)
+}
+
+// selectionUnconfirmed - the chosen method's carrier couldn't be asked, so its absence from choices says nothing about whether it's still offered
+func (g *groupView) selectionUnconfirmed() bool {
+	return g.option != nil && g.chosen == nil && g.carrierFailed(g.sel.CarrierSlug)
+}
+
+// quoteFailed - the group can't be completed because carriers failed, not because of anything the shopper did
+func (g *groupView) quoteFailed() bool {
+	return g.selectionUnconfirmed() || (len(g.choices) == 0 && (g.quoteErr || len(g.failed) > 0))
 }
 
 type deliveryChoice struct {
@@ -67,7 +88,10 @@ type deliveryChoice struct {
 	estimatedDays int
 	// ISO date, empty when the carrier gives no estimate
 	estimatedArrival string
-	perShipment      []int64
+	// Each package's own price, days and arrival - the choice itself takes the sum and the slowest
+	perShipment        []int64
+	perShipmentDays    []int
+	perShipmentArrival []string
 }
 
 func (v *checkoutView) option(id uuid.UUID) *delivery.Option {
@@ -128,10 +152,8 @@ func (r *Resolver) offeredOptions(ctx context.Context, channelID uuid.UUID) []de
 			return nil
 		}
 	}
-	for i, o := range opts {
-		if o.Kind == delivery.KindStorePickup && delivery.IsDefaultOption(channelID, o.ID) && r.checkoutSettings(ctx, channelID).PickupNeedsBilling {
-			opts[i].BlockModes = map[string]delivery.Mode{delivery.BlockBillingAddress: delivery.ModeRequired}
-		}
+	if len(opts) > 0 && opts[0].Implicit() {
+		return delivery.DefaultOptionsFor(channelID, r.checkoutSettings(ctx, channelID).PickupNeedsBilling)
 	}
 	return opts
 }
@@ -147,6 +169,8 @@ func (r *Resolver) checkoutView(ctx context.Context, c cart.Cart) *checkoutView 
 	if r.DeliverySvc != nil {
 		if p, err := r.DeliverySvc.LineProfiles(ctx, skus); err == nil {
 			v.profiles = p
+		} else {
+			v.profilesErr = err
 		}
 	}
 	v.profiles = cart.DeliveryProfiles(c.Lines, v.profiles)
@@ -180,7 +204,7 @@ func (r *Resolver) checkoutView(ctx context.Context, c cart.Cart) *checkoutView 
 			}
 		}
 		if ok && sv != nil {
-			gv.choices = r.groupChoices(ctx, sv, v, gv)
+			gv.choices = r.groupChoices(ctx, c.ID, sv, v, gv)
 		}
 		if gv.option != nil {
 			for i := range gv.choices {
@@ -209,29 +233,39 @@ func groupDestination(co cart.Checkout, gv *groupView) shipping.Address {
 	return shipping.Address{CountryCode: d.CountryCode, Region: d.Region, PostalCode: d.PostalCode}
 }
 
-// groupChoices quotes every shipment of the group and offers each option a method every shipment can take, of the option's kind and carrier, priced as the sum
-func (r *Resolver) groupChoices(ctx context.Context, sv *channel.Channel, v *checkoutView, gv *groupView) []deliveryChoice {
+// groupChoices quotes every shipment of the group and offers each option a method every shipment can take, of the option's kind and carrier, priced as the sum. Carriers that couldn't answer are recorded on the group
+func (r *Resolver) groupChoices(ctx context.Context, cartID uuid.UUID, sv *channel.Channel, v *checkoutView, gv *groupView) []deliveryChoice {
 	dest := groupDestination(v.c.Checkout, gv)
 	if dest.CountryCode == "" || r.ShippingSvc == nil {
 		return nil
 	}
+	// "Free above" is judged on the whole group, as placement does - not on each warehouse's share of it
+	var sub int64
+	for _, l := range gv.Lines {
+		sub += money.LineTotal(l.UnitPrice, l.Quantity)
+	}
+	if v.subtotal > 0 {
+		sub -= v.discount * sub / v.subtotal
+	}
+	sub = max(sub, 0)
 	perShipment := make([][]shipping.RatedQuote, 0, len(gv.shipments))
 	for _, sh := range gv.shipments {
-		req := shipping.RateRequest{ChannelID: sv.ID, Destination: dest, CurrencyCode: sv.CurrencyCode}
-		var sub int64
+		req := shipping.RateRequest{ChannelID: sv.ID, Destination: dest, CurrencyCode: sv.CurrencyCode, SubtotalCents: sub}
 		for _, l := range sh.Lines {
 			req.Items = append(req.Items, shipping.RateItem{SKU: l.SKU, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
-			sub += int64(float64(l.UnitPrice) * l.Quantity)
 		}
-		if v.subtotal > 0 {
-			sub -= v.discount * sub / v.subtotal
-		}
-		req.SubtotalCents = max(sub, 0)
-		quotes, err := r.ShippingSvc.QuoteAll(ctx, req)
+		res, err := cachedShippingQuotes(ctx, req, func() (shipping.QuoteResult, error) { return r.ShippingSvc.QuoteCarriers(ctx, req) })
 		if err != nil {
+			log.Printf("[checkout] quoting shipping for cart %s failed: %v", cartID, err)
+			gv.quoteErr = true
 			return nil
 		}
-		perShipment = append(perShipment, quotes)
+		perShipment = append(perShipment, res.Quotes)
+		for _, f := range res.Failed {
+			if !slices.Contains(gv.failed, f) {
+				gv.failed = append(gv.failed, f)
+			}
+		}
 	}
 	return matchChoices(v.options, gv.Kinds, perShipment, r.storeToday(ctx, sv.ID))
 }
@@ -242,7 +276,7 @@ func matchChoices(options []delivery.Option, kinds []string, perShipment [][]shi
 	type rated struct {
 		q      shipping.RatedQuote
 		prices []int64
-		days   int
+		days   []int
 	}
 	var avail map[key]*rated
 	var order []key
@@ -254,7 +288,7 @@ func matchChoices(options []delivery.Option, kinds []string, perShipment [][]shi
 				if _, dup := avail[k]; dup {
 					continue
 				}
-				avail[k] = &rated{q: q, prices: []int64{q.Method.PriceCents}, days: q.Method.EstimatedDays}
+				avail[k] = &rated{q: q, prices: []int64{q.Method.PriceCents}, days: []int{q.Method.EstimatedDays}}
 				order = append(order, k)
 			}
 			continue
@@ -270,7 +304,7 @@ func matchChoices(options []delivery.Option, kinds []string, perShipment [][]shi
 				continue
 			}
 			a.prices = append(a.prices, q.Method.PriceCents)
-			a.days = max(a.days, q.Method.EstimatedDays)
+			a.days = append(a.days, q.Method.EstimatedDays)
 		}
 	}
 	var out []deliveryChoice
@@ -291,10 +325,16 @@ func matchChoices(options []delivery.Option, kinds []string, perShipment [][]shi
 			for _, p := range a.prices {
 				total += p
 			}
+			arrivals := make([]string, len(a.days))
+			for i, d := range a.days {
+				arrivals[i] = shipping.ArrivalDate(today, d, a.q.Method.DeliversOnWeekends)
+			}
+			slowest := slices.Max(a.days)
 			out = append(out, deliveryChoice{
 				option: o, kind: k, carrierSlug: a.q.CarrierSlug, carrierName: a.q.CarrierName,
 				methodCode: a.q.Method.Code, methodName: a.q.Method.Name, priceCents: total, perShipment: a.prices,
-				estimatedDays: a.days, estimatedArrival: shipping.ArrivalDate(today, a.days, a.q.Method.DeliversOnWeekends),
+				perShipmentDays: a.days, perShipmentArrival: arrivals,
+				estimatedDays: slowest, estimatedArrival: shipping.ArrivalDate(today, slowest, a.q.Method.DeliversOnWeekends),
 			})
 		}
 	}
@@ -333,8 +373,9 @@ func (r *Resolver) checkoutSnapshot(ctx context.Context, v *checkoutView) delive
 		ShippingAddress:   co.ShippingAddress != nil,
 		Billing:           billing != nil,
 		BillingMirrorable: v.shipsToShopper(),
-		Payment:           co.PaymentProviderSlug != "" && r.paymentMethodOffered(ctx, c.ChannelID, co.PaymentProviderSlug, paymentCountry(co)),
 	}
+	// One that couldn't be checked reads as missing here - placement re-checks and refuses on the outage itself
+	s.Payment, _ = r.paymentMethodOffered(ctx, c, co, co.PaymentProviderSlug)
 	if co.PickupContact != nil && co.PickupContact.SomeoneElse {
 		s.BillingFloor = delivery.ModeRequired
 	}
@@ -399,11 +440,12 @@ func (r *Resolver) placementShipments(ctx context.Context, v *checkoutView) ([]o
 				DeliveryOptionName: ch.option.Name, CarrierSlug: ch.carrierSlug, MethodCode: ch.methodCode, MethodName: ch.methodName,
 				ShipTo: shipTo, Point: point,
 			}
-			if r.optionPersisted(ctx, v.c.ChannelID, optID) {
+			// The implicit defaults have no row for an order to point at
+			if !ch.option.Implicit() {
 				in.DeliveryOptionID = &optID
 			}
-			if i < len(ch.perShipment) && ch.estimatedDays > 0 {
-				d := ch.estimatedDays
+			if i < len(ch.perShipmentDays) && ch.perShipmentDays[i] > 0 {
+				d := ch.perShipmentDays[i]
 				in.EstimatedDays = &d
 			}
 			for _, l := range sh.Lines {
@@ -417,15 +459,6 @@ func (r *Resolver) placementShipments(ctx context.Context, v *checkoutView) ([]o
 		primary = customer
 	}
 	return out, primary
-}
-
-// optionPersisted - the implicit default options have no row for an order to point at
-func (r *Resolver) optionPersisted(ctx context.Context, channelID, id uuid.UUID) bool {
-	if r.DeliverySvc == nil {
-		return false
-	}
-	o, err := r.DeliverySvc.GetOption(ctx, id)
-	return err == nil && o.ChannelID == channelID
 }
 
 // pointOrderAddress ships to the point, addressed to whoever collects - the pickup contact, else the billing name
@@ -463,11 +496,11 @@ func (r *Resolver) deliveryGroupModels(v *checkoutView) []*frontmodel.DeliveryGr
 			if g.chosen != nil && i < len(g.chosen.perShipment) {
 				p := int32(g.chosen.perShipment[i])
 				sm.PriceCents = &p
-				if g.chosen.estimatedDays > 0 {
-					d := int32(g.chosen.estimatedDays)
+				if d := g.chosen.perShipmentDays[i]; d > 0 {
+					d := int32(d)
 					sm.EstimatedDays = &d
 				}
-				sm.EstimatedArrival = nilIfEmpty(g.chosen.estimatedArrival)
+				sm.EstimatedArrival = nilIfEmpty(g.chosen.perShipmentArrival[i])
 			}
 			m.Shipments = append(m.Shipments, sm)
 		}

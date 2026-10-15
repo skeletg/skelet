@@ -30,7 +30,7 @@ var frontCacheableOps = map[string]bool{
 	"SitemapCounts": true, "SitemapEntries": true,
 	"PresentmentCurrencies": true,
 	"BlogPostsForSitemap":   true, "CmsPagesForSitemap": true,
-	"PaymentMethods": true,
+	// PaymentMethods is not here - it reads the cart, so it needs the shopper's token and an answer of its own
 }
 
 type cachedGraphQLResponse struct {
