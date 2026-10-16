@@ -81,12 +81,7 @@ export async function SimplePDP({
         ) : null}
 
         {signalsEnabled && !product.inStock && !product.backorderable ? (
-          <BackInStockForm
-            productId={product.id}
-            sku={product.sku}
-            name={heading}
-            image={product.mainImage?.url ?? ""}
-          />
+          <BackInStockForm productId={product.id} />
         ) : null}
 
         {/* Prism A/B "pdp_layout" - layout tokens are set as each variation's value in the dashboard */}

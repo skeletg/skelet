@@ -34,6 +34,8 @@
       "questionTooShort": "Questions need at least 10 characters.",
       "questionFailed": "Could not submit your question. Please try again.",
       "reviewFailed": "Could not submit your review. Please try again.",
+      "notifyFailed": "We could not add you to the list. Please try again.",
+      "signupFailed": "We could not subscribe you right now. Please try again.",
       "orderMissing": "Missing order.",
       "reorderFailed": "Could not reorder. Please try again.",
       "addFailed": "Could not add to cart.",
