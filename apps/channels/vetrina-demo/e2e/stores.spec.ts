@@ -4,10 +4,10 @@ import { expect, test } from "@playwright/test";
 // No orders, cart writes, stock holds or inventory adjustments are made here.
 test.describe("store availability", () => {
   test.beforeEach(async ({ request }) => {
-    const response = await request.get("/api/stores");
-    expect(response.ok(), "Store API should be reachable").toBeTruthy();
-    const gate = await response.json();
-    test.skip(!gate.enabled, "Install dev-store-demo fixtures to enable these journeys");
+    // The stores page answers 404 while store availability is switched off
+    const response = await request.get("/stores");
+    test.skip(response.status() === 404, "Install dev-store-demo fixtures to enable these journeys");
+    expect(response.ok(), "Stores page should be reachable").toBeTruthy();
   });
   test("checks a product across cities and remembers a preferred store", async ({ page }) => {
     await page.goto("/store-demo-backpack");
