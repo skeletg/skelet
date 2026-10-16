@@ -21,6 +21,8 @@ const PLP_PAGINATION_STYLE_PATH = "search/browse/pagination_style";
 
 const ALLOW_GUEST_PATH = "sales/checkout/allow_guest";
 
+const STORE_AVAILABILITY_PATH = "sales/store_availability/enabled";
+
 export type PlpPaginationStyle = "pagination" | "load_more" | "hybrid";
 
 // Once per render, for getters that can't tolerate staleness
@@ -51,6 +53,18 @@ export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
     return row?.value !== "false";
   } catch {
     return true;
+  }
+});
+
+// Whether the store finder and its entry points show - live like the guest flag, so switching stores off hides them on
+// the next render. Absent or unreachable reads as off, matching the default
+export const getStoreAvailabilityEnabled = cache(async (): Promise<boolean> => {
+  try {
+    const data = await getLivePublicConfig();
+    const row = data.publicConfig.find((c) => c.path === STORE_AVAILABILITY_PATH);
+    return row?.value === "true";
+  } catch {
+    return false;
   }
 });
 
