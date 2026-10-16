@@ -155,7 +155,7 @@ var errCheckoutMoved = errors.New("checkout moved")
 // apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
 // On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
-	return s.updateCheckout(ctx, cartID, func(c Cart) error { return checkCartAccess(ctx, c, callerID) }, true, apply)
+	return s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
 }
 
 // AdminUpdateCheckout is UpdateCheckout for the console - it fills in an offer's checkout up front, so it neither asks who owns the cart nor stops at the locks the admin is setting up
@@ -165,12 +165,12 @@ func (s *Service) AdminUpdateCheckout(ctx context.Context, cartID uuid.UUID, app
 			return ErrCartNotActive
 		}
 		return nil
-	}, false, apply)
+	}, false, apply, nil)
 }
 
-func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error) error {
+func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
 	for range checkoutSaveAttempts {
-		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply)
+		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
 		if !errors.Is(err, errCheckoutMoved) {
 			return err
 		}
@@ -178,7 +178,7 @@ func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authoriz
 	return ErrCheckoutConflict
 }
 
-func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error) error {
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
 	// Prepare - no transaction and no lock
 	cart, err := s.repo.GetCartByID(ctx, cartID)
 	if err != nil {
@@ -223,7 +223,7 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, auth
 		if locked.CheckoutVersion != cart.CheckoutVersion {
 			return errCheckoutMoved
 		}
-		// Checked against the locked row - an admin changing the locks doesn't move checkout_version, and an unchanged version means locked holds the same checkout and email the step started from
+		// Check locks against the locked row even when the prepared checkout version still matches.
 		if enforceLocks && locked.IsOffer() {
 			if err := checkOfferLocks(locked, next); err != nil {
 				return err
@@ -235,6 +235,11 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, auth
 		if emailChanged {
 			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
 				return err
+			}
+		}
+		if offer != nil {
+			if err := r.SetOffer(ctx, cart.ID, *offer); err != nil {
+				return fmt.Errorf("save offer: %w", err)
 			}
 		}
 		return r.SetCheckout(ctx, cart.ID, next.Checkout)
