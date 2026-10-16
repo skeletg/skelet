@@ -1009,23 +1009,96 @@ func (q *Queries) LockCart(ctx context.Context, id uuid.UUID) (Cart, error) {
 	return i, err
 }
 
-const markCartOfferExpiredNotified = `-- name: MarkCartOfferExpiredNotified :exec
+const markCartOfferExpiredNotified = `-- name: MarkCartOfferExpiredNotified :many
 UPDATE carts SET offer_expired_notified_at = NOW() WHERE id = ANY($1::uuid[])
+  AND kind = 'offer' AND status = 'active' AND offer_revoked_at IS NULL
+  AND offer_expires_at <= clock_timestamp() AND offer_expired_notified_at IS NULL
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery, kind, offer_expires_at, offer_message, offer_show_in_account, offer_locks, offer_payment_methods, offer_link_version, offer_sent_at, offer_send_count, offer_opened_at, offer_revoked_at, offer_expired_notified_at, offer_created_by, order_id, offer_link_token
 `
 
-func (q *Queries) MarkCartOfferExpiredNotified(ctx context.Context, ids []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, markCartOfferExpiredNotified, pq.Array(ids))
-	return err
+func (q *Queries) MarkCartOfferExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error) {
+	rows, err := q.db.QueryContext(ctx, markCartOfferExpiredNotified, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Cart{}
+	for rows.Next() {
+		var i Cart
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ChannelID,
+			&i.AbandonedNotifiedAt,
+			&i.Email,
+			&i.Note,
+			&i.LastActivityAt,
+			&i.ShippingAddress,
+			&i.ShippingAddressID,
+			&i.BillingSameAsShipping,
+			&i.BillingAddress,
+			&i.BillingAddressID,
+			&i.ShippingCarrierSlug,
+			&i.ShippingMethodCode,
+			&i.PaymentProviderSlug,
+			&i.PoNumber,
+			&i.UseStoreCredit,
+			pq.Array(&i.GiftCardCodes),
+			&i.DestinationCountry,
+			&i.DestinationRegion,
+			&i.DestinationPostalCode,
+			&i.ContactPhone,
+			&i.PurchaseType,
+			&i.CompanyName,
+			&i.BusinessIds,
+			&i.PickupContact,
+			&i.CheckoutVersion,
+			&i.Deliveries,
+			&i.SplitDelivery,
+			&i.Kind,
+			&i.OfferExpiresAt,
+			&i.OfferMessage,
+			&i.OfferShowInAccount,
+			pq.Array(&i.OfferLocks),
+			pq.Array(&i.OfferPaymentMethods),
+			&i.OfferLinkVersion,
+			&i.OfferSentAt,
+			&i.OfferSendCount,
+			&i.OfferOpenedAt,
+			&i.OfferRevokedAt,
+			&i.OfferExpiredNotifiedAt,
+			&i.OfferCreatedBy,
+			&i.OrderID,
+			&i.OfferLinkToken,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const markCartOfferOpened = `-- name: MarkCartOfferOpened :exec
+const markCartOfferOpened = `-- name: MarkCartOfferOpened :execrows
 UPDATE carts SET offer_opened_at = NOW() WHERE id = $1 AND kind = 'offer' AND offer_opened_at IS NULL
+  AND status = 'active' AND offer_revoked_at IS NULL AND offer_expires_at > clock_timestamp()
 `
 
 // The first open only - the console shows when the recipient first looked
-func (q *Queries) MarkCartOfferOpened(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, markCartOfferOpened, id)
-	return err
+func (q *Queries) MarkCartOfferOpened(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markCartOfferOpened, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markCartOfferSent = `-- name: MarkCartOfferSent :exec

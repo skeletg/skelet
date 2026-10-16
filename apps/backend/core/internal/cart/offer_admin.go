@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 )
@@ -163,8 +164,20 @@ func (s *Service) AdminOfferForSend(ctx context.Context, cartID uuid.UUID) (Cart
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
 
-func (s *Service) MarkOfferSent(ctx context.Context, cartID uuid.UUID) error {
-	return s.repo.MarkOfferSent(ctx, cartID)
+func (s *Service) MarkOfferSent(ctx context.Context, cartID uuid.UUID, to string) error {
+	return s.offerEventTransaction(ctx, func(r Repository, enqueue func(events.Event) error) error {
+		c, err := r.GetCartByID(ctx, cartID)
+		if err != nil {
+			return err
+		}
+		if !c.IsOffer() {
+			return ErrNotOffer
+		}
+		if err := r.MarkOfferSent(ctx, cartID); err != nil {
+			return err
+		}
+		return enqueue(&OfferSent{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Email: to, ExpiresAt: c.Offer.ExpiresAt})
+	})
 }
 
 // AdminRevokeOffer withdraws an offer - every link to it stops working, and it can't be revived

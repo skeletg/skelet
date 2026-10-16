@@ -220,9 +220,10 @@ WHERE id = sqlc.arg(id) AND kind = 'offer';
 -- name: MarkCartOfferSent :exec
 UPDATE carts SET offer_sent_at = NOW(), offer_send_count = offer_send_count + 1 WHERE id = $1 AND kind = 'offer';
 
--- name: MarkCartOfferOpened :exec
+-- name: MarkCartOfferOpened :execrows
 -- The first open only - the console shows when the recipient first looked
-UPDATE carts SET offer_opened_at = NOW() WHERE id = $1 AND kind = 'offer' AND offer_opened_at IS NULL;
+UPDATE carts SET offer_opened_at = NOW() WHERE id = $1 AND kind = 'offer' AND offer_opened_at IS NULL
+  AND status = 'active' AND offer_revoked_at IS NULL AND offer_expires_at > clock_timestamp();
 
 -- name: RevokeCartOffer :exec
 UPDATE carts SET offer_revoked_at = NOW(), updated_at = NOW() WHERE id = $1 AND kind = 'offer' AND offer_revoked_at IS NULL;
@@ -258,5 +259,8 @@ WHERE kind = 'offer' AND status = 'active' AND offer_revoked_at IS NULL
 ORDER BY offer_expires_at
 LIMIT sqlc.arg(lim);
 
--- name: MarkCartOfferExpiredNotified :exec
-UPDATE carts SET offer_expired_notified_at = NOW() WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+-- name: MarkCartOfferExpiredNotified :many
+UPDATE carts SET offer_expired_notified_at = NOW() WHERE id = ANY(sqlc.arg(ids)::uuid[])
+  AND kind = 'offer' AND status = 'active' AND offer_revoked_at IS NULL
+  AND offer_expires_at <= clock_timestamp() AND offer_expired_notified_at IS NULL
+RETURNING *;

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 )
 
 var ErrOfferOtherAccount = errors.New("this offer was sent to a different account - sign in with the account it was sent to")
@@ -67,14 +68,22 @@ func (s *Service) RecordOfferOpened(ctx context.Context, c *Cart) {
 	}
 	switch c.OfferState(time.Now()) {
 	case OfferStateDraft, OfferStateSent:
-		if err := s.repo.MarkOfferOpened(ctx, c.ID); err != nil {
+		var opened bool
+		err := s.offerEventTransaction(ctx, func(r Repository, enqueue func(events.Event) error) error {
+			var err error
+			opened, err = r.MarkOfferOpened(ctx, c.ID)
+			if err != nil || !opened {
+				return err
+			}
+			return enqueue(&OfferOpened{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID})
+		})
+		if err != nil {
 			slog.WarnContext(ctx, "cart: stamp offer opened", "cart", c.ID, "err", err)
 			return
 		}
-		now := time.Now()
-		c.Offer.OpenedAt = &now
-		if s.bus != nil {
-			s.bus.Publish(ctx, &OfferOpened{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID})
+		if opened {
+			now := time.Now()
+			c.Offer.OpenedAt = &now
 		}
 	}
 }
@@ -103,20 +112,22 @@ func (s *Service) AnnounceExpiredOffers(ctx context.Context, limit int32) (int, 
 	for i, c := range carts {
 		ids[i] = c.ID
 	}
-	if err := s.repo.MarkOffersExpiredNotified(ctx, ids); err != nil { // stamped first - a crash after drops an announcement rather than repeating it
-		return 0, fmt.Errorf("mark offers expired: %w", err)
-	}
-	if s.bus != nil {
-		for _, c := range carts {
-			s.bus.Publish(ctx, &OfferExpired{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Email: c.Email, ExpiresAt: c.Offer.ExpiresAt})
+	count := 0
+	err = s.offerEventTransaction(ctx, func(r Repository, enqueue func(events.Event) error) error {
+		claimed, err := r.MarkOffersExpiredNotified(ctx, ids)
+		if err != nil {
+			return fmt.Errorf("mark offers expired: %w", err)
 		}
+		for _, c := range claimed {
+			if err := enqueue(&OfferExpired{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Email: c.Email, ExpiresAt: c.Offer.ExpiresAt}); err != nil {
+				return err
+			}
+		}
+		count = len(claimed)
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
-	return len(carts), nil
-}
-
-// PublishOfferSent tells subscribers an admin sent an offer
-func (s *Service) PublishOfferSent(ctx context.Context, c Cart, to string) {
-	if s.bus != nil && c.IsOffer() {
-		s.bus.Publish(ctx, &OfferSent{CartID: c.ID, ChannelID: c.ChannelID, CustomerID: c.CustomerID, Email: to, ExpiresAt: c.Offer.ExpiresAt})
-	}
+	return count, nil
 }

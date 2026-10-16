@@ -94,12 +94,14 @@ func (f fakeRepo) GetOfferByToken(context.Context, string) (Cart, error) {
 func (f fakeRepo) CreateOfferCart(context.Context, CreateOfferInput) (Cart, error) {
 	return Cart{}, nil
 }
-func (f fakeRepo) SetOffer(context.Context, uuid.UUID, OfferSettings) error     { return nil }
-func (f fakeRepo) MarkOfferSent(context.Context, uuid.UUID) error               { return nil }
-func (f fakeRepo) MarkOfferOpened(context.Context, uuid.UUID) error             { return nil }
-func (f fakeRepo) RevokeOffer(context.Context, uuid.UUID) error                 { return nil }
-func (f fakeRepo) BumpOfferLink(context.Context, uuid.UUID) (int32, error)      { return 0, nil }
-func (f fakeRepo) MarkOffersExpiredNotified(context.Context, []uuid.UUID) error { return nil }
+func (f fakeRepo) SetOffer(context.Context, uuid.UUID, OfferSettings) error { return nil }
+func (f fakeRepo) MarkOfferSent(context.Context, uuid.UUID) error           { return nil }
+func (f fakeRepo) MarkOfferOpened(context.Context, uuid.UUID) (bool, error) { return true, nil }
+func (f fakeRepo) RevokeOffer(context.Context, uuid.UUID) error             { return nil }
+func (f fakeRepo) BumpOfferLink(context.Context, uuid.UUID) (int32, error)  { return 0, nil }
+func (f fakeRepo) MarkOffersExpiredNotified(context.Context, []uuid.UUID) ([]Cart, error) {
+	return nil, nil
+}
 func (f fakeRepo) ListCustomerOffers(context.Context, uuid.UUID, uuid.UUID) ([]Cart, error) {
 	return nil, nil
 }

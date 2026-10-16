@@ -265,10 +265,9 @@ func (r *mutationResolver) AdminSendCartOffer(ctx context.Context, cartID string
 	if err := r.OfferMail.SendCartOffer(ctx, m); err != nil {
 		return nil, err
 	}
-	if err := r.CartSvc.MarkOfferSent(ctx, c.ID); err != nil {
+	if err := r.CartSvc.MarkOfferSent(ctx, c.ID, m.To); err != nil {
 		return nil, err
 	}
-	r.CartSvc.PublishOfferSent(ctx, c, m.To)
 	return r.reloadAdminCart(ctx, c.ID)
 }
 

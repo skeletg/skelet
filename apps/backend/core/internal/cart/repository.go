@@ -557,8 +557,9 @@ func (r *postgresRepository) MarkOfferSent(ctx context.Context, cartID uuid.UUID
 	return r.queries.MarkCartOfferSent(ctx, cartID)
 }
 
-func (r *postgresRepository) MarkOfferOpened(ctx context.Context, cartID uuid.UUID) error {
-	return r.queries.MarkCartOfferOpened(ctx, cartID)
+func (r *postgresRepository) MarkOfferOpened(ctx context.Context, cartID uuid.UUID) (bool, error) {
+	n, err := r.queries.MarkCartOfferOpened(ctx, cartID)
+	return n > 0, err
 }
 
 func (r *postgresRepository) RevokeOffer(ctx context.Context, cartID uuid.UUID) error {
@@ -588,11 +589,15 @@ func (r *postgresRepository) ListExpiredOffers(ctx context.Context, limit int32)
 	return toCarts(rows), nil
 }
 
-func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) error {
+func (r *postgresRepository) MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error) {
 	if len(ids) == 0 {
-		return nil
+		return nil, nil
 	}
-	return r.queries.MarkCartOfferExpiredNotified(ctx, ids)
+	rows, err := r.queries.MarkCartOfferExpiredNotified(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return toCarts(rows), nil
 }
 
 func (r *postgresRepository) SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error) {

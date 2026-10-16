@@ -408,12 +408,12 @@ type Repository interface {
 	GetOfferByToken(ctx context.Context, token string) (Cart, error)
 	SetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings) error
 	MarkOfferSent(ctx context.Context, cartID uuid.UUID) error
-	MarkOfferOpened(ctx context.Context, cartID uuid.UUID) error // the first open only
+	MarkOfferOpened(ctx context.Context, cartID uuid.UUID) (bool, error) // the first open only
 	RevokeOffer(ctx context.Context, cartID uuid.UUID) error
 	BumpOfferLink(ctx context.Context, cartID uuid.UUID) (int32, error)
 	ListCustomerOffers(ctx context.Context, customerID, channelID uuid.UUID) ([]Cart, error)
 	ListExpiredOffers(ctx context.Context, limit int32) ([]Cart, error)
-	MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) error
+	MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error)
 	SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error)
 	InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error)
 

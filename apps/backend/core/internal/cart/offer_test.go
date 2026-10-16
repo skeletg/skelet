@@ -291,9 +291,9 @@ type offerOpenRepository struct {
 	err   error
 }
 
-func (r *offerOpenRepository) MarkOfferOpened(context.Context, uuid.UUID) error {
+func (r *offerOpenRepository) MarkOfferOpened(context.Context, uuid.UUID) (bool, error) {
 	r.calls++
-	return r.err
+	return r.err == nil, r.err
 }
 
 func TestRecordOfferOpened(t *testing.T) {
