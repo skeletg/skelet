@@ -8,18 +8,14 @@
 import { useEffect, useState } from "react";
 import { ensureAnonId } from "@/app/lib/analytics/visitor";
 import { assign, type Experiment } from "@/app/lib/experiments/assign";
+import { beaconFetch } from "@/app/lib/beacons/client";
+import { BEACON } from "@/app/lib/beacons/paths";
 
-// The backend resolves the channel from X-Channel-Id (the /t proxy is a plain
-// pass-through and can't inject it)
-function channelId(): string {
-  if (typeof document === "undefined") return "";
-  return document.documentElement.dataset.channelId || "";
-}
 
 let cache: Promise<Experiment[]> | null = null;
 function loadExperiments(): Promise<Experiment[]> {
   if (!cache) {
-    cache = fetch("/t/experiments", { headers: { Accept: "application/json", "X-Channel-Id": channelId() } })
+    cache = beaconFetch(BEACON.experiments, { headers: { Accept: "application/json" } })
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => [] as Experiment[]);
   }
