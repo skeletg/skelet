@@ -51,7 +51,7 @@ func TestCheckOfferAccess(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkCartAccess(tc.ctx(tc.cart), tc.cart, tc.caller)
+			err := CheckCartAccess(tc.ctx(tc.cart), tc.cart, tc.caller)
 			if !errors.Is(err, tc.want) || (tc.want == nil && err != nil) {
 				t.Fatalf("got %v, want %v", err, tc.want)
 			}
@@ -60,7 +60,7 @@ func TestCheckOfferAccess(t *testing.T) {
 	t.Run("a converted offer is no longer active", func(t *testing.T) {
 		c := offerCart(nil, nil)
 		c.Status = "converted"
-		if err := checkCartAccess(granted(c, 3), c, nil); !errors.Is(err, ErrCartNotActive) {
+		if err := CheckCartAccess(granted(c, 3), c, nil); !errors.Is(err, ErrCartNotActive) {
 			t.Fatalf("got %v", err)
 		}
 	})
