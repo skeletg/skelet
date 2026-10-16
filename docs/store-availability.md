@@ -8,9 +8,11 @@ A listed retail store remains visible when online pickup is disabled: walk-in
 shopping and online collection are independent services.
 
 Choose a structured type: Retail store, Warehouse, Storage, Dropshipper, or
-Fulfillment partner. Unknown legacy classifiers become **Needs classification**;
+Fulfillment partner. Unknown legacy classifiers become **Needs classification**,
+except pickup points, which become Retail store so click-and-collect keeps working;
 the previous text is retained in metadata as `_legacy_location_type`. The upgrade
-removes public listing and pickup from non-retail locations. Inventory is retained.
+removes public listing and pickup from locations explicitly typed as non-retail.
+Inventory is retained.
 
 The location editor groups the two services under **Customer access**, explains
 the resulting behavior, and stages service removal when a store changes type.
