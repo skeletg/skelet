@@ -13,3 +13,8 @@ query MyCartOffers {
     ...CartFull
   }
 }
+
+# The recipient's first look at an offer - sent from the browser, so a mail scanner fetching the link doesn't count
+mutation MarkCartOfferOpened($cartId: ID!) {
+  markCartOfferOpened(cartId: $cartId)
+}

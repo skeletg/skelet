@@ -1074,6 +1074,7 @@ export type Mutation = {
   deleteAddress: Scalars['Boolean']['output'];
   deleteMyPaymentMethod: Scalars['Boolean']['output'];
   finalizeOrderPayment: Scalars['Boolean']['output'];
+  markCartOfferOpened: Scalars['Boolean']['output'];
   mergeGuestCart: Cart;
   moveSavedToCart: Cart;
   moveToCart: Cart;
@@ -1208,6 +1209,11 @@ export type MutationDeleteMyPaymentMethodArgs = {
 
 export type MutationFinalizeOrderPaymentArgs = {
   orderId: Scalars['ID']['input'];
+};
+
+
+export type MutationMarkCartOfferOpenedArgs = {
+  cartId: Scalars['ID']['input'];
 };
 
 
