@@ -104,6 +104,16 @@ func (r *fakeRepo) SetPaymentMethodEnabled(_ context.Context, channelID uuid.UUI
 	r.methods[k] = m
 	return m, nil
 }
+func (r *fakeRepo) UpdatePaymentMethodPresentation(_ context.Context, channelID uuid.UUID, slug, name string, order int32) (PaymentMethod, error) {
+	key := methodKey{channelID, slug}
+	m, ok := r.methods[key]
+	if !ok {
+		return PaymentMethod{}, ErrProviderNotInstalled
+	}
+	m.DisplayName, m.SortOrder = name, order
+	r.methods[key] = m
+	return m, nil
+}
 func (r *fakeRepo) SetPaymentMethodSortOrder(_ context.Context, _ uuid.UUID, _ string, _ int32) (PaymentMethod, error) {
 	panic("not used in tests")
 }

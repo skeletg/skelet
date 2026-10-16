@@ -234,7 +234,7 @@ INSERT INTO catalog_product_types (
     metadata, private_metadata
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory
+RETURNING id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds
 `
 
 type CreateProductTypeParams struct {
@@ -273,6 +273,7 @@ func (q *Queries) CreateProductType(ctx context.Context, arg CreateProductTypePa
 		&i.UpdatedAt,
 		&i.UrlTemplate,
 		&i.TracksInventory,
+		pq.Array(&i.DeliveryKinds),
 	)
 	return i, err
 }
@@ -454,7 +455,7 @@ func (q *Queries) GetAttributeValueByID(ctx context.Context, id uuid.UUID) (Attr
 }
 
 const getProductTypeByID = `-- name: GetProductTypeByID :one
-SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory FROM catalog_product_types WHERE id = $1
+SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds FROM catalog_product_types WHERE id = $1
 `
 
 func (q *Queries) GetProductTypeByID(ctx context.Context, id uuid.UUID) (ProductType, error) {
@@ -472,6 +473,7 @@ func (q *Queries) GetProductTypeByID(ctx context.Context, id uuid.UUID) (Product
 		&i.UpdatedAt,
 		&i.UrlTemplate,
 		&i.TracksInventory,
+		pq.Array(&i.DeliveryKinds),
 	)
 	return i, err
 }
@@ -1360,7 +1362,7 @@ func (q *Queries) ListProductTypeAttributesByTypeIDs(ctx context.Context, produc
 }
 
 const listProductTypes = `-- name: ListProductTypes :many
-SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory FROM catalog_product_types ORDER BY name
+SELECT id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds FROM catalog_product_types ORDER BY name
 `
 
 func (q *Queries) ListProductTypes(ctx context.Context) ([]ProductType, error) {
@@ -1384,6 +1386,7 @@ func (q *Queries) ListProductTypes(ctx context.Context) ([]ProductType, error) {
 			&i.UpdatedAt,
 			&i.UrlTemplate,
 			&i.TracksInventory,
+			pq.Array(&i.DeliveryKinds),
 		); err != nil {
 			return nil, err
 		}
@@ -1707,7 +1710,7 @@ SET name                 = $2,
     private_metadata      = $8,
     updated_at            = NOW()
 WHERE id = $1
-RETURNING id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory
+RETURNING id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory, delivery_kinds
 `
 
 type UpdateProductTypeParams struct {
@@ -1745,6 +1748,7 @@ func (q *Queries) UpdateProductType(ctx context.Context, arg UpdateProductTypePa
 		&i.UpdatedAt,
 		&i.UrlTemplate,
 		&i.TracksInventory,
+		pq.Array(&i.DeliveryKinds),
 	)
 	return i, err
 }

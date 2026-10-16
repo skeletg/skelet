@@ -24,6 +24,8 @@ export function SettingsContent({
   activeGroupSlug,
   includeSearchSection = false,
   filter = '',
+  paths,
+  excludeSections,
   drafts,
 }: {
   // Renders only this section, matching the sidebar's selection - every section when omitted
@@ -34,6 +36,9 @@ export function SettingsContent({
   includeSearchSection?: boolean
   // Free-text match against field labels and paths, from the sidebar filter
   filter?: string
+  // Only these fields, in this order - how another page (Checkout) shows the knobs that belong to it
+  paths?: readonly string[]
+  excludeSections?: readonly string[]
   // Staged edits + their actions, owned by the page
   drafts: ConfigDrafts
 }) {
@@ -78,7 +83,7 @@ export function SettingsContent({
 
   const sections = useMemo(() => {
     const all = (data?.configSections ?? [])
-      .filter((s) => includeSearchSection || s.slug !== 'search')
+      .filter((s) => (includeSearchSection || s.slug !== 'search') && !excludeSections?.includes(s.slug))
       // seo/facets has its own richer UI under /seo/facets, same deal as search
       .map((s) => (s.slug === 'seo' ? { ...s, groups: s.groups.filter((g) => g.slug !== 'facets') } : s))
     const bySection = activeSectionSlug
@@ -87,10 +92,21 @@ export function SettingsContent({
     const byGroup = activeGroupSlug
       ? bySection.map((s) => ({ ...s, groups: s.groups.filter((g) => g.slug === activeGroupSlug) }))
       : bySection
-    if (terms.length === 0) return byGroup
+    const byPath = paths
+      ? byGroup.map((s) => ({
+          ...s,
+          groups: s.groups.map((g) => ({
+            ...g,
+            fields: g.fields
+              .filter((f) => paths.includes(f.path))
+              .sort((a, b) => paths.indexOf(a.path) - paths.indexOf(b.path)),
+          })),
+        }))
+      : byGroup
+    if (terms.length === 0) return byPath
     // A query searches the whole scope, so it widens past the active pane on purpose
     return (data?.configSections ?? [])
-      .filter((s) => includeSearchSection || s.slug !== 'search')
+      .filter((s) => (includeSearchSection || s.slug !== 'search') && !excludeSections?.includes(s.slug))
       .map((s) => (s.slug === 'seo' ? { ...s, groups: s.groups.filter((g) => g.slug !== 'facets') } : s))
       .map((s) => ({
         ...s,
@@ -106,7 +122,7 @@ export function SettingsContent({
           .filter((g) => g.fields.length > 0),
       }))
       .filter((s) => s.groups.length > 0)
-  }, [data, activeSectionSlug, activeGroupSlug, includeSearchSection, terms])
+  }, [data, activeSectionSlug, activeGroupSlug, includeSearchSection, terms, paths, excludeSections])
 
   const { drafts: staged, onFieldChange, onReset, resettingPath, resetError } = drafts
 

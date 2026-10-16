@@ -1263,6 +1263,7 @@ func toProductType(row db.ProductType) ProductType {
 		Name:               row.Name,
 		IsDigital:          row.IsDigital,
 		IsShippingRequired: row.IsShippingRequired,
+		DeliveryKinds:      row.DeliveryKinds,
 		URLTemplate:        row.UrlTemplate,
 		TracksInventory:    row.TracksInventory,
 		Metadata:           metadataFromJSON(row.Metadata),

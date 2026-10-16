@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "delivery.Address": {
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "street1": {
+          "type": "string"
+        },
+        "street2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "countryCode",
+        "postalCode",
+        "street1"
+      ],
+      "title": "delivery.Address",
+      "type": "object"
+    },
+    "delivery.Item": {
+      "properties": {
+        "quantity": {
+          "type": "number"
+        },
+        "sku": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "quantity",
+        "sku"
+      ],
+      "title": "delivery.Item",
+      "type": "object"
+    },
+    "delivery.Near": {
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "street1": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "countryCode"
+      ],
+      "title": "delivery.Near",
+      "type": "object"
+    },
+    "delivery.remotePoint": {
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/delivery.Address"
+        },
+        "details": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "distanceKm": {
+          "type": "number",
+          "x-nullable": true
+        },
+        "hours": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "lat": {
+          "type": "number",
+          "x-nullable": true
+        },
+        "lng": {
+          "type": "number",
+          "x-nullable": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "address",
+        "id",
+        "name"
+      ],
+      "title": "delivery.remotePoint",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Find delivery points - lockers, PO boxes, parcel shops - for a delivery option. op is \"search\" (near a destination, optionally filtered by text) or \"get\" (re-read one point by id; return it alone, or none when it closed).",
+  "properties": {
+    "request": {
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/delivery.Item"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "near": {
+          "$ref": "#/$defs/delivery.Near"
+        },
+        "op": {
+          "type": "string"
+        },
+        "search": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId",
+        "kind",
+        "near",
+        "op"
+      ],
+      "title": "remotePointRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/delivery.remotePoint"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "remotePointResponse",
+      "type": "object"
+    }
+  },
+  "title": "delivery_points",
+  "x-kind": "delivery_points",
+  "x-source": "internal/delivery.remotePointRequest -\u003e internal/delivery.remotePointResponse"
+}

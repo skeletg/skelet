@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { DetailsAsks } from "@/app/lib/checkout/asks";
 import {
-  deliveryStepSchema,
+  groupDeliverySchema,
   destinationSchema,
   detailsStepSchema,
   paymentStepSchema,
@@ -45,8 +46,12 @@ const countries: CountryOption[] = [
   },
   { code: "US", name: "United States", emojiFlag: "", businessIdFields: [] },
 ];
+// What a courier delivery asks, and what a store pickup does
+const DELIVERY: DetailsAsks = { shipping: true, collector: false, billing: "required", phone: "optional" };
+const PICKUP: DetailsAsks = { shipping: false, collector: true, billing: "optional", phone: "optional" };
+const LOCKER: DetailsAsks = { shipping: false, collector: false, billing: "required", phone: "required" };
 const mode = (m: Partial<DetailsMode> = {}): DetailsMode => ({
-  pickup: false,
+  asks: DELIVERY,
   signedIn: false,
   countries,
   savedCountries: { "addr-1": "RS" },
@@ -54,7 +59,7 @@ const mode = (m: Partial<DetailsMode> = {}): DetailsMode => ({
   ...m,
 });
 const guestDelivery = detailsStepSchema(defaults, mode());
-const guestPickup = detailsStepSchema(defaults, mode({ pickup: true }));
+const guestPickup = detailsStepSchema(defaults, mode({ asks: PICKUP }));
 
 describe("destinationSchema", () => {
   it("needs a country and a postcode, and uppercases the country", () => {
@@ -94,7 +99,7 @@ describe("detailsStepSchema - delivery", () => {
   });
 
   it("reports every missing field on the first submit, not the email alone", () => {
-    const biz = detailsStepSchema({ ...defaults, business: true }, mode({ pickup: false, signedIn: false }));
+    const biz = detailsStepSchema({ ...defaults, business: true }, mode({ signedIn: false }));
     const errors = errorsOf(parseForm(form([["shippingChoice", "new"], ["purchaseType", "business"]]), biz));
     expect(errors?.["email"]).toEqual(["required"]);
     expect(errors?.["company"]).toEqual(["companyRequired"]);
@@ -105,7 +110,7 @@ describe("detailsStepSchema - delivery", () => {
   it("wants an email from a guest but not from a signed-in customer", () => {
     const entries: [string, string][] = [["shippingChoice", "addr-1"], ["billingSame", "on"]];
     expect(errorsOf(parseForm(form(entries), guestDelivery))?.["email"]).toBeDefined();
-    expect(parseForm(form(entries), detailsStepSchema(defaults, mode({ pickup: false, signedIn: true }))).status).toBe(
+    expect(parseForm(form(entries), detailsStepSchema(defaults, mode({ signedIn: true }))).status).toBe(
       "success",
     );
   });
@@ -130,8 +135,25 @@ describe("detailsStepSchema - pickup", () => {
     ];
     expect(errorsOf(parseForm(form(entries), guestPickup))?.["billingChoice"]).toEqual(["chooseAddress"]);
     // With the setting off there's no "someone else" to choose, so nothing more is owed
-    const noProxy = detailsStepSchema({ ...defaults, pickupSomeoneElse: false }, mode({ pickup: true, signedIn: false }));
+    const noProxy = detailsStepSchema({ ...defaults, pickupSomeoneElse: false }, mode({ asks: PICKUP, signedIn: false }));
     expect(parseForm(form(entries), noProxy).status).toBe("success");
+  });
+});
+
+describe("detailsStepSchema - PO box", () => {
+  const locker = detailsStepSchema(defaults, mode({ asks: LOCKER }));
+
+  it("asks no address of the shopper and no collector, but billing and the phone the delivery needs", () => {
+    const errors = errorsOf(parseForm(form([["email", "a@b.rs"]]), locker));
+    expect(errors?.["shippingChoice"]).toBeUndefined();
+    expect(errors?.["pickupFirstName"]).toBeUndefined();
+    expect(errors?.["billingChoice"]).toEqual(["chooseAddress"]);
+    expect(errors?.["phone"]).toEqual(["phoneRequired"]);
+    const ok = parseForm(
+      form([["email", "a@b.rs"], ["phone", "064 1234567"], ["phoneCountry", "RS"], ["billingChoice", "new"], ...typed("billing")]),
+      locker,
+    );
+    expect(ok.status).toBe("success");
   });
 });
 
@@ -139,7 +161,7 @@ describe("detailsStepSchema - settings", () => {
   const entries: [string, string][] = [["email", "a@b.rs"], ["shippingChoice", "addr-1"], ["billingSame", "on"]];
 
   it("requires the phone only when the store does, and checks it against the destination's country", () => {
-    const required = detailsStepSchema({ ...defaults, phone: "required" }, mode({ pickup: false, signedIn: false }));
+    const required = detailsStepSchema(defaults, mode({ asks: { ...DELIVERY, phone: "required" }, signedIn: false }));
     expect(errorsOf(parseForm(form(entries), required))?.["phone"]).toEqual(["phoneRequired"]);
     const bad = parseForm(form([...entries, ["phone", "123"], ["phoneCountry", "RS"]]), guestDelivery);
     expect(errorsOf(bad)?.["phone"]).toEqual(["phoneInvalid"]);
@@ -198,11 +220,15 @@ describe("detailsStepSchema - settings", () => {
   });
 });
 
-describe("deliveryStepSchema", () => {
-  it("needs a carrier::code selection, and the code may contain colons", () => {
-    expect(errorsOf(parseForm(form([]), deliveryStepSchema))?.["selection"]).toEqual(["shippingMethodRequired"]);
-    const s = parseForm(form([["selection", "pickup::loc-a:b"]]), deliveryStepSchema);
-    expect(s.status === "success" && splitSelection(s.value.selection)).toEqual({ carrierSlug: "pickup", code: "loc-a:b" });
+describe("groupDeliverySchema", () => {
+  it("needs an option::carrier::method selection for a group, and the method may contain colons", () => {
+    expect(errorsOf(parseForm(form([["groupKey", "all"]]), groupDeliverySchema))?.["selection"]).toEqual(["shippingMethodRequired"]);
+    const s = parseForm(form([["groupKey", "all"], ["selection", "opt-1::ups::ups:03"]]), groupDeliverySchema);
+    expect(s.status === "success" && splitSelection(s.value.selection)).toEqual({
+      optionId: "opt-1",
+      carrierSlug: "ups",
+      methodCode: "ups:03",
+    });
   });
 });
 

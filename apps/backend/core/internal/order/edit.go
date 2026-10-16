@@ -159,8 +159,24 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		active = append(active, l)
 	}
 
-	oldAmountDue := o.AmountDue()
+	if len(active)+len(adds) == 0 {
+		return Order{}, apperr.New("ORDER_EDIT_EMPTY_RESULT", apperr.ClassValidation, "an edit can't remove every line; cancel the order instead")
+	}
+	items := rateItemsFromLines(active)
+	var newSubtotal int64
+	for _, l := range active {
+		newSubtotal += money.LineTotal(l.UnitPrice, l.Quantity)
+	}
+	for _, a := range adds {
+		items = append(items, shippingpkg.RateItem{SKU: a.sku, Quantity: a.qty, UnitPriceCents: a.unit})
+		newSubtotal += money.LineTotal(a.unit, a.qty)
+	}
+	quoted, requoted, err := s.requoteShipping(ctx, o, o.ShippingAddress, items, newSubtotal, store.CurrencyCode)
+	if err != nil {
+		return Order{}, err
+	}
 
+	oldAmountDue := o.AmountDue()
 	var updated Order
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		r := s.repo.WithTx(sqlTx)
@@ -179,6 +195,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				return err
 			}
 		}
+		var added []OrderLine
 		for _, a := range adds {
 			line, err := r.AddOrderLine(ctx, OrderLine{
 				OrderID:     o.ID,
@@ -196,9 +213,10 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				return err
 			}
 			active = append(active, line)
+			added = append(added, line)
 		}
-		if len(active) == 0 {
-			return apperr.New("ORDER_EDIT_EMPTY_RESULT", apperr.ClassValidation, "an edit can't remove every line; cancel the order instead")
+		if err := editShipmentLines(ctx, r, o.ID, removed, qtyByID, added); err != nil {
+			return err
 		}
 
 		// Recompute money from the new line set
@@ -209,26 +227,11 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		discount := min(o.DiscountAmount, subtotal)
 		synthetic := syntheticCart(o, active)
 
-		// Re-quote shipping via the chosen carrier against the new subtotal - fail-soft, holding it constant when the carrier is down or the method vanished
-		// An edit should not abort on an API blip, and the OrderEdited event surfaces any change
 		shipping := o.ShippingAmount
-		if o.ShippingCarrierSlug != nil && *o.ShippingCarrierSlug != "" && o.ShippingMethodCode != nil && s.shipping != nil {
-			req := shippingpkg.RateRequest{
-				ChannelID: o.ChannelID,
-				Destination: shippingpkg.Address{
-					CountryCode: o.ShippingAddress.CountryCode,
-					Region:      ptr.Deref(o.ShippingAddress.State),
-					PostalCode:  o.ShippingAddress.PostalCode,
-				},
-				SubtotalCents: subtotal - discount,
-				CurrencyCode:  store.CurrencyCode,
-				Items:         rateItemsFromLines(active),
-			}
-			cents, _, scErr := s.shipping.PriceSelected(ctx, *o.ShippingCarrierSlug, *o.ShippingMethodCode, req)
-			if scErr != nil {
-				log.Printf("[order] edit re-quote shipping for order %s failed; holding shipping at %d: %v", o.ID, shipping, scErr)
-			} else {
-				shipping = cents
+		if requoted {
+			shipping = quoted
+			if err := r.SetShipmentAmount(ctx, o.ID, shipping); err != nil {
+				return err
 			}
 		}
 
@@ -395,6 +398,21 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 		}
 	}
 
+	// GetOrderByID already filters soft-removed lines
+	var subtotal int64
+	for _, l := range o.Lines {
+		subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
+	}
+	var (
+		quoted   int64
+		requoted bool
+	)
+	if in.Shipping != nil {
+		if quoted, requoted, err = s.requoteShipping(ctx, o, shipping, rateItemsFromLines(o.Lines), subtotal, store.CurrencyCode); err != nil {
+			return Order{}, err
+		}
+	}
+
 	oldAmountDue := o.AmountDue()
 	var updated Order
 	err = s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
@@ -408,32 +426,16 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 		}
 		// Only a shipping move changes money - a billing-only edit keeps the totals
 		if in.Shipping != nil {
-			// GetOrderByID already filters soft-removed lines
-			active := o.Lines
-			var subtotal int64
-			for _, l := range active {
-				subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
+			if err := r.SetShipmentShipTo(ctx, o.ID, shipping); err != nil {
+				return err
 			}
 			discount := min(o.DiscountAmount, subtotal)
-			synthetic := syntheticCart(o, active)
+			synthetic := syntheticCart(o, o.Lines)
 			shipAmount := o.ShippingAmount
-			if o.ShippingCarrierSlug != nil && *o.ShippingCarrierSlug != "" && o.ShippingMethodCode != nil && s.shipping != nil {
-				req := shippingpkg.RateRequest{
-					ChannelID: o.ChannelID,
-					Destination: shippingpkg.Address{
-						CountryCode: shipping.CountryCode,
-						Region:      ptr.Deref(shipping.State),
-						PostalCode:  shipping.PostalCode,
-					},
-					SubtotalCents: subtotal - discount,
-					CurrencyCode:  store.CurrencyCode,
-					Items:         rateItemsFromLines(active),
-				}
-				cents, _, scErr := s.shipping.PriceSelected(ctx, *o.ShippingCarrierSlug, *o.ShippingMethodCode, req)
-				if scErr != nil {
-					log.Printf("[order] address-edit re-quote shipping for order %s failed; holding at %d: %v", o.ID, shipAmount, scErr)
-				} else {
-					shipAmount = cents
+			if requoted {
+				shipAmount = quoted
+				if err := r.SetShipmentAmount(ctx, o.ID, shipAmount); err != nil {
+					return err
 				}
 			}
 			tax, shippingTax := o.TaxAmount, o.ShippingTaxAmount
@@ -476,6 +478,29 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 		s.publishDurable(ctx, &OrderEdited{OrderID: o.ID, ChannelID: o.ChannelID, OldAmountDue: oldAmountDue, NewAmountDue: newAmountDue})
 	}
 	return s.repo.GetOrderByID(ctx, o.ID)
+}
+
+// requoteShipping re-prices an order's shipping for an edit, ahead of the transaction so a carrier's round-trip never holds the order lock - lockForEdit refuses the edit if the order changed in between. ok is false when shipping holds: no method on record, several packages (each priced with its own method at its own destination, which the order's one carrier and method can't re-quote), or the carrier down or the method gone - an edit should not abort on an API blip, and the OrderEdited event surfaces any change
+func (s *Service) requoteShipping(ctx context.Context, o Order, to OrderAddress, items []shippingpkg.RateItem, subtotal int64, currency string) (int64, bool, error) {
+	if s.shipping == nil || o.ShippingCarrierSlug == nil || *o.ShippingCarrierSlug == "" || o.ShippingMethodCode == nil {
+		return 0, false, nil
+	}
+	if single, err := s.singlePackage(ctx, o.ID); err != nil || !single {
+		return 0, false, err
+	}
+	req := shippingpkg.RateRequest{
+		ChannelID:     o.ChannelID,
+		Destination:   shippingpkg.Address{CountryCode: to.CountryCode, Region: ptr.Deref(to.State), PostalCode: to.PostalCode},
+		SubtotalCents: subtotal - min(o.DiscountAmount, subtotal),
+		CurrencyCode:  currency,
+		Items:         items,
+	}
+	cents, _, err := s.shipping.PriceSelected(ctx, *o.ShippingCarrierSlug, *o.ShippingMethodCode, req)
+	if err != nil {
+		log.Printf("[order] edit re-quote shipping for order %s failed; holding it at %d: %v", o.ID, o.ShippingAmount, err)
+		return 0, false, nil
+	}
+	return cents, true, nil
 }
 
 func lockForEdit(ctx context.Context, r Repository, read Order) error {

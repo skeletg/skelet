@@ -218,6 +218,7 @@ type UpdateProductInput struct {
 
 type Dimensions struct {
 	WeightGrams, LengthMm, WidthMm, HeightMm int32
+	ProductTypeID                            uuid.UUID
 }
 
 type ProductContentInput struct {

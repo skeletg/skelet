@@ -70,9 +70,10 @@ func (h *Harness) NewStoreOpt(t TB, stock float64, priceCents int64, mutate func
 	}
 
 	pt, err := h.D.Catalog.CreateProductType(ctx, catalog.CreateProductTypeInput{
-		Slug:            "e2e-type-" + suffix,
-		Name:            "E2E Type " + suffix,
-		TracksInventory: true, // what makes CreateProduct auto-provision the inventory item
+		Slug:               "e2e-type-" + suffix,
+		Name:               "E2E Type " + suffix,
+		TracksInventory:    true, // what makes CreateProduct auto-provision the inventory item
+		IsShippingRequired: true, // physical goods - checkout groups them for delivery
 	})
 	if err != nil {
 		t.Fatalf("create product type: %v", err)

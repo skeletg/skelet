@@ -19,6 +19,8 @@ export type SectionRegistration = {
   title: string
   diff: SectionDiffEntry[]
   save: () => Promise<void>
+  // Lower priorities save first; equal priorities retain registration order.
+  priority?: number
   // Its edits also live in a stored draft (usePersistedForm), so a refresh loses nothing
   persisted?: boolean
 }
@@ -65,7 +67,7 @@ export function useSaveSection(reg: SectionRegistration, registry?: SaveRegistry
       diff: normalizeDiff(regRef.current.id, regRef.current.diff),
       save: () => regRef.current.save(),
     })
-  }, [ctx, diffKey, reg.title])
+  }, [ctx, diffKey, reg.title, reg.priority])
 
   useEffect(() => {
     if (!ctx) return
@@ -99,7 +101,7 @@ export function useSaveRegistry(label?: string) {  // page side - owns the secti
   const saveAll = useCallback(
     () =>
       duringCommit(async () => {
-        for (const section of Object.values(sections).filter((s) => s.diff.length > 0)) {
+        for (const section of Object.values(sections).filter((s) => s.diff.length > 0).sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))) {
           await section.save()
         }
       }),

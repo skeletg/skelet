@@ -6,6 +6,8 @@ import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { useAppForm } from '@/components/form/form'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -21,6 +23,7 @@ import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { submitForm } from '@/shared/saving/useFormSection'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { ProductTypesDocument } from '@/features/catalog/Catalog.gql'
 import {
   CreateShippingMethodDocument,
   CreateShippingZoneDocument,
@@ -34,7 +37,9 @@ import {
   toMethodInput,
   toMethodValues,
   type CalcType,
+  type DeliveryKind,
   type ExistingMethod,
+  type MethodValues,
 } from './schemas/method'
 import {
   ZONE_LABELS,
@@ -196,7 +201,7 @@ function MethodsSection({ zoneId, methods, onChanged }: { zoneId: string; method
   return (
     <DetailPageSection
       title="Methods"
-      description="Each method is one option at checkout. Free-above zeroes shipping once the cart subtotal crosses the threshold."
+      description="Each method is one option at checkout, for door delivery or for a pickup point. Free-above zeroes shipping once the cart subtotal crosses the threshold - except for product types whose own rate isn't eligible."
       trailing={
         <Button type="button" size="sm" variant="outline" onClick={() => setCreating(true)} disabled={creating}>
           <PlusIcon className="size-4" /> Add method
@@ -342,6 +347,63 @@ function MethodRow({
         <form.AppField name="sortOrder">{(f) => <f.NumberField id={`sort-${key}`} label="Sort order" />}</form.AppField>
       </div>
 
+      <div className="grid items-start gap-3 sm:grid-cols-3">
+        <form.Field name="deliveryKind">
+          {(f) => (
+            <div className="grid gap-1.5">
+              <Label htmlFor={`kind-${key}`}>Delivers to</Label>
+              <Select value={f.state.value} onValueChange={(v) => f.handleChange(v as DeliveryKind)}>
+                <SelectTrigger id={`kind-${key}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ship_to_address">The shopper's address</SelectItem>
+                  <SelectItem value="parcel_locker">A pickup point the shopper picks</SelectItem>
+                  <SelectItem value="carrier_point">The pickup point nearest the shopper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </form.Field>
+        {values.calcType !== 'FREE' && (
+          <form.AppField name="unitsPerCharge">
+            {(f) => (
+              <f.NumberField
+                id={`units-${key}`}
+                label="Charge again every … items"
+                hint="5 means 1-5 items pay the price once and 6-10 twice. 0 charges once per shipment."
+              />
+            )}
+          </form.AppField>
+        )}
+      </div>
+
+      <div className="grid items-start gap-3 sm:grid-cols-3">
+        <form.AppField name="estimatedDays">
+          {(f) => (
+            <f.NumberField
+              id={`days-${key}`}
+              label="Delivery days"
+              hint="Counted from the day after the order. 0 shows shoppers no arrival date."
+            />
+          )}
+        </form.AppField>
+        <div className="sm:col-span-2 sm:pt-6">
+          <form.AppField name="deliversOnWeekends">
+            {(f) => (
+              <f.CheckboxField
+                id={`weekends-${key}`}
+                label="Delivers on weekends - off skips Saturday and Sunday, so a Friday order quoted 1 day arrives Monday."
+              />
+            )}
+          </form.AppField>
+        </div>
+      </div>
+
+      <form.Field name="typeRates">
+        {(f) => <TypeRates idPrefix={key} rates={f.state.value} onChange={(rates) => f.handleChange(rates)} />}
+      </form.Field>
+
       <div className="grid items-start gap-3 border-t pt-3 sm:grid-cols-[200px_1fr]">
         <form.Field name="countryMode">
           {(f) => (
@@ -387,6 +449,101 @@ function MethodRow({
         </div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+type TypeRateValue = MethodValues['typeRates'][number]
+
+// Prices for particular product types - a fridge at its own rate, never free unless ticked, while everything else
+// pools into the method's price. Edited with the row and saved by its Save
+function TypeRates({ idPrefix, rates, onChange }: { idPrefix: string; rates: TypeRateValue[]; onChange: (rates: TypeRateValue[]) => void }) {
+  const { data } = useQuery(ProductTypesDocument)
+  const types = (data?.productTypes ?? []).filter((t) => t.isShippingRequired && !t.isDigital)
+  const unused = types.filter((t) => !rates.some((r) => r.productTypeId === t.id))
+  const patch = (i: number, p: Partial<TypeRateValue>) => onChange(rates.map((r, j) => (j === i ? { ...r, ...p } : r)))
+
+  return (
+    <div className="grid gap-2 border-t pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid gap-0.5">
+          <span className="text-sm font-medium">Rates by product type</span>
+          <span className="text-xs text-muted-foreground">Optional. Items of a listed type are priced by its row instead of the method's price.</span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={unused.length === 0}
+          onClick={() => onChange([...rates, { productTypeId: unused[0]?.id ?? '', priceDollars: '', unitsPerCharge: 1, freeShippingEligible: false }])}
+        >
+          <PlusIcon className="size-4" /> Add product type
+        </Button>
+      </div>
+      {rates.length > 0 && (
+        <ul className="divide-y rounded-md border">
+          {rates.map((r, i) => (
+            <li key={`${r.productTypeId}-${i}`} className="grid items-end gap-3 p-3 sm:grid-cols-[1fr_8rem_8rem_auto_auto]">
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${idPrefix}-type-${i}`}>Product type</Label>
+                <Select value={r.productTypeId} onValueChange={(productTypeId) => patch(i, { productTypeId })}>
+                  <SelectTrigger id={`${idPrefix}-type-${i}`} className="w-full">
+                    <SelectValue placeholder="Choose a product type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {types
+                      .filter((t) => t.id === r.productTypeId || !rates.some((x) => x.productTypeId === t.id))
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${idPrefix}-price-${i}`}>Price ($)</Label>
+                <Input
+                  id={`${idPrefix}-price-${i}`}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={r.priceDollars}
+                  onChange={(e) => patch(i, { priceDollars: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${idPrefix}-units-${i}`}>Every … items</Label>
+                <Input
+                  id={`${idPrefix}-units-${i}`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={r.unitsPerCharge}
+                  onChange={(e) => patch(i, { unitsPerCharge: Math.max(0, Number.parseInt(e.target.value, 10) || 0) })}
+                />
+              </div>
+              <label className="flex h-9 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={r.freeShippingEligible}
+                  onCheckedChange={(checked) => patch(i, { freeShippingEligible: checked === true })}
+                />
+                Can ship free
+              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Remove product type rate"
+                onClick={() => onChange(rates.filter((_, j) => j !== i))}
+              >
+                <Trash2Icon className="size-4 text-destructive" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

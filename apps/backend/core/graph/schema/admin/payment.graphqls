@@ -5,6 +5,8 @@ type PaymentMethodAdmin {
   # No third party behind it (cash on delivery, bank transfer, pickup, purchase
   # order) - these are what an admin can record a payment against by hand.
   isOffline:        Boolean!
+  # False when the installed plugin's runtime switch is off.
+  isAvailable:      Boolean!
   isEnabled:        Boolean!
   sortOrder:        Int!
   # "all" (accepted in every country) or "specific" (only
@@ -13,13 +15,29 @@ type PaymentMethodAdmin {
   allowedCountries: [String!]!
 }
 
+# Installed providers, independent of channel checkout availability. Credentials use the existing masked config API.
+type PaymentProviderAdmin {
+  slug: String!
+  displayName: String!
+  isOffline: Boolean!
+  isAvailable: Boolean!
+  pluginSlug: String!
+  pluginName: String!
+  pluginVersion: String!
+  configurationPaths: [String!]!
+  # Relative backend endpoint; includes channel routing when a channel is selected.
+  webhookPath: String
+}
+
 extend type Query {
+  paymentProviders(channelId: ID): [PaymentProviderAdmin!]!
   # Every registered provider for the channel with its settings; a
   # provider not yet synced reports isEnabled=false, countryMode="all".
   paymentMethods(channelId: ID!): [PaymentMethodAdmin!]!
 }
 
 extend type Mutation {
+  updatePaymentMethodPresentation(channelId: ID!, providerSlug: String!, displayName: String!, sortOrder: Int!): PaymentMethodAdmin!
   setPaymentMethodEnabled(channelId: ID!, providerSlug: String!, enabled: Boolean!): PaymentMethodAdmin!
   # mode is "all" or "specific"; countries is the allow-list (ignored
   # when mode is "all").

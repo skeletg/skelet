@@ -141,6 +141,7 @@ func (b *Builder) sections(ctx context.Context, id, ch uuid.UUID, addr string, e
 		}},
 		{"savedPaymentMethods", func() (json.RawMessage, error) { return b.q.DSARPaymentMethods(ctx, id) }},
 		{"carts", func() (json.RawMessage, error) { return b.q.DSARCarts(ctx, nid) }},
+		{"orderShipments", func() (json.RawMessage, error) { return b.q.DSAROrderShipments(ctx, nid) }},
 		{"downloadGrants", func() (json.RawMessage, error) {
 			return b.q.DSARDownloadGrants(ctx, db.DSARDownloadGrantsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 		}},

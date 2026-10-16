@@ -158,3 +158,17 @@ describe('unsaved-changes bridge', () => {
     unmount()
   })
 })
+
+
+it('uses priority before registration order and keeps equal priorities stable', async () => {
+  const order: string[] = []
+  let api!: Api
+  const dirty = [{ label: 'x', before: 'a', after: 'b' }]
+  render(<Harness onApi={(a) => (api = a)} sections={[
+    { ...section('checkout', dirty, async () => { order.push('checkout') }), priority: 100 },
+    section('carrier', dirty, async () => { order.push('carrier') }),
+    section('payment', dirty, async () => { order.push('payment') }),
+  ]} />)
+  await act(() => api.saveAll())
+  expect(order).toEqual(['carrier', 'payment', 'checkout'])
+})

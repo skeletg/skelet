@@ -51,7 +51,13 @@ func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (Checko
 	}
 
 	var shippingCents int64
-	if s.shipping != nil {
+	if len(in.Shipments) > 0 || in.FulfillmentNeed == FulfillmentNone {
+		sel, _, err := s.selectShipments(ctx, in, cc, discount, ranEngine, eval)
+		if err != nil {
+			return CheckoutQuote{}, err
+		}
+		shippingCents = sel.Cents
+	} else if s.shipping != nil {
 		sel, err := s.resolveShippingCents(ctx, in, cc, discount, ranEngine, eval)
 		if err != nil {
 			return CheckoutQuote{}, err

@@ -22,6 +22,7 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 		PONumber:              "PO-1",
 		UseStoreCredit:        true,
 		GiftCardCodes:         []string{"GC-A", "GC-B"},
+		Deliveries:            map[string]DeliverySelection{"all": {CarrierSlug: "builtin", MethodCode: "standard"}, "k:store_pickup": {CarrierSlug: "pickup"}},
 	}
 
 	t.Run("guest selections replace the customer's", func(t *testing.T) {
@@ -38,8 +39,16 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 			Company:               "Acme",
 			BusinessIDs:           map[string]string{"pib": "RS1"},
 			PickupContact:         &PickupContact{FirstName: "Ana", LastName: "B"},
+			Deliveries:            map[string]DeliverySelection{"all": {CarrierSlug: "courier", MethodCode: "express"}},
+			SplitDelivery:         true,
 		}
 		got := mergeCheckout(guest, customer)
+		if got.Deliveries["all"].MethodCode != "express" || got.Deliveries["k:store_pickup"].CarrierSlug != "pickup" || !got.SplitDelivery {
+			t.Fatalf("deliveries: got %+v split=%v, want the guest's choice per group over the customer's, and the guest's split", got.Deliveries, got.SplitDelivery)
+		}
+		if customer.Deliveries["all"].MethodCode != "standard" {
+			t.Fatal("merging wrote into the customer's own deliveries")
+		}
 		if got.ShippingAddress.City != "Novi Sad" || got.ShippingAddressID != nil {
 			t.Fatalf("shipping: got %+v id=%v, want the guest's typed-in address", got.ShippingAddress, got.ShippingAddressID)
 		}
@@ -62,7 +71,7 @@ func TestMergeCheckoutGuestWins(t *testing.T) {
 
 	t.Run("an empty guest checkout keeps the customer's", func(t *testing.T) {
 		got := mergeCheckout(Checkout{BillingSameAsShipping: true}, customer)
-		if got.ShippingAddressID == nil || *got.ShippingAddressID != savedID || got.ShippingCarrierSlug != "builtin" {
+		if got.ShippingAddressID == nil || *got.ShippingAddressID != savedID || got.ShippingCarrierSlug != "builtin" || len(got.Deliveries) != 2 {
 			t.Fatalf("got %+v", got)
 		}
 	})
@@ -95,7 +104,8 @@ func TestMergeGuestCartCarriesCheckout(t *testing.T) {
 	}
 }
 
-func TestQuoteDestinationFollowsTheAddressUnlessPickup(t *testing.T) {
+// A pickup is quoted at its point, which the delivery group knows - the cart's own destination is always the shopper's
+func TestQuoteDestinationFollowsTheAddress(t *testing.T) {
 	state := "CA"
 	co := Checkout{
 		Destination:     Destination{CountryCode: "US", PostalCode: "10001"},
@@ -104,9 +114,9 @@ func TestQuoteDestinationFollowsTheAddressUnlessPickup(t *testing.T) {
 	if d := co.QuoteDestination(); d.PostalCode != "94103" || d.Region != "CA" {
 		t.Errorf("delivery quotes for %+v, want the shipping address", d)
 	}
-	co.ShippingCarrierSlug = PickupCarrierSlug
+	co.ShippingAddress = nil
 	if d := co.QuoteDestination(); d.PostalCode != "10001" {
-		t.Errorf("pickup quotes for %+v, want the destination - the shopper travels, the parcel doesn't", d)
+		t.Errorf("quotes for %+v without an address, want the destination", d)
 	}
 }
 
