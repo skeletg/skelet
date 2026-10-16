@@ -1,4 +1,4 @@
-import { StoresLink } from "./stores/StoreAvailability";
+import { StoresLink } from "./stores/StoresLink";
 import { Link } from "@/app/components/LocaleLink";
 import { getTranslations } from "next-intl/server";
 
