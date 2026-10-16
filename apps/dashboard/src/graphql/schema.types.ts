@@ -3863,7 +3863,6 @@ export type Mutation = {
   setIntegrationActive: Integration;
   setInventoryItemBackorder: InventoryItem;
   setInventoryItemTracking: InventoryItem;
-  setLocationPickup: InventoryLocation;
   setMediaFocalPoint: MediaAsset;
   setMenuStores: Menu;
   setMyPreference: Scalars['Boolean']['output'];
@@ -5855,13 +5854,6 @@ export type MutationSetInventoryItemBackorderArgs = {
 export type MutationSetInventoryItemTrackingArgs = {
   productId: Scalars['ID']['input'];
   tracked: Scalars['Boolean']['input'];
-};
-
-
-export type MutationSetLocationPickupArgs = {
-  enabled: Scalars['Boolean']['input'];
-  id: Scalars['ID']['input'];
-  instructions?: InputMaybe<Scalars['String']['input']>;
 };
 
 
