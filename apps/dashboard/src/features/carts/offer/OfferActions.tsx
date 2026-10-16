@@ -60,13 +60,13 @@ export function OfferActions({
           {sent ? 'Resend' : 'Send'}
         </Button>
       )}
-      {open && (
+      {canEdit && open && (
         <Button size="sm" variant="outline" onClick={() => setPreview(true)}>
           <EyeIcon className="size-4" />
           Preview email
         </Button>
       )}
-      {offer.link && open && (
+      {canEdit && offer.link && open && (
         <Button size="sm" variant="outline" onClick={() => void copyText(offer.link)}>
           <CopyIcon className="size-4" />
           Copy link
