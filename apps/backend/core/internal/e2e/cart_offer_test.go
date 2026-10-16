@@ -94,18 +94,14 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { applyCoupon(cartId: %q, code: "ANY") { id } }`, offerID), link); len(errs) == 0 || !strings.Contains(strings.Join(errs, ";"), "can't be changed") {
 		t.Fatalf("a coupon on a coupon-locked offer = %v, want the lock refusal", errs)
 	}
-	if _, errs := h.gqlPost(t, ts, chID, details(offerID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, "someone@else.test", usAddress)), link); len(errs) == 0 {
-		t.Fatal("the recipient's email changed")
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345") { id } }`, offerID), link); len(errs) > 0 {
+		t.Fatalf("offer destination: %v", errs)
+	}
+	if _, errs := h.gqlPost(t, ts, chID, `mutation { `+details(offerID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, "someone@else.test", usAddress))+` { id } }`, link); len(errs) == 0 || !strings.Contains(strings.Join(errs, "; "), "can't be changed") {
+		t.Fatalf("recipient email edit = %v, want offer lock", errs)
 	}
 
 	// The offer narrows payment - a method outside its list is refused, then the admin allows cash on delivery
-	for _, step := range []string{
-		fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "us", postalCode: "12345") { id }`, offerID),
-	} {
-		if _, errs := h.gqlPost(t, ts, chID, `mutation { `+step+` }`, link); len(errs) > 0 {
-			t.Fatalf("%s: %v", step, errs)
-		}
-	}
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { setCartPaymentMethod(cartId: %q, providerSlug: "cod") { id } }`, offerID), link); len(errs) == 0 || !strings.Contains(strings.Join(errs, ";"), "isn't available for this offer") {
 		t.Fatalf("a payment method outside the offer's = %v, want the refusal", errs)
 	}
@@ -125,7 +121,7 @@ func TestCartOfferMoneyPath(t *testing.T) {
 			t.Fatalf("%s: %v", step, errs)
 		}
 	}
-	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q) { id total } }`, offerID), link)
+	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id total } }`, offerID), link)
 	if len(errs) > 0 {
 		t.Fatalf("placeOrder: %v", errs)
 	}
