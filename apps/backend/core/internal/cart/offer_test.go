@@ -175,26 +175,6 @@ func TestNormalizeOfferLocks(t *testing.T) {
 	}
 }
 
-func TestOfferLinks(t *testing.T) {
-	links := NewOfferLinks([]byte("secret"), nil)
-	id := uuid.New()
-	tok := links.signLegacy(id, 4)
-	g, err := links.Verify(context.Background(), tok)
-	if err != nil || g.CartID != id || g.LinkVersion != 4 {
-		t.Fatalf("round trip: %+v, %v", g, err)
-	}
-	for name, bad := range map[string]string{
-		"tampered version": id.String() + ".5." + tok[len(id.String())+3:],
-		"other secret":     NewOfferLinks([]byte("other"), nil).signLegacy(id, 4),
-		"garbage":          "nope",
-		"empty":            "",
-	} {
-		if _, err := links.Verify(context.Background(), bad); !errors.Is(err, ErrOfferLinkInvalid) {
-			t.Errorf("%s verified: %v", name, err)
-		}
-	}
-}
-
 func TestDeliveryProfilesCustomLinesNeverShip(t *testing.T) {
 	lines := []CartLine{
 		{ID: uuid.New(), ProductSku: "shirt"},
@@ -355,19 +335,19 @@ func (r *offerTokenRepository) GetOfferByToken(_ context.Context, token string) 
 func (r *offerTokenRepository) GetCartByID(context.Context, uuid.UUID) (Cart, error) {
 	return r.cart, nil
 }
-func (r *offerTokenRepository) MarkOfferOpened(context.Context, uuid.UUID) error { return nil }
+func (r *offerTokenRepository) MarkOfferOpened(context.Context, uuid.UUID) (bool, error) {
+	return true, nil
+}
 
 func TestOpaqueOfferLinks(t *testing.T) {
 	ctx := context.Background()
 	c := offerCart(nil, nil)
 	c.Offer.LinkToken = "AAAAAAAAAAAAAAAAAAAAAA"
 	repo := &offerTokenRepository{cart: c}
-	links := NewOfferLinks([]byte("secret"), repo)
-	for _, secret := range []string{"secret", "rotated secret"} {
-		grant, err := NewOfferLinks([]byte(secret), repo).Verify(ctx, c.Offer.LinkToken)
-		if err != nil || grant.CartID != c.ID || grant.LinkVersion != c.Offer.LinkVersion {
-			t.Fatalf("opaque token after secret %q: %+v, %v", secret, grant, err)
-		}
+	links := NewOfferLinks(repo)
+	grant, err := links.Verify(ctx, c.Offer.LinkToken)
+	if err != nil || grant.CartID != c.ID || grant.LinkVersion != c.Offer.LinkVersion {
+		t.Fatalf("opaque token: %+v, %v", grant, err)
 	}
 	for _, token := range []string{"", "short", "AAAAAAAAAAAAAAAAAAAAA!", "AAAAAAAAAAAAAAAAAAAAAB", "BBBBBBBBBBBBBBBBBBBBBA"} {
 		if _, err := links.Verify(ctx, token); !errors.Is(err, ErrOfferLinkInvalid) {
@@ -375,14 +355,14 @@ func TestOpaqueOfferLinks(t *testing.T) {
 		}
 	}
 	old := c.Offer.LinkToken
-	legacy := links.signLegacy(c.ID, c.Offer.LinkVersion)
-	if _, err := (&Service{repo: repo, links: links}).OpenOffer(ctx, legacy, nil); err != nil {
-		t.Fatalf("existing signed link: %v", err)
+	legacy := c.ID.String() + ".1.invalid-signature"
+	if _, err := links.Verify(ctx, legacy); !errors.Is(err, ErrOfferLinkInvalid) {
+		t.Fatalf("legacy link accepted: %v", err)
 	}
 	repo.cart.Offer.LinkToken = "CCCCCCCCCCCCCCCCCCCCCA"
 	repo.cart.Offer.LinkVersion++
 	for _, token := range []string{old, legacy} {
-		if _, err := (&Service{repo: repo, links: links}).OpenOffer(ctx, token, nil); !errors.Is(err, ErrOfferLinkInvalid) {
+		if _, err := (&Service{repo: repo, links: links}).OpenOffer(ctx, token, c.ChannelID, nil); !errors.Is(err, ErrOfferLinkInvalid) {
 			t.Fatalf("replaced link %q: %v", token, err)
 		}
 	}

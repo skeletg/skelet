@@ -87,14 +87,13 @@ offer can be sent.
 The token is a 22-character URL-safe random credential (128 bits), stored on the offer.
 It contains no cart id or other offer details:
 
-- **Showing it again:** the console reads the stored token.
+- **Showing it again:** admins with `orders.update` on the channel can retrieve the stored token and preview its email.
 - **Replacing it:** generates a new token and bumps the link version, invalidating all
-  earlier tokens and any legacy signed links.
+  earlier tokens.
 - **Expiry:** read from the cart each time the link is used, so extending an offer needs no
   new link.
 
-Existing signed links remain valid until the offer's link is replaced. New links do not
-use `JWT_SECRET`; rotating that secret only invalidates legacy signed offer links.
+Offer links do not use `JWT_SECRET`.
 
 The storefront route `app/offer/[token]` handles a followed link:
 
