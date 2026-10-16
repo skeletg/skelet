@@ -44,12 +44,9 @@ func (r *mutationResolver) OpenCartOffer(ctx context.Context, token string) (*mo
 	if !ok || sv == nil {
 		return nil, storeRequired()
 	}
-	o, err := r.CartSvc.OpenOffer(ctx, token, channel.OptionalCustomerID(ctx))
+	o, err := r.CartSvc.OpenOffer(ctx, token, sv.ID, channel.OptionalCustomerID(ctx))
 	if err != nil {
 		return nil, err
-	}
-	if o.ChannelID != sv.ID { // a link answers only on the store it was made for
-		return nil, cart.ErrOfferLinkInvalid
 	}
 	return &model1.CartOfferOpening{CartID: o.CartID.String(), State: offerStateModel(o.State), RequiresLogin: o.RequiresLogin}, nil
 }
