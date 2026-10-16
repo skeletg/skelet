@@ -1,4 +1,4 @@
-// Package pluginmigrate runs Tier 1 plugin SQL migrations - separate from golang-migrate, which owns core's internal/db/migrations A separate runner exists because golang-migrate can't model multiple sources, plugin sequence numbers mustn't collide with core's, and the SQL has to be embedded in the plugin binary so a plugin stays self-contained
+// Package pluginmigrate runs Tier 1 plugin SQL migrations - separate from dbmate, which owns core's internal/db/migrations A separate runner exists because golang-migrate can't model multiple sources, plugin sequence numbers mustn't collide with core's, and the SQL has to be embedded in the plugin binary so a plugin stays self-contained
 // Progress is tracked per-namespace in plugin_migrations Core migrations always run first - Within a plugin, files apply in lexicographic order; across plugins it's registration order, i.e. import order in main.go - stable per build, not portable across builds, and plugins may NOT reference each other's tables
 package pluginmigrate
 

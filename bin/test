@@ -18,7 +18,6 @@ TEST_SIG_DB="skelet_test_signals"
 TEST_DB_URL="postgres://skelet:skelet@db:5432/${TEST_DB}?sslmode=disable"
 TEST_SIG_URL="postgres://skelet:skelet@signals-db:5432/${TEST_SIG_DB}?sslmode=disable"
 TEST_CH_URL="clickhouse://skelet:skelet@clickhouse:9000/${TEST_SIG_DB}"
-TEST_CH_MIGRATE_URL="clickhouse://clickhouse:9000?username=skelet&password=skelet&database=${TEST_SIG_DB}&x-multi-statement=true"
 
 skip_frontend=false
 fresh=true
@@ -48,16 +47,16 @@ drop_clones db "$TEST_DB"
 drop_clones signals-db "$TEST_SIG_DB"
 unmark_dev_dbs
 echo "==> migrating commerce ($TEST_DB)"
-docker compose exec -T app migrate -path internal/db/migrations -database "$TEST_DB_URL" up
+docker compose exec -T app dbmate --no-dump-schema --url "$TEST_DB_URL" --migrations-dir internal/db/migrations up
 echo "==> migrating signals ($TEST_SIG_DB)"
-docker compose exec -T app migrate -path /var/www/backend/signals/internal/db/migrations -database "$TEST_SIG_URL" up
+docker compose exec -T app dbmate --no-dump-schema --url "$TEST_SIG_URL" --migrations-dir /var/www/backend/signals/internal/db/migrations up
 # ClickHouse sits behind the signals profile, so under --lean the spine's tests keep skipping - said out loud below rather than silently
 ch_dsn=""
 if service_running clickhouse; then
     ensure_ch_db "$TEST_SIG_DB" $fresh
     drop_ch_clones "$TEST_SIG_DB"
     echo "==> migrating the spine (clickhouse $TEST_SIG_DB)"
-    docker compose exec -T app migrate -path /var/www/backend/signals/internal/analytics/spinech/migrations -database "$TEST_CH_MIGRATE_URL" up
+    docker compose exec -T app dbmate --no-dump-schema --url "$TEST_CH_URL" --migrations-dir /var/www/backend/signals/internal/analytics/spinech/migrations up
     ch_dsn="$TEST_CH_URL"
 else
     echo "==> (clickhouse not running - the spine's ClickHouse tests will skip)"

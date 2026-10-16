@@ -1,8 +1,6 @@
--- ClickHouse spine schema, applied by the clickhouse-migrate one-shot:
---   migrate -path /app/clickhouse-migrations -database "$SIGNALS_CH_MIGRATE_URL" up
--- NOTE: no semicolons in comments here. The migrate clickhouse driver splits
--- multi-statement files on the statement separator without parsing comments, so one
--- inside a comment cuts the file and the leading fragment fails as an empty query.
+-- migrate:up
+-- ClickHouse spine schema, applied by the clickhouse-migrate one-shot. ClickHouse takes one
+-- statement per query, so each statement sits in an up section of its own.
 -- The database itself comes from the server's CLICKHOUSE_DB, so this only makes
 -- tables. Optional UUID columns use the zero UUID as "none" (cheaper than
 -- Nullable(UUID)) and the reads treat zero as null.
@@ -60,12 +58,18 @@ CREATE TABLE IF NOT EXISTS analytics_events (
     -- order, so this prunes nearly every old granule for them. On occurred_at it would
     -- prune nothing the partition key had not already - inside a daily partition every
     -- granule's minmax spans the whole day, because the sort key scatters time
-    INDEX idx_created created_at TYPE minmax GRANULARITY 4
+    INDEX idx_created created_at TYPE minmax GRANULARITY 4,
+    -- Profiles filter on customer_id OR anon_id, which only one bloom index over both columns can prune
+    INDEX idx_person (customer_id, anon_id) TYPE bloom_filter(0.01) GRANULARITY 4
 )
 ENGINE = ReplacingMergeTree(received_at)
 PARTITION BY toDate(occurred_at)
 ORDER BY (channel_id, dedupe_key);
 
+-- migrate:down
+DROP TABLE IF EXISTS analytics_events;
+
+-- migrate:up
 -- analytics_identities: anon -> customer stitching. ReplacingMergeTree(last_seen)
 -- keyed on anon_id gives last-write-wins (the Postgres upsert semantics).
 -- first_seen and channel_id are carried forward by the driver's read-then-write,
@@ -75,7 +79,13 @@ CREATE TABLE IF NOT EXISTS analytics_identities (
     customer_id UUID,
     channel_id  UUID,
     first_seen  DateTime64(3, 'UTC') DEFAULT now64(3),
-    last_seen   DateTime64(3, 'UTC') DEFAULT now64(3)
+    last_seen   DateTime64(3, 'UTC') DEFAULT now64(3),
+    -- A customer's anon ids and a channel's identities, on a table sorted by anon_id alone
+    INDEX idx_customer customer_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_channel  channel_id  TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplacingMergeTree(last_seen)
 ORDER BY (anon_id);
+
+-- migrate:down
+DROP TABLE IF EXISTS analytics_identities;

@@ -45,7 +45,7 @@ pin() { # pin <label> <ere> <file>...
 echo "==> version pins agree across files"
 pin postgres   'postgres:[0-9][0-9.]*(-alpine)?'                "${COMPOSE[@]}" "${WORKFLOWS[@]}"
 pin clickhouse 'clickhouse/clickhouse-server:[0-9][0-9.]*'      "${COMPOSE[@]}" "${WORKFLOWS[@]}"
-pin migrate    '(golang-migrate/migrate/v4/cmd/migrate@v|migrate/migrate:v)[0-9][0-9.]*' \
+pin dbmate     'amacneil/dbmate/v2@v[0-9][0-9.]*' \
                                                                 "${COMPOSE[@]}" "${WORKFLOWS[@]}" "${DOCKERFILES[@]}"
 pin golangci   'golangci-lint@v[0-9][0-9.]*'                    "${WORKFLOWS[@]}" bin/lint
 pin node       '(node:[0-9][0-9.]*(-alpine)?|node-version:[[:space:]]*[0-9][0-9.]*)' \
