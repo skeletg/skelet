@@ -3,6 +3,7 @@ export type StoresResult = PublicStoresQuery["publicStores"];
 export type Store = StoresResult["items"][number];
 export type StoreProduct = NonNullable<StoreProductQuery["product"]>;
 export type ProductHit = { id: string; name: string | null; sku: string };
+export const STORE_PAGE_SIZE = 20;
 export const preferenceKey = (channelId: string) => `skelet:preferred-store:${channelId}`;
 export function readPreference(channelId: string): string | null {
   try {
