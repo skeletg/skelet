@@ -26,7 +26,7 @@ type OfferOpening struct {
 	RequiresLogin bool // a customer offer opened without its customer signed in
 }
 
-// OpenOffer follows an offer link. A link to an offer that has finished still answers, with its state, so the storefront can say so - only a link that was never valid, or was replaced, is refused. The first open by the right person is stamped for the console
+// OpenOffer follows an offer link. A link to an offer that has finished still answers, with its state, so the storefront can say so - only a link that was never valid, or was replaced, is refused. It stamps no open: mail scanners follow links, so the storefront records one from the browser (RecordOfferOpened)
 func (s *Service) OpenOffer(ctx context.Context, token string, channelID uuid.UUID, callerID *uuid.UUID) (OfferOpening, error) {
 	if s.links == nil {
 		return OfferOpening{}, ErrOfferLinkInvalid
@@ -55,13 +55,11 @@ func (s *Service) OpenOffer(ctx context.Context, token string, channelID uuid.UU
 			return OfferOpening{}, ErrOfferOtherAccount
 		}
 	}
-	s.RecordOfferOpened(ctx, &cart)
-	out.State = cart.OfferState(time.Now())
 	return out, nil
 }
 
-// RecordOfferOpened stamps an authorized storefront read, whether reached by link or
-// from the account. Call only after checking ownership, offer access and channel.
+// RecordOfferOpened stamps the recipient's first look, whether reached by link or from the account - the storefront
+// reports it from the browser, never from a server fetch a scanner could make. Call only after checking ownership, offer access and channel.
 func (s *Service) RecordOfferOpened(ctx context.Context, c *Cart) {
 	if !c.IsOffer() || c.Offer.OpenedAt != nil {
 		return

@@ -845,6 +845,7 @@ type ComplexityRoot struct {
 		DeleteAddress                  func(childComplexity int, id string) int
 		DeleteMyPaymentMethod          func(childComplexity int, id string) int
 		FinalizeOrderPayment           func(childComplexity int, orderID string) int
+		MarkCartOfferOpened            func(childComplexity int, cartID string) int
 		MergeGuestCart                 func(childComplexity int, guestCartID string) int
 		MoveSavedToCart                func(childComplexity int, cartID string, savedItemID string) int
 		MoveToCart                     func(childComplexity int, productID string) int
@@ -1514,6 +1515,7 @@ type CustomerResolver interface {
 }
 type MutationResolver interface {
 	OpenCartOffer(ctx context.Context, token string) (*model1.CartOfferOpening, error)
+	MarkCartOfferOpened(ctx context.Context, cartID string) (bool, error)
 	CreateGuestCart(ctx context.Context) (*model1.Cart, error)
 	AddToCart(ctx context.Context, cartID string, sku string, quantity float64) (*model1.Cart, error)
 	AddBundleToCart(ctx context.Context, input model1.AddBundleToCartInput) (*model1.Cart, error)
@@ -5266,6 +5268,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.FinalizeOrderPayment(childComplexity, args["orderId"].(string)), true
+	case "Mutation.markCartOfferOpened":
+		if e.ComplexityRoot.Mutation.MarkCartOfferOpened == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_markCartOfferOpened_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MarkCartOfferOpened(childComplexity, args["cartId"].(string)), true
 	case "Mutation.mergeGuestCart":
 		if e.ComplexityRoot.Mutation.MergeGuestCart == nil {
 			break
@@ -9286,8 +9299,10 @@ type ProductOptionFileUpload {
 }
 
 extend type Mutation {
-  # Follows an offer link - stamps the first open and says where the offer stands. The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
+  # Follows an offer link and says where the offer stands - it records no open, since mail scanners follow links too (markCartOfferOpened does). The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
   openCartOffer(token: String!): CartOfferOpening!
+  # Records the recipient's first look at an offer, for the console and the cart.offer.opened webhook. The storefront calls it from the browser once the offer page shows, so a mail scanner fetching the link or rendering the page doesn't count. Refused like any cart call when the caller may not open the cart, false on a shopper cart, and a repeat is a no-op.
+  markCartOfferOpened(cartId: ID!): Boolean!
   createGuestCart:                                                                                    Cart!
   # Names and prices the line from the catalog by SKU
   addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!
@@ -13949,6 +13964,20 @@ func (ec *executionContext) field_Mutation_finalizeOrderPayment_args(ctx context
 		return nil, err
 	}
 	args["orderId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_markCartOfferOpened_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg0
 	return args, nil
 }
 
@@ -29260,6 +29289,50 @@ func (ec *executionContext) fieldContext_Mutation_openCartOffer(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_openCartOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_markCartOfferOpened(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_markCartOfferOpened(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MarkCartOfferOpened(ctx, fc.Args["cartId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_markCartOfferOpened(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_markCartOfferOpened_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -51235,6 +51308,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "openCartOffer":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_openCartOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "markCartOfferOpened":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_markCartOfferOpened(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

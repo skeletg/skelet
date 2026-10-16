@@ -51,6 +51,15 @@ func (r *mutationResolver) OpenCartOffer(ctx context.Context, token string) (*mo
 	return &model1.CartOfferOpening{CartID: o.CartID.String(), State: offerStateModel(o.State), RequiresLogin: o.RequiresLogin}, nil
 }
 
+func (r *mutationResolver) MarkCartOfferOpened(ctx context.Context, cartID string) (bool, error) {
+	c, err := r.storeCart(ctx, cartID)
+	if err != nil {
+		return false, err
+	}
+	r.CartSvc.RecordOfferOpened(ctx, &c)
+	return c.IsOffer(), nil
+}
+
 func (r *mutationResolver) CreateGuestCart(ctx context.Context) (*model1.Cart, error) {
 	store, ok := channel.FromContext(ctx)
 	if !ok {
@@ -582,7 +591,6 @@ func (r *queryResolver) Cart(ctx context.Context, id string) (*model1.Cart, erro
 	if !ok || sv == nil || c.ChannelID != sv.ID {
 		return nil, nil
 	}
-	r.CartSvc.RecordOfferOpened(ctx, &c)
 	return r.fullCartModel(ctx, c), nil
 }
 
