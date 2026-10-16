@@ -1578,6 +1578,40 @@ func (q *Queries) SoftDeleteOrderLine(ctx context.Context, id uuid.UUID) (OrderL
 	return i, err
 }
 
+const trackOrderLookup = `-- name: TrackOrderLookup :one
+SELECT id, channel_id, email, (customer_id IS NOT NULL)::bool AS has_account FROM orders
+WHERE  number = upper(btrim($1::text))
+  AND  lower(btrim(email)) = lower(btrim($2::text))
+  AND  upper(replace(COALESCE(NULLIF(shipping_postal_code, ''), billing_postal_code), ' ', ''))
+       = upper(replace($3::text, ' ', ''))
+`
+
+type TrackOrderLookupParams struct {
+	Number     string `json:"number"`
+	Email      string `json:"email"`
+	PostalCode string `json:"postal_code"`
+}
+
+type TrackOrderLookupRow struct {
+	ID         uuid.UUID `json:"id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	Email      string    `json:"email"`
+	HasAccount bool      `json:"has_account"`
+}
+
+// Track-order lookup by what's on the receipt - the number is guessable, so email and postcode must both match, compared the way shoppers retype them (any case, postcode spacing) Matches guest AND customer orders; the caller hands out only the id and the stored email, and a customer order still opens only through the signed-in myOrder path
+func (q *Queries) TrackOrderLookup(ctx context.Context, arg TrackOrderLookupParams) (TrackOrderLookupRow, error) {
+	row := q.db.QueryRowContext(ctx, trackOrderLookup, arg.Number, arg.Email, arg.PostalCode)
+	var i TrackOrderLookupRow
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.Email,
+		&i.HasAccount,
+	)
+	return i, err
+}
+
 const updateOrderAddresses = `-- name: UpdateOrderAddresses :one
 UPDATE orders
 SET billing_first_name = $2, billing_last_name = $3, billing_company = $4,

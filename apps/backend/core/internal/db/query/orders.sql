@@ -94,6 +94,14 @@ SELECT * FROM orders
 WHERE  id = $1 AND email = $2 AND customer_id IS NULL
 LIMIT 1;
 
+-- name: TrackOrderLookup :one
+-- Track-order lookup by what's on the receipt - the number is guessable, so email and postcode must both match, compared the way shoppers retype them (any case, postcode spacing) Matches guest AND customer orders; the caller hands out only the id and the stored email, and a customer order still opens only through the signed-in myOrder path
+SELECT id, channel_id, email, (customer_id IS NOT NULL)::bool AS has_account FROM orders
+WHERE  number = upper(btrim(sqlc.arg(number)::text))
+  AND  lower(btrim(email)) = lower(btrim(sqlc.arg(email)::text))
+  AND  upper(replace(COALESCE(NULLIF(shipping_postal_code, ''), billing_postal_code), ' ', ''))
+       = upper(replace(sqlc.arg(postal_code)::text, ' ', ''));
+
 -- name: ClaimGuestOrdersByEmail :execrows
 -- Attach every guest order placed on this channel under the given email to the customer who just verified it - called from the customer.email_verified subscriber, never on registration, which proves nothing about owning the address
 -- Order emails are stored as typed, so the match normalizes them the way customer emails already are
