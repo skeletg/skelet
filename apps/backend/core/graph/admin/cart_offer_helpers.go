@@ -137,14 +137,16 @@ func (r *Resolver) toAdminCartOfferModel(ctx context.Context, c cart.Cart) *mode
 		ShowInAccount:  o.ShowInAccount,
 		Locks:          locks,
 		PaymentMethods: append([]string{}, o.PaymentMethods...),
-		Link:           r.offerLink(ch, c),
-		LinkPath:       r.offerLinkPath(c),
 		NeedsShipping:  r.offerNeedsShipping(ctx, c),
 		SentAt:         o.SentAt,
 		SendCount:      o.SendCount,
 		OpenedAt:       o.OpenedAt,
 		RevokedAt:      o.RevokedAt,
 		Checkout:       toAdminOfferCheckoutModel(c.Checkout),
+	}
+	if auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", c.ChannelID, nil) == nil {
+		m.Link = r.offerLink(ch, c)
+		m.LinkPath = r.offerLinkPath(c)
 	}
 	if o.OrderID != nil {
 		s := o.OrderID.String()

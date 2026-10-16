@@ -191,14 +191,14 @@ export function CartDetail() {
             </div>
           )}
 
-          {offer?.link && isActive && (
+          {offer?.link && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId) && (
             <div className="px-6 py-4">
               <p className="text-xs text-muted-foreground">
                 Link: <span className="break-all font-mono text-foreground/80">{offer.link}</span>
               </p>
             </div>
           )}
-          {offer && !offer.link && isActive && (
+          {offer && !offer.link && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId) && (
             <div className="p-6">
               <Alert>
                 <AlertTitle>No link yet</AlertTitle>

@@ -409,6 +409,9 @@ func (r *queryResolver) AdminCartOfferEmailPreview(ctx context.Context, cartID s
 	if err != nil {
 		return nil, err
 	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", c.ChannelID, nil); err != nil {
+		return nil, err
+	}
 	if r.OfferMail == nil {
 		return nil, errOfferNoMailer
 	}
