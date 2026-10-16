@@ -30,6 +30,7 @@ On the cart page:
 - **Custom line:** a free-form charge with no product behind it, such as an extra payment,
   a service or a fee.
   - You give it a name, price, quantity and tax class.
+  - Its quantity must be a whole number.
   - It never ships, and it reserves no stock.
   - On the order it is marked `isCustom`.
 - **Offer:** the expiry date and a message to the recipient. A customer offer can also be

@@ -371,7 +371,10 @@ func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quan
 // Bundle lines keep their snapshot price, since a bundle SKU has no simple pricing to re-resolve
 // A custom line has no catalog product to check against, and an admin-priced line keeps its price at any quantity - it still sits inside its product's bounds
 func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line CartLine, quantity float64) (*int64, error) {
-	if s.products == nil || len(line.Components) > 0 || line.IsCustom {
+	if line.IsCustom {
+		return nil, validCustomQuantity(quantity)
+	}
+	if s.products == nil || len(line.Components) > 0 {
 		return nil, nil
 	}
 	if len(line.Options) > 0 {
