@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { refresh } from "next/cache";
 
 import { RemoveFromCartDocument, UpdateCartLineDocument } from "@/app/lib/cart/mutations.gql";
-import { MyCartOffersDocument } from "@/app/lib/cart/offer.gql";
+import { MarkCartOfferOpenedDocument, MyCartOffersDocument } from "@/app/lib/cart/offer.gql";
 import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@/app/lib/cart/offer-cookie";
 import { checkoutHref } from "@/app/lib/checkout/path";
 import { getCheckoutCart, getOfferSession } from "@/app/lib/cart/offer";
@@ -70,6 +70,12 @@ export async function openAccountOffer(formData: FormData): Promise<void> {
   store.set(OFFER_COOKIE, encodeOfferSession({ cartId, token: "" }), offerCookieOptions(7 * 24 * 60 * 60));
   store.delete(OFFER_CHECKOUT_COOKIE);
   redirect(await withLocalePrefix("/cart/offer", locale));
+}
+
+// The offer page reports the recipient's first look - a repeat, or an id this browser may not open, changes nothing
+export async function markOfferOpened(cartId: string): Promise<void> {
+  if (!cartId) return;
+  await gqlFetch(MarkCartOfferOpenedDocument, { cartId }).catch(() => undefined);
 }
 
 // Once the offer is placed it is history - the shopper's own cart takes over again

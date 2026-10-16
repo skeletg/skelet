@@ -3,11 +3,10 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { Link } from "@/app/components/LocaleLink";
+import { MarkOfferOpened } from "@/app/components/offer/MarkOfferOpened";
 import { getAccessToken } from "@/app/lib/auth/session";
 import { continueOfferCheckout, removeOfferLine, updateOfferLine } from "@/app/lib/cart/offer-actions";
-import { OpenCartOfferDocument } from "@/app/lib/cart/offer.gql";
 import { getOfferSession, readOffer } from "@/app/lib/cart/offer";
-import { gqlFetch } from "@/app/lib/graphql";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { offerLocks, type CartOfferLock } from "@/app/lib/cart/types";
 import { getChannel } from "@/app/lib/channel/read";
@@ -46,11 +45,6 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
   if (unreadable === "invalid" && session?.token && !signedIn) {
     redirect(await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent(cartId ? `/cart/offer?cartId=${encodeURIComponent(cartId)}` : "/cart/offer")}`, locale));
   }
-  // The link route stamps the first open, except for an offer whose owner had to sign in first - that open lands here
-  if (cart?.offer && session?.cartId === cart.id && session.token && (cart.offer.state === "DRAFT" || cart.offer.state === "SENT")) {
-    await gqlFetch(OpenCartOfferDocument, { token: session.token }).catch(() => undefined);
-  }
-
   const explained = STATES.find((s) => s === requested);
   const state: OfferPageState | null = explained ?? unreadable ?? (cart?.offer ? stateOf(cart.offer.state) : "invalid");
   if (state || !cart?.offer) {
@@ -72,6 +66,7 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
+      {offer.state === "DRAFT" || offer.state === "SENT" ? <MarkOfferOpened cartId={cart.id} /> : null}
       <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {t("expires", { date: format.dateTime(new Date(offer.expiresAt), { dateStyle: "long", timeStyle: "short" }) })}
