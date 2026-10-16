@@ -62,28 +62,47 @@ func (s *Service) AdminCreateOffer(ctx context.Context, in CreateOfferInput) (Ca
 
 // AdminSetOffer saves an offer's settings. ships says whether the cart has anything to deliver - without it, shipping and delivery have nothing to lock
 func (s *Service) AdminSetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings, ships bool) (Cart, error) {
-	cart, err := s.adminOffer(ctx, cartID)
-	if err != nil {
+	if err := s.AdminUpdateOffer(ctx, cartID, in, ships, func(*Cart) error { return nil }); err != nil {
 		return Cart{}, err
 	}
+	return loadCartWithLines(ctx, s.repo, cartID)
+}
+
+// AdminUpdateOffer prepares checkout outside the lock and commits its settings and checkout together.
+func (s *Service) AdminUpdateOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings, ships bool, apply func(*Cart) error) error {
+	authorize := func(c Cart) error {
+		if c.Status != "active" {
+			return ErrCartNotActive
+		}
+		if !c.IsOffer() {
+			return ErrNotOffer
+		}
+		if c.Offer.RevokedAt != nil {
+			return ErrOfferRevoked
+		}
+		return normalizeOfferSettings(c, &in, ships)
+	}
+	return s.updateCheckout(ctx, cartID, authorize, false, apply, &in)
+}
+
+func normalizeOfferSettings(c Cart, in *OfferSettings, ships bool) error {
 	if !in.ExpiresAt.After(time.Now()) {
-		return Cart{}, ErrOfferExpiryInvalid
+		return ErrOfferExpiryInvalid
 	}
 	in.Message = strings.TrimSpace(in.Message)
 	if utf8.RuneCountInString(in.Message) > maxOfferMessageRunes {
-		return Cart{}, fmt.Errorf("%w: at most %d characters", ErrOfferMessageTooLong, maxOfferMessageRunes)
+		return fmt.Errorf("%w: at most %d characters", ErrOfferMessageTooLong, maxOfferMessageRunes)
 	}
-	if in.ShowInAccount && cart.CustomerID == nil {
-		return Cart{}, ErrOfferAccountNeedsCustomer
+	if in.ShowInAccount && c.CustomerID == nil {
+		return ErrOfferAccountNeedsCustomer
 	}
-	if in.Locks, err = NormalizeOfferLocks(in.Locks, ships); err != nil {
-		return Cart{}, err
+	locks, err := NormalizeOfferLocks(in.Locks, ships)
+	if err != nil {
+		return err
 	}
+	in.Locks = locks
 	in.PaymentMethods = dedupe(in.PaymentMethods)
-	if err := s.repo.SetOffer(ctx, cart.ID, in); err != nil {
-		return Cart{}, fmt.Errorf("save offer: %w", err)
-	}
-	return loadCartWithLines(ctx, s.repo, cart.ID)
+	return nil
 }
 
 // AdminSetLinePrice sets a line's price on an offer, which then holds through repricing - nil puts a catalog line back on today's catalog price

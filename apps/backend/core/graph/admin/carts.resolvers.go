@@ -177,13 +177,6 @@ func (r *mutationResolver) AdminUpdateCartOffer(ctx context.Context, cartID stri
 	}
 	ships := r.offerNeedsShipping(ctx, c)
 	settings := cart.OfferSettings{ExpiresAt: input.ExpiresAt, Message: input.Message, ShowInAccount: input.ShowInAccount, Locks: lockSlugs(input.Locks)}
-	// Settings are checked before the checkout is written, so a refused save changes nothing
-	if !settings.ExpiresAt.After(time.Now()) {
-		return nil, cart.ErrOfferExpiryInvalid
-	}
-	if _, err := cart.NormalizeOfferLocks(settings.Locks, ships); err != nil {
-		return nil, err
-	}
 	if settings.PaymentMethods, err = r.offerPaymentMethods(ctx, c.ChannelID, input.PaymentMethods); err != nil {
 		return nil, err
 	}
@@ -192,12 +185,9 @@ func (r *mutationResolver) AdminUpdateCartOffer(ctx context.Context, cartID stri
 	if err != nil {
 		return nil, err
 	}
-	if err := r.CartSvc.AdminUpdateCheckout(ctx, c.ID, func(next *cart.Cart) error {
+	if err := r.CartSvc.AdminUpdateOffer(ctx, c.ID, settings, ships, func(next *cart.Cart) error {
 		return r.applyOfferCheckout(ctx, ch, next, input, ships)
 	}); err != nil {
-		return nil, err
-	}
-	if _, err := r.CartSvc.AdminSetOffer(ctx, c.ID, settings, ships); err != nil {
 		return nil, err
 	}
 	return r.reloadAdminCart(ctx, c.ID)
