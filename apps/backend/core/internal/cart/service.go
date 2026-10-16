@@ -31,7 +31,8 @@ type Service struct {
 	files         FileAssetResolver
 	bus           *events.Bus
 	remotePricing RemotePricingSource // overrides the catalog price for B2B or dynamic pricing, consulted through resolvePricing - nil means catalog price
-	links         *OfferLinks         // signs and verifies offer links - nil means no offer link opens
+	links         *OfferLinks         // resolves offer links - nil means no offer link opens
+	outbox        OutboxEnqueuer
 }
 
 const (
