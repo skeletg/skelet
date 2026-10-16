@@ -485,8 +485,10 @@ type ProductOptionFileUpload {
 }
 
 extend type Mutation {
-  # Follows an offer link - stamps the first open and says where the offer stands. The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
+  # Follows an offer link and says where the offer stands - it records no open, since mail scanners follow links too (markCartOfferOpened does). The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
   openCartOffer(token: String!): CartOfferOpening!
+  # Records the recipient's first look at an offer, for the console and the cart.offer.opened webhook. The storefront calls it from the browser once the offer page shows, so a mail scanner fetching the link or rendering the page doesn't count. Refused like any cart call when the caller may not open the cart, false on a shopper cart, and a repeat is a no-op.
+  markCartOfferOpened(cartId: ID!): Boolean!
   createGuestCart:                                                                                    Cart!
   # Names and prices the line from the catalog by SKU
   addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!

@@ -74,8 +74,19 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("openCartOffer: %v", errs)
 	}
-	if o := data["openCartOffer"].(map[string]any); o["cartId"] != offerID || o["state"] != "OPENED" || o["requiresLogin"] != false {
-		t.Fatalf("opening = %v", o)
+	// Following the link records no open - mail scanners follow links too - the offer page reports it from the browser
+	if o := data["openCartOffer"].(map[string]any); o["cartId"] != offerID || o["state"] != "DRAFT" || o["requiresLogin"] != false {
+		t.Fatalf("opening = %v, want the draft unopened", o)
+	}
+	markOpened := fmt.Sprintf(`mutation { markCartOfferOpened(cartId: %q) }`, offerID)
+	if _, errs := h.gqlPost(t, ts, chID, markOpened); len(errs) == 0 {
+		t.Fatal("an offer marked opened without its link")
+	}
+	if data, errs := h.gqlPost(t, ts, chID, markOpened, link); len(errs) > 0 || data["markCartOfferOpened"] != true {
+		t.Fatalf("markCartOfferOpened = %v %v", data, errs)
+	}
+	if got, err := h.D.Cart.GetCartByIDReadOnly(h.Ctx, offer.ID); err != nil || got.OfferState(time.Now()) != cart.OfferStateOpened {
+		t.Fatalf("offer after the page reported it: %v", err)
 	}
 
 	data, errs = h.gqlPost(t, ts, chID, fmt.Sprintf(`{ cart(id: %q) { subtotal lines { sku unitPrice isCustom } offer { state locks isGuest } } }`, offerID), link)

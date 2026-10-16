@@ -103,7 +103,7 @@ Offer links do not use `JWT_SECRET`.
 
 The storefront route `app/offer/[token]` handles a followed link:
 
-1. It calls `openCartOffer`.
+1. It calls `openCartOffer`, which checks the link but records no open.
 2. If the offer was made out to an account and nobody is signed in, it sends the shopper to
    sign in, then back.
 3. It keeps the token in an httpOnly cookie and sends it as `X-Cart-Offer` on every call.
@@ -131,7 +131,7 @@ that browser.
 |---|---|
 | Draft | Not sent yet |
 | Sent | Emailed at least once |
-| Opened | The recipient followed the link |
+| Opened | The recipient viewed the offer page. The storefront reports it from the browser with `markCartOfferOpened`, so a mail scanner that follows the link doesn't count |
 | Completed | Placed - the console links to the order |
 | Expired | Past its expiry - the link explains, and checkout refuses |
 | Withdrawn | Revoked by an admin |
