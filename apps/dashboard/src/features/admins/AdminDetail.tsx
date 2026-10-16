@@ -175,7 +175,7 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
           isSelf ? (
             <>
               Email can't be changed. Your password, two-factor and sessions live in{' '}
-              <Link to="/preferences" className="text-primary hover:underline">
+              <Link to="/preferences?tab=account" className="text-primary hover:underline">
                 Preferences
               </Link>
               .

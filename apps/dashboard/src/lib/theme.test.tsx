@@ -76,7 +76,7 @@ describe('custom theme painting', () => {
   it('leaves no sidebar variable behind when the palette is not custom', () => {
     localStorage.setItem(
       APPEARANCE_KEY,
-      JSON.stringify({ mode: 'light', palette: 'rose', radius: 'default', scale: 'default' }),
+      JSON.stringify({ mode: 'light', palette: 'contrast', radius: 'default', scale: 'default' }),
     )
     render(<ThemeProvider>{null}</ThemeProvider>)
     const style = document.documentElement.style
@@ -176,14 +176,31 @@ describe('sidebarThemeAttrs', () => {
   })
 })
 
+describe('tuned rail', () => {
+  const custom = defaultCustomTheme(false)
+  const tuned = { ...DEFAULT_APPEARANCE, palette: 'tuned' as const, sidebarPalette: null }
+
+  // inputs and popovers inside a deep rail on a light page have to read dark too
+  it('scopes a deep rail on a light page as dark', () => {
+    const attrs = sidebarThemeAttrs({ ...tuned, railTone: 'accent' }, custom, false)
+    expect(attrs?.dark).toBe(true)
+    expect(attrs?.style?.['--background']).toBe(attrs?.style?.['--sidebar'])
+  })
+
+  it('needs no scope when the page variables already describe the rail', () => {
+    expect(sidebarThemeAttrs({ ...tuned, railTone: 'match' }, custom, false)).toBeNull()
+    expect(sidebarThemeAttrs({ ...tuned, railTone: 'dark' }, custom, true)).toBeNull()
+  })
+})
+
 describe('rows that name no rail', () => {
   // adopting the split default would repaint half a screen the admin never asked about
   it('leaves the rail following the content', () => {
     localStorage.setItem(
       APPEARANCE_KEY,
-      JSON.stringify({ mode: 'dark', palette: 'ocean', radius: 'default', scale: 'default' }),
+      JSON.stringify({ mode: 'dark', palette: 'skelet', radius: 'default', scale: 'default' }),
     )
     render(<ThemeProvider>{null}</ThemeProvider>)
-    expect(document.documentElement.dataset.theme).toBe('ocean')
+    expect(document.documentElement.dataset.theme).toBe('skelet')
   })
 })
