@@ -222,6 +222,9 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 				return cart.Cart{}, apperr.New("CART_FORBIDDEN", apperr.ClassForbidden, "cart belongs to another customer")
 			}
 		}
+		if err := cart.CheckCartAccess(ctx, cartObj, in.CustomerID); err != nil {
+			return cart.Cart{}, err
+		}
 		return cartObj, nil
 	}
 	if in.CustomerID != nil {

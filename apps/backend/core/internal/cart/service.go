@@ -644,7 +644,7 @@ func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, calle
 		}
 		return Cart{}, fmt.Errorf("load cart: %w", err) // a DB failure is NOT a permission answer - masking it as forbidden told the shopper their own cart was gone
 	}
-	if err := checkCartAccess(ctx, cart, callerID); err != nil {
+	if err := CheckCartAccess(ctx, cart, callerID); err != nil {
 		return Cart{}, err
 	}
 	return cart, nil

@@ -652,6 +652,18 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 				return err
 			}
 		}
+		if cartObj.IsOffer() {
+			locked, err := cartR.LockCart(ctx, cartObj.ID)
+			if err != nil {
+				return fmt.Errorf("lock checkout offer: %w", err)
+			}
+			if err := cart.CheckCartAccess(ctx, locked, in.CustomerID); err != nil {
+				return err
+			}
+			if locked.Offer.LinkVersion != cartObj.Offer.LinkVersion {
+				return cart.ErrOfferLinkInvalid
+			}
+		}
 		// ConvertCart is the serialization point - a concurrent placement that already converted returns ErrCartAlreadyConverted, rolling back everything above
 		if err := cartR.ConvertCart(ctx, cartObj.ID); err != nil {
 			return err
