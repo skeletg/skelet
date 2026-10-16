@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http/httptest"
@@ -12,6 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 )
 
 // Scenario: an admin builds an offer for a guest email - an admin price on a catalog line, a free-form custom line,
@@ -158,6 +161,62 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	// A placed offer's link opens nothing more
 	if _, err := h.D.Cart.GetCart(h.Ctx, offer.ID, nil); !errors.Is(err, cart.ErrCartNotActive) {
 		t.Fatalf("completed offer still opens: %v", err)
+	}
+	h.Settle(t)
+}
+
+// Scenario: an order edit re-prices a custom offer line the way placement did - taxed by the class the admin gave it,
+// and left out of shipping, which it never takes. A 500.00 installation fee mustn't lift a 20.00 order over free shipping
+func TestCartOfferCustomLineSurvivesAnOrderEdit(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 10000)
+	h.newTaxRule(t, f.Channel.ID, 1000, tax.Condition{Type: "core.product_tax_class", Params: json.RawMessage(`{"classes":["service"]}`), ParamsVersion: 1})
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	chID := f.Channel.ID.String()
+	recipient := "offer-" + uuid.NewString()[:8] + "@e2e.test"
+	offer, err := h.D.Cart.AdminCreateOffer(h.Ctx, cart.CreateOfferInput{ChannelID: f.Channel.ID, Email: recipient, ExpiresAt: time.Now().Add(48 * time.Hour)})
+	if err != nil {
+		t.Fatalf("create offer: %v", err)
+	}
+	if _, err := h.D.Cart.AdminAddToCart(h.Ctx, offer.ID, f.Product.SKU, 1); err != nil {
+		t.Fatalf("add line: %v", err)
+	}
+	if _, err := h.D.Cart.AdminAddCustomLine(h.Ctx, offer.ID, cart.CustomLineInput{Name: "Installation", UnitPrice: 50000, Quantity: 1, TaxClass: "service"}); err != nil {
+		t.Fatalf("custom line: %v", err)
+	}
+	offerID := offer.ID.String()
+	link := map[string]string{cart.OfferLinkHeader: offer.Offer.LinkToken}
+	for _, step := range []string{
+		fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "US", postalCode: "12345") { id }`, offerID),
+		fmt.Sprintf(`setCartShippingMethod(cartId: %q, carrierSlug: "builtin", code: "standard") { id }`, offerID),
+		details(offerID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, recipient, usAddress)) + ` { id }`,
+		fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod") { id }`, offerID),
+	} {
+		if _, errs := h.gqlPost(t, ts, chID, `mutation { `+step+` }`, link); len(errs) > 0 {
+			t.Fatalf("%s: %v", step, errs)
+		}
+	}
+	data, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(`mutation { placeOrder(cartId: %q, acceptTerms: true) { id } }`, offerID), link)
+	if len(errs) > 0 {
+		t.Fatalf("placeOrder: %v", errs)
+	}
+	placed, err := h.D.Order.GetByID(h.Ctx, uuid.MustParse(data["placeOrder"].(map[string]any)["id"].(string)))
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	// Only the service line is taxed - 10% of 50000 - and the 2000 product alone is under the 10000 free-shipping threshold
+	if placed.ShippingAmount != 500 || placed.TaxAmount-placed.ShippingTaxAmount != 5000 {
+		t.Fatalf("placed shipping=%d goods tax=%d, want 500 and 5000", placed.ShippingAmount, placed.TaxAmount-placed.ShippingTaxAmount)
+	}
+	moved, err := h.D.Order.EditOrderAddress(h.Ctx, order.EditOrderAddressInput{OrderID: placed.ID, Shipping: editAddr("Ada", "Lovelace", "Boston", "02101")})
+	if err != nil {
+		t.Fatalf("EditOrderAddress: %v", err)
+	}
+	if moved.ShippingAmount != placed.ShippingAmount || moved.TaxAmount != placed.TaxAmount || moved.TotalAmount != placed.TotalAmount {
+		t.Fatalf("after the address edit shipping=%d tax=%d total=%d, want placement's %d/%d/%d",
+			moved.ShippingAmount, moved.TaxAmount, moved.TotalAmount, placed.ShippingAmount, placed.TaxAmount, placed.TotalAmount)
 	}
 	h.Settle(t)
 }

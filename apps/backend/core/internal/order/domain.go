@@ -100,7 +100,9 @@ type OrderLine struct {
 	// A promotion free gift granted by core.add_free_gift - zero-priced, stock reserved like any other line, and excluded from pro-rata refunds since nothing was paid for it
 	IsGift bool
 	// An admin's free-form charge from an offer - no catalog product, nothing reserved or shipped
-	IsCustom   bool
+	IsCustom bool
+	// The tax class the admin gave a custom line - empty on catalog lines, which take their product's
+	TaxClass   string
 	Components []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
