@@ -1,7 +1,8 @@
--- Preserve free-form classifiers for operators reviewing legacy locations.
+-- Preserve free-form classifiers for operators reviewing legacy locations, and every value
+-- this migration changes (an untyped pickup point becomes retail below) so down can restore it.
 UPDATE inventory_locations
 SET metadata = jsonb_build_object('_legacy_location_type', type) || metadata
-WHERE type <> '';
+WHERE type <> '' OR pickup_enabled;
 
 UPDATE inventory_locations SET type = CASE lower(replace(replace(trim(type), '_', '-'), ' ', '-'))
     WHEN 'retail' THEN 'retail' WHEN 'retail-store' THEN 'retail' WHEN 'store' THEN 'retail' WHEN 'shop' THEN 'retail'
@@ -9,7 +10,8 @@ UPDATE inventory_locations SET type = CASE lower(replace(replace(trim(type), '_'
     WHEN 'storage' THEN 'storage'
     WHEN 'dropshipper' THEN 'drop-shipper' WHEN 'drop-shipper' THEN 'drop-shipper'
     WHEN 'fulfillment-partner' THEN 'fulfillment-center' WHEN 'fulfillment-center' THEN 'fulfillment-center'
-    ELSE 'unclassified' END;
+    -- Pickup never needed a type before, so an unknown-typed pickup point is a store: keep click-and-collect
+    ELSE CASE WHEN pickup_enabled THEN 'retail' ELSE 'unclassified' END END;
 
 UPDATE inventory_locations SET storefront_visible = false, pickup_enabled = false
 WHERE type <> 'retail';
