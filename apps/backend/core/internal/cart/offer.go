@@ -3,6 +3,7 @@ package cart
 import (
 	"context"
 	"errors"
+	"math"
 	"slices"
 	"time"
 
@@ -318,4 +319,27 @@ type OfferDeliveryInput struct {
 	CarrierSlug string
 	MethodCode  string
 	PointID     string
+}
+
+// An empty selector checks every line, as ClearCart removes them all.
+func checkProtectedOfferLine(c Cart, lineID uuid.UUID, sku string) error {
+	if !c.IsOffer() {
+		return nil
+	}
+	for _, l := range c.Lines {
+		if (lineID == uuid.Nil && sku == "" || l.ID == lineID || sku != "" && l.ProductSku == sku) && (l.IsCustom || l.PriceOverride) {
+			return lockedErr(LockLines)
+		}
+	}
+	return nil
+}
+
+func validCustomQuantity(quantity float64) error {
+	if err := validQuantity(quantity); err != nil {
+		return err
+	}
+	if math.Trunc(quantity) != quantity {
+		return ErrQuantityInvalid
+	}
+	return nil
 }

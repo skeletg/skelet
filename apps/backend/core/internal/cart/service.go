@@ -283,6 +283,9 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, sku); err != nil {
+		return Cart{}, err
+	}
 	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
 	if err != nil {
 		return Cart{}, err
@@ -429,6 +432,9 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
+		return Cart{}, err
+	}
 	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity)
 	if err != nil {
 		return Cart{}, err
@@ -475,6 +481,9 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
+		return Cart{}, err
+	}
 	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
 		return Cart{}, err
 	}
@@ -507,6 +516,9 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 func (s *Service) ClearCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID) error {
 	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return err
+	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, ""); err != nil {
 		return err
 	}
 	if err := s.repo.ClearCartLines(ctx, cart.ID); err != nil {
@@ -659,11 +671,16 @@ func authorizeLineEdit(ctx context.Context, repo Repository, cartID uuid.UUID, c
 	if cart.Locked(LockLines) {
 		return Cart{}, lockedErr(LockLines)
 	}
+	if cart.IsOffer() {
+		if cart.Lines, err = repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+			return Cart{}, fmt.Errorf("load offer lines: %w", err)
+		}
+	}
 	return cart, nil
 }
 
-// An offer answers to its link rather than its id - see checkOfferAccess
-func checkCartAccess(ctx context.Context, cart Cart, callerID *uuid.UUID) error {
+// CheckCartAccess validates a storefront caller against the current cart row, including offer grants and lifetime.
+func CheckCartAccess(ctx context.Context, cart Cart, callerID *uuid.UUID) error {
 	if cart.Status != "active" {
 		return ErrCartNotActive
 	}
