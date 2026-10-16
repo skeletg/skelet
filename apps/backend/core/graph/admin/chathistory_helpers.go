@@ -13,9 +13,9 @@ import (
 
 // Chat history is self-scoped: every op needs the caller's admin id and nothing else
 func (r *Resolver) chatHistory(ctx context.Context) (*ai.History, uuid.UUID, error) {
-	claims, ok := auth.AdminFromContext(ctx)
-	if !ok || claims == nil {
-		return nil, uuid.Nil, errAdminRequired()
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return nil, uuid.Nil, err
 	}
 	if r.ChatSvc == nil {
 		return nil, uuid.Nil, apperr.New("CHAT_HISTORY_UNAVAILABLE", apperr.ClassUnavailable, "conversation history not available")

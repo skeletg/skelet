@@ -14,6 +14,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // bare returns a Service with nil queries, so any code path reaching the database panics - the recover in guarded turns that into a named failure
@@ -83,7 +84,7 @@ func TestAnswerRefusesAnEmptyAnswer(t *testing.T) { // an empty answer is a reje
 	ctx := context.Background()
 	for name, a := range map[string]string{"empty": "", "whitespace": "  \t\n  "} {
 		var err error
-		guarded(t, name, func() { _, err = bare().Answer(ctx, uuid.New(), uuid.New(), a) })
+		guarded(t, name, func() { _, err = bare().Answer(ctx, uuid.New(), auth.Actor{}, a) })
 		if !errors.Is(err, ErrInvalidAnswer) {
 			t.Errorf("%s: err = %v, want ErrInvalidAnswer", name, err)
 		}
@@ -116,7 +117,7 @@ func TestWriteWithoutABusIsANoOp(t *testing.T) { // SetEventBus is optional, and
 func TestAnswerRefusesAnOversizedAnswer(t *testing.T) {
 	var err error
 	guarded(t, "oversized", func() {
-		_, err = bare().Answer(context.Background(), uuid.New(), uuid.New(), strings.Repeat("a", 5001))
+		_, err = bare().Answer(context.Background(), uuid.New(), auth.Actor{}, strings.Repeat("a", 5001))
 	})
 	if !errors.Is(err, ErrInvalidAnswer) {
 		t.Errorf("err = %v, want ErrInvalidAnswer", err)

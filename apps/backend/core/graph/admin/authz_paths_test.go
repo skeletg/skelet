@@ -14,7 +14,9 @@ import (
 // The admin middleware answers anonymous callers, so every resolver path that returns data has to pass a checked permission gate first
 var conditionallyGatedResolvers = map[string]string{}
 
-// Resolvers any signed-in admin may call, where auth.RequireAuth is the whole gate
+var authOnlyGuards = map[string]bool{"RequireAuth": true, "RequireActor": true, "RequireAdmin": true}
+
+// Resolvers any signed-in caller may call, where one of authOnlyGuards is the whole gate
 var authOnlyResolvers = map[string]string{
 	"Channels":       "the scope selector needs the channel roster, filtered to the caller's grants",
 	"ResolveURL":     "resolves a storefront path for the editor, the data behind it is gated where it is read",
@@ -33,6 +35,11 @@ var authOnlyResolvers = map[string]string{
 	"AdminActions":       "filters the action catalogue through the caller's grants",
 	"SignalsInsights":    "digestPermsFor narrows every section to the caller's grants on the channel",
 	"SignalsChat":        "digestPermsFor narrows every section to the caller's grants on the channel",
+
+	"SaveChatConversation":   "own rows only, keyed by the caller's admin id",
+	"DeleteChatConversation": "own rows only, keyed by the caller's admin id",
+	"ChatConversations":      "own rows only, keyed by the caller's admin id",
+	"ChatConversation":       "own rows only, keyed by the caller's admin id",
 }
 
 func TestEveryAdminResolverGatesEveryPath(t *testing.T) {
@@ -350,7 +357,7 @@ func (w pathWalker) isGateCall(e ast.Expr) bool {
 	switch fn := call.Fun.(type) {
 	case *ast.SelectorExpr:
 		if pkg, ok := fn.X.(*ast.Ident); ok && pkg.Name == "auth" && strings.HasPrefix(fn.Sel.Name, "Require") {
-			return fn.Sel.Name != "RequireAuth" || w.allowAuth
+			return !authOnlyGuards[fn.Sel.Name] || w.allowAuth
 		}
 		if recv, ok := fn.X.(*ast.Ident); ok && recv.Name == "r" {
 			return w.helperGates(fn.Sel.Name)

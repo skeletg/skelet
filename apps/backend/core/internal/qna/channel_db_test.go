@@ -13,6 +13,7 @@ import (
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -94,7 +95,7 @@ func TestOnlyTheFirstAnswerIsAnnounced(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, errs[i] = svc.Answer(ctx, q.ID, uuid.New(), "Холодная вода.")
+			_, errs[i] = svc.Answer(ctx, q.ID, auth.Actor{Kind: auth.ActorAdmin, ID: uuid.New()}, "Холодная вода.")
 		}(i)
 	}
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
@@ -116,7 +117,7 @@ func TestOnlyTheFirstAnswerIsAnnounced(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := svc.Answer(ctx, q.ID, uuid.New(), "Edited: cold water."); err != nil {
+	if _, err := svc.Answer(ctx, q.ID, auth.Actor{Kind: auth.ActorAdmin, ID: uuid.New()}, "Edited: cold water."); err != nil {
 		t.Fatal(err)
 	}
 	if got := ob.count(EventQuestionAnswered); got != 1 {
@@ -149,7 +150,7 @@ func TestAStoreReadsOnlyItsOwnPublishedQuestions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := svc.Answer(ctx, q.ID, uuid.New(), "yes"); err != nil {
+		if _, err := svc.Answer(ctx, q.ID, auth.Actor{Kind: auth.ActorAdmin, ID: uuid.New()}, "yes"); err != nil {
 			t.Fatal(err)
 		}
 	}

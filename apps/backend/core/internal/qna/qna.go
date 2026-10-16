@@ -18,6 +18,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -58,18 +59,19 @@ func init() {
 
 // Question is one shopper question with its (optional) staff answer
 type Question struct {
-	ID          uuid.UUID
-	ProductID   uuid.UUID
-	ChannelID   uuid.UUID
-	CustomerID  *uuid.UUID
-	AuthorName  string
-	AuthorEmail string
-	Question    string
-	Answer      string
-	AnsweredBy  *uuid.UUID
-	AnsweredAt  *time.Time
-	Status      string
-	CreatedAt   time.Time
+	ID                    uuid.UUID
+	ProductID             uuid.UUID
+	ChannelID             uuid.UUID
+	CustomerID            *uuid.UUID
+	AuthorName            string
+	AuthorEmail           string
+	Question              string
+	Answer                string
+	AnsweredBy            *uuid.UUID
+	AnsweredByIntegration *uuid.UUID
+	AnsweredAt            *time.Time
+	Status                string
+	CreatedAt             time.Time
 }
 
 const (
@@ -93,12 +95,13 @@ func (e *QuestionSubmitted) EventChannelID() uuid.UUID { return e.ChannelID }
 // QuestionAnswered fires after an operator answers a question (which publishes
 // it to the storefront) - Async, channel-scoped
 type QuestionAnswered struct {
-	QuestionID uuid.UUID
-	ProductID  uuid.UUID
-	ChannelID  uuid.UUID
-	AnsweredBy uuid.UUID
-	Question   string
-	Answer     string
+	QuestionID            uuid.UUID
+	ProductID             uuid.UUID
+	ChannelID             uuid.UUID
+	AnsweredBy            uuid.UUID
+	AnsweredByIntegration uuid.UUID
+	Question              string
+	Answer                string
 }
 
 func (*QuestionAnswered) Type() string                { return EventQuestionAnswered }
@@ -240,7 +243,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Question, error) {
 }
 
 // Answer publishes the question with the operator's answer - editing an answer keeps it published without announcing it again
-func (s *Service) Answer(ctx context.Context, id uuid.UUID, adminID uuid.UUID, answer string) (Question, error) {
+func (s *Service) Answer(ctx context.Context, id uuid.UUID, by auth.Actor, answer string) (Question, error) {
 	answer = strings.TrimSpace(answer)
 	if answer == "" || utf8.RuneCountInString(answer) > maxAnswerRunes {
 		return Question{}, ErrInvalidAnswer
@@ -248,9 +251,10 @@ func (s *Service) Answer(ctx context.Context, id uuid.UUID, adminID uuid.UUID, a
 	var q Question
 	err := s.write(ctx, func(dbq *db.Queries) (events.Event, error) {
 		row, err := dbq.AnswerProductQuestion(ctx, db.AnswerProductQuestionParams{
-			ID:         id,
-			Answer:     answer,
-			AnsweredBy: uuid.NullUUID{UUID: adminID, Valid: true},
+			ID:                      id,
+			Answer:                  answer,
+			AnsweredBy:              by.AdminID(),
+			AnsweredByIntegrationID: by.IntegrationID(),
 		})
 		if err != nil {
 			return nil, notFound(err, "answer question")
@@ -260,12 +264,13 @@ func (s *Service) Answer(ctx context.Context, id uuid.UUID, adminID uuid.UUID, a
 			return nil, nil
 		}
 		return &QuestionAnswered{
-			QuestionID: q.ID,
-			ProductID:  q.ProductID,
-			ChannelID:  q.ChannelID,
-			AnsweredBy: adminID,
-			Question:   q.Question,
-			Answer:     q.Answer,
+			QuestionID:            q.ID,
+			ProductID:             q.ProductID,
+			ChannelID:             q.ChannelID,
+			AnsweredBy:            by.AdminID().UUID,
+			AnsweredByIntegration: by.IntegrationID().UUID,
+			Question:              q.Question,
+			Answer:                q.Answer,
 		}, nil
 	})
 	if err != nil {
@@ -334,6 +339,10 @@ func toQuestion(r db.ProductQuestion) Question {
 	if r.AnsweredBy.Valid {
 		id := r.AnsweredBy.UUID
 		q.AnsweredBy = &id
+	}
+	if r.AnsweredByIntegrationID.Valid {
+		id := r.AnsweredByIntegrationID.UUID
+		q.AnsweredByIntegration = &id
 	}
 	if r.AnsweredAt.Valid {
 		t := r.AnsweredAt.Time

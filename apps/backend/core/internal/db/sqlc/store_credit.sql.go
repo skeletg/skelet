@@ -12,18 +12,19 @@ import (
 )
 
 const insertStoreCreditEntry = `-- name: InsertStoreCreditEntry :one
-INSERT INTO store_credit_entries (customer_id, order_id, amount_cents, currency_code, reason, admin_id)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at
+INSERT INTO store_credit_entries (customer_id, order_id, amount_cents, currency_code, reason, admin_id, integration_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at, integration_id
 `
 
 type InsertStoreCreditEntryParams struct {
-	CustomerID   uuid.UUID     `json:"customer_id"`
-	OrderID      uuid.NullUUID `json:"order_id"`
-	AmountCents  int64         `json:"amount_cents"`
-	CurrencyCode string        `json:"currency_code"`
-	Reason       string        `json:"reason"`
-	AdminID      uuid.NullUUID `json:"admin_id"`
+	CustomerID    uuid.UUID     `json:"customer_id"`
+	OrderID       uuid.NullUUID `json:"order_id"`
+	AmountCents   int64         `json:"amount_cents"`
+	CurrencyCode  string        `json:"currency_code"`
+	Reason        string        `json:"reason"`
+	AdminID       uuid.NullUUID `json:"admin_id"`
+	IntegrationID uuid.NullUUID `json:"integration_id"`
 }
 
 func (q *Queries) InsertStoreCreditEntry(ctx context.Context, arg InsertStoreCreditEntryParams) (StoreCreditEntry, error) {
@@ -34,6 +35,7 @@ func (q *Queries) InsertStoreCreditEntry(ctx context.Context, arg InsertStoreCre
 		arg.CurrencyCode,
 		arg.Reason,
 		arg.AdminID,
+		arg.IntegrationID,
 	)
 	var i StoreCreditEntry
 	err := row.Scan(
@@ -45,12 +47,13 @@ func (q *Queries) InsertStoreCreditEntry(ctx context.Context, arg InsertStoreCre
 		&i.Reason,
 		&i.AdminID,
 		&i.CreatedAt,
+		&i.IntegrationID,
 	)
 	return i, err
 }
 
 const listStoreCreditEntries = `-- name: ListStoreCreditEntries :many
-SELECT id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at FROM store_credit_entries
+SELECT id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at, integration_id FROM store_credit_entries
 WHERE  customer_id = $1
 ORDER  BY created_at DESC, id DESC
 LIMIT  $2
@@ -79,6 +82,7 @@ func (q *Queries) ListStoreCreditEntries(ctx context.Context, arg ListStoreCredi
 			&i.Reason,
 			&i.AdminID,
 			&i.CreatedAt,
+			&i.IntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -198,7 +202,7 @@ func (q *Queries) StoreCreditBalance(ctx context.Context, arg StoreCreditBalance
 }
 
 const storeCreditEntriesForOrder = `-- name: StoreCreditEntriesForOrder :many
-SELECT id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at FROM store_credit_entries
+SELECT id, customer_id, order_id, amount_cents, currency_code, reason, admin_id, created_at, integration_id FROM store_credit_entries
 WHERE  order_id = $1
 ORDER  BY created_at
 `
@@ -221,6 +225,7 @@ func (q *Queries) StoreCreditEntriesForOrder(ctx context.Context, orderID uuid.N
 			&i.Reason,
 			&i.AdminID,
 			&i.CreatedAt,
+			&i.IntegrationID,
 		); err != nil {
 			return nil, err
 		}

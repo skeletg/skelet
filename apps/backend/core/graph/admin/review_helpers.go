@@ -18,7 +18,7 @@ func (r *mutationResolver) setReviewStatus(ctx context.Context, id string, statu
 	if err != nil {
 		return nil, errInvalidID("review id", nil)
 	}
-	claims, err := auth.RequireAuth(ctx)
+	by, err := auth.RequireActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -28,11 +28,11 @@ func (r *mutationResolver) setReviewStatus(ctx context.Context, id string, statu
 	}
 	switch status {
 	case review.StatusApproved:
-		if _, err := r.ReviewSvc.ApproveReview(ctx, uid, claims.AdminID, noteStr); err != nil {
+		if _, err := r.ReviewSvc.ApproveReview(ctx, uid, by, noteStr); err != nil {
 			return nil, err
 		}
 	case review.StatusRejected:
-		if _, err := r.ReviewSvc.RejectReview(ctx, uid, claims.AdminID, noteStr); err != nil {
+		if _, err := r.ReviewSvc.RejectReview(ctx, uid, by, noteStr); err != nil {
 			return nil, err
 		}
 	default:
@@ -269,6 +269,10 @@ func reviewToModel(
 	if r.ModeratedBy != nil {
 		id := r.ModeratedBy.String()
 		out.ModeratedBy = &id
+	}
+	if r.ModeratedByIntegration != nil {
+		id := r.ModeratedByIntegration.String()
+		out.ModeratedByIntegration = &id
 	}
 	out.Answers = make([]*model.ReviewAnswer, 0, len(r.Answers))
 	for _, a := range r.Answers {

@@ -1,6 +1,6 @@
 -- name: InsertStoreCreditEntry :one
-INSERT INTO store_credit_entries (customer_id, order_id, amount_cents, currency_code, reason, admin_id)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO store_credit_entries (customer_id, order_id, amount_cents, currency_code, reason, admin_id, integration_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: StoreCreditBalance :one
