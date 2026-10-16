@@ -396,7 +396,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		evalResult promotion.EvalResult
 		ranEngine  bool
 	)
-	if s.promotion != nil {
+	if s.promotion != nil && !cartObj.Locked(cart.LockCoupons) {
 		// Segment slugs and per-line catalog facts are resolved inside EvaluateCart, so this and the storefront's cart hydration can't drift into pricing the same cart differently
 		cartEval, err := s.promotion.EvaluateCart(ctx, promotion.CartEvalInput{
 			CartID:            cartObj.ID,

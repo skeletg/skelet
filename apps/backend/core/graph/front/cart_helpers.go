@@ -295,7 +295,7 @@ func (r *Resolver) mediaTransformURL(m *catalog.ProductMedia) string {
 
 // Called by every cart-returning resolver so the storefront's totals always match what PlaceOrder computes - no-op when the promotion service isn't wired, and env build/engine eval/applied-display all live in promotion.Service so order placement shares them
 func (r *Resolver) HydrateCartPromotions(ctx context.Context, m *frontmodel.Cart, c cart.Cart, countryCode string) {
-	if r.PromotionSvc == nil || m == nil {
+	if r.PromotionSvc == nil || m == nil || c.Locked(cart.LockCoupons) {
 		return
 	}
 	store, _ := channel.FromContext(ctx)
