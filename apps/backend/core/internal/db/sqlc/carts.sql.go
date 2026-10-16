@@ -1395,6 +1395,7 @@ func (q *Queries) SetCartNote(ctx context.Context, arg SetCartNoteParams) error 
 const setCartOffer = `-- name: SetCartOffer :exec
 
 UPDATE carts SET
+    offer_expired_notified_at = CASE WHEN offer_expires_at IS DISTINCT FROM $1::timestamptz THEN NULL ELSE offer_expired_notified_at END,
     offer_expires_at      = $1,
     offer_message         = $2,
     offer_show_in_account = $3,

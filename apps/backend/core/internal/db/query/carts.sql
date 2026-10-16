@@ -209,6 +209,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: SetCartOffer :exec
 UPDATE carts SET
+    offer_expired_notified_at = CASE WHEN offer_expires_at IS DISTINCT FROM sqlc.arg(expires_at)::timestamptz THEN NULL ELSE offer_expired_notified_at END,
     offer_expires_at      = sqlc.arg(expires_at),
     offer_message         = sqlc.arg(message),
     offer_show_in_account = sqlc.arg(show_in_account),
