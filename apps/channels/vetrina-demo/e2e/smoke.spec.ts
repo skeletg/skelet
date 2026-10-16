@@ -4,7 +4,7 @@ import { main, open } from "./helpers";
 
 // Every main page renders its content, throws nothing in the browser and trips no Content-Security-Policy rule.
 // Media is left out: product images come from the object store's host port, which the test container can't reach
-const PAGES = ["/", "/products", "/collections", "/casual-t-shirt", "/cart", "/blog", "/search?q=shirt", "/account/login"];
+const PAGES = ["/", "/products", "/collections", "/casual-t-shirt", "/cart", "/blog", "/search?q=shirt", "/account/login", "/track-order"];
 
 for (const path of PAGES) {
   test(`${path} renders without browser errors`, async ({ page }) => {
