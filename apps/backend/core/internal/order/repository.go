@@ -1172,6 +1172,17 @@ func (r *postgresRepository) SetPaymentReference(ctx context.Context, id uuid.UU
 	return toOrder(row), nil
 }
 
+func (r *postgresRepository) TrackOrderLookup(ctx context.Context, number, email, postalCode string) (TrackedOrder, error) {
+	row, err := r.queries.TrackOrderLookup(ctx, db.TrackOrderLookupParams{Number: number, Email: email, PostalCode: postalCode})
+	if errors.Is(err, sql.ErrNoRows) {
+		return TrackedOrder{}, ErrOrderNotFound
+	}
+	if err != nil {
+		return TrackedOrder{}, fmt.Errorf("track order lookup: %w", err)
+	}
+	return TrackedOrder{ID: row.ID, ChannelID: row.ChannelID, Email: row.Email, HasAccount: row.HasAccount}, nil
+}
+
 func (r *postgresRepository) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error) {
 	n, err := r.queries.ClaimGuestOrdersByEmail(ctx, db.ClaimGuestOrdersByEmailParams{
 		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true},
