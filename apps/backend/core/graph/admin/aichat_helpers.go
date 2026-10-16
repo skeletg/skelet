@@ -22,8 +22,8 @@ func aiProviderError(ctx context.Context, err error) error {
 }
 
 func digestPermsFor(ctx context.Context, r *Resolver, cid uuid.UUID) digestPerms {
-	// Fails closed on its own: LoadPermittedChannels reports Bypass=true with no admin in ctx, which would hand an anonymous caller every section
-	if _, ok := auth.AdminFromContext(ctx); !ok {
+	// Fails closed on its own: LoadPermittedChannels reports Bypass=true with no caller in ctx, which would hand an anonymous caller every section
+	if _, ok := auth.ActorFromContext(ctx); !ok {
 		return digestPerms{}
 	}
 	allows := func(perm string) bool {

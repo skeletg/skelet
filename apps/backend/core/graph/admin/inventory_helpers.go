@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Lives in its own file so gqlgen's regen of inventory.resolvers.go doesn't strip it on every schema change
@@ -171,4 +172,16 @@ func invMetadataFromInput(in []*model.MetadataInput) inventory.Metadata {
 		out[item.Key] = item.Value
 	}
 	return out
+}
+
+func syncSource(ctx context.Context) string {
+	a, ok := auth.ActorFromContext(ctx)
+	switch {
+	case !ok:
+		return "manual"
+	case a.Kind == auth.ActorIntegration:
+		return "integration:" + a.Name
+	default:
+		return "admin:" + a.Name
+	}
 }

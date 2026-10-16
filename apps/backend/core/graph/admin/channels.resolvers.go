@@ -132,47 +132,59 @@ func (r *mutationResolver) SetChannelAsDefault(ctx context.Context, channelID st
 }
 
 func (r *queryResolver) Channels(ctx context.Context) ([]*model.Channel, error) {
-	global, err := hasGlobalPermission(ctx, r.AdminSvc, channel.PermView)
-	if err != nil {
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
+	}
+	var global bool
+	allowed := map[uuid.UUID]bool{}
+	if tok, ok := auth.ApiTokenFromContext(ctx); ok && !isAdminCaller(ctx) {
+		var ids []uuid.UUID
+		global, ids = tokenChannels(tok)
+		for _, id := range ids {
+			allowed[id] = true
+		}
+	} else {
+		var err error
+		if global, err = hasGlobalPermission(ctx, r.AdminSvc, channel.PermView); err != nil {
+			return nil, err
+		}
+		if !global {
+			claims, err := auth.RequireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			ids, err := r.AdminSvc.ListPermittedChannelIDs(ctx, claims.AdminID, channel.PermView)
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range ids {
+				allowed[id] = true
+			}
+			// channels.view gates ADMINISTERING channels, but this list also feeds the header scope picker - a store manager scoped to one channel usually holds no channels.view and would face an empty picker
+			// So fall back to the union of channels any of their grants reference, where a nil-channel grant on any permission means all channels
+			if len(allowed) == 0 {
+				user, err := r.AdminSvc.GetByID(ctx, claims.AdminID)
+				if err != nil {
+					return nil, errNotFound("admin")
+				}
+				for _, role := range user.Roles {
+					for _, sc := range role.PermissionScopes {
+						if sc.ChannelID == nil {
+							global = true
+							break
+						}
+						allowed[*sc.ChannelID] = true
+					}
+					if global {
+						break
+					}
+				}
+			}
+		}
 	}
 	svs, err := r.ChannelSvc.List(ctx)
 	if err != nil {
 		return nil, err
-	}
-	allowed := map[uuid.UUID]bool{}
-	if !global {
-		claims, err := auth.RequireAuth(ctx)
-		if err != nil {
-			return nil, err
-		}
-		ids, err := r.AdminSvc.ListPermittedChannelIDs(ctx, claims.AdminID, channel.PermView)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range ids {
-			allowed[id] = true
-		}
-		// channels.view gates ADMINISTERING channels, but this list also feeds the header scope picker - a store manager scoped to one channel usually holds no channels.view and would face an empty picker
-		// So fall back to the union of channels any of their grants reference, where a nil-channel grant on any permission means all channels
-		if len(allowed) == 0 {
-			user, err := r.AdminSvc.GetByID(ctx, claims.AdminID)
-			if err != nil {
-				return nil, errNotFound("admin")
-			}
-			for _, role := range user.Roles {
-				for _, sc := range role.PermissionScopes {
-					if sc.ChannelID == nil {
-						global = true
-						break
-					}
-					allowed[*sc.ChannelID] = true
-				}
-				if global {
-					break
-				}
-			}
-		}
 	}
 	out := make([]*model.Channel, 0, len(svs))
 	for _, sv := range svs {

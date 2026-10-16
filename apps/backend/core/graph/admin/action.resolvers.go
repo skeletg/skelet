@@ -28,17 +28,15 @@ func (r *mutationResolver) RunAdminAction(ctx context.Context, slug string, args
 }
 
 func (r *queryResolver) AdminActions(ctx context.Context) ([]*model.AdminAction, error) {
-	claims, err := auth.RequireAuth(ctx)
-	if err != nil {
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
 	}
-
-	// superusers have no admin_user_roles rows, so AllAvailable's per-action HasPermission filter would return empty - give them everything
+	// The same gate running one applies, so the list never offers an action the caller would be refused
 	var defs []adminaction.Definition
-	if claims.IsSuperuser {
-		defs = adminaction.AllDefinitions()
-	} else {
-		defs = adminaction.AllAvailable(ctx, r.AdminSvc, claims.AdminID)
+	for _, d := range adminaction.AllDefinitions() {
+		if auth.RequirePermission(ctx, r.AdminSvc, d.Permission) == nil {
+			defs = append(defs, d)
+		}
 	}
 
 	out := make([]*model.AdminAction, len(defs))

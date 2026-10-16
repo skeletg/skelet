@@ -44,12 +44,13 @@ const (
 func (s *Service) Registry() *dataio.Registry { return s.reg }
 
 type ExportRequest struct {
-	Resource  string
-	Format    dataio.Format
-	Options   map[string]string
-	ChannelID uuid.UUID
-	Locale    string
-	AdminID   uuid.UUID
+	Resource      string
+	Format        dataio.Format
+	Options       map[string]string
+	ChannelID     uuid.UUID
+	Locale        string
+	AdminID       uuid.UUID
+	IntegrationID uuid.UUID
 }
 
 // Queues an export. The file is produced by the runner and parked in the object store, so the caller
@@ -75,14 +76,15 @@ func (s *Service) QueueExport(ctx context.Context, in ExportRequest) (Job, error
 		return Job{}, err
 	}
 	row, err := s.insert(ctx, insertParams{
-		direction: dataio.DirectionExport,
-		resource:  in.Resource,
-		format:    in.Format,
-		status:    StatusQueued,
-		options:   opts,
-		channelID: in.ChannelID,
-		adminID:   in.AdminID,
-		filename:  fmt.Sprintf("%s-%s.%s", in.Resource, s.now().UTC().Format("20060102-150405"), codec.Extension()),
+		direction:     dataio.DirectionExport,
+		resource:      in.Resource,
+		format:        in.Format,
+		status:        StatusQueued,
+		options:       opts,
+		channelID:     in.ChannelID,
+		adminID:       in.AdminID,
+		integrationID: in.IntegrationID,
+		filename:      fmt.Sprintf("%s-%s.%s", in.Resource, s.now().UTC().Format("20060102-150405"), codec.Extension()),
 	})
 	if err != nil {
 		return Job{}, err
@@ -91,14 +93,15 @@ func (s *Service) QueueExport(ctx context.Context, in ExportRequest) (Job, error
 }
 
 type ImportRequest struct {
-	Resource  string
-	Format    dataio.Format
-	Options   map[string]string
-	ChannelID uuid.UUID
-	Locale    string
-	AdminID   uuid.UUID
-	DryRun    bool
-	Filename  string
+	Resource      string
+	Format        dataio.Format
+	Options       map[string]string
+	ChannelID     uuid.UUID
+	Locale        string
+	AdminID       uuid.UUID
+	IntegrationID uuid.UUID
+	DryRun        bool
+	Filename      string
 }
 
 // Parks the uploaded file in the object store and queues the run - the source is kept so a failed import
@@ -134,16 +137,17 @@ func (s *Service) QueueImport(ctx context.Context, in ImportRequest, src io.Read
 		filename = fmt.Sprintf("%s.%s", in.Resource, codec.Extension())
 	}
 	row, err := s.insert(ctx, insertParams{
-		direction: dataio.DirectionImport,
-		resource:  in.Resource,
-		format:    in.Format,
-		status:    StatusQueued,
-		options:   opts,
-		dryRun:    in.DryRun,
-		channelID: in.ChannelID,
-		adminID:   in.AdminID,
-		filename:  filename,
-		objectKey: key,
+		direction:     dataio.DirectionImport,
+		resource:      in.Resource,
+		format:        in.Format,
+		status:        StatusQueued,
+		options:       opts,
+		dryRun:        in.DryRun,
+		channelID:     in.ChannelID,
+		adminID:       in.AdminID,
+		integrationID: in.IntegrationID,
+		filename:      filename,
+		objectKey:     key,
 	})
 	if err != nil {
 		// The row is what the sweeper walks, so an orphaned upload has to go now or it leaks forever
@@ -154,16 +158,17 @@ func (s *Service) QueueImport(ctx context.Context, in ImportRequest, src io.Read
 }
 
 type insertParams struct {
-	direction dataio.Direction
-	resource  string
-	format    dataio.Format
-	status    Status
-	options   map[string]string
-	dryRun    bool
-	channelID uuid.UUID
-	adminID   uuid.UUID
-	filename  string
-	objectKey string
+	direction     dataio.Direction
+	resource      string
+	format        dataio.Format
+	status        Status
+	options       map[string]string
+	dryRun        bool
+	channelID     uuid.UUID
+	adminID       uuid.UUID
+	integrationID uuid.UUID
+	filename      string
+	objectKey     string
 }
 
 func (s *Service) insert(ctx context.Context, p insertParams) (db.DataJob, error) {
@@ -172,17 +177,18 @@ func (s *Service) insert(ctx context.Context, p insertParams) (db.DataJob, error
 		return db.DataJob{}, err
 	}
 	return s.q.CreateDataJob(ctx, db.CreateDataJobParams{
-		Direction: string(p.direction),
-		Resource:  p.resource,
-		Format:    string(p.format),
-		Status:    string(p.status),
-		Options:   raw,
-		DryRun:    p.dryRun,
-		ChannelID: sqlnull.UUIDValueNonZero(p.channelID),
-		AdminID:   sqlnull.UUIDValueNonZero(p.adminID),
-		Filename:  p.filename,
-		ObjectKey: p.objectKey,
-		ExpiresAt: sql.NullTime{Time: s.now().Add(s.retention()), Valid: true},
+		Direction:     string(p.direction),
+		Resource:      p.resource,
+		Format:        string(p.format),
+		Status:        string(p.status),
+		Options:       raw,
+		DryRun:        p.dryRun,
+		ChannelID:     sqlnull.UUIDValueNonZero(p.channelID),
+		AdminID:       sqlnull.UUIDValueNonZero(p.adminID),
+		IntegrationID: sqlnull.UUIDValueNonZero(p.integrationID),
+		Filename:      p.filename,
+		ObjectKey:     p.objectKey,
+		ExpiresAt:     sql.NullTime{Time: s.now().Add(s.retention()), Valid: true},
 	})
 }
 
@@ -364,6 +370,7 @@ func toJob(r db.DataJob) Job {
 		DryRun:          r.DryRun,
 		ChannelID:       r.ChannelID.UUID,
 		AdminID:         r.AdminID.UUID,
+		IntegrationID:   r.IntegrationID.UUID,
 		Filename:        r.Filename,
 		ObjectKey:       r.ObjectKey,
 		ByteSize:        r.ByteSize,

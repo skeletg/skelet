@@ -314,15 +314,16 @@ type ComplexityRoot struct {
 	}
 
 	AuditLogEntry struct {
-		Action     func(childComplexity int) int
-		AdminEmail func(childComplexity int) int
-		AdminID    func(childComplexity int) int
-		CreatedAt  func(childComplexity int) int
-		Detail     func(childComplexity int) int
-		DurationMs func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IP         func(childComplexity int) int
-		Success    func(childComplexity int) int
+		Action        func(childComplexity int) int
+		AdminEmail    func(childComplexity int) int
+		AdminID       func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		Detail        func(childComplexity int) int
+		DurationMs    func(childComplexity int) int
+		ID            func(childComplexity int) int
+		IP            func(childComplexity int) int
+		IntegrationID func(childComplexity int) int
+		Success       func(childComplexity int) int
 	}
 
 	AuditLogPage struct {
@@ -1391,6 +1392,7 @@ type ComplexityRoot struct {
 		Format          func(childComplexity int) int
 		HasArtifact     func(childComplexity int) int
 		ID              func(childComplexity int) int
+		IntegrationID   func(childComplexity int) int
 		Options         func(childComplexity int) int
 		ProcessedRows   func(childComplexity int) int
 		Resource        func(childComplexity int) int
@@ -3361,7 +3363,7 @@ type ComplexityRoot struct {
 		Attribute                    func(childComplexity int, id string) int
 		AttributeValueChannelSlugs   func(childComplexity int, valueID string) int
 		Attributes                   func(childComplexity int) int
-		AuditLog                     func(childComplexity int, adminID *string, action *string, limit *int32, offset *int32) int
+		AuditLog                     func(childComplexity int, adminID *string, integrationID *string, action *string, limit *int32, offset *int32) int
 		BlogAuthor                   func(childComplexity int, slug *string, id *string) int
 		BlogAuthors                  func(childComplexity int) int
 		BlogCategories               func(childComplexity int, parentID *string) int
@@ -3679,29 +3681,30 @@ type ComplexityRoot struct {
 	}
 
 	Review struct {
-		Answers            func(childComplexity int) int
-		Body               func(childComplexity int) int
-		CategorySlugs      func(childComplexity int) int
-		ChannelID          func(childComplexity int) int
-		CustomerID         func(childComplexity int) int
-		GuestEmail         func(childComplexity int) int
-		GuestName          func(childComplexity int) int
-		ID                 func(childComplexity int) int
-		IsVerifiedPurchase func(childComplexity int) int
-		Locale             func(childComplexity int) int
-		Media              func(childComplexity int) int
-		MerchantReply      func(childComplexity int) int
-		MerchantReplyAt    func(childComplexity int) int
-		ModeratedAt        func(childComplexity int) int
-		ModeratedBy        func(childComplexity int) int
-		ModerationLabel    func(childComplexity int) int
-		ModerationReason   func(childComplexity int) int
-		ModerationTags     func(childComplexity int) int
-		ModeratorNote      func(childComplexity int) int
-		ProductID          func(childComplexity int) int
-		Status             func(childComplexity int) int
-		SubmittedAt        func(childComplexity int) int
-		Title              func(childComplexity int) int
+		Answers                func(childComplexity int) int
+		Body                   func(childComplexity int) int
+		CategorySlugs          func(childComplexity int) int
+		ChannelID              func(childComplexity int) int
+		CustomerID             func(childComplexity int) int
+		GuestEmail             func(childComplexity int) int
+		GuestName              func(childComplexity int) int
+		ID                     func(childComplexity int) int
+		IsVerifiedPurchase     func(childComplexity int) int
+		Locale                 func(childComplexity int) int
+		Media                  func(childComplexity int) int
+		MerchantReply          func(childComplexity int) int
+		MerchantReplyAt        func(childComplexity int) int
+		ModeratedAt            func(childComplexity int) int
+		ModeratedBy            func(childComplexity int) int
+		ModeratedByIntegration func(childComplexity int) int
+		ModerationLabel        func(childComplexity int) int
+		ModerationReason       func(childComplexity int) int
+		ModerationTags         func(childComplexity int) int
+		ModeratorNote          func(childComplexity int) int
+		ProductID              func(childComplexity int) int
+		Status                 func(childComplexity int) int
+		SubmittedAt            func(childComplexity int) int
+		Title                  func(childComplexity int) int
 	}
 
 	ReviewAnswer struct {
@@ -5136,7 +5139,7 @@ type QueryResolver interface {
 	Role(ctx context.Context, id string) (*model.Role, error)
 	DevAdmins(ctx context.Context) ([]*model.AdminUser, error)
 	AiStatus(ctx context.Context) (*model.AIStatus, error)
-	AuditLog(ctx context.Context, adminID *string, action *string, limit *int32, offset *int32) (*model.AuditLogPage, error)
+	AuditLog(ctx context.Context, adminID *string, integrationID *string, action *string, limit *int32, offset *int32) (*model.AuditLogPage, error)
 	BlogPost(ctx context.Context, slug *string, id *string, includeUnpublished *bool) (*model.BlogPost, error)
 	BlogPosts(ctx context.Context, filter *model.BlogPostFilter, limit *int32, offset *int32) (*model.BlogPostList, error)
 	BlogCategory(ctx context.Context, slug *string, id *string) (*model.BlogCategory, error)
@@ -6512,6 +6515,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AuditLogEntry.IP(childComplexity), true
+	case "AuditLogEntry.integrationId":
+		if e.ComplexityRoot.AuditLogEntry.IntegrationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.IntegrationID(childComplexity), true
 	case "AuditLogEntry.success":
 		if e.ComplexityRoot.AuditLogEntry.Success == nil {
 			break
@@ -11112,6 +11121,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DataJob.ID(childComplexity), true
+	case "DataJob.integrationId":
+		if e.ComplexityRoot.DataJob.IntegrationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DataJob.IntegrationID(childComplexity), true
 	case "DataJob.options":
 		if e.ComplexityRoot.DataJob.Options == nil {
 			break
@@ -22845,7 +22860,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.AuditLog(childComplexity, args["adminId"].(*string), args["action"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.AuditLog(childComplexity, args["adminId"].(*string), args["integrationId"].(*string), args["action"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.blogAuthor":
 		if e.ComplexityRoot.Query.BlogAuthor == nil {
 			break
@@ -25560,6 +25575,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Review.ModeratedBy(childComplexity), true
+	case "Review.moderatedByIntegration":
+		if e.ComplexityRoot.Review.ModeratedByIntegration == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Review.ModeratedByIntegration(childComplexity), true
 	case "Review.moderationLabel":
 		if e.ComplexityRoot.Review.ModerationLabel == nil {
 			break
@@ -29638,6 +29659,8 @@ extend type Mutation {
 type AuditLogEntry {
   id:         ID!
   adminId:    ID
+  # Set when an integration token made the call - adminEmail then reads integration:<name>
+  integrationId: ID
   adminEmail: String!
   action:     String!
   # Redacted operation variables (password/token/key-ish values replaced).
@@ -29655,7 +29678,7 @@ type AuditLogPage {
 
 extend type Query {
   # Pages the audit trail, newest first. Requires audit.view.
-  auditLog(adminId: ID, action: String, limit: Int, offset: Int): AuditLogPage!
+  auditLog(adminId: ID, integrationId: ID, action: String, limit: Int, offset: Int): AuditLogPage!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/blog.graphqls", Input: `enum BlogPostStatus {
@@ -33447,6 +33470,8 @@ type DataJob {
   options: JSON!
   channelId: ID
   adminId: ID
+  # set instead of adminId when an integration token started the job
+  integrationId: ID
   filename: String!
   "False once the retention sweep has removed the file - the row outlives it"
   hasArtifact: Boolean!
@@ -36184,6 +36209,8 @@ type Review {
   submittedAt:         Time!
   moderatedAt:         Time
   moderatedBy:         ID
+  # set instead of moderatedBy when an integration token moderated
+  moderatedByIntegration: ID
   moderatorNote:       String!
   # AI moderation verdict (suggestion only - never changes status). Derived
   # coarse flag: "" until checked, "genuine" = no concerns, "flagged" = has tags.
@@ -38635,6 +38662,8 @@ func (ec *executionContext) childFields_AuditLogEntry(ctx context.Context, field
 		return ec.fieldContext_AuditLogEntry_id(ctx, field)
 	case "adminId":
 		return ec.fieldContext_AuditLogEntry_adminId(ctx, field)
+	case "integrationId":
+		return ec.fieldContext_AuditLogEntry_integrationId(ctx, field)
 	case "adminEmail":
 		return ec.fieldContext_AuditLogEntry_adminEmail(ctx, field)
 	case "action":
@@ -40757,6 +40786,8 @@ func (ec *executionContext) childFields_DataJob(ctx context.Context, field graph
 		return ec.fieldContext_DataJob_channelId(ctx, field)
 	case "adminId":
 		return ec.fieldContext_DataJob_adminId(ctx, field)
+	case "integrationId":
+		return ec.fieldContext_DataJob_integrationId(ctx, field)
 	case "filename":
 		return ec.fieldContext_DataJob_filename(ctx, field)
 	case "hasArtifact":
@@ -43919,6 +43950,8 @@ func (ec *executionContext) childFields_Review(ctx context.Context, field graphq
 		return ec.fieldContext_Review_moderatedAt(ctx, field)
 	case "moderatedBy":
 		return ec.fieldContext_Review_moderatedBy(ctx, field)
+	case "moderatedByIntegration":
+		return ec.fieldContext_Review_moderatedByIntegration(ctx, field)
 	case "moderatorNote":
 		return ec.fieldContext_Review_moderatorNote(ctx, field)
 	case "moderationLabel":
@@ -54778,30 +54811,38 @@ func (ec *executionContext) field_Query_auditLog_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["adminId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "action",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "integrationId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["integrationId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "action",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["action"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	args["action"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+	args["limit"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg3
+	args["offset"] = arg4
 	return args, nil
 }
 
@@ -63075,6 +63116,29 @@ func (ec *executionContext) _AuditLogEntry_adminId(ctx context.Context, field gr
 	)
 }
 func (ec *executionContext) fieldContext_AuditLogEntry_adminId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_integrationId(ctx context.Context, field graphql.CollectedField, obj *model.AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_integrationId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IntegrationID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_integrationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
@@ -81519,6 +81583,29 @@ func (ec *executionContext) _DataJob_adminId(ctx context.Context, field graphql.
 	)
 }
 func (ec *executionContext) fieldContext_DataJob_adminId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DataJob", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DataJob_integrationId(ctx context.Context, field graphql.CollectedField, obj *model.DataJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DataJob_integrationId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IntegrationID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DataJob_integrationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DataJob", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
@@ -128238,7 +128325,7 @@ func (ec *executionContext) _Query_auditLog(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().AuditLog(ctx, fc.Args["adminId"].(*string), fc.Args["action"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().AuditLog(ctx, fc.Args["adminId"].(*string), fc.Args["integrationId"].(*string), fc.Args["action"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AuditLogPage) graphql.Marshaler {
@@ -139415,6 +139502,29 @@ func (ec *executionContext) _Review_moderatedBy(ctx context.Context, field graph
 	)
 }
 func (ec *executionContext) fieldContext_Review_moderatedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Review", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Review_moderatedByIntegration(ctx context.Context, field graphql.CollectedField, obj *model.Review) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Review_moderatedByIntegration(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ModeratedByIntegration, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Review_moderatedByIntegration(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Review", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
@@ -169759,6 +169869,11 @@ func (ec *executionContext) _AuditLogEntry(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "integrationId":
+			out.Values[i] = ec._AuditLogEntry_integrationId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "adminEmail":
 			out.Values[i] = ec._AuditLogEntry_adminEmail(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -177484,6 +177599,11 @@ func (ec *executionContext) _DataJob(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "adminId":
 			out.Values[i] = ec._DataJob_adminId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "integrationId":
+			out.Values[i] = ec._DataJob_integrationId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -197587,6 +197707,11 @@ func (ec *executionContext) _Review(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "moderatedBy":
 			out.Values[i] = ec._Review_moderatedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "moderatedByIntegration":
+			out.Values[i] = ec._Review_moderatedByIntegration(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

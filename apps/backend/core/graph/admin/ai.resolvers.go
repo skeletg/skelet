@@ -144,7 +144,7 @@ func (r *mutationResolver) TranslateCMSPage(ctx context.Context, pageID string, 
 }
 
 func (r *queryResolver) AiStatus(ctx context.Context) (*model.AIStatus, error) {
-	if _, err := auth.RequireAuth(ctx); err != nil {
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
 	}
 	return &model.AIStatus{Enabled: r.AISvc != nil && r.AISvc.Available(ctx)}, nil

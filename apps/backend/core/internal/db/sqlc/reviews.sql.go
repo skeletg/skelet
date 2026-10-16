@@ -327,7 +327,7 @@ SET merchant_reply    = '',
     merchant_reply_at = NULL,
     merchant_reply_by = NULL
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 func (q *Queries) ClearReviewMerchantReply(ctx context.Context, id uuid.UUID) (Review, error) {
@@ -357,6 +357,7 @@ func (q *Queries) ClearReviewMerchantReply(ctx context.Context, id uuid.UUID) (R
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -465,7 +466,7 @@ INSERT INTO reviews (
     $4, $5, $6, $7,
     $8, $9
 )
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type CreateReviewParams struct {
@@ -521,6 +522,7 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Rev
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -735,7 +737,7 @@ func (q *Queries) GetProductReviewSummary(ctx context.Context, arg GetProductRev
 }
 
 const getReviewByCustomerAndProduct = `-- name: GetReviewByCustomerAndProduct :one
-SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs FROM reviews
+SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id FROM reviews
 WHERE customer_id = $1 AND product_id = $2
 `
 
@@ -771,12 +773,13 @@ func (q *Queries) GetReviewByCustomerAndProduct(ctx context.Context, arg GetRevi
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
 
 const getReviewByID = `-- name: GetReviewByID :one
-SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs FROM reviews WHERE id = $1
+SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id FROM reviews WHERE id = $1
 `
 
 func (q *Queries) GetReviewByID(ctx context.Context, id uuid.UUID) (Review, error) {
@@ -806,6 +809,7 @@ func (q *Queries) GetReviewByID(ctx context.Context, id uuid.UUID) (Review, erro
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -943,7 +947,7 @@ func (q *Queries) InsertReviewMedia(ctx context.Context, arg InsertReviewMediaPa
 }
 
 const listApprovedReviewsForProduct = `-- name: ListApprovedReviewsForProduct :many
-SELECT r.id, r.product_id, r.customer_id, r.channel_id, r.locale, r.title, r.body, r.is_verified_purchase, r.status, r.submitted_at, r.moderated_at, r.moderated_by, r.moderator_note, r.guest_name, r.guest_email, r.moderation_label, r.moderation_reason, r.moderation_checked_at, r.merchant_reply, r.merchant_reply_at, r.merchant_reply_by, r.moderation_tags, r.category_slugs FROM reviews r
+SELECT r.id, r.product_id, r.customer_id, r.channel_id, r.locale, r.title, r.body, r.is_verified_purchase, r.status, r.submitted_at, r.moderated_at, r.moderated_by, r.moderator_note, r.guest_name, r.guest_email, r.moderation_label, r.moderation_reason, r.moderation_checked_at, r.merchant_reply, r.merchant_reply_at, r.merchant_reply_by, r.moderation_tags, r.category_slugs, r.moderated_by_integration_id FROM reviews r
 WHERE r.product_id = $1 AND r.status = 'approved' AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
 ORDER BY r.submitted_at DESC
 LIMIT $4 OFFSET $3
@@ -995,6 +999,7 @@ func (q *Queries) ListApprovedReviewsForProduct(ctx context.Context, arg ListApp
 			&i.MerchantReplyBy,
 			&i.ModerationTags,
 			&i.CategorySlugs,
+			&i.ModeratedByIntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -1015,7 +1020,7 @@ SELECT id, product_id, customer_id, guest_name, guest_email, channel_id,
        moderated_at, moderated_by, moderator_note, merchant_reply, merchant_reply_at,
        merchant_reply_by, moderation_label, moderation_reason, moderation_checked_at
 FROM (
-  SELECT r.id, r.product_id, r.customer_id, r.channel_id, r.locale, r.title, r.body, r.is_verified_purchase, r.status, r.submitted_at, r.moderated_at, r.moderated_by, r.moderator_note, r.guest_name, r.guest_email, r.moderation_label, r.moderation_reason, r.moderation_checked_at, r.merchant_reply, r.merchant_reply_at, r.merchant_reply_by, r.moderation_tags, r.category_slugs, ROW_NUMBER() OVER (
+  SELECT r.id, r.product_id, r.customer_id, r.channel_id, r.locale, r.title, r.body, r.is_verified_purchase, r.status, r.submitted_at, r.moderated_at, r.moderated_by, r.moderator_note, r.guest_name, r.guest_email, r.moderation_label, r.moderation_reason, r.moderation_checked_at, r.merchant_reply, r.merchant_reply_at, r.merchant_reply_by, r.moderation_tags, r.category_slugs, r.moderated_by_integration_id, ROW_NUMBER() OVER (
            PARTITION BY r.product_id ORDER BY r.submitted_at DESC
          ) AS rn
   FROM reviews r
@@ -1477,7 +1482,7 @@ func (q *Queries) ListReviewQuestions(ctx context.Context) ([]ReviewQuestion, er
 }
 
 const listReviewsForModeration = `-- name: ListReviewsForModeration :many
-SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs FROM reviews
+SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id FROM reviews
 WHERE
     ($3::text[] IS NULL
      OR status = ANY($3::text[]))
@@ -1542,6 +1547,7 @@ func (q *Queries) ListReviewsForModeration(ctx context.Context, arg ListReviewsF
 			&i.MerchantReplyBy,
 			&i.ModerationTags,
 			&i.CategorySlugs,
+			&i.ModeratedByIntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -1623,7 +1629,7 @@ const setReviewCategories = `-- name: SetReviewCategories :one
 UPDATE reviews
 SET category_slugs = $2
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type SetReviewCategoriesParams struct {
@@ -1659,6 +1665,7 @@ func (q *Queries) SetReviewCategories(ctx context.Context, arg SetReviewCategori
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -1669,7 +1676,7 @@ SET merchant_reply    = $2::text,
     merchant_reply_at = NOW(),
     merchant_reply_by = $3
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type SetReviewMerchantReplyParams struct {
@@ -1705,6 +1712,7 @@ func (q *Queries) SetReviewMerchantReply(ctx context.Context, arg SetReviewMerch
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -1717,7 +1725,7 @@ SET moderation_label      = $2,
     moderation_tags       = $5,
     moderation_checked_at = NOW()
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type SetReviewModerationParams struct {
@@ -1762,6 +1770,7 @@ func (q *Queries) SetReviewModeration(ctx context.Context, arg SetReviewModerati
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -1770,7 +1779,7 @@ const setReviewModerationTags = `-- name: SetReviewModerationTags :one
 UPDATE reviews
 SET moderation_tags = $2
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type SetReviewModerationTagsParams struct {
@@ -1807,6 +1816,7 @@ func (q *Queries) SetReviewModerationTags(ctx context.Context, arg SetReviewMode
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -1816,16 +1826,18 @@ UPDATE reviews
 SET status         = $2,
     moderated_at   = NOW(),
     moderated_by   = $3,
-    moderator_note = $4
+    moderator_note = $4,
+    moderated_by_integration_id = $5
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type SetReviewStatusParams struct {
-	ID            uuid.UUID     `json:"id"`
-	Status        string        `json:"status"`
-	ModeratedBy   uuid.NullUUID `json:"moderated_by"`
-	ModeratorNote string        `json:"moderator_note"`
+	ID                       uuid.UUID     `json:"id"`
+	Status                   string        `json:"status"`
+	ModeratedBy              uuid.NullUUID `json:"moderated_by"`
+	ModeratorNote            string        `json:"moderator_note"`
+	ModeratedByIntegrationID uuid.NullUUID `json:"moderated_by_integration_id"`
 }
 
 func (q *Queries) SetReviewStatus(ctx context.Context, arg SetReviewStatusParams) (Review, error) {
@@ -1834,6 +1846,7 @@ func (q *Queries) SetReviewStatus(ctx context.Context, arg SetReviewStatusParams
 		arg.Status,
 		arg.ModeratedBy,
 		arg.ModeratorNote,
+		arg.ModeratedByIntegrationID,
 	)
 	var i Review
 	err := row.Scan(
@@ -1860,6 +1873,7 @@ func (q *Queries) SetReviewStatus(ctx context.Context, arg SetReviewStatusParams
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }
@@ -1889,9 +1903,10 @@ SET title  = $2,
     status = 'pending',
     moderated_at   = NULL,
     moderated_by   = NULL,
+    moderated_by_integration_id = NULL,
     moderator_note = ''
 WHERE id = $1
-RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs
+RETURNING id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs, moderated_by_integration_id
 `
 
 type UpdateReviewParams struct {
@@ -1928,6 +1943,7 @@ func (q *Queries) UpdateReview(ctx context.Context, arg UpdateReviewParams) (Rev
 		&i.MerchantReplyBy,
 		&i.ModerationTags,
 		&i.CategorySlugs,
+		&i.ModeratedByIntegrationID,
 	)
 	return i, err
 }

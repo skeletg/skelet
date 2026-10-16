@@ -1,8 +1,8 @@
 -- name: CreateDataJob :one
 INSERT INTO data_jobs (
     direction, resource, format, status, options, dry_run,
-    channel_id, admin_id, filename, object_key, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    channel_id, admin_id, filename, object_key, expires_at, integration_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetDataJob :one

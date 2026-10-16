@@ -492,6 +492,7 @@ export type AuditLogEntry = {
   detail?: Maybe<Scalars['JSON']['output']>;
   durationMs: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
+  integrationId?: Maybe<Scalars['ID']['output']>;
   ip: Scalars['String']['output'];
   success: Scalars['Boolean']['output'];
 };
@@ -2368,6 +2369,7 @@ export type DataJob = {
   /** False once the retention sweep has removed the file - the row outlives it */
   hasArtifact: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
+  integrationId?: Maybe<Scalars['ID']['output']>;
   options: Scalars['JSON']['output'];
   processedRows: Scalars['Int']['output'];
   resource: Scalars['String']['output'];
@@ -7702,6 +7704,7 @@ export type QueryAttributeValueChannelSlugsArgs = {
 export type QueryAuditLogArgs = {
   action?: InputMaybe<Scalars['String']['input']>;
   adminId?: InputMaybe<Scalars['ID']['input']>;
+  integrationId?: InputMaybe<Scalars['ID']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -9018,6 +9021,7 @@ export type Review = {
   merchantReplyAt?: Maybe<Scalars['Time']['output']>;
   moderatedAt?: Maybe<Scalars['Time']['output']>;
   moderatedBy?: Maybe<Scalars['ID']['output']>;
+  moderatedByIntegration?: Maybe<Scalars['ID']['output']>;
   moderationLabel: Scalars['String']['output'];
   moderationReason: Scalars['String']['output'];
   moderationTags: Array<Scalars['String']['output']>;
