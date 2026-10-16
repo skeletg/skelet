@@ -21,6 +21,9 @@ func (s *Service) AddConfiguredToCart(ctx context.Context, cartID uuid.UUID, cal
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, input.ProductSku); err != nil {
+		return Cart{}, err
+	}
 	return s.addConfiguredLine(ctx, cart, input)
 }
 

@@ -33,6 +33,9 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, input.ProductSku); err != nil {
+		return Cart{}, err
+	}
 	snap, err := s.products.ResolveBundleBySKU(ctx, cart.ChannelID, input.ProductSku)
 	if errors.Is(err, ErrProductNotPublished) {
 		return Cart{}, err

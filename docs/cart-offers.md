@@ -67,9 +67,14 @@ The header actions are:
 | Delivery | The delivery option, method and pickup point per group | A delivery chosen. Only on a cart that ships |
 | Coupons, gift cards and store credit | Anything taken off the price | - |
 
+Custom lines and lines with an admin-set price cannot be changed or removed by the recipient,
+even with items unlocked. Adding the same SKU again is refused. Admins can still edit them.
+Offers cannot be duplicated into shopper carts.
+
 Locks are enforced by the backend, whatever the storefront shows. A checkout step that
 would change a locked part is refused whole with `CART_OFFER_LOCKED`. The recipient's email
-on a guest offer is always fixed.
+on a guest offer is always fixed. Locking coupons also skips automatic promotions, including
+free gifts and promotion shipping discounts.
 
 ### Payment methods
 

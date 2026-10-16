@@ -23,6 +23,9 @@ func (s *Service) SaveForLater(ctx context.Context, cartID, lineID uuid.UUID, ca
 	if err != nil {
 		return Cart{}, err
 	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
+		return Cart{}, err
+	}
 	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
 	if err != nil {
 		return Cart{}, err
