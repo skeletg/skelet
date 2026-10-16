@@ -61,6 +61,15 @@ func TestPublicStoresVisibilityAndFeatureScope(t *testing.T) {
 	if !page.Enabled || !page.ProductEligible || len(page.Items) != 3 || page.TotalCount != 3 {
 		t.Fatalf("public page=%+v", page)
 	}
+	hoodie, err := r.CatalogSvc.GetProductBySKU(ctx, "STORE-DEMO-HOODIE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A configurable parent has no store stock of its own, but the directory must still list the stores
+	parentPage, err := r.PublicStores(ctx, &model.PublicStoresInput{ProductID: frontStorePtr(hoodie.ID.String())})
+	if err != nil || parentPage.ProductEligible || parentPage.TotalCount != 3 || !parentPage.StockCheckingAvailable {
+		t.Fatalf("configurable parent page=%+v %v", parentPage, err)
+	}
 	for _, store := range page.Items {
 		if store.Slug == "store-demo-private" {
 			t.Fatal("private warehouse leaked")

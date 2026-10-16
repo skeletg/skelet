@@ -3,7 +3,9 @@ package inventory
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -65,44 +67,25 @@ func (s *Service) PublicStores(ctx context.Context, q StoreQuery) (StorePage, er
 	if err != nil {
 		return out, err
 	}
-	statuses := map[uuid.UUID]StoreStock{}
-	if q.Product != nil && out.StockCheckingAvailable {
-		item, e := s.repo.GetItemByProductID(ctx, q.Product.ID)
-		if e != nil && !errors.Is(e, ErrItemNotFound) {
-			return out, e
+	checkStock := q.Product != nil && out.StockCheckingAvailable
+	var statuses map[uuid.UUID]StoreStock
+	if checkStock {
+		if statuses, err = s.storeStatuses(ctx, *q.Product, locations); err != nil {
+			return out, err
 		}
-		if e == nil {
-			levels, e := s.repo.ListLevelsByItems(ctx, []uuid.UUID{item.ID})
-			if e != nil {
-				return out, e
-			}
-			public := map[uuid.UUID]bool{}
-			for _, l := range locations {
-				public[l.ID] = true
-			}
-			for _, level := range levels {
-				if !public[level.LocationID] {
-					continue
-				}
-				out.ProductEligible = true
-				statuses[level.LocationID] = storeStockStatus(item, level, *q.Product)
-			}
-		}
+		out.ProductEligible = len(statuses) > 0
 	}
 	cities := map[string]bool{}
-	search := strings.ToLower(strings.TrimSpace(q.Search))
 	for _, l := range locations {
-		if l.PickupEnabled {
-			out.HasPickupStores = true
-		}
+		out.HasPickupStores = out.HasPickupStores || l.PickupEnabled
 		if l.City != "" {
 			cities[l.City] = true
 		}
 		row := PublicLocation{Location: l}
-		if q.Product != nil && out.StockCheckingAvailable {
+		if checkStock {
 			status, ok := statuses[l.ID]
 			if !ok {
-				status = StoreUnknown
+				status = StoreUnknown // no level row is not evidence of zero stock
 			}
 			row.Status = &status
 		}
@@ -111,30 +94,66 @@ func (s *Service) PublicStores(ctx context.Context, q StoreQuery) (StorePage, er
 			row.DistanceKm = &d
 		}
 		if q.PreferredStoreID != nil && l.ID == *q.PreferredStoreID {
-			copyRow := row
-			out.PreferredStore = &copyRow
+			preferred := row // filters never hide the shopper's own store
+			out.PreferredStore = &preferred
 		}
-		if q.PickupOnly && !l.PickupEnabled {
-			continue
+		if q.matches(row) {
+			out.Items = append(out.Items, row)
 		}
-		if q.City != "" && !strings.EqualFold(strings.TrimSpace(q.City), l.City) {
-			continue
-		}
-		if search != "" && !strings.Contains(strings.ToLower(strings.Join([]string{l.Name, l.Line1, l.Line2, l.City, l.Region, l.PostalCode}, " ")), search) {
-			continue
-		}
-		if q.InStockOnly && (row.Status == nil || (*row.Status != StoreInStock && *row.Status != StoreLowStock)) {
-			continue
-		}
-		out.Items = append(out.Items, row)
 	}
-	for city := range cities {
-		out.Cities = append(out.Cities, city)
+	out.Cities = slices.Sorted(maps.Keys(cities))
+	sortStores(out.Items, q.Latitude != nil)
+	out.TotalCount = len(out.Items)
+	out.Items = pageStores(out.Items, q.Limit, q.Offset)
+	return out, nil
+}
+
+// storeStatuses grades the product's level at each public location; a location without a level row is absent
+func (s *Service) storeStatuses(ctx context.Context, p StoreProduct, locations []Location) (map[uuid.UUID]StoreStock, error) {
+	statuses := map[uuid.UUID]StoreStock{}
+	item, err := s.repo.GetItemByProductID(ctx, p.ID)
+	if errors.Is(err, ErrItemNotFound) {
+		return statuses, nil
 	}
-	sort.Strings(out.Cities)
-	sort.Slice(out.Items, func(i, j int) bool {
-		a, b := out.Items[i], out.Items[j]
-		if q.Latitude != nil {
+	if err != nil {
+		return nil, err
+	}
+	levels, err := s.repo.ListLevelsByItems(ctx, []uuid.UUID{item.ID})
+	if err != nil {
+		return nil, err
+	}
+	public := map[uuid.UUID]bool{}
+	for _, l := range locations {
+		public[l.ID] = true
+	}
+	for _, level := range levels {
+		if public[level.LocationID] {
+			statuses[level.LocationID] = storeStockStatus(item, level, p)
+		}
+	}
+	return statuses, nil
+}
+
+func (q StoreQuery) matches(row PublicLocation) bool {
+	l := row.Location
+	if q.PickupOnly && !l.PickupEnabled {
+		return false
+	}
+	if city := strings.TrimSpace(q.City); city != "" && !strings.EqualFold(city, l.City) {
+		return false
+	}
+	if search := strings.ToLower(strings.TrimSpace(q.Search)); search != "" &&
+		!strings.Contains(strings.ToLower(strings.Join([]string{l.Name, l.Line1, l.Line2, l.City, l.Region, l.PostalCode}, " ")), search) {
+		return false
+	}
+	return !q.InStockOnly || (row.Status != nil && (*row.Status == StoreInStock || *row.Status == StoreLowStock))
+}
+
+// sortStores orders nearest first when the shopper shared a position (stores without coordinates last), then by name
+func sortStores(items []PublicLocation, byDistance bool) {
+	sort.Slice(items, func(i, j int) bool {
+		a, b := items[i], items[j]
+		if byDistance {
 			if (a.DistanceKm == nil) != (b.DistanceKm == nil) {
 				return a.DistanceKm != nil
 			}
@@ -148,17 +167,15 @@ func (s *Service) PublicStores(ctx context.Context, q StoreQuery) (StorePage, er
 		}
 		return a.Location.ID.String() < b.Location.ID.String()
 	})
-	out.TotalCount = len(out.Items)
-	limit := q.Limit
+}
+
+func pageStores(items []PublicLocation, limit, offset int) []PublicLocation {
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 100 {
-		limit = 100
-	}
-	offset := max(0, min(q.Offset, len(out.Items)))
-	out.Items = out.Items[offset:min(offset+limit, len(out.Items))]
-	return out, nil
+	limit = min(limit, 100)
+	offset = max(0, min(offset, len(items)))
+	return items[offset:min(offset+limit, len(items))]
 }
 
 func validCoordinate(v, limit float64) bool {
