@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LOCATION_TYPES, LOCATION_TYPE_LABELS, normalizeLocationType } from '../location-types'
+import { LOCATION_TYPES, LOCATION_TYPE_LABELS, type LocationType } from '../location-types'
 import { phoneIssue } from '@/lib/phone'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
@@ -35,9 +35,9 @@ export type ExistingLocation = {
   id: string
   slug: string
   name: string
-  storefrontVisible?: boolean
+  storefrontVisible: boolean
   isActive: boolean
-  type: string
+  type: LocationType
   line1: string
   line2: string
   city: string
@@ -178,7 +178,7 @@ export function toLocationValues(location?: ExistingLocation): LocationValues {
     name: location?.name ?? '',
     storefrontVisible: location?.storefrontVisible ?? false,
     isActive: location?.isActive ?? true,
-    type: normalizeLocationType(location?.type),
+    type: location?.type ?? 'UNCLASSIFIED',
     line1: location?.line1 ?? '',
     line2: location?.line2 ?? '',
     city: location?.city ?? '',
@@ -235,7 +235,7 @@ export function toLocationInput(values: LocationValues) {
 // confirm dialog reads "Hours · Mon: 09:00–17:00 → closed" rather than a JSON blob. Slug is
 // immutable after create, so it never appears
 const SCALAR_FIELDS = (Object.keys(LOCATION_LABELS) as (keyof LocationValues)[]).filter(
-  (k) => k !== 'slug' && k !== 'hours' && k !== 'metadata',
+  (k) => k !== 'slug' && k !== 'hours' && k !== 'metadata' && k !== 'type',
 )
 
 function dayText(d: DayHours): string {
@@ -248,7 +248,10 @@ export function locationDiff(original: LocationValues, values: LocationValues): 
   const out = fieldDiff(
     original,
     draft,
-    SCALAR_FIELDS.map((k) => ({ label: LOCATION_LABELS[k], value: (o: LocationValues) => k === 'type' ? LOCATION_TYPE_LABELS[o.type] : o[k] })),
+    [
+      { label: LOCATION_LABELS.type, value: (o: LocationValues) => LOCATION_TYPE_LABELS[o.type] },
+      ...SCALAR_FIELDS.map((k) => ({ label: LOCATION_LABELS[k], value: (o: LocationValues) => o[k] })),
+    ],
   )
   for (const [key, label] of DAYS) {
     const entry = changed(`Hours · ${label}`, dayText(original.hours[key]), dayText(draft.hours[key]))

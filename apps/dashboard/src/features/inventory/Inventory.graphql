@@ -297,11 +297,3 @@ mutation SyncProductInventoryBatch($items: [SyncProductInventoryInput!]!) {
     }
   }
 }
-
-mutation SetLocationPickup($id: ID!, $enabled: Boolean!, $instructions: String) {
-  setLocationPickup(id: $id, enabled: $enabled, instructions: $instructions) {
-    id
-    pickupEnabled
-    pickupInstructions
-  }
-}

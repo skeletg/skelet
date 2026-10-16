@@ -5,7 +5,7 @@ import { useDebounced } from '@/shared/hooks/useDebounced'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PackageCheckIcon, PlusIcon } from 'lucide-react'
 import { locationFiltersForQuery } from './location-filters'
-import { LOCATION_TYPES, LOCATION_TYPE_LABELS } from './location-types'
+import { LOCATION_TYPES, LOCATION_TYPE_LABELS, type LocationType } from './location-types'
 import { LocationTypeBadge } from './LocationTypeBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,7 @@ type LocationRow = {
   slug: string
   name: string
   isActive: boolean
-  type: string
+  type: LocationType
   city: string
   region: string
   countryCode: string

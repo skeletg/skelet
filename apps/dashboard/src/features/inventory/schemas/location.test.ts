@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { locationDiff, locationSchema, toLocationInput, toLocationValues } from './location'
+import { locationDiff, locationSchema, toLocationInput, toLocationValues, type ExistingLocation } from './location'
 
 // What these pin: the schema accepts what the server sends back, the diff lists hours and metadata
 // the way the confirm dialog shows them, and the mutation input converts coordinates and hours
 
-const stored = {
+const stored: ExistingLocation = {
   id: 'loc-1',
   slug: 'main',
   name: 'Main',
   isActive: true,
-  type: 'warehouse',
+  storefrontVisible: false,
+  type: 'WAREHOUSE',
   line1: '',
   line2: '',
   city: 'Berlin',
@@ -90,9 +91,9 @@ describe('public storefront visibility', () => {
 
 
 describe('location classification and customer access', () => {
-  it('normalizes known legacy labels and rejects arbitrary purposes', () => {
+  it('keeps the API type and rejects arbitrary purposes', () => {
     expect(toLocationValues(stored).type).toBe('WAREHOUSE')
-    expect(toLocationValues({ ...stored, type: 'custom' }).type).toBe('UNCLASSIFIED')
+    expect(toLocationValues().type).toBe('UNCLASSIFIED')
     expect(locationSchema.safeParse({ ...toLocationValues(stored), type: 'custom' }).success).toBe(false)
   })
   it('reviews and submits removal of both services when converting a retail store', () => {
