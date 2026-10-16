@@ -164,9 +164,9 @@ RETURNING *;
 -- Optional explicit id: checkout passes the CART line's id so the inventory reservations written earlier in the placement tx (they link order_line_id before the line row exists - FK is deferred) resolve to the real order line - NULL generates one (draft/manual orders)
 -- name: CreateOrderLine :one
 -- is_gift marks a promotion free gift: zero-priced, stock reserved like any other line, but excluded from pro-rata refunds since the customer paid nothing for it
--- is_custom marks an admin's free-form charge from an offer - no catalog product, so nothing to reserve or ship
-INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom)
-VALUES (COALESCE(sqlc.narg(id), uuidv7()), sqlc.arg(order_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(total_price), sqlc.arg(cost_cents), sqlc.arg(is_gift), sqlc.arg(is_custom))
+-- is_custom marks an admin's free-form charge from an offer - no catalog product, so nothing to reserve or ship, taxed by its own tax_class
+INSERT INTO order_lines (id, order_id, product_name, product_sku, unit_price, quantity, total_price, cost_cents, is_gift, is_custom, tax_class)
+VALUES (COALESCE(sqlc.narg(id), uuidv7()), sqlc.arg(order_id), sqlc.arg(product_name), sqlc.arg(product_sku), sqlc.arg(unit_price), sqlc.arg(quantity), sqlc.arg(total_price), sqlc.arg(cost_cents), sqlc.arg(is_gift), sqlc.arg(is_custom), sqlc.arg(tax_class))
 RETURNING *;
 
 -- name: ListOrderLinesByOrder :many

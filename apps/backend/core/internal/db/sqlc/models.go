@@ -1737,6 +1737,7 @@ type OrderLine struct {
 	RemovedAt       sql.NullTime  `json:"removed_at"`
 	CostCents       sql.NullInt64 `json:"cost_cents"`
 	IsCustom        bool          `json:"is_custom"`
+	TaxClass        string        `json:"tax_class"`
 }
 
 type OrderLineComponent struct {
