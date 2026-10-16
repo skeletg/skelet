@@ -3,7 +3,6 @@ package shipping
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 const PickupCarrierSlug = "pickup"
@@ -21,7 +20,10 @@ type PickupLocationLister interface {
 	PickupLocations(ctx context.Context) ([]PickupLocation, error)
 }
 
-// Surfaces every pickup location as a $0 option - destination is ignored, since the shopper travels and the parcel doesn't
+// PickupMethodCode is the pickup carrier's one method - which store is the delivery point the shopper picks, not a method of its own
+const PickupMethodCode = "collect"
+
+// Prices collection at $0 for the store_pickup kind - the destination is ignored, since the shopper travels and the parcel doesn't, and the store itself is the point the shopper picks. No method is offered while no location takes pickups
 type PickupCarrier struct {
 	locations PickupLocationLister
 }
@@ -30,23 +32,13 @@ func NewPickupCarrier(l PickupLocationLister) *PickupCarrier {
 	return &PickupCarrier{locations: l}
 }
 
-// One free option per pickup point - codes are "loc-<slug>", stable across re-quoting so placement can re-resolve the price, always 0
 func (c *PickupCarrier) Quote(ctx context.Context, _ RateRequest) ([]RatedMethod, error) {
 	locs, err := c.locations.PickupLocations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list pickup locations: %w", err)
 	}
-	out := make([]RatedMethod, 0, len(locs))
-	for _, l := range locs {
-		label := "Pickup - " + l.Name
-		if city := strings.TrimSpace(l.City); city != "" {
-			label += " (" + city + ")"
-		}
-		out = append(out, RatedMethod{
-			Code:       "loc-" + l.Slug,
-			Name:       label,
-			PriceCents: 0,
-		})
+	if len(locs) == 0 {
+		return nil, nil
 	}
-	return out, nil
+	return []RatedMethod{{Code: PickupMethodCode, Name: "Collect in store", PriceCents: 0, Kind: "store_pickup"}}, nil
 }

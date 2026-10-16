@@ -1,0 +1,203 @@
+# Checkout settings - the delivery options a channel offers and what each asks of the shopper. Kinds are registered in code: ship to address, store pickup, pickup point, and nearest pickup point. An option is a channel's named instance of one, and every checklist the dashboard shows is drawn from the kind's declared blocks.
+
+enum BlockFloor {
+  # Always required - the checkbox is ticked and disabled.
+  LOCKED
+  # The merchant picks required, optional or hidden per option.
+  CONFIGURABLE
+  # Never asked - something else supplies it (a pickup point's address replaces the shipping address).
+  NA
+}
+
+enum BlockMode {
+  REQUIRED
+  OPTIONAL
+  HIDDEN
+}
+
+type DeliveryKindBlock {
+  type: String!
+  label: String!
+  floor: BlockFloor!
+  # A configurable block's starting mode.
+  default: BlockMode
+  reason: String!
+}
+
+type DeliveryKind {
+  slug: String!
+  label: String!
+  description: String!
+  # CUSTOMER or POINT - who supplies the address the delivery goes to.
+  shipTo: String!
+  pointLabel: String
+  # "core".
+  owner: String!
+  blocks: [DeliveryKindBlock!]!
+}
+
+# A block with the mode an option gives it.
+type DeliveryOptionBlock {
+  type: String!
+  label: String!
+  floor: BlockFloor!
+  mode: BlockMode!
+  reason: String!
+}
+
+type ReadinessCheck {
+  code: String!
+  label: String!
+  ok: Boolean!
+  detail: String!
+  # The checkout settings tab the check is fixed on.
+  tab: String!
+  # A warning rather than a requirement - a failing advisory check never stops the option being enabled.
+  advisory: Boolean!
+}
+
+type DeliveryOption {
+  id: ID!
+  channelId: ID!
+  kind: String!
+  kindLabel: String!
+  name: String!
+  description: String!
+  enabled: Boolean!
+  sortOrder: Int!
+  # Every block the kind declares, with this option's mode - the "customer must provide" checklist.
+  blocks: [DeliveryOptionBlock!]!
+  # The saved modes of the configurable blocks, by block type.
+  blockModes: JSON!
+  pointSource: String!
+  carrierSlug: String!
+  # The setup checklist - the option can only be enabled once every check that isn't advisory passes.
+  readiness: [ReadinessCheck!]!
+  ready: Boolean!
+  # One of the built-in defaults the channel uses until a first option is saved - not stored, so not editable until adopted.
+  implicit: Boolean!
+}
+
+# A point source - registered in code by core, or a channel's remote delivery_points provider ("remote:<slug>").
+type DeliverySource {
+  slug: String!
+  label: String!
+  kinds: [String!]!
+  owner: String!
+  remote: Boolean!
+  active: Boolean!
+}
+
+# A pickup point (locker, parcel shop, PO box) the merchant lists for the channel - what the "manual-points" source offers a pickup point option.
+type DeliveryPointAdmin {
+  id: ID!
+  name: String!
+  street1: String!
+  street2: String!
+  city: String!
+  region: String!
+  postalCode: String!
+  countryCode: String!
+  instructions: String!
+  hours: String!
+  isActive: Boolean!
+}
+
+type CarrierKind {
+  kind: String!
+  # "Display name" of every enabled carrier quoting the kind.
+  carriers: [String!]!
+  # The same carriers with their slugs - what an option's carrierSlug can name.
+  carrierRefs: [CarrierRef!]!
+}
+
+type CarrierRef {
+  slug: String!
+  name: String!
+}
+
+type CheckoutConfiguration {
+  channelId: ID!
+  kinds: [DeliveryKind!]!
+  options: [DeliveryOption!]!
+  # The channel has saved no options and checkout uses the built-in defaults.
+  usingDefaults: Boolean!
+  # What a cart with no shippable items asks.
+  digitalBlocks: [DeliveryOptionBlock!]!
+  pointSources: [DeliverySource!]!
+  carrierKinds: [CarrierKind!]!
+  # The pickup points listed for the channel.
+  deliveryPoints: [DeliveryPointAdmin!]!
+  # The go-live checklist for the channel's whole checkout.
+  readiness: [ReadinessCheck!]!
+}
+
+input DeliveryOptionInput {
+  # Required on create, ignored on update - an option keeps its kind.
+  kind: String
+  name: String!
+  description: String
+  enabled: Boolean!
+  sortOrder: Int
+  blockModes: JSON
+  pointSource: String
+  carrierSlug: String
+}
+
+# A listed pickup point - id omitted for a new one.
+input DeliveryPointInput {
+  id: ID
+  name: String!
+  street1: String!
+  street2: String
+  city: String!
+  region: String
+  postalCode: String!
+  countryCode: String!
+  instructions: String
+  hours: String
+  isActive: Boolean!
+}
+
+# One package of a placed order.
+type OrderShipment {
+  id: ID!
+  position: Int!
+  groupKey: String!
+  originLocationId: ID
+  deliveryKind: String!
+  deliveryOptionId: ID
+  deliveryOptionName: String!
+  carrierSlug: String!
+  methodCode: String!
+  methodName: String!
+  amountCents: Int!
+  estimatedDays: Int
+  shipTo: OrderAddress
+  # Snapshot of the point, as the shopper chose it.
+  point: JSON
+  lines: JSON!
+}
+
+extend type Order {
+  # The order's packages - empty for an order placed before split delivery.
+  shipments: [OrderShipment!]!
+  # NONE, PHYSICAL or MIXED.
+  fulfillmentNeed: String!
+}
+
+extend type Query {
+  checkoutConfiguration(channelId: ID!): CheckoutConfiguration!
+}
+
+extend type Mutation {
+  createDeliveryOption(channelId: ID!, input: DeliveryOptionInput!): DeliveryOption!
+  updateDeliveryOption(id: ID!, input: DeliveryOptionInput!): DeliveryOption!
+  deleteDeliveryOption(id: ID!): Boolean!
+  # Saves the built-in defaults as real options, so they can be edited - the channel's checkout doesn't change.
+  adoptDefaultDeliveryOptions(channelId: ID!): CheckoutConfiguration!
+  # Replaces the channel's listed PO boxes and lockers with the list given - points left out are deleted.
+  saveDeliveryPoints(channelId: ID!, points: [DeliveryPointInput!]!): [DeliveryPointAdmin!]!
+  # Which delivery kinds the type's products may ship by - null allows any.
+  setProductTypeDeliveryKinds(productTypeId: ID!, kinds: [String!]): ProductType!
+}

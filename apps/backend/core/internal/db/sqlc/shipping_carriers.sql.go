@@ -39,7 +39,7 @@ func (q *Queries) ClearShippingCarrierCountries(ctx context.Context, carrierID u
 }
 
 const getShippingCarrier = `-- name: GetShippingCarrier :one
-SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at FROM shipping_carriers
+SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends FROM shipping_carriers
 WHERE channel_id = $1 AND carrier_slug = $2
 `
 
@@ -61,6 +61,7 @@ func (q *Queries) GetShippingCarrier(ctx context.Context, arg GetShippingCarrier
 		&i.CountryMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
 	)
 	return i, err
 }
@@ -95,7 +96,7 @@ func (q *Queries) ListCountriesForShippingCarrier(ctx context.Context, carrierID
 }
 
 const listShippingCarriersByChannel = `-- name: ListShippingCarriersByChannel :many
-SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at FROM shipping_carriers
+SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends FROM shipping_carriers
 WHERE channel_id = $1
 ORDER BY sort_order, carrier_slug
 `
@@ -119,6 +120,7 @@ func (q *Queries) ListShippingCarriersByChannel(ctx context.Context, channelID u
 			&i.CountryMode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeliversOnWeekends,
 		); err != nil {
 			return nil, err
 		}
@@ -137,7 +139,7 @@ const setShippingCarrierCountryMode = `-- name: SetShippingCarrierCountryMode :o
 UPDATE shipping_carriers
 SET country_mode = $3, updated_at = NOW()
 WHERE channel_id = $1 AND carrier_slug = $2
-RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at
+RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends
 `
 
 type SetShippingCarrierCountryModeParams struct {
@@ -159,6 +161,7 @@ func (q *Queries) SetShippingCarrierCountryMode(ctx context.Context, arg SetShip
 		&i.CountryMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
 	)
 	return i, err
 }
@@ -167,7 +170,7 @@ const setShippingCarrierEnabled = `-- name: SetShippingCarrierEnabled :one
 UPDATE shipping_carriers
 SET is_enabled = $3, updated_at = NOW()
 WHERE channel_id = $1 AND carrier_slug = $2
-RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at
+RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends
 `
 
 type SetShippingCarrierEnabledParams struct {
@@ -189,6 +192,7 @@ func (q *Queries) SetShippingCarrierEnabled(ctx context.Context, arg SetShipping
 		&i.CountryMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
 	)
 	return i, err
 }
@@ -197,7 +201,7 @@ const setShippingCarrierSortOrder = `-- name: SetShippingCarrierSortOrder :one
 UPDATE shipping_carriers
 SET sort_order = $3, updated_at = NOW()
 WHERE channel_id = $1 AND carrier_slug = $2
-RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at
+RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends
 `
 
 type SetShippingCarrierSortOrderParams struct {
@@ -219,6 +223,38 @@ func (q *Queries) SetShippingCarrierSortOrder(ctx context.Context, arg SetShippi
 		&i.CountryMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
+	)
+	return i, err
+}
+
+const setShippingCarrierWeekendDelivery = `-- name: SetShippingCarrierWeekendDelivery :one
+UPDATE shipping_carriers
+SET delivers_on_weekends = $3, updated_at = NOW()
+WHERE channel_id = $1 AND carrier_slug = $2
+RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends
+`
+
+type SetShippingCarrierWeekendDeliveryParams struct {
+	ChannelID          uuid.UUID `json:"channel_id"`
+	CarrierSlug        string    `json:"carrier_slug"`
+	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
+}
+
+func (q *Queries) SetShippingCarrierWeekendDelivery(ctx context.Context, arg SetShippingCarrierWeekendDeliveryParams) (ShippingCarrier, error) {
+	row := q.db.QueryRowContext(ctx, setShippingCarrierWeekendDelivery, arg.ChannelID, arg.CarrierSlug, arg.DeliversOnWeekends)
+	var i ShippingCarrier
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.CarrierSlug,
+		&i.IsEnabled,
+		&i.DisplayName,
+		&i.SortOrder,
+		&i.CountryMode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
 	)
 	return i, err
 }
@@ -229,7 +265,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (channel_id, carrier_slug) DO UPDATE
 SET display_name = EXCLUDED.display_name,
     updated_at   = NOW()
-RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at
+RETURNING id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at, delivers_on_weekends
 `
 
 type UpsertShippingCarrierParams struct {
@@ -258,6 +294,7 @@ func (q *Queries) UpsertShippingCarrier(ctx context.Context, arg UpsertShippingC
 		&i.CountryMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliversOnWeekends,
 	)
 	return i, err
 }

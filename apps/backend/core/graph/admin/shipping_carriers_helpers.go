@@ -27,13 +27,14 @@ func toShippingCarrierAdminModel(c shipping.CarrierWithConfig) *model.ShippingCa
 		countries = []string{}
 	}
 	return &model.ShippingCarrierAdmin{
-		CarrierSlug:      c.Slug,
-		DisplayName:      c.DisplayName,
-		IsEnabled:        c.Config.IsEnabled,
-		SortOrder:        c.Config.SortOrder,
-		CountryMode:      mode,
-		AllowedCountries: countries,
-		SupportsTracking: c.SupportsTrack,
-		SupportsLabels:   c.SupportsLabel,
+		CarrierSlug:        c.Slug,
+		DisplayName:        c.DisplayName,
+		IsEnabled:          c.Config.IsEnabled,
+		SortOrder:          c.Config.SortOrder,
+		CountryMode:        mode,
+		AllowedCountries:   countries,
+		SupportsTracking:   c.SupportsTrack,
+		SupportsLabels:     c.SupportsLabel,
+		DeliversOnWeekends: c.Config.DeliversOnWeekends,
 	}
 }

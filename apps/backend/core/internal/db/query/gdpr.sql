@@ -18,6 +18,16 @@ WHERE id = $1;
 -- name: DeleteCustomerAddresses :exec
 DELETE FROM addresses WHERE customer_id = $1;
 
+-- name: ScrubCustomerOrderShipments :execrows
+-- A package's ship-to is the address it went to, addressed to the shopper or whoever collected - its own copy, beside the order's scrubbed columns. Runs before the guest orders lose the address they are matched by
+UPDATE order_shipments s
+SET    ship_to = NULL
+FROM   orders o
+WHERE  o.id = s.order_id
+  AND  s.ship_to IS NOT NULL
+  AND  (o.customer_id = sqlc.arg(customer_id)
+        OR (o.customer_id IS NULL AND o.channel_id = sqlc.arg(channel_id) AND lower(btrim(o.email)) = sqlc.arg(email)::text));
+
 -- name: ScrubCustomerOrders :execrows
 -- customer_note, po_number and metadata are free text the shopper typed - "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of content that survived an erasure while the structured address columns next to it read "Redacted"
 UPDATE orders

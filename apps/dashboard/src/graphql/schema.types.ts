@@ -502,6 +502,16 @@ export type AuditLogPage = {
   total: Scalars['Int']['output'];
 };
 
+export type BlockFloor =
+  | 'CONFIGURABLE'
+  | 'LOCKED'
+  | 'NA';
+
+export type BlockMode =
+  | 'HIDDEN'
+  | 'OPTIONAL'
+  | 'REQUIRED';
+
 export type BlogAuthor = {
   __typename?: 'BlogAuthor';
   allContent: Array<BlogAuthorContent>;
@@ -1091,6 +1101,19 @@ export type CampaignVariantStat = {
   variant: Scalars['String']['output'];
 };
 
+export type CarrierKind = {
+  __typename?: 'CarrierKind';
+  carrierRefs: Array<CarrierRef>;
+  carriers: Array<Scalars['String']['output']>;
+  kind: Scalars['String']['output'];
+};
+
+export type CarrierRef = {
+  __typename?: 'CarrierRef';
+  name: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+};
+
 export type CartList = {
   __typename?: 'CartList';
   items: Array<CartListItem>;
@@ -1228,6 +1251,19 @@ export type ChatMessage = {
   __typename?: 'ChatMessage';
   content: Scalars['String']['output'];
   role: Scalars['String']['output'];
+};
+
+export type CheckoutConfiguration = {
+  __typename?: 'CheckoutConfiguration';
+  carrierKinds: Array<CarrierKind>;
+  channelId: Scalars['ID']['output'];
+  deliveryPoints: Array<DeliveryPointAdmin>;
+  digitalBlocks: Array<DeliveryOptionBlock>;
+  kinds: Array<DeliveryKind>;
+  options: Array<DeliveryOption>;
+  pointSources: Array<DeliverySource>;
+  readiness: Array<ReadinessCheck>;
+  usingDefaults: Scalars['Boolean']['output'];
 };
 
 export type Collection = {
@@ -1925,11 +1961,16 @@ export type CreateShippingMethodInput = {
   calcType: ShippingCalcType;
   code: Scalars['String']['input'];
   countryMode?: InputMaybe<Scalars['String']['input']>;
+  deliversOnWeekends?: InputMaybe<Scalars['Boolean']['input']>;
+  deliveryKind?: InputMaybe<Scalars['String']['input']>;
+  estimatedDays?: InputMaybe<Scalars['Int']['input']>;
   flatCents?: InputMaybe<Scalars['Int']['input']>;
   freeAboveCents?: InputMaybe<Scalars['Int']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
+  unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
   zoneId: Scalars['ID']['input'];
 };
 
@@ -2405,6 +2446,104 @@ export type DataResource = {
 export type DefaultValueUpdate = {
   clear?: InputMaybe<Scalars['Boolean']['input']>;
   value?: InputMaybe<Scalars['JSON']['input']>;
+};
+
+export type DeliveryKind = {
+  __typename?: 'DeliveryKind';
+  blocks: Array<DeliveryKindBlock>;
+  description: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  owner: Scalars['String']['output'];
+  pointLabel?: Maybe<Scalars['String']['output']>;
+  shipTo: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+};
+
+export type DeliveryKindBlock = {
+  __typename?: 'DeliveryKindBlock';
+  default?: Maybe<BlockMode>;
+  floor: BlockFloor;
+  label: Scalars['String']['output'];
+  reason: Scalars['String']['output'];
+  type: Scalars['String']['output'];
+};
+
+export type DeliveryOption = {
+  __typename?: 'DeliveryOption';
+  blockModes: Scalars['JSON']['output'];
+  blocks: Array<DeliveryOptionBlock>;
+  carrierSlug: Scalars['String']['output'];
+  channelId: Scalars['ID']['output'];
+  description: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  implicit: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  kindLabel: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  pointSource: Scalars['String']['output'];
+  readiness: Array<ReadinessCheck>;
+  ready: Scalars['Boolean']['output'];
+  sortOrder: Scalars['Int']['output'];
+};
+
+export type DeliveryOptionBlock = {
+  __typename?: 'DeliveryOptionBlock';
+  floor: BlockFloor;
+  label: Scalars['String']['output'];
+  mode: BlockMode;
+  reason: Scalars['String']['output'];
+  type: Scalars['String']['output'];
+};
+
+export type DeliveryOptionInput = {
+  blockModes?: InputMaybe<Scalars['JSON']['input']>;
+  carrierSlug?: InputMaybe<Scalars['String']['input']>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  enabled: Scalars['Boolean']['input'];
+  kind?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  pointSource?: InputMaybe<Scalars['String']['input']>;
+  sortOrder?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type DeliveryPointAdmin = {
+  __typename?: 'DeliveryPointAdmin';
+  city: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  hours: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  instructions: Scalars['String']['output'];
+  isActive: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  postalCode: Scalars['String']['output'];
+  region: Scalars['String']['output'];
+  street1: Scalars['String']['output'];
+  street2: Scalars['String']['output'];
+};
+
+export type DeliveryPointInput = {
+  city: Scalars['String']['input'];
+  countryCode: Scalars['String']['input'];
+  hours?: InputMaybe<Scalars['String']['input']>;
+  id?: InputMaybe<Scalars['ID']['input']>;
+  instructions?: InputMaybe<Scalars['String']['input']>;
+  isActive: Scalars['Boolean']['input'];
+  name: Scalars['String']['input'];
+  postalCode: Scalars['String']['input'];
+  region?: InputMaybe<Scalars['String']['input']>;
+  street1: Scalars['String']['input'];
+  street2?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type DeliverySource = {
+  __typename?: 'DeliverySource';
+  active: Scalars['Boolean']['output'];
+  kinds: Array<Scalars['String']['output']>;
+  label: Scalars['String']['output'];
+  owner: Scalars['String']['output'];
+  remote: Scalars['Boolean']['output'];
+  slug: Scalars['String']['output'];
 };
 
 export type DraftOrderLineInput = {
@@ -3398,6 +3537,7 @@ export type Mutation = {
   adminTotpSetup: AdminTotpSetup;
   adminUpdateCartLine: AdminCart;
   adminUpdateCustomer: Customer;
+  adoptDefaultDeliveryOptions: CheckoutConfiguration;
   anonymizeCustomer: Scalars['Boolean']['output'];
   answerProductQuestion: AdminProductQuestion;
   approveCMSPage: CmsPage;
@@ -3458,6 +3598,7 @@ export type Mutation = {
   createCurrency: Currency;
   createCustomerGroup: CustomerGroup;
   createCustomerSegment: CustomerSegment;
+  createDeliveryOption: DeliveryOption;
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
@@ -3526,6 +3667,7 @@ export type Mutation = {
   deleteCustomer: Scalars['Boolean']['output'];
   deleteCustomerGroup: Scalars['Boolean']['output'];
   deleteCustomerSegment: Scalars['Boolean']['output'];
+  deleteDeliveryOption: Scalars['Boolean']['output'];
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
@@ -3662,6 +3804,7 @@ export type Mutation = {
   runChatAction: ChatActionResult;
   runScheduledJobNow: ScheduledJob;
   saveChatConversation: Scalars['ID']['output'];
+  saveDeliveryPoints: Array<DeliveryPointAdmin>;
   saveEmailBlock: EmailBlockSnippet;
   saveLibraryEmail: LibraryEmail;
   scheduleBlogPost: BlogPost;
@@ -3718,6 +3861,7 @@ export type Mutation = {
   setProductOptionValueChannelPrice: Product;
   setProductPrimaryCategory: Product;
   setProductTaxClass: Product;
+  setProductTypeDeliveryKinds: ProductType;
   setProductTypeURLPathTemplate: ProductType;
   setProductVariantMode: Product;
   setRemoteProviderActive: RemoteProvider;
@@ -3726,6 +3870,7 @@ export type Mutation = {
   setSegmentRules: CustomerSegment;
   setShippingCarrierCountries: ShippingCarrierAdmin;
   setShippingCarrierEnabled: ShippingCarrierAdmin;
+  setShippingCarrierWeekendDelivery: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
   setWebhookActive: Webhook;
   signalsChat: SignalsChatReply;
@@ -3775,6 +3920,7 @@ export type Mutation = {
   updateCurrency: Currency;
   updateCustomerGroup: CustomerGroup;
   updateCustomerSegment: CustomerSegment;
+  updateDeliveryOption: DeliveryOption;
   updateEmailCampaign: EmailCampaign;
   updateEventDestination: EventDestination;
   updateExperiment: Experiment;
@@ -3787,6 +3933,7 @@ export type Mutation = {
   updateMediaAsset: MediaAsset;
   updateMenu: Menu;
   updateMenuItem: MenuItem;
+  updatePaymentMethodPresentation: PaymentMethodAdmin;
   updateProduct: Product;
   updateProductDownload: Product;
   updateProductMedia: ProductMedia;
@@ -4021,6 +4168,11 @@ export type MutationAdminUpdateCartLineArgs = {
 export type MutationAdminUpdateCustomerArgs = {
   id: Scalars['ID']['input'];
   input: AdminUpdateCustomerInput;
+};
+
+
+export type MutationAdoptDefaultDeliveryOptionsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -4343,6 +4495,12 @@ export type MutationCreateCustomerGroupArgs = {
 
 export type MutationCreateCustomerSegmentArgs = {
   input: CreateCustomerSegmentInput;
+};
+
+
+export type MutationCreateDeliveryOptionArgs = {
+  channelId: Scalars['ID']['input'];
+  input: DeliveryOptionInput;
 };
 
 
@@ -4694,6 +4852,11 @@ export type MutationDeleteCustomerGroupArgs = {
 
 
 export type MutationDeleteCustomerSegmentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteDeliveryOptionArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -5438,6 +5601,12 @@ export type MutationSaveChatConversationArgs = {
 };
 
 
+export type MutationSaveDeliveryPointsArgs = {
+  channelId: Scalars['ID']['input'];
+  points: Array<DeliveryPointInput>;
+};
+
+
 export type MutationSaveEmailBlockArgs = {
   input: SaveEmailBlockInput;
 };
@@ -5787,6 +5956,12 @@ export type MutationSetProductTaxClassArgs = {
 };
 
 
+export type MutationSetProductTypeDeliveryKindsArgs = {
+  kinds?: InputMaybe<Array<Scalars['String']['input']>>;
+  productTypeId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetProductTypeUrlPathTemplateArgs = {
   productTypeId: Scalars['ID']['input'];
   template: Scalars['String']['input'];
@@ -5835,6 +6010,13 @@ export type MutationSetShippingCarrierEnabledArgs = {
   carrierSlug: Scalars['String']['input'];
   channelId: Scalars['ID']['input'];
   enabled: Scalars['Boolean']['input'];
+};
+
+
+export type MutationSetShippingCarrierWeekendDeliveryArgs = {
+  carrierSlug: Scalars['String']['input'];
+  channelId: Scalars['ID']['input'];
+  deliversOnWeekends: Scalars['Boolean']['input'];
 };
 
 
@@ -6106,6 +6288,12 @@ export type MutationUpdateCustomerSegmentArgs = {
 };
 
 
+export type MutationUpdateDeliveryOptionArgs = {
+  id: Scalars['ID']['input'];
+  input: DeliveryOptionInput;
+};
+
+
 export type MutationUpdateEmailCampaignArgs = {
   id: Scalars['ID']['input'];
   input: SaveCampaignInput;
@@ -6167,6 +6355,14 @@ export type MutationUpdateMenuArgs = {
 
 export type MutationUpdateMenuItemArgs = {
   input: UpdateMenuItemInput;
+};
+
+
+export type MutationUpdatePaymentMethodPresentationArgs = {
+  channelId: Scalars['ID']['input'];
+  displayName: Scalars['String']['input'];
+  providerSlug: Scalars['String']['input'];
+  sortOrder: Scalars['Int']['input'];
 };
 
 
@@ -6444,6 +6640,7 @@ export type Order = {
   discountAmount: Scalars['Int']['output'];
   email: Scalars['String']['output'];
   events: Array<OrderEvent>;
+  fulfillmentNeed: Scalars['String']['output'];
   fulfillments: Array<Fulfillment>;
   giftCardAmount: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
@@ -6456,6 +6653,7 @@ export type Order = {
   paymentTransactions: Array<PaymentTransaction>;
   poNumber?: Maybe<Scalars['String']['output']>;
   returns: Array<OrderReturn>;
+  shipments: Array<OrderShipment>;
   shippingAddress: OrderAddress;
   shippingAmount: Scalars['Int']['output'];
   shippingRefundable: Scalars['Int']['output'];
@@ -6582,6 +6780,25 @@ export type OrderReturnLine = {
   refundUnitCents: Scalars['Int']['output'];
 };
 
+export type OrderShipment = {
+  __typename?: 'OrderShipment';
+  amountCents: Scalars['Int']['output'];
+  carrierSlug: Scalars['String']['output'];
+  deliveryKind: Scalars['String']['output'];
+  deliveryOptionId?: Maybe<Scalars['ID']['output']>;
+  deliveryOptionName: Scalars['String']['output'];
+  estimatedDays?: Maybe<Scalars['Int']['output']>;
+  groupKey: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lines: Scalars['JSON']['output'];
+  methodCode: Scalars['String']['output'];
+  methodName: Scalars['String']['output'];
+  originLocationId?: Maybe<Scalars['ID']['output']>;
+  point?: Maybe<Scalars['JSON']['output']>;
+  position: Scalars['Int']['output'];
+  shipTo?: Maybe<OrderAddress>;
+};
+
 export type OrderStatus =
   | 'CANCELLED'
   | 'CONFIRMED'
@@ -6606,10 +6823,24 @@ export type PaymentMethodAdmin = {
   allowedCountries: Array<Scalars['String']['output']>;
   countryMode: Scalars['String']['output'];
   displayName: Scalars['String']['output'];
+  isAvailable: Scalars['Boolean']['output'];
   isEnabled: Scalars['Boolean']['output'];
   isOffline: Scalars['Boolean']['output'];
   providerSlug: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
+};
+
+export type PaymentProviderAdmin = {
+  __typename?: 'PaymentProviderAdmin';
+  configurationPaths: Array<Scalars['String']['output']>;
+  displayName: Scalars['String']['output'];
+  isAvailable: Scalars['Boolean']['output'];
+  isOffline: Scalars['Boolean']['output'];
+  pluginName: Scalars['String']['output'];
+  pluginSlug: Scalars['String']['output'];
+  pluginVersion: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+  webhookPath?: Maybe<Scalars['String']['output']>;
 };
 
 export type PaymentStatus =
@@ -6963,6 +7194,7 @@ export type ProductType = {
   __typename?: 'ProductType';
   attributes: Array<ProductTypeAttribute>;
   createdAt: Scalars['Time']['output'];
+  deliveryKinds: Array<Scalars['String']['output']>;
   groups: Array<AttributeGroup>;
   id: Scalars['ID']['output'];
   isDigital: Scalars['Boolean']['output'];
@@ -7243,6 +7475,7 @@ export type Query = {
   channels: Array<Channel>;
   chatConversation?: Maybe<ChatConversation>;
   chatConversations: Array<ChatConversationSummary>;
+  checkoutConfiguration: CheckoutConfiguration;
   cmsAttribute?: Maybe<CmsAttribute>;
   cmsAttributeGroups: Array<CmsAttributeGroup>;
   cmsAttributes: Array<CmsAttribute>;
@@ -7356,6 +7589,7 @@ export type Query = {
   orders: Array<Order>;
   ordersPaged: OrderPage;
   paymentMethods: Array<PaymentMethodAdmin>;
+  paymentProviders: Array<PaymentProviderAdmin>;
   permissionGroups: Array<PermissionGroup>;
   previewSchedule: SchedulePreview;
   product: Product;
@@ -7578,6 +7812,11 @@ export type QueryChatConversationArgs = {
 
 export type QueryChatConversationsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryCheckoutConfigurationArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 
@@ -8095,6 +8334,11 @@ export type QueryPaymentMethodsArgs = {
 };
 
 
+export type QueryPaymentProvidersArgs = {
+  channelId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
 export type QueryPreviewScheduleArgs = {
   count?: InputMaybe<Scalars['Int']['input']>;
   schedule: Scalars['String']['input'];
@@ -8563,6 +8807,16 @@ export type QueryWebhookJobConfigArgs = {
   id: Scalars['ID']['input'];
 };
 
+export type ReadinessCheck = {
+  __typename?: 'ReadinessCheck';
+  advisory: Scalars['Boolean']['output'];
+  code: Scalars['String']['output'];
+  detail: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  ok: Scalars['Boolean']['output'];
+  tab: Scalars['String']['output'];
+};
+
 export type RebuildQueueStatus = {
   __typename?: 'RebuildQueueStatus';
   done: Scalars['Int']['output'];
@@ -8633,6 +8887,7 @@ export type RemoteProviderKind =
   | 'ADDRESS_VALIDATOR'
   | 'CURRENCY_RATE'
   | 'CUSTOMER_SEGMENTS'
+  | 'DELIVERY_POINTS'
   | 'FRAUD_RISK'
   | 'INVENTORY_AVAILABILITY'
   | 'PRICING'
@@ -9393,6 +9648,7 @@ export type ShippingCarrierAdmin = {
   allowedCountries: Array<Scalars['String']['output']>;
   carrierSlug: Scalars['String']['output'];
   countryMode: Scalars['String']['output'];
+  deliversOnWeekends: Scalars['Boolean']['output'];
   displayName: Scalars['String']['output'];
   isEnabled: Scalars['Boolean']['output'];
   sortOrder: Scalars['Int']['output'];
@@ -9417,14 +9673,35 @@ export type ShippingMethod = {
   code: Scalars['String']['output'];
   countryMode: Scalars['String']['output'];
   createdAt: Scalars['Time']['output'];
+  deliversOnWeekends: Scalars['Boolean']['output'];
+  deliveryKind: Scalars['String']['output'];
+  estimatedDays: Scalars['Int']['output'];
   flatCents: Scalars['Int']['output'];
   freeAboveCents: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   isActive: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
+  typeRates: Array<ShippingMethodTypeRate>;
+  unitsPerCharge: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
   zoneId: Scalars['ID']['output'];
+};
+
+export type ShippingMethodTypeRate = {
+  __typename?: 'ShippingMethodTypeRate';
+  freeShippingEligible: Scalars['Boolean']['output'];
+  priceCents: Scalars['Int']['output'];
+  productTypeId: Scalars['ID']['output'];
+  productTypeName: Scalars['String']['output'];
+  unitsPerCharge: Scalars['Int']['output'];
+};
+
+export type ShippingMethodTypeRateInput = {
+  freeShippingEligible?: InputMaybe<Scalars['Boolean']['input']>;
+  priceCents: Scalars['Int']['input'];
+  productTypeId: Scalars['ID']['input'];
+  unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type ShippingZone = {
@@ -10391,12 +10668,17 @@ export type UpdateShippingMethodInput = {
   calcType?: InputMaybe<ShippingCalcType>;
   code?: InputMaybe<Scalars['String']['input']>;
   countryMode?: InputMaybe<Scalars['String']['input']>;
+  deliversOnWeekends?: InputMaybe<Scalars['Boolean']['input']>;
+  deliveryKind?: InputMaybe<Scalars['String']['input']>;
+  estimatedDays?: InputMaybe<Scalars['Int']['input']>;
   flatCents?: InputMaybe<Scalars['Int']['input']>;
   freeAboveCents?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  typeRates?: InputMaybe<Array<ShippingMethodTypeRateInput>>;
+  unitsPerCharge?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type UpdateShippingZoneInput = {

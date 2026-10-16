@@ -60,17 +60,6 @@ fragment OrderSummaryFields on Order {
   }
 }
 
-query ShippingQuotes($countryCode: String!, $cartId: ID, $regionCode: String, $postalCode: String) {
-  shippingQuotes(countryCode: $countryCode, cartId: $cartId, regionCode: $regionCode, postalCode: $postalCode) {
-    carrierSlug
-    carrierName
-    code
-    name
-    priceCents
-    estimatedDays
-  }
-}
-
 # With the cart, only the methods its checkout can pay with - purchase order needs a business purchase that asked for the PO number
 query PaymentMethods($countryCode: String!, $cartId: ID) {
   paymentMethods(countryCode: $countryCode, cartId: $cartId) {
@@ -191,21 +180,6 @@ query GuestOrder($id: ID!, $email: String!) {
   }
 }
 
-# Collect-in-store points, rendered alongside the pickup entries the
-# shipping-quote list already returns (carrierSlug "pickup"). Keyed by the
-# slug embedded in each quote code as "loc-<slug>".
-query PickupLocations {
-  pickupLocations {
-    slug
-    name
-    line1
-    city
-    postalCode
-    countryCode
-    instructions
-  }
-}
-
 # --- Checkout state, saved on the cart one step at a time ---
 
 fragment CheckoutAddressFields on CartAddress {
@@ -220,6 +194,68 @@ fragment CheckoutAddressFields on CartAddress {
   countryCode
   phone
   sourceAddressId
+}
+
+fragment DeliveryPointFields on DeliveryPoint {
+  id
+  name
+  street1
+  street2
+  city
+  region
+  postalCode
+  countryCode
+  distanceKm
+  hours
+  instructions
+  phone
+}
+
+# One group of lines that takes one delivery choice - what it can choose, what was chosen, and the packages it leaves as
+fragment DeliveryGroupFields on DeliveryGroup {
+  key
+  lineIds
+  kinds
+  choices {
+    optionId
+    optionName
+    description
+    kind
+    kindLabel
+    shipTo
+    pointLabel
+    carrierSlug
+    carrierName
+    methodCode
+    methodName
+    priceCents
+    estimatedDays
+    estimatedArrival
+  }
+  selection {
+    optionId
+    optionName
+    kind
+    shipTo
+    pointLabel
+    carrierSlug
+    methodCode
+    methodName
+    priceCents
+    estimatedDays
+    estimatedArrival
+    point {
+      ...DeliveryPointFields
+    }
+  }
+  shipments {
+    originName
+    originCity
+    lineIds
+    priceCents
+    estimatedDays
+    estimatedArrival
+  }
 }
 
 # Prices shipping and tax server-side, so only the checkout page selects it
@@ -240,6 +276,8 @@ query CheckoutState($id: ID!) {
         name
         priceCents
         estimatedDays
+        estimatedArrival
+    estimatedArrival
       }
       isPickup
       phone
@@ -263,6 +301,23 @@ query CheckoutState($id: ID!) {
         someoneElse
       }
       paymentProviderSlug
+      fulfillment
+      digitalLineIds
+      splitDelivery
+      canSplit
+      ready
+      deliveryGroups {
+        ...DeliveryGroupFields
+      }
+      requirements {
+        scope
+        type
+        label
+        mode
+        status
+        code
+        message
+      }
       giftCards {
         code
         appliedCents
@@ -290,19 +345,16 @@ mutation SetCheckoutDestination($cartId: ID!, $countryCode: String!, $regionCode
   }
 }
 
-mutation SetCheckoutShippingMethod($cartId: ID!, $carrierSlug: String!, $code: String!) {
-  setCartShippingMethod(cartId: $cartId, carrierSlug: $carrierSlug, code: $code) {
-    id
-  }
-}
-
-# Returns whether a method is still chosen - an address in another postcode can drop it, and the action says so
+# Returns which deliveries are still chosen - an address in another postcode can drop one, and the action says so
 mutation SetCheckoutDetails($cartId: ID!, $input: CheckoutDetailsInput!) {
   setCartDetails(cartId: $cartId, input: $input) {
     id
     checkout {
-      shippingMethod {
-        code
+      deliveryGroups {
+        key
+        selection {
+          optionId
+        }
       }
     }
   }
@@ -328,6 +380,32 @@ mutation RemoveCheckoutGiftCard($cartId: ID!, $code: String!) {
 
 mutation SetCheckoutStoreCredit($cartId: ID!, $use: Boolean!) {
   setCartStoreCredit(cartId: $cartId, use: $use) {
+    id
+  }
+}
+
+# --- Delivery groups - a cart can go out several ways at once ---
+
+query DeliveryPoints($cartId: ID!, $groupKey: String!, $search: String) {
+  deliveryPoints(cartId: $cartId, groupKey: $groupKey, search: $search) {
+    ...DeliveryPointFields
+  }
+}
+
+mutation SetCheckoutSplitDelivery($cartId: ID!, $split: Boolean!) {
+  setCartSplitDelivery(cartId: $cartId, split: $split) {
+    id
+  }
+}
+
+mutation SetCheckoutDelivery($cartId: ID!, $groupKey: String!, $optionId: ID!, $carrierSlug: String!, $methodCode: String!) {
+  setCartDelivery(cartId: $cartId, groupKey: $groupKey, optionId: $optionId, carrierSlug: $carrierSlug, methodCode: $methodCode) {
+    id
+  }
+}
+
+mutation SetCheckoutDeliveryPoint($cartId: ID!, $groupKey: String!, $pointId: String!) {
+  setCartDeliveryPoint(cartId: $cartId, groupKey: $groupKey, pointId: $pointId) {
     id
   }
 }

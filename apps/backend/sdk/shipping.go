@@ -64,11 +64,13 @@ type RateItem struct {
 }
 
 // Code is carrier-stable ("ground", "ups:03") and what the storefront echoes back at checkout
+// Kind is the delivery kind the method serves - empty takes the carrier's first WithDeliveryKinds kind, ship_to_address when it declares none
 type RatedMethod struct {
 	Code          string
 	Name          string
 	PriceCents    int64
 	EstimatedDays int
+	Kind          string
 }
 
 type Address struct {
@@ -129,11 +131,17 @@ type CarrierRegistration struct {
 	Slug        string
 	Carrier     Carrier
 	DisplayName string
+	Kinds       []string // the delivery kinds its methods serve - see WithDeliveryKinds
 }
 
 // Falls back to the raw carrier slug when unset - not title-cased
 func WithCarrierDisplayName(name string) CarrierOption {
 	return func(r *CarrierRegistration) { r.DisplayName = name }
+}
+
+// The delivery kinds the carrier quotes - a delivery option of a kind is only ready once an enabled carrier declares it. Unset means ship_to_address
+func WithDeliveryKinds(kinds ...string) CarrierOption {
+	return func(r *CarrierRegistration) { r.Kinds = kinds }
 }
 
 // carrierSlug keys config paths (shipping/<slug>/*), shipping_carriers rows and the (carrierSlug, methodCode) pair the storefront sends at checkout - independent of the manifest slug, and duplicates panic

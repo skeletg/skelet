@@ -119,6 +119,24 @@ func (q *Queries) DSARLoyaltyEntries(ctx context.Context, customerID uuid.UUID) 
 	return doc, err
 }
 
+const dSAROrderShipments = `-- name: DSAROrderShipments :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object(
+         'orderId', s.order_id, 'deliveryKind', s.delivery_kind, 'deliveryOption', s.delivery_option_name,
+         'method', s.method_name, 'shipTo', s.ship_to, 'point', s.point, 'createdAt', s.created_at)
+         ORDER BY s.created_at, s.order_id, s.position), '[]')::jsonb AS doc
+FROM   order_shipments s
+JOIN   orders o ON o.id = s.order_id
+WHERE  o.customer_id = $1
+`
+
+// The packages of the customer's orders, with the address each went to
+func (q *Queries) DSAROrderShipments(ctx context.Context, customerID uuid.NullUUID) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, dSAROrderShipments, customerID)
+	var doc json.RawMessage
+	err := row.Scan(&doc)
+	return doc, err
+}
+
 const dSARPaymentMethods = `-- name: DSARPaymentMethods :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
          'id', id, 'provider', provider_slug, 'brand', brand, 'last4', last4,

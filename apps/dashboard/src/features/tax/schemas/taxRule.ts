@@ -45,7 +45,7 @@ export type TaxRuleValues = z.infer<typeof taxRuleSchema>
 export type RuleRow = TaxRuleValues['conditions'][number]
 
 export const TAX_RULE_LABELS: Record<keyof TaxRuleValues, string> = {
-  name: 'Name',
+  name: 'Display name', // the field's own label, so the save dialog names the change as the form does
   priority: 'Priority',
   exclusivityGroup: 'Exclusivity group',
   sortOrder: 'Sort order',

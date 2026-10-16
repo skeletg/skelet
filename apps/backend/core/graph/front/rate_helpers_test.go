@@ -134,3 +134,15 @@ func TestThrottleDelay(t *testing.T) {
 		}
 	}
 }
+
+// The point search asks a remote source uncached on every keystroke - one address gets the checkout's budget, then a refusal before any source is asked
+func TestDeliveryPointsIsRateLimited(t *testing.T) {
+	q := &queryResolver{&Resolver{CheckoutLimiter: ratelimit.NewMemory(1, time.Minute)}}
+	ctx := throttleTestCtx()
+	if _, err := q.DeliveryPoints(ctx, "not-a-cart", "all", nil); errors.Is(err, ErrRateLimited) {
+		t.Fatal("the first search was refused")
+	}
+	if _, err := q.DeliveryPoints(ctx, "not-a-cart", "all", nil); !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("second search = %v, want ErrRateLimited", err)
+	}
+}

@@ -16,6 +16,8 @@ enum RemoteProviderKind {
   RETURNS_POLICY
   INVENTORY_AVAILABILITY
   SHIPPING_TRACKING
+  # Points for a delivery option - lockers, PO boxes, parcel shops. Picked on the option as "remote:<slug>".
+  DELIVERY_POINTS
 }
 
 # What an invocation failure means to the consuming subsystem. FAIL_OPEN (default) falls back to core behavior (skip remote rates, run core tax, treat the address as valid). FAIL_CLOSED aborts the operation.

@@ -936,6 +936,17 @@ type CampaignVariantStat struct {
 	Clicked int32  `json:"clicked"`
 }
 
+type CarrierKind struct {
+	Kind        string        `json:"kind"`
+	Carriers    []string      `json:"carriers"`
+	CarrierRefs []*CarrierRef `json:"carrierRefs"`
+}
+
+type CarrierRef struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
 type CartList struct {
 	Items      []*CartListItem `json:"items"`
 	TotalCount int32           `json:"totalCount"`
@@ -1060,6 +1071,18 @@ type ChatConversationSummary struct {
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+type CheckoutConfiguration struct {
+	ChannelID      string                 `json:"channelId"`
+	Kinds          []*DeliveryKind        `json:"kinds"`
+	Options        []*DeliveryOption      `json:"options"`
+	UsingDefaults  bool                   `json:"usingDefaults"`
+	DigitalBlocks  []*DeliveryOptionBlock `json:"digitalBlocks"`
+	PointSources   []*DeliverySource      `json:"pointSources"`
+	CarrierKinds   []*CarrierKind         `json:"carrierKinds"`
+	DeliveryPoints []*DeliveryPointAdmin  `json:"deliveryPoints"`
+	Readiness      []*ReadinessCheck      `json:"readiness"`
 }
 
 type Collection struct {
@@ -1672,16 +1695,21 @@ type CreateRoleInput struct {
 }
 
 type CreateShippingMethodInput struct {
-	ZoneID           string           `json:"zoneId"`
-	Code             string           `json:"code"`
-	Name             *string          `json:"name,omitempty"`
-	CalcType         ShippingCalcType `json:"calcType"`
-	FlatCents        *int32           `json:"flatCents,omitempty"`
-	FreeAboveCents   *int32           `json:"freeAboveCents,omitempty"`
-	SortOrder        *int32           `json:"sortOrder,omitempty"`
-	IsActive         *bool            `json:"isActive,omitempty"`
-	CountryMode      *string          `json:"countryMode,omitempty"`
-	AllowedCountries []string         `json:"allowedCountries,omitempty"`
+	ZoneID             string                         `json:"zoneId"`
+	Code               string                         `json:"code"`
+	Name               *string                        `json:"name,omitempty"`
+	CalcType           ShippingCalcType               `json:"calcType"`
+	FlatCents          *int32                         `json:"flatCents,omitempty"`
+	FreeAboveCents     *int32                         `json:"freeAboveCents,omitempty"`
+	SortOrder          *int32                         `json:"sortOrder,omitempty"`
+	IsActive           *bool                          `json:"isActive,omitempty"`
+	CountryMode        *string                        `json:"countryMode,omitempty"`
+	AllowedCountries   []string                       `json:"allowedCountries,omitempty"`
+	DeliveryKind       *string                        `json:"deliveryKind,omitempty"`
+	UnitsPerCharge     *int32                         `json:"unitsPerCharge,omitempty"`
+	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
+	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
+	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
 }
 
 type CreateShippingZoneInput struct {
@@ -2120,6 +2148,98 @@ type DataResource struct {
 type DefaultValueUpdate struct {
 	Value any   `json:"value,omitempty"`
 	Clear *bool `json:"clear,omitempty"`
+}
+
+type DeliveryKind struct {
+	Slug        string               `json:"slug"`
+	Label       string               `json:"label"`
+	Description string               `json:"description"`
+	ShipTo      string               `json:"shipTo"`
+	PointLabel  *string              `json:"pointLabel,omitempty"`
+	Owner       string               `json:"owner"`
+	Blocks      []*DeliveryKindBlock `json:"blocks"`
+}
+
+type DeliveryKindBlock struct {
+	Type    string     `json:"type"`
+	Label   string     `json:"label"`
+	Floor   BlockFloor `json:"floor"`
+	Default *BlockMode `json:"default,omitempty"`
+	Reason  string     `json:"reason"`
+}
+
+type DeliveryOption struct {
+	ID          string                 `json:"id"`
+	ChannelID   string                 `json:"channelId"`
+	Kind        string                 `json:"kind"`
+	KindLabel   string                 `json:"kindLabel"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Enabled     bool                   `json:"enabled"`
+	SortOrder   int32                  `json:"sortOrder"`
+	Blocks      []*DeliveryOptionBlock `json:"blocks"`
+	BlockModes  any                    `json:"blockModes"`
+	PointSource string                 `json:"pointSource"`
+	CarrierSlug string                 `json:"carrierSlug"`
+	Readiness   []*ReadinessCheck      `json:"readiness"`
+	Ready       bool                   `json:"ready"`
+	Implicit    bool                   `json:"implicit"`
+}
+
+type DeliveryOptionBlock struct {
+	Type   string     `json:"type"`
+	Label  string     `json:"label"`
+	Floor  BlockFloor `json:"floor"`
+	Mode   BlockMode  `json:"mode"`
+	Reason string     `json:"reason"`
+}
+
+type DeliveryOptionInput struct {
+	Kind        *string `json:"kind,omitempty"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Enabled     bool    `json:"enabled"`
+	SortOrder   *int32  `json:"sortOrder,omitempty"`
+	BlockModes  any     `json:"blockModes,omitempty"`
+	PointSource *string `json:"pointSource,omitempty"`
+	CarrierSlug *string `json:"carrierSlug,omitempty"`
+}
+
+type DeliveryPointAdmin struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Street1      string `json:"street1"`
+	Street2      string `json:"street2"`
+	City         string `json:"city"`
+	Region       string `json:"region"`
+	PostalCode   string `json:"postalCode"`
+	CountryCode  string `json:"countryCode"`
+	Instructions string `json:"instructions"`
+	Hours        string `json:"hours"`
+	IsActive     bool   `json:"isActive"`
+}
+
+type DeliveryPointInput struct {
+	ID           *string `json:"id,omitempty"`
+	Name         string  `json:"name"`
+	Street1      string  `json:"street1"`
+	Street2      *string `json:"street2,omitempty"`
+	City         string  `json:"city"`
+	Region       *string `json:"region,omitempty"`
+	PostalCode   string  `json:"postalCode"`
+	CountryCode  string  `json:"countryCode"`
+	Instructions *string `json:"instructions,omitempty"`
+	Hours        *string `json:"hours,omitempty"`
+	IsActive     bool    `json:"isActive"`
+}
+
+type DeliverySource struct {
+	Slug   string   `json:"slug"`
+	Label  string   `json:"label"`
+	Kinds  []string `json:"kinds"`
+	Owner  string   `json:"owner"`
+	Remote bool     `json:"remote"`
+	Active bool     `json:"active"`
 }
 
 type DraftOrderLineInput struct {
@@ -2996,6 +3116,8 @@ type Order struct {
 	AppliedPromotions   []*AppliedPromotion   `json:"appliedPromotions"`
 	TaxLines            []*OrderTaxLine       `json:"taxLines"`
 	CreatedAt           time.Time             `json:"createdAt"`
+	Shipments           []*OrderShipment      `json:"shipments"`
+	FulfillmentNeed     string                `json:"fulfillmentNeed"`
 }
 
 type OrderAddress struct {
@@ -3089,6 +3211,24 @@ type OrderReturnLine struct {
 	RefundUnitCents int32   `json:"refundUnitCents"`
 }
 
+type OrderShipment struct {
+	ID                 string        `json:"id"`
+	Position           int32         `json:"position"`
+	GroupKey           string        `json:"groupKey"`
+	OriginLocationID   *string       `json:"originLocationId,omitempty"`
+	DeliveryKind       string        `json:"deliveryKind"`
+	DeliveryOptionID   *string       `json:"deliveryOptionId,omitempty"`
+	DeliveryOptionName string        `json:"deliveryOptionName"`
+	CarrierSlug        string        `json:"carrierSlug"`
+	MethodCode         string        `json:"methodCode"`
+	MethodName         string        `json:"methodName"`
+	AmountCents        int32         `json:"amountCents"`
+	EstimatedDays      *int32        `json:"estimatedDays,omitempty"`
+	ShipTo             *OrderAddress `json:"shipTo,omitempty"`
+	Point              any           `json:"point,omitempty"`
+	Lines              any           `json:"lines"`
+}
+
 type OrderTaxLine struct {
 	ID      string  `json:"id"`
 	RuleID  *string `json:"ruleId,omitempty"`
@@ -3101,10 +3241,23 @@ type PaymentMethodAdmin struct {
 	ProviderSlug     string   `json:"providerSlug"`
 	DisplayName      string   `json:"displayName"`
 	IsOffline        bool     `json:"isOffline"`
+	IsAvailable      bool     `json:"isAvailable"`
 	IsEnabled        bool     `json:"isEnabled"`
 	SortOrder        int32    `json:"sortOrder"`
 	CountryMode      string   `json:"countryMode"`
 	AllowedCountries []string `json:"allowedCountries"`
+}
+
+type PaymentProviderAdmin struct {
+	Slug               string   `json:"slug"`
+	DisplayName        string   `json:"displayName"`
+	IsOffline          bool     `json:"isOffline"`
+	IsAvailable        bool     `json:"isAvailable"`
+	PluginSlug         string   `json:"pluginSlug"`
+	PluginName         string   `json:"pluginName"`
+	PluginVersion      string   `json:"pluginVersion"`
+	ConfigurationPaths []string `json:"configurationPaths"`
+	WebhookPath        *string  `json:"webhookPath,omitempty"`
 }
 
 type PaymentTransaction struct {
@@ -3371,6 +3524,7 @@ type ProductType struct {
 	Name               string                  `json:"name"`
 	IsDigital          bool                    `json:"isDigital"`
 	IsShippingRequired bool                    `json:"isShippingRequired"`
+	DeliveryKinds      []string                `json:"deliveryKinds"`
 	URLTemplate        string                  `json:"urlTemplate"`
 	TracksInventory    bool                    `json:"tracksInventory"`
 	Attributes         []*ProductTypeAttribute `json:"attributes"`
@@ -3585,6 +3739,15 @@ type PulseStarterContent struct {
 }
 
 type Query struct {
+}
+
+type ReadinessCheck struct {
+	Code     string `json:"code"`
+	Label    string `json:"label"`
+	Ok       bool   `json:"ok"`
+	Detail   string `json:"detail"`
+	Tab      string `json:"tab"`
+	Advisory bool   `json:"advisory"`
 }
 
 type RebuildQueueStatus struct {
@@ -4285,14 +4448,15 @@ type ShippingBoxInput struct {
 }
 
 type ShippingCarrierAdmin struct {
-	CarrierSlug      string   `json:"carrierSlug"`
-	DisplayName      string   `json:"displayName"`
-	IsEnabled        bool     `json:"isEnabled"`
-	SortOrder        int32    `json:"sortOrder"`
-	CountryMode      string   `json:"countryMode"`
-	AllowedCountries []string `json:"allowedCountries"`
-	SupportsTracking bool     `json:"supportsTracking"`
-	SupportsLabels   bool     `json:"supportsLabels"`
+	CarrierSlug        string   `json:"carrierSlug"`
+	DisplayName        string   `json:"displayName"`
+	IsEnabled          bool     `json:"isEnabled"`
+	SortOrder          int32    `json:"sortOrder"`
+	CountryMode        string   `json:"countryMode"`
+	AllowedCountries   []string `json:"allowedCountries"`
+	SupportsTracking   bool     `json:"supportsTracking"`
+	SupportsLabels     bool     `json:"supportsLabels"`
+	DeliversOnWeekends bool     `json:"deliversOnWeekends"`
 }
 
 type ShippingLabel struct {
@@ -4305,19 +4469,39 @@ type ShippingLabel struct {
 }
 
 type ShippingMethod struct {
-	ID               string           `json:"id"`
-	ZoneID           string           `json:"zoneId"`
-	Code             string           `json:"code"`
-	Name             string           `json:"name"`
-	CalcType         ShippingCalcType `json:"calcType"`
-	FlatCents        int32            `json:"flatCents"`
-	FreeAboveCents   int32            `json:"freeAboveCents"`
-	SortOrder        int32            `json:"sortOrder"`
-	IsActive         bool             `json:"isActive"`
-	CountryMode      string           `json:"countryMode"`
-	AllowedCountries []string         `json:"allowedCountries"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
+	ID                 string                    `json:"id"`
+	ZoneID             string                    `json:"zoneId"`
+	Code               string                    `json:"code"`
+	Name               string                    `json:"name"`
+	CalcType           ShippingCalcType          `json:"calcType"`
+	FlatCents          int32                     `json:"flatCents"`
+	FreeAboveCents     int32                     `json:"freeAboveCents"`
+	SortOrder          int32                     `json:"sortOrder"`
+	IsActive           bool                      `json:"isActive"`
+	CountryMode        string                    `json:"countryMode"`
+	AllowedCountries   []string                  `json:"allowedCountries"`
+	DeliveryKind       string                    `json:"deliveryKind"`
+	UnitsPerCharge     int32                     `json:"unitsPerCharge"`
+	EstimatedDays      int32                     `json:"estimatedDays"`
+	DeliversOnWeekends bool                      `json:"deliversOnWeekends"`
+	TypeRates          []*ShippingMethodTypeRate `json:"typeRates"`
+	CreatedAt          time.Time                 `json:"createdAt"`
+	UpdatedAt          time.Time                 `json:"updatedAt"`
+}
+
+type ShippingMethodTypeRate struct {
+	ProductTypeID        string `json:"productTypeId"`
+	ProductTypeName      string `json:"productTypeName"`
+	PriceCents           int32  `json:"priceCents"`
+	UnitsPerCharge       int32  `json:"unitsPerCharge"`
+	FreeShippingEligible bool   `json:"freeShippingEligible"`
+}
+
+type ShippingMethodTypeRateInput struct {
+	ProductTypeID        string `json:"productTypeId"`
+	PriceCents           int32  `json:"priceCents"`
+	UnitsPerCharge       *int32 `json:"unitsPerCharge,omitempty"`
+	FreeShippingEligible *bool  `json:"freeShippingEligible,omitempty"`
 }
 
 type ShippingZone struct {
@@ -5213,16 +5397,21 @@ type UpdateScheduledJobInput struct {
 }
 
 type UpdateShippingMethodInput struct {
-	ID               string            `json:"id"`
-	Code             *string           `json:"code,omitempty"`
-	Name             *string           `json:"name,omitempty"`
-	CalcType         *ShippingCalcType `json:"calcType,omitempty"`
-	FlatCents        *int32            `json:"flatCents,omitempty"`
-	FreeAboveCents   *int32            `json:"freeAboveCents,omitempty"`
-	SortOrder        *int32            `json:"sortOrder,omitempty"`
-	IsActive         *bool             `json:"isActive,omitempty"`
-	CountryMode      *string           `json:"countryMode,omitempty"`
-	AllowedCountries []string          `json:"allowedCountries,omitempty"`
+	ID                 string                         `json:"id"`
+	Code               *string                        `json:"code,omitempty"`
+	Name               *string                        `json:"name,omitempty"`
+	CalcType           *ShippingCalcType              `json:"calcType,omitempty"`
+	FlatCents          *int32                         `json:"flatCents,omitempty"`
+	FreeAboveCents     *int32                         `json:"freeAboveCents,omitempty"`
+	SortOrder          *int32                         `json:"sortOrder,omitempty"`
+	IsActive           *bool                          `json:"isActive,omitempty"`
+	CountryMode        *string                        `json:"countryMode,omitempty"`
+	AllowedCountries   []string                       `json:"allowedCountries,omitempty"`
+	DeliveryKind       *string                        `json:"deliveryKind,omitempty"`
+	UnitsPerCharge     *int32                         `json:"unitsPerCharge,omitempty"`
+	EstimatedDays      *int32                         `json:"estimatedDays,omitempty"`
+	DeliversOnWeekends *bool                          `json:"deliversOnWeekends,omitempty"`
+	TypeRates          []*ShippingMethodTypeRateInput `json:"typeRates,omitempty"`
 }
 
 type UpdateShippingZoneInput struct {
@@ -5747,6 +5936,120 @@ func (e *AttributeReferenceTarget) UnmarshalJSON(b []byte) error {
 }
 
 func (e AttributeReferenceTarget) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BlockFloor string
+
+const (
+	BlockFloorLocked       BlockFloor = "LOCKED"
+	BlockFloorConfigurable BlockFloor = "CONFIGURABLE"
+	BlockFloorNa           BlockFloor = "NA"
+)
+
+var AllBlockFloor = []BlockFloor{
+	BlockFloorLocked,
+	BlockFloorConfigurable,
+	BlockFloorNa,
+}
+
+func (e BlockFloor) IsValid() bool {
+	switch e {
+	case BlockFloorLocked, BlockFloorConfigurable, BlockFloorNa:
+		return true
+	}
+	return false
+}
+
+func (e BlockFloor) String() string {
+	return string(e)
+}
+
+func (e *BlockFloor) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BlockFloor(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BlockFloor", str)
+	}
+	return nil
+}
+
+func (e BlockFloor) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BlockFloor) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BlockFloor) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BlockMode string
+
+const (
+	BlockModeRequired BlockMode = "REQUIRED"
+	BlockModeOptional BlockMode = "OPTIONAL"
+	BlockModeHidden   BlockMode = "HIDDEN"
+)
+
+var AllBlockMode = []BlockMode{
+	BlockModeRequired,
+	BlockModeOptional,
+	BlockModeHidden,
+}
+
+func (e BlockMode) IsValid() bool {
+	switch e {
+	case BlockModeRequired, BlockModeOptional, BlockModeHidden:
+		return true
+	}
+	return false
+}
+
+func (e BlockMode) String() string {
+	return string(e)
+}
+
+func (e *BlockMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BlockMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BlockMode", str)
+	}
+	return nil
+}
+
+func (e BlockMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BlockMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BlockMode) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -7718,6 +8021,7 @@ const (
 	RemoteProviderKindReturnsPolicy         RemoteProviderKind = "RETURNS_POLICY"
 	RemoteProviderKindInventoryAvailability RemoteProviderKind = "INVENTORY_AVAILABILITY"
 	RemoteProviderKindShippingTracking      RemoteProviderKind = "SHIPPING_TRACKING"
+	RemoteProviderKindDeliveryPoints        RemoteProviderKind = "DELIVERY_POINTS"
 )
 
 var AllRemoteProviderKind = []RemoteProviderKind{
@@ -7736,11 +8040,12 @@ var AllRemoteProviderKind = []RemoteProviderKind{
 	RemoteProviderKindReturnsPolicy,
 	RemoteProviderKindInventoryAvailability,
 	RemoteProviderKindShippingTracking,
+	RemoteProviderKindDeliveryPoints,
 }
 
 func (e RemoteProviderKind) IsValid() bool {
 	switch e {
-	case RemoteProviderKindShippingCarrier, RemoteProviderKindTaxProvider, RemoteProviderKindAddressValidator, RemoteProviderKindPromotionCondition, RemoteProviderKindPromotionAction, RemoteProviderKindFraudRisk, RemoteProviderKindCurrencyRate, RemoteProviderKindPricing, RemoteProviderKindRecommendation, RemoteProviderKindReviews, RemoteProviderKindSearch, RemoteProviderKindCustomerSegments, RemoteProviderKindReturnsPolicy, RemoteProviderKindInventoryAvailability, RemoteProviderKindShippingTracking:
+	case RemoteProviderKindShippingCarrier, RemoteProviderKindTaxProvider, RemoteProviderKindAddressValidator, RemoteProviderKindPromotionCondition, RemoteProviderKindPromotionAction, RemoteProviderKindFraudRisk, RemoteProviderKindCurrencyRate, RemoteProviderKindPricing, RemoteProviderKindRecommendation, RemoteProviderKindReviews, RemoteProviderKindSearch, RemoteProviderKindCustomerSegments, RemoteProviderKindReturnsPolicy, RemoteProviderKindInventoryAvailability, RemoteProviderKindShippingTracking, RemoteProviderKindDeliveryPoints:
 		return true
 	}
 	return false

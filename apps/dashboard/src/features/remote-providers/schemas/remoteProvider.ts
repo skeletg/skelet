@@ -28,6 +28,25 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
   }
 }
 
+// A shipping carrier's "deliversOnWeekends" is edited as its own switch rather than inside the JSON, and merged back on save
+const WEEKENDS = 'deliversOnWeekends'
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function withoutWeekends(v: unknown): unknown {
+  if (!isObject(v) || !(WEEKENDS in v)) return v
+  const rest = Object.fromEntries(Object.entries(v).filter(([k]) => k !== WEEKENDS))
+  return Object.keys(rest).length > 0 ? rest : undefined
+}
+
+// Key order is not a change - compares configs written in any order
+function canonical(v: unknown): string {
+  if (v === undefined) return ''
+  return JSON.stringify(v, (_, x) => (isObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x))
+}
+
 // Blank means "use the default" - otherwise a whole number within the service's bounds
 const boundedInt = (max: number) => numberText({ optional: true, int: true, min: 0, max })
 
@@ -50,6 +69,11 @@ export const remoteProviderSchema = z
       .string()
       .refine((v) => parseJson(v).ok, 'Config must be valid JSON')
       .describe('JSON text forwarded verbatim with every call, such as API keys or options - empty string for none'),
+    deliversOnWeekends: z
+      .boolean()
+      .describe(
+        "For SHIPPING_CARRIER only: whether Saturday and Sunday count toward the carrier's quoted days when checkout works out an arrival date",
+      ),
     timeoutMs: boundedInt(30000).describe(
       'Per-call HTTP timeout in milliseconds, up to 30000, written as text - empty string or 0 uses the 5 second default',
     ),
@@ -72,7 +96,8 @@ export function toRemoteProviderValues(p?: ExistingProvider): RemoteProviderValu
     targetUrl: p?.targetUrl ?? '',
     // '' = every store
     channelId: p?.channel?.id ?? '',
-    config: p?.config ? JSON.stringify(p.config, null, 2) : '',
+    config: withoutWeekends(p?.config) ? JSON.stringify(withoutWeekends(p?.config), null, 2) : '',
+    deliversOnWeekends: isObject(p?.config) && p.config[WEEKENDS] === true,
     timeoutMs: p?.timeoutMs ? String(p.timeoutMs) : '',
     cacheTtlS: p?.cacheTtlS ? String(p.cacheTtlS) : '',
     failurePolicy: p?.failurePolicy ?? 'FAIL_OPEN',
@@ -81,7 +106,11 @@ export function toRemoteProviderValues(p?: ExistingProvider): RemoteProviderValu
 
 const config = (v: RemoteProviderValues) => {
   const parsed = parseJson(v.config)
-  return parsed.ok ? parsed.value : undefined
+  if (!parsed.ok) return undefined
+  if (v.kind !== 'SHIPPING_CARRIER') return parsed.value
+  const rest = withoutWeekends(parsed.value)
+  if (!v.deliversOnWeekends) return rest
+  return { ...(isObject(rest) ? rest : {}), [WEEKENDS]: true }
 }
 
 export function toRemoteProviderCreateInput(v: RemoteProviderValues) {
@@ -107,7 +136,7 @@ export function toRemoteProviderUpdateInput(
   if (v.name.trim() !== existing.name) input.name = v.name.trim()
   if (v.targetUrl.trim() !== existing.targetUrl) input.targetUrl = v.targetUrl.trim()
   const next = config(v)
-  if ((next === undefined ? '' : JSON.stringify(next)) !== (existing.config ? JSON.stringify(existing.config) : '')) {
+  if (canonical(next) !== canonical(existing.config ?? undefined)) {
     input.config = next ?? {}
   }
   const timeout = v.timeoutMs.trim() === '' ? 0 : Number(v.timeoutMs)

@@ -164,6 +164,7 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, call
 	next := cart
 	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
 	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
+	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries)
 	if err := apply(&next); err != nil {
 		return err
 	}

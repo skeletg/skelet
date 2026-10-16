@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
@@ -66,6 +67,7 @@ var Services = fx.Module("services",
 		newReviewService,
 		newFormService,
 		newWebFormService,
+		newDeliveryService,
 		newMenuService,
 		newChatHistory,
 		newActionService,
@@ -84,8 +86,10 @@ func newTaxService(q *db.Queries) *tax.Service {
 	return tax.NewService(tax.NewRepository(q))
 }
 
-func newShippingService(q *db.Queries) *shipping.Service {
-	return shipping.NewService(shipping.NewRepository(q))
+func newShippingService(q *db.Queries, txMgr *txrunner.Manager) *shipping.Service {
+	s := shipping.NewService(shipping.NewRepository(q))
+	s.SetTx(txMgr)
+	return s
 }
 
 // The built-in rule types install here rather than from an entrypoint's blank import - without them the engine has no conditions and no actions, so a promotion silently matches nothing
@@ -147,6 +151,10 @@ func newFormService(q *db.Queries) *signupform.Service { return signupform.New(q
 
 func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Service) *webform.Service { // admin-built CMS forms placed on pages via the `form` block
 	return webform.New(webform.NewRepository(q, txMgr), cfg)
+}
+
+func newDeliveryService(q *db.Queries, tx *txrunner.Manager) *delivery.Service { // delivery options, kinds, point sources and the admin's PO boxes
+	return delivery.NewService(delivery.NewRepository(q, tx))
 }
 
 func newMenuService(q *db.Queries, txMgr *txrunner.Manager) *menu.Service {

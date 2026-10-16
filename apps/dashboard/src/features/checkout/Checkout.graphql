@@ -1,0 +1,114 @@
+query CheckoutSettings($channelId: ID!) {
+  checkoutConfiguration(channelId: $channelId) {
+    channelId
+    usingDefaults
+    digitalBlocks {
+      type
+      label
+      floor
+      mode
+      reason
+    }
+    kinds {
+      slug
+      label
+      description
+      shipTo
+      pointLabel
+      owner
+      blocks {
+        type
+        label
+        floor
+        default
+        reason
+      }
+    }
+    options {
+      id
+      kind
+      kindLabel
+      name
+      description
+      enabled
+      sortOrder
+      blockModes
+      pointSource
+      carrierSlug
+      implicit
+      ready
+      readiness {
+        code
+        label
+        ok
+        detail
+        tab
+        advisory
+      }
+    }
+    pointSources {
+      slug
+      label
+      active
+      kinds
+      remote
+    }
+    carrierKinds {
+      kind
+      carriers
+      carrierRefs {
+        slug
+        name
+      }
+    }
+    deliveryPoints {
+      id
+      name
+      street1
+      street2
+      city
+      region
+      postalCode
+      countryCode
+      instructions
+      hours
+      isActive
+    }
+    readiness {
+      code
+      label
+      ok
+      detail
+      tab
+      advisory
+    }
+  }
+}
+
+mutation CreateCheckoutOption($channelId: ID!, $input: DeliveryOptionInput!) {
+  createDeliveryOption(channelId: $channelId, input: $input) {
+    id
+  }
+}
+
+mutation UpdateCheckoutOption($id: ID!, $input: DeliveryOptionInput!) {
+  updateDeliveryOption(id: $id, input: $input) {
+    id
+  }
+}
+
+mutation DeleteCheckoutOption($id: ID!) {
+  deleteDeliveryOption(id: $id)
+}
+
+mutation AdoptCheckoutOptions($channelId: ID!) {
+  adoptDefaultDeliveryOptions(channelId: $channelId) {
+    channelId
+  }
+}
+
+mutation SaveCheckoutDeliveryPoints($channelId: ID!, $points: [DeliveryPointInput!]!) {
+  saveDeliveryPoints(channelId: $channelId, points: $points) {
+    id
+  }
+}

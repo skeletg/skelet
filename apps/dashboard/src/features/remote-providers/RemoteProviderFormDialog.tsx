@@ -146,6 +146,17 @@ function RemoteProviderForm({
         )}
       </form.AppField>
 
+      {kind === 'SHIPPING_CARRIER' && (
+        <form.AppField name="deliversOnWeekends">
+          {(f) => (
+            <f.CheckboxField
+              id="rp-weekends"
+              label="Delivers on weekends - off skips Saturday and Sunday when counting the carrier's quoted days into an arrival date."
+            />
+          )}
+        </form.AppField>
+      )}
+
       <div className="grid items-start gap-4 sm:grid-cols-3">
         <form.AppField name="timeoutMs">
           {(f) => <f.TextField id="rp-timeout" label="Timeout (ms)" type="number" min={0} max={30000} placeholder="Default: 5000" />}

@@ -6,15 +6,17 @@ import { withLocalePrefix } from "@/app/lib/locale/path";
 
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { getCart, formatPrice, getFreeShippingThreshold } from "@/app/lib/cart/read";
+import { detailsAsks } from "@/app/lib/checkout/asks";
+import { choiceKey, choiceLabel } from "@/app/lib/checkout/choice";
 import {
   getCheckoutState,
+  getDeliveryPoints,
   getPaymentMethods,
-  getPickupLocations,
-  getShippingQuotes,
   type CheckoutState,
+  type DeliveryPointsResult,
 } from "@/app/lib/checkout/read";
 import { businessIdFieldsFor, companyCountry } from "@/app/lib/checkout/business-ids";
-import { activeStep, detailsComplete, estimatedArrival, stepStatus, type CheckoutProgress } from "@/app/lib/checkout/step";
+import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@/app/lib/checkout/step";
 import { getResolvedConsent } from "@/app/lib/consent/read";
 import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@/app/lib/countries/read";
 import { getCheckoutSettings, getGuestCheckoutAllowed } from "@/app/lib/config/read";
@@ -23,7 +25,7 @@ import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { getMyPaymentMethods } from "@/app/lib/payment-methods/actions";
 import { getChannel } from "@/app/lib/channel/read";
 
-import { DeliveryStep, selectionOf } from "./delivery-step";
+import { DeliveryStep, type LineInfo } from "./delivery-step";
 import { DetailsStep } from "./details-step";
 import { OrderSummary } from "./order-summary";
 import { PaymentStep } from "./payment-step";
@@ -47,7 +49,7 @@ export default async function CheckoutPage({
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
-  const { step: requestedStep, notice } = await searchParams;
+  const { step: requestedStep, notice, pointGroup, pointSearch } = await searchParams;
   const t = await getTranslations({ locale, namespace: "checkout" });
   const tc = await getTranslations({ locale, namespace: "common" });
   const format = await getFormatter({ locale });
@@ -78,63 +80,57 @@ export default async function CheckoutPage({
   const loginHref = await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent("/checkout")}`, locale);
   const registerHref = await withLocalePrefix(`/account/register?returnTo=${encodeURIComponent("/checkout")}`, locale);
 
-  const progress: CheckoutProgress = {
-    hasDestination: checkout.destination !== null,
-    hasShippingMethod: checkout.shippingMethod !== null,
-    detailsComplete: detailsComplete(
-      {
-        email: checkout.email,
-        phone: checkout.phone,
-        purchaseType: checkout.purchaseType,
-        company: checkout.company,
-        businessIds: Object.fromEntries(checkout.businessIds.map((b) => [b.key, b.value])),
-        // The same reading the backend makes - the billing address's country, else where the order goes
-        businessIdFields: businessIdFieldsFor(
-          countries,
-          companyCountry({
-            billingCountry: (checkout.billingSameAsShipping ? checkout.shippingAddress : checkout.billingAddress)
-              ?.countryCode ?? null,
-            deliveryCountry: null,
-            destinationCountry: checkout.destination?.countryCode ?? "",
-          }),
-          settings,
-        ),
-        isPickup: checkout.isPickup,
-        hasShippingAddress: checkout.shippingAddress !== null,
-        billingSameAsShipping: checkout.billingSameAsShipping,
-        hasBillingAddress: checkout.billingAddress !== null,
-        pickupContact: checkout.pickupContact,
-      },
-      settings,
-    ),
-  };
+  const businessOk = businessComplete(
+    {
+      purchaseType: checkout.purchaseType,
+      company: checkout.company,
+      businessIds: Object.fromEntries(checkout.businessIds.map((b) => [b.key, b.value])),
+      // The same reading the backend makes - the billing address's country, else where the order goes
+      businessIdFields: businessIdFieldsFor(
+        countries,
+        companyCountry({
+          billingCountry: (checkout.billingSameAsShipping ? checkout.shippingAddress : checkout.billingAddress)
+            ?.countryCode ?? null,
+          deliveryCountry: null,
+          destinationCountry: checkout.destination?.countryCode ?? "",
+        }),
+        settings,
+      ),
+    },
+    settings,
+  );
+  const progress = progressOf(checkout, businessOk);
   const active = activeStep(progress, typeof requestedStep === "string" ? requestedStep : null);
   const status = (s: Parameters<typeof stepStatus>[0]) => stepStatus(s, active, progress);
+  const steps = stepsFor(progress);
+  const asks = detailsAsks(checkout.requirements);
 
-  // Only the open step's options are fetched - each priced for this cart at its destination
-  const [regionsByCountry, quotes, paymentMethods, savedCards] = await Promise.all([
+  // What a group's chosen delivery asks next - its points - only while the delivery step is open
+  const asked = (key: string, type: string) => checkout.requirements.some((r) => r.scope === key && r.type === type);
+  const pointGroups = active === "delivery" ? checkout.deliveryGroups.filter((g) => g.selection && asked(g.key, "point")) : [];
+  // Payment eligibility follows the destination, or the billing address of a cart with nothing to ship
+  const paymentCountry = checkout.destination?.countryCode ?? checkout.billingAddress?.countryCode ?? null;
+  const [regionsByCountry, pointLists, paymentMethods, savedCards] = await Promise.all([
     active === "details" ? getRegionsByCountry(countries.map((c) => c.code)) : {},
-    active === "delivery" && checkout.destination ? getShippingQuotes(cart.id, checkout.destination) : [],
-    active === "payment" && checkout.destination ? getPaymentMethods(checkout.destination.countryCode, cart.id) : [],
+    Promise.all(pointGroups.map((g) => getDeliveryPoints(cart.id, g.key, pointGroup === g.key && typeof pointSearch === "string" ? pointSearch : undefined))),
+    active === "payment" && paymentCountry ? getPaymentMethods(paymentCountry, cart.id) : [],
     active === "payment" && customer ? getMyPaymentMethods() : [],
   ]);
-  const needStores = quotes.some((q) => q.carrierSlug === "pickup") || checkout.isPickup;
-  const pickupLocations = needStores ? await getPickupLocations() : [];
-  const pickupLocation = checkout.isPickup
-    ? (pickupLocations.find((l) => `loc-${l.slug}` === checkout.shippingMethod?.code) ?? null)
-    : null;
+  const points: Record<string, DeliveryPointsResult> = Object.fromEntries(pointGroups.map((g, i) => [g.key, pointLists[i]]));
+  // Where each pickup is collected from, for the details step's "who collects" block
+  const collectFrom = checkout.deliveryGroups.flatMap((g) =>
+    g.selection?.point && asked(g.key, "collector") ? [g.selection.point] : [],
+  );
 
-  // "Thu 3 Oct" for each quote the carrier estimates, formatted here so render and hydration agree on the day
-  const arrivals: Record<string, string> = {};
-  for (const q of quotes) {
-    if (q.estimatedDays && q.estimatedDays > 0) {
-      arrivals[selectionOf(q)] = format.dateTime(estimatedArrival(q.estimatedDays), {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-      });
-    }
-  }
+  // Formatted here so render and hydration agree on the day
+  const arrivals = arrivalLabels(
+    checkout.deliveryGroups.flatMap((g) => g.choices),
+    (date, options) => format.dateTime(date, options),
+  );
+  const lines: Record<string, LineInfo> = Object.fromEntries(
+    cart.lines.map((l) => [l.id, { id: l.id, name: displayName(l.name, l.sku), quantity: l.quantity, imageUrl: l.imageUrl }]),
+  );
+  const n = (step: (typeof steps)[number]) => steps.indexOf(step) + 1;
 
   const defaultAddress = customer?.defaultShippingAddress ?? null;
   const edit = (step: string) => `/checkout?step=${step}`;
@@ -213,43 +209,45 @@ export default async function CheckoutPage({
         {/* Gated: the steps are not rendered at all, so nobody fills in a checkout the API will refuse */}
         {(customer || guestAllowed) && (
           <div className="mt-8 grid gap-4">
-            <StepCard
-              number={1}
-              title={t("steps.delivery")}
-              status={status("delivery")}
-              editLabel={tc("edit")}
-              editHref={edit("delivery")}
-              summary={<DeliverySummary checkout={checkout} currency={currency} free={t("delivery.free")} />}
-            >
-              <DeliveryStep
-                destination={checkout.destination}
-                suggested={{
-                  countryCode: defaultAddress?.countryCode ?? countrySettings.defaultCountryCode,
-                  postalCode: defaultAddress?.postalCode ?? "",
-                }}
-                countries={countries}
-                quotes={quotes}
-                arrivals={arrivals}
-                selected={checkout.shippingMethod}
-                pickupLocations={pickupLocations}
-                thresholds={{
-                  show: settings.thresholdProgress,
-                  subtotalCents: cart.subtotal,
-                  minOrderCents: settings.minOrderCents,
-                  freeShippingCents: freeShipThreshold,
-                }}
-                notice={notice === "delivery-changed"}
-                currency={currency}
-              />
-            </StepCard>
+            {progress.needsDelivery ? (
+              <StepCard
+                number={n("delivery")}
+                title={t("steps.delivery")}
+                status={status("delivery")}
+                editLabel={tc("edit")}
+                editHref={edit("delivery")}
+                summary={<DeliverySummary checkout={checkout} currency={currency} free={t("delivery.free")} />}
+              >
+                <DeliveryStep
+                  checkout={checkout}
+                  suggested={{
+                    countryCode: defaultAddress?.countryCode ?? countrySettings.defaultCountryCode,
+                    postalCode: defaultAddress?.postalCode ?? "",
+                  }}
+                  countries={countries}
+                  lines={lines}
+                  arrivals={arrivals}
+                  points={points}
+                  pointSearch={{ group: typeof pointGroup === "string" ? pointGroup : "", query: typeof pointSearch === "string" ? pointSearch : "" }}
+                  thresholds={{
+                    show: settings.thresholdProgress,
+                    subtotalCents: cart.subtotal,
+                    minOrderCents: settings.minOrderCents,
+                    freeShippingCents: freeShipThreshold,
+                  }}
+                  notice={notice === "delivery-changed"}
+                  currency={currency}
+                />
+              </StepCard>
+            ) : null}
 
             <StepCard
-              number={2}
+              number={n("details")}
               title={t("steps.details")}
               status={status("details")}
               editLabel={tc("edit")}
               editHref={edit("details")}
-              summary={<DetailsSummary checkout={checkout} collectedBy={t("details.collectedBy")} />}
+              summary={<DetailsSummary checkout={checkout} asks={asks} collectedBy={t("details.collectedBy")} />}
             >
               <DetailsStep
                 checkout={{ ...checkout, phone: checkout.phone || customer?.phone || "" }}
@@ -262,12 +260,13 @@ export default async function CheckoutPage({
                 countries={countries}
                 regionsByCountry={regionsByCountry}
                 phoneSettings={phoneSettings}
-                pickupLocation={pickupLocation}
+                asks={asks}
+                collectFrom={collectFrom}
                 locale={locale}
               />
             </StepCard>
 
-            <StepCard number={3} title={t("steps.payment")} status={status("payment")} editLabel={tc("edit")}>
+            <StepCard number={n("payment")} title={t("steps.payment")} status={status("payment")} editLabel={tc("edit")}>
               <PaymentStep
                 methods={paymentMethods}
                 checkout={checkout}
@@ -301,13 +300,24 @@ function DeliverySummary({
   currency: string | { code: string; symbol?: string; symbolPosition?: string };
   free: string;
 }) {
-  const m = checkout.shippingMethod;
-  if (!m) return null;
+  // Named the way its card was - the option, then the carrier or method when the option offered several
+  const chosen = checkout.deliveryGroups.flatMap((g) => {
+    if (!g.selection) return [];
+    const sel = g.selection;
+    const choice = g.choices.find((c) => choiceKey(c) === choiceKey(sel));
+    return [{ sel, label: choice ? choiceLabel(choice, g.choices).join(" · ") : sel.optionName }];
+  });
+  if (chosen.length === 0) return null;
   return (
     <>
-      {m.name}
-      <span> · {m.priceCents === 0 ? free : formatPrice(m.priceCents, currency)}</span>
-      {!checkout.isPickup && checkout.destination ? (
+      {chosen.map(({ sel, label }) => (
+        <span key={sel.optionId + sel.methodCode + (sel.point?.id ?? "")} className="block">
+          {label}
+          {sel.point ? ` - ${sel.point.name}` : ""}
+          <span> · {sel.priceCents === 0 ? free : formatPrice(sel.priceCents, currency)}</span>
+        </span>
+      ))}
+      {checkout.destination ? (
         <span className="block text-xs">
           {checkout.destination.postalCode}, {checkout.destination.countryCode}
         </span>
@@ -316,18 +326,30 @@ function DeliverySummary({
   );
 }
 
-function DetailsSummary({ checkout, collectedBy }: { checkout: CheckoutState; collectedBy: string }) {
+function DetailsSummary({
+  checkout,
+  asks,
+  collectedBy,
+}: {
+  checkout: CheckoutState;
+  asks: ReturnType<typeof detailsAsks>;
+  collectedBy: string;
+}) {
   const p = checkout.pickupContact;
+  const billing = checkout.billingAddress;
   return (
     <>
       <span className="block font-mono">{checkout.email}</span>
       {checkout.company ? <span className="block">{checkout.company}</span> : null}
-      {checkout.isPickup && p ? (
+      {asks.collector && p ? (
         <span className="block">
           {collectedBy} {p.firstName} {p.lastName}
         </span>
-      ) : checkout.shippingAddress ? (
+      ) : null}
+      {asks.shipping && checkout.shippingAddress ? (
         <span className="block">{oneLine(checkout.shippingAddress)}</span>
+      ) : !asks.shipping && billing ? (
+        <span className="block">{oneLine(billing)}</span>
       ) : null}
     </>
   );

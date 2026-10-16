@@ -19,7 +19,8 @@ test.describe("profile", () => {
 
     await open(page, "/account/profile");
     await expect(main(page).getByLabel("First name")).toHaveValue("Nina");
-    await expect(main(page).getByLabel("Phone")).toHaveValue("+381 11 555 0100");
+    // Saved as E.164 and shown in the number's own international format
+    await expect(main(page).getByLabel("Phone")).toHaveValue("+381 11 5550100");
   });
 });
 

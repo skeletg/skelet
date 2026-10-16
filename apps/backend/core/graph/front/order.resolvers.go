@@ -155,19 +155,20 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 	if err := r.termsAccepted(ctx, c.ChannelID, acceptTerms); err != nil {
 		return nil, err
 	}
-	// A carrier or the payment config that can't answer refuses placement - falling back would charge for a method the shopper didn't pick
-	method, err := r.offeredShippingMethod(ctx, c, c.Checkout)
+	v := r.checkoutView(ctx, c)
+	slug := c.Checkout.PaymentProviderSlug
+	// The payment config that can't answer refuses placement - it can't confirm the method the shopper picked
+	paymentOK, err := r.paymentMethodOffered(ctx, c, c.Checkout, slug)
 	if err != nil {
 		return nil, err
 	}
-	paymentOK, err := r.paymentMethodOffered(ctx, c, c.Checkout, c.Checkout.PaymentProviderSlug)
-	if err != nil {
+	if slug != "" && !paymentOK {
+		return nil, errPaymentMethodOffered
+	}
+	if err := r.checkoutComplete(ctx, v); err != nil {
 		return nil, err
 	}
-	if err := r.checkoutComplete(ctx, c, method, paymentOK); err != nil {
-		return nil, err
-	}
-	input := r.placeOrderInput(ctx, c, method, paymentOK)
+	input := r.placeOrderInput(ctx, v, paymentOK)
 	input.CustomerID = channel.OptionalCustomerID(ctx)
 	if paymentToken != nil && *paymentToken != "" {
 		input.PaymentToken = paymentToken

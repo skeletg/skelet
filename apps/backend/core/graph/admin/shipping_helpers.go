@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/google/uuid"
@@ -53,20 +54,51 @@ func toShippingZoneModel(z shipping.Zone, methods []shipping.Method) *model.Ship
 
 func toShippingMethodModel(m shipping.Method) *model.ShippingMethod {
 	return &model.ShippingMethod{
-		ID:               m.ID.String(),
-		ZoneID:           m.ZoneID.String(),
-		Code:             m.Code,
-		Name:             m.Name,
-		CalcType:         shippingCalcTypeToModel(m.CalcType),
-		FlatCents:        int32(m.FlatCents),
-		FreeAboveCents:   int32(m.FreeAboveCents),
-		SortOrder:        m.SortOrder,
-		IsActive:         m.IsActive,
-		CountryMode:      m.CountryMode,
-		AllowedCountries: append([]string{}, m.AllowedCountries...),
-		CreatedAt:        m.CreatedAt,
-		UpdatedAt:        m.UpdatedAt,
+		ID:                 m.ID.String(),
+		ZoneID:             m.ZoneID.String(),
+		Code:               m.Code,
+		Name:               m.Name,
+		CalcType:           shippingCalcTypeToModel(m.CalcType),
+		FlatCents:          int32(m.FlatCents),
+		FreeAboveCents:     int32(m.FreeAboveCents),
+		SortOrder:          m.SortOrder,
+		IsActive:           m.IsActive,
+		CountryMode:        m.CountryMode,
+		AllowedCountries:   append([]string{}, m.AllowedCountries...),
+		DeliveryKind:       cmp.Or(m.DeliveryKind, shipping.DefaultKind),
+		UnitsPerCharge:     m.UnitsPerCharge,
+		EstimatedDays:      m.EstimatedDays,
+		DeliversOnWeekends: m.DeliversOnWeekends,
+		TypeRates:          toTypeRateModels(m.TypeRates),
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
 	}
+}
+
+func toTypeRateModels(rates []shipping.TypeRate) []*model.ShippingMethodTypeRate {
+	out := make([]*model.ShippingMethodTypeRate, len(rates))
+	for i, r := range rates {
+		out[i] = &model.ShippingMethodTypeRate{
+			ProductTypeID: r.ProductTypeID.String(), ProductTypeName: r.ProductTypeName, PriceCents: int32(r.PriceCents),
+			UnitsPerCharge: r.UnitsPerCharge, FreeShippingEligible: r.FreeShippingEligible,
+		}
+	}
+	return out
+}
+
+func typeRatesFromModel(in []*model.ShippingMethodTypeRateInput) ([]shipping.TypeRate, error) {
+	out := make([]shipping.TypeRate, 0, len(in))
+	for _, r := range in {
+		id, err := uuid.Parse(r.ProductTypeID)
+		if err != nil {
+			return nil, errInvalidID("productTypeId", err)
+		}
+		out = append(out, shipping.TypeRate{
+			ProductTypeID: id, PriceCents: int64(r.PriceCents), UnitsPerCharge: intDeref(r.UnitsPerCharge, 0),
+			FreeShippingEligible: boolDeref(r.FreeShippingEligible, false),
+		})
+	}
+	return out, nil
 }
 
 func shippingCalcTypeFromModel(t model.ShippingCalcType) shipping.CalcType {

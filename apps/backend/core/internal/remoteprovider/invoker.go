@@ -118,6 +118,12 @@ func (i *Invoker) Invoke(ctx context.Context, p Provider, payload any, out any) 
 	return nil
 }
 
+// InvokeUncached is Invoke that always asks the provider - for answers that must be current, like whether a pickup point is still open
+func (i *Invoker) InvokeUncached(ctx context.Context, p Provider, payload any, out any) error {
+	p.CacheTTLs = 0
+	return i.Invoke(ctx, p, payload, out)
+}
+
 func (i *Invoker) roundTrip(ctx context.Context, p Provider, body []byte) ([]byte, error) {
 	timeout := defaultTimeout
 	if p.TimeoutMs > 0 {

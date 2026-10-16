@@ -332,6 +332,10 @@ type PlaceOrderInput struct {
 	// A saved method's token, routed to the provider's vaulted-token key
 	VaultedPaymentToken string
 	UseStoreCredit      bool
+	// A split delivery - one entry per package, each re-priced at its own destination, replacing ShippingCarrierSlug and ShippingMethodCode. ShippingAddress is then the primary package's
+	Shipments []ShipmentInput
+	// none, physical or mixed - a none order takes no shipping address and pays no shipping, and tax follows the billing address
+	FulfillmentNeed string
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -499,7 +503,19 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 
 		// No plugin claimed the seam, so: free-shipping promo, else shipping-override promo, else the chosen method re-priced server-side, else cheapest - priced ahead of tax since shipping is taxed too
-		var shipSel shippingSelection
+		var (
+			shipSel         shippingSelection
+			shipmentAmounts []int64
+		)
+		if placing.ShippingCents == nil && (len(in.Shipments) > 0 || in.FulfillmentNeed == FulfillmentNone) {
+			sel, amounts, err := s.selectShipments(ctx, in, cc, placing.DiscountCents, ranEngine, evalResult)
+			if err != nil {
+				return err
+			}
+			cents := sel.Cents
+			placing.ShippingCents = &cents
+			shipSel, shipmentAmounts = sel, amounts
+		}
 		if placing.ShippingCents == nil && s.shipping != nil {
 			sel, err := s.resolveShippingCents(ctx, in, cc, placing.DiscountCents, ranEngine, evalResult)
 			if err != nil {
@@ -556,7 +572,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			PaymentStatus:       PaymentUnpaid,
 			PaymentProvider:     paymentProvider,
 			BillingAddress:      billing,
-			ShippingAddress:     shipping,
+			ShippingAddress:     storedShipping(cc),
 			SubtotalAmount:      subtotal,
 			DiscountAmount:      placing.DiscountCents,
 			TaxAmount:           taxCents,
@@ -577,6 +593,14 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines); err != nil {
 			return err
+		}
+		if err := s.persistShipments(ctx, orderR, order.ID, in.Shipments, shipmentAmounts); err != nil {
+			return err
+		}
+		if in.FulfillmentNeed != "" {
+			if err := orderR.SetFulfillmentNeed(ctx, order.ID, in.FulfillmentNeed); err != nil {
+				return err
+			}
 		}
 		// Gift-card tenders redeem codes against the full total, since tax was on it, and the provider takes the remainder - in this tx so a failure rolls the debits back
 		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, store.ID, in, total, store.CurrencyCode)
@@ -941,6 +965,14 @@ func findAddress(c customer.Customer, id uuid.UUID) (customer.Address, error) {
 	return customer.Address{}, ErrAddressNotFound
 }
 
+// storedShipping is the address the order keeps - none for a digital-only order, whose shipping only mirrored billing for pricing
+func storedShipping(cc *checkoutContext) OrderAddress {
+	if cc.noShipping {
+		return OrderAddress{}
+	}
+	return cc.shipping
+}
+
 // Picks an OrderAddress for one slot from an inline payload (guests, one-off addresses) or an id in the customer's book (logged-in only) - inline wins when both are set, so a caller can override a stale book pick
 // A quote prices a checkout still being filled in, so it accepts a destination-only address - country, region and postcode are all shipping and tax read
 func resolveAddress(rules phone.Rules, inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string, quote bool) (OrderAddress, error) {
@@ -974,17 +1006,19 @@ func customerGroupSlug(c customer.Customer) string {
 }
 
 // The lowest-priced option across an aggregated quote, plus whether any existed - ties keep the first
+// cheapestRatedQuote picks among methods that deliver to the shopper's address - the fallback has no point or pickup to send the order to, so a $0 store "collect" must never win it
 func cheapestRatedQuote(quotes []shippingpkg.RatedQuote) (shippingpkg.RatedQuote, bool) {
-	if len(quotes) == 0 {
-		return shippingpkg.RatedQuote{}, false
-	}
-	best := quotes[0]
-	for _, q := range quotes[1:] {
-		if q.Method.PriceCents < best.Method.PriceCents {
-			best = q
+	var best shippingpkg.RatedQuote
+	ok := false
+	for _, q := range quotes {
+		if q.Method.Kind != "" && q.Method.Kind != shippingpkg.DefaultKind {
+			continue
+		}
+		if !ok || q.Method.PriceCents < best.Method.PriceCents {
+			best, ok = q, true
 		}
 	}
-	return best, true
+	return best, ok
 }
 
 func toOrderAddress(a customer.Address) OrderAddress {
