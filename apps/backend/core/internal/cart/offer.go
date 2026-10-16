@@ -70,7 +70,7 @@ type Offer struct {
 	Locks         []string
 	// The payment methods the recipient may choose from, by provider slug - empty leaves every method the store offers
 	PaymentMethods []string
-	LinkVersion    int32  // invalidates grants and legacy signed links when replaced
+	LinkVersion    int32  // invalidates grants when replaced
 	LinkToken      string // random URL-safe credential, replaced together with the version
 	SentAt         *time.Time
 	SendCount      int32
@@ -113,7 +113,7 @@ func (c Cart) OfferState(now time.Time) OfferState {
 	}
 }
 
-// OfferGrant is a verified offer link the request carries - the cart it opens and the link version it was signed for
+// OfferGrant is a verified offer link the request carries - the cart it opens and its link version
 type OfferGrant struct {
 	CartID      uuid.UUID
 	LinkVersion int32
@@ -130,7 +130,7 @@ func OfferGrantFrom(ctx context.Context) (OfferGrant, bool) {
 	return g, ok
 }
 
-// Whether the request holds a live link to this offer - a regenerated link leaves the old version, and every link signed for it, behind
+// Whether the request holds a live link to this offer - a regenerated link leaves the old version, and its grants, behind
 func hasOfferGrant(ctx context.Context, c Cart) bool {
 	g, ok := OfferGrantFrom(ctx)
 	return ok && g.CartID == c.ID && g.LinkVersion == c.Offer.LinkVersion

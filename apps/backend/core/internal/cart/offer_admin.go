@@ -192,7 +192,7 @@ func (s *Service) AdminRevokeOffer(ctx context.Context, cartID uuid.UUID) (Cart,
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
 
-// AdminRegenerateOfferLink kills every link handed out so far - rotates the opaque token and invalidates grants and legacy links with a new version
+// AdminRegenerateOfferLink kills every link handed out so far - rotates the opaque token and invalidates grants with a new version
 func (s *Service) AdminRegenerateOfferLink(ctx context.Context, cartID uuid.UUID) (Cart, error) {
 	cart, err := s.adminOffer(ctx, cartID)
 	if err != nil {
