@@ -16,7 +16,11 @@ func (r *Resolver) notifScope(ctx context.Context) (notification.Scope, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "notifications.view"); err != nil {
 		return notification.Scope{}, err
 	}
-	claims, _ := auth.AdminFromContext(ctx)
+	// The inbox is a person's - read state is kept per admin, so a token has nothing to read it as
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return notification.Scope{}, err
+	}
 	pc, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "notifications.view")
 	if err != nil {
 		return notification.Scope{}, err

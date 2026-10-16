@@ -1,22 +1,15 @@
 package adminaction
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
 var (
 	mu       sync.RWMutex
 	registry []Definition
 )
-
-type PermissionChecker interface {
-	HasPermission(ctx context.Context, adminID uuid.UUID, slug string) (bool, error)
-}
 
 // Not safe from init() - handlers close over services that don't exist yet,
 // so domain packages call this from RegisterActions(svc) once main.go is done
@@ -51,23 +44,6 @@ func Find(slug string) (Definition, bool) {
 		}
 	}
 	return Definition{}, false
-}
-
-// Superuser bypass lives in the resolver, not here
-func AllAvailable(ctx context.Context, checker PermissionChecker, adminID uuid.UUID) []Definition {
-	mu.RLock()
-	all := make([]Definition, len(registry))
-	copy(all, registry)
-	mu.RUnlock()
-
-	out := make([]Definition, 0, len(all))
-	for _, d := range all {
-		ok, err := checker.HasPermission(ctx, adminID, d.Permission)
-		if err == nil && ok {
-			out = append(out, d)
-		}
-	}
-	return out
 }
 
 func Validate() error {

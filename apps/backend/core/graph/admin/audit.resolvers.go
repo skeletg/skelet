@@ -9,7 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, action *string, limit *int32, offset *int32) (*model.AuditLogPage, error) {
+func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, integrationID *string, action *string, limit *int32, offset *int32) (*model.AuditLogPage, error) {
 	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "audit.view"); err != nil {
 		return nil, err
 	}
@@ -21,6 +21,14 @@ func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, action *s
 		}
 		aid = &id
 	}
+	var iid *uuid.UUID
+	if integrationID != nil && *integrationID != "" {
+		id, err := uuid.Parse(*integrationID)
+		if err != nil {
+			return nil, errInvalidID("integration id", nil)
+		}
+		iid = &id
+	}
 	lim := int32(50)
 	if limit != nil {
 		lim = *limit
@@ -29,7 +37,7 @@ func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, action *s
 	if offset != nil {
 		off = *offset
 	}
-	rows, total, err := r.AuditSvc.List(ctx, aid, action, lim, off)
+	rows, total, err := r.AuditSvc.List(ctx, aid, iid, action, lim, off)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +55,10 @@ func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, action *s
 		if row.AdminID != nil {
 			v := row.AdminID.String()
 			e.AdminID = &v
+		}
+		if row.IntegrationID != nil {
+			v := row.IntegrationID.String()
+			e.IntegrationID = &v
 		}
 		if len(row.Detail) > 0 {
 			var v any

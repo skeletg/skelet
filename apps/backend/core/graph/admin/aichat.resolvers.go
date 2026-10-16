@@ -21,7 +21,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 		return nil, ai.ErrNotConfigured
 	}
 	// hard auth gate - digestPermsFor treats a missing admin as full bypass and the rate limiter skips anonymous callers, so without this an unauthenticated caller could drive the AI tool loop over store data
-	if _, err := auth.RequireAuth(ctx); err != nil {
+	if _, err := auth.RequireAdmin(ctx); err != nil {
 		return nil, err
 	}
 	if lim := r.RateLimiter; lim != nil { // per-admin limit - AI calls are expensive, cap runaway use

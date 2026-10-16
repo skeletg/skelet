@@ -428,15 +428,16 @@ type AttributedRevenue struct {
 }
 
 type AuditLogEntry struct {
-	ID         string    `json:"id"`
-	AdminID    *string   `json:"adminId,omitempty"`
-	AdminEmail string    `json:"adminEmail"`
-	Action     string    `json:"action"`
-	Detail     any       `json:"detail,omitempty"`
-	IP         string    `json:"ip"`
-	Success    bool      `json:"success"`
-	DurationMs int32     `json:"durationMs"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID            string    `json:"id"`
+	AdminID       *string   `json:"adminId,omitempty"`
+	IntegrationID *string   `json:"integrationId,omitempty"`
+	AdminEmail    string    `json:"adminEmail"`
+	Action        string    `json:"action"`
+	Detail        any       `json:"detail,omitempty"`
+	IP            string    `json:"ip"`
+	Success       bool      `json:"success"`
+	DurationMs    int32     `json:"durationMs"`
+	CreatedAt     time.Time `json:"createdAt"`
 }
 
 type AuditLogPage struct {
@@ -2039,6 +2040,7 @@ type DataJob struct {
 	Options       any     `json:"options"`
 	ChannelID     *string `json:"channelId,omitempty"`
 	AdminID       *string `json:"adminId,omitempty"`
+	IntegrationID *string `json:"integrationId,omitempty"`
 	Filename      string  `json:"filename"`
 	// False once the retention sweep has removed the file - the row outlives it
 	HasArtifact   bool     `json:"hasArtifact"`
@@ -3734,29 +3736,30 @@ type ReturnLineInput struct {
 }
 
 type Review struct {
-	ID                 string          `json:"id"`
-	ProductID          string          `json:"productId"`
-	CustomerID         *string         `json:"customerId,omitempty"`
-	GuestName          string          `json:"guestName"`
-	GuestEmail         string          `json:"guestEmail"`
-	ChannelID          string          `json:"channelId"`
-	Locale             string          `json:"locale"`
-	Title              string          `json:"title"`
-	Body               string          `json:"body"`
-	IsVerifiedPurchase bool            `json:"isVerifiedPurchase"`
-	Status             ReviewStatus    `json:"status"`
-	SubmittedAt        time.Time       `json:"submittedAt"`
-	ModeratedAt        *time.Time      `json:"moderatedAt,omitempty"`
-	ModeratedBy        *string         `json:"moderatedBy,omitempty"`
-	ModeratorNote      string          `json:"moderatorNote"`
-	ModerationLabel    string          `json:"moderationLabel"`
-	ModerationReason   string          `json:"moderationReason"`
-	ModerationTags     []string        `json:"moderationTags"`
-	CategorySlugs      []string        `json:"categorySlugs"`
-	MerchantReply      string          `json:"merchantReply"`
-	MerchantReplyAt    *time.Time      `json:"merchantReplyAt,omitempty"`
-	Answers            []*ReviewAnswer `json:"answers"`
-	Media              []*ReviewMedia  `json:"media"`
+	ID                     string          `json:"id"`
+	ProductID              string          `json:"productId"`
+	CustomerID             *string         `json:"customerId,omitempty"`
+	GuestName              string          `json:"guestName"`
+	GuestEmail             string          `json:"guestEmail"`
+	ChannelID              string          `json:"channelId"`
+	Locale                 string          `json:"locale"`
+	Title                  string          `json:"title"`
+	Body                   string          `json:"body"`
+	IsVerifiedPurchase     bool            `json:"isVerifiedPurchase"`
+	Status                 ReviewStatus    `json:"status"`
+	SubmittedAt            time.Time       `json:"submittedAt"`
+	ModeratedAt            *time.Time      `json:"moderatedAt,omitempty"`
+	ModeratedBy            *string         `json:"moderatedBy,omitempty"`
+	ModeratedByIntegration *string         `json:"moderatedByIntegration,omitempty"`
+	ModeratorNote          string          `json:"moderatorNote"`
+	ModerationLabel        string          `json:"moderationLabel"`
+	ModerationReason       string          `json:"moderationReason"`
+	ModerationTags         []string        `json:"moderationTags"`
+	CategorySlugs          []string        `json:"categorySlugs"`
+	MerchantReply          string          `json:"merchantReply"`
+	MerchantReplyAt        *time.Time      `json:"merchantReplyAt,omitempty"`
+	Answers                []*ReviewAnswer `json:"answers"`
+	Media                  []*ReviewMedia  `json:"media"`
 }
 
 type ReviewAnswer struct {

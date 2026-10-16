@@ -19,7 +19,7 @@ const cancelDataJob = `-- name: CancelDataJob :one
 UPDATE data_jobs
 SET status = 'cancelled', finished_at = NOW(), lease_until = NULL
 WHERE id = $1 AND status IN ('queued', 'running')
-RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at
+RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id
 `
 
 // A running job is stopped by its runner noticing the lease renewal stopped matching, within one renewal interval
@@ -54,6 +54,7 @@ func (q *Queries) CancelDataJob(ctx context.Context, id uuid.UUID) (DataJob, err
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.IntegrationID,
 	)
 	return i, err
 }
@@ -72,7 +73,7 @@ WHERE id IN (
     LIMIT $3
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at
+RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id
 `
 
 type ClaimDueDataJobsParams struct {
@@ -120,6 +121,7 @@ func (q *Queries) ClaimDueDataJobs(ctx context.Context, arg ClaimDueDataJobsPara
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.ExpiresAt,
+			&i.IntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -202,23 +204,24 @@ func (q *Queries) CountDataJobs(ctx context.Context, arg CountDataJobsParams) (i
 const createDataJob = `-- name: CreateDataJob :one
 INSERT INTO data_jobs (
     direction, resource, format, status, options, dry_run,
-    channel_id, admin_id, filename, object_key, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at
+    channel_id, admin_id, filename, object_key, expires_at, integration_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id
 `
 
 type CreateDataJobParams struct {
-	Direction string          `json:"direction"`
-	Resource  string          `json:"resource"`
-	Format    string          `json:"format"`
-	Status    string          `json:"status"`
-	Options   json.RawMessage `json:"options"`
-	DryRun    bool            `json:"dry_run"`
-	ChannelID uuid.NullUUID   `json:"channel_id"`
-	AdminID   uuid.NullUUID   `json:"admin_id"`
-	Filename  string          `json:"filename"`
-	ObjectKey string          `json:"object_key"`
-	ExpiresAt sql.NullTime    `json:"expires_at"`
+	Direction     string          `json:"direction"`
+	Resource      string          `json:"resource"`
+	Format        string          `json:"format"`
+	Status        string          `json:"status"`
+	Options       json.RawMessage `json:"options"`
+	DryRun        bool            `json:"dry_run"`
+	ChannelID     uuid.NullUUID   `json:"channel_id"`
+	AdminID       uuid.NullUUID   `json:"admin_id"`
+	Filename      string          `json:"filename"`
+	ObjectKey     string          `json:"object_key"`
+	ExpiresAt     sql.NullTime    `json:"expires_at"`
+	IntegrationID uuid.NullUUID   `json:"integration_id"`
 }
 
 func (q *Queries) CreateDataJob(ctx context.Context, arg CreateDataJobParams) (DataJob, error) {
@@ -234,6 +237,7 @@ func (q *Queries) CreateDataJob(ctx context.Context, arg CreateDataJobParams) (D
 		arg.Filename,
 		arg.ObjectKey,
 		arg.ExpiresAt,
+		arg.IntegrationID,
 	)
 	var i DataJob
 	err := row.Scan(
@@ -264,6 +268,7 @@ func (q *Queries) CreateDataJob(ctx context.Context, arg CreateDataJobParams) (D
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.IntegrationID,
 	)
 	return i, err
 }
@@ -299,7 +304,7 @@ SET status = $1,
     lease_until = NULL,
     expires_at = NOW() + make_interval(secs => $13::int)
 WHERE id = $14 AND status = 'running' AND attempts = $15
-RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at
+RETURNING id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id
 `
 
 type FinishDataJobParams struct {
@@ -367,12 +372,13 @@ func (q *Queries) FinishDataJob(ctx context.Context, arg FinishDataJobParams) (D
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.IntegrationID,
 	)
 	return i, err
 }
 
 const getDataJob = `-- name: GetDataJob :one
-SELECT id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at FROM data_jobs WHERE id = $1
+SELECT id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id FROM data_jobs WHERE id = $1
 `
 
 func (q *Queries) GetDataJob(ctx context.Context, id uuid.UUID) (DataJob, error) {
@@ -406,6 +412,7 @@ func (q *Queries) GetDataJob(ctx context.Context, id uuid.UUID) (DataJob, error)
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.ExpiresAt,
+		&i.IntegrationID,
 	)
 	return i, err
 }
@@ -479,7 +486,7 @@ func (q *Queries) ListDataJobErrors(ctx context.Context, arg ListDataJobErrorsPa
 }
 
 const listDataJobs = `-- name: ListDataJobs :many
-SELECT id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at FROM data_jobs
+SELECT id, direction, resource, format, status, options, dry_run, channel_id, admin_id, filename, object_key, byte_size, total_rows, processed_rows, created_rows, updated_rows, skipped_rows, failed_rows, error_summary, warnings, errors_truncated, lease_until, attempts, created_at, started_at, finished_at, expires_at, integration_id FROM data_jobs
 WHERE ($1::boolean OR resource = ANY($2::text[]))
   AND ($3::boolean OR direction = $4)
   AND ($5::boolean OR status = ANY($6::text[]))
@@ -552,6 +559,7 @@ func (q *Queries) ListDataJobs(ctx context.Context, arg ListDataJobsParams) ([]D
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.ExpiresAt,
+			&i.IntegrationID,
 		); err != nil {
 			return nil, err
 		}

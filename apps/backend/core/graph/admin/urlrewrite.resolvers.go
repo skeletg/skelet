@@ -188,7 +188,7 @@ func (r *mutationResolver) DeleteURLRewritesForEntity(ctx context.Context, entit
 }
 
 func (r *queryResolver) ResolveURL(ctx context.Context, path string, channelID *string) (*model.URLResolveResult, error) {
-	if _, err := auth.RequireAuth(ctx); err != nil {
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
 	}
 	cid, err := parseOptChannelID(channelID)

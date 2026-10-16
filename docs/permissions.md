@@ -107,6 +107,18 @@ anything single-storefront (a feed export, a per-store sync), grant the narrowes
 slugs it needs, and issue one token per integration so you can revoke them independently.
 There is no locale scoping on tokens.
 
+A token can do whatever its slugs allow, the same as an admin holding them - moderate
+reviews, adjust store credit, run imports and exports, edit the catalog. What it does is
+recorded against the integration rather than a person: the audit log names it (filter the
+log by integration to see everything one system did), and so do the records that keep an
+author, like a moderated review, an answered question, a store-credit adjustment or a data
+job. Inventory syncs that name no source are labelled `integration:<name>`.
+
+A few things only a person can do, and a token gets a clear `ADMIN_ONLY` refusal there:
+your own account, password, two-factor and sessions, your preferences and notification
+inbox, AI chat, draft preview links, claiming a CMS page, acting as a customer, and managing
+admins and other tokens.
+
 ## Permission reference
 
 Slugs are registered in code - each domain package declares its own in `init()` - and this

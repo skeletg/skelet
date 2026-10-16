@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -254,7 +255,7 @@ func TestAdjustGuards(t *testing.T) {
 
 	t.Run("zero is rejected", func(t *testing.T) {
 		id := seedCustomer(t, conn)
-		if _, err := svc.Adjust(ctx, id, 0, "USD", "noop", nil); !errors.Is(err, ErrInvalidAmount) {
+		if _, err := svc.Adjust(ctx, id, 0, "USD", "noop", auth.Actor{}); !errors.Is(err, ErrInvalidAmount) {
 			t.Fatalf("got %v, want ErrInvalidAmount", err)
 		}
 	})
@@ -262,7 +263,7 @@ func TestAdjustGuards(t *testing.T) {
 	t.Run("deduction beyond balance is refused", func(t *testing.T) {
 		id := seedCustomer(t, conn)
 		grant(t, conn, svc, id, 100, "USD")
-		if _, err := svc.Adjust(ctx, id, -500, "USD", "correction", nil); !errors.Is(err, ErrInsufficientBalance) {
+		if _, err := svc.Adjust(ctx, id, -500, "USD", "correction", auth.Actor{}); !errors.Is(err, ErrInsufficientBalance) {
 			t.Fatalf("got %v, want ErrInsufficientBalance", err)
 		}
 		if got := balance(t, svc, id, "USD"); got != 100 {
@@ -273,7 +274,7 @@ func TestAdjustGuards(t *testing.T) {
 	t.Run("deduction to exactly zero is allowed", func(t *testing.T) {
 		id := seedCustomer(t, conn)
 		grant(t, conn, svc, id, 100, "USD")
-		if _, err := svc.Adjust(ctx, id, -100, "USD", "correction", nil); err != nil {
+		if _, err := svc.Adjust(ctx, id, -100, "USD", "correction", auth.Actor{}); err != nil {
 			t.Fatalf("adjust: %v", err)
 		}
 		if got := balance(t, svc, id, "USD"); got != 0 {

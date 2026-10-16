@@ -141,6 +141,10 @@ func toDataJobModel(job datajob.Job, label string) *model.DataJob {
 		s := job.AdminID.String()
 		out.AdminID = &s
 	}
+	if job.IntegrationID != uuid.Nil {
+		s := job.IntegrationID.String()
+		out.IntegrationID = &s
+	}
 	return out
 }
 
