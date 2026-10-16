@@ -3,11 +3,11 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import type { DocumentNode } from "graphql";
 import { print } from "graphql";
-import { cookies, headers as nextHeaders } from "next/headers";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
 import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
+import { shopperHeaders } from "@/app/lib/shopper-headers";
 import { isPublicOp } from "@/app/lib/public-ops";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 
@@ -134,29 +134,7 @@ export async function gqlFetch<TData, TVariables>(
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
-  // Forward the real client IP so the backend's per-IP rate limiter keys on the customer, not on this Next server
-  // (otherwise every storefront request shares one global bucket - brute-force pooling + cross-user lockout)
-  try {
-    const inbound = await nextHeaders();
-    const clientIP = inbound.get("x-forwarded-for") ?? inbound.get("x-real-ip");
-    if (clientIP) headers["X-Forwarded-For"] = clientIP;
-    // The SEO crawler's bypass token, so a crawl of a few thousand pages is not refused by the per-IP limiter
-    const crawl = inbound.get("x-skelet-crawl");
-    if (crawl) headers["X-Skelet-Crawl"] = crawl;
-  } catch (err) {
-    rethrowIfDynamicBailout(err);
-    // not in a request scope - nothing to forward
-  }
-  // Forward the visitor's anon id (the Lens lens_aid cookie) so guest commerce (cart / checkout without login)
-  // attributes to the same anonymous visitor as their browsing, and stitches to a customer once they sign in
-  try {
-    const jar = await cookies();
-    const aid = jar.get("lens_aid")?.value;
-    if (aid) headers["X-Anon-Id"] = aid;
-  } catch (err) {
-    rethrowIfDynamicBailout(err);
-    // not in a request scope - nothing to forward
-  }
+  Object.assign(headers, await shopperHeaders());
   if (options.extraHeaders) {
     for (const [k, v] of Object.entries(options.extraHeaders)) {
       if (v) headers[k] = v;

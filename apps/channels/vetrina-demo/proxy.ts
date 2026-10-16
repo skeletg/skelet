@@ -14,6 +14,8 @@ import {
   type CustomerRefreshTokenMutation,
 } from "@/app/lib/auth/operations.gql";
 import { buildForwardedCookie } from "@/app/lib/forwarded-cookie";
+import { BEACON } from "@/app/lib/beacons/paths";
+import { clientIP } from "@/app/lib/client-ip";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -49,18 +51,17 @@ function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string)
   try {
     const ua = req.headers.get("user-agent") ?? "";
     if (req.method !== "GET" || !ua || !BOT_UA.test(ua)) return;
-    const ip =
-      (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() ||
-      (req.headers.get("x-real-ip") ?? "");
+    const forwardedFor = clientIP(req.headers);
+    const ip = forwardedFor.split(",")[0]?.trim() ?? "";
     const ref = req.headers.get("referer") ?? "";
     const path = req.nextUrl.pathname;
     // Forward the crawler's IP so the backend rate-limits the BOT, not this Next server -
     // otherwise every beacon shares one bucket and heavy crawls drop past the cap
     const beaconHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (channelId) beaconHeaders["X-Channel-Id"] = channelId;
-    if (ip) beaconHeaders["X-Forwarded-For"] = ip;
+    if (forwardedFor) beaconHeaders["X-Forwarded-For"] = forwardedFor;
     event.waitUntil(
-      fetch(`${BACKEND_INTERNAL_URL}/t/crawl`, {
+      fetch(`${BACKEND_INTERNAL_URL}${BEACON.crawl}`, {
         method: "POST",
         headers: beaconHeaders,
         body: JSON.stringify({ path, ua, ip, ref }),

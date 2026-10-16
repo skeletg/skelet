@@ -1,12 +1,14 @@
 import "server-only";
 
-import { cookies, headers as nextHeaders } from "next/headers";
+import { cookies } from "next/headers";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getChannel } from "@/app/lib/channel/read";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 import { AID_COOKIE } from "@/app/lib/analytics/visitor";
 import { assign, type Experiment } from "@/app/lib/experiments/assign";
+import { BEACON } from "@/app/lib/beacons/paths";
+import { shopperHeaders } from "@/app/lib/shopper-headers";
 
 // Server-side Prism assignment
 
@@ -18,17 +20,10 @@ async function loadExperiments(channelId: string, accessToken?: string | null): 
   // Forward the customer's session JWT so the backend can serve segment-targeted experiments the VERIFIED customer is
   // eligible for (anonymous → none). The backend does not honor a bare customer-id header, which would be forgeable
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  // Forward the real client IP so the backend's per-IP rate limiter keys on the visitor, not on this Next server - otherwise every SSR
-  // render shares one global bucket and experiments silently disappear under load (mirrors gqlFetch)
+  // Without the shopper's IP every SSR render shares one rate-limit bucket and experiments silently disappear under load
+  Object.assign(headers, await shopperHeaders());
   try {
-    const inbound = await nextHeaders();
-    const clientIP = inbound.get("x-forwarded-for") ?? inbound.get("x-real-ip");
-    if (clientIP) headers["X-Forwarded-For"] = clientIP;
-  } catch {
-    // not in a request scope - nothing to forward
-  }
-  try {
-    const r = await fetch(`${BACKEND_INTERNAL_URL}/t/experiments`, { headers, cache: "no-store" });
+    const r = await fetch(`${BACKEND_INTERNAL_URL}${BEACON.experiments}`, { headers, cache: "no-store" });
     return r.ok ? ((await r.json()) as Experiment[]) : [];
   } catch {
     return [];
