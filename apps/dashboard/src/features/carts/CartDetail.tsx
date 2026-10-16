@@ -161,21 +161,23 @@ export function CartDetail() {
                   Create order
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={dupState.loading || cart.lines.length === 0}
-                onClick={() =>
-                  run(async () => {
-                    const res = await duplicateCart({ variables: { cartId: cart.id } })
-                    const newId = res.data?.adminDuplicateCart.id
-                    if (newId) navigate(`/carts/${newId}`)
-                  })
-                }
-              >
-                <CopyIcon className="size-4" />
-                {dupState.loading ? 'Duplicating…' : 'Duplicate'}
-              </Button>
+              {!offer && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={dupState.loading || cart.lines.length === 0}
+                  onClick={() =>
+                    run(async () => {
+                      const res = await duplicateCart({ variables: { cartId: cart.id } })
+                      const newId = res.data?.adminDuplicateCart.id
+                      if (newId) navigate(`/carts/${newId}`)
+                    })
+                  }
+                >
+                  <CopyIcon className="size-4" />
+                  {dupState.loading ? 'Duplicating…' : 'Duplicate'}
+                </Button>
+              )}
             </div>
           }
         />
