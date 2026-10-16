@@ -14,7 +14,7 @@ const (
 )
 
 // NormalizeLocationType validates a type; unset means unclassified. Legacy free-form
-// values were mapped once by migration 000037, so no aliases are accepted here.
+// values were mapped once by migration 000041, so no aliases are accepted here.
 func NormalizeLocationType(value string) (string, error) {
 	switch value {
 	case "":
