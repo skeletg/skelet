@@ -2,5 +2,8 @@ ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_pickup_retai
 ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_public_retail_check;
 ALTER TABLE inventory_locations DROP CONSTRAINT inventory_locations_type_check;
 ALTER TABLE inventory_locations ALTER COLUMN type SET DEFAULT '';
--- Restore unknown legacy classifiers; keep intentional classifications made after rollout.
-UPDATE inventory_locations SET type = COALESCE(metadata->>'_legacy_location_type', '') WHERE type = 'unclassified';
+-- Restore every value up recorded; rows created after rollout keep their type, except unclassified, which was ''.
+UPDATE inventory_locations
+SET type = metadata->>'_legacy_location_type', metadata = metadata - '_legacy_location_type'
+WHERE metadata ? '_legacy_location_type';
+UPDATE inventory_locations SET type = '' WHERE type = 'unclassified';
