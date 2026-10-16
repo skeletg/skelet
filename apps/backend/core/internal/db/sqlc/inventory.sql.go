@@ -175,21 +175,6 @@ func (q *Queries) CountFilteredInventoryLocations(ctx context.Context, arg Count
 	return count, err
 }
 
-const countInventoryLocations = `-- name: CountInventoryLocations :one
-SELECT COUNT(*) FROM inventory_locations
-WHERE $1::text = ''
-   OR name ILIKE '%' || escape_like($1::text) || '%'
-   OR slug ILIKE '%' || escape_like($1::text) || '%'
-   OR city ILIKE '%' || escape_like($1::text) || '%'
-`
-
-func (q *Queries) CountInventoryLocations(ctx context.Context, search string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countInventoryLocations, search)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countLocationCommitments = `-- name: CountLocationCommitments :one
 SELECT (
     (SELECT count(*) FROM inventory_levels l
@@ -1143,72 +1128,6 @@ func (q *Queries) ListInventoryLocationsByIDs(ctx context.Context, dollar_1 []uu
 	return items, nil
 }
 
-const listInventoryLocationsPage = `-- name: ListInventoryLocationsPage :many
-SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
-WHERE $1::text = ''
-   OR name ILIKE '%' || escape_like($1::text) || '%'
-   OR slug ILIKE '%' || escape_like($1::text) || '%'
-   OR city ILIKE '%' || escape_like($1::text) || '%'
-ORDER BY name
-LIMIT $3 OFFSET $2
-`
-
-type ListInventoryLocationsPageParams struct {
-	Search string `json:"search"`
-	Off    int32  `json:"off"`
-	Lim    int32  `json:"lim"`
-}
-
-// Paginated + searched variant of the list - search matches name, slug and city, case-insensitively - the dashboard locations grid drives this server-side once the location count outgrows one payload
-func (q *Queries) ListInventoryLocationsPage(ctx context.Context, arg ListInventoryLocationsPageParams) ([]InventoryLocation, error) {
-	rows, err := q.db.QueryContext(ctx, listInventoryLocationsPage, arg.Search, arg.Off, arg.Lim)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []InventoryLocation{}
-	for rows.Next() {
-		var i InventoryLocation
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Name,
-			&i.IsActive,
-			&i.Metadata,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Line1,
-			&i.Line2,
-			&i.City,
-			&i.Region,
-			&i.PostalCode,
-			&i.CountryCode,
-			&i.Latitude,
-			&i.Longitude,
-			&i.Type,
-			&i.Timezone,
-			&i.Hours,
-			&i.Email,
-			&i.Phone,
-			&i.ContactName,
-			&i.ExternalReference,
-			&i.PickupEnabled,
-			&i.PickupInstructions,
-			&i.StorefrontVisible,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listLowStockItemsFlat = `-- name: ListLowStockItemsFlat :many
 SELECT
     inv_items.id                  AS inventory_item_id,
@@ -1398,7 +1317,7 @@ func (q *Queries) ListLowStockLevels(ctx context.Context, lim int32) ([]ListLowS
 
 const listPickupLocations = `-- name: ListPickupLocations :many
 SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
-WHERE pickup_enabled AND is_active AND type = 'retail'
+WHERE pickup_enabled AND is_active
 ORDER BY name
 `
 
@@ -1454,7 +1373,7 @@ func (q *Queries) ListPickupLocations(ctx context.Context) ([]InventoryLocation,
 const listPublicInventoryLocations = `-- name: ListPublicInventoryLocations :many
 SELECT l.id, l.slug, l.name, l.is_active, l.metadata, l.created_at, l.updated_at, l.line1, l.line2, l.city, l.region, l.postal_code, l.country_code, l.latitude, l.longitude, l.type, l.timezone, l.hours, l.email, l.phone, l.contact_name, l.external_reference, l.pickup_enabled, l.pickup_instructions, l.storefront_visible FROM inventory_locations l
 JOIN inventory_channel_locations cl ON cl.location_id = l.id
-WHERE cl.channel_id = $1 AND l.is_active AND l.storefront_visible AND l.type = 'retail'
+WHERE cl.channel_id = $1 AND l.is_active AND l.storefront_visible
 ORDER BY lower(l.name), l.id
 `
 
@@ -1694,54 +1613,6 @@ func (q *Queries) SetInventoryItemQuantity(ctx context.Context, arg SetInventory
 	return i, err
 }
 
-const setLocationPickup = `-- name: SetLocationPickup :one
-UPDATE inventory_locations
-SET pickup_enabled = $2, pickup_instructions = $3, updated_at = NOW()
-WHERE id = $1
-RETURNING id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible
-`
-
-type SetLocationPickupParams struct {
-	ID                 uuid.UUID `json:"id"`
-	PickupEnabled      bool      `json:"pickup_enabled"`
-	PickupInstructions string    `json:"pickup_instructions"`
-}
-
-// Click-and-collect toggle: pickup-enabled active locations surface as
-// $0 shipping options via the builtin "pickup" carrier
-func (q *Queries) SetLocationPickup(ctx context.Context, arg SetLocationPickupParams) (InventoryLocation, error) {
-	row := q.db.QueryRowContext(ctx, setLocationPickup, arg.ID, arg.PickupEnabled, arg.PickupInstructions)
-	var i InventoryLocation
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Name,
-		&i.IsActive,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Line1,
-		&i.Line2,
-		&i.City,
-		&i.Region,
-		&i.PostalCode,
-		&i.CountryCode,
-		&i.Latitude,
-		&i.Longitude,
-		&i.Type,
-		&i.Timezone,
-		&i.Hours,
-		&i.Email,
-		&i.Phone,
-		&i.ContactName,
-		&i.ExternalReference,
-		&i.PickupEnabled,
-		&i.PickupInstructions,
-		&i.StorefrontVisible,
-	)
-	return i, err
-}
-
 const updateInventoryItem = `-- name: UpdateInventoryItem :one
 UPDATE inventory_items
 SET tracked              = $2,
@@ -1802,8 +1673,8 @@ SET name                = $2,
     contact_name        = $17,
     external_reference  = $18,
     metadata            = $19,
-    storefront_visible  = CASE WHEN $12 = 'retail' THEN $20 ELSE false END,
-    pickup_enabled      = CASE WHEN $12 = 'retail' THEN COALESCE($21::boolean, pickup_enabled) ELSE false END,
+    storefront_visible  = $20,
+    pickup_enabled      = COALESCE($21::boolean, pickup_enabled),
     pickup_instructions = COALESCE($22::text, pickup_instructions),
     updated_at          = NOW()
 WHERE id = $1

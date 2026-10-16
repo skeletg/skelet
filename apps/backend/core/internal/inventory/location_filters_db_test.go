@@ -29,14 +29,15 @@ func TestLocationClassificationFiltersAndStoreConversion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := svc.FilteredLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationRetail}, City: "belgrade", StorefrontVisible: &yes, PickupEnabled: &no}, 1, 0)
+	rows, count, err := svc.ListLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationRetail}, City: "belgrade", StorefrontVisible: &yes, PickupEnabled: &no}, 1, 0)
 	if err != nil || len(rows) != 1 || count != 1 || rows[0].ID != store.ID {
 		t.Fatalf("walk-in filter: %+v %d %v", rows, count, err)
 	}
-	if _, err = svc.SetLocationPickup(t.Context(), store.ID, true, "Collect here"); err != nil {
+	instructions := "Collect here"
+	if _, err = svc.UpdateLocation(t.Context(), UpdateLocationInput{ID: store.ID, PickupEnabled: &yes, PickupInstructions: &instructions}); err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err = svc.FilteredLocationsPage(t.Context(), "Demo", LocationFilter{PickupEnabled: &yes}, 10, 0)
+	rows, count, err = svc.ListLocationsPage(t.Context(), "Demo", LocationFilter{PickupEnabled: &yes}, 10, 0)
 	if err != nil || count != 1 || rows[0].ID != store.ID {
 		t.Fatalf("pickup filter: %+v %d %v", rows, count, err)
 	}
@@ -44,8 +45,15 @@ func TestLocationClassificationFiltersAndStoreConversion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The retail check constraints refuse customer access anywhere but a store, surfaced as the domain error
 	if _, err = svc.UpdateLocation(t.Context(), UpdateLocationInput{ID: private.ID, StorefrontVisible: &yes}); !errors.Is(err, ErrRetailLocationRequired) {
 		t.Fatalf("warehouse publication=%v", err)
+	}
+	if _, err = svc.UpdateLocation(t.Context(), UpdateLocationInput{ID: private.ID, PickupEnabled: &yes}); !errors.Is(err, ErrRetailLocationRequired) {
+		t.Fatalf("warehouse pickup=%v", err)
+	}
+	if _, err = svc.CreateLocation(t.Context(), CreateLocationInput{Slug: "types-wh-" + uuid.NewString()[:8], Name: "Warehouse", Type: LocationWarehouse, StorefrontVisible: true}); !errors.Is(err, ErrRetailLocationRequired) {
+		t.Fatalf("warehouse created public=%v", err)
 	}
 	warehouse := LocationWarehouse
 	if _, err = svc.UpdateLocation(t.Context(), UpdateLocationInput{ID: store.ID, Type: &warehouse}); err != nil {
@@ -59,7 +67,7 @@ func TestLocationClassificationFiltersAndStoreConversion(t *testing.T) {
 	if err != nil || page.TotalCount != 2 || page.PreferredStore != nil {
 		t.Fatalf("warehouse leaked: %+v %v", page, err)
 	}
-	rows, count, err = svc.FilteredLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationWarehouse}}, 1, 1)
+	rows, count, err = svc.ListLocationsPage(t.Context(), "Demo", LocationFilter{Types: []string{LocationWarehouse}}, 1, 1)
 	if err != nil || count != 2 || len(rows) != 1 {
 		t.Fatalf("paged warehouse filter: %+v %d %v", rows, count, err)
 	}

@@ -250,8 +250,3 @@ extend type Mutation {
   # Batched form for ERP daily sync runs. Partial success is the norm (one bad SKU shouldn't block the rest); the failed array carries per-item error reasons.
   syncProductInventoryBatch(items: [SyncProductInventoryInput!]!): SyncProductInventoryBatchResult!  # requires inventory.manage
 }
-
-extend type Mutation {
-  # Toggle click-and-collect for a location (inventory.manage).
-  setLocationPickup(id: ID!, enabled: Boolean!, instructions: String): InventoryLocation!
-}

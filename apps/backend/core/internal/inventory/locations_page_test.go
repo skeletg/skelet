@@ -18,12 +18,12 @@ type fakeLocRepo struct {
 	levelCalled      bool
 }
 
-func (f *fakeLocRepo) ListLocationsPage(_ context.Context, search string, limit, offset int32) ([]Location, error) {
+func (f *fakeLocRepo) ListLocationsPage(_ context.Context, search string, _ LocationFilter, limit, offset int32) ([]Location, error) {
 	f.sawSearch, f.sawLimit, f.sawOff = search, limit, offset
 	return []Location{}, nil
 }
 
-func (f *fakeLocRepo) CountLocations(_ context.Context, search string) (int64, error) {
+func (f *fakeLocRepo) CountLocations(_ context.Context, search string, _ LocationFilter) (int64, error) {
 	f.sawSearch = search
 	return 42, nil
 }
@@ -51,7 +51,7 @@ func TestListLocationsPageClampsItsInputs(t *testing.T) { // limit and offset ar
 	} {
 		repo := &fakeLocRepo{}
 		s := &Service{repo: repo}
-		if _, _, err := s.ListLocationsPage(context.Background(), "", tc.limit, tc.offset); err != nil {
+		if _, _, err := s.ListLocationsPage(context.Background(), "", LocationFilter{}, tc.limit, tc.offset); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if repo.sawLimit != tc.wantLimit || repo.sawOff != tc.wantOffset {
@@ -63,7 +63,7 @@ func TestListLocationsPageClampsItsInputs(t *testing.T) { // limit and offset ar
 func TestListLocationsPageTrimsTheSearch(t *testing.T) { // "  bg  " must match what "bg" matches, and both the page and the count must filter identically or the pager shows phantom pages
 	repo := &fakeLocRepo{}
 	s := &Service{repo: repo}
-	_, total, err := s.ListLocationsPage(context.Background(), "  novi sad  ", 10, 0)
+	_, total, err := s.ListLocationsPage(context.Background(), "  novi sad  ", LocationFilter{}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListLocationsPage: %v", err)
 	}

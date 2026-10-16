@@ -175,30 +175,36 @@ func invMetadataFromInput(in []*model.MetadataInput) inventory.Metadata {
 	return out
 }
 
-func toInventoryLocationType(value string) model.InventoryLocationType {
-	switch value {
-	case inventory.LocationRetail:
-		return model.InventoryLocationTypeRetailStore
-	case inventory.LocationWarehouse:
-		return model.InventoryLocationTypeWarehouse
-	case inventory.LocationStorage:
-		return model.InventoryLocationTypeStorage
-	case inventory.LocationDropshipper:
-		return model.InventoryLocationTypeDropshipper
-	case inventory.LocationFulfillment:
-		return model.InventoryLocationTypeFulfillmentPartner
-	default:
-		return model.InventoryLocationTypeUnclassified
-	}
+// The one mapping between the GraphQL enum and the stored location type, read in both directions
+var locationTypes = map[model.InventoryLocationType]string{
+	model.InventoryLocationTypeRetailStore:        inventory.LocationRetail,
+	model.InventoryLocationTypeWarehouse:          inventory.LocationWarehouse,
+	model.InventoryLocationTypeStorage:            inventory.LocationStorage,
+	model.InventoryLocationTypeDropshipper:        inventory.LocationDropshipper,
+	model.InventoryLocationTypeFulfillmentPartner: inventory.LocationFulfillment,
+	model.InventoryLocationTypeUnclassified:       inventory.LocationUnclassified,
 }
+
+func toInventoryLocationType(value string) model.InventoryLocationType {
+	for enum, stored := range locationTypes {
+		if stored == value {
+			return enum
+		}
+	}
+	return model.InventoryLocationTypeUnclassified
+}
+
 func inventoryLocationTypeInput(value *model.InventoryLocationType) *string {
 	if value == nil {
 		return nil
 	}
-	values := map[model.InventoryLocationType]string{model.InventoryLocationTypeRetailStore: inventory.LocationRetail, model.InventoryLocationTypeWarehouse: inventory.LocationWarehouse, model.InventoryLocationTypeStorage: inventory.LocationStorage, model.InventoryLocationTypeDropshipper: inventory.LocationDropshipper, model.InventoryLocationTypeFulfillmentPartner: inventory.LocationFulfillment, model.InventoryLocationTypeUnclassified: inventory.LocationUnclassified}
-	v := values[*value]
+	v, ok := locationTypes[*value]
+	if !ok {
+		v = string(*value) // unmapped reaches the service, which rejects it rather than filing it as unclassified
+	}
 	return &v
 }
+
 func inventoryLocationFilter(input *model.InventoryLocationFilter) inventory.LocationFilter {
 	if input == nil {
 		return inventory.LocationFilter{}

@@ -129,13 +129,13 @@ type Reservation struct {
 }
 
 type CreateLocationInput struct {
-	PickupEnabled      bool
-	PickupInstructions string
 	Slug               string
 	Name               string
 	IsActive           bool
-	StorefrontVisible  bool
 	Type               string
+	StorefrontVisible  bool
+	PickupEnabled      bool
+	PickupInstructions string
 
 	Line1       string
 	Line2       string
@@ -158,13 +158,13 @@ type CreateLocationInput struct {
 }
 
 type UpdateLocationInput struct {
-	PickupEnabled      *bool
-	PickupInstructions *string
 	ID                 uuid.UUID
 	Name               *string
 	IsActive           *bool
-	StorefrontVisible  *bool
 	Type               *string
+	StorefrontVisible  *bool
+	PickupEnabled      *bool
+	PickupInstructions *string
 
 	Line1       *string
 	Line2       *string
@@ -288,12 +288,9 @@ type Repository interface {
 	ListPublicLocations(ctx context.Context, channelID uuid.UUID) ([]Location, error)
 	ListLocations(ctx context.Context) ([]Location, error)
 	ListLocationsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Location, error)
-	ListFilteredLocationsPage(ctx context.Context, search string, filter LocationFilter, limit, offset int32) ([]Location, error)
-	CountFilteredLocations(ctx context.Context, search string, filter LocationFilter) (int64, error)
-	ListLocationsPage(ctx context.Context, search string, limit, offset int32) ([]Location, error)
-	CountLocations(ctx context.Context, search string) (int64, error)
+	ListLocationsPage(ctx context.Context, search string, filter LocationFilter, limit, offset int32) ([]Location, error)
+	CountLocations(ctx context.Context, search string, filter LocationFilter) (int64, error)
 	ListPickupLocations(ctx context.Context) ([]Location, error)
-	SetLocationPickup(ctx context.Context, id uuid.UUID, enabled bool, instructions string) (Location, error)
 	UpdateLocation(ctx context.Context, input UpdateLocationInput) (Location, error)
 	DeleteLocation(ctx context.Context, id uuid.UUID) error
 
