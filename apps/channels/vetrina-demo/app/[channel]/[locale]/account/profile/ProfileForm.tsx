@@ -11,16 +11,20 @@ import {
 } from "@/app/components/account/AccountUI";
 import { updateProfileAction } from "@/app/lib/auth/actions";
 import { profileSchema } from "@/app/lib/auth/schemas";
+import type { PhoneSettings } from "@/app/lib/countries/read";
+import { phoneFieldFor } from "@/app/lib/forms/phone";
 import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 type Props = {
   firstName: string;
   lastName: string;
   phone: string;
+  // The store's phone policy - a profile phone is read in its default country, or the one it's locked to
+  phoneSettings: PhoneSettings;
   email: string;
 };
 
-export function ProfileForm({ firstName, lastName, phone, email }: Props) {
+export function ProfileForm({ firstName, lastName, phone, phoneSettings, email }: Props) {
   const t = useTranslations("account.profile");
   const tf = useTranslations("forms.fields");
   const tc = useTranslations("common");
@@ -69,6 +73,7 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
         label={tf("phone")}
         field={fields.phone}
         type="tel"
+        phone={phoneFieldFor(phoneSettings, "")}
         autoComplete="tel"
       />
 

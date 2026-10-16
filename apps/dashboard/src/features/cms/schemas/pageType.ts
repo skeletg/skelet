@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { numberText } from '@/shared/schemas/fields'
+import type { CreateCmsPageTypeInput } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 
@@ -23,12 +24,11 @@ export function toNewPageTypeInput(v: NewPageTypeValues, locale: string) {
   return {
     slug: v.slug.trim(),
     icon: v.icon.trim() || null,
-    isSystem: false,
     position: 0,
     locale,
     name: v.name.trim(),
     description: v.description.trim() || null,
-  }
+  } satisfies CreateCmsPageTypeInput // a field the schema dropped fails typecheck rather than every create at runtime
 }
 
 // The page type's own page - its naming (per locale), URL structure, SEO defaults and starter

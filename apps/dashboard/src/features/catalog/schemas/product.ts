@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
+import { added, changed, clip, fieldDiff, removed, sameJson } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
 import { metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 import { centsToDollars, dateRangeIssues, dollarsToCents, isNumberText, isoToLocalInput, localInputToISO, money, numberText } from '@/shared/schemas/fields'
@@ -341,22 +341,18 @@ export function toProductContentValues(product: ContentFields & { content: ({ lo
   }
 }
 
-const sameJSON = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-
 // Only the descriptions that changed - the content writer fills in the rest of the row
 export function productContentChanges(before: ProductContentValues, after: ProductContentValues) {
   return {
-    ...(sameJSON(before.shortDescription, after.shortDescription) ? {} : { shortDescription: after.shortDescription ?? undefined }),
-    ...(sameJSON(before.descriptionRichText, after.descriptionRichText) ? {} : { descriptionRichText: after.descriptionRichText ?? undefined }),
+    ...(sameJson(before.shortDescription, after.shortDescription) ? {} : { shortDescription: after.shortDescription ?? undefined }),
+    ...(sameJson(before.descriptionRichText, after.descriptionRichText) ? {} : { descriptionRichText: after.descriptionRichText ?? undefined }),
   }
 }
-
-const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
 
 // Rich text shows its plain text; a formatting-only edit (same text, different JSON) still counts
 function richTextEntry(label: string, beforeText: string, afterText: string, before: unknown, after: unknown) {
   if (beforeText.trim() !== afterText.trim()) return changed(label, clip(beforeText), clip(afterText))
-  return sameJSON(before, after) ? null : changed(label, 'previous formatting', 'updated formatting')
+  return sameJson(before, after) ? null : changed(label, 'previous formatting', 'updated formatting')
 }
 
 export function productContentDiff(original: ProductContentValues, draft: ProductContentValues): SectionDiffEntry[] {

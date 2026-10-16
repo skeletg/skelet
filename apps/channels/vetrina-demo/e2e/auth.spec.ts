@@ -45,12 +45,12 @@ test.describe("sign in", () => {
     await open(page, "/account/login");
     const form = main(page);
     await form.getByLabel("Email").fill(email);
-    await form.getByLabel("Password").fill("not-the-password");
+    await form.getByLabel("Password", { exact: true }).fill("not-the-password");
     await form.getByRole("button", { name: "Sign in" }).click();
 
     await expect(form.getByRole("alert")).toBeVisible();
     await expect(form.getByLabel("Email")).toHaveValue(email);
-    await expect(form.getByLabel("Password")).toHaveValue("");
+    await expect(form.getByLabel("Password", { exact: true })).toHaveValue("");
     await expect(page).toHaveURL(/\/account\/login/);
     await context.close();
   });
@@ -65,7 +65,7 @@ test.describe("sign in", () => {
     await open(page, "/account/login?returnTo=%2Fcart");
     const form = main(page);
     await form.getByLabel("Email").fill(email);
-    await form.getByLabel("Password").fill(PASSWORD);
+    await form.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await form.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(/\/cart$/);

@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -87,6 +88,8 @@ type Resolver struct {
 	ReviewSvc            *review.Service       // storefront-readable on the PDP AND writable via submit
 	MediaLibrarySvc      *medialibrary.Service // backs review photo + video uploads through the same presign/confirm pair the admin uses for product media
 	WebFormSvc           *webform.Service
+	DeliverySvc          *delivery.Service // delivery options, groups and requirements - nil leaves checkout on the implicit defaults
+	OriginPlanner        OriginPlanner     // where each line ships from, for the packages a delivery group splits into - nil puts every line in one package
 	DownloadSvc          *download.Service
 	SubscriptionSvc      *subscription.Service
 	JWTSecret            string
@@ -94,6 +97,7 @@ type Resolver struct {
 	VoterTokenSecret     []byte              // signs anon review-vote cookie tokens - the storefront mints `<uuid>.<hmac>` server-side with the same secret and the backend verifies it, so nobody can forge a UUID and stuff the counts
 	RateLimiter          ratelimit.Limiter   // per-IP cap on abuse-prone ops (login, password reset, signup, review submit/vote); optional - nil falls through, which is what tests and CLI paths get, while production wires ratelimit.NewRedis so every instance shares one set of counters
 	AuthLimiter          ratelimit.Limiter   // lower per-window cap than RateLimiter, reserved for credential surfaces
+	CheckoutLimiter      ratelimit.Limiter   // the checkout steps and Cart.checkout - looser than RateLimiter, since a shopper saves and re-reads several times a minute, and nil falls through like the others
 	LoginThrottle        *auth.LoginThrottle // locks an email after sustained failed logins, counting failures across rate windows; nil disables it
 
 	Bus *events.Bus // storefront-surface domain events (just the throttle-tripped admin-inbox signal today); nil drops them, matching tests and CLI

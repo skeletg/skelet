@@ -222,7 +222,7 @@ function detailResolvers(channelId: string, currencyCode: string): Record<string
     '/integrations/:id': async () =>
       `/integrations/${await made('mutation($i:CreateIntegrationInput!){ createIntegration(input:$i){ integration { id } } }', { name: `${RUN} detail integration`, permissionSlugs: ['customers.view'] }, 'deleteIntegration')}`,
     '/inventory/locations/:id': async () =>
-      `/inventory/locations/${await made('mutation($i:CreateInventoryLocationInput!){ createInventoryLocation(input:$i){ id } }', { slug: `${RUN}-detail-location`, name: 'Detail location' }, 'deleteInventoryLocation')}`,
+      `/inventory/locations/${await made('mutation($i:CreateInventoryLocationInput!){ createInventoryLocation(input:$i){ id } }', { slug: `${RUN}-detail-location`, name: 'Detail location', type: 'warehouse' }, 'deleteInventoryLocation')}`,
     '/lens/sessions/:id': () =>
       or((id) => `/lens/sessions/${id}`, first<{ id: string }>('query($c:ID!){ lensSessions(channelId:$c, limit:1){ id } }', { c: channelId }).then((r) => r?.id), 'the dev data has no recorded session'),
     '/locales/:code': async () => '/locales/en',

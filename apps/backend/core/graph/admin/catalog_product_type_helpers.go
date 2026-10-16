@@ -20,6 +20,7 @@ func toProductTypeModel(pt catalog.ProductType) *model.ProductType {
 		Name:               pt.Name,
 		IsDigital:          pt.IsDigital,
 		IsShippingRequired: pt.IsShippingRequired,
+		DeliveryKinds:      nonNilKinds(pt.DeliveryKinds),
 		URLTemplate:        pt.URLTemplate,
 		TracksInventory:    pt.TracksInventory,
 		Attributes:         attrs,

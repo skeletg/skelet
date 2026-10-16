@@ -31,6 +31,16 @@ type ShippingMethod {
   # (only allowedCountries). Layered on top of the zone.
   countryMode:      String!
   allowedCountries: [String!]!
+  # The delivery kind the method prices - ship_to_address (door delivery), parcel_locker (a pickup point the shopper picks) or carrier_point (the carrier delivers to the pickup point nearest the address).
+  deliveryKind:     String!
+  # Charge the price again for every started bundle of this many units - 5 means 1-5 units pay once, 6-10 twice. 0 charges once per shipment.
+  unitsPerCharge:   Int!
+  # Delivery days the method takes, counted from the day after the order - 0 gives no estimate.
+  estimatedDays:      Int!
+  # Saturday and Sunday count toward estimatedDays - off skips them, so a Friday order quoted 1 day arrives Monday.
+  deliversOnWeekends: Boolean!
+  # Prices for particular product types - their lines are priced by their own row instead of pooling into the method's price.
+  typeRates:        [ShippingMethodTypeRate!]!
   createdAt:      Time!
   updatedAt:      Time!
 }
@@ -53,6 +63,23 @@ input UpdateShippingZoneInput {
   countries: [String!]
 }
 
+# A shipping method's own price for one product type - a fridge at 30€ per unit that never ships free, while everything else pools into the method's price.
+type ShippingMethodTypeRate {
+  productTypeId:        ID!
+  productTypeName:      String!
+  priceCents:           Int!
+  unitsPerCharge:       Int!
+  # The method's free-above threshold also waives this type's price.
+  freeShippingEligible: Boolean!
+}
+
+input ShippingMethodTypeRateInput {
+  productTypeId:        ID!
+  priceCents:           Int!
+  unitsPerCharge:       Int
+  freeShippingEligible: Boolean
+}
+
 input CreateShippingMethodInput {
   zoneId:         ID!
   code:           String!
@@ -64,6 +91,11 @@ input CreateShippingMethodInput {
   isActive:       Boolean
   countryMode:      String
   allowedCountries: [String!]
+  deliveryKind:     String
+  unitsPerCharge:   Int
+  estimatedDays:      Int
+  deliversOnWeekends: Boolean
+  typeRates:        [ShippingMethodTypeRateInput!]
 }
 
 input UpdateShippingMethodInput {
@@ -77,6 +109,12 @@ input UpdateShippingMethodInput {
   isActive:       Boolean
   countryMode:      String
   allowedCountries: [String!]
+  deliveryKind:     String
+  unitsPerCharge:   Int
+  estimatedDays:      Int
+  deliversOnWeekends: Boolean
+  # Replaces the method's type rates when given.
+  typeRates:        [ShippingMethodTypeRateInput!]
 }
 
 # A registered shipping carrier with its per-channel config. The built-in zones/methods engine is the "builtin" carrier; plugin carriers register additional slugs. carrierSlug + the (carrierSlug, methodCode) selection at checkout identify a carrier. Credentials (API keys) are edited via Settings → Shipping → <carrier>, not here.
@@ -91,6 +129,8 @@ type ShippingCarrierAdmin {
   # Capability flags from the carrier's interface implementation.
   supportsTracking: Boolean!
   supportsLabels:   Boolean!
+  # Saturday and Sunday count toward the carrier's delivery estimates on this channel. Always false for "builtin", whose methods each set their own.
+  deliversOnWeekends: Boolean!
 }
 
 # An admin-defined carton for cartonization. The packer bins cart/order items into these boxes so weight/dimension-based carriers rate real multi-parcel shipments. maxWeightGrams is the GROSS limit (contents + boxWeightGrams tare); 0 = unlimited.
@@ -149,4 +189,6 @@ extend type Mutation {
   setShippingCarrierEnabled(channelId: ID!, carrierSlug: String!, enabled: Boolean!): ShippingCarrierAdmin!
   # mode is "all" or "specific"; countries is the allow-list (ignored when "all").
   setShippingCarrierCountries(channelId: ID!, carrierSlug: String!, mode: String!, countries: [String!]!): ShippingCarrierAdmin!
+  # Whether Saturday and Sunday count toward the carrier's estimates. Refused for "builtin" - set it on each method instead.
+  setShippingCarrierWeekendDelivery(channelId: ID!, carrierSlug: String!, deliversOnWeekends: Boolean!): ShippingCarrierAdmin!
 }

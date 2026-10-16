@@ -235,6 +235,9 @@ type Provider interface {
 
 // What RegisterProvider records - Slug is stable over the plugin's life, DisplayName is what the admin UI renders
 type Registration struct {
+	// The owning plugin and its runtime gate. Core's offline methods have neither.
+	PluginSlug  string
+	Available   func(context.Context, uuid.UUID) bool
 	Slug        string
 	Provider    Provider
 	DisplayName string
@@ -263,6 +266,7 @@ type Repository interface {
 	ListPaymentMethodsByProvider(ctx context.Context, providerSlug string) ([]PaymentMethod, error)
 	SetPaymentMethodEnabled(ctx context.Context, channelID uuid.UUID, providerSlug string, enabled bool) (PaymentMethod, error)
 	SetPaymentMethodSortOrder(ctx context.Context, channelID uuid.UUID, providerSlug string, sortOrder int32) (PaymentMethod, error)
+	UpdatePaymentMethodPresentation(ctx context.Context, channelID uuid.UUID, providerSlug, displayName string, sortOrder int32) (PaymentMethod, error)
 	SetPaymentMethodCountryMode(ctx context.Context, channelID uuid.UUID, providerSlug, mode string) (PaymentMethod, error)
 	AddCountryToPaymentMethod(ctx context.Context, methodID uuid.UUID, country string) error
 	ListCountriesForPaymentMethod(ctx context.Context, methodID uuid.UUID) ([]string, error)

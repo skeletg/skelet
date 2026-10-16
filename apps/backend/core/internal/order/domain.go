@@ -41,6 +41,7 @@ type Order struct {
 	CurrencyCode      string
 	CustomerNote      string
 	PONumber          string
+	BusinessIDs       []BusinessID // the buyer's company identifiers, empty on personal purchases
 	// Stamped at fulfillment, from admin args or an OrderFulfilling subscriber, and empty otherwise
 	Carrier        string
 	TrackingNumber string
@@ -49,8 +50,10 @@ type Order struct {
 	// Record the chosen carrier and method so a pre-fulfillment edit can re-price authoritatively - nil when shipping was free or promotional
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// none (digital only), physical or mixed
+	FulfillmentNeed string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // The cents owed to the provider - taxed total minus the gift-card and store-credit tenders
@@ -69,6 +72,14 @@ type OrderAddress struct {
 	PostalCode  string
 	CountryCode string
 	Phone       *string
+}
+
+// BusinessID is one company identifier as the order records it - the label travels with the value, so an invoice reads
+// "PIB 123456789" even after the country's fields are edited
+type BusinessID struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 type OrderAmounts struct {
@@ -233,6 +244,13 @@ type Repository interface {
 
 	// Tax breakdown - replaced wholesale on an edit, since a recompute invalidates the old rows
 	InsertTaxLine(ctx context.Context, orderID uuid.UUID, line TaxLine) error
+	InsertShipment(ctx context.Context, orderID uuid.UUID, position int32, sh ShipmentInput, amount int64) error
+	ListShipments(ctx context.Context, orderID uuid.UUID) ([]Shipment, error)
+	CountShipments(ctx context.Context, orderID uuid.UUID) (int64, error)
+	SetShipmentAmount(ctx context.Context, orderID uuid.UUID, amount int64) error
+	SetShipmentLines(ctx context.Context, shipmentID uuid.UUID, lines []ShipmentLine) error
+	SetShipmentShipTo(ctx context.Context, orderID uuid.UUID, shipTo OrderAddress) error
+	SetFulfillmentNeed(ctx context.Context, orderID uuid.UUID, need string) error
 	ListTaxLines(ctx context.Context, orderID uuid.UUID) ([]TaxLine, error)
 	DeleteTaxLines(ctx context.Context, orderID uuid.UUID) error
 

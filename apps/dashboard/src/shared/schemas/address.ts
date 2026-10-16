@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { phoneIssue } from '@/lib/phone'
 
 // A postal address as the forms edit it - every field a string, optional ones '' rather than null.
 // The required set mirrors the backend's validEditAddress (names, street, city, postal code and a
@@ -99,4 +100,6 @@ export function addressIssues(
   if (a.countryCode.trim() && a.countryCode.trim().length !== 2) {
     ctx.addIssue({ code: 'custom', path: [...prefix, 'countryCode'], message: 'Use a 2-letter country code' })
   }
+  const phone = phoneIssue(a.phone, a.countryCode)
+  if (phone) ctx.addIssue({ code: 'custom', path: [...prefix, 'phone'], message: phone })
 }

@@ -1,10 +1,11 @@
 import { expect } from '@playwright/test'
 import { configField, configValue, restoreConfig, setConfigValue, startClean, test } from './helpers'
 
-// A store-information string nothing computes from, so a run that dies mid-edit disturbs nothing.
-// Whatever it was is captured and put back afterwards, including having had no row at all
-const PATH = 'general/store_information/support_phone'
-const BASELINE = '+1 555 0100'
+// A store-information string nothing computes from, so a run that dies mid-edit disturbs nothing - free text, so any
+// value saves (the store's phone fields are validated as phone numbers now). Whatever it was is captured and put back
+// afterwards, including having had no row at all
+const PATH = 'general/store_information/description'
+const BASELINE = 'E2E baseline description'
 // config paths contain slashes, which an #id selector cannot carry
 const INPUT = `[id="cfg-${PATH}"]`
 const saveButton = 'main button:has-text("change"), main button:has-text("No changes")'
@@ -36,14 +37,14 @@ test('an exact path filters down to the one field it names', async ({ page }) =>
   expect(opening).toBeGreaterThan(1) // the pane opens on a whole section
 
   await findField(page)
-  await expect.poll(() => page.locator('main input[id^="cfg-"]').count()).toBe(1)
+  await expect.poll(() => page.locator('main :is(input, textarea)[id^="cfg-"]').count()).toBe(1)
 })
 
 test('the filter reaches across sections, not just the one on screen', async ({ page }) => {
   // the opening pane is one section; a query answers from all of them at once
   await page.getByLabel('Filter settings').fill('shipping')
   await expect(page.locator(INPUT)).toHaveCount(0)
-  await page.getByLabel('Filter settings').fill('support phone')
+  await page.getByLabel('Filter settings').fill('store description')
   await expect(page.locator(INPUT)).toBeVisible()
 })
 

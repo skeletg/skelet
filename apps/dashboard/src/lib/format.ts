@@ -57,3 +57,49 @@ export function formatCents(amount: number, currencyCode: string): string {
     return currencyCode ? `${plain} ${currencyCode}` : plain
   }
 }
+
+// Dates arrive as ISO strings from the API - missing or unparseable renders as '-', so a
+// null column never shows up as 1970 or "Invalid Date"
+function toDate(v: unknown): Date | null {
+  if (v == null || v === '') return null
+  const d = new Date(v as string)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+// "Mar 4, 2026, 3:15 PM"
+export function formatDateTime(v: unknown): string {
+  return toDate(v)?.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) ?? '-'
+}
+
+// "Mar 4, 2026"
+export function formatDate(v: unknown): string {
+  return toDate(v)?.toLocaleDateString(undefined, { dateStyle: 'medium' }) ?? '-'
+}
+
+// "Mar 4" - a chart axis or bucket label, falling back to the raw value so a bucket key that isn't a date still reads
+export function formatShortDay(v: string): string {
+  return toDate(v)?.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) ?? v
+}
+
+// The browser's default date-and-time rendering, seconds included - for run logs, where they matter
+export function formatTimestamp(v?: string | null): string {
+  if (!v) return '-'
+  return new Date(v).toLocaleString()
+}
+
+export function formatNumber(n: number): string {
+  return n.toLocaleString()
+}
+
+// "5m ago" - '' for an unparseable value
+export function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return ''
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000))
+  if (s < 60) return 'just now'
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.round(h / 24)}d ago`
+}

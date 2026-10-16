@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 
 	"github.com/google/uuid"
@@ -36,6 +37,9 @@ var ErrCartEmailInvalid = errors.New("a valid email is required")
 var ErrCartNoteTooLong = errors.New("the note is too long")
 
 var ErrCartStoreMismatch = errors.New("cart store mismatch")
+
+// The checkout kept changing while a step was saving - another tab or a double submit won every retry
+var ErrCheckoutConflict = errors.New("the checkout changed while this step was saving - reload and try again")
 
 var ErrQuantityOutOfBounds = errors.New("quantity outside the allowed range for this product")
 
@@ -121,10 +125,123 @@ type Cart struct {
 	CustomerID *uuid.UUID
 	ChannelID  uuid.UUID
 	Status     string
+	Email      string
 	Note       string
-	Lines      []CartLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	Checkout   Checkout
+	// Moves on every checkout write, so a step computed from an earlier read can tell the row changed under it
+	CheckoutVersion int64
+	Lines           []CartLine
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// Checkout is what the shopper has chosen so far, saved step by step so a reload resumes where they were - the cart stores it as given, and the resolvers validate each step before it lands here. Placement re-prices and re-validates all of it
+type Checkout struct {
+	ShippingAddress       *Address
+	ShippingAddressID     *uuid.UUID // the saved address the snapshot came from, nil when typed in
+	BillingSameAsShipping bool
+	BillingAddress        *Address
+	BillingAddressID      *uuid.UUID
+	ShippingCarrierSlug   string // with ShippingMethodCode, empty when nothing is chosen
+	ShippingMethodCode    string
+	PaymentProviderSlug   string
+	PONumber              string
+	UseStoreCredit        bool
+	GiftCardCodes         []string
+	// Destination is where the order is headed before a full address exists - the first step quotes from it, and saving a shipping address overwrites it with that address's own
+	Destination   Destination
+	ContactPhone  string
+	PurchaseType  string            // PurchasePersonal or PurchaseBusiness
+	Company       string            // business purchases only, with BusinessIDs
+	BusinessIDs   map[string]string // the company identifiers the country asks for, by field key ("pib" -> "123456789")
+	PickupContact *PickupContact    // who collects a pickup order, nil until the details step of one
+	// Deliveries holds the shopper's choice per delivery group, keyed by the group's key - a cart delivered as one uses delivery.CombinedGroupKey. Groups are recomputed from the lines on every read, so a selection whose group no longer exists is simply ignored
+	Deliveries map[string]DeliverySelection
+	// SplitDelivery is the shopper asking to choose per group when one option could cover every line
+	SplitDelivery bool
+}
+
+// DeliverySelection is one group's delivery - the option and carrier method, and the point when the option's kind needs one. The point is a snapshot, re-checked at placement
+type DeliverySelection struct {
+	OptionID    uuid.UUID       `json:"optionId"`
+	CarrierSlug string          `json:"carrierSlug,omitempty"`
+	MethodCode  string          `json:"methodCode,omitempty"`
+	Point       *delivery.Point `json:"point,omitempty"`
+}
+
+// Delivery is the group's selection - the zero value when nothing is chosen
+func (c Checkout) Delivery(groupKey string) (DeliverySelection, bool) {
+	d, ok := c.Deliveries[groupKey]
+	return d, ok && d.OptionID != uuid.Nil
+}
+
+// SetDelivery stores a group's selection
+func (c *Checkout) SetDelivery(groupKey string, d DeliverySelection) {
+	if c.Deliveries == nil {
+		c.Deliveries = map[string]DeliverySelection{}
+	}
+	c.Deliveries[groupKey] = d
+}
+
+const (
+	PurchasePersonal = "personal"
+	PurchaseBusiness = "business"
+)
+
+// Destination is the country, region and postcode shipping and tax are quoted for
+type Destination struct {
+	CountryCode string
+	Region      string
+	PostalCode  string
+}
+
+func (d Destination) IsZero() bool { return d.CountryCode == "" }
+
+// PickupContact names who collects a pickup order - the shopper, or someone they send
+type PickupContact struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
+}
+
+// Address is a snapshot in the AddressInput shape - the storage format of the cart's address columns
+type Address struct {
+	FirstName   string  `json:"firstName"`
+	LastName    string  `json:"lastName"`
+	Company     *string `json:"company,omitempty"`
+	Street1     string  `json:"street1"`
+	Street2     *string `json:"street2,omitempty"`
+	City        string  `json:"city"`
+	State       *string `json:"state,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+	CountryCode string  `json:"countryCode"`
+	Phone       *string `json:"phone,omitempty"`
+}
+
+// EffectiveBilling is the billing address placement uses - the shipping snapshot when billing mirrors it
+func (c Checkout) EffectiveBilling() (*Address, *uuid.UUID) {
+	if c.BillingSameAsShipping {
+		return c.ShippingAddress, c.ShippingAddressID
+	}
+	return c.BillingAddress, c.BillingAddressID
+}
+
+// QuoteDestination is what shipping and tax are quoted for - the shipping address once there is one, else the destination the first step saved
+func (c Checkout) QuoteDestination() Destination {
+	if c.ShippingAddress != nil {
+		a := c.ShippingAddress
+		d := Destination{CountryCode: a.CountryCode, PostalCode: a.PostalCode}
+		if a.State != nil {
+			d.Region = *a.State
+		}
+		return d
+	}
+	return c.Destination
+}
+
+// ShippingCountry is the destination's country, empty until the first step is saved
+func (c Checkout) ShippingCountry() string {
+	return c.QuoteDestination().CountryCode
 }
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty
@@ -290,6 +407,9 @@ type Repository interface {
 	SetEmail(ctx context.Context, cartID uuid.UUID, email string) error
 
 	SetNote(ctx context.Context, cartID uuid.UUID, note string) error
+
+	LockCart(ctx context.Context, cartID uuid.UUID) (Cart, error) // GetCartByID under FOR UPDATE, for a checkout read-modify-write inside a transaction
+	SetCheckout(ctx context.Context, cartID uuid.UUID, c Checkout) error
 
 	PruneStale(ctx context.Context, cutoff time.Time) (int64, error)
 

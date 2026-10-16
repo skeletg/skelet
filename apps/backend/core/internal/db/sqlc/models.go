@@ -512,16 +512,38 @@ type CacheRevalidation struct {
 }
 
 type Cart struct {
-	ID                  uuid.UUID     `json:"id"`
-	CustomerID          uuid.NullUUID `json:"customer_id"`
-	Status              string        `json:"status"`
-	CreatedAt           time.Time     `json:"created_at"`
-	UpdatedAt           time.Time     `json:"updated_at"`
-	ChannelID           uuid.UUID     `json:"channel_id"`
-	AbandonedNotifiedAt sql.NullTime  `json:"abandoned_notified_at"`
-	Email               string        `json:"email"`
-	Note                string        `json:"note"`
-	LastActivityAt      time.Time     `json:"last_activity_at"`
+	ID                    uuid.UUID             `json:"id"`
+	CustomerID            uuid.NullUUID         `json:"customer_id"`
+	Status                string                `json:"status"`
+	CreatedAt             time.Time             `json:"created_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
+	ChannelID             uuid.UUID             `json:"channel_id"`
+	AbandonedNotifiedAt   sql.NullTime          `json:"abandoned_notified_at"`
+	Email                 string                `json:"email"`
+	Note                  string                `json:"note"`
+	LastActivityAt        time.Time             `json:"last_activity_at"`
+	ShippingAddress       pqtype.NullRawMessage `json:"shipping_address"`
+	ShippingAddressID     uuid.NullUUID         `json:"shipping_address_id"`
+	BillingSameAsShipping bool                  `json:"billing_same_as_shipping"`
+	BillingAddress        pqtype.NullRawMessage `json:"billing_address"`
+	BillingAddressID      uuid.NullUUID         `json:"billing_address_id"`
+	ShippingCarrierSlug   string                `json:"shipping_carrier_slug"`
+	ShippingMethodCode    string                `json:"shipping_method_code"`
+	PaymentProviderSlug   string                `json:"payment_provider_slug"`
+	PoNumber              string                `json:"po_number"`
+	UseStoreCredit        bool                  `json:"use_store_credit"`
+	GiftCardCodes         []string              `json:"gift_card_codes"`
+	DestinationCountry    string                `json:"destination_country"`
+	DestinationRegion     string                `json:"destination_region"`
+	DestinationPostalCode string                `json:"destination_postal_code"`
+	ContactPhone          string                `json:"contact_phone"`
+	PurchaseType          string                `json:"purchase_type"`
+	CompanyName           string                `json:"company_name"`
+	BusinessIds           json.RawMessage       `json:"business_ids"`
+	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
+	CheckoutVersion       int64                 `json:"checkout_version"`
+	Deliveries            json.RawMessage       `json:"deliveries"`
+	SplitDelivery         bool                  `json:"split_delivery"`
 }
 
 type CartAppliedCode struct {
@@ -1161,6 +1183,7 @@ type Country struct {
 	UpdatedAt           time.Time       `json:"updated_at"`
 	Iso3Code            string          `json:"iso3_code"`
 	NumericCode         string          `json:"numeric_code"`
+	BusinessIDFields    json.RawMessage `json:"business_id_fields"`
 }
 
 type CreditMemo struct {
@@ -1311,6 +1334,40 @@ type DataPatch struct {
 	ID        string    `json:"id"`
 	Namespace string    `json:"namespace"`
 	AppliedAt time.Time `json:"applied_at"`
+}
+
+type DeliveryOption struct {
+	ID          uuid.UUID       `json:"id"`
+	ChannelID   uuid.UUID       `json:"channel_id"`
+	Kind        string          `json:"kind"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Enabled     bool            `json:"enabled"`
+	SortOrder   int32           `json:"sort_order"`
+	BlockModes  json.RawMessage `json:"block_modes"`
+	PointSource string          `json:"point_source"`
+	CarrierSlug string          `json:"carrier_slug"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type DeliveryPoint struct {
+	ID           uuid.UUID `json:"id"`
+	ChannelID    uuid.UUID `json:"channel_id"`
+	Kind         string    `json:"kind"`
+	Name         string    `json:"name"`
+	Street1      string    `json:"street1"`
+	Street2      string    `json:"street2"`
+	City         string    `json:"city"`
+	Region       string    `json:"region"`
+	PostalCode   string    `json:"postal_code"`
+	CountryCode  string    `json:"country_code"`
+	Instructions string    `json:"instructions"`
+	Hours        string    `json:"hours"`
+	IsActive     bool      `json:"is_active"`
+	SortOrder    int32     `json:"sort_order"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type DownloadGrant struct {
@@ -1606,6 +1663,8 @@ type Order struct {
 	HeldFromStatus      string          `json:"held_from_status"`
 	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
 	AnonID              string          `json:"anon_id"`
+	BusinessIds         json.RawMessage `json:"business_ids"`
+	FulfillmentNeed     string          `json:"fulfillment_need"`
 }
 
 type OrderEmailLog struct {
@@ -1742,6 +1801,26 @@ type OrderReturnLine struct {
 	Reason          string    `json:"reason"`
 	RefundUnitCents int64     `json:"refund_unit_cents"`
 	CreatedAt       time.Time `json:"created_at"`
+}
+
+type OrderShipment struct {
+	ID                 uuid.UUID             `json:"id"`
+	OrderID            uuid.UUID             `json:"order_id"`
+	Position           int32                 `json:"position"`
+	GroupKey           string                `json:"group_key"`
+	OriginLocationID   uuid.NullUUID         `json:"origin_location_id"`
+	DeliveryKind       string                `json:"delivery_kind"`
+	DeliveryOptionID   uuid.NullUUID         `json:"delivery_option_id"`
+	DeliveryOptionName string                `json:"delivery_option_name"`
+	CarrierSlug        string                `json:"carrier_slug"`
+	MethodCode         string                `json:"method_code"`
+	MethodName         string                `json:"method_name"`
+	AmountCents        int64                 `json:"amount_cents"`
+	EstimatedDays      sql.NullInt32         `json:"estimated_days"`
+	ShipTo             pqtype.NullRawMessage `json:"ship_to"`
+	Point              pqtype.NullRawMessage `json:"point"`
+	Lines              json.RawMessage       `json:"lines"`
+	CreatedAt          time.Time             `json:"created_at"`
 }
 
 type OrderTaxLine struct {
@@ -1940,6 +2019,7 @@ type ProductType struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 	UrlTemplate        string          `json:"url_template"`
 	TracksInventory    bool            `json:"tracks_inventory"`
+	DeliveryKinds      []string        `json:"delivery_kinds"`
 }
 
 type ProductTypeAttribute struct {
@@ -2318,15 +2398,16 @@ type ShippingBox struct {
 }
 
 type ShippingCarrier struct {
-	ID          uuid.UUID `json:"id"`
-	ChannelID   uuid.UUID `json:"channel_id"`
-	CarrierSlug string    `json:"carrier_slug"`
-	IsEnabled   bool      `json:"is_enabled"`
-	DisplayName string    `json:"display_name"`
-	SortOrder   int32     `json:"sort_order"`
-	CountryMode string    `json:"country_mode"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID                 uuid.UUID `json:"id"`
+	ChannelID          uuid.UUID `json:"channel_id"`
+	CarrierSlug        string    `json:"carrier_slug"`
+	IsEnabled          bool      `json:"is_enabled"`
+	DisplayName        string    `json:"display_name"`
+	SortOrder          int32     `json:"sort_order"`
+	CountryMode        string    `json:"country_mode"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
 }
 
 type ShippingCarrierCountry struct {
@@ -2345,23 +2426,35 @@ type ShippingLabel struct {
 }
 
 type ShippingMethod struct {
-	ID             uuid.UUID `json:"id"`
-	ZoneID         uuid.UUID `json:"zone_id"`
-	Code           string    `json:"code"`
-	Name           string    `json:"name"`
-	CalcType       string    `json:"calc_type"`
-	FlatCents      int64     `json:"flat_cents"`
-	FreeAboveCents int64     `json:"free_above_cents"`
-	SortOrder      int32     `json:"sort_order"`
-	IsActive       bool      `json:"is_active"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	CountryMode    string    `json:"country_mode"`
+	ID                 uuid.UUID `json:"id"`
+	ZoneID             uuid.UUID `json:"zone_id"`
+	Code               string    `json:"code"`
+	Name               string    `json:"name"`
+	CalcType           string    `json:"calc_type"`
+	FlatCents          int64     `json:"flat_cents"`
+	FreeAboveCents     int64     `json:"free_above_cents"`
+	SortOrder          int32     `json:"sort_order"`
+	IsActive           bool      `json:"is_active"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	CountryMode        string    `json:"country_mode"`
+	DeliveryKind       string    `json:"delivery_kind"`
+	UnitsPerCharge     int32     `json:"units_per_charge"`
+	EstimatedDays      int32     `json:"estimated_days"`
+	DeliversOnWeekends bool      `json:"delivers_on_weekends"`
 }
 
 type ShippingMethodCountry struct {
 	MethodID    uuid.UUID `json:"method_id"`
 	CountryCode string    `json:"country_code"`
+}
+
+type ShippingMethodTypeRate struct {
+	MethodID             uuid.UUID `json:"method_id"`
+	ProductTypeID        uuid.UUID `json:"product_type_id"`
+	PriceCents           int64     `json:"price_cents"`
+	UnitsPerCharge       int32     `json:"units_per_charge"`
+	FreeShippingEligible bool      `json:"free_shipping_eligible"`
 }
 
 type ShippingZone struct {

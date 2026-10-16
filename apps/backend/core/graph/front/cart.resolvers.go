@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -11,12 +12,32 @@ import (
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
+
+func (r *cartResolver) Checkout(ctx context.Context, obj *model1.Cart) (*model1.CartCheckout, error) {
+	// Each read re-quotes carriers and prices the order, so it shares the step mutations' budget (one "checkout" counter per IP)
+	if err := r.checkCheckoutRate(ctx, "checkout"); err != nil {
+		return nil, err
+	}
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("cart")
+	}
+	if err := r.assertCartOnCurrentStore(ctx, cid); err != nil {
+		return nil, err
+	}
+	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return r.checkoutModel(ctx, c), nil
+}
 
 func (r *mutationResolver) CreateGuestCart(ctx context.Context) (*model1.Cart, error) {
 	store, ok := channel.FromContext(ctx)
@@ -362,6 +383,154 @@ func (r *mutationResolver) RemoveCoupon(ctx context.Context, cartID string, code
 	return r.fullCartModel(ctx, c), nil
 }
 
+func (r *mutationResolver) SetCartDestination(ctx context.Context, cartID string, countryCode string, regionCode *string, postalCode string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		d, err := r.checkoutDestination(ctx, c.ChannelID, countryCode, ptr.Deref(regionCode), postalCode)
+		if err != nil {
+			return err
+		}
+		co.Destination = d
+		// A saved address elsewhere no longer describes where the order goes - the details step asks again, prefilled from the destination
+		if a := co.ShippingAddress; a != nil && (a.CountryCode != d.CountryCode || !samePostalCode(a.PostalCode, d.PostalCode)) {
+			co.ShippingAddress, co.ShippingAddressID = nil, nil
+		}
+		r.dropUnsupportedSelections(ctx, c, co)
+		return nil
+	})
+}
+
+func (r *mutationResolver) SetCartShippingMethod(ctx context.Context, cartID string, carrierSlug string, code string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		if co.QuoteDestination().IsZero() {
+			return errCheckoutNeedsDestination
+		}
+		v := r.checkoutView(ctx, c)
+		if len(v.groups) != 1 {
+			return errDeliveryGroupUnknown
+		}
+		g := v.groups[0]
+		for _, ch := range g.choices {
+			if ch.carrierSlug == strings.TrimSpace(carrierSlug) && ch.methodCode == strings.TrimSpace(code) {
+				r.selectDelivery(ctx, c, co, g, ch)
+				return nil
+			}
+		}
+		if g.carrierFailed(strings.TrimSpace(carrierSlug)) {
+			return errShippingQuoteFailed
+		}
+		return errShippingMethodOffered
+	})
+}
+
+func (r *mutationResolver) SetCartSplitDelivery(ctx context.Context, cartID string, split bool) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(_ cart.Cart, co *cart.Checkout) error {
+		co.SplitDelivery = split
+		return nil
+	})
+}
+
+func (r *mutationResolver) SetCartDelivery(ctx context.Context, cartID string, groupKey string, optionID string, carrierSlug string, methodCode string) (*model1.Cart, error) {
+	oid, err := uuid.Parse(optionID)
+	if err != nil {
+		return nil, invalidID("delivery option")
+	}
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		g := r.checkoutView(ctx, c).group(groupKey)
+		if g == nil {
+			return errDeliveryGroupUnknown
+		}
+		for _, ch := range g.choices {
+			if ch.option.ID == oid && ch.carrierSlug == strings.TrimSpace(carrierSlug) && ch.methodCode == strings.TrimSpace(methodCode) {
+				r.selectDelivery(ctx, c, co, g, ch)
+				return nil
+			}
+		}
+		if g.carrierFailed(strings.TrimSpace(carrierSlug)) {
+			return errShippingQuoteFailed
+		}
+		return errDeliveryChoice
+	})
+}
+
+func (r *mutationResolver) SetCartDeliveryPoint(ctx context.Context, cartID string, groupKey string, pointID string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		g, err := r.chosenGroup(ctx, c, groupKey)
+		if err != nil {
+			return err
+		}
+		if !g.kind.Needs(delivery.BlockPoint) {
+			return errDeliveryNoPoint
+		}
+		p, err := r.DeliverySvc.GetPoint(ctx, *g.option, strings.TrimSpace(pointID))
+		if err != nil {
+			return err
+		}
+		sel := g.sel
+		sel.Point = &p
+		co.SetDelivery(g.Key, sel)
+		return nil
+	})
+}
+
+func (r *mutationResolver) SetCartDetails(ctx context.Context, cartID string, input model1.CheckoutDetailsInput) (*model1.Cart, error) {
+	return r.checkoutWrite(ctx, cartID, func(c *cart.Cart) error {
+		return r.applyCheckoutDetails(ctx, c, input)
+	})
+}
+
+func (r *mutationResolver) SetCartPaymentMethod(ctx context.Context, cartID string, providerSlug string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		if paymentCountry(*co) == "" {
+			return errCheckoutNeedsDestination
+		}
+		slug := strings.TrimSpace(providerSlug)
+		ok, err := r.paymentMethodOffered(ctx, c, *co, slug)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errPaymentMethodOffered
+		}
+		co.PaymentProviderSlug = slug
+		return nil
+	})
+}
+
+func (r *mutationResolver) ApplyGiftCard(ctx context.Context, cartID string, code string) (*model1.Cart, error) {
+	if err := rateByIP(ctx, r.RateLimiter, "giftcard-balance"); err != nil { // same budget as the balance lookup - both answer "is this a live code"
+		return nil, err
+	}
+	return r.checkoutStep(ctx, cartID, func(c cart.Cart, co *cart.Checkout) error {
+		code = strings.TrimSpace(code)
+		if slices.Contains(co.GiftCardCodes, code) {
+			return nil
+		}
+		if _, ok := r.usableGiftCard(ctx, c.ChannelID, code); !ok {
+			return errGiftCardInvalid
+		}
+		co.GiftCardCodes = append(co.GiftCardCodes, code)
+		return nil
+	})
+}
+
+func (r *mutationResolver) RemoveGiftCard(ctx context.Context, cartID string, code string) (*model1.Cart, error) {
+	return r.checkoutStep(ctx, cartID, func(_ cart.Cart, co *cart.Checkout) error {
+		code = strings.TrimSpace(code)
+		co.GiftCardCodes = slices.DeleteFunc(co.GiftCardCodes, func(c string) bool { return c == code })
+		return nil
+	})
+}
+
+func (r *mutationResolver) SetCartStoreCredit(ctx context.Context, cartID string, use bool) (*model1.Cart, error) {
+	if _, err := channel.RequireCustomerForCurrentStore(ctx); err != nil {
+		return nil, err
+	}
+	return r.checkoutStep(ctx, cartID, func(_ cart.Cart, co *cart.Checkout) error {
+		co.UseStoreCredit = use
+		return nil
+	})
+}
+
 func (r *queryResolver) MyCart(ctx context.Context) (*model1.Cart, error) {
 	claims, err := channel.RequireCustomerForCurrentStore(ctx)
 	if err != nil {
@@ -431,15 +600,10 @@ func (r *queryResolver) ShippingQuotes(ctx context.Context, countryCode string, 
 	if err != nil {
 		return nil, err
 	}
+	today := r.storeToday(ctx, sv.ID)
 	out := make([]*model1.ShippingQuote, len(quotes))
 	for i, q := range quotes {
-		out[i] = &model1.ShippingQuote{
-			CarrierSlug: q.CarrierSlug,
-			CarrierName: q.CarrierName,
-			Code:        q.Method.Code,
-			Name:        q.Method.Name,
-			PriceCents:  int32(q.Method.PriceCents),
-		}
+		out[i] = toShippingQuoteModel(q, today)
 	}
 	return out, nil
 }
@@ -464,6 +628,33 @@ func (r *queryResolver) PickupLocations(ctx context.Context) ([]*model1.PickupLo
 			CountryCode:  l.CountryCode,
 			Instructions: l.PickupInstructions,
 		}
+	}
+	return out, nil
+}
+
+func (r *queryResolver) DeliveryPoints(ctx context.Context, cartID string, groupKey string, search *string) ([]*model1.DeliveryPoint, error) {
+	// A search box fires on every keystroke and a remote source is asked uncached - the checkout's budget bounds what one address can send it
+	if err := r.checkCheckoutRate(ctx, "delivery-points"); err != nil {
+		return nil, err
+	}
+	c, err := r.storeCart(ctx, cartID)
+	if err != nil {
+		return nil, err
+	}
+	g, err := r.chosenGroup(ctx, c, groupKey)
+	if err != nil {
+		return nil, err
+	}
+	if !g.kind.Needs(delivery.BlockPoint) {
+		return []*model1.DeliveryPoint{}, nil
+	}
+	pts, err := r.DeliverySvc.SearchPoints(ctx, *g.option, delivery.PointQuery{Near: deliveryNear(c.Checkout), Search: ptr.Deref(search), Items: deliveryItems(g.Lines)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model1.DeliveryPoint, len(pts))
+	for i, p := range pts {
+		out[i] = toDeliveryPointModel(p)
 	}
 	return out, nil
 }
@@ -494,11 +685,9 @@ func (r *queryResolver) CartEstimate(ctx context.Context, cartID string, country
 		if qerr != nil {
 			return nil, qerr
 		}
+		today := r.storeToday(ctx, sv.ID)
 		for _, q := range quotes {
-			out = append(out, &model1.ShippingQuote{
-				CarrierSlug: q.CarrierSlug, CarrierName: q.CarrierName,
-				Code: q.Method.Code, Name: q.Method.Name, PriceCents: int32(q.Method.PriceCents),
-			})
+			out = append(out, toShippingQuoteModel(q, today))
 			if !haveShip || q.Method.PriceCents < cheapest {
 				cheapest = q.Method.PriceCents
 				haveShip = true
@@ -616,3 +805,7 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 	}
 	return r.renderProductsByIDs(ctx, recs), nil
 }
+
+func (r *Resolver) Cart() CartResolver { return &cartResolver{r} }
+
+type cartResolver struct{ *Resolver }

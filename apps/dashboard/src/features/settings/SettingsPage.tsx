@@ -19,7 +19,6 @@ import { SettingsContent } from '@/features/settings/SettingsContent'
 import { useConfigDrafts } from '@/features/settings/useConfigDrafts'
 import { Highlight } from '@/features/settings/Highlight'
 import { fieldMatches, labelMatches, searchTerms } from '@/features/settings/search'
-import { PaymentAvailability } from '@/features/payments/PaymentAvailability'
 import { ShippingCarrierAvailability } from '@/features/shipping/ShippingCarrierAvailability'
 import { IdentityEditor } from '@/features/settings/IdentityEditor'
 import { LocalesEditor } from '@/features/settings/LocalesEditor'
@@ -379,10 +378,10 @@ function SettingsPageBody({ registry }: { registry: PageRegistry }) {
       )
     }
     // A filter looks across every section, so it takes over the pane
-    if (needle) return <SettingsContent filter={filter} drafts={drafts} />
+    if (needle) return <SettingsContent filter={filter} excludeSections={['payment']} drafts={drafts} />
     if (!active) {
       if (loading || fallbackPath) return null // a rewrite is pending - don't flash all sections
-      return <SettingsContent drafts={drafts} /> // nothing registered - it has the empty-state copy
+      return <SettingsContent excludeSections={['payment']} drafts={drafts} /> // nothing registered - it has the empty-state copy
     }
     if (active.kind === 'identity' && effectiveChannelId) {
       return <IdentityEditor channelId={effectiveChannelId} />
@@ -398,11 +397,29 @@ function SettingsPageBody({ registry }: { registry: PageRegistry }) {
     }
     const sectionSlug = active.kind === 'config' ? active.sectionSlug : undefined
     const groupSlug = active.kind === 'config' ? active.groupSlug : undefined
+    if (sectionSlug === 'payment') {
+      return (
+        <div className="grid gap-3 p-6 text-sm">
+          <p>Payment setup now has dedicated pages.</p>
+          <Link className="underline underline-offset-2" to={`/payment-providers${groupSlug ? `?provider=${encodeURIComponent(groupSlug)}` : ''}`}>Configure installed payment providers</Link>
+          <Link className="underline underline-offset-2" to="/checkout-settings?tab=payment">Manage payment methods offered at checkout</Link>
+        </div>
+      )
+    }
     return (
       <>
         {/* Per-channel availability lives in payment_methods / shipping_carriers rather than
             config fields, so it's surfaced inline above each section's own fields */}
-        {sectionSlug === 'payment' && <PaymentAvailability providerSlug={groupSlug} />}
+        {/* The shopper-facing checkout knobs are edited together on the Checkout page - same values, so either place works */}
+        {(sectionSlug === 'sales' && (!groupSlug || groupSlug === 'checkout')) && (
+          <p className="border-b bg-info-soft px-6 py-2 text-xs">
+            Checkout settings are also on the{' '}
+            <Link className="underline underline-offset-2" to="/checkout-settings?tab=details">
+              Checkout page
+            </Link>
+            , beside delivery options and pickup points.
+          </p>
+        )}
         {sectionSlug === 'shipping' && <ShippingCarrierAvailability carrierSlug={groupSlug} />}
         <SettingsContent
           activeSectionSlug={sectionSlug}

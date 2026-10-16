@@ -351,9 +351,13 @@ function InventoryLocationFormPage({
           <form.AppField name="email">
             {(f) => <f.TextField placeholder="Email" aria-label="Email" type="email" note={clash('email')} />}
           </form.AppField>
-          <form.AppField name="phone">
-            {(f) => <f.TextField placeholder="Phone" aria-label="Phone" note={clash('phone')} />}
-          </form.AppField>
+          <form.Subscribe selector={(s) => s.values.countryCode}>
+            {(country) => (
+              <form.AppField name="phone">
+                {(f) => <f.PhoneField placeholder="Phone" aria-label="Phone" country={country} note={clash('phone')} />}
+              </form.AppField>
+            )}
+          </form.Subscribe>
           <form.AppField name="contactName">
             {(f) => (
               <f.TextField

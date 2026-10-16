@@ -193,35 +193,15 @@ extend type Mutation {
   # Open a return request (RMA) against the customer's own order. Creates it in `requested`; an operator approves / receives / refunds. Lines are capped at each order line's returnableLines remainder.
   requestReturn(input: RequestReturnInput!): OrderReturn!
 
-  # Unified placement for guest and authenticated checkouts. The auth context (when present) provides the customerId; the email field is always required. Addresses can be supplied inline OR as IDs from the customer's saved address book - at least one path must be set per slot. Inline wins over ID when both are present (lets a logged-in customer ship to a one-off address without polluting their book). The cartId is required for guests (passed via the storefront's cart cookie); for logged-in customers it's optional - the service derives the active cart from (customer, store) when omitted.
+  # Places the cart's checkout - everything the shopper chose through the setCart* steps (destination, shipping method, contact and business details, addresses or pickup contact, payment method, gift cards, store credit) and the cart note. Prices are re-derived server-side. The cartId is required for guests; a signed-in customer's active cart is used when it's omitted. An incomplete checkout fails with a CHECKOUT_*_REQUIRED code naming the missing step.
   placeOrder(
-    email: String!
     cartId: ID
-    customerNote: String
-    # Buyer's PO reference, when they pay by purchase order.
-    poNumber: String
-    # Chosen shipping option from shippingQuotes, named by carrier slug and method code - omit both to let the server pick the cheapest
-    # The price is always re-derived server-side through the carrier, never client-trusted
-    shippingCarrierSlug: String
-    shippingMethodCode: String
-    # Chosen payment method (provider slug from paymentMethods). Optional
-    # during rollout; when set it's validated and recorded on the order.
-    paymentProviderSlug: String
-    # Client-side gateway tokenization handle for the chosen provider - e.g. a Braintree payment_method_nonce produced by its browser SDK. Optional; intent-based providers (Stripe) mint the intent server-side and confirm on the client, so they pass nothing here. Used to authorize at placement.
+    # Client-side gateway tokenization handle for the chosen provider - e.g. a Braintree payment_method_nonce produced by its browser SDK. Optional; intent-based providers (Stripe) mint the intent server-side and confirm on the client, so they pass nothing here. Single-use, so it is never stored on the cart.
     paymentToken: String
-    # Pick one per slot. ID requires auth; inline works for both.
-    billingAddressId: ID
-    shippingAddressId: ID
-    billingAddress: AddressInput
-    shippingAddress: AddressInput
-    # Gift-card codes applied at checkout. Each is redeemed as a tender against the order total during placement; cards cover what they can and the remainder is owed to the payment provider.
-    giftCardCodes: [String!]
-    # Spend the signed-in customer's store-credit balance as a tender
-    # (applied after gift cards). Ignored for guests.
-    useStoreCredit: Boolean
-    # Pay with a previously saved payment method (see myPaymentMethods).
-    # Mutually exclusive with paymentToken; requires a signed-in customer.
+    # Pay with a previously saved payment method (see myPaymentMethods) of the cart's payment provider. Mutually exclusive with paymentToken; requires a signed-in customer.
     savedPaymentMethodId: ID
+    # The shopper ticked "I accept the terms". Required true when the store's sales/checkout/terms_consent is checkbox - placement refuses with TERMS_NOT_ACCEPTED otherwise. Ignored under notice and off.
+    acceptTerms: Boolean
   ): Order!
 }
 

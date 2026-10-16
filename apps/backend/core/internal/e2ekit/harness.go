@@ -21,6 +21,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -78,6 +79,7 @@ type Deps struct {
 	Currency      *currency.Service
 	Country       *country.Service
 	Catalog       *catalog.Service
+	Delivery      *delivery.Service
 	Inventory     *inventory.Service
 	Cart          *cart.Service
 	Order         *order.Service
@@ -249,6 +251,8 @@ func New(t TB) *Harness {
 		// rate limiting ships OFF by default now - the ingest throttling scenarios test the ON behavior,
 		// so the suite opts in explicitly (memory limiter - no Valkey in the Harness)
 		setenvDefault("RATE_LIMIT_ENABLED", "true")
+		// Every scenario posts from 127.0.0.1, and the checkout ones save dozens of steps between them
+		setenvDefault("CHECKOUT_RATE_LIMIT_PER_MIN", "100000")
 
 		// Core reaches the suite over the contract even here, so it talks to the Signals process bin/test-e2e started for this run's database
 		os.Setenv("SIGNALS_GRPC_ADDR", signalsAddr)

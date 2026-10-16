@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -146,6 +147,11 @@ func (s *Service) CreateLocation(ctx context.Context, input CreateLocationInput)
 	if (input.StorefrontVisible || input.PickupEnabled) && typ != LocationRetail {
 		return Location{}, ErrRetailLocationRequired
 	}
+	p, err := phone.Normalize(input.Phone, input.CountryCode)
+	if err != nil {
+		return Location{}, err
+	}
+	input.Phone = p
 	return s.repo.CreateLocation(ctx, input)
 }
 
@@ -246,6 +252,23 @@ func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput)
 		}
 		if typ != LocationRetail {
 			return Location{}, ErrRetailLocationRequired
+		}
+	}
+	if input.Phone != nil {
+		// A nationally typed number is read in the location's country - the one this update sets, else the one it has
+		region := ""
+		if input.CountryCode != nil {
+			region = *input.CountryCode
+		} else {
+			current, err := s.repo.GetLocationByID(ctx, input.ID)
+			if err != nil {
+				return Location{}, err
+			}
+			region = current.CountryCode
+		}
+		var err error
+		if input.Phone, err = phone.NormalizePtr(input.Phone, region); err != nil {
+			return Location{}, err
 		}
 	}
 	return s.repo.UpdateLocation(ctx, input)

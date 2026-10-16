@@ -24,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/delivery"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
@@ -136,6 +137,7 @@ type Svcs struct {
 	Review       *review.Service
 	Form         *signupform.Service
 	WebForm      *webform.Service
+	Delivery     *delivery.Service
 	Menu         *menu.Service
 	Chat         *ai.History
 	Action       *adminaction.Service

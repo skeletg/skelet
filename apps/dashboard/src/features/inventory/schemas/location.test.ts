@@ -30,6 +30,14 @@ const stored = {
 }
 
 describe('location schema', () => {
+  it("reads the phone in the location's own country", () => {
+    const berlin = { ...toLocationValues(stored), phone: '030 1234567' }
+    expect(locationSchema.safeParse(berlin).success).toBe(true)
+    const issues = locationSchema.safeParse({ ...berlin, countryCode: 'US' }).error?.issues
+    expect(issues?.map((i) => i.path.join('.'))).toEqual(['phone'])
+    expect(issues?.[0].message).toMatch(/for US/)
+  })
+
   it('accepts a stored record unchanged', () => {
     expect(locationSchema.safeParse(toLocationValues(stored)).success).toBe(true)
   })

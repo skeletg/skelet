@@ -39,7 +39,7 @@ Core sends `POST` to your URL with:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `RemoteProvider/1.0` |
 | `X-Provider-Kind` | the kind, e.g. `tax_provider` |
-| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.2.2` |
+| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.1.0` |
 | `X-Provider-Slug` | the slug the merchant registered |
 | `X-Provider-Timestamp` | unix seconds |
 | `X-Provider-Signature-256` | `sha256=<hex>` |
@@ -50,7 +50,7 @@ The body is:
 {
   "kind": "tax_provider",
   "provider": "acme-tax",
-  "contractVersion": "0.2.1",
+  "contractVersion": "0.1.0",
   "timestamp": "2026-08-22T10:31:00Z",
   "config": { "apiKey": "..." },
   "payload": { }
@@ -204,6 +204,7 @@ structs by `./skelet gen`, so they cannot drift from what core actually sends.
 | Kind | What you decide |
 |---|---|
 | `shipping_carrier` | Rate a basket to a destination; the options the shopper picks from |
+| `delivery_points` | Search and resolve PO boxes and lockers for a PO box delivery option; see [checkout.md](checkout.md) |
 | `shipping_tracking` | Carrier tracking status for a shipment |
 | `tax_provider` | Tax owed on an order |
 | `address_validator` | Whether an address is valid, plus a normalized form |

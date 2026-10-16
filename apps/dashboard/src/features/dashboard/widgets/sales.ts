@@ -12,7 +12,7 @@ export const TOP_PRODUCTS_LIMIT = 5
 
 // Returns the same string all day, so the variables stay value-equal across renders and Apollo has
 // no reason to refetch - a tab left open past midnight picks up the new window on its next fetch
-function windowStart(): string {
+export function windowStart(): string {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   d.setDate(d.getDate() - (SALES_DAYS - 1))

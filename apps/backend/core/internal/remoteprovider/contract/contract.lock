@@ -1,5 +1,5 @@
 {
-  "version": "0.2.2",
+  "version": "0.1.0",
   "files": {
     "address_validator.request.json": "b21e68e3653f3a33ea20dbfe9b6091964e4d3acf8bdfdeb297228a4daa85b246",
     "address_validator.schema.json": "563eff8a83c7d18af0b7e6153c1cf04415ec1defdaef6577b1d2168483c41496",
@@ -7,6 +7,8 @@
     "currency_rate.schema.json": "04d7d660c3af5dd5b7dc910b78048b7c9ba5c18ffaa3c2197d3897f5a3456d3a",
     "customer_segments.request.json": "b2176a66dc4f5ab3eb4281fd3e99e83243d7ba131787568d8b2913373f398921",
     "customer_segments.schema.json": "e17b15f985a1819cd1004c416d2ada77673668b98aac0afc270d05c9c2424d15",
+    "delivery_points.request.json": "d53cf8fd512f9391c8e2f0567bb1e9fd01297194aab1f2f60a663a116ad496d8",
+    "delivery_points.schema.json": "bdccfae5ec3da2fbc7d21bc3f3430a8df941d631ab6cc95a7a8bbc24c7867fa5",
     "fraud_risk.request.json": "ab6d0d64e6f8789b57ee15876ce6ddfbe4f96e59c5a94f603f093bd6ff3cc72e",
     "fraud_risk.schema.json": "9de2bf0a1783b2a16b1f5b001f5a3116b7a088203d12e9160ce0b82687f08ef8",
     "inventory_availability.request.json": "29a5626cb1649a2943f4a9349f9f76f7e9374798212f96fc7903094317f44436",
@@ -28,7 +30,7 @@
     "search.request.json": "7f353623643c1f5e88cc13cff00f597fa7bcf4768d9f63b764e9a9d3a514da08",
     "search.schema.json": "92448810aeb0e2e7e884bc04b2d557b9876932c9c4cd8b4d6ec8ecc26c121998",
     "shipping_carrier.request.json": "059c99c70272423e52a83436f26b1fe147b2ef31d3edda7c3ca4cdfd9a09fdde",
-    "shipping_carrier.schema.json": "f9837f30b195ca8cb318434ab25c0f6dfb93337203a3cf9c28dd66d3387c05e7",
+    "shipping_carrier.schema.json": "e1b2db2276137ebb0703faa09e3824de23597558bbf23833cc980d18d3f75b21",
     "shipping_tracking.request.json": "ebbe4608d40aed7a0b9b34632534b6ca2d8f43b957d8938b28dc746b1f92ff40",
     "shipping_tracking.schema.json": "c402d10989804bf3f1b2f80b8623d5e72f521dbbcc87a413be201824b758836f",
     "tax_provider.request.json": "6603e6e1e9cb4aad750f8a8654a0997396d1de2d9f0e673e57d5d77dc5169928",

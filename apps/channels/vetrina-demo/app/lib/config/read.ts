@@ -6,6 +6,11 @@ import {
   StoreFeaturesDocument,
   type StoreFeaturesQuery,
 } from "@/app/lib/config/operations.gql";
+import {
+  DEFAULT_CHECKOUT_SETTINGS,
+  parseCheckoutSettings,
+  type CheckoutSettings,
+} from "@/app/lib/checkout/settings";
 import { gqlFetch } from "@/app/lib/graphql";
 import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
 
@@ -46,6 +51,16 @@ export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
     return row?.value !== "false";
   } catch {
     return true;
+  }
+});
+
+// The sales/checkout switches - live like the guest flag, since the backend enforces the same values at the next step
+export const getCheckoutSettings = cache(async (): Promise<CheckoutSettings> => {
+  try {
+    const data = await getLivePublicConfig();
+    return parseCheckoutSettings(data.publicConfig);
+  } catch {
+    return DEFAULT_CHECKOUT_SETTINGS;
   }
 });
 

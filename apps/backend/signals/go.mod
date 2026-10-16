@@ -67,6 +67,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.8.2 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/nyaruka/phonenumbers v1.8.1 // indirect
 	github.com/oschwald/maxminddb-golang/v2 v2.5.0 // indirect
 	github.com/osteele/tuesday v1.1.1 // indirect
 	github.com/paulmach/orb v0.13.0 // indirect

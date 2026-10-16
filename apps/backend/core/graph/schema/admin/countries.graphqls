@@ -17,10 +17,31 @@ type Country {
   isActive:              Boolean!
   sortOrder:             Int!
   metadata:              [MetadataItem!]!
+  # The company identifiers a business purchase from this country asks for at checkout - Serbia's PIB and Matični broj, a VAT number elsewhere. Empty falls back to one generic tax ID, per sales/checkout/tax_id_field.
+  businessIdFields:      [BusinessIdField!]!
   # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
   regions:               [Region!]!
   createdAt:             Time!
   updatedAt:             Time!
+}
+
+type BusinessIdField {
+  # Stable slug the values are stored under - derived from the label when left empty.
+  key:      String!
+  label:    String!
+  required: Boolean!
+  # An RE2 regular expression the whole value must match. Empty accepts any value.
+  pattern:  String!
+  # Shown under the field at checkout, such as "9 digits".
+  hint:     String!
+}
+
+input BusinessIdFieldInput {
+  key:      String
+  label:    String!
+  required: Boolean!
+  pattern:  String
+  hint:     String
 }
 
 # An ISO 3166-2 subdivision. `code` is the subdivision part only
@@ -42,6 +63,7 @@ input CreateCountryInput {
   isActive:              Boolean
   sortOrder:             Int
   metadata:              [MetadataInput!]
+  businessIdFields:      [BusinessIdFieldInput!]
 }
 
 # Code is the PK and never updates - to "rename" a country you delete
@@ -56,6 +78,8 @@ input UpdateCountryInput {
   isActive:              Boolean
   sortOrder:             Int
   metadata:              [MetadataInput!]
+  # Replaces the whole list when given.
+  businessIdFields:      [BusinessIdFieldInput!]
 }
 
 extend type Query {

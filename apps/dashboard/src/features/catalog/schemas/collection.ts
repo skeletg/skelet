@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { contentSlug } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { changed, fieldDiff } from '@/shared/saving/diff'
+import { changed, clip, fieldDiff } from '@/shared/saving/diff'
 import { cleanMetadata, metadataDiff, metadataIssues, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
@@ -113,8 +113,6 @@ export function collectionChanges(before: CollectionValues, after: CollectionVal
       : null,
   }
 }
-
-const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
 
 export function collectionDiff(original: CollectionValues, draft: CollectionValues): SectionDiffEntry[] {
   // Rich text shows its plain text; a formatting-only edit (same text, different JSON) still counts

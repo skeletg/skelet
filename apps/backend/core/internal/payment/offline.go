@@ -37,7 +37,7 @@ var offlineMethods = []offlineMethod{
 		// Core owns the METHOD - it behaves exactly like bank transfer, placing unpaid against an invoice reconciled by hand, and orders.po_number is a core column any store can use
 		slug:         "purchase-order",
 		displayName:  "Purchase Order",
-		instructions: "Enter your PO number in the order notes. We'll invoice you on your agreed terms.",
+		instructions: "We'll invoice you on your agreed terms, quoting the PO number you gave with your business details.",
 	},
 }
 

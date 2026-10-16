@@ -61,27 +61,11 @@ import {
   type FacetOverrideValue,
 } from './facet-overrides-draft'
 import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
+import { readImageDimensions } from '@/lib/image'
 
 type CollectionRecord = NonNullable<CollectionQuery['collection']>
 
 type CollectionRefetch = Array<{ query: typeof CollectionDocument; variables: { id: string } }>
-
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    const url = URL.createObjectURL(file)
-
-    image.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Could not read image dimensions.'))
-    }
-    image.src = url
-  })
-}
 
 function resolveCollectionName(collection: CollectionRecord) {
   // Prefer the server-resolved locale (collection.name, populated from collection.contentLocale's row) so Global view

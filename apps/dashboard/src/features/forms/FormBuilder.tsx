@@ -38,6 +38,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope } from '@/lib/config-scope'
 import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { formatDateTime } from '@/lib/format'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -496,7 +497,7 @@ function Builder({
                       {submissions.map((s, i) => (
                         <tr key={`${s.email}-${i}`} className="border-b last:border-0">
                           <td className="px-3 py-2">{s.email}</td>
-                          <td className="px-3 py-2 text-right text-muted-foreground">{fmtDate(s.createdAt)}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{formatDateTime(s.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -524,10 +525,4 @@ function Builder({
       </AlertDialog>
     </DetailPageLayout>
   )
-}
-
-function fmtDate(iso?: string | null): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }

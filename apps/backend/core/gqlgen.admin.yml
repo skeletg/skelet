@@ -77,6 +77,8 @@ models:
   # detail page pays the lookup, never the orders list
   Order:
     fields:
+      shipments:
+        resolver: true
       fulfillments:
         resolver: true
       paymentTransactions:

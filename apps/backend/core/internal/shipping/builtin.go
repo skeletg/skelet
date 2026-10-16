@@ -14,12 +14,17 @@ func NewBuiltinCarrier(svc *Service) *BuiltinCarrier {
 	return &BuiltinCarrier{svc: svc}
 }
 
-// Maps the carrier RateRequest onto the engine's QuoteInput and back - method codes carry through, so placement can re-resolve code to method by destination through Service.ComputeForOrder
+// Maps the carrier RateRequest onto the engine's QuoteInput and back - method codes carry through, so placement can re-resolve code to method by destination through Service.ComputeForOrder. Items carry their product types, so per-type rates price the same here as at placement
 func (c *BuiltinCarrier) Quote(ctx context.Context, req RateRequest) ([]RatedMethod, error) {
+	req, err := c.svc.withDimensions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
 	quotes, err := c.svc.Quote(ctx, QuoteInput{
 		ChannelID:     req.ChannelID,
 		CountryCode:   req.Destination.CountryCode,
 		SubtotalCents: req.SubtotalCents,
+		Items:         pricedItems(req.Items),
 	})
 	if err != nil {
 		return nil, err
@@ -27,9 +32,12 @@ func (c *BuiltinCarrier) Quote(ctx context.Context, req RateRequest) ([]RatedMet
 	out := make([]RatedMethod, len(quotes))
 	for i, q := range quotes {
 		out[i] = RatedMethod{
-			Code:       q.Code,
-			Name:       q.Name,
-			PriceCents: q.PriceCents,
+			Code:               q.Code,
+			Name:               q.Name,
+			PriceCents:         q.PriceCents,
+			Kind:               q.DeliveryKind,
+			EstimatedDays:      int(q.EstimatedDays),
+			DeliversOnWeekends: q.DeliversOnWeekends,
 		}
 	}
 	return out, nil

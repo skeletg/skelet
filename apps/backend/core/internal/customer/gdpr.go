@@ -136,6 +136,10 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 			_, err := q.ScrubCustomerAuditDetail(ctx, db.ScrubCustomerAuditDetailParams{Email: addr, CustomerID: id, ChannelID: ch})
 			return err
 		}},
+		{"scrub order shipments", func() error {
+			_, err := q.ScrubCustomerOrderShipments(ctx, db.ScrubCustomerOrderShipmentsParams{CustomerID: nid, ChannelID: ch, Email: addr})
+			return err
+		}},
 		{"scrub orders", func() error { _, err := q.ScrubCustomerOrders(ctx, nid); return err }},
 		{"scrub guest orders", func() error {
 			_, err := q.ScrubGuestOrdersByEmail(ctx, db.ScrubGuestOrdersByEmailParams{CustomerID: id, ChannelID: ch, Email: addr})
@@ -145,6 +149,10 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 		{"delete wishlist shares", func() error { _, err := q.DeleteCustomerWishlistShares(ctx, id); return err }},
 		// carts.email makes an abandoned cart addressable by the recovery flow
 		{"scrub carts", func() error { _, err := q.ScrubCustomerCarts(ctx, nid); return err }},
+		{"scrub guest carts", func() error {
+			_, err := q.ScrubGuestCartsByEmail(ctx, db.ScrubGuestCartsByEmailParams{ChannelID: ch, Email: addr})
+			return err
+		}},
 		{"delete back-in-stock requests", func() error {
 			_, err := q.DeleteCustomerBackInStockRequests(ctx, db.DeleteCustomerBackInStockRequestsParams{ChannelID: ch, CustomerID: nid, Email: addr})
 			return err

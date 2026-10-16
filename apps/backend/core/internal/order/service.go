@@ -24,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -149,8 +150,10 @@ type CartRepricer interface {
 	RepriceCartLines(ctx context.Context, c cart.Cart) cart.Cart
 }
 
-// Enforces the channel's country and region options on addresses, nil skips
+// Enforces the channel's country and region options on addresses, and its phone rules on their phones - nil skips
+// both, leaving a phone read in its address's country alone
 type CountryValidator interface {
+	PhoneRulesForChannel(ctx context.Context, channelID uuid.UUID) phone.Rules
 	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
 }
 
@@ -309,20 +312,30 @@ type PlaceOrderInput struct {
 	BillingAddress    *OrderAddress
 	ShippingAddressID *uuid.UUID
 	ShippingAddress   *OrderAddress
-	CustomerNote      string
+	// The inline BillingAddress only names the payer - a pickup where no billing address was asked for - so it isn't held to a postal address's required fields or the strict validator
+	BillingNameOnly bool
+	CustomerNote    string
 	// The buyer's PO reference, meaningful with the on-account tender but stored regardless
 	PONumber string
+	// The company identifiers on a business purchase, with the labels the shopper saw - printed on the invoice
+	BusinessIDs []BusinessID
 	// The chosen carrier and method - both empty falls back to the cheapest quote, and the price is always re-derived server-side
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
-	// The chosen method - optional, where nil skips validation and records none, otherwise it's validated as enabled and allowed for the country, then persisted
+	// The chosen method - optional, where nil skips validation and records none, otherwise it's validated as enabled and allowed for PaymentCountry, then persisted
 	PaymentProviderSlug *string
-	PaymentToken        *string
+	// The country the payment method must be allowed in - empty means the shipping address's. The checkout steps check the destination's, which for a pickup isn't the store's own address
+	PaymentCountry string
+	PaymentToken   *string
 	// Redeemed as tenders against the total, with the remainder owed to the provider
 	GiftCardCodes []string
 	// A saved method's token, routed to the provider's vaulted-token key
 	VaultedPaymentToken string
 	UseStoreCredit      bool
+	// A split delivery - one entry per package, each re-priced at its own destination, replacing ShippingCarrierSlug and ShippingMethodCode. ShippingAddress is then the primary package's
+	Shipments []ShipmentInput
+	// none, physical or mixed - a none order takes no shipping address and pays no shipping, and tax follows the billing address
+	FulfillmentNeed string
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -370,7 +383,7 @@ type PaymentAuthorizer interface {
 // The whole create, add-lines, emit and convert-cart sequence is one transaction so a failure leaves no partial state - Plugins hook order.placing (sync, pre-commit, can abort or enrich) and order.placed (async, post-commit), both carrying a nil-able CustomerID
 func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, error) {
 	// resolveCheckout owns all the input validation and resolution
-	cc, err := s.resolveCheckout(ctx, in)
+	cc, err := s.resolveCheckout(ctx, in, false)
 	if err != nil {
 		return Order{}, err
 	}
@@ -490,7 +503,19 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 
 		// No plugin claimed the seam, so: free-shipping promo, else shipping-override promo, else the chosen method re-priced server-side, else cheapest - priced ahead of tax since shipping is taxed too
-		var shipSel shippingSelection
+		var (
+			shipSel         shippingSelection
+			shipmentAmounts []int64
+		)
+		if placing.ShippingCents == nil && (len(in.Shipments) > 0 || in.FulfillmentNeed == FulfillmentNone) {
+			sel, amounts, err := s.selectShipments(ctx, in, cc, placing.DiscountCents, ranEngine, evalResult)
+			if err != nil {
+				return err
+			}
+			cents := sel.Cents
+			placing.ShippingCents = &cents
+			shipSel, shipmentAmounts = sel, amounts
+		}
 		if placing.ShippingCents == nil && s.shipping != nil {
 			sel, err := s.resolveShippingCents(ctx, in, cc, placing.DiscountCents, ranEngine, evalResult)
 			if err != nil {
@@ -547,7 +572,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			PaymentStatus:       PaymentUnpaid,
 			PaymentProvider:     paymentProvider,
 			BillingAddress:      billing,
-			ShippingAddress:     shipping,
+			ShippingAddress:     storedShipping(cc),
 			SubtotalAmount:      subtotal,
 			DiscountAmount:      placing.DiscountCents,
 			TaxAmount:           taxCents,
@@ -557,6 +582,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			PONumber:            in.PONumber,
+			BusinessIDs:         in.BusinessIDs,
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
@@ -567,6 +593,14 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 		if err := s.persistOrderLines(ctx, orderR, order.ID, cartObj.ChannelID, cartObj.Lines); err != nil {
 			return err
+		}
+		if err := s.persistShipments(ctx, orderR, order.ID, in.Shipments, shipmentAmounts); err != nil {
+			return err
+		}
+		if in.FulfillmentNeed != "" {
+			if err := orderR.SetFulfillmentNeed(ctx, order.ID, in.FulfillmentNeed); err != nil {
+				return err
+			}
 		}
 		// Gift-card tenders redeem codes against the full total, since tax was on it, and the provider takes the remainder - in this tx so a failure rolls the debits back
 		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, store.ID, in, total, store.CurrencyCode)
@@ -731,7 +765,7 @@ func (s *Service) GetGuestOrder(ctx context.Context, orderID uuid.UUID, email st
 	return s.repo.GetGuestOrder(ctx, orderID, email)
 }
 
-// Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.registered so history shows up post-signup
+// Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.email_verified so history shows up once the address is proven
 func (s *Service) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error) {
 	if email == "" {
 		return 0, nil
@@ -931,13 +965,25 @@ func findAddress(c customer.Customer, id uuid.UUID) (customer.Address, error) {
 	return customer.Address{}, ErrAddressNotFound
 }
 
+// storedShipping is the address the order keeps - none for a digital-only order, whose shipping only mirrored billing for pricing
+func storedShipping(cc *checkoutContext) OrderAddress {
+	if cc.noShipping {
+		return OrderAddress{}
+	}
+	return cc.shipping
+}
+
 // Picks an OrderAddress for one slot from an inline payload (guests, one-off addresses) or an id in the customer's book (logged-in only) - inline wins when both are set, so a caller can override a stale book pick
-func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string) (OrderAddress, error) {
+// A quote prices a checkout still being filled in, so it accepts a destination-only address - country, region and postcode are all shipping and tax read
+func resolveAddress(rules phone.Rules, inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string, quote bool) (OrderAddress, error) {
 	if inline != nil {
+		if quote && inline.CountryCode != "" {
+			return *inline, nil
+		}
 		if inline.Street1 == "" || inline.City == "" || inline.PostalCode == "" || inline.CountryCode == "" {
 			return OrderAddress{}, fmt.Errorf("%w: %s address is missing required fields", ErrAddressInvalid, slot)
 		}
-		return *inline, nil
+		return normalizeOrderAddress(rules, *inline, slot)
 	}
 	if id != nil {
 		if !hasCustomer {
@@ -947,7 +993,7 @@ func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c cus
 		if err != nil {
 			return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
 		}
-		return toOrderAddress(addr), nil
+		return normalizeOrderAddress(rules, toOrderAddress(addr), slot)
 	}
 	return OrderAddress{}, fmt.Errorf("%w: %s address is required", ErrAddressInvalid, slot)
 }
@@ -960,17 +1006,19 @@ func customerGroupSlug(c customer.Customer) string {
 }
 
 // The lowest-priced option across an aggregated quote, plus whether any existed - ties keep the first
+// cheapestRatedQuote picks among methods that deliver to the shopper's address - the fallback has no point or pickup to send the order to, so a $0 store "collect" must never win it
 func cheapestRatedQuote(quotes []shippingpkg.RatedQuote) (shippingpkg.RatedQuote, bool) {
-	if len(quotes) == 0 {
-		return shippingpkg.RatedQuote{}, false
-	}
-	best := quotes[0]
-	for _, q := range quotes[1:] {
-		if q.Method.PriceCents < best.Method.PriceCents {
-			best = q
+	var best shippingpkg.RatedQuote
+	ok := false
+	for _, q := range quotes {
+		if q.Method.Kind != "" && q.Method.Kind != shippingpkg.DefaultKind {
+			continue
+		}
+		if !ok || q.Method.PriceCents < best.Method.PriceCents {
+			best, ok = q, true
 		}
 	}
-	return best, true
+	return best, ok
 }
 
 func toOrderAddress(a customer.Address) OrderAddress {
@@ -1031,4 +1079,20 @@ func errInvalidTransition(from, to string) error {
 func errStatusRaced(from, to string) error {
 	return apperr.New("ORDER_STATUS_RACED", apperr.ClassConflict,
 		fmt.Sprintf("the order left %q before it could move to %q - reload it and try again", from, to))
+}
+
+// Resolve once per operation, before taking any order lock.
+func (s *Service) phoneRules(ctx context.Context, channelID uuid.UUID) phone.Rules {
+	if s.countries != nil {
+		return s.countries.PhoneRulesForChannel(ctx, channelID)
+	}
+	return phone.Rules{}
+}
+
+func normalizeOrderAddress(rules phone.Rules, a OrderAddress, slot string) (OrderAddress, error) {
+	var err error
+	if a.Phone, err = rules.NormalizePtr(a.Phone, a.CountryCode); err != nil {
+		return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
+	}
+	return a, nil
 }

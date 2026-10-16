@@ -186,6 +186,8 @@ func TestParseAndValidateNormalizes(t *testing.T) {
 		"color lowercases":         {TypeColor, "#AABBCC", "#aabbcc"},
 		"color trims":              {TypeColor, "  #aabbcc  ", "#aabbcc"},
 		"empty color means unset":  {TypeColor, "   ", ""},
+		"phone becomes e164":       {TypePhone, "+381 64 123 4567", "+381641234567"},
+		"empty phone means unset":  {TypePhone, "  ", ""},
 		"string passes through":    {TypeString, "  spaced  ", "  spaced  "},
 		"secret passes through":    {TypeSecret, "sk_live_abc", "sk_live_abc"},
 		"multiselect is untouched": {TypeMultiselect, "a,b", "a,b"},
@@ -201,7 +203,7 @@ func TestParseAndValidateNormalizes(t *testing.T) {
 	}
 }
 
-// A bad color reaches the storefront's inline styles, so it's the one basic type that validates
+// A bad color reaches the storefront's inline styles and a bad phone its tel: links, so they're the basic types that validate
 func TestParseAndValidateRejectsBadValues(t *testing.T) {
 	for name, tc := range map[string]struct {
 		typ Type
@@ -217,6 +219,8 @@ func TestParseAndValidateRejectsBadValues(t *testing.T) {
 		"color too short":       {TypeColor, "#abc"},
 		"color with a bad char": {TypeColor, "#aabbcz"},
 		"color with a script":   {TypeColor, "#aa;url(x)"},
+		"phone without a +":     {TypePhone, "064 123 4567"},
+		"phone from words":      {TypePhone, "call us"},
 		"unknown type":          {Type("carrier-pigeon"), "x"},
 	} {
 		if got, err := parseAndValidate(tc.typ, tc.in); err == nil {

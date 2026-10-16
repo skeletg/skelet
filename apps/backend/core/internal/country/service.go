@@ -6,7 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 )
 
 // Consulted before writes that set default_currency_code - wired post-construction so country to currency can't become a circular import if currencies ever gain a country reference, mirroring the locale-channel pattern
@@ -62,6 +64,12 @@ func (s *Service) Create(ctx context.Context, input CreateCountryInput) (Country
 	if err := validateMetadata(input.Metadata); err != nil {
 		return Country{}, err
 	}
+	fields, err := NormalizeBusinessIDFields(input.BusinessIDFields)
+	if err != nil {
+		return Country{}, err
+	}
+	input.BusinessIDFields = fields
+	input.PhoneCode = callingCodeFor(input.Code, input.PhoneCode)
 	input.DefaultCurrencyCode = strings.ToUpper(strings.TrimSpace(input.DefaultCurrencyCode))
 	if input.DefaultCurrencyCode != "" && s.currencies != nil {
 		if err := s.currencies.EnsureExists(ctx, input.DefaultCurrencyCode); err != nil {
@@ -95,6 +103,13 @@ func (s *Service) Update(ctx context.Context, input UpdateCountryInput) (Country
 			return Country{}, err
 		}
 	}
+	// A known country's calling code isn't editable - it's re-derived, so a stored typo heals on the next save
+	if cc := phone.CallingCode(input.Code); cc != "" {
+		if input.PhoneCode != nil {
+			return Country{}, apperr.New("COUNTRY_PHONE_CODE_READ_ONLY", apperr.ClassValidation, "calling code is derived from the country and cannot be edited")
+		}
+		input.PhoneCode = &cc
+	}
 	if input.DefaultCurrencyCode != nil {
 		v := strings.ToUpper(strings.TrimSpace(*input.DefaultCurrencyCode))
 		if v != "" && s.currencies != nil {
@@ -103,6 +118,13 @@ func (s *Service) Update(ctx context.Context, input UpdateCountryInput) (Country
 			}
 		}
 		input.DefaultCurrencyCode = &v
+	}
+	if input.BusinessIDFields != nil {
+		fields, err := NormalizeBusinessIDFields(*input.BusinessIDFields)
+		if err != nil {
+			return Country{}, err
+		}
+		input.BusinessIDFields = &fields
 	}
 	return s.repo.Update(ctx, input)
 }
@@ -292,4 +314,13 @@ func validateCode(code string) error {
 		}
 	}
 	return nil
+}
+
+// A country's calling code comes from libphonenumber, as every phone check does - the typed one only stands for a
+// code the metadata doesn't know
+func callingCodeFor(code, typed string) string {
+	if cc := phone.CallingCode(code); cc != "" {
+		return cc
+	}
+	return strings.TrimSpace(typed)
 }
