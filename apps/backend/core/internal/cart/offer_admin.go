@@ -162,7 +162,7 @@ func (s *Service) AdminAddCustomLine(ctx context.Context, cartID uuid.UUID, in C
 	case in.UnitPrice < 0:
 		return Cart{}, ErrOfferLinePriceInvalid
 	}
-	if err := validQuantity(in.Quantity); err != nil {
+	if err := validCustomQuantity(in.Quantity); err != nil {
 		return Cart{}, err
 	}
 	if _, err := s.repo.InsertCustomLine(ctx, cart.ID, in); err != nil {
