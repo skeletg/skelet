@@ -41,7 +41,7 @@ func TestCartOfferMoneyPath(t *testing.T) {
 	if err != nil || offer.Offer.LinkToken == oldToken {
 		t.Fatalf("replace offer link: %v", err)
 	}
-	if _, err := h.D.Cart.OpenOffer(h.Ctx, oldToken, nil); !errors.Is(err, cart.ErrOfferLinkInvalid) {
+	if _, err := h.D.Cart.OpenOffer(h.Ctx, oldToken, f.Channel.ID, nil); !errors.Is(err, cart.ErrOfferLinkInvalid) {
 		t.Fatalf("old opaque link still opens: %v", err)
 	}
 	c, err := h.D.Cart.AdminAddToCart(h.Ctx, offer.ID, f.Product.SKU, 2)

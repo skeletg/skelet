@@ -27,7 +27,7 @@ type OfferOpening struct {
 }
 
 // OpenOffer follows an offer link. A link to an offer that has finished still answers, with its state, so the storefront can say so - only a link that was never valid, or was replaced, is refused. The first open by the right person is stamped for the console
-func (s *Service) OpenOffer(ctx context.Context, token string, callerID *uuid.UUID) (OfferOpening, error) {
+func (s *Service) OpenOffer(ctx context.Context, token string, channelID uuid.UUID, callerID *uuid.UUID) (OfferOpening, error) {
 	if s.links == nil {
 		return OfferOpening{}, ErrOfferLinkInvalid
 	}
@@ -42,7 +42,7 @@ func (s *Service) OpenOffer(ctx context.Context, token string, callerID *uuid.UU
 		}
 		return OfferOpening{}, fmt.Errorf("load offer: %w", err)
 	}
-	if !cart.IsOffer() || cart.Offer.LinkVersion != grant.LinkVersion {
+	if !cart.IsOffer() || cart.ChannelID != channelID || cart.Offer.LinkVersion != grant.LinkVersion {
 		return OfferOpening{}, ErrOfferLinkInvalid
 	}
 	out := OfferOpening{CartID: cart.ID, ChannelID: cart.ChannelID, State: cart.OfferState(time.Now())}
