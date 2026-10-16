@@ -29,9 +29,10 @@ var acknowledgedFrontExposures = map[string]string{
 	"CustomerAuthPayload.refreshToken": "the session being issued to this caller",
 
 	// Notes the customer wrote, coming back to the customer who wrote them
-	"Cart.note":          "the shopper's own cart note",
-	"CartCheckout.email": "the receipt address the shopper typed into their own checkout - a guest cart is readable only by whoever holds its id, a customer cart only by its owner",
-	"Order.customerNote": "the note the buyer left on their own order",
+	"Cart.note":              "the shopper's own cart note",
+	"CartCheckout.email":     "the receipt address the shopper typed into their own checkout - a guest cart is readable only by whoever holds its id, a customer cart only by its owner",
+	"Order.customerNote":     "the note the buyer left on their own order",
+	"TrackOrderResult.email": "the stored spelling of the address the caller just typed - returned only after number, email and postcode all matched, and empty for account orders",
 
 	// Store credit - all three hang off the caller's own customer, order or redemption
 	"Customer.storeCreditBalance":            "the caller's own balance, and the resolver re-checks obj.ID against the session",

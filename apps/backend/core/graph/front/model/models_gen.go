@@ -658,6 +658,12 @@ type TierPrice struct {
 	Price  int32   `json:"price"`
 }
 
+type TrackOrderResult struct {
+	OrderID       string `json:"orderId"`
+	RequiresLogin bool   `json:"requiresLogin"`
+	Email         string `json:"email"`
+}
+
 type WebFormFieldError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`

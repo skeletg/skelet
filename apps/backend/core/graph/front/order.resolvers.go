@@ -2,7 +2,9 @@ package front
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -10,6 +12,7 @@ import (
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
@@ -401,6 +404,29 @@ func (r *queryResolver) GuestOrder(ctx context.Context, id string, email string)
 		return nil, nil
 	}
 	return toOrderModel(o), nil
+}
+
+func (r *queryResolver) TrackOrder(ctx context.Context, number string, email string, postalCode string) (*model1.TrackOrderResult, error) {
+	if err := r.checkAuthRate(ctx, "track_order"); err != nil {
+		return nil, err
+	}
+	// Order numbers count up, so an IP-rotating guesser holding one email and postcode would otherwise walk them all
+	if err := r.checkAuthRateKey(ctx, "track_order_email", customer.NormalizeEmail(email)); err != nil {
+		return nil, err
+	}
+	t, err := r.OrderSvc.TrackOrderLookup(ctx, number, email, postalCode)
+	if err != nil && !errors.Is(err, order.ErrOrderNotFound) {
+		slog.Error("track order lookup failed", "err", err)
+	}
+	sv, ok := channel.FromContext(ctx)
+	// Any failure reads as no match - a distinguishable error would tell a guesser which of the three fields was right
+	if err != nil || !ok || sv == nil || t.ChannelID != sv.ID {
+		return nil, nil
+	}
+	if t.HasAccount {
+		return &model1.TrackOrderResult{OrderID: t.ID.String(), RequiresLogin: true}, nil
+	}
+	return &model1.TrackOrderResult{OrderID: t.ID.String(), Email: t.Email}, nil
 }
 
 func (r *queryResolver) MyPaymentMethods(ctx context.Context) ([]*model1.SavedPaymentMethod, error) {
