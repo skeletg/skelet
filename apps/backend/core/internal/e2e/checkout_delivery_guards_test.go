@@ -221,9 +221,7 @@ func TestStorePickupIsReadyOnlyWithAPickupLocation(t *testing.T) {
 	if _, err := h.D.Inventory.UpdateLocation(h.Ctx, inventory.UpdateLocationInput{ID: f.Location.ID, IsActive: &active}); err != nil {
 		t.Fatalf("location: %v", err)
 	}
-	if _, err := h.D.Inventory.SetLocationPickup(h.Ctx, f.Location.ID, true, ""); err != nil {
-		t.Fatalf("pickup: %v", err)
-	}
+	h.EnablePickup(t, f.Location.ID, "")
 	if c := points(); !c.OK {
 		t.Fatalf("points check = %+v, want it passing once a location offers pickup", c)
 	}
