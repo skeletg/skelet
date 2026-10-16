@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/migfile"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/chtest"
 )
@@ -138,8 +138,8 @@ func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = admin.Exec(context.Background(), "DROP DATABASE IF EXISTS "+testDB) })
 
-	// the real schema, straight from the migration - the file keeps semicolons out of comments exactly so it splits like this
-	ddl, err := os.ReadFile("migrations/000001_spine.up.sql")
+	// the real schema, straight from the migration
+	spine, err := migfile.Read("migrations/20261016220000_spine.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,13 +150,8 @@ func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer raw.Close()
-	for stmt := range strings.SplitSeq(string(ddl), ";") {
-		if strings.TrimSpace(stripComments(stmt)) == "" {
-			continue
-		}
-		if err := raw.Exec(ctx, stmt); err != nil {
-			t.Fatalf("apply schema: %v", err)
-		}
+	if err := chtest.ApplyUp(ctx, raw, spine); err != nil {
+		t.Fatalf("apply schema: %v", err)
 	}
 
 	st, err := New(ctx, strings.Replace(dsn, "/"+opts.Auth.Database, "/"+testDB, 1))
@@ -216,15 +211,4 @@ func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
 	if left != 1 {
 		t.Fatalf("%d rows left, want just the fresh one", left)
 	}
-}
-
-func stripComments(stmt string) string {
-	var out []string
-	for line := range strings.SplitSeq(stmt, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "--") {
-			continue
-		}
-		out = append(out, line)
-	}
-	return strings.Join(out, "\n")
 }

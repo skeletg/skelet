@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"slices"
 	"testing"
 
@@ -180,54 +179,5 @@ func TestTheDefaultFlagMovesOnlyToAnActiveChannel(t *testing.T) {
 	}
 	if def, err := svc.GetDefault(ctx); err != nil || def.ID != a.ID {
 		t.Fatalf("default = %v, %v", def.Slug, err)
-	}
-}
-
-// Replays migration 21 over rows written with only public_url, and checks the SQL backfill agrees with storefrontHost
-func TestTheStorefrontHostBackfillMatchesGo(t *testing.T) {
-	conn := testdb.Require(t)
-	up, err := os.ReadFile("../db/migrations/000021_channel_storefront_host.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	down, err := os.ReadFile("../db/migrations/000021_channel_storefront_host.down.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx, err := conn.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.Exec(string(down)); err != nil {
-		t.Fatal(err)
-	}
-	urls := []string{
-		"http://localhost:3000", "HTTPS://Shop.Example.COM:443/x", "http://plain.test:80", "https://odd.test:80",
-		"http://odd2.test:443", "https://user:pw@creds.test/", "http://[::1]:8081/s", "bare.test/shop", "bare2.test:9000",
-		"https://Dupe.test/a", "https://dupe.test:443/b",
-	}
-	ids := make([]uuid.UUID, len(urls))
-	for i, u := range urls {
-		if err := tx.QueryRow(`INSERT INTO channels (slug, name, currency_code, public_url, created_at) VALUES ($1, 'bf', 'USD', $2, now() + make_interval(secs => $3)) RETURNING id`,
-			uniq("bf"), u, i).Scan(&ids[i]); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := tx.Exec(string(up)); err != nil {
-		t.Fatal(err)
-	}
-	for i, u := range urls {
-		var got string
-		if err := tx.QueryRow(`SELECT storefront_host FROM channels WHERE id = $1`, ids[i]).Scan(&got); err != nil {
-			t.Fatal(err)
-		}
-		want := channel.StorefrontHost(u)
-		if u == "https://dupe.test:443/b" {
-			want = "" // the younger of two colliding rows is blanked
-		}
-		if got != want {
-			t.Errorf("%s backfilled %q, want %q", u, got, want)
-		}
 	}
 }

@@ -60,7 +60,7 @@ script_for() {
 # Compound verbs and what they fan out to - drives the help, the usage list and the errors
 subs_for() {
     case "$1" in
-        db)      echo 'migrate [--signals] | export | import | shell' ;;
+        db)      echo 'migrate [--signals] up|rollback|status|new <name> | export | import | shell' ;;
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
         test)    echo '(all) | e2e | storefront [name] [playwright args] | [pkgs] [--keep] [--no-frontend]' ;;
