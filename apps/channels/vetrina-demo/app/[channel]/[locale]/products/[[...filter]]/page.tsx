@@ -5,15 +5,15 @@ import { notFound } from "next/navigation";
 import { ProductListShell } from "@/app/components/ProductListShell";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 
-import { browseProducts, productSortOptions } from "@/app/lib/catalog/read";
-import { getBrowsePageSize, getSeoConfig } from "@/app/lib/config/read";
+import { productSortOptions } from "@/app/lib/catalog/read";
+import { listingIndexability } from "@/app/lib/catalog/indexability";
+import { getSeoConfig } from "@/app/lib/config/read";
 import {
   isPagedUrlIndexable,
   parsePageFromSegments,
   withPageSegment,
   joinBasePathWithFilters,
   assembleH1,
-  evaluateFilterIndexability,
   isChainStart,
   isSortUrlIndexable,
   parseFilterSegments,
@@ -21,31 +21,6 @@ import {
 } from "@/app/lib/filter-path";
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
-
-async function indexabilityFor(
-  pathFilters: { slug: string; values: string[] }[],
-) {
-  const { data } = await browseProducts({
-    filter: {
-      attributes: pathFilters.length > 0 ? pathFilters : null,
-    },
-    limit: await getBrowsePageSize(),
-    offset: 0,
-  });
-  const seo = await getSeoConfig();
-  const idx = evaluateFilterIndexability(pathFilters, data.facets, {
-    combinations: seo.facetCombinations,
-  });
-  // Thin-page guard - only for FILTERED pages, a sparse base listing stays indexable
-  if (
-    pathFilters.length > 0 &&
-    seo.minFacetResults > 0 &&
-    data.totalCount < seo.minFacetResults
-  ) {
-    idx.indexable = false;
-  }
-  return idx;
-}
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/products/[[...filter]]">,
@@ -55,7 +30,7 @@ export async function generateMetadata(
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
   const [{ indexable: filtersIndexable }, sortOpts] = await Promise.all([
-    indexabilityFor(pathFilters),
+    listingIndexability({}, pathFilters),
     productSortOptions(),
   ]);
   const sortIndexable = isSortUrlIndexable(sortSlug, sortOpts);
@@ -89,7 +64,7 @@ export default async function ProductsPage(
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
   const [idx, sortOpts] = await Promise.all([
-    indexabilityFor(pathFilters),
+    listingIndexability({}, pathFilters),
     productSortOptions(),
   ]);
   const sortIndexable = isSortUrlIndexable(sortSlug, sortOpts);

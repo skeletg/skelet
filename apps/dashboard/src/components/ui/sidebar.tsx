@@ -135,7 +135,7 @@ function SidebarProvider({
           } as React.CSSProperties
         }
         className={cn(
-          "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+          "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar has-[>[data-slot=sidebar][data-side=right]]:flex-row-reverse",
           className
         )}
         {...props}
@@ -250,6 +250,8 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
     >
+      {/* inset's gutter is the rail's colour, so it's painted inside the rail's own palette scope */}
+      {variant === "inset" && <div aria-hidden className="fixed inset-0 bg-sidebar" />}
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
@@ -345,7 +347,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
     <main
       data-slot="sidebar-inset"
       className={cn(
-        "relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        "relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2 md:peer-data-[variant=inset]:peer-data-[side=right]:mr-0 md:peer-data-[variant=inset]:peer-data-[side=right]:ml-2 md:peer-data-[variant=inset]:peer-data-[side=right]:peer-data-[state=collapsed]:mr-2",
         className
       )}
       {...props}

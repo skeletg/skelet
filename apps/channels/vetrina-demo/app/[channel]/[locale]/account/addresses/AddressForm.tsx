@@ -8,8 +8,11 @@ import {
   FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
+import { CountrySelect, StateField } from "@/app/components/address/AddressInputs";
 import { addAddressAction, updateAddressAction } from "@/app/lib/auth/actions";
 import { addressSchema } from "@/app/lib/auth/schemas";
+import type { AddressFormOptions } from "@/app/lib/countries/read";
+import { phoneFieldFor } from "@/app/lib/forms/phone";
 import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export type AddressInitial = {
@@ -31,9 +34,11 @@ type Props = {
   id?: string;
   initial?: AddressInitial;
   submitLabel: string;
+  // The store's countries, their regions and the country a new address starts on
+  options: AddressFormOptions;
 };
 
-export function AddressForm({ id, initial, submitLabel }: Props) {
+export function AddressForm({ id, initial, submitLabel, options }: Props) {
   const action = id ? updateAddressAction : addAddressAction;
   const t = useTranslations("account.addressForm");
   const tf = useTranslations("forms.fields");
@@ -52,11 +57,13 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
         city: v.city,
         state: v.state ?? undefined,
         postalCode: v.postalCode,
-        countryCode: v.countryCode,
+        countryCode: v.countryCode ?? (options.defaultCountry || undefined),
         phone: v.phone ?? undefined,
       },
     },
   );
+
+  const country = typeof fields.countryCode.value === "string" ? fields.countryCode.value : "";
 
   return (
     <form
@@ -106,30 +113,22 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
           autoComplete="address-level2"
         />
         <Field
-          field={fields.state}
-          label={t("state")}
-          autoComplete="address-level1"
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field
           field={fields.postalCode}
           label={t("postalCode")}
           required
           autoComplete="postal-code"
         />
-        <Field
-          field={fields.countryCode}
-          label={t("countryCode")}
-          required
-          autoComplete="country"
-          maxLength={2}
-        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <CountrySelect field={fields.countryCode} countries={options.countries} />
+        {/* Keyed by country so switching it clears a region that belonged to the old one */}
+        <StateField key={country} field={fields.state} country={country} regions={options.regionsByCountry[country]} />
       </div>
       <Field
         field={fields.phone}
         label={t("phone")}
         type="tel"
+        phone={phoneFieldFor(options.phone, country)}
         autoComplete="tel"
       />
 

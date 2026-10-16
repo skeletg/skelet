@@ -10,24 +10,21 @@ import {
 } from 'react'
 import {
   CircleIcon,
-  DropletIcon,
-  FlameIcon,
-  FlowerIcon,
-  LeafIcon,
+  ContrastIcon,
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
   SkullIcon,
-  SparklesIcon,
+  SlidersHorizontalIcon,
   SunIcon,
-  WavesIcon,
   type LucideIcon,
 } from 'lucide-react'
+import { DEFAULT_TUNE, TUNED_VARS, TUNE_KEYS, readTune, tunedRailScope, tunedVars, type Tune } from '@/lib/palette-recipe'
 
 // Appearance is two independent choices: the MODE decides light or dark, the PALETTE decides the
 // hue family. Every palette is authored for both modes in index.css, so any pairing is valid
 export type ThemeMode = 'system' | 'light' | 'dark'
-export type PaletteId = '' | 'rose' | 'amber' | 'mint' | 'sky' | 'ocean' | 'forest' | 'violet' | 'crimson' | 'skelet' | 'custom'
+export type PaletteId = '' | 'skelet' | 'contrast' | 'tuned' | 'custom'
 
 // The whole rounding scale is calc()'d off --radius in index.css, so one override reshapes every
 // rounded-* utility at once
@@ -37,10 +34,25 @@ export type RadiusId = 'square' | 'subtle' | 'default' | 'round'
 // px, so someone who has already raised their browser's base size keeps that and this stays relative to it
 export type ScaleId = 'small' | 'default' | 'large' | 'larger'
 
+// The face the whole UI is set in - Geist is the only bundled font, the rest are each OS's own, so
+// none costs a download. 'editorial' keeps Geist for body text and sets headings in a serif
+export type TypefaceId = 'geist' | 'system' | 'editorial' | 'serif' | 'mono'
+
+// How tightly everything is packed - Tailwind's whole spacing scale derives from --spacing, so one
+// override moves every padding, gap and control height while the text size stays put
+export type DensityId = 'compact' | 'default' | 'comfortable'
+
+// How the shell is framed: docked is the flush rail, floating lifts the rail into its own card, inset
+// sets the content as a sheet on the rail's colour
+export type FrameId = 'docked' | 'floating' | 'inset'
+export type SidebarSide = 'left' | 'right'
+
 export type ModeDef = { id: ThemeMode; label: string; icon: LucideIcon }
 export type PaletteDef = { id: PaletteId; label: string; icon: LucideIcon }
 export type RadiusDef = { id: RadiusId; label: string; value: string }
 export type ScaleDef = { id: ScaleId; label: string; value: string }
+export type TypefaceDef = { id: TypefaceId; label: string; sample: string }
+export type DensityDef = { id: DensityId; label: string; value: string }
 
 // The ids are stored in preferences, so they outlive their labels - 'default' is the 0.625rem
 // step labelled Medium, while Subtle is what a new account gets
@@ -60,6 +72,30 @@ export const SCALES: ScaleDef[] = [
   { id: 'larger', label: 'Larger', value: '112.5%' },
 ]
 
+// sample is the stack the picker previews each choice in - the same one index.css applies
+// eslint-disable-next-line react-refresh/only-export-components
+export const TYPEFACES: TypefaceDef[] = [
+  { id: 'geist', label: 'Geist', sample: "'Geist Variable', sans-serif" },
+  { id: 'system', label: 'System', sample: 'system-ui, sans-serif' },
+  { id: 'editorial', label: 'Editorial', sample: "ui-serif, Charter, 'Iowan Old Style', Georgia, serif" },
+  { id: 'serif', label: 'Serif', sample: "ui-serif, Charter, 'Iowan Old Style', Georgia, serif" },
+  { id: 'mono', label: 'Mono', sample: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace" },
+]
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const DENSITIES: DensityDef[] = [
+  { id: 'compact', label: 'Compact', value: '0.215rem' },
+  { id: 'default', label: 'Default', value: '0.25rem' },
+  { id: 'comfortable', label: 'Comfortable', value: '0.285rem' },
+]
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const FRAMES: { id: FrameId; label: string }[] = [
+  { id: 'docked', label: 'Docked' },
+  { id: 'floating', label: 'Floating' },
+  { id: 'inset', label: 'Inset' },
+]
+
 // eslint-disable-next-line react-refresh/only-export-components
 export const MODES: ModeDef[] = [
   { id: 'system', label: 'System', icon: MonitorIcon },
@@ -70,16 +106,11 @@ export const MODES: ModeDef[] = [
 // Add an entry here plus both CSS blocks in index.css and the pickers take it from there
 // eslint-disable-next-line react-refresh/only-export-components
 export const PALETTES: PaletteDef[] = [
-  { id: '', label: 'Neutral', icon: CircleIcon },
-  { id: 'rose', label: 'Rose', icon: FlowerIcon },
-  { id: 'amber', label: 'Amber', icon: FlameIcon },
-  { id: 'mint', label: 'Mint', icon: LeafIcon },
-  { id: 'sky', label: 'Sky', icon: WavesIcon },
-  { id: 'ocean', label: 'Ocean', icon: WavesIcon },
-  { id: 'forest', label: 'Forest', icon: LeafIcon },
-  { id: 'violet', label: 'Violet', icon: SparklesIcon },
-  { id: 'crimson', label: 'Crimson', icon: DropletIcon },
   { id: 'skelet', label: 'Skelet', icon: SkullIcon },
+  { id: '', label: 'Neutral', icon: CircleIcon },
+  { id: 'contrast', label: 'High contrast', icon: ContrastIcon },
+  // computed from the dials in lib/palette-recipe, painted as inline variables like custom
+  { id: 'tuned', label: 'Tuned', icon: SlidersHorizontalIcon },
   // inline custom properties rather than a CSS block, so it carries its own light/dark base
   { id: 'custom', label: 'Custom', icon: PaletteIcon },
 ]
@@ -169,11 +200,15 @@ function readCustomTheme(): CustomTheme {
   }
 }
 
-export type Appearance = {
+export type Appearance = Tune & {
   mode: ThemeMode
   palette: PaletteId
   radius: RadiusId
   scale: ScaleId
+  typeface: TypefaceId
+  density: DensityId
+  frame: FrameId
+  sidebarSide: SidebarSide
   // An explicit choice rather than only the OS query - people run a machine with animations on and
   // still want this one app to sit still
   reduceMotion: boolean
@@ -194,13 +229,132 @@ export const DEFAULT_APPEARANCE: Appearance = {
   palette: 'skelet',
   radius: 'subtle',
   scale: 'default',
+  typeface: 'geist',
+  density: 'default',
+  frame: 'docked',
+  sidebarSide: 'left',
   reduceMotion: false,
   sidebarPalette: 'skelet',
   sidebarMode: 'dark',
+  ...DEFAULT_TUNE,
+}
+
+// A whole look in one click - colour, rail, corners, type and density together. Nothing is stored
+// about the theme itself: picking one writes every axis, and the tile shows as active only while
+// all of them still match, so tuning one afterwards just leaves it unselected
+export type ThemePreset = {
+  id: string
+  label: string
+  description: string
+  look: Pick<Appearance, 'mode' | 'palette' | 'radius' | 'typeface' | 'density' | 'sidebarPalette' | 'sidebarMode'> &
+    Partial<Pick<Appearance, 'frame' | 'sidebarSide'>> &
+    Partial<Tune>
+}
+
+// A preset that names no layout means the docked left rail, so switching to it undoes a layout one
+// eslint-disable-next-line react-refresh/only-export-components
+export function presetLook(preset: ThemePreset): ThemePreset['look'] & Pick<Appearance, 'frame' | 'sidebarSide'> {
+  const dials = preset.look.palette === 'tuned' ? DEFAULT_TUNE : {}
+  return { frame: 'docked', sidebarSide: 'left', ...dials, ...preset.look }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'skelet',
+    label: 'Skelet',
+    description: 'The shipped look - white content against the dark rail',
+    look: { mode: 'light', palette: 'skelet', radius: 'subtle', typeface: 'geist', density: 'default', sidebarPalette: 'skelet', sidebarMode: 'dark' },
+  },
+  {
+    id: 'operator',
+    label: 'Operator',
+    description: 'All grey, square and dense, for long days in big tables',
+    look: { mode: 'light', palette: '', radius: 'square', typeface: 'system', density: 'compact', sidebarPalette: null, sidebarMode: 'light' },
+  },
+  {
+    id: 'contrast',
+    label: 'High contrast',
+    description: 'Black and white with strong borders, easiest to read',
+    look: { mode: 'light', palette: 'contrast', radius: 'subtle', typeface: 'system', density: 'default', sidebarPalette: 'contrast', sidebarMode: 'dark' },
+  },
+  {
+    id: 'terminal',
+    label: 'Terminal',
+    description: 'Green on black in monospace, square and tightly packed',
+    look: { mode: 'dark', palette: 'tuned', radius: 'square', typeface: 'mono', density: 'compact', sidebarPalette: null, sidebarMode: 'dark', accentHue: 150, vividness: 'vivid', surfaceTone: 'accent', surfaceTint: 'subtle', darkBase: 'black', railTone: 'dark' },
+  },
+  {
+    id: 'editorial',
+    label: 'Editorial',
+    description: 'Cream paper, a gold accent, serif headings and room to breathe',
+    look: { mode: 'light', palette: 'tuned', radius: 'default', typeface: 'editorial', density: 'comfortable', sidebarPalette: null, sidebarMode: 'dark', accentHue: 85, vividness: 'balanced', surfaceTone: 'warm', surfaceTint: 'strong', railTone: 'tinted' },
+  },
+  {
+    id: 'midnight',
+    label: 'Midnight',
+    description: 'Cool navy end to end with a cyan accent',
+    look: { mode: 'dark', palette: 'tuned', radius: 'default', typeface: 'geist', density: 'default', sidebarPalette: null, sidebarMode: 'dark', accentHue: 210, vividness: 'balanced', surfaceTone: 'cool', surfaceTint: 'strong', darkBase: 'dim', railTone: 'dark' },
+  },
+  {
+    id: 'espresso',
+    label: 'Espresso',
+    description: 'Lifted warm browns, a muted caramel accent, serif headings',
+    look: { mode: 'dark', palette: 'tuned', radius: 'default', typeface: 'editorial', density: 'comfortable', sidebarPalette: null, sidebarMode: 'dark', accentHue: 55, vividness: 'muted', surfaceTone: 'warm', surfaceTint: 'strong', darkBase: 'lifted', railTone: 'dark' },
+  },
+  {
+    id: 'sunset',
+    label: 'Sunset',
+    description: 'Vivid orange on warm white against a deep orange rail, round',
+    look: { mode: 'light', palette: 'tuned', radius: 'round', typeface: 'system', density: 'comfortable', sidebarPalette: null, sidebarMode: 'dark', accentHue: 45, vividness: 'vivid', surfaceTone: 'warm', surfaceTint: 'subtle', railTone: 'accent' },
+  },
+  {
+    id: 'gallery',
+    label: 'Gallery',
+    description: 'Ink on white, content framed as a rounded sheet on a dark rail',
+    look: { mode: 'light', palette: 'tuned', radius: 'round', typeface: 'system', density: 'comfortable', sidebarPalette: null, sidebarMode: 'dark', vividness: 'mono', surfaceTone: 'neutral', railTone: 'dark', frame: 'inset' },
+  },
+  {
+    id: 'cockpit',
+    label: 'Cockpit',
+    description: 'Electric indigo on black, mono and dense, navigation floating on the right',
+    look: { mode: 'dark', palette: 'tuned', radius: 'subtle', typeface: 'mono', density: 'compact', sidebarPalette: null, sidebarMode: 'dark', accentHue: 275, vividness: 'vivid', surfaceTone: 'accent', surfaceTint: 'strong', darkBase: 'black', railTone: 'accent', frame: 'floating', sidebarSide: 'right' },
+  },
+  {
+    id: 'atelier',
+    label: 'Atelier',
+    description: 'Blush pink, a floating tinted rail, serif headings, soft corners',
+    look: { mode: 'light', palette: 'tuned', radius: 'round', typeface: 'editorial', density: 'comfortable', sidebarPalette: null, sidebarMode: 'dark', accentHue: 350, vividness: 'balanced', surfaceTone: 'accent', surfaceTint: 'subtle', railTone: 'tinted', frame: 'floating' },
+  },
+  {
+    id: 'southpaw',
+    label: 'Southpaw',
+    description: 'Green on plain white, with the navigation on the right',
+    look: { mode: 'light', palette: 'tuned', radius: 'default', typeface: 'geist', density: 'default', sidebarPalette: null, sidebarMode: 'dark', accentHue: 155, vividness: 'balanced', surfaceTone: 'neutral', railTone: 'match', sidebarSide: 'right' },
+  },
+]
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function presetMatches(preset: ThemePreset, appearance: Appearance): boolean {
+  const l = presetLook(preset)
+  // the dials only mean anything to a tuned theme
+  if (l.palette === 'tuned' && TUNE_KEYS.some((k) => l[k] !== appearance[k])) return false
+  return (
+    l.frame === appearance.frame &&
+    l.sidebarSide === appearance.sidebarSide &&
+    l.mode === appearance.mode &&
+    l.palette === appearance.palette &&
+    l.radius === appearance.radius &&
+    l.typeface === appearance.typeface &&
+    l.density === appearance.density &&
+    l.sidebarPalette === appearance.sidebarPalette &&
+    // a rail that follows the content has no mode of its own worth comparing
+    (l.sidebarPalette === null || l.sidebarMode === appearance.sidebarMode)
+  )
 }
 
 // A palette id implies its mode, so a single id decides both halves
-const DARK_PALETTES = ['ocean', 'forest', 'violet', 'crimson', 'skelet']
+const DARK_PALETTES = ['skelet']
 
 // A single id names one theme for the whole shell, so it converts with the rail following the
 // content - inheriting the split default would repaint half a screen someone never asked about
@@ -225,8 +379,13 @@ export type SidebarThemeAttrs = { attr?: string; dark: boolean; style?: Record<s
 export function sidebarThemeAttrs(
   appearance: Appearance,
   custom: CustomTheme,
+  pageDark = false,
 ): SidebarThemeAttrs | null {
   const palette = appearance.sidebarPalette
+  if (palette === null && appearance.palette === 'tuned') {
+    const scope = tunedRailScope(appearance, pageDark)
+    return scope ? { dark: true, style: scope } : null
+  }
   if (palette === null) return null // follows the content, nothing to scope
   const dark = appearance.sidebarMode === 'dark'
   if (palette !== 'custom') return { attr: palette || 'neutral', dark }
@@ -250,7 +409,7 @@ function applyTheme(appearance: Appearance, prefersDark: boolean, custom: Custom
   // custom carries its own base, so its switch decides the mode for that palette
   const isDark = isCustom ? custom.dark : appearance.mode === 'system' ? prefersDark : appearance.mode === 'dark'
   root.classList.toggle('dark', isDark)
-  if (appearance.palette && !isCustom) root.dataset.theme = appearance.palette
+  if (appearance.palette && !isCustom && appearance.palette !== 'tuned') root.dataset.theme = appearance.palette
   else delete root.dataset.theme
 
   const radius = RADII.find((r) => r.id === appearance.radius)
@@ -265,10 +424,21 @@ function applyTheme(appearance: Appearance, prefersDark: boolean, custom: Custom
   if (appearance.reduceMotion) root.dataset.motion = 'reduced'
   else delete root.dataset.motion
 
+  // Absent at the defaults, same as radius and scale, so the stylesheet stays the authority
+  if (appearance.typeface !== 'geist') root.dataset.font = appearance.typeface
+  else delete root.dataset.font
+  if (appearance.density !== 'default') root.dataset.density = appearance.density
+  else delete root.dataset.density
+
   // Always cleared first - a stale inline value would otherwise outlive a switch back to a built-in
   for (const token of THEME_TOKENS) {
     for (const v of token.vars) root.style.removeProperty(v)
     for (const v of token.sidebarVars) root.style.removeProperty(v)
+  }
+  for (const v of TUNED_VARS) root.style.removeProperty(v)
+  if (appearance.palette === 'tuned') {
+    for (const [v, value] of Object.entries(tunedVars(appearance, isDark))) root.style.setProperty(v, value)
+    return
   }
   if (!isCustom) return
   // Root carries the content's colours for BOTH sets. A rail with its own palette overrides them on its own element, and anything of the
@@ -290,6 +460,8 @@ function readStoredAppearance(): Appearance {
       const palette = PALETTES.some((p) => p.id === parsed.palette) ? parsed.palette : ''
       const radius = RADII.some((r) => r.id === parsed.radius) ? parsed.radius : DEFAULT_APPEARANCE.radius
       const scale = SCALES.some((sc) => sc.id === parsed.scale) ? parsed.scale : DEFAULT_APPEARANCE.scale
+      const typeface = TYPEFACES.some((t) => t.id === parsed.typeface) ? parsed.typeface : DEFAULT_APPEARANCE.typeface
+      const density = DENSITIES.some((d) => d.id === parsed.density) ? parsed.density : DEFAULT_APPEARANCE.density
       // A row with no sidebar keys at all named one theme for the whole shell, so the rail follows
       // the content rather than adopting the split default
       const stored = parsed as Partial<Appearance>
@@ -304,9 +476,14 @@ function readStoredAppearance(): Appearance {
         palette,
         radius,
         scale,
+        typeface,
+        density,
+        frame: FRAMES.some((f) => f.id === parsed.frame) ? parsed.frame : DEFAULT_APPEARANCE.frame,
+        sidebarSide: parsed.sidebarSide === 'right' ? 'right' : 'left',
         reduceMotion: !!parsed.reduceMotion,
         sidebarPalette,
         sidebarMode: stored.sidebarMode === 'light' ? 'light' : 'dark',
+        ...readTune(stored),
       }
     }
     const singleId = localStorage.getItem(SINGLE_ID_KEY)
@@ -322,6 +499,8 @@ type ThemeContextValue = {
   setAppearance: (next: Appearance) => void
   custom: CustomTheme
   setCustom: (next: CustomTheme) => void
+  // what the page actually renders as once System and Custom have had their say
+  resolvedDark: boolean
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -330,18 +509,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [appearance, setAppearanceState] = useState<Appearance>(() => readStoredAppearance())
   const [custom, setCustomState] = useState<CustomTheme>(() => readCustomTheme())
 
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+
   useLayoutEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    applyTheme(appearance, media.matches, custom)
-  }, [appearance, custom])
+    applyTheme(appearance, prefersDark, custom)
+  }, [appearance, prefersDark, custom])
 
   useEffect(() => {
-    if (appearance.mode !== 'system' || appearance.palette === 'custom') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme(appearance, media.matches, custom)
+    const onChange = () => setPrefersDark(media.matches)
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
-  }, [appearance, custom])
+  }, [])
+
+  const resolvedDark =
+    appearance.palette === 'custom' ? custom.dark : appearance.mode === 'system' ? prefersDark : appearance.mode === 'dark'
 
   const setAppearance = useCallback((next: Appearance) => {
     setAppearanceState(next)
@@ -354,8 +536,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ appearance, setAppearance, custom, setCustom }),
-    [appearance, setAppearance, custom, setCustom],
+    () => ({ appearance, setAppearance, custom, setCustom, resolvedDark }),
+    [appearance, setAppearance, custom, setCustom, resolvedDark],
   )
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

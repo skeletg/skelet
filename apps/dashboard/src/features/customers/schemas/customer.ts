@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { changed, fieldDiff } from '@/shared/saving/diff'
+import { changed, clip, fieldDiff } from '@/shared/saving/diff'
 import { addressIssues, addressSchema } from '@/shared/schemas/address'
-import { email } from '@/shared/schemas/fields'
+import { email, optionalPhone } from '@/shared/schemas/fields'
 import { cleanMetadata, metadataDiff, metadataIssues, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 
 // Customer page - THE field list (docs/conventions.md, "Record forms"): profile and account, the
@@ -14,7 +14,7 @@ export const customerSchema = z
     firstName: z.string().trim().min(1, 'First name is required').describe("Customer's first name"),
     lastName: z.string().trim().min(1, 'Last name is required').describe("Customer's last name"),
     email: email().describe("Customer's sign-in email address"),
-    phone: z.string().describe('Phone number - empty string for none'),
+    phone: optionalPhone(),
     isActive: z.boolean().describe('Whether the customer can sign in'),
     isEmailVerified: z.boolean().describe('Whether the email address is verified'),
     note: z.string().describe('Internal note, visible to admins only - empty string for none'),
@@ -117,8 +117,6 @@ export function customerChanges(before: CustomerValues, after: CustomerValues) {
   }
 }
 
-// Long values (notes, metadata blobs) stay readable in the confirm dialog
-const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
 const optIn = (on: boolean | undefined) => (on ? 'opted in' : 'opted out')
 
 export function customerDiff(names: { group: (id: string) => string; consent: (kind: string) => string }) {

@@ -76,6 +76,16 @@ SELECT COALESCE(jsonb_agg(jsonb_build_object(
 FROM   carts c
 WHERE  c.customer_id = $1;
 
+-- name: DSAROrderShipments :one
+-- The packages of the customer's orders, with the address each went to
+SELECT COALESCE(jsonb_agg(jsonb_build_object(
+         'orderId', s.order_id, 'deliveryKind', s.delivery_kind, 'deliveryOption', s.delivery_option_name,
+         'method', s.method_name, 'shipTo', s.ship_to, 'point', s.point, 'createdAt', s.created_at)
+         ORDER BY s.created_at, s.order_id, s.position), '[]')::jsonb AS doc
+FROM   order_shipments s
+JOIN   orders o ON o.id = s.order_id
+WHERE  o.customer_id = $1;
+
 -- name: DSARDownloadGrants :one
 -- The token and the file URL are bearer credentials, so the grant is described rather than handed over
 SELECT COALESCE(jsonb_agg(jsonb_build_object(

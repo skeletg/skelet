@@ -3,8 +3,7 @@
 INSERT INTO payment_methods (channel_id, provider_slug, display_name)
 VALUES ($1, $2, $3)
 ON CONFLICT (channel_id, provider_slug) DO UPDATE
-SET display_name = EXCLUDED.display_name,
-    updated_at   = NOW()
+SET updated_at = NOW()
 RETURNING *;
 
 -- name: GetPaymentMethod :one
@@ -60,3 +59,9 @@ ORDER BY country_code;
 
 -- name: ClearPaymentMethodCountries :exec
 DELETE FROM payment_method_countries WHERE payment_method_id = $1;
+
+-- name: UpdatePaymentMethodPresentation :one
+UPDATE payment_methods
+SET display_name = $3, sort_order = $4, updated_at = NOW()
+WHERE channel_id = $1 AND provider_slug = $2
+RETURNING *;

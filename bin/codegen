@@ -147,7 +147,7 @@ if [ "$backend_ready" = 1 ]; then
     # Keyed on the SOURCE being here, not on .skelet-apps - that file picks which app containers
     # compose starts, and an app run on the host still wants its bindings fresh
     if [ -f apps/dashboard/package.json ]; then
-        run_ts_codegen dashboard bin/dash run codegen
+        GRAPHQL_CODEGEN_URL="${GRAPHQL_CODEGEN_URL:-$admin_gql_probe}" run_ts_codegen dashboard bin/dash run codegen
     else
         echo "    (skipped - dashboard source not in this checkout; see bin/setup)"
     fi

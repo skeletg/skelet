@@ -2,11 +2,17 @@ package shipping
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
+
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 type Service struct {
@@ -16,9 +22,13 @@ type Service struct {
 	// remoteTracking resolves tracking via a universal tracker before the carrier's own (remote_tracking.go)
 	remoteTracking RemoteTrackingSource
 	dims           DimensionLookup
+	tx             *txrunner.Manager
 }
 
 func (s *Service) SetDimensionLookup(l DimensionLookup) { s.dims = l }
+
+// SetTx lets SaveMethod write a method, its rates and its countries as one - without it each write commits on its own
+func (s *Service) SetTx(tx *txrunner.Manager) { s.tx = tx }
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
@@ -52,10 +62,13 @@ func (s *Service) Quote(ctx context.Context, in QuoteInput) ([]Quote, error) {
 			continue
 		}
 		out = append(out, Quote{
-			MethodID:   m.ID,
-			Code:       m.Code,
-			Name:       m.Name,
-			PriceCents: ComputePrice(m, in.SubtotalCents),
+			MethodID:           m.ID,
+			Code:               m.Code,
+			Name:               m.Name,
+			PriceCents:         ComputePrice(m, in.SubtotalCents, in.Items),
+			DeliveryKind:       normalizeDeliveryKind(m.DeliveryKind),
+			EstimatedDays:      m.EstimatedDays,
+			DeliversOnWeekends: m.DeliversOnWeekends,
 		})
 	}
 	return out, nil
@@ -153,7 +166,7 @@ func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in Quo
 	} else if !ok {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents), method, nil
+	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
 }
 
 // The ID-based sibling of ComputeForOrder - verifies the method belongs to the country's zone, so one from another zone can't be smuggled in, and is still active
@@ -177,7 +190,7 @@ func (s *Service) ComputeForOrderByID(ctx context.Context, methodID uuid.UUID, i
 	} else if !ok {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	return ComputePrice(method, in.SubtotalCents), method, nil
+	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
 }
 
 // Fills Zone.Countries per zone - the bare ListZones omits them, being a separate table, so the admin surface uses this to return both together
@@ -223,17 +236,108 @@ func (s *Service) HydrateMethodCountries(ctx context.Context, methods []Method) 
 	return methods, nil
 }
 
-func (s *Service) ReplaceMethodCountries(ctx context.Context, methodID uuid.UUID, countries []string) error {
-	if err := s.repo.ClearMethodCountries(ctx, methodID); err != nil {
-		return err
+// The kinds a built-in method can price - store pickup is the pickup carrier's, never a zone method
+var methodKinds = []string{DefaultKind, "parcel_locker", "carrier_point"}
+
+var (
+	errMethodKind      = apperr.New("SHIPPING_METHOD_KIND_INVALID", apperr.ClassValidation, "a shipping method prices door delivery, a pickup point, or delivery to the nearest pickup point")
+	errMethodUnits     = apperr.New("SHIPPING_METHOD_UNITS_INVALID", apperr.ClassValidation, "units per charge can't be negative")
+	errBuiltinWeekends = apperr.New("SHIPPING_CARRIER_WEEKENDS_PER_METHOD", apperr.ClassValidation, "the built-in carrier's methods each set their own weekend delivery")
+	errMethodDays      = apperr.New("SHIPPING_METHOD_DAYS_INVALID", apperr.ClassValidation, "delivery days can't be negative")
+	errTypeRate        = apperr.New("SHIPPING_TYPE_RATE_INVALID", apperr.ClassValidation, "each product type is priced once, at zero or more")
+	errTypeRateUnknown = apperr.New("SHIPPING_TYPE_RATE_UNKNOWN_TYPE", apperr.ClassValidation, "a type rate names a product type that doesn't exist")
+)
+
+// CheckMethodPricing refuses a kind or a bundle size the engine can't price
+func CheckMethodPricing(m Method) error {
+	if m.DeliveryKind != "" && !slices.Contains(methodKinds, m.DeliveryKind) {
+		return errMethodKind
 	}
-	for _, c := range countries {
-		if c == "" {
-			continue
-		}
-		if err := s.repo.AddCountryToMethod(ctx, methodID, c); err != nil {
-			return err
-		}
+	if m.UnitsPerCharge < 0 {
+		return errMethodUnits
+	}
+	if m.EstimatedDays < 0 {
+		return errMethodDays
 	}
 	return nil
+}
+
+// ReplaceMethodTypeRates sets a method's per-product-type prices - each type at most once
+func (s *Service) ReplaceMethodTypeRates(ctx context.Context, methodID uuid.UUID, rates []TypeRate) error {
+	if err := checkTypeRates(rates); err != nil {
+		return err
+	}
+	return s.repo.ReplaceTypeRates(ctx, methodID, rates)
+}
+
+func checkTypeRates(rates []TypeRate) error {
+	seen := map[uuid.UUID]bool{}
+	for _, r := range rates {
+		if r.ProductTypeID == uuid.Nil || seen[r.ProductTypeID] || r.PriceCents < 0 || r.UnitsPerCharge < 0 {
+			return errTypeRate
+		}
+		seen[r.ProductTypeID] = true
+	}
+	return nil
+}
+
+// SaveMethod creates a method (no ID) or updates one with its per-type rates and its countries in one transaction, so a bad rate never leaves a half-saved method live at checkout. Nil rates or countries keep what the method has
+func (s *Service) SaveMethod(ctx context.Context, m Method, rates []TypeRate, countries []string) (Method, error) {
+	if err := CheckMethodPricing(m); err != nil {
+		return Method{}, err
+	}
+	if err := checkTypeRates(rates); err != nil {
+		return Method{}, err
+	}
+	var out Method
+	save := func(r Repository) error {
+		var err error
+		if m.ID == uuid.Nil {
+			out, err = r.CreateMethod(ctx, m)
+		} else {
+			out, err = r.UpdateMethod(ctx, m)
+		}
+		if err != nil {
+			return err
+		}
+		if rates != nil {
+			if err := r.ReplaceTypeRates(ctx, out.ID, rates); err != nil {
+				if pgdb.IsForeignKeyViolation(err) {
+					return errTypeRateUnknown
+				}
+				return err
+			}
+		}
+		if countries != nil {
+			if err := r.ClearMethodCountries(ctx, out.ID); err != nil {
+				return err
+			}
+			for _, c := range countries {
+				if c == "" {
+					continue
+				}
+				if err := r.AddCountryToMethod(ctx, out.ID, c); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	var err error
+	if s.tx == nil {
+		err = save(s.repo)
+	} else {
+		err = s.tx.InTransaction(ctx, func(t *sql.Tx) error { return save(s.repo.WithTx(t)) })
+	}
+	if err != nil {
+		return Method{}, err
+	}
+	if out, err = s.repo.GetMethod(ctx, out.ID); err != nil {
+		return Method{}, err
+	}
+	methods, err := s.HydrateMethodCountries(ctx, []Method{out})
+	if err != nil {
+		return Method{}, err
+	}
+	return methods[0], nil
 }

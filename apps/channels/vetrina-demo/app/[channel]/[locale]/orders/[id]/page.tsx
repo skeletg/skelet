@@ -11,6 +11,8 @@ import { displayName } from "@/app/lib/display";
 import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { gqlFetch } from "@/app/lib/graphql";
 import { GuestOrderDocument } from "@/app/lib/checkout/operations.gql";
+import { SubmitButton } from "@/app/components/account/SubmitButton";
+import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
 
 export async function generateMetadata({
   params,
@@ -28,6 +30,7 @@ export default async function GuestOrderPage({
   searchParams: Promise<{
     email?: string | string[];
     just_placed?: string | string[];
+    resent?: string | string[];
   }>;
 }) {
   const [customer, t] = await Promise.all([
@@ -35,15 +38,17 @@ export default async function GuestOrderPage({
     getTranslations("order.guest"),
   ]);
   const ta = await getTranslations("account.orders");
+  const tc = await getTranslations("common");
   const { id } = await params;
   const sp = await searchParams;
 
-  if (customer) {
-    redirect(await withLocalePrefix(`/account/orders/${id}`, await getLocale()));
-  }
-
   const email = (Array.isArray(sp.email) ? sp.email[0] : sp.email) ?? "";
+  const accountOrderPath = await withLocalePrefix(
+    `/account/orders/${id}`,
+    await getLocale(),
+  );
   if (!email) {
+    if (customer) redirect(accountOrderPath);
     notFound();
   }
   const justPlacedRaw = Array.isArray(sp.just_placed)
@@ -57,7 +62,18 @@ export default async function GuestOrderPage({
   } catch {
     /* fall through to notFound below */
   }
-  if (!order) notFound();
+  // guestOrder only answers while the order is unclaimed. A signed-in shopper can still be looking at one - an account
+  // takes over its email's guest orders only once the address is verified - so they only move to the account page
+  // when the order is no longer a guest one
+  if (!order) {
+    if (customer) redirect(accountOrderPath);
+    notFound();
+  }
+  const awaitingClaim =
+    customer !== null &&
+    !customer.isEmailVerified &&
+    customer.email.toLowerCase() === email.toLowerCase();
+  const resent = Array.isArray(sp.resent) ? sp.resent[0] : sp.resent;
 
   const consent = justPlaced ? await getResolvedConsent() : null;
 
@@ -90,7 +106,31 @@ export default async function GuestOrderPage({
         <BackButton fallbackHref="/" label={t("continue")} />
       </div>
 
-      {justPlaced && (
+      {awaitingClaim && (
+        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
+          <p className="font-semibold">{t("claimTitle")}</p>
+          <p className="mt-1">{t("claimBody")}</p>
+          {resent === "1" ? (
+            <p className="mt-3 font-semibold">{t("claimSent")}</p>
+          ) : (
+            <form action={resendVerificationEmailAction} className="mt-3">
+              <input
+                type="hidden"
+                name="returnTo"
+                value={`/orders/${order.id}?email=${encodeURIComponent(email)}`}
+              />
+              <SubmitButton
+                className="inline-flex h-9 items-center rounded-md border border-amber-400 px-4 text-xs font-semibold hover:bg-amber-100"
+                pendingLabel={tc("sending")}
+              >
+                {resent === "0" ? t("claimResendFailed") : t("claimResend")}
+              </SubmitButton>
+            </form>
+          )}
+        </div>
+      )}
+
+      {justPlaced && !customer && (
         <section className="glass mb-6 rounded-xl p-5">
           <h2 className="text-lg font-semibold">{ta("thanksTitle")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">

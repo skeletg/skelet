@@ -233,3 +233,72 @@ func TestActiveAndGroupChangesAnnounceThemselves(t *testing.T) {
 		t.Errorf("announced %v, want isActive and customerGroup", seen)
 	}
 }
+
+// A guest checkout typed under the erased address holds the same addresses, phone and company details as the
+// customer's own cart, and a guest order keeps its company IDs - both go, on the customer's channel only
+func TestAnonymizeScrubsGuestCheckoutsUnderTheAddress(t *testing.T) {
+	f := newFixture(t)
+	ch, other := f.newChannel(t), f.newChannel(t)
+	addr := randomEmail()
+	c := f.register(t, ch, addr, "password123")
+
+	guestCart := func(channelID uuid.UUID, email string) uuid.UUID {
+		t.Helper()
+		var id uuid.UUID
+		if err := f.conn.QueryRow(
+			`INSERT INTO carts (channel_id, email, shipping_address, contact_phone, company_name, business_ids, po_number, pickup_contact)
+			 VALUES ($1, $2, '{"street1": "1 Home St"}', '+381641234567', 'Acme', '{"pib": "123"}', 'PO-1', '{"firstName": "Ana"}')
+			 RETURNING id`, channelID, email).Scan(&id); err != nil {
+			t.Fatalf("seed guest cart: %v", err)
+		}
+		t.Cleanup(func() { _, _ = f.conn.Exec(`DELETE FROM carts WHERE id = $1`, id) })
+		return id
+	}
+	// Typed with stray case and spaces, as a shopper might
+	mine := guestCart(ch, "  "+strings.ToUpper(addr)+" ")
+	elsewhere := guestCart(other, addr)
+
+	var orderID uuid.UUID
+	if err := f.conn.QueryRow(
+		`INSERT INTO orders (channel_id, currency_code, email, business_ids)
+		 SELECT id, currency_code, $2, '[{"key": "pib", "label": "PIB", "value": "123"}]' FROM channels WHERE id = $1 RETURNING id`,
+		ch, addr).Scan(&orderID); err != nil {
+		t.Fatalf("seed guest order: %v", err)
+	}
+	t.Cleanup(func() { _, _ = f.conn.Exec(`DELETE FROM orders WHERE id = $1`, orderID) })
+
+	if err := f.svc.AnonymizeInPlace(f.ctx, c.ID); err != nil {
+		t.Fatalf("anonymize: %v", err)
+	}
+
+	type cartRow struct {
+		email, phone, company, ids, po string
+		shipping, pickup               bool
+		version                        int64
+	}
+	read := func(id uuid.UUID) cartRow {
+		t.Helper()
+		var r cartRow
+		if err := f.conn.QueryRow(
+			`SELECT email, contact_phone, company_name, business_ids::text, po_number,
+			        shipping_address IS NOT NULL, pickup_contact IS NOT NULL, checkout_version
+			 FROM carts WHERE id = $1`, id).Scan(&r.email, &r.phone, &r.company, &r.ids, &r.po, &r.shipping, &r.pickup, &r.version); err != nil {
+			t.Fatalf("read cart: %v", err)
+		}
+		return r
+	}
+	if got := read(mine); got != (cartRow{ids: "{}", version: 1}) {
+		t.Errorf("guest cart under the erased address = %+v, want its checkout cleared and its version moved", got)
+	}
+	if got := read(elsewhere); got.email != addr || got.company != "Acme" || !got.shipping {
+		t.Errorf("guest cart on another channel = %+v, want it untouched - the address there is another account's", got)
+	}
+
+	var ids string
+	if err := f.conn.QueryRow(`SELECT business_ids::text FROM orders WHERE id = $1`, orderID).Scan(&ids); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	if ids != "[]" {
+		t.Errorf("guest order business ids after erasure = %s, want []", ids)
+	}
+}

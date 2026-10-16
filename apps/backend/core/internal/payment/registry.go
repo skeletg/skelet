@@ -1,7 +1,10 @@
 package payment
 
 import (
+	"context"
+
 	"fmt"
+	"github.com/google/uuid"
 	"sync"
 )
 
@@ -58,4 +61,9 @@ func ResetForTest() {
 	regOrder = nil
 	regMu.Unlock()
 	registerOfflineMethods()
+}
+
+// ProviderAvailable is independent of the channel's method toggle: an installed plugin may be disabled.
+func ProviderAvailable(ctx context.Context, reg Registration, channelID uuid.UUID) bool {
+	return reg.Available == nil || reg.Available(ctx, channelID)
 }

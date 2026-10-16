@@ -11,6 +11,9 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- `placeOrder` takes an `acceptTerms` argument. A store whose `sales/checkout/terms_consent` is `checkbox` (the
+  default) now refuses an order sent without it as `TERMS_NOT_ACCEPTED`, so a custom storefront must pass it.
+
 - **The Signals suite is its own Go module.** `apps/backend/signals` holds the event spine and its engines,
   Lens, Synapse's traits and segments, Prism, the event destinations, the beacon surface and the wire
   contract's server, with a `go.mod` that requires core's by relative path. Core cannot import it
@@ -66,7 +69,7 @@ The release process, and which version number means what, is in
   Two seams reshaped with the move. The builder's products block reads live catalog data over core's
   public storefront API (`CORE_FRONT_API_URL`, a new `productsBySkus` query beside `productsByIds`),
   and renders nothing when that is unset. And the `remote_action` flow node is gone, with the
-  `flow_action` remote-provider kind (wire contract `0.2.0`): the engine can no longer reach core's
+  `flow_action` remote-provider kind: the engine can no longer reach core's
   provider rows, and a node that waits on an external decision belongs in a suite that can. Saved
   flows carrying one skip the node. The `email` and `emailtrack` packages moved beside `internal/` for
   the suite to import, and the `flows`, `campaigns` and `emails` permission groups are registered in

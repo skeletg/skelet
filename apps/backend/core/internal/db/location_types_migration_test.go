@@ -14,7 +14,7 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, file := range []string{"migrations/000034_inventory_location_types.down.sql"} {
+	for _, file := range []string{"migrations/000037_inventory_location_types.down.sql"} {
 		sql, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
@@ -28,7 +28,7 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	sql, err := os.ReadFile("migrations/000034_inventory_location_types.up.sql")
+	sql, err := os.ReadFile("migrations/000037_inventory_location_types.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

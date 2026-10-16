@@ -20,6 +20,27 @@ type CarrierRegistration struct {
 	Slug        string
 	Carrier     Carrier
 	DisplayName string
+	// The delivery kinds the carrier quotes - empty means ship_to_address alone. A method that names no kind takes the first
+	Kinds []string
+}
+
+// DefaultKind is what an untagged method is - mirrors delivery.KindShipToAddress, which shipping doesn't import
+const DefaultKind = "ship_to_address"
+
+// DeliveryKinds is what the carrier declares, defaulted
+func (r CarrierRegistration) DeliveryKinds() []string {
+	if len(r.Kinds) == 0 {
+		return []string{DefaultKind}
+	}
+	return r.Kinds
+}
+
+// tag fills an untagged method's kind from the carrier's first
+func (r CarrierRegistration) tag(m RatedMethod) RatedMethod {
+	if m.Kind == "" {
+		m.Kind = r.DeliveryKinds()[0]
+	}
+	return m
 }
 
 // Panics on a duplicate slug or nil impl - a registration bug should refuse to boot, like payment.RegisterProvider

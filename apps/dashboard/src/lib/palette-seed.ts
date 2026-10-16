@@ -44,16 +44,19 @@ function toHex(ctx: CanvasRenderingContext2D, color: string, backdrop: string): 
 // block at all - there is nothing to lift from it
 function paletteAttr(id: PaletteId): string | null {
   if (id === 'custom') return null
+  // tuned has no block either; it paints over neutral from the variables the caller hands in
+  if (id === 'tuned') return 'neutral'
   return id || 'neutral'
 }
 
 // Mounted rather than detached: custom properties only resolve through getComputedStyle once the
 // element is in the document, and off-screen keeps it from flashing
-function withPaletteProbe<T>(attr: string, dark: boolean, fn: (probe: HTMLElement) => T): T {
+function withPaletteProbe<T>(attr: string, dark: boolean, vars: Record<string, string> | undefined, fn: (probe: HTMLElement) => T): T {
   const probe = document.createElement('div')
   probe.dataset.theme = attr
   if (dark) probe.classList.add('dark')
   probe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;pointer-events:none'
+  for (const [k, v] of Object.entries(vars ?? {})) probe.style.setProperty(k, v)
   document.body.appendChild(probe)
   try {
     return fn(probe)
@@ -68,13 +71,13 @@ export type SeededPalette = { theme: CustomTheme; railDiffers: boolean }
 
 // Reads one palette in one mode and returns a fully-populated custom theme. Falls back per token,
 // so a variable the palette doesn't define keeps the built-in default rather than blanking
-export function seedFromPalette(id: PaletteId, dark: boolean): SeededPalette | null {
+export function seedFromPalette(id: PaletteId, dark: boolean, vars?: Record<string, string>): SeededPalette | null {
   const attr = paletteAttr(id)
   if (!attr) return null
   const ctx = sampleCanvas()
   if (!ctx) return null
 
-  return withPaletteProbe(attr, dark, (probe) => {
+  return withPaletteProbe(attr, dark, vars, (probe) => {
     const style = getComputedStyle(probe)
     const read = (v: string) => style.getPropertyValue(v)
     const base = defaultCustomTheme(dark)

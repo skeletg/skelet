@@ -19,6 +19,7 @@ import {
   setDefaultShippingAction,
 } from "@/app/lib/auth/actions";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
+import { formatPhone } from "@/app/lib/forms/phone";
 
 export async function generateMetadata({
   params,
@@ -111,7 +112,7 @@ export default async function AddressesPage({
                   {a.phone ? (
                     <>
                       <br />
-                      <span className="text-muted-foreground">{a.phone}</span>
+                      <span className="text-muted-foreground">{formatPhone(a.phone)}</span>
                     </>
                   ) : null}
                 </address>

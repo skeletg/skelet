@@ -83,3 +83,11 @@ func (r *queryResolver) CountrySettings(ctx context.Context) (*model1.CountrySet
 		EuCountryCodes:             sortedSet(r.CountrySvc.EUCountries(ctx, scope)),
 	}, nil
 }
+
+func (r *queryResolver) PhoneSettings(ctx context.Context) (*model1.PhoneSettings, error) {
+	settings, err := r.CountrySvc.PhoneSettings(ctx, countryScope(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return toPhoneSettingsModel(settings), nil
+}

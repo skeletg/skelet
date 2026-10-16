@@ -23,7 +23,7 @@ import {
   toProductContentValues,
 } from '../schemas/product'
 import { Section, type ContentProduct } from './shared'
-import { readImageDimensions } from './media-utils'
+import { readImageDimensions } from '@/lib/image'
 import { ProductMediaPanel } from './ProductMediaPanel'
 import { useProductContentWrite } from './productContent'
 

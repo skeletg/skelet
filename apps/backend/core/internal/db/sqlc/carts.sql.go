@@ -8,10 +8,12 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 )
 
 const abandonedCarts = `-- name: AbandonedCarts :many
@@ -114,7 +116,7 @@ func (q *Queries) CountCarts(ctx context.Context, arg CountCartsParams) (int32, 
 }
 
 const createCart = `-- name: CreateCart :one
-INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
+INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery
 `
 
 type CreateCartParams struct {
@@ -136,6 +138,28 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Cart, e
 		&i.Email,
 		&i.Note,
 		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
 	)
 	return i, err
 }
@@ -176,7 +200,7 @@ func (q *Queries) DeleteSavedItem(ctx context.Context, arg DeleteSavedItemParams
 }
 
 const getCartByCustomerAndChannel = `-- name: GetCartByCustomerAndChannel :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at FROM carts
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery FROM carts
 WHERE customer_id = $1 AND channel_id = $2 AND status = 'active'
 LIMIT 1
 `
@@ -200,12 +224,34 @@ func (q *Queries) GetCartByCustomerAndChannel(ctx context.Context, arg GetCartBy
 		&i.Email,
 		&i.Note,
 		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
 	)
 	return i, err
 }
 
 const getCartByID = `-- name: GetCartByID :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at FROM carts WHERE id = $1 LIMIT 1
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery FROM carts WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
@@ -222,6 +268,28 @@ func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
 		&i.Email,
 		&i.Note,
 		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
 	)
 	return i, err
 }
@@ -445,6 +513,51 @@ func (q *Queries) ListSavedItemsByCart(ctx context.Context, cartID uuid.UUID) ([
 	return items, nil
 }
 
+const lockCart = `-- name: LockCart :one
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery FROM carts WHERE id = $1 FOR UPDATE
+`
+
+// Row lock for a checkout step's short commit - the step was computed from an unlocked read, and checkout_version says whether the row moved since
+func (q *Queries) LockCart(ctx context.Context, id uuid.UUID) (Cart, error) {
+	row := q.db.QueryRowContext(ctx, lockCart, id)
+	var i Cart
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ChannelID,
+		&i.AbandonedNotifiedAt,
+		&i.Email,
+		&i.Note,
+		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
+	)
+	return i, err
+}
+
 const markCartsAbandonedNotified = `-- name: MarkCartsAbandonedNotified :exec
 UPDATE carts SET abandoned_notified_at = NOW() WHERE id = ANY($1::uuid[])
 `
@@ -472,7 +585,7 @@ func (q *Queries) PruneStaleCarts(ctx context.Context, cutoff time.Time) (int64,
 const reassignCartToCustomer = `-- name: ReassignCartToCustomer :one
 UPDATE carts SET customer_id = $2, updated_at = NOW()
 WHERE id = $1 AND customer_id IS NULL AND status = 'active'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery
 `
 
 type ReassignCartToCustomerParams struct {
@@ -494,6 +607,28 @@ func (q *Queries) ReassignCartToCustomer(ctx context.Context, arg ReassignCartTo
 		&i.Email,
 		&i.Note,
 		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
 	)
 	return i, err
 }
@@ -535,8 +670,89 @@ func (q *Queries) SaveCartItem(ctx context.Context, arg SaveCartItemParams) (Car
 	return i, err
 }
 
+const setCartCheckout = `-- name: SetCartCheckout :exec
+UPDATE carts SET
+    shipping_address         = $1,
+    shipping_address_id      = $2,
+    billing_same_as_shipping = $3,
+    billing_address          = $4,
+    billing_address_id       = $5,
+    shipping_carrier_slug    = $6,
+    shipping_method_code     = $7,
+    payment_provider_slug    = $8,
+    po_number                = $9,
+    use_store_credit         = $10,
+    gift_card_codes          = $11::text[],
+    destination_country      = $12,
+    destination_region       = $13,
+    destination_postal_code  = $14,
+    contact_phone            = $15,
+    purchase_type            = $16,
+    company_name             = $17,
+    business_ids             = $18,
+    pickup_contact           = $19,
+    deliveries               = $20,
+    split_delivery           = $21,
+    checkout_version         = checkout_version + 1,
+    updated_at               = NOW()
+WHERE id = $22
+`
+
+type SetCartCheckoutParams struct {
+	ShippingAddress       pqtype.NullRawMessage `json:"shipping_address"`
+	ShippingAddressID     uuid.NullUUID         `json:"shipping_address_id"`
+	BillingSameAsShipping bool                  `json:"billing_same_as_shipping"`
+	BillingAddress        pqtype.NullRawMessage `json:"billing_address"`
+	BillingAddressID      uuid.NullUUID         `json:"billing_address_id"`
+	ShippingCarrierSlug   string                `json:"shipping_carrier_slug"`
+	ShippingMethodCode    string                `json:"shipping_method_code"`
+	PaymentProviderSlug   string                `json:"payment_provider_slug"`
+	PoNumber              string                `json:"po_number"`
+	UseStoreCredit        bool                  `json:"use_store_credit"`
+	GiftCardCodes         []string              `json:"gift_card_codes"`
+	DestinationCountry    string                `json:"destination_country"`
+	DestinationRegion     string                `json:"destination_region"`
+	DestinationPostalCode string                `json:"destination_postal_code"`
+	ContactPhone          string                `json:"contact_phone"`
+	PurchaseType          string                `json:"purchase_type"`
+	CompanyName           string                `json:"company_name"`
+	BusinessIds           json.RawMessage       `json:"business_ids"`
+	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
+	Deliveries            json.RawMessage       `json:"deliveries"`
+	SplitDelivery         bool                  `json:"split_delivery"`
+	ID                    uuid.UUID             `json:"id"`
+}
+
+func (q *Queries) SetCartCheckout(ctx context.Context, arg SetCartCheckoutParams) error {
+	_, err := q.db.ExecContext(ctx, setCartCheckout,
+		arg.ShippingAddress,
+		arg.ShippingAddressID,
+		arg.BillingSameAsShipping,
+		arg.BillingAddress,
+		arg.BillingAddressID,
+		arg.ShippingCarrierSlug,
+		arg.ShippingMethodCode,
+		arg.PaymentProviderSlug,
+		arg.PoNumber,
+		arg.UseStoreCredit,
+		pq.Array(arg.GiftCardCodes),
+		arg.DestinationCountry,
+		arg.DestinationRegion,
+		arg.DestinationPostalCode,
+		arg.ContactPhone,
+		arg.PurchaseType,
+		arg.CompanyName,
+		arg.BusinessIds,
+		arg.PickupContact,
+		arg.Deliveries,
+		arg.SplitDelivery,
+		arg.ID,
+	)
+	return err
+}
+
 const setCartEmail = `-- name: SetCartEmail :exec
-UPDATE carts SET email = $2, updated_at = NOW() WHERE id = $1
+UPDATE carts SET email = $2, checkout_version = checkout_version + 1, updated_at = NOW() WHERE id = $1
 `
 
 type SetCartEmailParams struct {
@@ -545,6 +761,7 @@ type SetCartEmailParams struct {
 }
 
 // Records the email a guest enters at checkout entry so an abandoned guest cart becomes recoverable - bumps updated_at (email entry is real activity, so it is the correct start of the abandonment clock)
+// The details step writes the email with the rest of the checkout, so this moves checkout_version too
 func (q *Queries) SetCartEmail(ctx context.Context, arg SetCartEmailParams) error {
 	_, err := q.db.ExecContext(ctx, setCartEmail, arg.ID, arg.Email)
 	return err
@@ -567,7 +784,7 @@ func (q *Queries) SetCartNote(ctx context.Context, arg SetCartNoteParams) error 
 const setCartStatus = `-- name: SetCartStatus :one
 UPDATE carts SET status = $2, updated_at = NOW()
 WHERE id = $1 AND status = 'active'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at, shipping_address, shipping_address_id, billing_same_as_shipping, billing_address, billing_address_id, shipping_carrier_slug, shipping_method_code, payment_provider_slug, po_number, use_store_credit, gift_card_codes, destination_country, destination_region, destination_postal_code, contact_phone, purchase_type, company_name, business_ids, pickup_contact, checkout_version, deliveries, split_delivery
 `
 
 type SetCartStatusParams struct {
@@ -589,6 +806,28 @@ func (q *Queries) SetCartStatus(ctx context.Context, arg SetCartStatusParams) (C
 		&i.Email,
 		&i.Note,
 		&i.LastActivityAt,
+		&i.ShippingAddress,
+		&i.ShippingAddressID,
+		&i.BillingSameAsShipping,
+		&i.BillingAddress,
+		&i.BillingAddressID,
+		&i.ShippingCarrierSlug,
+		&i.ShippingMethodCode,
+		&i.PaymentProviderSlug,
+		&i.PoNumber,
+		&i.UseStoreCredit,
+		pq.Array(&i.GiftCardCodes),
+		&i.DestinationCountry,
+		&i.DestinationRegion,
+		&i.DestinationPostalCode,
+		&i.ContactPhone,
+		&i.PurchaseType,
+		&i.CompanyName,
+		&i.BusinessIds,
+		&i.PickupContact,
+		&i.CheckoutVersion,
+		&i.Deliveries,
+		&i.SplitDelivery,
 	)
 	return i, err
 }

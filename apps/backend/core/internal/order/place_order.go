@@ -1,6 +1,7 @@
 package order
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -32,13 +33,16 @@ type checkoutContext struct {
 	cart            cart.Cart
 	subtotal        int64
 	orderID         uuid.UUID // pre-allocated so pre-tx subscribers can link writes
-	taxLines        []TaxLine // per-rule breakdown from the last computeLineTax call
-	shippingTax     int64
+	// A digital-only order ships nowhere - shipping then mirrors billing for tax, promotions and payment eligibility, and the order stores no shipping address
+	noShipping  bool
+	taxLines    []TaxLine // per-rule breakdown from the last computeLineTax call
+	shippingTax int64
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
-func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*checkoutContext, error) {
-	if in.Email == "" {
+// A quote (QuoteCheckout) skips the email requirement and the strict address validator: it prices a checkout still being filled in, and the remote validator is a per-call round-trip that placement runs anyway
+func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote bool) (*checkoutContext, error) {
+	if in.Email == "" && !quote {
 		return nil, apperr.New("EMAIL_REQUIRED", apperr.ClassValidation, "email is required")
 	}
 
@@ -52,20 +56,34 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		c = loaded
 	}
 
-	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
-	billing, err := resolveAddress(in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing")
-	if err != nil {
-		return nil, err
-	}
-	shipping, err := resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping")
-	if err != nil {
-		return nil, err
-	}
-
 	// PlaceOrder is storefront-only - without a store there's no currency to stamp
 	store, ok := channel.FromContext(ctx)
 	if !ok {
 		return nil, ErrStoreRequired
+	}
+
+	rules := s.phoneRules(ctx, store.ID)
+
+	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
+	var (
+		billing OrderAddress
+		err     error
+	)
+	if in.BillingNameOnly && in.BillingAddress != nil {
+		billing, err = normalizeOrderAddress(rules, *in.BillingAddress, "billing")
+	} else {
+		billing, err = resolveAddress(rules, in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote)
+	}
+	if err != nil {
+		return nil, err
+	}
+	noShipping := in.FulfillmentNeed == FulfillmentNone && in.ShippingAddress == nil && in.ShippingAddressID == nil
+	shipping := billing
+	if !noShipping {
+		shipping, err = resolveAddress(rules, in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Enforce the channel's country/region options on both addresses, no-op without a validator
@@ -78,8 +96,10 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		}
 	}
 
-	if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing); err != nil {
-		return nil, err
+	if !quote {
+		if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing, in.BillingNameOnly); err != nil {
+			return nil, err
+		}
 	}
 
 	// Resolve + validate the payment provider - optional (no slug = no provider),
@@ -89,7 +109,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		paymentProvider = strings.TrimSpace(*in.PaymentProviderSlug)
 	}
 	if paymentProvider != "" && s.payments != nil {
-		if err := s.payments.ValidatePaymentForChannel(ctx, store.ID, paymentProvider, shipping.CountryCode); err != nil {
+		if err := s.payments.ValidatePaymentForChannel(ctx, store.ID, paymentProvider, cmp.Or(in.PaymentCountry, shipping.CountryCode)); err != nil {
 			return nil, fmt.Errorf("payment method: %w", err)
 		}
 	}
@@ -131,11 +151,12 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		cart:            cartObj,
 		subtotal:        subtotal,
 		orderID:         orderID,
+		noShipping:      noShipping,
 	}, nil
 }
 
 // Only a fail_closed provider's outage refuses placement - any other validator failure lets the order through, same as the storefront
-func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID, shipping, billing OrderAddress) error {
+func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID, shipping, billing OrderAddress, billingNameOnly bool) error {
 	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
 		return nil
 	}
@@ -143,7 +164,7 @@ func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID,
 	if err := s.checkStrictAddress(ctx, channelID, "shipping", ship); err != nil {
 		return err
 	}
-	if bill == ship { // same address, already answered
+	if billingNameOnly || bill == ship { // a name with no address to check, or the same address, already answered
 		return nil
 	}
 	return s.checkStrictAddress(ctx, channelID, "billing", bill)

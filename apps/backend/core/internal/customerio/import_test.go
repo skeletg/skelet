@@ -26,6 +26,9 @@ func (f *fakeContacts) EnsureContactFrom(_ context.Context, _ uuid.UUID, email, 
 	return customer.Customer{ID: uuid.New(), Email: email, FirstName: first}, !f.existing, nil
 }
 
+func (f *fakeContacts) NormalizeProfilePhone(_ context.Context, _ uuid.UUID, raw *string) (*string, error) {
+	return raw, nil
+}
 func (f *fakeContacts) UpdateProfileFrom(_ context.Context, id uuid.UUID, _ customer.UpdateCustomerInput, source string) (customer.Customer, error) {
 	f.sources = append(f.sources, source)
 	return customer.Customer{ID: id}, nil

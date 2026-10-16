@@ -7,6 +7,7 @@ import { cookies, headers as nextHeaders } from "next/headers";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
+import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 import { isPublicOp } from "@/app/lib/public-ops";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 
@@ -110,13 +111,6 @@ type FetchOptions = {
   // Channel + locale (and anything else) folded into the cache key
   cacheKeyExtra?: string[];
 };
-
-// Next says "this route can't be static" by throwing from cookies(), headers() and
-// no-store fetches. Swallow that and the route stays static, then 500s on every request
-function rethrowIfDynamicBailout(err: unknown): void {
-  const digest = (err as { digest?: unknown } | null | undefined)?.digest;
-  if (typeof digest === "string" && digest.startsWith("DYNAMIC_SERVER_USAGE")) throw err;
-}
 
 // The `variables` argument is required when the document declares any - the generated TypedDocumentNode<TData,
 // TVariables> binds both sides so passing the wrong shape (or omitting required vars) fails tsc

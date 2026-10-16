@@ -41,6 +41,7 @@ type contacts interface {
 	CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error)
 	EnsureContactFrom(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool, source string) (customer.Customer, bool, error)
 	UpdateProfileFrom(ctx context.Context, id uuid.UUID, input customer.UpdateCustomerInput, source string) (customer.Customer, error)
+	NormalizeProfilePhone(ctx context.Context, channelID uuid.UUID, raw *string) (*string, error)
 }
 
 // CustomerResource upserts by (channel, email) - a new customer is created with an unusable password and resets to claim the account
@@ -124,12 +125,17 @@ func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 	if im.opts.ChannelID == uuid.Nil {
 		return dataio.OutcomeSkipped, errChannelRequired
 	}
-	first, last, phone := r.Str(colFirstName), r.Str(colLastName), r.Str(colPhone)
+	first, last, raw := r.Str(colFirstName), r.Str(colLastName), r.Str(colPhone)
 	upd := customer.UpdateCustomerInput{FirstName: first, LastName: last}
-	if phone != "" {
-		upd.Phone = &phone
+	if raw != "" {
+		upd.Phone = &raw
 	}
 	if err := customer.ValidateProfile(upd); err != nil {
+		return dataio.OutcomeSkipped, err
+	}
+	// Checked before any write, so a bad phone neither leaves a half-imported contact behind nor passes a dry run
+	var err error
+	if upd.Phone, err = im.customers.NormalizeProfilePhone(ctx, im.opts.ChannelID, upd.Phone); err != nil {
 		return dataio.OutcomeSkipped, err
 	}
 	if im.opts.DryRun {
@@ -148,7 +154,7 @@ func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 		return dataio.OutcomeSkipped, err
 	}
 	// The file is the operator's source of truth for these three, so they fill in on both paths
-	if first != "" || last != "" || phone != "" {
+	if first != "" || last != "" || upd.Phone != nil {
 		upd.FirstName, upd.LastName = firstNonEmpty(first, c.FirstName), firstNonEmpty(last, c.LastName)
 		if _, err := im.customers.UpdateProfileFrom(ctx, c.ID, upd, customer.SourceImport); err != nil {
 			return dataio.OutcomeSkipped, err

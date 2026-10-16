@@ -30,7 +30,7 @@ function displayValue(field: ConfigFieldData, raw: string): string {
   return raw
 }
 
-function isValidJson(raw: string): boolean {
+export function isValidJson(raw: string): boolean {
   try {
     JSON.parse(raw)
     return true

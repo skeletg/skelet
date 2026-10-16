@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packages": {
     "github.com/skeletg/skelet/apps/backend/sdk": [
       "const ActionChallenge ActionKind = \"challenge\"",
@@ -83,6 +83,7 @@
       "field CaptureResult.RawResponse []byte",
       "field CarrierRegistration.Carrier Carrier",
       "field CarrierRegistration.DisplayName string",
+      "field CarrierRegistration.Kinds []string",
       "field CarrierRegistration.PluginSlug string",
       "field CarrierRegistration.Slug string",
       "field Cart.ChannelID uuid.UUID",
@@ -189,6 +190,7 @@
       "field RateRequest.SubtotalCents int64",
       "field RatedMethod.Code string",
       "field RatedMethod.EstimatedDays int",
+      "field RatedMethod.Kind string",
       "field RatedMethod.Name string",
       "field RatedMethod.PriceCents int64",
       "field RefundRequest.AmountCents int64",
@@ -302,6 +304,7 @@
       "func UserErrorWithCode(ErrorKind, string, string, ...any) error",
       "func ValidateManifestSet(string, []Manifest, map[string]Manifest, map[string]struct{}) error",
       "func WithCarrierDisplayName(string) CarrierOption",
+      "func WithDeliveryKinds(...string) CarrierOption",
       "func WithDisplayName(string) ProviderOption",
       "func WithOffline() ProviderOption",
       "ifacemethod AlwaysSyncHost.SubscribeSyncAlways(string, string, int, SyncHandler) error",

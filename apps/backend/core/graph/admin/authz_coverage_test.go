@@ -38,6 +38,7 @@ var parentGatedFieldResolvers = map[string]string{
 	"Order.PaymentTransactions":          "this order's own ledger rows, no gateway credentials among them",
 	"Order.Returns":                      "RMAs opened against this order",
 	"Order.TaxLines":                     "the parent order's own tax breakdown",
+	"Order.Shipments":                    "the packages the order was placed as - its own rows",
 	"Order.TrackingURL":                  "formats a URL from the parent's carrier and tracking number",
 	"Order.AppliedPromotions":            "which codes this order consumed - order history, not the promotion catalogue",
 	"Category.ProductCount":              "a count over the parent category",

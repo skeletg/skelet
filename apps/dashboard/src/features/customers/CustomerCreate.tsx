@@ -96,7 +96,7 @@ export function CustomerCreate() {
           )}
         </form.AppField>
         <form.AppField name="phone">
-          {(f) => <f.TextField id="c-phone" label="Phone" type="tel" autoComplete="tel" className="sm:max-w-sm" />}
+          {(f) => <f.PhoneField id="c-phone" label="Phone" hint="Start with + and the country code" className="sm:max-w-sm" />}
         </form.AppField>
       </DetailPageSection>
 

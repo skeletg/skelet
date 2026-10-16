@@ -6,6 +6,7 @@ import { PromotionRuleCreatePage, PromotionRuleEditPage } from './PromotionRuleF
 import { PromotionDetailAnalyticsDocument } from './Promotions.gql'
 import { formatCents } from './promoFormat'
 import { RedemptionsTrend } from './analyticsShared'
+import { Tile } from '@/components/layout/panels'
 
 // PromotionPage is the standalone page for a single promotion at /promotions/:id (and /promotions/new) - Edit mode
 // prepends a per-promotion performance strip above the rule editor; create mode shows the editor alone
@@ -54,14 +55,5 @@ function PromotionPerformance({ ruleId }: { ruleId: string }) {
         </div>
       </div>
     </DetailPageSection>
-  )
-}
-
-function Tile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-    </div>
   )
 }

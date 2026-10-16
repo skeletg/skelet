@@ -25,6 +25,7 @@ import {
   SuppressEmailDocument,
   UnsuppressEmailDocument,
 } from './Deliverability.gql'
+import { formatDate } from '@/lib/format'
 
 // Suppression is account-wide (not channel-scoped): a hard bounce or complaint
 // blocks an address everywhere, so this page has no channel picker
@@ -51,12 +52,6 @@ type SuppressionRow = {
   detail?: string | null
   softBounces: number
   createdAt?: string | null
-}
-
-function fmtDate(iso?: string | null): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
 export function SuppressionList() {
@@ -138,7 +133,7 @@ export function SuppressionList() {
         accessorKey: 'createdAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Since" />,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">{fmtDate(row.original.createdAt)}</span>
+          <span className="text-xs text-muted-foreground">{formatDate(row.original.createdAt)}</span>
         ),
       },
       {

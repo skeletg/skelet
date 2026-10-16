@@ -10,6 +10,17 @@ fragment ShippingMethodFields on ShippingMethod {
   isActive
   countryMode
   allowedCountries
+  deliveryKind
+  unitsPerCharge
+  estimatedDays
+  deliversOnWeekends
+  typeRates {
+    productTypeId
+    productTypeName
+    priceCents
+    unitsPerCharge
+    freeShippingEligible
+  }
   createdAt
   updatedAt
 }
@@ -111,6 +122,7 @@ query ShippingCarriers($channelId: ID!) {
     allowedCountries
     supportsTracking
     supportsLabels
+    deliversOnWeekends
   }
 }
 
@@ -126,5 +138,12 @@ mutation SetShippingCarrierCountries($channelId: ID!, $carrierSlug: String!, $mo
     carrierSlug
     countryMode
     allowedCountries
+  }
+}
+
+mutation SetShippingCarrierWeekendDelivery($channelId: ID!, $carrierSlug: String!, $deliversOnWeekends: Boolean!) {
+  setShippingCarrierWeekendDelivery(channelId: $channelId, carrierSlug: $carrierSlug, deliversOnWeekends: $deliversOnWeekends) {
+    carrierSlug
+    deliversOnWeekends
   }
 }

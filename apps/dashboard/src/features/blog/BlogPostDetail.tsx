@@ -74,6 +74,7 @@ import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { BlogPreviewPanel } from './BlogPreviewPanel'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
+import { readImageDimensions } from '@/lib/image'
 
 function statusLabel(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase()
@@ -674,24 +675,6 @@ function PostForm({
 // Search engines truncate past these lengths - a count beside the field, red once over
 function LengthHint({ length, max }: { length: number; max: number }) {
   return <span className={`text-xs tabular-nums ${length > max ? 'text-destructive' : 'text-muted-foreground'}`}>{length}/{max}</span>
-}
-
-// readImageDimensions probes a File for its natural size so the upload-confirm step can stamp width/height onto the
-// media asset Local copy of the ProductDetail helper - small enough that sharing would cost more than duplicating
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    const url = URL.createObjectURL(file)
-    image.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Could not read image dimensions.'))
-    }
-    image.src = url
-  })
 }
 
 type FlatCategory = { id: string; label: string; urlPath: string }

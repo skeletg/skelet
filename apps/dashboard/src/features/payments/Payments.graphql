@@ -2,6 +2,8 @@ query PaymentMethods($channelId: ID!) {
   paymentMethods(channelId: $channelId) {
     providerSlug
     displayName
+    isOffline
+    isAvailable
     isEnabled
     sortOrder
     countryMode
@@ -21,5 +23,27 @@ mutation SetPaymentMethodCountries($channelId: ID!, $providerSlug: String!, $mod
     providerSlug
     countryMode
     allowedCountries
+  }
+}
+
+query PaymentProviders($channelId: ID) {
+  paymentProviders(channelId: $channelId) {
+    slug
+    displayName
+    isOffline
+    isAvailable
+    pluginSlug
+    pluginName
+    pluginVersion
+    configurationPaths
+    webhookPath
+  }
+}
+
+mutation UpdatePaymentMethodPresentation($channelId: ID!, $providerSlug: String!, $displayName: String!, $sortOrder: Int!) {
+  updatePaymentMethodPresentation(channelId: $channelId, providerSlug: $providerSlug, displayName: $displayName, sortOrder: $sortOrder) {
+    providerSlug
+    displayName
+    sortOrder
   }
 }

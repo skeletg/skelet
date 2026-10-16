@@ -88,6 +88,33 @@ describe('ShippingZoneEditPage', () => {
     )
   })
 
+  it('shows a method without an estimate as 0 days on weekdays', async () => {
+    renderPage()
+    const days = (await screen.findByLabelText('Delivery days')) as HTMLInputElement
+    expect(days.value).toBe('0')
+    expect(screen.getByRole('checkbox', { name: /Delivers on weekends/ }).getAttribute('aria-checked')).toBe('false')
+  })
+
+  it("sends a method's delivery days and weekend rule with its own Save", async () => {
+    const writes = renderPage()
+    fireEvent.change(await screen.findByLabelText('Delivery days'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Delivers on weekends/ }))
+    expect(writes.method).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await vi.waitFor(
+      () => expect(writes.method).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', estimatedDays: 2, deliversOnWeekends: true })),
+      SLOW,
+    )
+  })
+
+  it('refuses negative delivery days before sending anything', async () => {
+    const writes = renderPage()
+    fireEvent.change(await screen.findByLabelText('Delivery days'), { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText(/Zero or more/)).toBeDefined()
+    expect(writes.method).not.toHaveBeenCalled()
+  })
+
   it('validates a method row before its own Save sends anything', async () => {
     const writes = renderPage()
     fireEvent.change(await screen.findByLabelText('Flat price ($)'), { target: { value: '-3' } })

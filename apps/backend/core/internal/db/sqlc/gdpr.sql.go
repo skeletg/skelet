@@ -175,12 +175,18 @@ func (q *Queries) ScrubCustomerAuditDetail(ctx context.Context, arg ScrubCustome
 
 const scrubCustomerCarts = `-- name: ScrubCustomerCarts :execrows
 UPDATE carts
-SET    email = ''
-WHERE  customer_id = $1 AND email <> ''
+SET    email = '', shipping_address = NULL, billing_address = NULL,
+       contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
+       pickup_contact = NULL, checkout_version = checkout_version + 1
+WHERE  customer_id = $1
+  AND  (email <> '' OR shipping_address IS NOT NULL OR billing_address IS NOT NULL
+        OR contact_phone <> '' OR company_name <> '' OR business_ids <> '{}'::jsonb OR po_number <> ''
+        OR pickup_contact IS NOT NULL)
 `
 
 // carts.email makes an abandoned cart addressable by the recovery flow, so an
-// un-scrubbed row keeps emailing a customer who asked to be erased
+// un-scrubbed row keeps emailing a customer who asked to be erased - and a
+// checkout in progress holds addresses, phone and tax details the same way
 func (q *Queries) ScrubCustomerCarts(ctx context.Context, customerID uuid.NullUUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, scrubCustomerCarts, customerID)
 	if err != nil {
@@ -236,11 +242,37 @@ func (q *Queries) ScrubCustomerGiftCards(ctx context.Context, arg ScrubCustomerG
 	return result.RowsAffected()
 }
 
+const scrubCustomerOrderShipments = `-- name: ScrubCustomerOrderShipments :execrows
+UPDATE order_shipments s
+SET    ship_to = NULL
+FROM   orders o
+WHERE  o.id = s.order_id
+  AND  s.ship_to IS NOT NULL
+  AND  (o.customer_id = $1
+        OR (o.customer_id IS NULL AND o.channel_id = $2 AND lower(btrim(o.email)) = $3::text))
+`
+
+type ScrubCustomerOrderShipmentsParams struct {
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	Email      string        `json:"email"`
+}
+
+// A package's ship-to is the address it went to, addressed to the shopper or whoever collected - its own copy, beside the order's scrubbed columns. Runs before the guest orders lose the address they are matched by
+func (q *Queries) ScrubCustomerOrderShipments(ctx context.Context, arg ScrubCustomerOrderShipmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubCustomerOrderShipments, arg.CustomerID, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const scrubCustomerOrders = `-- name: ScrubCustomerOrders :execrows
 UPDATE orders
 SET email               = 'redacted-' || customer_id::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
+    business_ids        = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',
@@ -285,11 +317,37 @@ func (q *Queries) ScrubCustomerProductQuestions(ctx context.Context, arg ScrubCu
 	return result.RowsAffected()
 }
 
+const scrubGuestCartsByEmail = `-- name: ScrubGuestCartsByEmail :execrows
+UPDATE carts
+SET    email = '', shipping_address = NULL, billing_address = NULL,
+       contact_phone = '', company_name = '', business_ids = '{}'::jsonb, po_number = '',
+       pickup_contact = NULL, checkout_version = checkout_version + 1
+WHERE  customer_id IS NULL
+  AND  channel_id = $1
+  AND  lower(btrim(email)) = $2::text
+`
+
+type ScrubGuestCartsByEmailParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+}
+
+// Guest carts that entered the erased address at checkout, on the customer's channel - the same checkout state
+// ScrubCustomerCarts clears, since a guest checkout in progress holds addresses, phone and tax details just the same
+func (q *Queries) ScrubGuestCartsByEmail(ctx context.Context, arg ScrubGuestCartsByEmailParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, scrubGuestCartsByEmail, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const scrubGuestOrdersByEmail = `-- name: ScrubGuestOrdersByEmail :execrows
 UPDATE orders
 SET email               = 'redacted-' || $1::uuid::text || '@anonymized.invalid',
     customer_note       = '',
     po_number           = NULL,
+    business_ids        = '[]'::jsonb,
     metadata            = '{}'::jsonb,
     billing_first_name  = 'Redacted', billing_last_name = '',
     billing_company     = '', billing_street_1 = 'Redacted', billing_street_2 = '',

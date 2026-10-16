@@ -110,6 +110,16 @@ type BrowseProductsResult struct {
 	Facets     []*BrowseFacet   `json:"facets"`
 }
 
+type BusinessIDValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type BusinessIDValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Cart struct {
 	ID            string                  `json:"id"`
 	Note          string                  `json:"note"`
@@ -118,6 +128,48 @@ type Cart struct {
 	Subtotal      int32                   `json:"subtotal"`
 	AppliedCodes  []*AppliedPromotionCode `json:"appliedCodes"`
 	TotalDiscount int32                   `json:"totalDiscount"`
+	Checkout      *CartCheckout           `json:"checkout"`
+}
+
+type CartAddress struct {
+	FirstName       string  `json:"firstName"`
+	LastName        string  `json:"lastName"`
+	Company         *string `json:"company,omitempty"`
+	Street1         string  `json:"street1"`
+	Street2         *string `json:"street2,omitempty"`
+	City            string  `json:"city"`
+	State           *string `json:"state,omitempty"`
+	PostalCode      string  `json:"postalCode"`
+	CountryCode     string  `json:"countryCode"`
+	Phone           *string `json:"phone,omitempty"`
+	SourceAddressID *string `json:"sourceAddressId,omitempty"`
+}
+
+type CartCheckout struct {
+	Email                 string                 `json:"email"`
+	Destination           *CheckoutDestination   `json:"destination,omitempty"`
+	ShippingMethod        *ShippingQuote         `json:"shippingMethod,omitempty"`
+	IsPickup              bool                   `json:"isPickup"`
+	Fulfillment           FulfillmentNeed        `json:"fulfillment"`
+	DigitalLineIds        []string               `json:"digitalLineIds"`
+	SplitDelivery         bool                   `json:"splitDelivery"`
+	CanSplit              bool                   `json:"canSplit"`
+	DeliveryGroups        []*DeliveryGroup       `json:"deliveryGroups"`
+	Requirements          []*CheckoutRequirement `json:"requirements"`
+	Ready                 bool                   `json:"ready"`
+	Phone                 string                 `json:"phone"`
+	PurchaseType          PurchaseType           `json:"purchaseType"`
+	Company               string                 `json:"company"`
+	BusinessIds           []*BusinessIDValue     `json:"businessIds"`
+	PoNumber              string                 `json:"poNumber"`
+	ShippingAddress       *CartAddress           `json:"shippingAddress,omitempty"`
+	BillingSameAsShipping bool                   `json:"billingSameAsShipping"`
+	BillingAddress        *CartAddress           `json:"billingAddress,omitempty"`
+	PickupContact         *PickupContact         `json:"pickupContact,omitempty"`
+	PaymentProviderSlug   *string                `json:"paymentProviderSlug,omitempty"`
+	GiftCards             []*CartGiftCard        `json:"giftCards"`
+	UseStoreCredit        bool                   `json:"useStoreCredit"`
+	Totals                *CheckoutTotals        `json:"totals"`
 }
 
 type CartEstimate struct {
@@ -126,6 +178,12 @@ type CartEstimate struct {
 	CheapestShippingCents int32            `json:"cheapestShippingCents"`
 	TaxCents              int32            `json:"taxCents"`
 	EstimatedTotalCents   int32            `json:"estimatedTotalCents"`
+}
+
+type CartGiftCard struct {
+	Code         string `json:"code"`
+	AppliedCents int32  `json:"appliedCents"`
+	BalanceCents int32  `json:"balanceCents"`
 }
 
 type CartLine struct {
@@ -167,12 +225,121 @@ type CartLineOption struct {
 	FileURL         string  `json:"fileUrl"`
 }
 
+type CheckoutDestination struct {
+	CountryCode string  `json:"countryCode"`
+	RegionCode  *string `json:"regionCode,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+}
+
+type CheckoutDetailsInput struct {
+	Email                 *string                 `json:"email,omitempty"`
+	Phone                 *string                 `json:"phone,omitempty"`
+	PurchaseType          PurchaseType            `json:"purchaseType"`
+	Company               *string                 `json:"company,omitempty"`
+	BusinessIds           []*BusinessIDValueInput `json:"businessIds,omitempty"`
+	PoNumber              *string                 `json:"poNumber,omitempty"`
+	ShippingAddressID     *string                 `json:"shippingAddressId,omitempty"`
+	ShippingAddress       *model.AddressInput     `json:"shippingAddress,omitempty"`
+	PickupContact         *PickupContactInput     `json:"pickupContact,omitempty"`
+	BillingSameAsShipping bool                    `json:"billingSameAsShipping"`
+	BillingAddressID      *string                 `json:"billingAddressId,omitempty"`
+	BillingAddress        *model.AddressInput     `json:"billingAddress,omitempty"`
+}
+
+type CheckoutRequirement struct {
+	Scope   string            `json:"scope"`
+	Type    string            `json:"type"`
+	Label   string            `json:"label"`
+	Mode    RequirementMode   `json:"mode"`
+	Status  RequirementStatus `json:"status"`
+	Code    string            `json:"code"`
+	Message string            `json:"message"`
+}
+
+type CheckoutTotals struct {
+	SubtotalCents    int32 `json:"subtotalCents"`
+	DiscountCents    int32 `json:"discountCents"`
+	ShippingCents    int32 `json:"shippingCents"`
+	TaxCents         int32 `json:"taxCents"`
+	TotalCents       int32 `json:"totalCents"`
+	GiftCardCents    int32 `json:"giftCardCents"`
+	StoreCreditCents int32 `json:"storeCreditCents"`
+	AmountDueCents   int32 `json:"amountDueCents"`
+}
+
 type CountrySettings struct {
 	DefaultCountryCode         string   `json:"defaultCountryCode"`
 	AllowOptionalState         bool     `json:"allowOptionalState"`
 	RequiredRegionCountryCodes []string `json:"requiredRegionCountryCodes"`
 	TopDestinationCountryCodes []string `json:"topDestinationCountryCodes"`
 	EuCountryCodes             []string `json:"euCountryCodes"`
+}
+
+type DeliveryChoice struct {
+	OptionID         string         `json:"optionId"`
+	OptionName       string         `json:"optionName"`
+	Description      string         `json:"description"`
+	Kind             string         `json:"kind"`
+	KindLabel        string         `json:"kindLabel"`
+	ShipTo           DeliveryShipTo `json:"shipTo"`
+	PointLabel       *string        `json:"pointLabel,omitempty"`
+	CarrierSlug      string         `json:"carrierSlug"`
+	CarrierName      string         `json:"carrierName"`
+	MethodCode       string         `json:"methodCode"`
+	MethodName       string         `json:"methodName"`
+	PriceCents       int32          `json:"priceCents"`
+	EstimatedDays    *int32         `json:"estimatedDays,omitempty"`
+	EstimatedArrival *string        `json:"estimatedArrival,omitempty"`
+}
+
+type DeliveryGroup struct {
+	Key       string              `json:"key"`
+	LineIds   []string            `json:"lineIds"`
+	Kinds     []string            `json:"kinds"`
+	Choices   []*DeliveryChoice   `json:"choices"`
+	Selection *DeliverySelection  `json:"selection,omitempty"`
+	Shipments []*DeliveryShipment `json:"shipments"`
+}
+
+type DeliveryPoint struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Street1      string   `json:"street1"`
+	Street2      *string  `json:"street2,omitempty"`
+	City         string   `json:"city"`
+	Region       *string  `json:"region,omitempty"`
+	PostalCode   string   `json:"postalCode"`
+	CountryCode  string   `json:"countryCode"`
+	Lat          *float64 `json:"lat,omitempty"`
+	Lng          *float64 `json:"lng,omitempty"`
+	DistanceKm   *float64 `json:"distanceKm,omitempty"`
+	Hours        *string  `json:"hours,omitempty"`
+	Instructions *string  `json:"instructions,omitempty"`
+	Phone        *string  `json:"phone,omitempty"`
+}
+
+type DeliverySelection struct {
+	OptionID         string         `json:"optionId"`
+	OptionName       string         `json:"optionName"`
+	Kind             string         `json:"kind"`
+	ShipTo           DeliveryShipTo `json:"shipTo"`
+	PointLabel       *string        `json:"pointLabel,omitempty"`
+	CarrierSlug      string         `json:"carrierSlug"`
+	MethodCode       string         `json:"methodCode"`
+	MethodName       string         `json:"methodName"`
+	PriceCents       int32          `json:"priceCents"`
+	EstimatedDays    *int32         `json:"estimatedDays,omitempty"`
+	EstimatedArrival *string        `json:"estimatedArrival,omitempty"`
+	Point            *DeliveryPoint `json:"point,omitempty"`
+}
+
+type DeliveryShipment struct {
+	OriginName       *string  `json:"originName,omitempty"`
+	OriginCity       *string  `json:"originCity,omitempty"`
+	LineIds          []string `json:"lineIds"`
+	PriceCents       *int32   `json:"priceCents,omitempty"`
+	EstimatedDays    *int32   `json:"estimatedDays,omitempty"`
+	EstimatedArrival *string  `json:"estimatedArrival,omitempty"`
 }
 
 type DownloadGrant struct {
@@ -210,6 +377,33 @@ type PaymentMethodOption struct {
 	DisplayName  string `json:"displayName"`
 	SortOrder    int32  `json:"sortOrder"`
 	Instructions string `json:"instructions"`
+}
+
+type PhoneCountryFormat struct {
+	CountryCode     string `json:"countryCode"`
+	CallingCode     string `json:"callingCode"`
+	Example         string `json:"example"`
+	NationalExample string `json:"nationalExample"`
+	Template        string `json:"template"`
+}
+
+type PhoneSettings struct {
+	RestrictedToStoreCountries bool                  `json:"restrictedToStoreCountries"`
+	LockedCountryCode          *string               `json:"lockedCountryCode,omitempty"`
+	DefaultCountryCode         string                `json:"defaultCountryCode"`
+	Formats                    []*PhoneCountryFormat `json:"formats"`
+}
+
+type PickupContact struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
+}
+
+type PickupContactInput struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
 }
 
 type PickupLocation struct {
@@ -454,11 +648,13 @@ type SavedPaymentMethod struct {
 }
 
 type ShippingQuote struct {
-	CarrierSlug string `json:"carrierSlug"`
-	CarrierName string `json:"carrierName"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	PriceCents  int32  `json:"priceCents"`
+	CarrierSlug      string  `json:"carrierSlug"`
+	CarrierName      string  `json:"carrierName"`
+	Code             string  `json:"code"`
+	Name             string  `json:"name"`
+	PriceCents       int32   `json:"priceCents"`
+	EstimatedDays    *int32  `json:"estimatedDays,omitempty"`
+	EstimatedArrival *string `json:"estimatedArrival,omitempty"`
 }
 
 type SitemapCounts struct {
@@ -572,6 +768,287 @@ func (e *BrowseFacetH1Position) UnmarshalJSON(b []byte) error {
 }
 
 func (e BrowseFacetH1Position) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DeliveryShipTo string
+
+const (
+	DeliveryShipToCustomer DeliveryShipTo = "CUSTOMER"
+	DeliveryShipToPoint    DeliveryShipTo = "POINT"
+)
+
+var AllDeliveryShipTo = []DeliveryShipTo{
+	DeliveryShipToCustomer,
+	DeliveryShipToPoint,
+}
+
+func (e DeliveryShipTo) IsValid() bool {
+	switch e {
+	case DeliveryShipToCustomer, DeliveryShipToPoint:
+		return true
+	}
+	return false
+}
+
+func (e DeliveryShipTo) String() string {
+	return string(e)
+}
+
+func (e *DeliveryShipTo) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DeliveryShipTo(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DeliveryShipTo", str)
+	}
+	return nil
+}
+
+func (e DeliveryShipTo) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DeliveryShipTo) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DeliveryShipTo) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type FulfillmentNeed string
+
+const (
+	FulfillmentNeedNone     FulfillmentNeed = "NONE"
+	FulfillmentNeedPhysical FulfillmentNeed = "PHYSICAL"
+	FulfillmentNeedMixed    FulfillmentNeed = "MIXED"
+)
+
+var AllFulfillmentNeed = []FulfillmentNeed{
+	FulfillmentNeedNone,
+	FulfillmentNeedPhysical,
+	FulfillmentNeedMixed,
+}
+
+func (e FulfillmentNeed) IsValid() bool {
+	switch e {
+	case FulfillmentNeedNone, FulfillmentNeedPhysical, FulfillmentNeedMixed:
+		return true
+	}
+	return false
+}
+
+func (e FulfillmentNeed) String() string {
+	return string(e)
+}
+
+func (e *FulfillmentNeed) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FulfillmentNeed(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FulfillmentNeed", str)
+	}
+	return nil
+}
+
+func (e FulfillmentNeed) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FulfillmentNeed) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FulfillmentNeed) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PurchaseType string
+
+const (
+	PurchaseTypePersonal PurchaseType = "PERSONAL"
+	PurchaseTypeBusiness PurchaseType = "BUSINESS"
+)
+
+var AllPurchaseType = []PurchaseType{
+	PurchaseTypePersonal,
+	PurchaseTypeBusiness,
+}
+
+func (e PurchaseType) IsValid() bool {
+	switch e {
+	case PurchaseTypePersonal, PurchaseTypeBusiness:
+		return true
+	}
+	return false
+}
+
+func (e PurchaseType) String() string {
+	return string(e)
+}
+
+func (e *PurchaseType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PurchaseType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PurchaseType", str)
+	}
+	return nil
+}
+
+func (e PurchaseType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PurchaseType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PurchaseType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RequirementMode string
+
+const (
+	RequirementModeRequired RequirementMode = "REQUIRED"
+	RequirementModeOptional RequirementMode = "OPTIONAL"
+)
+
+var AllRequirementMode = []RequirementMode{
+	RequirementModeRequired,
+	RequirementModeOptional,
+}
+
+func (e RequirementMode) IsValid() bool {
+	switch e {
+	case RequirementModeRequired, RequirementModeOptional:
+		return true
+	}
+	return false
+}
+
+func (e RequirementMode) String() string {
+	return string(e)
+}
+
+func (e *RequirementMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RequirementMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RequirementMode", str)
+	}
+	return nil
+}
+
+func (e RequirementMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RequirementMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RequirementMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RequirementStatus string
+
+const (
+	RequirementStatusSatisfied RequirementStatus = "SATISFIED"
+	RequirementStatusMissing   RequirementStatus = "MISSING"
+	RequirementStatusInvalid   RequirementStatus = "INVALID"
+	RequirementStatusOptional  RequirementStatus = "OPTIONAL"
+)
+
+var AllRequirementStatus = []RequirementStatus{
+	RequirementStatusSatisfied,
+	RequirementStatusMissing,
+	RequirementStatusInvalid,
+	RequirementStatusOptional,
+}
+
+func (e RequirementStatus) IsValid() bool {
+	switch e {
+	case RequirementStatusSatisfied, RequirementStatusMissing, RequirementStatusInvalid, RequirementStatusOptional:
+		return true
+	}
+	return false
+}
+
+func (e RequirementStatus) String() string {
+	return string(e)
+}
+
+func (e *RequirementStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RequirementStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RequirementStatus", str)
+	}
+	return nil
+}
+
+func (e RequirementStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RequirementStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RequirementStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
