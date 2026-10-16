@@ -302,38 +302,16 @@ func (r *mutationResolver) SyncProductInventoryBatch(ctx context.Context, items 
 	return result, nil
 }
 
-// SetLocationPickup toggles click-and-collect for one location.
-func (r *mutationResolver) SetLocationPickup(ctx context.Context, id string, enabled bool, instructions *string) (*model.InventoryLocation, error) {
-	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
-		return nil, err
-	}
-	lid, err := parseID(id, "location")
-	if err != nil {
-		return nil, err
-	}
-	instr := ""
-	if instructions != nil {
-		instr = *instructions
-	}
-	l, err := r.InventorySvc.SetLocationPickup(ctx, lid, enabled, instr)
-	if err != nil {
-		return nil, err
-	}
-	return toInventoryLocationModel(l), nil
-}
-
 func (r *queryResolver) InventoryLocations(ctx context.Context, search *string, limit *int32, offset *int32, filter *model.InventoryLocationFilter) ([]*model.InventoryLocation, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
 		return nil, err
 	}
 	var locs []inventory.Location
 	var err error
-	if filter != nil {
-		locs, _, err = r.InventorySvc.FilteredLocationsPage(ctx, ptr.Deref(search), inventoryLocationFilter(filter), int32Or(limit, 0), int32Or(offset, 0))
-	} else if search == nil && limit == nil && offset == nil {
+	if filter == nil && search == nil && limit == nil && offset == nil {
 		locs, err = r.InventorySvc.ListLocations(ctx) // the bare query stays the full list, so pickers and existing clients keep working
 	} else {
-		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, ptr.Deref(search), int32Or(limit, 0), int32Or(offset, 0))
+		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, ptr.Deref(search), inventoryLocationFilter(filter), int32Or(limit, 0), int32Or(offset, 0))
 	}
 	if err != nil {
 		return nil, err
@@ -349,13 +327,7 @@ func (r *queryResolver) InventoryLocationsCount(ctx context.Context, search *str
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
 		return 0, err
 	}
-	var n int64
-	var err error
-	if filter != nil {
-		n, err = r.InventorySvc.CountFilteredLocations(ctx, ptr.Deref(search), inventoryLocationFilter(filter))
-	} else {
-		n, err = r.InventorySvc.CountLocations(ctx, ptr.Deref(search))
-	}
+	n, err := r.InventorySvc.CountLocations(ctx, ptr.Deref(search), inventoryLocationFilter(filter))
 	if err != nil {
 		return 0, err
 	}
