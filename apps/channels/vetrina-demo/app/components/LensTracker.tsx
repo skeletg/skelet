@@ -8,9 +8,9 @@ import { useEffect, useRef } from "react";
 import { redactPath } from "@/app/lib/analytics/redact";
 import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
+import { beaconFetch } from "@/app/lib/beacons/client";
+import { BEACON } from "@/app/lib/beacons/paths";
 
-const ENDPOINT = "/t/collect";
-const CONFIG_ENDPOINT = "/t/config";
 const FLUSH_MS = 5000;
 const MOVE_THROTTLE_MS = 50;
 
@@ -298,12 +298,10 @@ export function LensTracker({
       };
       // Best-effort beacon: a network failure rejects the fetch promise asynchronously (it is not a synchronous throw), so .catch swallows
       // it - a bare `void fetch(...)` leaks an unhandled rejection when the page is unloading or the backend is briefly unreachable
-      void fetch(ENDPOINT, {
+      void beaconFetch(BEACON.collect, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Channel-Id": st.channelId,
-        },
+        channelId: st.channelId,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(batch),
         keepalive,
       }).catch(() => {});
@@ -504,9 +502,7 @@ export function LensTracker({
       let on = true;
       let moves = true;
       try {
-        const r = await fetch(CONFIG_ENDPOINT, {
-          headers: { "X-Channel-Id": channelId },
-        });
+        const r = await beaconFetch(BEACON.config, { channelId });
         if (r.ok) {
           const c = (await r.json()) as {
             enabled?: boolean;

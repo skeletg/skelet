@@ -10,12 +10,12 @@ import { useEffect } from "react";
 import { redactPath } from "@/app/lib/analytics/redact";
 import { ensureAnonId, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
+import { beaconFetch } from "@/app/lib/beacons/client";
+import { BEACON } from "@/app/lib/beacons/paths";
 
 const SID_KEY = "lens_sid";
 const SEQ_KEY = "lens_seq";
 const STARTED_KEY = "lens_started"; // epoch ms the session's recording began (for the max-length cap)
-const ENDPOINT = "/t/rec";
-const CONFIG_ENDPOINT = "/t/config";
 const FLUSH_MS = 5000;
 const FLUSH_EVENTS = 50; // flush early once the buffer reaches this many events
 const CHECKOUT_MS = 2 * 60 * 1000; // periodic full snapshot → seekable + self-healing
@@ -101,9 +101,10 @@ export function LensReplay({
       });
       // Best-effort beacon: a network failure is an async rejection (not a sync throw), so swallow it with .catch -
       // otherwise it leaks as an unhandled rejection (e.g. when the page is unloading or the backend is briefly down)
-      void fetch(ENDPOINT, {
+      void beaconFetch(BEACON.replay, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Channel-Id": channelId },
+        channelId,
+        headers: { "Content-Type": "application/json" },
         body,
         keepalive,
       }).catch(() => {});
@@ -126,7 +127,7 @@ export function LensReplay({
       let rate = 10;
       let maxMinutes = 30;
       try {
-        const r = await fetch(CONFIG_ENDPOINT, { headers: { "X-Channel-Id": channelId } });
+        const r = await beaconFetch(BEACON.config, { channelId });
         if (r.ok) {
           const c = (await r.json()) as { replayEnabled?: boolean; replaySamplingRate?: number; replayMaxMinutes?: number };
           replayEnabled = c.replayEnabled !== false;
