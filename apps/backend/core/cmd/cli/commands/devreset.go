@@ -45,9 +45,17 @@ var devResetKeepTables = map[string]struct{}{
 	"config_values":   {},
 }
 
-func runDevReset(cmd *cobra.Command, args []string) error {
+// requireDevEnv guards the commands that write or wipe fixture data
+func requireDevEnv(command string) error {
 	if env := strings.ToLower(os.Getenv("APP_ENV")); env != "development" && env != "dev" {
-		return fmt.Errorf("dev-reset refuses to run unless APP_ENV=development (got %q)", os.Getenv("APP_ENV"))
+		return fmt.Errorf("%s refuses to run unless APP_ENV=development (got %q)", command, os.Getenv("APP_ENV"))
+	}
+	return nil
+}
+
+func runDevReset(cmd *cobra.Command, args []string) error {
+	if err := requireDevEnv("dev-reset"); err != nil {
+		return err
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")

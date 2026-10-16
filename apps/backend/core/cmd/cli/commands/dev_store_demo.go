@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
@@ -24,9 +23,8 @@ var DevStoreDemoCmd = &cobra.Command{
 }
 
 func runDevStoreDemo(cmd *cobra.Command, args []string) error {
-	env := strings.ToLower(os.Getenv("APP_ENV"))
-	if env != "development" && env != "dev" {
-		return fmt.Errorf("dev-store-demo requires APP_ENV=development")
+	if err := requireDevEnv("dev-store-demo"); err != nil {
+		return err
 	}
 	id, err := uuid.Parse(args[0])
 	if err != nil {
