@@ -279,3 +279,25 @@ func TestPlaceDraftRefusesANonDraftOrder(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+func TestDraftPersistsNormalizedPhonesAndRefusesExtensions(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	raw := "(212) 555-0123"
+	in := order.CreateDraftOrderInput{ChannelID: f.Channel.ID, Email: "draft-phone-" + uuid.NewString() + "@e2e.test", BillingAddress: *e2eAddress(), ShippingAddress: *e2eAddress(), Lines: []order.CreateDraftLine{{ProductSku: f.Product.SKU, Quantity: 1}}}
+	in.BillingAddress.Phone, in.ShippingAddress.Phone = &raw, &raw
+	draft, err := h.D.Order.CreateDraftOrder(h.Ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, draft.ID)
+	if err != nil || row.BillingPhone.String != "+12125550123" || row.ShippingPhone.String != "+12125550123" {
+		t.Fatalf("stored phones=%v/%v, %v", row.BillingPhone, row.ShippingPhone, err)
+	}
+	extension := "+1 212 555 0123 ext. 42"
+	in.ShippingAddress.Phone = &extension
+	if _, err := h.D.Order.CreateDraftOrder(h.Ctx, in); err == nil {
+		t.Fatal("draft accepted a phone extension")
+	}
+	h.Settle(t)
+}
