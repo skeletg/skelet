@@ -97,7 +97,7 @@ func dataImportHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handl
 			forbidden(w)
 			return
 		}
-		claims, err := auth.RequireAuth(r.Context())
+		by, err := auth.RequireActor(r.Context())
 		if err != nil {
 			forbidden(w)
 			return
@@ -115,14 +115,15 @@ func dataImportHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handl
 			format = formatFromFilename(header.Filename)
 		}
 		job, err := svc.QueueImport(r.Context(), datajob.ImportRequest{
-			Resource:  slug,
-			Format:    format,
-			Options:   formOptions(res, r),
-			ChannelID: channelID,
-			Locale:    strings.TrimSpace(r.FormValue("locale")),
-			AdminID:   claims.AdminID,
-			DryRun:    isTruthy(r.FormValue("dryRun")),
-			Filename:  header.Filename,
+			Resource:      slug,
+			Format:        format,
+			Options:       formOptions(res, r),
+			ChannelID:     channelID,
+			Locale:        strings.TrimSpace(r.FormValue("locale")),
+			AdminID:       by.AdminID().UUID,
+			IntegrationID: by.IntegrationID().UUID,
+			DryRun:        isTruthy(r.FormValue("dryRun")),
+			Filename:      header.Filename,
 		}, capped(file, maxImportUpload))
 		if errors.Is(err, errUploadTooLarge) {
 			http.Error(w, fmt.Sprintf("that file is over the %d MB limit - split it", maxImportUpload>>20), http.StatusRequestEntityTooLarge)

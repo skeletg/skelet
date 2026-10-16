@@ -333,15 +333,16 @@ type AttributeValue struct {
 }
 
 type AuditLog struct {
-	ID         uuid.UUID             `json:"id"`
-	AdminID    uuid.NullUUID         `json:"admin_id"`
-	AdminEmail string                `json:"admin_email"`
-	Action     string                `json:"action"`
-	Detail     pqtype.NullRawMessage `json:"detail"`
-	Ip         string                `json:"ip"`
-	Success    bool                  `json:"success"`
-	DurationMs int64                 `json:"duration_ms"`
-	CreatedAt  time.Time             `json:"created_at"`
+	ID            uuid.UUID             `json:"id"`
+	AdminID       uuid.NullUUID         `json:"admin_id"`
+	AdminEmail    string                `json:"admin_email"`
+	Action        string                `json:"action"`
+	Detail        pqtype.NullRawMessage `json:"detail"`
+	Ip            string                `json:"ip"`
+	Success       bool                  `json:"success"`
+	DurationMs    int64                 `json:"duration_ms"`
+	CreatedAt     time.Time             `json:"created_at"`
+	IntegrationID uuid.NullUUID         `json:"integration_id"`
 }
 
 type AuthRefreshToken struct {
@@ -1320,6 +1321,7 @@ type DataJob struct {
 	StartedAt       sql.NullTime    `json:"started_at"`
 	FinishedAt      sql.NullTime    `json:"finished_at"`
 	ExpiresAt       sql.NullTime    `json:"expires_at"`
+	IntegrationID   uuid.NullUUID   `json:"integration_id"`
 }
 
 type DataJobError struct {
@@ -1982,18 +1984,19 @@ type ProductMedium struct {
 }
 
 type ProductQuestion struct {
-	ID          uuid.UUID     `json:"id"`
-	ProductID   uuid.UUID     `json:"product_id"`
-	ChannelID   uuid.UUID     `json:"channel_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	AuthorName  string        `json:"author_name"`
-	AuthorEmail string        `json:"author_email"`
-	Question    string        `json:"question"`
-	Answer      string        `json:"answer"`
-	AnsweredBy  uuid.NullUUID `json:"answered_by"`
-	AnsweredAt  sql.NullTime  `json:"answered_at"`
-	Status      string        `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
+	ID                      uuid.UUID     `json:"id"`
+	ProductID               uuid.UUID     `json:"product_id"`
+	ChannelID               uuid.UUID     `json:"channel_id"`
+	CustomerID              uuid.NullUUID `json:"customer_id"`
+	AuthorName              string        `json:"author_name"`
+	AuthorEmail             string        `json:"author_email"`
+	Question                string        `json:"question"`
+	Answer                  string        `json:"answer"`
+	AnsweredBy              uuid.NullUUID `json:"answered_by"`
+	AnsweredAt              sql.NullTime  `json:"answered_at"`
+	Status                  string        `json:"status"`
+	CreatedAt               time.Time     `json:"created_at"`
+	AnsweredByIntegrationID uuid.NullUUID `json:"answered_by_integration_id"`
 }
 
 type ProductReviewSummary struct {
@@ -2159,29 +2162,30 @@ type RemoteProvider struct {
 }
 
 type Review struct {
-	ID                  uuid.UUID       `json:"id"`
-	ProductID           uuid.UUID       `json:"product_id"`
-	CustomerID          uuid.NullUUID   `json:"customer_id"`
-	ChannelID           uuid.UUID       `json:"channel_id"`
-	Locale              string          `json:"locale"`
-	Title               string          `json:"title"`
-	Body                string          `json:"body"`
-	IsVerifiedPurchase  bool            `json:"is_verified_purchase"`
-	Status              string          `json:"status"`
-	SubmittedAt         time.Time       `json:"submitted_at"`
-	ModeratedAt         sql.NullTime    `json:"moderated_at"`
-	ModeratedBy         uuid.NullUUID   `json:"moderated_by"`
-	ModeratorNote       string          `json:"moderator_note"`
-	GuestName           string          `json:"guest_name"`
-	GuestEmail          string          `json:"guest_email"`
-	ModerationLabel     string          `json:"moderation_label"`
-	ModerationReason    string          `json:"moderation_reason"`
-	ModerationCheckedAt sql.NullTime    `json:"moderation_checked_at"`
-	MerchantReply       string          `json:"merchant_reply"`
-	MerchantReplyAt     sql.NullTime    `json:"merchant_reply_at"`
-	MerchantReplyBy     uuid.NullUUID   `json:"merchant_reply_by"`
-	ModerationTags      json.RawMessage `json:"moderation_tags"`
-	CategorySlugs       json.RawMessage `json:"category_slugs"`
+	ID                       uuid.UUID       `json:"id"`
+	ProductID                uuid.UUID       `json:"product_id"`
+	CustomerID               uuid.NullUUID   `json:"customer_id"`
+	ChannelID                uuid.UUID       `json:"channel_id"`
+	Locale                   string          `json:"locale"`
+	Title                    string          `json:"title"`
+	Body                     string          `json:"body"`
+	IsVerifiedPurchase       bool            `json:"is_verified_purchase"`
+	Status                   string          `json:"status"`
+	SubmittedAt              time.Time       `json:"submitted_at"`
+	ModeratedAt              sql.NullTime    `json:"moderated_at"`
+	ModeratedBy              uuid.NullUUID   `json:"moderated_by"`
+	ModeratorNote            string          `json:"moderator_note"`
+	GuestName                string          `json:"guest_name"`
+	GuestEmail               string          `json:"guest_email"`
+	ModerationLabel          string          `json:"moderation_label"`
+	ModerationReason         string          `json:"moderation_reason"`
+	ModerationCheckedAt      sql.NullTime    `json:"moderation_checked_at"`
+	MerchantReply            string          `json:"merchant_reply"`
+	MerchantReplyAt          sql.NullTime    `json:"merchant_reply_at"`
+	MerchantReplyBy          uuid.NullUUID   `json:"merchant_reply_by"`
+	ModerationTags           json.RawMessage `json:"moderation_tags"`
+	CategorySlugs            json.RawMessage `json:"category_slugs"`
+	ModeratedByIntegrationID uuid.NullUUID   `json:"moderated_by_integration_id"`
 }
 
 type ReviewAnswer struct {
@@ -2516,14 +2520,15 @@ type SignupFormSubmission struct {
 }
 
 type StoreCreditEntry struct {
-	ID           uuid.UUID     `json:"id"`
-	CustomerID   uuid.UUID     `json:"customer_id"`
-	OrderID      uuid.NullUUID `json:"order_id"`
-	AmountCents  int64         `json:"amount_cents"`
-	CurrencyCode string        `json:"currency_code"`
-	Reason       string        `json:"reason"`
-	AdminID      uuid.NullUUID `json:"admin_id"`
-	CreatedAt    time.Time     `json:"created_at"`
+	ID            uuid.UUID     `json:"id"`
+	CustomerID    uuid.UUID     `json:"customer_id"`
+	OrderID       uuid.NullUUID `json:"order_id"`
+	AmountCents   int64         `json:"amount_cents"`
+	CurrencyCode  string        `json:"currency_code"`
+	Reason        string        `json:"reason"`
+	AdminID       uuid.NullUUID `json:"admin_id"`
+	CreatedAt     time.Time     `json:"created_at"`
+	IntegrationID uuid.NullUUID `json:"integration_id"`
 }
 
 type Subscription struct {

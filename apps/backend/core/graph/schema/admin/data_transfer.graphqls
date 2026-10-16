@@ -73,6 +73,8 @@ type DataJob {
   options: JSON!
   channelId: ID
   adminId: ID
+  # set instead of adminId when an integration token started the job
+  integrationId: ID
   filename: String!
   "False once the retention sweep has removed the file - the row outlives it"
   hasArtifact: Boolean!

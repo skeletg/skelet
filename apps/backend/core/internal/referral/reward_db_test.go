@@ -13,6 +13,7 @@ import (
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -451,7 +452,7 @@ func TestASpentRewardIsClawedBackToZeroNotIntoDebt(t *testing.T) {
 	orderID := seedOrder(t, conn, channelID, &referee)
 
 	_ = svc.onOrderPlaced(ctx, &order.OrderPlaced{OrderID: orderID, CustomerID: &referee, ChannelID: channelID, Currency: "USD"})
-	if _, err := credit.Adjust(ctx, referrer, -600, "USD", "spent on an order", nil); err != nil {
+	if _, err := credit.Adjust(ctx, referrer, -600, "USD", "spent on an order", auth.Actor{}); err != nil {
 		t.Fatalf("spend part of the reward: %v", err)
 	}
 	if got := balance(t, credit, referrer); got != 400 {

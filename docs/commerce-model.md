@@ -65,7 +65,8 @@ permissions to `administrator`, so adding a permission needs no migration.
 
 - **Admins**: permissions via roles; `is_superuser = true` bypasses checks.
 - **Integrations**: permissions directly via `integration_permissions`.
-- **Guards** (`auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
+- **Guards** (`auth/guard.go`, `auth/actor.go`): `RequireActor` (an admin or a token),
+  `RequireAdmin` (a person only), `RequireCustomerAuth`,
   `RequirePermission(ctx, checker, slug)`, `RequireTokenPermission(ctx, slug)`,
   `RequireChannelPermission(ctx, checker, slug, channelID, locale)` - the last one
   keeps a pre-rename name, but the argument is a channel id.

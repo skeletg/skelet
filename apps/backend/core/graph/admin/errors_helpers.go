@@ -38,8 +38,3 @@ func errNotFound(entity string) error {
 func errNotConfigured(subsystem string) error {
 	return apperr.New("NOT_CONFIGURED", apperr.ClassUnavailable, subsystem+" is not configured")
 }
-
-// errAdminRequired is a resolver reached without an admin identity in context - the authz middleware is non-blocking, so resolvers check for themselves
-func errAdminRequired() error {
-	return apperr.New("ADMIN_CONTEXT_REQUIRED", apperr.ClassAuth, "admin context required")
-}

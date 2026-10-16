@@ -25,7 +25,7 @@ WITH prev AS (
   SELECT p.id, p.status FROM product_questions p WHERE p.id = $1 FOR UPDATE
 )
 UPDATE product_questions q
-SET    answer = $2, answered_by = $3, answered_at = now(), status = 'published'
+SET    answer = $2, answered_by = $3, answered_by_integration_id = $4, answered_at = now(), status = 'published'
 FROM   prev
 WHERE  q.id = prev.id
 RETURNING sqlc.embed(q), prev.status AS prev_status;

@@ -35,7 +35,7 @@ func TestAChannelScopedGrantCannotReachInstallWideOps(t *testing.T) {
 		"SuppressEmail":         func() error { _, e := m.SuppressEmail(ctx, "a@example.invalid", nil); return e },
 		"UnsuppressEmail":       func() error { _, e := m.UnsuppressEmail(ctx, "a@example.invalid"); return e },
 		"EmailSuppressions":     func() error { _, e := q.EmailSuppressions(ctx, nil, nil, nil); return e },
-		"AuditLog":              func() error { _, e := q.AuditLog(ctx, nil, nil, nil, nil); return e },
+		"AuditLog":              func() error { _, e := q.AuditLog(ctx, nil, nil, nil, nil, nil); return e },
 		"ScheduledJobs":         func() error { _, e := q.ScheduledJobs(ctx); return e },
 		"DeleteScheduledJob":    func() error { _, e := m.DeleteScheduledJob(ctx, uuid.NewString()); return e },
 		"RunScheduledJobNow":    func() error { _, e := m.RunScheduledJobNow(ctx, uuid.NewString()); return e },

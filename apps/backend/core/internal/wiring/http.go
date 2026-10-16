@@ -283,8 +283,9 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	})
 
 	// Bulk transfer files move over HTTP, not GraphQL - same auth chain as admin GraphQL, same permission rules as the resolvers
+	// The same credentials the admin GraphQL endpoint takes, so a token that can queue an export can also fetch the file
 	adminAuth := func(h http.Handler) http.Handler {
-		return authpkg.Middleware(infra.Config.JWTSecret)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h))
+		return authpkg.Middleware(infra.Config.JWTSecret)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h)))
 	}
 	mux.Handle(dataImportPath, otelx.WrapHTTP(adminAuth(dataImportHandler(s.DataJob, s.Admin)), "data.import"))
 	mux.Handle("/api/admin/data/template", otelx.WrapHTTP(adminAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))

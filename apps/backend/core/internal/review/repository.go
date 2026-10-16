@@ -14,6 +14,7 @@ import (
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -569,12 +570,13 @@ func (r *postgresRepository) CountByStatus(ctx context.Context, channelIDs []uui
 	return out, nil
 }
 
-func (r *postgresRepository) SetReviewStatus(ctx context.Context, id uuid.UUID, status Status, moderatorID uuid.UUID, note string) (Review, error) {
+func (r *postgresRepository) SetReviewStatus(ctx context.Context, id uuid.UUID, status Status, by auth.Actor, note string) (Review, error) {
 	row, err := r.queries.SetReviewStatus(ctx, db.SetReviewStatusParams{
-		ID:            id,
-		Status:        string(status),
-		ModeratedBy:   uuid.NullUUID{UUID: moderatorID, Valid: true},
-		ModeratorNote: note,
+		ID:                       id,
+		Status:                   string(status),
+		ModeratedBy:              by.AdminID(),
+		ModeratedByIntegrationID: by.IntegrationID(),
+		ModeratorNote:            note,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1075,29 +1077,30 @@ func toReview(row db.Review) Review {
 		customerID = &u
 	}
 	return Review{
-		ID:                  row.ID,
-		ProductID:           row.ProductID,
-		CustomerID:          customerID,
-		GuestName:           row.GuestName,
-		GuestEmail:          row.GuestEmail,
-		ChannelID:           row.ChannelID,
-		Locale:              row.Locale,
-		Title:               row.Title,
-		Body:                row.Body,
-		IsVerifiedPurchase:  row.IsVerifiedPurchase,
-		Status:              Status(row.Status),
-		SubmittedAt:         row.SubmittedAt,
-		ModeratedAt:         moderatedAt,
-		ModeratedBy:         moderatedBy,
-		ModeratorNote:       row.ModeratorNote,
-		ModerationLabel:     row.ModerationLabel,
-		ModerationReason:    row.ModerationReason,
-		ModerationCheckedAt: sqlnull.TimePtr(row.ModerationCheckedAt),
-		CategorySlugs:       parseTagsJSON(row.CategorySlugs),
-		ModerationTags:      parseTagsJSON(row.ModerationTags),
-		MerchantReply:       row.MerchantReply,
-		MerchantReplyAt:     sqlnull.TimePtr(row.MerchantReplyAt),
-		MerchantReplyBy:     sqlnull.UUIDPtr(row.MerchantReplyBy),
+		ID:                     row.ID,
+		ProductID:              row.ProductID,
+		CustomerID:             customerID,
+		GuestName:              row.GuestName,
+		GuestEmail:             row.GuestEmail,
+		ChannelID:              row.ChannelID,
+		Locale:                 row.Locale,
+		Title:                  row.Title,
+		Body:                   row.Body,
+		IsVerifiedPurchase:     row.IsVerifiedPurchase,
+		Status:                 Status(row.Status),
+		SubmittedAt:            row.SubmittedAt,
+		ModeratedAt:            moderatedAt,
+		ModeratedBy:            moderatedBy,
+		ModeratedByIntegration: sqlnull.UUIDPtr(row.ModeratedByIntegrationID),
+		ModeratorNote:          row.ModeratorNote,
+		ModerationLabel:        row.ModerationLabel,
+		ModerationReason:       row.ModerationReason,
+		ModerationCheckedAt:    sqlnull.TimePtr(row.ModerationCheckedAt),
+		CategorySlugs:          parseTagsJSON(row.CategorySlugs),
+		ModerationTags:         parseTagsJSON(row.ModerationTags),
+		MerchantReply:          row.MerchantReply,
+		MerchantReplyAt:        sqlnull.TimePtr(row.MerchantReplyAt),
+		MerchantReplyBy:        sqlnull.UUIDPtr(row.MerchantReplyBy),
 	}
 }
 

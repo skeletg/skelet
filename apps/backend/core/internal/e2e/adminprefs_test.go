@@ -115,7 +115,7 @@ func TestAdminPreferencesRoundtrip(t *testing.T) {
 		t.Fatalf("create integration: %v", err)
 	}
 	defer func() { _ = h.D.Integration.Delete(h.Ctx, tok.Integration.ID) }()
-	if _, errs := h.adminGqlPost(t, ts, tok.RawToken, `query { myPreferences { key } }`); !errorsContain(errs, "unauthenticated") {
-		t.Errorf("integration-token myPreferences = %v, want unauthenticated", errs)
+	if _, errs := h.adminGqlPost(t, ts, tok.RawToken, `query { myPreferences { key } }`); !errorsContain(errs, "integration tokens can't use it") {
+		t.Errorf("integration-token myPreferences = %v, want the admin-only refusal", errs)
 	}
 }
