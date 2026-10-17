@@ -139,7 +139,7 @@ export function ScheduledJobsList() {
               {job.description && <div className="text-xs text-muted-foreground">{job.description}</div>}
               {job.webhook && (
                 <code className="block max-w-md truncate font-mono text-xs text-muted-foreground">
-                  {job.webhook.method} {job.webhook.url}
+                  {job.webhook.method} {job.webhook.host}
                 </code>
               )}
             </>

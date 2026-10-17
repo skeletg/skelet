@@ -14,7 +14,7 @@ query ScheduledJobs {
     consecutiveFailures
     timeoutSeconds
     webhook {
-      url
+      host
       method
       hasSecret
     }
@@ -68,6 +68,7 @@ query SchedulerConfig($scope: ConfigScopeInput) {
   alertWebhookUrl: configValue(path: "system/scheduler/alert_webhook_url", scope: $scope) {
     value
     isDefault
+    isSet
   }
   historyRetentionDays: configValue(path: "system/scheduler/history_retention_days", scope: $scope) {
     value
@@ -101,7 +102,7 @@ mutation UpdateWebhookJob($input: UpdateWebhookJobInput!) {
     id
     description
     webhook {
-      url
+      host
       method
       hasSecret
     }

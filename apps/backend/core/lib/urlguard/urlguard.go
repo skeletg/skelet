@@ -13,25 +13,17 @@ import (
 
 // Rejects URLs that aren't plain http(s) endpoints, or whose host resolves to a private, loopback, link-local or otherwise non-global address
 func ValidateTargetURL(raw string, allowPrivate bool) error {
-	u, err := url.Parse(raw)
+	u, err := CheckShape(raw)
 	if err != nil {
-		return fmt.Errorf("invalid target url: %w", err)
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("target url must use http or https")
+		return err
 	}
 	host := u.Hostname()
-	if host == "" {
-		return fmt.Errorf("target url must include a host")
-	}
-	if u.User != nil {
-		return fmt.Errorf("target url must not include credentials")
-	}
+	refused := DisallowedIP
 	if allowPrivate {
-		return nil
+		refused = alwaysDisallowed
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		if DisallowedIP(ip) {
+		if refused(ip) {
 			return fmt.Errorf("target url must not point at a private or internal address")
 		}
 		return nil
@@ -41,17 +33,36 @@ func ValidateTargetURL(raw string, allowPrivate bool) error {
 	if err != nil {
 		return nil
 	}
-	if slices.ContainsFunc(ips, DisallowedIP) {
+	if slices.ContainsFunc(ips, refused) {
 		return fmt.Errorf("target url must not resolve to a private or internal address")
 	}
 	return nil
 }
 
+// CheckShape is ValidateTargetURL without the DNS lookup - for a request about to go out through SafeTransport, whose dial-time check already covers the address
+func CheckShape(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("target url must use http or https")
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("target url must include a host")
+	}
+	if u.User != nil {
+		return nil, fmt.Errorf("target url must not include credentials")
+	}
+	return u, nil
+}
+
 // An *http.Transport cloned from the default, whose dialer refuses connections to non-global addresses - checking the resolved IP at connect time closes the DNS-rebinding gap that save-time validation leaves
 func SafeTransport(allowPrivate bool) *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
+	refused := DisallowedIP
 	if allowPrivate {
-		return t
+		refused = alwaysDisallowed
 	}
 	dialer := &net.Dialer{
 		Timeout:   5 * time.Second,
@@ -62,7 +73,7 @@ func SafeTransport(allowPrivate bool) *http.Transport {
 				return fmt.Errorf("guarded dial: %w", err)
 			}
 			ip := net.ParseIP(host)
-			if ip == nil || DisallowedIP(ip) {
+			if ip == nil || refused(ip) {
 				return fmt.Errorf("target resolves to a private or internal address")
 			}
 			return nil
@@ -72,7 +83,15 @@ func SafeTransport(allowPrivate bool) *http.Transport {
 	return t
 }
 
-// Anything other than a global unicast address - loopback, RFC1918 and ULA private ranges, link-local including the 169.254.169.254 cloud metadata address, multicast, unspecified and broadcast all refuse
+// Carrier-grade NAT space reads as global unicast, but Tailscale and many cloud networks put internal services there
+var sharedAddressSpace = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
+
+// What stays refused even in development - link-local holds the cloud metadata endpoint, and no local callback lives there
+func alwaysDisallowed(ip net.IP) bool {
+	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+}
+
+// Anything other than a global unicast address - loopback, RFC1918 and ULA private ranges, carrier-grade NAT, link-local including the 169.254.169.254 cloud metadata address, multicast, unspecified and broadcast all refuse
 func DisallowedIP(ip net.IP) bool {
-	return !ip.IsGlobalUnicast() || ip.IsPrivate()
+	return !ip.IsGlobalUnicast() || ip.IsPrivate() || sharedAddressSpace.Contains(ip)
 }

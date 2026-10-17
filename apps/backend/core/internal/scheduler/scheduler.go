@@ -13,11 +13,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
 
 const (
@@ -36,6 +39,13 @@ type HandlerFunc func(ctx context.Context) error
 
 // Marks a code job whose handler isn't registered, e.g. the plugin that registered it was removed - such a job is parked with next_run cleared rather than erroring every tick forever
 var errNoHandler = errors.New("no handler registered")
+
+var (
+	ErrJobDisabled       = apperr.New("SCHEDULED_JOB_DISABLED", apperr.ClassValidation, "this job is disabled - enable it to run it")
+	ErrWebhookMethod     = apperr.New("SCHEDULED_JOB_METHOD_INVALID", apperr.ClassValidation, "webhook method must be GET, POST, PUT, PATCH or DELETE")
+	ErrWebhookNameTaken  = apperr.New("SCHEDULED_JOB_NAME_RESERVED", apperr.ClassValidation, "that name belongs to a built-in job - pick another")
+	ErrWebhookNameNeeded = apperr.New("SCHEDULED_JOB_NAME_REQUIRED", apperr.ClassValidation, "name is required")
+)
 
 type registered struct {
 	enabled         bool
@@ -142,6 +152,9 @@ func New(queries *db.Queries, allowPrivateWebhookHosts bool) *Service {
 }
 
 func (s *Service) SetConfig(c Config) { s.cfg = c }
+
+// SetCipher seals webhook jobs' signing secrets and header values at rest - without it they store as typed
+func (s *Service) SetCipher(c *secrets.Cipher) { s.webhook.cipher = c }
 
 func (s *Service) SetPollInterval(d time.Duration) {
 	if d > 0 {
@@ -281,12 +294,13 @@ func (s *Service) runOne(ctx context.Context, row db.ScheduledJob) {
 		rec, cancelRec := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancelRec()
 		if err := s.queries.RecordScheduledJobResult(rec, db.RecordScheduledJobResultParams{
-			ID:                  row.ID,
-			LastStatus:          "error",
-			LastError:           "interrupted: server shutting down",
-			LastDurationMs:      sql.NullInt32{Int32: durMs, Valid: true},
-			RanAt:               sql.NullTime{Time: start, Valid: true},
-			NextRunAt:           nextRunFrom(row, finished),
+			ID:             row.ID,
+			LastStatus:     "error",
+			LastError:      "interrupted: server shutting down",
+			LastDurationMs: sql.NullInt32{Int32: durMs, Valid: true},
+			RanAt:          sql.NullTime{Time: start, Valid: true},
+			// Still due, so the next replica or boot runs it now rather than waiting out a whole cadence
+			NextRunAt:           sql.NullTime{Time: finished, Valid: true},
 			CurrentAttempt:      row.CurrentAttempt,
 			ConsecutiveFailures: row.ConsecutiveFailures,
 			Alerted:             row.Alerted,
@@ -416,9 +430,7 @@ func backoffDuration(baseSeconds, attempt int32) time.Duration {
 	if baseSeconds <= 0 {
 		baseSeconds = 60
 	}
-	shift := min(attempt-1,
-		// guard the shift; 2^16 already dwarfs the cap
-		16)
+	shift := min(attempt-1, 16) // 2^16 already dwarfs the cap
 	d := time.Duration(baseSeconds) * time.Second * time.Duration(int64(1)<<uint(shift))
 	if d > maxBackoff || d <= 0 {
 		return maxBackoff
@@ -475,8 +487,15 @@ func (s *Service) invoke(ctx context.Context, row db.ScheduledJob) (err error) {
 	}
 }
 
-// Pulls a job's next run forward so the engine executes it on the next tick - returns the possibly-updated due time
+// Pulls a job's next run forward so the engine executes it on the next tick - a disabled job is never claimed, so it refuses rather than queueing a run that can't happen
 func (s *Service) RunNow(ctx context.Context, id uuid.UUID) error {
+	job, err := s.queries.GetScheduledJob(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !job.Enabled {
+		return ErrJobDisabled
+	}
 	return s.queries.SetScheduledJobNextRun(ctx, db.SetScheduledJobNextRunParams{
 		ID:        id,
 		NextRunAt: sql.NullTime{Time: time.Now(), Valid: true},
@@ -497,9 +516,20 @@ func (s *Service) RunNowByName(ctx context.Context, name string) error {
 	return nil
 }
 
+// Cuts at a rune boundary - half a multi-byte character is invalid UTF-8, which Postgres refuses, and a refused result write leaves the job leased
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
 	return s[:n]
+}
+
+func (s *Service) isCodeJob(name string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.handlers[name]
+	return ok
 }

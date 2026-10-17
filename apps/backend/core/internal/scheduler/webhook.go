@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
+	"slices"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
+	"github.com/skeletg/skelet/apps/backend/core/lib/urlguard"
 )
 
 // WebhookConfig is the persisted payload for a kind=webhook job - Exported so
@@ -28,52 +29,77 @@ type WebhookConfig struct {
 	Secret string `json:"secret,omitempty"`
 }
 
+var webhookMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
+
 type webhookRunner struct {
 	client       *http.Client
 	allowPrivate bool
+	cipher       *secrets.Cipher
 }
 
 func newWebhookRunner(allowPrivate bool) *webhookRunner {
-	r := &webhookRunner{allowPrivate: allowPrivate}
-	dialer := &net.Dialer{
-		Timeout: 10 * time.Second,
-		// Control runs once per RESOLVED address before connecting, so it closes the DNS-rebinding gap a create-time URL check can't - even when a hostname later resolves to an internal IP, the dial is refused here
-		Control: func(_, address string, _ syscall.RawConn) error {
-			host, _, err := net.SplitHostPort(address)
-			if err != nil {
-				host = address
-			}
-			if ip := net.ParseIP(host); ip != nil && ipBlocked(ip, r.allowPrivate) {
-				return fmt.Errorf("blocked address %s (private/loopback/link-local)", host)
-			}
-			return nil
+	return &webhookRunner{
+		allowPrivate: allowPrivate,
+		client: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: urlguard.SafeTransport(allowPrivate),
+			// A followed redirect carries the job's own headers and signature to whatever host it names
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
-	r.client = &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{DialContext: dialer.DialContext},
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("stopped after 3 redirects")
-			}
-			return nil
-		},
+}
+
+func (r *webhookRunner) seal(c WebhookConfig) (WebhookConfig, error) {
+	return r.mapSecrets(c, func(v string) (string, error) {
+		if r.cipher == nil || v == "" || secrets.IsEncrypted(v) {
+			return v, nil
+		}
+		return r.cipher.Encrypt(v)
+	})
+}
+
+func (r *webhookRunner) open(c WebhookConfig) (WebhookConfig, error) {
+	return r.mapSecrets(c, func(v string) (string, error) {
+		if !secrets.IsEncrypted(v) {
+			return v, nil
+		}
+		if r.cipher == nil {
+			return "", fmt.Errorf("webhook config is sealed but no encryption key is configured")
+		}
+		return r.cipher.Decrypt(v)
+	})
+}
+
+func (r *webhookRunner) mapSecrets(c WebhookConfig, f func(string) (string, error)) (WebhookConfig, error) {
+	var err error
+	if c.Secret, err = f(c.Secret); err != nil {
+		return WebhookConfig{}, err
 	}
-	return r
+	if len(c.Headers) > 0 {
+		headers := make(map[string]string, len(c.Headers))
+		for k, v := range c.Headers {
+			if headers[k], err = f(v); err != nil {
+				return WebhookConfig{}, err
+			}
+		}
+		c.Headers = headers
+	}
+	return c, nil
 }
 
 func (r *webhookRunner) run(ctx context.Context, payload []byte) error {
-	var cfg WebhookConfig
-	if err := json.Unmarshal(payload, &cfg); err != nil {
+	var stored WebhookConfig
+	if err := json.Unmarshal(payload, &stored); err != nil {
 		return fmt.Errorf("decode webhook config: %w", err)
 	}
-	if err := ValidateWebhookURL(cfg.URL, r.allowPrivate); err != nil {
+	cfg, err := r.open(stored)
+	if err != nil {
 		return err
 	}
-	method := strings.ToUpper(strings.TrimSpace(cfg.Method))
-	if method == "" {
-		method = http.MethodPost
+	if _, err := urlguard.CheckShape(cfg.URL); err != nil {
+		return err
 	}
+	method := normalizeMethod(cfg.Method)
 	req, err := http.NewRequestWithContext(ctx, method, cfg.URL, strings.NewReader(cfg.Body))
 	if err != nil {
 		return err
@@ -94,53 +120,23 @@ func (r *webhookRunner) run(ctx context.Context, payload []byte) error {
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return fmt.Errorf("webhook returned a redirect (HTTP %d) - point the job at the final URL", resp.StatusCode)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
 	}
 	return nil
 }
 
-// Enforces an http(s) scheme and, unless allowPrivate, that no resolved IP is private, loopback or link-local - used both as create-time validation and inside run()
-// The connect-time Dialer.Control is the authoritative guard against rebinding; this just gives the operator early, readable feedback
+// ValidateWebhookURL is the save-time check, the shared SSRF guard's - the guarded transport stays the authoritative one against rebinding
 func ValidateWebhookURL(raw string, allowPrivate bool) error {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return fmt.Errorf("invalid url: %w", err)
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("webhook url must be http or https")
-	}
-	if u.Hostname() == "" {
-		return fmt.Errorf("webhook url must have a host")
-	}
-	host := u.Hostname()
-	if ip := net.ParseIP(host); ip != nil {
-		if ipBlocked(ip, allowPrivate) {
-			return fmt.Errorf("webhook url host %s is a blocked address", host)
-		}
-		return nil
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		// Can't resolve right now, from transient DNS or an unknown host - don't reject on that, since the connect-time Dialer.Control is authoritative and refuses a blocked IP at dial time regardless
-		return nil
-	}
-	for _, ip := range ips {
-		if ipBlocked(ip, allowPrivate) {
-			return fmt.Errorf("webhook url host %s resolves to a blocked address", host)
-		}
-	}
-	return nil
+	return urlguard.ValidateTargetURL(strings.TrimSpace(raw), allowPrivate)
 }
 
-// Whether an IP may not be a webhook target - link-local, which includes the 169.254.169.254 cloud-metadata endpoint, link-local multicast and the unspecified address are ALWAYS blocked even with allowPrivate
-// allowPrivate only relaxes loopback and RFC1918 ranges, so a dev can point a job at a local test server
-func ipBlocked(ip net.IP, allowPrivate bool) bool {
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-		return true
+func validateMethod(m string) error {
+	if !slices.Contains(webhookMethods, normalizeMethod(m)) {
+		return fmt.Errorf("webhook method must be one of %s", strings.Join(webhookMethods, ", "))
 	}
-	if allowPrivate {
-		return false
-	}
-	return ip.IsLoopback() || ip.IsPrivate()
+	return nil
 }
