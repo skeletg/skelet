@@ -3,6 +3,7 @@ package searchmerch
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -59,7 +60,7 @@ func seedChannels(t *testing.T, conn *sql.DB) (uuid.UUID, uuid.UUID) {
 	return ids[0], ids[1]
 }
 
-func seedProduct(t *testing.T, conn *sql.DB) uuid.UUID {
+func seedProduct(t *testing.T, conn *sql.DB, listedOn ...uuid.UUID) uuid.UUID {
 	t.Helper()
 	suffix := uuid.NewString()[:8]
 	// Its own product type - a freshly migrated database has none, and borrowing whichever one
@@ -79,6 +80,11 @@ func seedProduct(t *testing.T, conn *sql.DB) uuid.UUID {
 		t.Fatalf("seed product: %v", err)
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_products WHERE id = $1`, id) }) // pins and boosts cascade
+	for _, ch := range listedOn {
+		if _, err := conn.Exec(`INSERT INTO catalog_product_channel_listings (product_id, channel_id, is_published) VALUES ($1, $2, true)`, id, ch); err != nil {
+			t.Fatalf("seed listing: %v", err)
+		}
+	}
 	return id
 }
 
@@ -301,7 +307,7 @@ func TestPinsComeBackInTheOrderTheOperatorSet(t *testing.T) {
 	ctx := context.Background()
 	channelID, theirs := seedChannels(t, conn)
 	query := "zq" + strings.ToLower(uuid.NewString()[:6])
-	third, first, second := seedProduct(t, conn), seedProduct(t, conn), seedProduct(t, conn)
+	third, first, second := seedProduct(t, conn, channelID), seedProduct(t, conn, channelID), seedProduct(t, conn, channelID)
 
 	for pos, productID := range map[int32]uuid.UUID{3: third, 1: first, 2: second} {
 		pin, err := svc.UpsertPin(ctx, channelID, strings.ToUpper(query), productID, pos)
@@ -338,7 +344,7 @@ func TestUpsertPinClampsAndRepositionsInPlace(t *testing.T) {
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	channelID, _ := seedChannels(t, conn)
-	productID := seedProduct(t, conn)
+	productID := seedProduct(t, conn, channelID)
 	query := "zq" + strings.ToLower(uuid.NewString()[:6])
 
 	// One cleanup for the parent - every upsert below targets the same conflict key, so they all
@@ -376,7 +382,7 @@ func TestBoostsAreKeyedOnWhatTheShopperTyped(t *testing.T) {
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	channelID, theirs := seedChannels(t, conn)
-	lifted, buried := seedProduct(t, conn), seedProduct(t, conn)
+	lifted, buried := seedProduct(t, conn, channelID), seedProduct(t, conn, channelID)
 	query := "zq" + strings.ToLower(uuid.NewString()[:6])
 
 	for productID, weight := range map[uuid.UUID]float64{lifted: 2.5, buried: -1.5} {
@@ -404,7 +410,7 @@ func TestUpsertBoostRefusesAZeroWeight(t *testing.T) {
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	channelID, _ := seedChannels(t, conn)
-	productID := seedProduct(t, conn)
+	productID := seedProduct(t, conn, channelID)
 
 	for name, tc := range map[string]struct {
 		weight  float64
@@ -438,7 +444,7 @@ func TestDeletesAreScopedToTheOwningChannel(t *testing.T) {
 	svc, conn := newTestService(t)
 	ctx := context.Background()
 	mine, theirs := seedChannels(t, conn)
-	productID := seedProduct(t, conn)
+	productID := seedProduct(t, conn, mine)
 	a, b, _ := stems(t)
 
 	t.Run("synonym", func(t *testing.T) {
@@ -564,4 +570,116 @@ func TestDeletesAreScopedToTheOwningChannel(t *testing.T) {
 			t.Fatal("owner delete left the redirect behind")
 		}
 	})
+}
+
+func TestPinsAndBoostsNeedAProductTheChannelLists(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	mine, theirs := seedChannels(t, conn)
+	productID := seedProduct(t, conn, theirs)
+
+	if _, err := svc.UpsertPin(ctx, mine, "zqunlisted", productID, 1); !errors.Is(err, ErrNotListed) {
+		t.Errorf("pin of an unlisted product = %v, want ErrNotListed", err)
+	}
+	if _, err := svc.UpsertBoost(ctx, mine, "zqunlisted", productID, 2); !errors.Is(err, ErrNotListed) {
+		t.Errorf("boost of an unlisted product = %v, want ErrNotListed", err)
+	}
+}
+
+func TestMultiWordSynonymsMatchAsPhrases(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	channelID, _ := seedChannels(t, conn)
+	a, b, c := stems(t)
+	seedSynonym(t, conn, &channelID, a+"  "+b+", "+c)
+
+	for query, want := range map[string]string{
+		"red " + a + " " + b: "red " + a + " " + b + " " + c,
+		c + " sale":          c + " sale " + a + " " + b,
+		a + " red " + b:      a + " red " + b,
+		a + b:                a + b,
+		"x" + c:              "x" + c,
+	} {
+		if got := svc.ExpandQuery(ctx, channelID, query); got != want {
+			t.Errorf("ExpandQuery(%q) = %q, want %q", query, got, want)
+		}
+	}
+}
+
+func TestWritesReachTheNextSearchAtOnce(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	channelID, _ := seedChannels(t, conn)
+	query := "zq" + strings.ToLower(uuid.NewString()[:6])
+	if _, ok := svc.RedirectFor(ctx, channelID, query); ok {
+		t.Fatal("redirect before one was set")
+	}
+	red, err := svc.UpsertRedirect(ctx, channelID, query, "/pages/faq")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target, ok := svc.RedirectFor(ctx, channelID, query); !ok || target != "/pages/faq" {
+		t.Fatalf("redirect after save = %q, %v - the cached snapshot outlived the write", target, ok)
+	}
+	if err := svc.DeleteRedirect(ctx, channelID, red.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := svc.RedirectFor(ctx, channelID, query); ok {
+		t.Fatal("redirect still answering after delete")
+	}
+
+	a, b, _ := stems(t)
+	_ = svc.ExpandQuery(ctx, channelID, a)
+	global, err := svc.AddSynonym(ctx, nil, a+", "+b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM search_synonyms WHERE id = $1`, global.ID) })
+	if got := svc.ExpandQuery(ctx, channelID, a); got != a+" "+b {
+		t.Fatalf("a global group added after a search = %q, want it applied at once", got)
+	}
+}
+
+func TestASnapshotExpiresForOtherReplicasWrites(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	channelID, _ := seedChannels(t, conn)
+	a, b, _ := stems(t)
+	_ = svc.ExpandQuery(ctx, channelID, a)
+	seedSynonym(t, conn, &channelID, a+", "+b)
+	if got := svc.ExpandQuery(ctx, channelID, a); got != a {
+		t.Fatalf("expand = %q, want the cached snapshot inside its TTL", got)
+	}
+	svc.ttl = 0
+	if got := svc.ExpandQuery(ctx, channelID, a); got != a+" "+b {
+		t.Fatalf("expand = %q, want the expired snapshot reloaded", got)
+	}
+}
+
+func TestOverlappingGroupsAddATermOnce(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	channelID, _ := seedChannels(t, conn)
+	a, b, c := stems(t)
+	seedSynonym(t, conn, &channelID, a+", "+b)
+	seedSynonym(t, conn, &channelID, a+", "+b+", "+c)
+	if got, want := svc.ExpandQuery(ctx, channelID, a), a+" "+b+" "+c; got != want {
+		t.Errorf("ExpandQuery = %q, want %q", got, want)
+	}
+}
+
+func TestAStoredUnsafeRedirectNeverAnswers(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	channelID, _ := seedChannels(t, conn)
+	query := "zq" + strings.ToLower(uuid.NewString()[:6])
+	if _, err := conn.Exec(`INSERT INTO search_redirects (channel_id, query, target_url) VALUES ($1, $2, '//evil.example')`, channelID, query); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = conn.Exec(`DELETE FROM search_redirects WHERE channel_id = $1 AND query = $2`, channelID, query)
+	})
+	if target, ok := svc.RedirectFor(ctx, channelID, query); ok {
+		t.Fatalf("an unsafe stored target answered: %q", target)
+	}
 }
