@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,8 +50,9 @@ func NewDispatcher(svc *Service, transport http.RoundTripper) *Dispatcher {
 		transport = http.DefaultTransport
 	}
 	return &Dispatcher{
-		svc:    svc,
-		client: &http.Client{Timeout: maxHTTPTimeout, Transport: transport},
+		svc: svc,
+		// A redirect would carry the merchant's headers and the signature to whatever host the receiver names - a 3xx is a failed delivery instead
+		client: &http.Client{Timeout: maxHTTPTimeout, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 	}
 }
 
@@ -232,12 +234,18 @@ func (d *Dispatcher) attemptDelivery(ctx context.Context, wh Webhook, secret str
 		"X-Webhook-Api-Version":   wh.PayloadVersion,
 	}
 	// Merchant headers ride along but never shadow the dispatcher's own - write-time validation already rejects reserved names, so this just defends against rows written before that check existed
+	// The delivery log keeps the custom header names but never their values - it's readable by anyone who can view the webhook
+	logged := maps.Clone(requestHeaders)
+	sent := maps.Clone(requestHeaders)
 	for k, v := range wh.CustomHeaders {
-		if _, exists := requestHeaders[http.CanonicalHeaderKey(k)]; exists {
+		name := http.CanonicalHeaderKey(k)
+		if _, exists := requestHeaders[name]; exists {
 			continue
 		}
-		requestHeaders[http.CanonicalHeaderKey(k)] = v
+		sent[name] = v
+		logged[name] = "[redacted]"
 	}
+	requestHeaders = logged
 
 	// The request carries ctx so shutdown and upstream deadlines can cancel an in-flight delivery, and so the OTel transport can read the span off it and emit traceparent - with a bare http.NewRequest the documented trace propagation never happened
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.TargetURL, bytes.NewReader(body))
@@ -254,7 +262,7 @@ func (d *Dispatcher) attemptDelivery(ctx context.Context, wh Webhook, secret str
 			Attempt:        attempt,
 		}, nil
 	}
-	for k, v := range requestHeaders {
+	for k, v := range sent {
 		req.Header.Set(k, v)
 	}
 
