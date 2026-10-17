@@ -13,6 +13,7 @@ var (
 	ErrNameTooLong         = errors.New("name is too long")
 	ErrNameAndSlugRequired = errors.New("name and slug are required")
 	ErrSlugTaken           = errors.New("a form with this slug already exists on this store")
+	ErrConsentKindInvalid  = errors.New("a signup form asks for a marketing consent")
 	// Unknown, already used and expired all read the same, so the answer leaks nothing about the link
 	ErrConfirmationInvalid = errors.New("this confirmation link is invalid or has expired")
 )
@@ -24,5 +25,6 @@ func init() {
 	apperr.RegisterSentinel(ErrNameTooLong, "SIGNUP_NAME_TOO_LONG", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrNameAndSlugRequired, "SIGNUP_FORM_NAME_SLUG_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrSlugTaken, "SIGNUP_FORM_SLUG_TAKEN", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrConsentKindInvalid, "SIGNUP_FORM_CONSENT_KIND_INVALID", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrConfirmationInvalid, "SIGNUP_CONFIRMATION_INVALID", apperr.ClassNotFound)
 }

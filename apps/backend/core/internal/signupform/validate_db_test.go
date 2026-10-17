@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
 
 // The address is mailed at once, so anything that isn't exactly one address is refused before a confirmation goes out
@@ -60,5 +62,51 @@ func TestDisplaySettingsAreHeldToWhatTheWidgetCanDo(t *testing.T) {
 func TestTheMailedLifetimeIsTheTTL(t *testing.T) {
 	if confirmationTTLText != "7 days" {
 		t.Fatalf("confirmation mail says %q for a %s TTL", confirmationTTLText, ConfirmationTTL)
+	}
+}
+
+// Confirming records the form's consent, so a kind the shopper can't decline, or one that doesn't exist, would fail every confirmation
+func TestAFormAsksOnlyForAMarketingConsent(t *testing.T) {
+	f := newConfirmFixture(t)
+	for _, kind := range []string{consentkind.TransactionalEmail, "newsletter_v2"} {
+		if _, err := f.svc.Create(f.ctx, SaveInput{ChannelID: f.form.ChannelID, Slug: "k-" + uuid.NewString()[:6], Name: "K", ConsentKind: kind}); !errors.Is(err, ErrConsentKindInvalid) {
+			t.Errorf("Create(%q) = %v, want ErrConsentKindInvalid", kind, err)
+		}
+		if _, err := f.svc.Update(f.ctx, f.form.ID, SaveInput{Name: "Newsletter", ConsentKind: kind}); !errors.Is(err, ErrConsentKindInvalid) {
+			t.Errorf("Update(%q) = %v, want ErrConsentKindInvalid", kind, err)
+		}
+	}
+	got, err := f.svc.Update(f.ctx, f.form.ID, SaveInput{Name: "Newsletter", Status: "active", ConsentKind: consentkind.MarketingSMS})
+	if err != nil || got.ConsentKind != consentkind.MarketingSMS {
+		t.Fatalf("Update(marketing_sms) = %+v, %v", got.ConsentKind, err)
+	}
+}
+
+func TestASubmitFindsOnlyThisChannelsActiveForm(t *testing.T) {
+	f := newConfirmFixture(t)
+	if _, err := f.svc.Submit(f.ctx, uuid.New(), f.form.Slug, f.email, ""); !errors.Is(err, ErrFormNotFound) {
+		t.Errorf("another channel's slug: %v, want ErrFormNotFound", err)
+	}
+	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.ID.String(), f.email, ""); err != nil {
+		t.Errorf("by id: %v", err)
+	}
+	if _, err := f.svc.Update(f.ctx, f.form.ID, SaveInput{Name: "Newsletter", Status: "draft"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Submit(f.ctx, f.form.ChannelID, f.form.Slug, f.email, ""); !errors.Is(err, ErrFormNotFound) {
+		t.Errorf("a draft form: %v, want ErrFormNotFound", err)
+	}
+}
+
+func TestRecentSubmissionsCapsTheLimitAt500(t *testing.T) {
+	f := newConfirmFixture(t)
+	if _, err := f.conn.Exec(`INSERT INTO signup_form_submissions (form_id, channel_id, email)
+		SELECT $1, $2, 'sub' || g || '@form.test' FROM generate_series(1, 501) g`, f.form.ID, f.form.ChannelID); err != nil {
+		t.Fatal(err)
+	}
+	for limit, want := range map[int32]int{1000: 500, 0: 100, 3: 3} {
+		if rows, err := f.svc.RecentSubmissions(f.ctx, f.form.ID, limit); err != nil || len(rows) != want {
+			t.Errorf("RecentSubmissions(%d) = %d rows, %v - want %d", limit, len(rows), err, want)
+		}
 	}
 }
