@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/google/uuid"
 
@@ -29,8 +28,7 @@ func (s *Service) onOrderCancelled(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	if err := s.restoreForOrder(ctx, cancelled.OrderID, cancelled.RefundableFraction); err != nil {
-		log.Printf("[storecredit] restore for cancelled order %s: %v", cancelled.OrderID, err)
-		return err
+		return fmt.Errorf("restore store credit for cancelled order %s: %w", cancelled.OrderID, err)
 	}
 	return nil
 }

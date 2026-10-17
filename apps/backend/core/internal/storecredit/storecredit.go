@@ -57,9 +57,10 @@ func (s *Service) Balance(ctx context.Context, customerID uuid.UUID, currency st
 }
 
 func (s *Service) Entries(ctx context.Context, customerID uuid.UUID, limit int32) ([]Entry, error) {
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
 	}
+	limit = min(limit, 200)
 	rows, err := s.queries.ListStoreCreditEntries(ctx, db.ListStoreCreditEntriesParams{
 		CustomerID: customerID,
 		Limit:      limit,
@@ -198,22 +199,15 @@ func (s *Service) ClawbackTx(ctx context.Context, sqlTx *sql.Tx, customerID uuid
 }
 
 func toEntry(r db.StoreCreditEntry) Entry {
-	e := Entry{
-		ID:           r.ID,
-		CustomerID:   r.CustomerID,
-		AmountCents:  r.AmountCents,
-		CurrencyCode: r.CurrencyCode,
-		Reason:       r.Reason,
-		CreatedAt:    r.CreatedAt,
+	return Entry{
+		ID:            r.ID,
+		CustomerID:    r.CustomerID,
+		OrderID:       sqlnull.UUIDPtr(r.OrderID),
+		AmountCents:   r.AmountCents,
+		CurrencyCode:  r.CurrencyCode,
+		Reason:        r.Reason,
+		AdminID:       sqlnull.UUIDPtr(r.AdminID),
+		IntegrationID: sqlnull.UUIDPtr(r.IntegrationID),
+		CreatedAt:     r.CreatedAt,
 	}
-	if r.OrderID.Valid {
-		id := r.OrderID.UUID
-		e.OrderID = &id
-	}
-	if r.AdminID.Valid {
-		id := r.AdminID.UUID
-		e.AdminID = &id
-	}
-	e.IntegrationID = sqlnull.UUIDPtr(r.IntegrationID)
-	return e
 }
