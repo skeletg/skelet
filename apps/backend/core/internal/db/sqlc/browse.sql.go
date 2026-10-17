@@ -20,7 +20,7 @@ FROM (
     SELECT unnest($1::uuid[]) AS customer_id,
            unnest($2::timestamptz[]) AS browse_at
 ) c
-WHERE EXISTS (SELECT 1 FROM carts ca JOIN cart_lines cl ON cl.cart_id = ca.id WHERE ca.customer_id = c.customer_id AND ca.status = 'active')
+WHERE EXISTS (SELECT 1 FROM carts ca JOIN cart_lines cl ON cl.cart_id = ca.id WHERE ca.customer_id = c.customer_id AND ca.status = 'active' AND ca.kind = 'shopper')
    OR EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id AND o.created_at >= c.browse_at)
 `
 
@@ -31,7 +31,7 @@ type BrowseAbandonersExcludedParams struct {
 
 // Commerce half of the browse-abandonment scan. browse_seen / browse_notified and the anon→customer resolution moved to
 // the signals db; only the cart/order exclusion (which needs commerce tables) stays here, fed candidate ids app-side
-// Commerce half of the browse-abandonment scan: of the passed candidates (their browse-seen/identity resolution ran in signals), the customers to EXCLUDE - those with an active non-empty cart (cart-abandonment owns them) or an order placed since their browse - paired arrays: customer_ids[i] browsed at browse_ats[i]
+// Commerce half of the browse-abandonment scan: of the passed candidates (their browse-seen/identity resolution ran in signals), the customers to EXCLUDE - those with an active non-empty shopper cart (cart-abandonment owns them) or an order placed since their browse - paired arrays: customer_ids[i] browsed at browse_ats[i]
 func (q *Queries) BrowseAbandonersExcluded(ctx context.Context, arg BrowseAbandonersExcludedParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, browseAbandonersExcluded, pq.Array(arg.CustomerIds), pq.Array(arg.BrowseAts))
 	if err != nil {

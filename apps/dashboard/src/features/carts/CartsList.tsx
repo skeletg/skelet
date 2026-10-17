@@ -7,7 +7,6 @@ import { PlusIcon } from 'lucide-react'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -17,8 +16,10 @@ import {
 } from '@/components/ui/select'
 import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
+import type { CartKind, CartOfferState } from '@/graphql/schema.types'
 import { CartsDocument } from './Carts.gql'
 import { NewCartDialog } from './NewCartDialog'
+import { OfferStateBadge } from './offer/OfferStateBadge'
 import { usePermissions } from '@/shared/auth/usePermissions'
 
 type CartRow = {
@@ -27,31 +28,63 @@ type CartRow = {
   customerEmail?: string | null
   customerName?: string | null
   status: string
+  kind: CartKind
+  email: string
+  offerState?: CartOfferState | null
+  offerExpiresAt?: string | null
   itemCount: number
   subtotal: number
   currencyCode: string
   updatedAt: string
 }
 
-// CartsList is the Order Manager's cart console: search/list a channel's carts (active by default; abandoned = old
-// active), open one to edit, or start a new cart - Channel-scoped via the header picker
+// The Order Manager's two lists - shoppers' own carts, and the offers admins build and send as a link. One table,
+// shaped per kind: a cart has a status and goes abandoned, an offer has a state and an expiry
 export function CartsList() {
-  // Creating a cart needs orders.update - without it the button only led to a refused save
+  return <CartListPage kind="SHOPPER" />
+}
+
+export function OffersList() {
+  return <CartListPage kind="OFFER" />
+}
+
+type CartStatus = 'active' | 'abandoned' | 'converted' | 'all'
+type OfferFilter = 'open' | 'all' | CartOfferState
+
+const OFFER_FILTERS: { value: OfferFilter; label: string }[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'SENT', label: 'Sent' },
+  { value: 'OPENED', label: 'Opened' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'EXPIRED', label: 'Expired' },
+  { value: 'REVOKED', label: 'Withdrawn' },
+  { value: 'all', label: 'All' },
+]
+const OPEN_STATES: CartOfferState[] = ['DRAFT', 'SENT', 'OPENED']
+
+function CartListPage({ kind }: { kind: CartKind }) {
+  const isOffer = kind === 'OFFER'
+  const base = isOffer ? '/offers' : '/carts'
+  // Creating needs orders.update - without it the button only led to a refused save
   const canCreate = usePermissions().has('orders.update')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, scope } = useConfigScope()
-  const [status, setStatus] = useState<'active' | 'abandoned' | 'converted' | 'all'>('active')
+  const [status, setStatus] = useState<CartStatus>('active')
+  const [offerFilter, setOfferFilter] = useState<OfferFilter>('open')
   const [newOpen, setNewOpen] = useState(false)
 
+  // An offer's state reads off several columns, so the list loads every offer and narrows by state here
   const variables = useMemo(
     () => ({
       channelId: effectiveChannelId ?? '',
-      status: status === 'all' || status === 'abandoned' ? null : status,
-      abandoned: status === 'abandoned' ? true : null,
-      limit: 100,
+      kind,
+      status: isOffer || status === 'all' || status === 'abandoned' ? null : status,
+      abandoned: !isOffer && status === 'abandoned' ? true : null,
+      limit: isOffer ? 200 : 100,
     }),
-    [effectiveChannelId, status],
+    [effectiveChannelId, kind, isOffer, status],
   )
 
   const { data, loading, error } = useQuery(CartsDocument, {
@@ -59,66 +92,90 @@ export function CartsList() {
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
   })
-  const rows = (data?.carts.items ?? []) as CartRow[]
+  const rows = useMemo(() => {
+    const all = (data?.carts.items ?? []) as CartRow[]
+    if (!isOffer || offerFilter === 'all') return all
+    return all.filter((r) => (offerFilter === 'open' ? !!r.offerState && OPEN_STATES.includes(r.offerState) : r.offerState === offerFilter))
+  }, [data, isOffer, offerFilter])
 
-  const columns = useMemo<ColumnDef<CartRow>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<CartRow>[]>(() => {
+    const who: ColumnDef<CartRow> = {
+      id: 'customer',
+      accessorFn: (r) => r.customerName ?? r.customerEmail ?? (r.email || 'Guest'),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={isOffer ? 'Recipient' : 'Customer'} />,
+      cell: ({ row }) => (
+        <Link to={`${base}/${row.original.id}`} className="font-medium hover:underline">
+          {row.original.customerName ?? row.original.customerEmail ?? (row.original.email || <span className="text-muted-foreground">Guest</span>)}
+        </Link>
+      ),
+    }
+    const items: ColumnDef<CartRow> = {
+      accessorKey: 'itemCount',
+      header: 'Items',
+      size: 90,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.itemCount}</span>,
+    }
+    const subtotal: ColumnDef<CartRow> = {
+      accessorKey: 'subtotal',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Subtotal" />,
+      size: 130,
+      cell: ({ row }) => <span className="tabular-nums">{formatCents(row.original.subtotal, row.original.currencyCode)}</span>,
+    }
+    const updated: ColumnDef<CartRow> = {
+      accessorKey: 'updatedAt',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
+      size: 160,
+      sortFn: (a: Row<CartRow>, b: Row<CartRow>) => new Date(a.original.updatedAt).getTime() - new Date(b.original.updatedAt).getTime(),
+      cell: ({ row }) => <span className="text-muted-foreground">{new Date(row.original.updatedAt).toLocaleString()}</span>,
+    }
+    if (!isOffer) {
+      return [
+        who,
+        items,
+        subtotal,
+        {
+          accessorKey: 'status',
+          header: 'Status',
+          size: 110,
+          cell: ({ row }) => (
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              {row.original.status}
+            </Badge>
+          ),
+        },
+        updated,
+      ]
+    }
+    return [
+      who,
+      items,
+      subtotal,
       {
-        id: 'customer',
-        accessorFn: (r) => r.customerName ?? r.customerEmail ?? 'Guest',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Customer" />,
-        cell: ({ row }) => (
-          <Link to={`/carts/${row.original.id}`} className="font-medium hover:underline">
-            {row.original.customerName ?? row.original.customerEmail ?? (
-              <span className="text-muted-foreground">Guest</span>
-            )}
-          </Link>
-        ),
+        id: 'state',
+        accessorFn: (r) => r.offerState ?? '',
+        header: 'State',
+        size: 120,
+        cell: ({ row }) => (row.original.offerState ? <OfferStateBadge state={row.original.offerState} /> : null),
       },
       {
-        accessorKey: 'itemCount',
-        header: 'Items',
-        size: 90,
-        cell: ({ row }) => <span className="tabular-nums">{row.original.itemCount}</span>,
-      },
-      {
-        accessorKey: 'subtotal',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Subtotal" />,
-        size: 130,
-        cell: ({ row }) => (
-          <span className="tabular-nums">{formatCents(row.original.subtotal, row.original.currencyCode)}</span>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        size: 110,
-        cell: ({ row }) => (
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-            {row.original.status}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
+        id: 'expires',
+        accessorFn: (r) => r.offerExpiresAt ?? '',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Expires" />,
         size: 160,
-        sortingFn: (a: Row<CartRow>, b: Row<CartRow>) => new Date(a.original.updatedAt).getTime() - new Date(b.original.updatedAt).getTime(),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{new Date(row.original.updatedAt).toLocaleString()}</span>
-        ),
+        cell: ({ row }) =>
+          row.original.offerExpiresAt ? (
+            <span className="text-muted-foreground">{new Date(row.original.offerExpiresAt).toLocaleString()}</span>
+          ) : null,
       },
-    ],
-    [],
-  )
+      updated,
+    ]
+  }, [isOffer, base])
 
   if (scope.mode === 'GLOBAL' || !effectiveChannelId) {
     return (
-      <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Pick a channel in the header scope picker to browse its carts.
-        </CardContent>
-      </Card>
+      <div className="rounded-md border py-10 text-center text-sm text-muted-foreground">
+        Pick a channel in the header scope picker to browse its {isOffer ? 'offers' : 'carts'}.
+      </div>
     )
   }
 
@@ -126,40 +183,55 @@ export function CartsList() {
     <>
       <DataTable
         urlState={urlState}
-        prefsKey="carts.list"
+        prefsKey={isOffer ? 'offers.list' : 'carts.list'}
         enableColumnControls
         enableDensityToggle
-        key={status}
+        key={isOffer ? offerFilter : status}
         columns={columns}
         data={rows}
         loading={loading}
         error={error ? { message: error.message } : null}
         getRowId={(r) => r.id}
-        emptyState="No carts for this filter."
-        searchPlaceholder="Search by customer…"
+        emptyState={isOffer ? 'No offers for this filter.' : 'No carts for this filter.'}
+        searchPlaceholder={isOffer ? 'Search by recipient…' : 'Search by customer…'}
         toolbarRightSlot={
           <div className="flex items-center gap-2">
-            <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
-              <SelectTrigger className="h-8 w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="abandoned">Abandoned</SelectItem>
-                <SelectItem value="converted">Converted</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
+            {isOffer ? (
+              <Select value={offerFilter} onValueChange={(v) => setOfferFilter(v as OfferFilter)}>
+                <SelectTrigger size="sm" className="w-36" aria-label="State">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OFFER_FILTERS.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={status} onValueChange={(v) => setStatus(v as CartStatus)}>
+                <SelectTrigger size="sm" className="w-36" aria-label="Status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="abandoned">Abandoned</SelectItem>
+                  <SelectItem value="converted">Converted</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             {canCreate && (
-              <Button size="sm" onClick={() => setNewOpen(true)}>
+              <Button size="sm" className="h-8" onClick={() => setNewOpen(true)}>
                 <PlusIcon className="size-4" />
-                New cart
+                {isOffer ? 'New offer' : 'New cart'}
               </Button>
             )}
           </div>
         }
       />
-      <NewCartDialog open={newOpen} onOpenChange={setNewOpen} channelId={effectiveChannelId} />
+      <NewCartDialog open={newOpen} onOpenChange={setNewOpen} channelId={effectiveChannelId} offer={isOffer} />
     </>
   )
 }

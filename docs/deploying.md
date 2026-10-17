@@ -62,11 +62,8 @@ app, worker, media, signals, ingest and the migrate one-shots - is the same imag
 and the same file.
 
 The spine's migrate one-shot runs against whatever `SIGNALS_CH_URL` names, so
-the schema lands on the managed server without a second URL. It rewrites that
-URL into golang-migrate's query-parameter form, which only works for the
-`clickhouse://user:password@host:port/db` shape - anything else, set
-`SIGNALS_CH_MIGRATE_URL` outright
-(`clickhouse://host:9440?username=...&password=...&database=signals&secure=true&x-multi-statement=true`).
+the schema lands on the managed server without a second URL - a TLS endpoint is
+`clickhouse://user:password@host:9440/signals?secure=true`.
 
 Two things that bite:
 

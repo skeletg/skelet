@@ -100,18 +100,19 @@ type Review struct {
 	ProductID  uuid.UUID
 	CustomerID *uuid.UUID
 	// Guest submissions only - GuestEmail is admin-visible and never reaches the storefront
-	GuestName          string
-	GuestEmail         string
-	ChannelID          uuid.UUID
-	Locale             string
-	Title              string
-	Body               string
-	IsVerifiedPurchase bool
-	Status             Status
-	SubmittedAt        time.Time
-	ModeratedAt        *time.Time
-	ModeratedBy        *uuid.UUID
-	ModeratorNote      string
+	GuestName              string
+	GuestEmail             string
+	ChannelID              uuid.UUID
+	Locale                 string
+	Title                  string
+	Body                   string
+	IsVerifiedPurchase     bool
+	Status                 Status
+	SubmittedAt            time.Time
+	ModeratedAt            *time.Time
+	ModeratedBy            *uuid.UUID
+	ModeratedByIntegration *uuid.UUID
+	ModeratorNote          string
 	// The AI moderation verdict, a suggestion that never changes Status - a coarse flag where "" is unchecked, then "genuine" or "flagged"
 	ModerationLabel     string
 	ModerationReason    string

@@ -29,7 +29,7 @@ func (s *Service) QuoteCheckout(ctx context.Context, in PlaceOrderInput) (Checko
 		ranEngine bool
 		discount  int64
 	)
-	if s.promotion != nil {
+	if s.promotion != nil && !cc.cart.Locked(cart.LockCoupons) {
 		res, err := s.promotion.EvaluateCart(ctx, promotion.CartEvalInput{
 			CartID:            cc.cart.ID,
 			SubtotalCents:     cc.subtotal,

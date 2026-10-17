@@ -95,6 +95,24 @@ func init() {
 		Description: "Fires after every line is removed from a cart. Payload includes cartId, channelId, customerId, anonId. Response ignored (async).",
 	})
 	RegisterEvent(EventDefinition{
+		Type:        cart.EventOfferSent,
+		Kind:        KindAsync,
+		Name:        "Cart Offer Sent",
+		Description: "Fires after an admin emails an offer cart to its recipient. Payload includes cartId, channelId, customerId, email, expiresAt. Response ignored (async).",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        cart.EventOfferOpened,
+		Kind:        KindAsync,
+		Name:        "Cart Offer Opened",
+		Description: "Fires the first time an offer's recipient follows its link. Payload includes cartId, channelId, customerId. Response ignored (async).",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        cart.EventOfferExpired,
+		Kind:        KindAsync,
+		Name:        "Cart Offer Expired",
+		Description: "Fires once when an offer reaches its expiry without being completed. Payload includes cartId, channelId, customerId, email, expiresAt. Response ignored (async).",
+	})
+	RegisterEvent(EventDefinition{
 		Type:        cart.EventMerged,
 		Kind:        KindAsync,
 		Name:        "Cart Merged",

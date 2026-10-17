@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
+import { getAccountCounts } from "@/app/lib/account/read";
 import { AccountNav } from "@/app/components/account/AccountNav";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
@@ -20,6 +21,7 @@ export default async function AccountLayout({
       </main>
     );
   }
+  const counts = await getAccountCounts();
   const initials =
     `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase();
 
@@ -45,7 +47,7 @@ export default async function AccountLayout({
             </SubmitButton>
           </form>
         </div>
-        <AccountNav variant="strip" />
+        <AccountNav variant="strip" counts={counts} />
       </div>
 
       <div className="lg:grid lg:grid-cols-[16rem_1fr] lg:gap-10">
@@ -64,7 +66,7 @@ export default async function AccountLayout({
                 </p>
               </div>
             </div>
-            <AccountNav />
+            <AccountNav counts={counts} />
             <form action={logoutAction} className="mt-6 border-t border-border pt-3">
               <SubmitButton
                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

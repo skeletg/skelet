@@ -15,7 +15,8 @@ import (
 
 // gqlPost drives the real front API - the request crosses the entire production middleware
 // chain: recover, body limits, rate limiting, auth, channel resolution, locale clamp, dataloaders
-func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query string) (map[string]any, []string) {
+// headers adds request headers on top, such as an offer link's X-Cart-Offer
+func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query string, headers ...map[string]string) (map[string]any, []string) {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"query": query})
 	if err != nil {
@@ -28,6 +29,11 @@ func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query st
 	req.Header.Set("Content-Type", "application/json")
 	if channelID != "" {
 		req.Header.Set(channel.HeaderChannelID, channelID)
+	}
+	for _, hs := range headers {
+		for k, v := range hs {
+			req.Header.Set(k, v)
+		}
 	}
 	resp, err := ts.Client().Do(req)
 	if err != nil {

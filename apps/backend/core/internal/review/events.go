@@ -78,21 +78,23 @@ func (e *Submitted) EventChannelID() uuid.UUID { return e.ChannelID }
 
 // Fires AFTER a moderator approves a pending review - async
 type Approved struct {
-	ReviewID    uuid.UUID
-	ProductID   uuid.UUID
-	ChannelID   uuid.UUID
-	ModeratorID uuid.UUID
+	ReviewID               uuid.UUID
+	ProductID              uuid.UUID
+	ChannelID              uuid.UUID
+	ModeratorID            uuid.UUID
+	ModeratorIntegrationID uuid.UUID
 }
 
 func (*Approved) Type() string                { return EventApproved }
 func (e *Approved) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type Rejected struct {
-	ReviewID    uuid.UUID
-	ProductID   uuid.UUID
-	ChannelID   uuid.UUID
-	ModeratorID uuid.UUID
-	Note        string
+	ReviewID               uuid.UUID
+	ProductID              uuid.UUID
+	ChannelID              uuid.UUID
+	ModeratorID            uuid.UUID
+	ModeratorIntegrationID uuid.UUID
+	Note                   string
 }
 
 func (*Rejected) Type() string                { return EventRejected }

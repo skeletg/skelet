@@ -13,7 +13,10 @@ func (r *mutationResolver) MarkNotificationRead(ctx context.Context, id string) 
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "notifications.view"); err != nil {
 		return false, err
 	}
-	claims, _ := auth.AdminFromContext(ctx)
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return false, err
+	}
 	nid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)

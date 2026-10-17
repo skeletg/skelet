@@ -81,15 +81,18 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			}
 		}
 		lines[i] = &model.AdminCartLine{
-			ID:         l.ID.String(),
-			Name:       l.ProductName,
-			Sku:        l.ProductSku,
-			UnitPrice:  int32(l.UnitPrice),
-			Quantity:   l.Quantity,
-			TotalPrice: int32(lt),
-			IsSimple:   len(l.Components) == 0 && len(l.Options) == 0,
-			Components: comps,
-			Options:    opts,
+			ID:            l.ID.String(),
+			Name:          l.ProductName,
+			Sku:           l.ProductSku,
+			UnitPrice:     int32(l.UnitPrice),
+			Quantity:      l.Quantity,
+			TotalPrice:    int32(lt),
+			IsSimple:      len(l.Components) == 0 && len(l.Options) == 0 && !l.IsCustom,
+			Components:    comps,
+			Options:       opts,
+			PriceOverride: l.PriceOverride,
+			IsCustom:      l.IsCustom,
+			TaxClass:      l.TaxClass,
 		}
 	}
 	m := &model.AdminCart{
@@ -99,6 +102,8 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 		ChannelID:     c.ChannelID.String(),
 		CurrencyCode:  currency,
 		Status:        c.Status,
+		Kind:          cartKindModel(c.Kind),
+		Email:         c.Email,
 		Lines:         lines,
 		Subtotal:      int32(subtotal),
 		ItemCount:     int32(len(lines)),
@@ -114,18 +119,26 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 
 func toCartListItemModel(it cart.CartListItem, currency string) *model.CartListItem {
 	m := &model.CartListItem{
-		ID:            it.ID.String(),
-		CustomerEmail: it.CustomerEmail,
-		ChannelID:     it.ChannelID.String(),
-		CurrencyCode:  currency,
-		Status:        it.Status,
-		ItemCount:     it.ItemCount,
-		Subtotal:      int32(it.Subtotal),
-		UpdatedAt:     it.UpdatedAt,
+		ID:             it.ID.String(),
+		CustomerEmail:  it.CustomerEmail,
+		ChannelID:      it.ChannelID.String(),
+		CurrencyCode:   currency,
+		Status:         it.Status,
+		Kind:           cartKindModel(it.Kind),
+		Email:          it.Email,
+		OfferState:     listItemOfferState(it),
+		OfferExpiresAt: it.OfferExpiresAt,
+		ItemCount:      it.ItemCount,
+		Subtotal:       int32(it.Subtotal),
+		UpdatedAt:      it.UpdatedAt,
 	}
 	if it.CustomerID != nil {
 		s := it.CustomerID.String()
 		m.CustomerID = &s
+	}
+	if it.OrderID != nil {
+		s := it.OrderID.String()
+		m.OrderID = &s
 	}
 	if n := joinName(it.CustomerFirstName, it.CustomerLastName); n != "" {
 		m.CustomerName = &n
@@ -176,5 +189,7 @@ func (r *Resolver) channelCurrency(ctx context.Context, channelID uuid.UUID) str
 // Expects the lines to be loaded already
 func (r *Resolver) mapCart(ctx context.Context, c cart.Cart) *model.AdminCart {
 	email, name := r.cartCustomerInfo(ctx, c.CustomerID)
-	return toAdminCartModel(c, email, name, r.channelCurrency(ctx, c.ChannelID))
+	m := toAdminCartModel(c, email, name, r.channelCurrency(ctx, c.ChannelID))
+	m.Offer = r.toAdminCartOfferModel(ctx, c)
+	return m
 }

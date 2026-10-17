@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckoutCartFields } from "@/app/components/offer/CheckoutCartContext";
+
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -144,6 +146,7 @@ function PlaceOrderForm({
 
   return (
     <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-4">
+        <CheckoutCartFields />
       <input type="hidden" name="locale" value={locale} />
       <FormErrors errors={form.errors} />
       {confirming ? (
@@ -310,6 +313,7 @@ function GiftCards({ giftCards, currency }: { giftCards: CheckoutState["giftCard
                 </span>
               </span>
               <form action={removeGiftCardAction}>
+        <CheckoutCartFields />
                 <input type="hidden" name="code" value={g.code} />
                 <button type="submit" className="text-xs text-muted-foreground hover:text-destructive">
                   {t("remove")}
@@ -321,6 +325,7 @@ function GiftCards({ giftCards, currency }: { giftCards: CheckoutState["giftCard
       ) : null}
       {open ? (
         <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-1">
+        <CheckoutCartFields />
           <FormErrors errors={form.errors} />
           <div className="flex gap-2">
             <input
@@ -362,6 +367,7 @@ function StoreCredit({ using, balance, currency }: { using: boolean; balance: nu
   const t = useTranslations("checkout.storeCredit");
   return (
     <form action={setStoreCreditAction} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+        <CheckoutCartFields />
       <input type="hidden" name="use" value={using ? "0" : "1"} />
       <span>
         {t("available", { amount: formatPrice(balance, currency) })}

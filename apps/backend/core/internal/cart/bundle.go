@@ -29,8 +29,11 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	if err := validQuantity(input.Quantity); err != nil {
 		return Cart{}, err
 	}
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return Cart{}, err
+	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, input.ProductSku); err != nil {
 		return Cart{}, err
 	}
 	snap, err := s.products.ResolveBundleBySKU(ctx, cart.ChannelID, input.ProductSku)

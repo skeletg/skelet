@@ -17,7 +17,7 @@ function since(iso: string): string {
 export function AbandonedCartsWidget() {
   const { effectiveChannelId } = useConfigScope()
   const { data, loading, error } = useQuery(CartsDocument, {
-    variables: { channelId: effectiveChannelId ?? '', abandoned: true, limit: ROWS },
+    variables: { channelId: effectiveChannelId ?? '', kind: 'SHOPPER', abandoned: true, limit: ROWS },
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
   })

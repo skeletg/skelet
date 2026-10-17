@@ -119,13 +119,15 @@ type BundleSelectionSnapshot struct {
 	IsDefault         bool
 }
 
-// CustomerID is nil for guests - every cart belongs to one store, and a customer holds one active cart per store
+// CustomerID is nil for guests - every cart belongs to one store, and a customer holds one active shopper cart per store, plus any number of offers
 type Cart struct {
 	ID         uuid.UUID
 	CustomerID *uuid.UUID
 	ChannelID  uuid.UUID
 	Status     string
-	Email      string
+	Kind       string // KindShopper or KindOffer
+	Offer      *Offer // set on an offer only
+	Email      string // a guest offer's recipient
 	Note       string
 	Checkout   Checkout
 	// Moves on every checkout write, so a step computed from an earlier read can tell the row changed under it
@@ -246,14 +248,17 @@ func (c Checkout) ShippingCountry() string {
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty
 type CartLine struct {
-	ID          uuid.UUID
-	CartID      uuid.UUID
-	ProductName string
-	ProductSku  string
-	UnitPrice   int64
-	Quantity    float64
-	IsGift      bool // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
-	Components  []CartLineComponent
+	ID            uuid.UUID
+	CartID        uuid.UUID
+	ProductName   string
+	ProductSku    string
+	UnitPrice     int64
+	Quantity      float64
+	PriceOverride bool   // an admin set the price on an offer - repricing leaves it alone
+	IsCustom      bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
+	TaxClass      string // a custom line's own tax class, empty on catalog lines (they take their product's)
+	IsGift        bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
+	Components    []CartLineComponent
 	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
 	StockParts []CartLineStockPart `json:"-"`
 	Options    []CartLineOption
@@ -397,6 +402,20 @@ type Repository interface {
 	ClearCartLines(ctx context.Context, cartID uuid.UUID) error
 	ConvertCart(ctx context.Context, cartID uuid.UUID) error
 	SetCartMerged(ctx context.Context, cartID uuid.UUID) error
+	SetCartOrder(ctx context.Context, cartID, orderID uuid.UUID) error
+
+	CreateOfferCart(ctx context.Context, in CreateOfferInput) (Cart, error)
+	GetOfferByToken(ctx context.Context, token string) (Cart, error)
+	SetOffer(ctx context.Context, cartID uuid.UUID, in OfferSettings) error
+	MarkOfferSent(ctx context.Context, cartID uuid.UUID) error
+	MarkOfferOpened(ctx context.Context, cartID uuid.UUID) (bool, error) // the first open only
+	RevokeOffer(ctx context.Context, cartID uuid.UUID) error
+	BumpOfferLink(ctx context.Context, cartID uuid.UUID) (int32, error)
+	ListCustomerOffers(ctx context.Context, customerID, channelID uuid.UUID) ([]Cart, error)
+	ListExpiredOffers(ctx context.Context, limit int32) ([]Cart, error)
+	MarkOffersExpiredNotified(ctx context.Context, ids []uuid.UUID) ([]Cart, error)
+	SetLinePrice(ctx context.Context, lineID uuid.UUID, unitPrice int64, override bool) (CartLine, error)
+	InsertCustomLine(ctx context.Context, cartID uuid.UUID, in CustomLineInput) (CartLine, error)
 
 	ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error)
 	CountCarts(ctx context.Context, f CartFilter) (int32, error)
@@ -433,6 +452,7 @@ type CartFilter struct {
 	ChannelID     uuid.UUID
 	CustomerID    *uuid.UUID
 	Status        *string
+	Kind          *string
 	UpdatedBefore *time.Time
 	Search        *string
 	Limit         int32
@@ -444,6 +464,13 @@ type CartListItem struct {
 	CustomerID        *uuid.UUID
 	ChannelID         uuid.UUID
 	Status            string
+	Kind              string
+	Email             string // the cart's own email - a guest offer's recipient
+	OfferExpiresAt    *time.Time
+	OfferSentAt       *time.Time
+	OfferOpenedAt     *time.Time
+	OfferRevokedAt    *time.Time
+	OrderID           *uuid.UUID
 	CustomerEmail     *string
 	CustomerFirstName *string
 	CustomerLastName  *string
@@ -451,4 +478,30 @@ type CartListItem struct {
 	Subtotal          int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+// What an admin starts an offer with - a customer, or a guest email
+type CreateOfferInput struct {
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	Email      string
+	ExpiresAt  time.Time
+	CreatedBy  *uuid.UUID
+}
+
+// The offer settings an admin edits after creating it
+type OfferSettings struct {
+	ExpiresAt      time.Time
+	Message        string
+	ShowInAccount  bool
+	Locks          []string
+	PaymentMethods []string
+}
+
+// A free-form line on an offer - the admin names and prices it, and nothing about it comes from the catalog
+type CustomLineInput struct {
+	Name      string
+	UnitPrice int64
+	Quantity  float64
+	TaxClass  string
 }

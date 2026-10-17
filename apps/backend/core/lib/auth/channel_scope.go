@@ -42,10 +42,14 @@ type ChannelScopeProvider interface { // the admin-service surface LoadPermitted
 func LoadPermittedChannels(ctx context.Context, svc ChannelScopeProvider, slug string) (PermittedChannels, error) {
 	claims, ok := AdminFromContext(ctx)
 	if !ok {
-		// a channel-pinned integration token sees exactly its channel - unpinned tokens (and the
-		// no-credential paths guarded elsewhere) keep the historical bypass
-		if tok, tokOk := ApiTokenFromContext(ctx); tokOk && tok.ChannelID != nil {
-			return PermittedChannels{ids: map[uuid.UUID]struct{}{*tok.ChannelID: {}}}, nil
+		// A token sees nothing for a slug it doesn't hold - callers that use this as the check itself would otherwise hand it every channel
+		if tok, tokOk := ApiTokenFromContext(ctx); tokOk {
+			if _, has := tok.Permissions[slug]; !has {
+				return PermittedChannels{ids: map[uuid.UUID]struct{}{}}, nil
+			}
+			if tok.ChannelID != nil {
+				return PermittedChannels{ids: map[uuid.UUID]struct{}{*tok.ChannelID: {}}}, nil
+			}
 		}
 		return PermittedChannels{bypass: true}, nil
 	}

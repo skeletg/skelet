@@ -1,4 +1,4 @@
-# Prod backend image - server, media, the skelet CLI, migrate and the migrations on alpine; server and media link libvips, the rest are static CGO-off builds
+# Prod backend image - server, media, the skelet CLI, dbmate and the migrations on alpine; server and media link libvips, the rest are static CGO-off builds
 # Build from apps/backend, not core/, since core replaces the SDK by relative path: docker build -f apps/backend/core/Dockerfile.prod -t skelet-app:prod apps/backend
 
 # alpine3.24 pinned explicitly - the runtime stage installs the vips these binaries link against, so the two alpines must stay in lockstep
@@ -24,9 +24,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # The skelet ops CLI
 RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/skelet ./cmd/cli
-# The migrations runner - postgres for the two streams this image applies
+# The migrations runner, dbmate
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+    CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
 
 # 3.24 to match the build stage's alpine - vips here must be the same version
 # as the vips-dev the server/media binaries were compiled against
@@ -38,7 +38,7 @@ WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/media /app/media
 COPY --from=build /out/skelet /usr/local/bin/skelet
-COPY --from=build /go/bin/migrate /usr/local/bin/migrate
+COPY --from=build /go/bin/dbmate /usr/local/bin/dbmate
 COPY --from=build /src/core/internal/db/migrations /app/migrations
 USER app
 EXPOSE 8080

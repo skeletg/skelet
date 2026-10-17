@@ -226,3 +226,55 @@ func TestStorePickupIsReadyOnlyWithAPickupLocation(t *testing.T) {
 		t.Fatalf("points check = %+v, want it passing once a location offers pickup", c)
 	}
 }
+
+// Shipping supports this product in principle, but the only quoted choice is pickup.
+func TestSingleGroupWithOnlyPickupQuoted(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0) // the courier serves US, while this shopper asks from Canada
+	if err := h.D.Shipping.SyncCarriers(h.Ctx, []uuid.UUID{f.Channel.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.D.Shipping.SetCarrierEnabled(h.Ctx, f.Channel.ID, "pickup", true); err != nil {
+		t.Fatal(err)
+	}
+	active := true
+	line, city, postal, country := "9 Depot Rd", "Storeton", "54321", "US"
+	if _, err := h.D.Inventory.UpdateLocation(h.Ctx, inventory.UpdateLocationInput{ID: f.Location.ID, IsActive: &active, Line1: &line, City: &city, PostalCode: &postal, CountryCode: &country}); err != nil {
+		t.Fatal(err)
+	}
+	h.EnablePickup(t, f.Location.ID, "")
+	if _, err := h.D.Delivery.CreateOption(h.Ctx, f.Channel.ID, delivery.SaveOptionInput{Kind: delivery.KindStorePickup, Name: "Collect", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.D.Delivery.CreateOption(h.Ctx, f.Channel.ID, delivery.SaveOptionInput{Kind: delivery.KindShipToAddress, Name: "Unquoted shipping", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(h.D.Root.Handler)
+	defer ts.Close()
+	cartID := h.gqlGuestCart(t, ts, f, 1)
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartDestination(cartId: %q, countryCode: "CA", postalCode: "M5V 1A1")`, cartID))
+	groups := h.gqlCartGroups(t, ts, f, cartID)
+	if len(groups) != 1 {
+		t.Fatalf("groups = %v, want one", groups)
+	}
+	choices := groups[0]["choices"].([]any)
+	if len(choices) == 0 {
+		t.Fatal("no pickup quote")
+	}
+	for _, raw := range choices {
+		if raw.(map[string]any)["kind"] != "store_pickup" {
+			t.Fatalf("unexpected quote: %v", raw)
+		}
+	}
+	h.chooseKind(t, ts, f, cartID, groups[0], delivery.KindStorePickup)
+	email := "only-pickup-" + uuid.NewString() + "@e2e.test"
+	h.gqlCheckout(t, ts, f, details(cartID, fmt.Sprintf(`email: %q, billingSameAsShipping: false, pickupContact: {firstName: "E2E", lastName: "Collector", someoneElse: false}`, email)))
+	h.gqlCheckout(t, ts, f, fmt.Sprintf(`setCartPaymentMethod(cartId: %q, providerSlug: "cod")`, cartID))
+	id := h.place(t, ts, f, cartID)
+	ships, err := h.D.Order.ListShipments(h.Ctx, id)
+	if err != nil || len(ships) != 1 || ships[0].DeliveryKind != delivery.KindStorePickup {
+		t.Fatalf("shipments=%+v, %v", ships, err)
+	}
+	h.Settle(t)
+}

@@ -48,8 +48,8 @@ the entity entirely. The Go domain is symmetric across these:
 | CMS page | `db.CmsPageChannelListing` | `internal/cms/repository.go` |
 
 The tables are `product_channel_listings`, `category_channel_listings`,
-`blog_post_channel_listings` and `cms_page_channel_listings`, all created in
-`000001_schema`.
+`blog_post_channel_listings` and `cms_page_channel_listings`, all created in the
+schema baseline.
 
 Admin: edit listings via the entity's detail page (single-row in CHANNEL,
 multi-channel grid in GLOBAL). The save-confirm modal lists every staged change
@@ -65,13 +65,14 @@ permissions to `administrator`, so adding a permission needs no migration.
 
 - **Admins**: permissions via roles; `is_superuser = true` bypasses checks.
 - **Integrations**: permissions directly via `integration_permissions`.
-- **Guards** (`auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
+- **Guards** (`auth/guard.go`, `auth/actor.go`): `RequireActor` (an admin or a token),
+  `RequireAdmin` (a person only), `RequireCustomerAuth`,
   `RequirePermission(ctx, checker, slug)`, `RequireTokenPermission(ctx, slug)`,
   `RequireChannelPermission(ctx, checker, slug, channelID, locale)` - the last one
   keeps a pre-rename name, but the argument is a channel id.
 
 Seeded roles: `administrator` (all), `store_manager` (catalog/orders/customers),
-`support_agent` (read-only), seeded in `000002_reference_data`.
+`support_agent` (read-only), seeded in the reference-data baseline.
 
 **The slug catalogue is generated, not listed here** - see
 [permissions.md](permissions.md) for the current reference and

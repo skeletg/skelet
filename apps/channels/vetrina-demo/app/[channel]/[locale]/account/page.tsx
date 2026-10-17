@@ -11,8 +11,11 @@ import {
   MapPinIcon,
   PackageIcon,
   RefreshCwIcon,
+  TagIcon,
 } from "lucide-react";
 
+import { AccountBadge } from "@/app/components/account/AccountBadge";
+import { getAccountCounts } from "@/app/lib/account/read";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import {
   AccountCard,
@@ -59,10 +62,11 @@ export default async function AccountPage({
   if (!customer) redirect(await withLocalePrefix("/account/login", locale));
   const channel = await getChannel();
   const currency = channel?.currencyCode ?? "USD";
-  const [loyalty, referral, orders] = await Promise.all([
+  const [loyalty, referral, orders, counts] = await Promise.all([
     getLoyaltyStatus(),
     getMyReferral(),
     loadRecentOrders(),
+    getAccountCounts(),
   ]);
   const sp = await searchParams;
   const welcomeRaw = Array.isArray(sp.welcome) ? sp.welcome[0] : sp.welcome;
@@ -234,7 +238,18 @@ export default async function AccountPage({
             href="/account/wishlist"
             label={tn("wishlist")}
             hint={t("wishlistHint")}
+            count={counts.wishlist}
+            countLabel={tn("wishlistCount", { count: counts.wishlist })}
             Icon={HeartIcon}
+          />
+          <Shortcut
+            href="/account/offers"
+            label={tn("offers")}
+            hint={t("offersHint")}
+            Icon={TagIcon}
+            count={counts.offers}
+            countLabel={tn("offerCount", { count: counts.offers })}
+            newLabel={counts.newOffers > 0 ? tn("newOffers", { count: counts.newOffers }) : undefined}
           />
           <Shortcut
             href="/account/addresses"
@@ -306,11 +321,17 @@ function Shortcut({
   label,
   hint,
   Icon,
+  count = 0,
+  countLabel = "",
+  newLabel,
 }: {
   href: string;
   label: string;
   hint: string;
   Icon: typeof PackageIcon;
+  count?: number;
+  countLabel?: string;
+  newLabel?: string;
 }) {
   return (
     <li>
@@ -327,6 +348,7 @@ function Shortcut({
             {hint}
           </span>
         </span>
+        <AccountBadge count={count} label={countLabel} newLabel={newLabel} />
       </Link>
     </li>
   );

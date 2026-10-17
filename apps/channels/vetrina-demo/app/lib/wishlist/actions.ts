@@ -26,6 +26,7 @@ export async function toggleWishlistAction(
       await gqlFetch(RemoveFromWishlistDocument, { productId });
     }
     revalidatePath(WISHLIST_ROUTE, "page");
+    revalidatePath("/[channel]/[locale]/account", "layout");
     return { authed: true };
   } catch {
     // UNAUTHENTICATED (guest) or transient failure - client keeps local
@@ -50,6 +51,7 @@ export async function moveToCartAction(
   try {
     await gqlFetch(MoveToCartDocument, { productId });
     revalidatePath(WISHLIST_ROUTE, "page");
+    revalidatePath("/[channel]/[locale]/account", "layout");
     return { ok: true, cart: await getCart() };
   } catch (err) {
     let msg = "moveFailed";

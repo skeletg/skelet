@@ -351,6 +351,14 @@ func TestCheckoutAddressPhoneIsReadInItsCountry(t *testing.T) {
 	if a := co["shippingAddress"].(map[string]any); a["phone"] != "+12125550123" {
 		t.Fatalf("shipping address phone = %v, want +12125550123", a["phone"])
 	}
+	if _, errs := h.gqlPost(t, ts, f.Channel.ID.String(), `mutation { `+details(cartID, fmt.Sprintf(`email: %q, shippingAddress: %s, billingSameAsShipping: true`, email, withPhone("+1 212 555 0123 ext. 42")))+` { id } }`); len(errs) == 0 {
+		t.Fatal("checkout accepted a phone extension")
+	}
+	persisted, err := h.D.Cart.GetCartByIDReadOnly(h.Ctx, uuid.MustParse(cartID))
+	if err != nil || persisted.Checkout.ShippingAddress == nil || persisted.Checkout.ShippingAddress.Phone == nil || *persisted.Checkout.ShippingAddress.Phone != "+12125550123" {
+		t.Fatalf("persisted phone=%+v, %v", persisted.Checkout.ShippingAddress, err)
+	}
+
 }
 
 // Scenario: placement holds the checkout to what the shopper chose and agreed to - an unticked terms box is refused

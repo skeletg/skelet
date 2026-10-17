@@ -1,6 +1,6 @@
 package permission
 
-// Declares the core platform permissions - the same set migrations 000002 and 000010 seed
+// Declares the core platform permissions - the same set the reference-data baseline seeds
 // Declaring them here too is load-bearing: Sync compares the registry to the DB and inserts what's missing, so without this init() anything added via the registry from now on would only live in code
 
 func init() {

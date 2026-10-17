@@ -1,5 +1,6 @@
 "use client";
 
+import { AccountBadge } from "./AccountBadge";
 import { Link, usePathname } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
@@ -15,19 +16,21 @@ import {
   PackageIcon,
   RefreshCwIcon,
   ShieldIcon,
+  TagIcon,
   UserIcon,
 } from "lucide-react";
 
 // Icon is structural rather than lucide's own type: core's entries are all lucide, but a plugin
 // contributing a nav item should not be forced to depend on the same icon library
 type NavIcon = ComponentType<{ className?: string }>;
-type Item = { href: string; label: string; Icon: NavIcon };
+type Item = { href: string; label: string; Icon: NavIcon; badge?: number; badgeLabel?: string; newLabel?: string };
 // Built-in entries name an account.nav message; plugin entries bring their own label
 type NavKey =
   | "overview"
   | "orders"
   | "wishlist"
   | "downloads"
+  | "offers"
   | "subscriptions"
   | "profile"
   | "addresses"
@@ -40,6 +43,7 @@ const SHOPPING: BuiltIn[] = [
   { href: "/account/orders", key: "orders", Icon: PackageIcon },
   { href: "/account/wishlist", key: "wishlist", Icon: HeartIcon },
   { href: "/account/downloads", key: "downloads", Icon: DownloadIcon },
+  { href: "/account/offers", key: "offers", Icon: TagIcon },
   { href: "/account/subscriptions", key: "subscriptions", Icon: RefreshCwIcon },
 ];
 
@@ -59,12 +63,24 @@ const OVERVIEW_ITEM: BuiltIn = {
 
 export function AccountNav({
   variant = "sidebar",
+  counts = { wishlist: 0, offers: 0, newOffers: 0 },
 }: {
   variant?: "sidebar" | "strip";
+  counts?: { wishlist: number; offers: number; newOffers: number };
 }) {
   const pathname = usePathname();
   const t = useTranslations("account.nav");
-  const label = ({ href, key, Icon }: BuiltIn): Item => ({ href, label: t(key), Icon });
+  const label = ({ href, key, Icon }: BuiltIn): Item => ({
+    href, label: t(key), Icon,
+    ...(key === "offers" ? {
+      badge: counts.offers,
+      badgeLabel: t("offerCount", { count: counts.offers }),
+      newLabel: counts.newOffers > 0 ? t("newOffers", { count: counts.newOffers }) : undefined,
+    } : key === "wishlist" ? {
+      badge: counts.wishlist,
+      badgeLabel: t("wishlistCount", { count: counts.wishlist }),
+    } : {}),
+  });
   const OVERVIEW = label(OVERVIEW_ITEM);
   const shopping = SHOPPING.map(label);
   const details = DETAILS.map(label);
@@ -179,6 +195,9 @@ function NavLink({
   href,
   label,
   Icon,
+  badge,
+  badgeLabel,
+  newLabel,
   pathname,
   exact = false,
   className = "",
@@ -196,6 +215,7 @@ function NavLink({
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
       {label}
+      {badge && badgeLabel ? <AccountBadge count={badge} label={badgeLabel} newLabel={newLabel} /> : null}
     </Link>
   );
 }

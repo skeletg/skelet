@@ -1,5 +1,5 @@
-query Carts($channelId: ID!, $customerId: ID, $status: String, $abandoned: Boolean, $search: String, $limit: Int, $offset: Int) {
-  carts(channelId: $channelId, customerId: $customerId, status: $status, abandoned: $abandoned, search: $search, limit: $limit, offset: $offset) {
+query Carts($channelId: ID!, $customerId: ID, $status: String, $kind: CartKind, $abandoned: Boolean, $search: String, $limit: Int, $offset: Int) {
+  carts(channelId: $channelId, customerId: $customerId, status: $status, kind: $kind, abandoned: $abandoned, search: $search, limit: $limit, offset: $offset) {
     totalCount
     items {
       id
@@ -7,6 +7,11 @@ query Carts($channelId: ID!, $customerId: ID, $status: String, $abandoned: Boole
       customerEmail
       customerName
       status
+      kind
+      email
+      offerState
+      offerExpiresAt
+      orderId
       itemCount
       subtotal
       currencyCode
@@ -23,10 +28,15 @@ fragment CartFields on AdminCart {
   channelId
   currencyCode
   status
+  kind
+  email
   subtotal
   itemCount
   createdAt
   updatedAt
+  offer {
+    ...CartOfferFields
+  }
   lines {
     id
     name
@@ -35,6 +45,9 @@ fragment CartFields on AdminCart {
     quantity
     totalPrice
     isSimple
+    priceOverride
+    isCustom
+    taxClass
     components {
       id
       sku
@@ -119,5 +132,138 @@ mutation AdminClearCart($cartId: ID!) {
 mutation AdminDuplicateCart($cartId: ID!, $targetCustomerId: ID) {
   adminDuplicateCart(cartId: $cartId, targetCustomerId: $targetCustomerId) {
     ...CartFields
+  }
+}
+
+fragment CartAddressFields on AdminCartAddress {
+  firstName
+  lastName
+  company
+  street1
+  street2
+  city
+  state
+  postalCode
+  countryCode
+  phone
+}
+
+fragment CartOfferFields on AdminCartOffer {
+  state
+  expiresAt
+  message
+  showInAccount
+  locks
+  paymentMethods
+  link
+  linkPath
+  needsShipping
+  sentAt
+  sendCount
+  openedAt
+  revokedAt
+  orderId
+  checkout {
+    shippingAddress {
+      ...CartAddressFields
+    }
+    billingSameAsShipping
+    billingAddress {
+      ...CartAddressFields
+    }
+    paymentProviderSlug
+    deliveries {
+      groupKey
+      optionId
+      carrierSlug
+      methodCode
+      pointId
+      pointName
+    }
+  }
+}
+
+mutation AdminCreateCartOffer($input: AdminCreateCartOfferInput!) {
+  adminCreateCartOffer(input: $input) {
+    ...CartFields
+  }
+}
+
+mutation AdminUpdateCartOffer($cartId: ID!, $input: AdminUpdateCartOfferInput!) {
+  adminUpdateCartOffer(cartId: $cartId, input: $input) {
+    ...CartFields
+  }
+}
+
+mutation AdminSetCartLinePrice($cartId: ID!, $lineId: ID!, $unitPrice: Int) {
+  adminSetCartLinePrice(cartId: $cartId, lineId: $lineId, unitPrice: $unitPrice) {
+    ...CartFields
+  }
+}
+
+mutation AdminAddCustomCartLine($cartId: ID!, $input: AdminCustomCartLineInput!) {
+  adminAddCustomCartLine(cartId: $cartId, input: $input) {
+    ...CartFields
+  }
+}
+
+mutation AdminSendCartOffer($cartId: ID!) {
+  adminSendCartOffer(cartId: $cartId) {
+    ...CartFields
+  }
+}
+
+mutation AdminRegenerateCartOfferLink($cartId: ID!) {
+  adminRegenerateCartOfferLink(cartId: $cartId) {
+    ...CartFields
+  }
+}
+
+mutation AdminRevokeCartOffer($cartId: ID!) {
+  adminRevokeCartOffer(cartId: $cartId) {
+    ...CartFields
+  }
+}
+
+query AdminCartDeliveryGroups($cartId: ID!) {
+  adminCartDeliveryGroups(cartId: $cartId) {
+    key
+    lines
+    choices {
+      optionId
+      optionName
+      kind
+      carrierSlug
+      methodCode
+      methodName
+      price
+      needsPoint
+    }
+  }
+}
+
+query AdminCartDeliveryPoints($cartId: ID!, $groupKey: String!, $optionId: ID!, $search: String) {
+  adminCartDeliveryPoints(cartId: $cartId, groupKey: $groupKey, optionId: $optionId, search: $search) {
+    id
+    name
+    address
+  }
+}
+
+query AdminCartOfferPaymentMethods($cartId: ID!) {
+  adminCartOfferPaymentMethods(cartId: $cartId) {
+    slug
+    displayName
+  }
+}
+
+query AdminCartOfferEmailPreview($cartId: ID!) {
+  adminCartOfferEmailPreview(cartId: $cartId) {
+    to
+    subject
+    html
+    text
+    link
+    linkComplete
   }
 }

@@ -68,7 +68,7 @@ export function HeaderMenu({
   currentLocale,
 }: Props) {
   // Resolved after hydration - a server-side auth read would force every route dynamic
-  const { identity: customer } = useCustomerIdentity();
+  const { identity: customer, resolved } = useCustomerIdentity();
   const tm = useTranslations("header");
   const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
@@ -132,7 +132,9 @@ export function HeaderMenu({
 
         {/* Identity block - stays fixed across drill-downs. */}
         <div className="px-3 py-2">
-          {customer ? (
+          {!resolved ? (
+            <div aria-hidden="true" className="h-12 rounded-lg bg-muted animate-pulse" />
+          ) : customer ? (
             <Link
               href="/account"
               onClick={close}

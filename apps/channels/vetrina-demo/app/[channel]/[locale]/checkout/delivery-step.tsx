@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckoutCartFields, useCheckoutHref } from "@/app/components/offer/CheckoutCartContext";
+
 import { useTranslations } from "next-intl";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 
@@ -99,6 +101,7 @@ export function DeliveryStep({
   currency: Currency;
 }) {
   const t = useTranslations("checkout.delivery");
+  const checkoutHref = useCheckoutHref();
   const [pendingForms, setPendingForms] = useState<Set<string>>(() => new Set());
   const reportPending = useCallback((id: string, pending: boolean) => {
     setPendingForms((prev) => {
@@ -166,7 +169,7 @@ export function DeliveryStep({
           {busy ? t("saving") : ready ? t("reviewDelivery") : t("completeDelivery")}
         </p>
         {ready && !busy ? (
-          <Link href="/checkout?step=details" className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground">
+          <Link href={checkoutHref({ step: "details" })} className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground">
             {t("continueToDetails")}
           </Link>
         ) : (
@@ -202,6 +205,7 @@ function DestinationForm({
   const single = countries.length === 1 ? countries[0].code : null;
   return (
     <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-3">
+        <CheckoutCartFields />
       <p className="text-sm text-muted-foreground">{t("postcodeIntro")}</p>
       <FormErrors errors={form.errors} />
       <div className={`grid items-start gap-3 ${single ? "sm:grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_1fr_auto]"}`}>
@@ -251,6 +255,7 @@ function SplitForm({ split }: { split: boolean }) {
   useDeliveryPending(pending);
   return (
     <form ref={ref} id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-2">
+        <CheckoutCartFields />
       <FormErrors errors={form.errors} />
       <fieldset className="grid gap-2 sm:grid-cols-2" onChange={() => ref.current?.requestSubmit()}>
         <legend className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -345,6 +350,7 @@ function ChoicesForm({ group, arrivals, currency }: { group: DeliveryGroup; arri
   const fastest = fastestChoice(group.choices);
   return (
     <form ref={ref} id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-2">
+        <CheckoutCartFields />
       <input type="hidden" name={fields.groupKey.name} value={group.key} />
       <FormErrors errors={form.errors} />
       <fieldset onChange={() => ref.current?.requestSubmit()} disabled={pending}>
@@ -430,6 +436,7 @@ function PointForm({
   return (
     <div className="grid gap-3">
       <form method="get" className="flex flex-wrap items-end gap-2">
+        <CheckoutCartFields />
         <input type="hidden" name="step" value="delivery" />
         <input type="hidden" name="pointGroup" value={groupKey} />
         <label className="grid flex-1 gap-1 text-sm">
@@ -441,6 +448,7 @@ function PointForm({
       </form>
       {result.unavailable ? <p role="alert" className="text-sm text-destructive">{t("pointsUnavailable")}</p> : result.points.length === 0 ? <p role="status" className="text-sm text-muted-foreground">{t("noPoints")}</p> : null}
       <form ref={ref} id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-2">
+        <CheckoutCartFields />
         <input type="hidden" name={fields.groupKey.name} value={groupKey} />
         <BlockHeading requirement={requirement} />
         <FormErrors errors={form.errors} />

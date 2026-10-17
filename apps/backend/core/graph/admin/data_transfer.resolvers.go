@@ -28,18 +28,19 @@ func (r *mutationResolver) StartDataExport(ctx context.Context, input model.Star
 	if err := r.requireViewPermission(ctx, res, channelID); err != nil {
 		return nil, err
 	}
-	claims, err := auth.RequireAuth(ctx)
+	by, err := auth.RequireActor(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	job, err := r.DataJobSvc.QueueExport(ctx, datajob.ExportRequest{
-		Resource:  input.Resource,
-		Format:    dataio.Format(input.Format),
-		Options:   optionValues(input.Options),
-		ChannelID: channelID,
-		Locale:    ptr.Deref(input.Locale),
-		AdminID:   claims.AdminID,
+		Resource:      input.Resource,
+		Format:        dataio.Format(input.Format),
+		Options:       optionValues(input.Options),
+		ChannelID:     channelID,
+		Locale:        ptr.Deref(input.Locale),
+		AdminID:       by.AdminID().UUID,
+		IntegrationID: by.IntegrationID().UUID,
 	})
 	if err != nil {
 		return nil, dataJobError(err)

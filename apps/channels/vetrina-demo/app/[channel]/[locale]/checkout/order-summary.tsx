@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
-import { Link } from "@/app/components/LocaleLink";
+import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { formatPrice } from "@/app/lib/cart/read";
 import type { Cart } from "@/app/lib/cart/types";
 import type { CheckoutState } from "@/app/lib/checkout/read";
@@ -28,6 +28,8 @@ export async function OrderSummary({
   currency: Currency;
   locale: string;
 }) {
+  // An offer's price is the store's - the code box would apply to the shopper's own cart anyway
+  const coupons = !cart.offer;
   const t = await getTranslations({ locale, namespace: "checkout" });
   const to = await getTranslations({ locale, namespace: "order" });
   const priced = checkout.destination !== null;
@@ -96,7 +98,7 @@ export async function OrderSummary({
         </ul>
       ) : null}
 
-      <CheckoutCoupon />
+      {coupons ? <CheckoutCoupon /> : null}
 
       <Totals
         totals={checkout.totals}
@@ -115,9 +117,9 @@ export async function OrderSummary({
         }}
       />
 
-      <Link href="/cart" className="mt-6 inline-block text-xs text-muted-foreground underline">
+      <OwnCartLink href={cart.offer ? `/cart/offer?cartId=${encodeURIComponent(cart.id)}` : "/cart"} className="mt-6 inline-block text-xs text-muted-foreground underline">
         {t("editCart")}
-      </Link>
+      </OwnCartLink>
     </>
   );
 }

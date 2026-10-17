@@ -306,6 +306,7 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 		Quantity:   l.Quantity,
 		TotalPrice: int32(l.TotalPrice),
 		IsGift:     l.IsGift,
+		IsCustom:   l.IsCustom,
 		Options:    options,
 		Components: components,
 	}

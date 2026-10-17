@@ -21,6 +21,8 @@ func DefaultSubject(key string) string {
 		return "Confirm your subscription"
 	case KeyAccountExists:
 		return "You already have an account"
+	case KeyCartOffer:
+		return "{{store.name}} prepared an offer for you"
 	default:
 		return ""
 	}
@@ -80,6 +82,13 @@ func DefaultBlocks(key string) []Block {
 			{Type: "text", Content: "Someone just tried to create a {{store.name}} account with this email address, but you already have one. If this wasn't you, ignore this email - nothing about your account has changed."},
 			{Type: "button", Label: "Sign in", URL: "{{signin.link}}"},
 			{Type: "text", Content: "Forgotten your password? You can reset it here: {{forgot.link}}"},
+		}
+	case KeyCartOffer:
+		return []Block{
+			{Type: "heading", Text: "An offer, just for you"},
+			{Type: "text", Content: "Hi {{customer.firstName}}, {{store.name}} has put together an order for you. {{offer.message}}"},
+			{Type: "button", Label: "View your offer", URL: "{{offer.link}}"},
+			{Type: "text", Content: "The offer is open until {{offer.expiresAt}}."},
 		}
 	case KeyHeader:
 		return []Block{{Type: "image", URL: "{{store.logoUrl}}", Alt: "{{store.name}}"}}
