@@ -11,21 +11,36 @@ import (
 	"github.com/google/uuid"
 )
 
-const addWishlistItem = `-- name: AddWishlistItem :exec
+const addWishlistItem = `-- name: AddWishlistItem :execrows
 
 INSERT INTO wishlist_items (customer_id, product_id)
-VALUES ($1, $2)
+SELECT $1, $2
+WHERE (SELECT count(*) FROM wishlist_items WHERE customer_id = $1) < $3::int
 ON CONFLICT DO NOTHING
 `
 
 type AddWishlistItemParams struct {
 	CustomerID uuid.UUID `json:"customer_id"`
 	ProductID  uuid.UUID `json:"product_id"`
+	MaxItems   int32     `json:"max_items"`
 }
 
 // Customer wishlist rows
-func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams) error {
-	_, err := q.db.ExecContext(ctx, addWishlistItem, arg.CustomerID, arg.ProductID)
+// Refuses past the cap - 0 rows is either already saved or full
+func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, addWishlistItem, arg.CustomerID, arg.ProductID, arg.MaxItems)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteWishlistShare = `-- name: DeleteWishlistShare :exec
+DELETE FROM wishlist_shares WHERE customer_id = $1
+`
+
+func (q *Queries) DeleteWishlistShare(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWishlistShare, customerID)
 	return err
 }
 
@@ -111,4 +126,20 @@ func (q *Queries) UpsertWishlistShare(ctx context.Context, arg UpsertWishlistSha
 	var i WishlistShare
 	err := row.Scan(&i.CustomerID, &i.Token, &i.CreatedAt)
 	return i, err
+}
+
+const wishlistHasItem = `-- name: WishlistHasItem :one
+SELECT EXISTS (SELECT 1 FROM wishlist_items WHERE customer_id = $1 AND product_id = $2)
+`
+
+type WishlistHasItemParams struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	ProductID  uuid.UUID `json:"product_id"`
+}
+
+func (q *Queries) WishlistHasItem(ctx context.Context, arg WishlistHasItemParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, wishlistHasItem, arg.CustomerID, arg.ProductID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
