@@ -2,6 +2,7 @@ package webform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/mail"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -64,7 +66,7 @@ func (s *Service) PresignUpload(ctx context.Context, formID, channelID uuid.UUID
 	if s.files == nil {
 		return "", "", fmt.Errorf("%w: uploads are not configured", ErrInvalidSubmission)
 	}
-	form, err := s.repo.Get(ctx, formID)
+	form, err := s.liveForm(ctx, formID)
 	if err != nil {
 		return "", "", err
 	}
@@ -176,9 +178,10 @@ func (s *Service) Restore(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *Service) ListSubmissions(ctx context.Context, formID uuid.UUID, limit, offset int32) ([]Submission, error) {
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
 	}
+	limit = min(limit, 200)
 	return s.repo.ListSubmissions(ctx, formID, limit, offset)
 }
 
@@ -205,7 +208,7 @@ func (s *Service) PublicForm(ctx context.Context, id uuid.UUID) (PublicForm, err
 	if enabled, err := s.cfg.GetBool(ctx, CfgEnabled, config.DefaultScope); err == nil && !enabled {
 		return PublicForm{}, ErrFormInactive
 	}
-	f, err := s.repo.Get(ctx, id)
+	f, err := s.liveForm(ctx, id)
 	if err != nil {
 		return PublicForm{}, err
 	}
@@ -262,7 +265,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (SubmitResult, err
 		return SubmitResult{}, ErrFormInactive
 	}
 
-	form, err := s.repo.Get(ctx, in.FormID)
+	form, err := s.liveForm(ctx, in.FormID)
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -304,7 +307,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (SubmitResult, err
 			answers[f.Key] = f.DefaultValue
 			continue
 		}
-		if v, ok := in.Values[f.Key]; ok {
+		if v, ok := cleanAnswer(f, in.Values[f.Key]); ok {
 			answers[f.Key] = v
 		}
 	}
@@ -353,6 +356,76 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (SubmitResult, err
 	}
 	return SubmitResult{SuccessMessage: msg, RedirectURL: form.Settings.RedirectURL}, nil
 }
+
+// liveForm is a form the storefront may use - a soft-deleted one reads as missing, whatever its status says
+func (s *Service) liveForm(ctx context.Context, id uuid.UUID) (Form, error) {
+	f, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Form{}, err
+	}
+	if f.DeletedAt != nil {
+		return Form{}, ErrFormNotFound
+	}
+	return f, nil
+}
+
+// cleanAnswer keeps only the shape a field can hold - a repeater item or matrix row carries its own fields and nothing else, and an input field takes a scalar - so a visitor can't store arbitrary JSON in a submission
+func cleanAnswer(f Field, v any) (any, bool) {
+	switch v.(type) {
+	case nil:
+		return nil, false
+	}
+	switch f.Type {
+	case FieldRepeater:
+		items, ok := v.([]any)
+		if !ok {
+			return nil, false
+		}
+		out := make([]any, 0, len(items))
+		for _, it := range items {
+			item, ok := it.(map[string]any)
+			if !ok {
+				continue
+			}
+			kept := map[string]any{}
+			for _, sub := range VisibleFields(f.SubFields, item) {
+				if cv, ok := cleanAnswer(sub, item[sub.Key]); ok {
+					kept[sub.Key] = cv
+				}
+			}
+			out = append(out, kept)
+		}
+		return out, true
+	case FieldMatrix:
+		m, ok := v.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		kept := map[string]any{}
+		for _, row := range f.Rows {
+			switch rv := m[row.Key].(type) {
+			case string:
+				kept[row.Key] = rv
+			case []any:
+				kept[row.Key] = toStringList(rv)
+			}
+		}
+		return kept, true
+	case FieldCheckboxGroup:
+		return toStringList(v), true
+	}
+	switch v.(type) {
+	case string, bool, float64, int, int64, json.Number:
+		return v, true
+	}
+	return nil, false
+}
+
+// Bounds an answer the form sets no limit on - a public form would otherwise store whatever the request body cap allows
+const (
+	defaultMaxAnswerRunes = 10_000
+	defaultMaxRepeatItems = 100
+)
 
 // --- validation ---
 
@@ -428,6 +501,9 @@ func validateAnswers(visible []Field, answers map[string]any) []FieldError {
 			}
 		}
 
+		if sv, ok := v.(string); ok && (f.Validation == nil || f.Validation.MaxLength == nil) && utf8.RuneCountInString(sv) > defaultMaxAnswerRunes {
+			add(f.Key, fmt.Sprintf("Must be at most %d characters.", defaultMaxAnswerRunes))
+		}
 		// Length + pattern apply to string-valued fields
 		if sv, ok := v.(string); ok && f.Validation != nil {
 			sv = strings.TrimSpace(sv)
@@ -495,8 +571,13 @@ func validateRepeater(f Field, v any, add func(key, msg string)) {
 	if len(items) < minItems {
 		add(f.Key, fmt.Sprintf("Add at least %d.", minItems))
 	}
-	if f.MaxItems != nil && len(items) > *f.MaxItems {
-		add(f.Key, fmt.Sprintf("Add at most %d.", *f.MaxItems))
+	maxItems := defaultMaxRepeatItems
+	if f.MaxItems != nil {
+		maxItems = *f.MaxItems
+	}
+	if len(items) > maxItems {
+		add(f.Key, fmt.Sprintf("Add at most %d.", maxItems))
+		return
 	}
 	for i, it := range items {
 		itemMap, ok := it.(map[string]any)
@@ -653,19 +734,29 @@ func submitterEmail(form Form, answers map[string]any) string {
 	// Prefer an explicit confirmation target, else the first email field
 	if key := form.Settings.Confirmation.ToFieldKey; key != "" {
 		if s, ok := answers[key].(string); ok {
-			return strings.TrimSpace(s)
+			return plainAddress(s)
 		}
 	}
 	for _, f := range form.Fields {
 		if f.Type == FieldEmail {
-			if s, ok := answers[f.Key].(string); ok && s != "" {
-				if _, err := mail.ParseAddress(s); err == nil {
-					return strings.TrimSpace(s)
+			if s, ok := answers[f.Key].(string); ok {
+				if addr := plainAddress(s); addr != "" {
+					return addr
 				}
 			}
 		}
 	}
 	return ""
+}
+
+// plainAddress is s when it's exactly one bare address, else "" - the confirmation goes to what the visitor typed, so a display name, a list or anything mail.ParseAddress has to reinterpret is refused
+func plainAddress(s string) string {
+	s = strings.TrimSpace(s)
+	addr, err := mail.ParseAddress(s)
+	if err != nil || addr.Address != s {
+		return ""
+	}
+	return s
 }
 
 func summarize(form Form, answers map[string]any) string {
