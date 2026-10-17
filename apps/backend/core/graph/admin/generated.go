@@ -4028,8 +4028,8 @@ type ComplexityRoot struct {
 
 	ScheduledJobWebhook struct {
 		HasSecret func(childComplexity int) int
+		Host      func(childComplexity int) int
 		Method    func(childComplexity int) int
-		URL       func(childComplexity int) int
 	}
 
 	SearchBoost struct {
@@ -27146,18 +27146,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ScheduledJobWebhook.HasSecret(childComplexity), true
+	case "ScheduledJobWebhook.host":
+		if e.ComplexityRoot.ScheduledJobWebhook.Host == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ScheduledJobWebhook.Host(childComplexity), true
 	case "ScheduledJobWebhook.method":
 		if e.ComplexityRoot.ScheduledJobWebhook.Method == nil {
 			break
 		}
 
 		return e.ComplexityRoot.ScheduledJobWebhook.Method(childComplexity), true
-	case "ScheduledJobWebhook.url":
-		if e.ComplexityRoot.ScheduledJobWebhook.URL == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ScheduledJobWebhook.URL(childComplexity), true
 
 	case "SearchBoost.id":
 		if e.ComplexityRoot.SearchBoost.ID == nil {
@@ -37360,9 +37360,10 @@ type ScheduledJob {
   updatedAt:            Time!
 }
 
-# Safe read projection of a webhook job's config - the secret is never echoed.
+# Safe read projection of a webhook job's config - the secret is never echoed, and only the host shows,
+# since a hook URL's path is often its credential. The full URL is on webhookJobConfig (scheduler.manage).
 type ScheduledJobWebhook {
-  url:       String!
+  host:      String!
   method:    String!
   hasSecret: Boolean!
 }
@@ -45468,8 +45469,8 @@ func (ec *executionContext) childFields_ScheduledJobRun(ctx context.Context, fie
 
 func (ec *executionContext) childFields_ScheduledJobWebhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "url":
-		return ec.fieldContext_ScheduledJobWebhook_url(ctx, field)
+	case "host":
+		return ec.fieldContext_ScheduledJobWebhook_host(ctx, field)
 	case "method":
 		return ec.fieldContext_ScheduledJobWebhook_method(ctx, field)
 	case "hasSecret":
@@ -146479,16 +146480,16 @@ func (ec *executionContext) fieldContext_ScheduledJobRun_attempt(_ context.Conte
 	return graphql.NewScalarFieldContext("ScheduledJobRun", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
-func (ec *executionContext) _ScheduledJobWebhook_url(ctx context.Context, field graphql.CollectedField, obj *model.ScheduledJobWebhook) (ret graphql.Marshaler) {
+func (ec *executionContext) _ScheduledJobWebhook_host(ctx context.Context, field graphql.CollectedField, obj *model.ScheduledJobWebhook) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ScheduledJobWebhook_url(ctx, field)
+			return ec.fieldContext_ScheduledJobWebhook_host(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.URL, nil
+			return obj.Host, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -146498,7 +146499,7 @@ func (ec *executionContext) _ScheduledJobWebhook_url(ctx context.Context, field 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_ScheduledJobWebhook_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ScheduledJobWebhook_host(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ScheduledJobWebhook", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -203857,8 +203858,8 @@ func (ec *executionContext) _ScheduledJobWebhook(ctx context.Context, sel ast.Se
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("ScheduledJobWebhook")
-		case "url":
-			out.Values[i] = ec._ScheduledJobWebhook_url(ctx, field, obj)
+		case "host":
+			out.Values[i] = ec._ScheduledJobWebhook_host(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

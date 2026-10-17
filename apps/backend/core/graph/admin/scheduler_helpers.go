@@ -45,7 +45,7 @@ func toScheduledJobModel(j scheduler.Job) *model.ScheduledJob {
 		UpdatedAt:           j.UpdatedAt,
 	}
 	if j.Webhook != nil {
-		m.Webhook = &model.ScheduledJobWebhook{URL: j.Webhook.URL, Method: j.Webhook.Method, HasSecret: j.Webhook.HasSecret}
+		m.Webhook = &model.ScheduledJobWebhook{Host: j.Webhook.Host, Method: j.Webhook.Method, HasSecret: j.Webhook.HasSecret}
 	}
 	return m
 }

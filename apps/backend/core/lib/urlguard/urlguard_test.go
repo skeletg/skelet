@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The whole point of the guard is that these never become reachable - 169.254.169.254 in particular
@@ -27,6 +28,10 @@ func TestDisallowedIPCoversEveryNonRoutableRange(t *testing.T) {
 		{"::", true},                    // unspecified v6
 		{"224.0.0.1", true},             // multicast
 		{"255.255.255.255", true},       // broadcast
+		{"100.64.0.1", true},            // carrier-grade NAT, where Tailscale lives
+		{"100.127.255.254", true},       // its top end
+		{"100.63.255.255", false},       // just below it
+		{"100.128.0.1", false},          // just above it
 		{"8.8.8.8", false},              // ordinary public address
 		{"1.1.1.1", false},              //
 		{"2606:4700:4700::1111", false}, // public v6
@@ -102,9 +107,9 @@ func TestValidateTargetURLRefusesLiteralInternalIPs(t *testing.T) {
 		if err := ValidateTargetURL(raw, false); err == nil {
 			t.Errorf("ValidateTargetURL(%q) = nil, want it refused as internal", raw)
 		}
-		// APP_ENV=development has to keep localhost callbacks working
-		if err := ValidateTargetURL(raw, true); err != nil {
-			t.Errorf("ValidateTargetURL(%q, allowPrivate) = %v, want nil", raw, err)
+		devRefused := strings.Contains(raw, "169.254.") || strings.Contains(raw, "0.0.0.0")
+		if err := ValidateTargetURL(raw, true); (err != nil) != devRefused {
+			t.Errorf("ValidateTargetURL(%q, allowPrivate) = %v, want refused=%v", raw, err, devRefused)
 		}
 	}
 }
@@ -192,5 +197,24 @@ func TestSafeTransportKeepsDefaultTransportSettings(t *testing.T) {
 			t.Errorf("transport = {idle %d, timeout %v}, want the default's {%d, %v}",
 				tr.MaxIdleConns, tr.IdleConnTimeout, def.MaxIdleConns, def.IdleConnTimeout)
 		}
+	}
+}
+
+// Development opens private ranges for local callbacks, never the cloud metadata endpoint
+func TestDevelopmentStillRefusesTheMetadataAddress(t *testing.T) {
+	if err := ValidateTargetURL("http://169.254.169.254/latest/meta-data/", true); err == nil {
+		t.Error("ValidateTargetURL let the metadata address through in development")
+	}
+	if err := ValidateTargetURL("http://127.0.0.1:9000/hook", true); err != nil {
+		t.Errorf("ValidateTargetURL refused loopback in development: %v", err)
+	}
+	client := &http.Client{Transport: SafeTransport(true), Timeout: 5 * time.Second}
+	resp, err := client.Get("http://169.254.169.254/latest/meta-data/")
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("SafeTransport dialled the metadata address in development")
+	}
+	if !strings.Contains(err.Error(), "private or internal") {
+		t.Errorf("dial error = %v, want the guard's refusal", err)
 	}
 }

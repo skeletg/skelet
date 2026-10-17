@@ -45,6 +45,7 @@ function SchedulerSettingsForm({ config, canEdit }: { config: SchedulerConfigQue
   const [saved, setSaved] = useState(false)
 
   const enabled = config.enabled?.value !== 'false'
+  const alertIsSet = config.alertWebhookUrl?.isSet ?? false
   async function setEnabled(on: boolean) {
     setError(null)
     try {
@@ -107,9 +108,10 @@ function SchedulerSettingsForm({ config, canEdit }: { config: SchedulerConfigQue
             <f.TextField
               id="alert-url"
               label="Failure alert webhook URL"
-              placeholder="https://hooks.example.com/scheduler-alerts"
+              // Stored as a secret, so it never comes back - a blank field keeps whatever is set
+              placeholder={alertIsSet ? 'Configured - type a new URL to replace it' : 'https://hooks.example.com/scheduler-alerts'}
               className="text-sm"
-              hint="POSTed (HMAC-signed) when a job crosses its alert-after-failures threshold."
+              hint="POSTed when a job crosses its alert-after-failures threshold."
             />
           )}
         </form.AppField>

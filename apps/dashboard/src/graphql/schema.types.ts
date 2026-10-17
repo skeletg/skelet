@@ -9623,8 +9623,8 @@ export type ScheduledJobRun = {
 export type ScheduledJobWebhook = {
   __typename?: 'ScheduledJobWebhook';
   hasSecret: Scalars['Boolean']['output'];
+  host: Scalars['String']['output'];
   method: Scalars['String']['output'];
-  url: Scalars['String']['output'];
 };
 
 export type SearchBoost = {
