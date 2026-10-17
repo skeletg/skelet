@@ -46,6 +46,10 @@ func (t *TieredEngine) SearchProducts(ctx context.Context, query string, channel
 		if err == nil {
 			return hits, total, nil
 		}
+		// A caller that's gone isn't a primary outage - falling back re-ran the query on Postgres for nobody and flagged it degraded
+		if ctx.Err() != nil {
+			return nil, 0, ctx.Err()
+		}
 		t.note(ctx, "search", err)
 	}
 	return t.backup.SearchProducts(ctx, query, channelID, locale, limit, offset, boosts)
@@ -56,6 +60,9 @@ func (t *TieredEngine) BrowseProducts(ctx context.Context, channelID uuid.UUID, 
 		res, err := t.primary.BrowseProducts(ctx, channelID, locale, query, filter, sortSlug, limit, offset, boosts)
 		if err == nil {
 			return res, nil
+		}
+		if ctx.Err() != nil {
+			return BrowseResult{}, ctx.Err()
 		}
 		t.note(ctx, "browse", err)
 	}

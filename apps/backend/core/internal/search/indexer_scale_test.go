@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +31,13 @@ func (f *indexCatalog) GetProductWithAttributes(_ context.Context, id uuid.UUID)
 	return f.products[id], nil
 }
 func (f *indexCatalog) ListAttributes(context.Context) ([]catalog.Attribute, error) { return nil, nil }
+func (f *indexCatalog) ListProducts(context.Context, string, int32) ([]catalog.Product, error) {
+	out := make([]catalog.Product, 0, len(f.products))
+	for _, p := range f.products {
+		out = append(out, p)
+	}
+	return out, nil
+}
 func (f *indexCatalog) ListCategoriesByProduct(context.Context, uuid.UUID) ([]catalog.Category, error) {
 	return nil, nil
 }
@@ -115,13 +123,18 @@ type recordingCluster struct {
 	requests []string
 	bulk     []map[string]any
 	existing []string
+	aliases  map[string][]string
 }
 
 func (c *recordingCluster) serve(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.requests = append(c.requests, r.Method+" "+r.URL.Path)
+	req := r.Method + " " + r.URL.Path
+	if r.URL.RawQuery != "" {
+		req += "?" + r.URL.RawQuery
+	}
+	c.requests = append(c.requests, req)
 	w.Header().Set("Content-Type", "application/json")
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/_bulk"):
@@ -130,10 +143,10 @@ func (c *recordingCluster) serve(w http.ResponseWriter, r *http.Request) {
 		for sc.Scan() {
 			var line map[string]any
 			_ = json.Unmarshal(sc.Bytes(), &line)
-			if _, ok := line["index"]; ok {
-				c.bulk = append(c.bulk, line)
-			} else if _, ok := line["delete"]; ok {
-				c.bulk = append(c.bulk, line)
+			for _, verb := range []string{"index", "create", "delete"} {
+				if _, ok := line[verb]; ok {
+					c.bulk = append(c.bulk, line)
+				}
 			}
 		}
 		_, _ = w.Write([]byte(`{"took":1,"errors":false,"items":[]}`))
@@ -143,12 +156,40 @@ func (c *recordingCluster) serve(w http.ResponseWriter, r *http.Request) {
 			hits = append(hits, `{"_id":"`+id+`","_index":"products_v1"}`)
 		}
 		_, _ = w.Write([]byte(`{"took":1,"hits":{"total":{"value":0,"relation":"eq"},"hits":[` + strings.Join(hits, ",") + `]}}`))
+	case strings.HasPrefix(r.URL.Path, "/_alias/"):
+		name := strings.TrimPrefix(r.URL.Path, "/_alias/")
+		indices := c.aliases[name]
+		if len(indices) == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"alias [` + name + `] missing","status":404}`))
+			return
+		}
+		entries := make([]string, 0, len(indices))
+		for _, idx := range indices {
+			entries = append(entries, `"`+idx+`":{"aliases":{"`+name+`":{}}}`)
+		}
+		_, _ = w.Write([]byte(`{` + strings.Join(entries, ",") + `}`))
+	case r.URL.Path == "/_aliases":
+		c.requests[len(c.requests)-1] += " " + string(body)
+		_, _ = w.Write([]byte(`{"acknowledged":true}`))
 	case strings.HasSuffix(r.URL.Path, "/_delete_by_query"):
 		c.requests[len(c.requests)-1] += " " + string(body)
 		_, _ = w.Write([]byte(`{"took":1,"deleted":0,"failures":[]}`))
 	default:
 		_, _ = w.Write([]byte(`{"result":"created","_id":"x","_index":"products_v1"}`))
 	}
+}
+
+func (c *recordingCluster) indexesWritten() map[string]int {
+	out := map[string]int{}
+	for _, line := range c.bulk {
+		for _, meta := range line {
+			if m, ok := meta.(map[string]any); ok {
+				out[m["_index"].(string)]++
+			}
+		}
+	}
+	return out
 }
 
 func (c *recordingCluster) count(verb string) int {
@@ -322,5 +363,90 @@ func TestTheClientReadsRoutingOffALiveIndex(t *testing.T) {
 	}
 	if err := client.Bulk(ctx, name, []BulkDoc{{ID: "p:" + ch + ":en", Delete: true, Routing: ch}, {ID: "gone:" + ch + ":xx", Delete: true, Routing: ch}}); err != nil {
 		t.Fatalf("routed delete, including one already gone: %v", err)
+	}
+}
+
+func TestLiveWritesReachAnInFlightRebuild(t *testing.T) {
+	idx, cluster, _, cat := manyChannelFixture(t, 2, 1)
+	cluster.aliases = map[string][]string{NextAlias(ProductIndex): {"products_v1-1700000000"}}
+	var pid uuid.UUID
+	for id := range cat.products {
+		pid = id
+	}
+	cluster.existing = []string{docID(pid, uuid.New(), "fr")}
+	if err := idx.Upsert(context.Background(), pid); err != nil {
+		t.Fatal(err)
+	}
+	if got := cluster.indexesWritten(); got[ProductIndex] != 5 || got["products_v1-1700000000"] != 5 {
+		t.Fatalf("bulk lines per index = %v, want the 4 docs and the stale delete in both the live index and the rebuild", got)
+	}
+	if err := idx.Delete(context.Background(), pid); err != nil {
+		t.Fatal(err)
+	}
+	last := cluster.requests[len(cluster.requests)-1]
+	if !strings.Contains(last, "/products_v1,products_v1-1700000000/_delete_by_query") || !strings.Contains(last, "conflicts=proceed") {
+		t.Fatalf("delete went out as %q, want both indexes past version conflicts", last)
+	}
+}
+
+func TestARebuildNeverOverwritesALiveWrite(t *testing.T) {
+	idx, cluster, _, _ := manyChannelFixture(t, 1, 2)
+	if _, err := idx.reindexAllInto(context.Background(), "products_v1-1700000000"); err != nil {
+		t.Fatal(err)
+	}
+	if cluster.count("create") != 4 || cluster.count("index") != 0 {
+		t.Fatalf("rebuild wrote %d creates and %d overwrites, want creates only", cluster.count("create"), cluster.count("index"))
+	}
+	cluster.bulk = nil
+	if _, err := idx.ReindexAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if cluster.count("index") != 4 || cluster.count("create") != 0 {
+		t.Fatal("a reindex into the live index must overwrite what's there")
+	}
+}
+
+func TestARebuildOpensItsNextAliasBeforeBuildingAndClosesItAfter(t *testing.T) {
+	_, cluster, _, _ := manyChannelFixture(t, 1, 1)
+	srv := httptest.NewServer(http.HandlerFunc(cluster.serve))
+	t.Cleanup(srv.Close)
+	client, err := NewClient([]string{srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cluster.aliases = map[string][]string{ProductIndex: {"products_v1-000"}}
+	var during []string
+	_, err = rebuildAndSwap(context.Background(), client, ProductIndex, `{}`, func(context.Context, string) (int, error) {
+		during = append([]string(nil), cluster.requests...)
+		return 1, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened := slices.IndexFunc(during, func(r string) bool {
+		return strings.Contains(r, `"add"`) && strings.Contains(r, NextAlias(ProductIndex))
+	})
+	closed := slices.IndexFunc(cluster.requests, func(r string) bool {
+		return strings.Contains(r, `"remove"`) && strings.Contains(r, NextAlias(ProductIndex))
+	})
+	if opened < 0 || closed < 0 {
+		t.Fatalf("next alias opened at %d, closed at %d - want both:\n%s", opened, closed, strings.Join(cluster.requests, "\n"))
+	}
+}
+
+type countedCatalog struct {
+	*indexCatalog
+	listings map[uuid.UUID]int64
+}
+
+func (c countedCatalog) CountProductChannelListingsByChannel(context.Context) (map[uuid.UUID]int64, error) {
+	return c.listings, nil
+}
+
+func TestShardSizingCountsListingsInsteadOfLoadingTheCatalogue(t *testing.T) {
+	idx, _, chs, cat := manyChannelFixture(t, 2, 0)
+	idx.catalog = countedCatalog{indexCatalog: cat, listings: map[uuid.UUID]int64{chs.all[0].ID: 1000, chs.all[1].ID: 10}}
+	if got := idx.estimateDocs(context.Background()); got != 2020 {
+		t.Fatalf("estimate = %d, want each channel's listings times its 2 locales", got)
 	}
 }

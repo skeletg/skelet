@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -134,21 +133,53 @@ func (i *BlogPostIndexer) Recreate(ctx context.Context) error {
 }
 
 // Locales come from each channel listing the post, and the post carries AllContent keyed by locale, so build time picks from that rather than a resolution roundtrip per (store, locale)
+// New docs and stale-doc deletes go in one _bulk - the delete-first order this replaced left a post with ZERO docs on any write error
 func (i *BlogPostIndexer) Upsert(ctx context.Context, postID uuid.UUID) error {
-	return i.indexPostInto(ctx, BlogPostIndex, postID, true)
-}
-
-// cleanupStale is skipped by the rebuild - a fresh physical index has no leftovers
-// to reconcile, and the per-post _search is a large share of the rebuild cost
-func (i *BlogPostIndexer) indexPostInto(ctx context.Context, target string, postID uuid.UUID, cleanupStale bool) error {
 	post, err := i.blog.GetPost(ctx, postID, "")
 	if err != nil {
 		return fmt.Errorf("load post: %w", err)
 	}
-	if len(post.ChannelListings) == 0 {
-		// No store lists it - clear whatever a previous publish state left behind
-		return i.client.DeleteByField(ctx, target, "post_id", postID.String())
+	channels, err := i.channelsByID(ctx)
+	if err != nil {
+		return err
 	}
+	docs := i.postDocs(post, channels, false)
+	if len(docs) == 0 {
+		return i.Delete(ctx, postID)
+	}
+	existing, staleErr := i.client.ListDocIDsByField(ctx, BlogPostIndex, "post_id", postID.String())
+	fresh := make(map[string]struct{}, len(docs))
+	for _, d := range docs {
+		fresh[d.ID] = struct{}{}
+	}
+	for _, id := range existing {
+		if _, ok := fresh[id]; !ok {
+			docs = append(docs, BulkDoc{ID: id, Delete: true})
+		}
+	}
+	if err := i.client.Bulk(ctx, BlogPostIndex, docs); err != nil {
+		return err
+	}
+	if staleErr != nil {
+		return fmt.Errorf("stale docs left in place: %w", staleErr)
+	}
+	return nil
+}
+
+func (i *BlogPostIndexer) channelsByID(ctx context.Context) (map[uuid.UUID]channel.Channel, error) {
+	channels, err := i.channel.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load channels: %w", err)
+	}
+	out := make(map[uuid.UUID]channel.Channel, len(channels))
+	for _, sv := range channels {
+		out[sv.ID] = sv
+	}
+	return out, nil
+}
+
+// One doc per (store, locale) the post's listings span - a listing on a deleted store is skipped
+func (i *BlogPostIndexer) postDocs(post blog.Post, channels map[uuid.UUID]channel.Channel, ifAbsent bool) []BulkDoc {
 	contentByLocale := make(map[string]blog.PostContent, len(post.AllContent))
 	for _, c := range post.AllContent {
 		contentByLocale[c.Locale] = c
@@ -162,43 +193,21 @@ func (i *BlogPostIndexer) indexPostInto(ctx context.Context, target string, post
 			authorName = post.Author.AllContent[0].Name
 		}
 	}
-	// Write the new set first, then drop leftovers - the delete-first order this replaced meant any write error left the post with ZERO docs,
-	// unfindable until a manual reindex, where a brief overlap of stale siblings is merely cosmetic. Same inversion as ProductIndexer.Upsert
-	fresh := map[string]struct{}{}
+	var docs []BulkDoc
 	for _, lst := range post.ChannelListings {
-		sv, err := i.channel.GetByID(ctx, lst.ChannelID)
-		if err != nil {
+		sv, ok := channels[lst.ChannelID]
+		if !ok {
 			continue
 		}
 		for _, locale := range localeCodes(sv) {
-			doc := i.buildDoc(post, lst, sv, locale, contentByLocale, authorName)
-			id := docID(post.ID, sv.ID, locale)
-			if err := i.client.IndexDoc(ctx, target, id, doc); err != nil {
-				return err
-			}
-			fresh[id] = struct{}{}
+			docs = append(docs, BulkDoc{
+				ID:       docID(post.ID, sv.ID, locale),
+				Doc:      i.buildDoc(post, lst, sv, locale, contentByLocale, authorName),
+				IfAbsent: ifAbsent,
+			})
 		}
 	}
-	if len(fresh) == 0 {
-		return i.client.DeleteByField(ctx, target, "post_id", postID.String())
-	}
-	if !cleanupStale {
-		return nil
-	}
-	stale, err := i.client.ListDocIDsByField(ctx, target, "post_id", postID.String())
-	if err != nil {
-		log.Printf("[search] list existing docs for post %s: %v", postID, err)
-		return nil
-	}
-	for _, id := range stale {
-		if _, ok := fresh[id]; ok {
-			continue
-		}
-		if err := i.client.DeleteDoc(ctx, target, id); err != nil {
-			log.Printf("[search] delete stale blog doc %s: %v", id, err)
-		}
-	}
-	return nil
+	return docs
 }
 
 func (i *BlogPostIndexer) Delete(ctx context.Context, postID uuid.UUID) error {
@@ -280,20 +289,38 @@ func (i *BlogPostIndexer) reindexAllInto(ctx context.Context, target string) (in
 	if err != nil {
 		return 0, fmt.Errorf("list posts: %w", err)
 	}
+	channels, err := i.channelsByID(ctx)
+	if err != nil {
+		return 0, err
+	}
 	done, failed := 0, 0
 	var firstErr error
-	for _, p := range posts {
+	fail := func(n int, err error) {
+		failed += n
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	for start := 0; start < len(posts); start += reindexPageSize {
 		if ctx.Err() != nil {
 			return done, fmt.Errorf("reindex stopped after %d/%d posts: %w", done, len(posts), ctx.Err())
 		}
-		if err := i.indexPostInto(ctx, target, p.ID, false); err != nil {
-			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("upsert %s: %w", p.ID, err)
+		var docs []BulkDoc
+		built := 0
+		for _, p := range posts[start:min(start+reindexPageSize, len(posts))] {
+			post, err := i.blog.GetPost(ctx, p.ID, "")
+			if err != nil {
+				fail(1, fmt.Errorf("load %s: %w", p.ID, err))
+				continue
 			}
+			docs = append(docs, i.postDocs(post, channels, target != BlogPostIndex)...)
+			built++
+		}
+		if err := i.client.Bulk(ctx, target, docs); err != nil {
+			fail(built, err)
 			continue
 		}
-		done++
+		done += built
 	}
 	if firstErr != nil {
 		return done, fmt.Errorf("reindexed %d/%d posts, %d failed - first error: %w", done, len(posts), failed, firstErr)
