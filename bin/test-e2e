@@ -12,7 +12,6 @@ E2E_DB_URL="postgres://skelet:skelet@db:5432/${E2E_DB}?sslmode=disable"
 E2E_SIG_URL="postgres://skelet:skelet@signals-db:5432/${E2E_SIG_DB}?sslmode=disable"
 # The spine gets its own ClickHouse database too, so a run never reads the dev stack's events
 E2E_CH_URL="clickhouse://skelet:skelet@clickhouse:9000/${E2E_SIG_DB}"
-E2E_CH_MIGRATE_URL="clickhouse://clickhouse:9000?username=skelet&password=skelet&database=${E2E_SIG_DB}&x-multi-statement=true"
 
 fresh=true
 case "${1:-}" in
@@ -20,7 +19,7 @@ case "${1:-}" in
     --fresh) shift ;; # the default now, accepted so an old invocation still works
 esac
 
-# The dev stack has to be up - migrate, the Signals process and go test all run inside the app container
+# The dev stack has to be up - dbmate, the Signals process and go test all run inside the app container
 if ! service_running app; then
     echo "dev stack not running - start it with ./skelet up" >&2
     exit 1
@@ -36,11 +35,11 @@ ensure_ch_db "$E2E_SIG_DB" $fresh
 unmark_dev_dbs
 
 echo "==> migrating commerce ($E2E_DB)"
-docker compose exec -T app migrate -path internal/db/migrations -database "$E2E_DB_URL" up
+docker compose exec -T app dbmate --no-dump-schema --url "$E2E_DB_URL" --migrations-dir internal/db/migrations up
 echo "==> migrating signals ($E2E_SIG_DB)"
-docker compose exec -T app migrate -path /var/www/backend/signals/internal/db/migrations -database "$E2E_SIG_URL" up
+docker compose exec -T app dbmate --no-dump-schema --url "$E2E_SIG_URL" --migrations-dir /var/www/backend/signals/internal/db/migrations up
 echo "==> migrating the spine (clickhouse $E2E_SIG_DB)"
-docker compose exec -T app migrate -path /var/www/backend/signals/internal/analytics/spinech/migrations -database "$E2E_CH_MIGRATE_URL" up
+docker compose exec -T app dbmate --no-dump-schema --url "$E2E_CH_URL" --migrations-dir /var/www/backend/signals/internal/analytics/spinech/migrations up
 # Plugin-owned tables are not in internal/db/migrations - a plugin ships its own, applied through the
 # CLI, and without this any suite touching a plugin's data fails on a missing relation
 echo "==> migrating enabled plugins ($E2E_DB)"
