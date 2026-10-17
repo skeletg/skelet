@@ -62,7 +62,7 @@ func newAccountFixture(t *testing.T) *accountFixture {
 		_, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, ch.ID)
 	})
 	r := &mutationResolver{&Resolver{
-		CustomerSvc: svc, CustomerRefreshStore: refresh, JWTSecret: "test-secret", JWTTTL: time.Minute,
+		CustomerSvc: svc, CustomerRefreshStore: refresh, CustomerKeys: testCustomerKeys(t), JWTTTL: time.Minute,
 		LoginThrottle: auth.NewLoginThrottle(nil, 3, time.Minute, time.Minute),
 	}}
 	return &accountFixture{r: r, cfg: cfg, ctx: channel.WithChannel(context.Background(), &ch), ch: ch.ID}
@@ -143,4 +143,17 @@ func TestLoginLockoutCountsOnlyWrongPasswords(t *testing.T) {
 	if err := login("password123"); !errors.Is(err, auth.ErrAccountLocked) {
 		t.Errorf("after three wrong passwords = %v, want ErrAccountLocked", err)
 	}
+}
+
+func testCustomerKeys(t *testing.T) auth.CustomerSigner {
+	t.Helper()
+	seed, _, err := auth.GenerateCustomerKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, err := auth.NewCustomerSigner(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return keys
 }

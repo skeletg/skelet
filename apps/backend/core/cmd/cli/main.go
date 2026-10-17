@@ -39,6 +39,7 @@ func main() {
 	rootCmd.AddCommand(commands.InventoryCmd)
 	rootCmd.AddCommand(commands.ReviewsCmd)
 	rootCmd.AddCommand(commands.JobCmd)
+	rootCmd.AddCommand(commands.KeysCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

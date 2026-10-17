@@ -13,10 +13,15 @@ import (
 )
 
 func TestPluginRoutesSeeTheShopperButNotAnAdmin(t *testing.T) {
-	const secret = "plugin-route-secret"
+	seed, _, _ := authpkg.GenerateCustomerKey()
+	customers, err := authpkg.NewCustomerSigner(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admins, _ := authpkg.NewAdminKeys("plugin-route-admin-secret-0123456789")
 	active := func(context.Context, uuid.UUID) (bool, error) { return true, nil }
 	var customer, admin bool
-	h := pluginRouteAuth(secret, active)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	h := pluginRouteAuth(customers.Verifier(), active)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		_, customer = authpkg.CustomerFromContext(r.Context())
 		_, admin = authpkg.AdminFromContext(r.Context())
 	}))
@@ -26,7 +31,7 @@ func TestPluginRoutesSeeTheShopperButNotAnAdmin(t *testing.T) {
 		h.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
-	ctok, err := authpkg.GenerateCustomerToken(uuid.New(), uuid.New(), "s@example.com", secret, time.Hour)
+	ctok, err := authpkg.GenerateCustomerToken(uuid.New(), uuid.New(), "s@example.com", customers, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +39,7 @@ func TestPluginRoutesSeeTheShopperButNotAnAdmin(t *testing.T) {
 	if !customer {
 		t.Error("a signed-in shopper reached the route anonymous")
 	}
-	atok, err := authpkg.GenerateToken(uuid.New(), uuid.New(), "a@example.com", true, secret, time.Hour)
+	atok, err := authpkg.GenerateToken(uuid.New(), uuid.New(), "a@example.com", true, admins, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,6 @@
 // Review submission + presigned media uploads
 // Media bytes go browser -> object storage directly, never proxied through Next
 
-import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePublicPath } from "@/app/lib/revalidate";
@@ -13,6 +12,7 @@ import { getProduct } from "@/app/lib/catalog/read";
 import { parseForm, type FormResult } from "@/app/lib/forms/schema";
 import { replyError } from "@/app/lib/forms/reply";
 import { reviewSchema } from "@/app/lib/reviews/schemas";
+import { signVoterToken } from "@/app/lib/reviews/voter-token";
 import { productHref } from "@/app/lib/entity-href";
 import type { ReviewAnswerInput } from "@/app/graphql/schema.types";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
@@ -28,34 +28,6 @@ const REVIEW_VOTER_COOKIE = "rvid";
 const REVIEW_VOTER_MAX_AGE = 60 * 60 * 24 * 365;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function voterTokenSecret(): Buffer {
-  const explicit = process.env.REVIEW_VOTER_TOKEN_SECRET;
-  if (explicit && explicit.length > 0) return Buffer.from(explicit, "utf8");
-  const jwt = process.env.JWT_SECRET;
-  if (jwt && jwt.length > 0) return Buffer.from(`vote:${jwt}`, "utf8");
-  throw new Error(
-    "Voter token secret missing: set REVIEW_VOTER_TOKEN_SECRET or JWT_SECRET",
-  );
-}
-
-function uuidToBytes(id: string): Buffer {
-  // Parse "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" → 16 raw bytes,
-  // matching how the Go side feeds id[:] into the HMAC
-  return Buffer.from(id.replace(/-/g, ""), "hex");
-}
-
-function signVoterToken(id: string): string {
-  const mac = createHmac("sha256", voterTokenSecret());
-  mac.update(uuidToBytes(id));
-  // base64url with no padding - matches Go's base64.RawURLEncoding
-  const sig = mac
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return `${id}.${sig}`;
-}
 
 function looksLikeSignedVoterToken(raw: string | undefined): boolean {
   if (!raw) return false;

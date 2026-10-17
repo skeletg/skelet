@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
 
@@ -28,7 +29,7 @@ func TestOnlyMarketingFlowMailCarriesListUnsubscribe(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			repo := newFakeRepo()
 			box := &mailbox{}
-			svc := NewService(repo, emailtemplate.NewService(nil, nil), optedIn{}, publicStore{}, box, nil, nil, nil, false, []byte("k"))
+			svc := NewService(repo, emailtemplate.NewService(nil, nil), optedIn{}, publicStore{}, box, nil, nil, nil, false, emailtrack.NewSigner([]byte("k")))
 			f := mailingFlow(repo, c.transactional)
 			svc.execEmail(context.Background(), f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()})
 			if len(box.sent) != 1 {

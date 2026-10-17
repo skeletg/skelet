@@ -11,7 +11,7 @@ import (
 // always covered, so nothing silently stopped being checked when the gate became per-process
 func serverChecks(getenv Getenv) (errs, warnings []string) {
 	return Production(getenv,
-		JWTSecret, TrustedProxies, ConfigEncryptionKey, Database,
+		CoreSessionKeys, TrustedProxies, ConfigEncryptionKey, Database,
 		CORS, FrontendURLs, SMTP, S3, OpenSearch,
 		RateLimiting, LoginLockout,
 	)
@@ -25,6 +25,15 @@ func envMap(m map[string]string) func(string) string {
 // validEncKey is a base64-encoded 32-byte key accepted by the boot check
 var validEncKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 
+// A set of session keys the server accepts - all distinct, all strong
+var (
+	adminKey     = strings.Repeat("a", 40)
+	customerSeed = base64.StdEncoding.EncodeToString([]byte(strings.Repeat("c", 32)))
+	customerPub  = base64.StdEncoding.EncodeToString([]byte(strings.Repeat("p", 32)))
+	linkKey      = strings.Repeat("e", 40)
+	voterKey     = strings.Repeat("v", 40)
+)
+
 func TestCheckProductionEnv_SkippedOutsideProd(t *testing.T) {
 	errs, warns := serverChecks(envMap(map[string]string{"APP_ENV": "development"}))
 	if len(errs) != 0 || len(warns) != 0 {
@@ -33,21 +42,17 @@ func TestCheckProductionEnv_SkippedOutsideProd(t *testing.T) {
 }
 
 func TestCheckProductionEnv_HardErrors(t *testing.T) {
-	// Default JWT + empty CORS + missing CONFIG_ENCRYPTION_KEY + empty
-	// TRUSTED_PROXIES → four hard errors
-	errs, _ := serverChecks(envMap(map[string]string{
-		"APP_ENV":    "production",
-		"JWT_SECRET": "change-me",
-	}))
-	if len(errs) != 4 {
-		t.Fatalf("expected 4 hard errors (JWT default + empty CORS + missing CONFIG_ENCRYPTION_KEY + empty TRUSTED_PROXIES), got %d: %v", len(errs), errs)
+	// No session keys (four) + empty CORS + missing CONFIG_ENCRYPTION_KEY + empty TRUSTED_PROXIES → seven hard errors
+	errs, _ := serverChecks(envMap(map[string]string{"APP_ENV": "production"}))
+	if len(errs) != 7 {
+		t.Fatalf("expected 7 hard errors (4 session keys + empty CORS + missing CONFIG_ENCRYPTION_KEY + empty TRUSTED_PROXIES), got %d: %v", len(errs), errs)
 	}
 }
 
 func TestCheckProductionEnv_InsecureDBRequiresAck(t *testing.T) {
 	base := map[string]string{
-		"APP_ENV":               "production",
-		"JWT_SECRET":            "a-real-secret-at-least-32-chars-long",
+		"APP_ENV":          "production",
+		"ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey,
 		"CORS_ALLOWED_ORIGINS":  "https://shop.example.com",
 		"CONFIG_ENCRYPTION_KEY": validEncKey,
 		"TRUSTED_PROXIES":       "172.16.0.0/12",
@@ -73,8 +78,8 @@ func TestCheckProductionEnv_InsecureDBRequiresAck(t *testing.T) {
 func TestCheckProductionEnv_TrustedProxiesNoneAccepted(t *testing.T) {
 	// The literal 'none' satisfies the requirement (direct-exposure opt-out)
 	errs, _ := serverChecks(envMap(map[string]string{
-		"APP_ENV":               "production",
-		"JWT_SECRET":            "a-real-secret-at-least-32-chars-long",
+		"APP_ENV":          "production",
+		"ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey,
 		"CORS_ALLOWED_ORIGINS":  "https://shop.example.com",
 		"CONFIG_ENCRYPTION_KEY": validEncKey,
 		"TRUSTED_PROXIES":       "none",
@@ -89,8 +94,8 @@ func TestCheckProductionEnv_TrustedProxiesNoneAccepted(t *testing.T) {
 
 func TestCheckProductionEnv_ConfigEncryptionKey(t *testing.T) {
 	base := map[string]string{
-		"APP_ENV":              "production",
-		"JWT_SECRET":           "a-real-secret-at-least-32-chars-long",
+		"APP_ENV":          "production",
+		"ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey,
 		"CORS_ALLOWED_ORIGINS": "https://shop.example.com",
 		"DATABASE_URL":         "postgres://u:strongpw@db:5432/skelet?sslmode=require",
 		"STOREFRONT_URL":       "https://shop.example.com",
@@ -130,28 +135,56 @@ func clone(m map[string]string) map[string]string {
 	return out
 }
 
-func TestCheckProductionEnv_ShortJWTSecretRejected(t *testing.T) {
-	// A non-empty, non-default secret that's still too short must be a hard error
-	errs, _ := serverChecks(envMap(map[string]string{
-		"APP_ENV":              "production",
-		"JWT_SECRET":           "short-secret", // < 32 chars
-		"CORS_ALLOWED_ORIGINS": "https://shop.example.com",
-	}))
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e, "JWT_SECRET must be at least 32") {
-			found = true
-		}
+// Each key is held by a different set of tiers, so a weak one, a dev default, a malformed customer key, the retired name or two equal values all refuse the boot
+func TestCoreSessionKeys(t *testing.T) {
+	valid := map[string]string{"APP_ENV": "production", "ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey, "SIGNALS_SERVICE_SECRET": strings.Repeat("s", 40)}
+	if errs, _ := Production(envMap(valid), CoreSessionKeys); len(errs) != 0 {
+		t.Fatalf("valid keys refused: %v", errs)
 	}
-	if !found {
-		t.Fatalf("expected a JWT entropy-floor error, got %v", errs)
+	for name, tc := range map[string]struct{ key, value, want string }{
+		"short admin":      {"ADMIN_JWT_SECRET", "short", "at least 32"},
+		"dev default link": {"EMAIL_LINK_SECRET", "change-me", "strong secret"},
+		"bad customer key": {"CUSTOMER_JWT_PRIVATE_KEY", "not-base64", "Ed25519"},
+		"retired secret":   {"JWT_SECRET", strings.Repeat("j", 40), "retired"},
+		"admin as voter":   {"REVIEW_VOTER_TOKEN_SECRET", adminKey, "must differ"},
+		"link as service":  {"SIGNALS_SERVICE_SECRET", linkKey, "must differ"},
+		"voter unset":      {"REVIEW_VOTER_TOKEN_SECRET", "", "strong secret"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := clone(valid)
+			env[tc.key] = tc.value
+			errs, _ := Production(envMap(env), CoreSessionKeys)
+			if len(errs) != 1 || !strings.Contains(errs[0], tc.want) {
+				t.Fatalf("errs = %v, want one containing %q", errs, tc.want)
+			}
+		})
+	}
+}
+
+// The Signals tiers hold no admin key and no customer private key - their checks ask only for what they hold
+func TestSignalsTiersCheckOnlyWhatTheyHold(t *testing.T) {
+	signals := map[string]string{"APP_ENV": "production", "CUSTOMER_JWT_PUBLIC_KEY": customerPub, "EMAIL_LINK_SECRET": linkKey, "SIGNALS_SERVICE_SECRET": strings.Repeat("s", 40)}
+	if errs, _ := Production(envMap(signals), SignalsSessionKeys); len(errs) != 0 {
+		t.Fatalf("cmd/signals refused a valid set: %v", errs)
+	}
+	ingest := map[string]string{"APP_ENV": "production", "CUSTOMER_JWT_PUBLIC_KEY": customerPub}
+	if errs, _ := Production(envMap(ingest), IngestSessionKeys); len(errs) != 0 {
+		t.Fatalf("cmd/ingest refused a valid set: %v", errs)
+	}
+	ingest["JWT_SECRET"] = strings.Repeat("j", 40)
+	if errs, _ := Production(envMap(ingest), IngestSessionKeys); len(errs) != 1 {
+		t.Fatalf("cmd/ingest accepted the retired JWT_SECRET: %v", errs)
+	}
+	signals["SIGNALS_SERVICE_SECRET"] = linkKey
+	if errs, _ := Production(envMap(signals), SignalsSessionKeys); len(errs) != 1 {
+		t.Fatalf("cmd/signals accepted its link key as the contract secret: %v", errs)
 	}
 }
 
 func TestCheckProductionEnv_CleanConfigNoErrors(t *testing.T) {
 	errs, warns := serverChecks(envMap(map[string]string{
-		"APP_ENV":               "production",
-		"JWT_SECRET":            "a-real-secret-at-least-32-chars-long",
+		"APP_ENV":          "production",
+		"ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey,
 		"CORS_ALLOWED_ORIGINS":  "https://shop.example.com",
 		"CONFIG_ENCRYPTION_KEY": validEncKey,
 		"DATABASE_URL":          "postgres://u:strongpw@db:5432/skelet?sslmode=require",
@@ -174,8 +207,8 @@ func TestCheckProductionEnv_CleanConfigNoErrors(t *testing.T) {
 func TestCheckProductionEnv_Warnings(t *testing.T) {
 	// Valid hard requirements but insecure/incomplete operational config
 	errs, warns := serverChecks(envMap(map[string]string{
-		"APP_ENV":               "production",
-		"JWT_SECRET":            "a-real-secret-at-least-32-chars-long",
+		"APP_ENV":          "production",
+		"ADMIN_JWT_SECRET": adminKey, "CUSTOMER_JWT_PRIVATE_KEY": customerSeed, "EMAIL_LINK_SECRET": linkKey, "REVIEW_VOTER_TOKEN_SECRET": voterKey,
 		"CORS_ALLOWED_ORIGINS":  "https://shop.example.com",
 		"CONFIG_ENCRYPTION_KEY": validEncKey,
 		"TRUSTED_PROXIES":       "172.16.0.0/12",
@@ -193,18 +226,18 @@ func TestCheckProductionEnv_Warnings(t *testing.T) {
 	}
 }
 
-// The gap this package closed: cmd/ingest verifies customer sessions and rate-limits by forwarded IP on a public endpoint, but only refused an empty JWT_SECRET - it took "change-me", a short secret, and an unset TRUSTED_PROXIES, which auth.SetTrustedProxies turns into no trusted proxies at all rather than an error
+// The gap this package closed: cmd/ingest verifies customer sessions and rate-limits by forwarded IP on a public endpoint, but once took a dev-default key and an unset TRUSTED_PROXIES, which auth.SetTrustedProxies turns into no trusted proxies at all rather than an error
 func TestIngestRefusesWhatTheServerRefuses(t *testing.T) {
 	ingest := func(getenv Getenv) (errs, warnings []string) {
-		return Production(getenv, JWTSecret, TrustedProxies, ConfigEncryptionKey, Database)
+		return Production(getenv, IngestSessionKeys, TrustedProxies, Database)
 	}
 	for _, tc := range []struct {
 		name string
 		env  map[string]string
 	}{
-		{"dev default secret", map[string]string{"JWT_SECRET": "change-me"}},
-		{"secret under 32 chars", map[string]string{"JWT_SECRET": "short"}},
-		{"unset trusted proxies", map[string]string{"TRUSTED_PROXIES": ""}},
+		{"no public key", map[string]string{"TRUSTED_PROXIES": "none"}},
+		{"a short public key", map[string]string{"CUSTOMER_JWT_PUBLIC_KEY": "c2hvcnQ=", "TRUSTED_PROXIES": "none"}},
+		{"unset trusted proxies", map[string]string{"CUSTOMER_JWT_PUBLIC_KEY": customerPub}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := maps.Clone(tc.env)
@@ -218,8 +251,8 @@ func TestIngestRefusesWhatTheServerRefuses(t *testing.T) {
 
 // Development keeps booting on dev defaults, or nobody can run the stack locally
 func TestNoGateOutsideProduction(t *testing.T) {
-	env := envMap(map[string]string{"APP_ENV": "development", "JWT_SECRET": "change-me"})
-	if errs, warns := Production(env, JWTSecret, TrustedProxies, Database); len(errs) > 0 || len(warns) > 0 {
+	env := envMap(map[string]string{"APP_ENV": "development", "ADMIN_JWT_SECRET": "change-me"})
+	if errs, warns := Production(env, CoreSessionKeys, TrustedProxies, Database); len(errs) > 0 || len(warns) > 0 {
 		t.Fatalf("development is gated: errs=%v warns=%v", errs, warns)
 	}
 }
@@ -251,21 +284,19 @@ func TestLoginLockoutOnItsOwnSilencesOnlyItself(t *testing.T) {
 	}
 }
 
-// The contract's secret is checked only where core has a suite to dial, and never accepted as a
-// copy of the session secret the storefront also holds
+// The contract's secret is checked only where core has a suite to dial - CoreSessionKeys refuses it as a copy of another key
 func TestSignalsCallerSecret(t *testing.T) {
 	strong := strings.Repeat("s", 40)
 	for name, tc := range map[string]struct {
 		env  map[string]string
 		want string // substring of the one error expected, empty for none
 	}{
-		"enabled, unaddressed":  {map[string]string{"JWT_SECRET": strong}, "SIGNALS_GRPC_ADDR is empty"},
-		"off, unaddressed":      {map[string]string{"SIGNALS_ENABLED": "false"}, ""},
-		"switched off":          {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_ENABLED": "false"}, ""},
-		"missing":               {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092"}, "must be a strong secret"},
-		"short":                 {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": "short"}, "at least 32"},
-		"same as the session's": {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": strong, "JWT_SECRET": strong}, "must differ from JWT_SECRET"},
-		"distinct and strong":   {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": strong, "JWT_SECRET": strings.Repeat("j", 40)}, ""},
+		"enabled, unaddressed": {map[string]string{"SIGNALS_SERVICE_SECRET": strong}, "SIGNALS_GRPC_ADDR is empty"},
+		"off, unaddressed":     {map[string]string{"SIGNALS_ENABLED": "false"}, ""},
+		"switched off":         {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_ENABLED": "false"}, ""},
+		"missing":              {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092"}, "must be a strong secret"},
+		"short":                {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": "short"}, "at least 32"},
+		"strong":               {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": strong}, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			errs, _ := SignalsCaller(envMap(tc.env))

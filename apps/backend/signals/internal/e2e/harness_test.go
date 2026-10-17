@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,7 +30,7 @@ import (
 type harness struct {
 	ctx     context.Context
 	d       harnessDeps
-	jwt     string
+	signer  auth.CustomerSigner
 	service string
 	mail    *mailSink
 }
@@ -88,9 +89,18 @@ func newHarness(t *testing.T) *harness {
 		if os.Getenv("RATE_LIMIT_ENABLED") == "" {
 			os.Setenv("RATE_LIMIT_ENABLED", "true")
 		}
-		jwt := os.Getenv("JWT_SECRET")
-		if jwt == "" {
-			jwt = "e2e-test-secret"
+		// The same fixed test keys core's e2ekit signs with, unless the runner set real ones
+		seed := os.Getenv(auth.EnvCustomerPrivateKey)
+		if seed == "" {
+			seed = "ZTJlLWN1c3RvbWVyLXNlZWQtMDEyMzQ1Njc4OWFiY2Q="
+		}
+		signer, err := auth.NewCustomerSigner(seed)
+		if err != nil {
+			panic(err)
+		}
+		linkKey := os.Getenv(emailtrack.EnvLinkSecret)
+		if linkKey == "" {
+			linkKey = "e2e-email-link-secret-0123456789"
 		}
 		service := os.Getenv("SIGNALS_SERVICE_SECRET")
 		if service == "" {
@@ -98,7 +108,7 @@ func newHarness(t *testing.T) *harness {
 		}
 		dsn, _ := testdb.URL("SIGNALS_DB_URL")
 		cfg := boot.Config{
-			Env: os.Getenv("APP_ENV"), JWTSecret: jwt, ServiceSecret: service,
+			Env: os.Getenv("APP_ENV"), Customers: signer.Verifier(), EmailLinks: emailtrack.NewSigner([]byte(linkKey)), ServiceSecret: service,
 			SignalsURL: dsn, SignalsReadURL: dsn, SignalsMaxConns: 2, SignalsReadMaxConns: 2,
 		}
 		ctx := context.Background()
@@ -121,7 +131,7 @@ func newHarness(t *testing.T) *harness {
 			harnessErr = err
 			return
 		}
-		shared = &harness{ctx: ctx, d: d, jwt: jwt, service: service, mail: sink}
+		shared = &harness{ctx: ctx, d: d, signer: signer, service: service, mail: sink}
 	})
 	if harnessErr != nil {
 		t.Fatalf("boot suite graph: %v", harnessErr)
@@ -144,7 +154,7 @@ func (h *harness) channel(t *testing.T) uuid.UUID {
 // surface verifies with, for a customer core would hold
 func (h *harness) customerToken(t *testing.T, customerID, channelID uuid.UUID, email string) string {
 	t.Helper()
-	tok, err := auth.GenerateCustomerToken(customerID, channelID, email, h.jwt, time.Hour)
+	tok, err := auth.GenerateCustomerToken(customerID, channelID, email, h.signer, time.Hour)
 	if err != nil {
 		t.Fatalf("mint customer token: %v", err)
 	}

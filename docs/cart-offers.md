@@ -99,7 +99,7 @@ It contains no cart id or other offer details:
 - **Expiry:** read from the cart each time the link is used, so extending an offer needs no
   new link.
 
-Offer links do not use `JWT_SECRET`.
+Offer links don't use any session or link key.
 
 The storefront route `app/offer/[token]` handles a followed link:
 
