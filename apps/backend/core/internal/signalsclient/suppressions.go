@@ -42,7 +42,7 @@ func (c *Client) IsSuppressed(ctx context.Context, email string) bool {
 	if err != nil {
 		return false
 	}
-	res, err := c.Suppressions.IsSuppressed(sys, &signalsv1.IsSuppressedRequest{Email: email})
+	res, err := c.Suppressions.IsSuppressed(sys, &signalsv1.IsSuppressedRequest{Email: normalizeEmail(email)})
 	if err != nil {
 		return false
 	}
@@ -92,7 +92,7 @@ func (c *Client) Suppress(ctx context.Context, email, reason, detail string) err
 	if err != nil {
 		return err
 	}
-	_, err = c.Suppressions.Suppress(sys, &signalsv1.SuppressRequest{Email: email, Reason: reason, Detail: detail})
+	_, err = c.Suppressions.Suppress(sys, &signalsv1.SuppressRequest{Email: normalizeEmail(email), Reason: reason, Detail: detail})
 	return err
 }
 
@@ -105,7 +105,7 @@ func (c *Client) RecordSoftBounce(ctx context.Context, email, detail string, thr
 	if err != nil {
 		return false, 0, err
 	}
-	res, err := c.Suppressions.RecordSoftBounce(sys, &signalsv1.RecordSoftBounceRequest{Email: email, Detail: detail, Threshold: int32(threshold)})
+	res, err := c.Suppressions.RecordSoftBounce(sys, &signalsv1.RecordSoftBounceRequest{Email: normalizeEmail(email), Detail: detail, Threshold: int32(threshold)})
 	if err != nil {
 		return false, 0, err
 	}
@@ -117,7 +117,7 @@ func (c *Client) Unsuppress(ctx context.Context, email string) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.Suppressions.Unsuppress(sys, &signalsv1.UnsuppressRequest{Email: email})
+	_, err = c.Suppressions.Unsuppress(sys, &signalsv1.UnsuppressRequest{Email: normalizeEmail(email)})
 	return err
 }
 

@@ -188,8 +188,8 @@ func (c *Client) Authed(ctx context.Context) (context.Context, error) {
 	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-// System attaches core's own token, for the writes the event bus raises with no admin to act for
-// It carries no grants, so it authorizes the ingest methods and nothing else
+// System attaches core's own token, for the work core does with no admin to act for - the bus's ingest writes, the scheduled upkeep, settings it administers behind its own resolver gate, and the segment, suppression and send-log reads its sends make
+// It carries no grants: the suite decides which of its methods a system caller may reach
 func (c *Client) System(ctx context.Context) (context.Context, error) {
 	if c == nil {
 		return nil, ErrUnavailable
