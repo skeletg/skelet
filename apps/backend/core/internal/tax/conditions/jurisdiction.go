@@ -3,6 +3,7 @@ package conditions
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 )
@@ -43,10 +44,10 @@ func (jurisdiction) Evaluate(_ context.Context, env tax.Environment, raw json.Ra
 	if err := unmarshalParams(raw, &p); err != nil {
 		return false, err
 	}
-	if p.CountryCode != "" && p.CountryCode != env.CountryCode() {
+	if p.CountryCode != "" && !strings.EqualFold(strings.TrimSpace(p.CountryCode), strings.TrimSpace(env.CountryCode())) {
 		return false, nil
 	}
-	if p.RegionCode != "" && p.RegionCode != env.RegionCode() {
+	if p.RegionCode != "" && !strings.EqualFold(strings.TrimSpace(p.RegionCode), strings.TrimSpace(env.RegionCode())) {
 		return false, nil
 	}
 	return true, nil

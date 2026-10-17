@@ -198,9 +198,13 @@ func TestComputeOrder(t *testing.T) {
 type fakeRepo struct {
 	tax.Repository
 	rules []tax.Rule
+	loads *int
 }
 
 func (f fakeRepo) ListActiveRulesByChannel(context.Context, uuid.UUID) ([]tax.Rule, error) {
+	if f.loads != nil {
+		*f.loads++
+	}
 	return f.rules, nil
 }
 
@@ -324,4 +328,29 @@ func TestComputeParity(t *testing.T) {
 func init() {
 	taxconditions.Register(tax.DefaultRegistry)
 	taxeffects.Register(tax.DefaultRegistry)
+}
+
+// Placement taxes every line, so the rules load once per order, not once per line
+func TestComputeOrderLoadsTheRulesOnce(t *testing.T) {
+	loads := 0
+	svc := tax.NewService(fakeRepo{rules: []tax.Rule{classRule("standard", "", 2000)}, loads: &loads})
+	lines := make([]tax.LineTaxInput, 40)
+	for i := range lines {
+		lines[i] = tax.LineTaxInput{TaxableCents: 1000}
+	}
+	res, err := svc.ComputeOrder(context.Background(), tax.ComputeOrderInput{ChannelID: uuid.New(), Lines: lines})
+	if err != nil || res.TotalCents != 40*200 {
+		t.Fatalf("ComputeOrder = %d, %v - want %d", res.TotalCents, err, 40*200)
+	}
+	if loads != 1 {
+		t.Errorf("rules loaded %d times for one order, want 1", loads)
+	}
+}
+
+func TestJurisdictionMatchesWhateverTheCase(t *testing.T) {
+	svc := tax.NewService(fakeRepo{rules: []tax.Rule{jpRule("bavaria", "de", "by", 1900, 0, "")}})
+	res, err := svc.Compute(context.Background(), tax.ComputeInput{ChannelID: uuid.New(), CountryCode: "DE", RegionCode: "BY", TaxableCents: 10000})
+	if err != nil || res.Cents != 1900 {
+		t.Fatalf("Compute(DE/BY) against a de/by rule = %d, %v - want 1900", res.Cents, err)
+	}
 }
