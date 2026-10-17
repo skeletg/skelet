@@ -244,6 +244,32 @@ func (s *Service) CanonicalPaths(ctx context.Context, entityType EntityType, ent
 	return out
 }
 
+// NormalizeRequestPath is the stored form of a request path - bare, with no leading or trailing slash, since that's what the route resolver looks up
+func NormalizeRequestPath(p string) (string, error) {
+	p = strings.Trim(strings.TrimSpace(p), "/")
+	if p == "" || strings.ContainsAny(p, "?#\\") || strings.Contains(p, "//") || strings.IndexFunc(p, unsafePathRune) >= 0 {
+		return "", ErrInvalidPath
+	}
+	return p, nil
+}
+
+// ValidTargetPath reports whether a redirect target stays on the site - one leading slash, never the protocol-relative // or /\ a browser reads as another host
+func ValidTargetPath(t string) bool {
+	if !strings.HasPrefix(t, "/") || strings.HasPrefix(t, "//") || strings.HasPrefix(t, "/\\") {
+		return false
+	}
+	return strings.IndexFunc(t, unsafePathRune) < 0
+}
+
+func unsafePathRune(r rune) bool { return r <= ' ' || r == 0x7f }
+
+func checkTarget(t *string) error {
+	if t != nil && *t != "" && !ValidTargetPath(*t) {
+		return ErrInvalidTarget
+	}
+	return nil
+}
+
 // revalidatePath treats the argument as a literal route, so a missing slash silently matches nothing
 func EnsureLeadingSlash(path string) string {
 	if path == "" || strings.HasPrefix(path, "/") {
@@ -268,9 +294,10 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]UrlRewrite, in
 
 // Canonical (default-URL) rows matching search, empty for all, capped at limit - backs the CMS internal-link picker, which passes "" for entityType, and the catalog reference-attribute picker, which scopes to its target type
 func (s *Service) SearchCanonical(ctx context.Context, search, entityType string, limit int32) ([]UrlRewrite, error) {
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 50
 	}
+	limit = min(limit, 100)
 	return s.repo.SearchCanonical(ctx, search, entityType, limit)
 }
 
@@ -336,6 +363,10 @@ func (s *Service) createRedirect(ctx context.Context, from string, entityType st
 	if !rt.IsValid() || rt == RedirectTypeCanonical {
 		return fmt.Errorf("%w: %d", ErrInvalidRedirectType, redirectType)
 	}
+	from, err := NormalizeRequestPath(from)
+	if err != nil {
+		return err
+	}
 	rw, err := s.repo.Create(ctx, CreateInput{
 		EntityType:      EntityType(entityType),
 		EntityID:        entityID,
@@ -370,10 +401,15 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (UrlRewrite, er
 	if !input.RedirectType.IsValid() {
 		return UrlRewrite{}, ErrInvalidRedirectType
 	}
-	var (
-		rw  UrlRewrite
-		err error
-	)
+	path, err := NormalizeRequestPath(input.RequestPath)
+	if err != nil {
+		return UrlRewrite{}, err
+	}
+	input.RequestPath = path
+	if err := checkTarget(input.TargetPath); err != nil {
+		return UrlRewrite{}, err
+	}
+	var rw UrlRewrite
 	if input.RedirectType == RedirectTypeCanonical {
 		rw, err = s.repo.UpsertCanonical(ctx, input.EntityType, input.EntityID, input.RequestPath, input.ChannelID)
 	} else {
@@ -396,6 +432,19 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (UrlRewrite, er
 	}
 	if input.RedirectType != nil && !input.RedirectType.IsValid() {
 		return UrlRewrite{}, ErrInvalidRedirectType
+	}
+	if input.RedirectType != nil && (*input.RedirectType == RedirectTypeCanonical) != (existing.RedirectType == RedirectTypeCanonical) {
+		return UrlRewrite{}, ErrCanonicalChange
+	}
+	if input.RequestPath != nil {
+		path, err := NormalizeRequestPath(*input.RequestPath)
+		if err != nil {
+			return UrlRewrite{}, err
+		}
+		input.RequestPath = &path
+	}
+	if err := checkTarget(input.TargetPath); err != nil {
+		return UrlRewrite{}, err
 	}
 	rw, err := s.repo.Update(ctx, input)
 	if err != nil {
