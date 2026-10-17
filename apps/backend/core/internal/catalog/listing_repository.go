@@ -56,6 +56,18 @@ func (r *postgresRepository) ListProductChannelListingsByProduct(ctx context.Con
 	return out, nil
 }
 
+func (r *postgresRepository) CountProductChannelListingsByChannel(ctx context.Context) (map[uuid.UUID]int64, error) {
+	rows, err := r.queries.CountProductChannelListingsByChannel(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count listings by channel: %w", err)
+	}
+	out := make(map[uuid.UUID]int64, len(rows))
+	for _, row := range rows {
+		out[row.ChannelID] = row.Listings
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
 	if len(productIDs) == 0 {
 		return map[uuid.UUID][]ProductChannelListing{}, nil

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"io"
 	"net/http"
 	"strings"
@@ -18,6 +17,8 @@ import (
 
 	opensearch "github.com/opensearch-project/opensearch-go/v5"
 	opensearchapi "github.com/opensearch-project/opensearch-go/v5/opensearchapi"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 )
 
 type Client struct {
@@ -135,40 +136,36 @@ type BulkDoc struct {
 	Doc     any
 	Routing string
 	Delete  bool
+	// IfAbsent leaves an existing doc alone - a rebuild's read can be older than a live write that already reached the fresh index
+	IfAbsent bool
 }
 
 // A batch is one request but many documents, so it can't live inside the 3s read budget - measured at ~2s for 1000 docs
 // against a local cluster, and a loaded or remote one is slower
-const bulkRequestTimeout = 2 * time.Minute
+const writeRequestTimeout = 2 * time.Minute
 
 // Bulk upserts docs in a single round trip. Reindexing a document at a time cost one HTTP request each and measured ~70 products/s, which put a 100k catalogue out of reach of any sane deadline; the network cost here is per batch instead.
 func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 	if len(docs) == 0 {
 		return nil
 	}
+	targets, err := c.writeTargets(ctx, index)
+	if err != nil {
+		return err
+	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf) // Encode terminates each value with \n, which is the NDJSON framing _bulk wants
-	for _, d := range docs {
-		meta := map[string]any{"_index": index, "_id": d.ID}
-		if d.Routing != "" {
-			meta["routing"] = d.Routing
-		}
-		verb := "index"
-		if d.Delete {
-			verb = "delete"
-		}
-		if err := enc.Encode(map[string]any{verb: meta}); err != nil {
-			return fmt.Errorf("encode bulk action %s: %w", d.ID, err)
-		}
-		if d.Delete {
-			continue
-		}
-		if err := enc.Encode(d.Doc); err != nil {
-			return fmt.Errorf("marshal bulk doc %s: %w", d.ID, err)
+	for _, target := range targets {
+		for _, d := range docs {
+			if err := encodeBulkOp(enc, target, d); err != nil {
+				return err
+			}
 		}
 	}
-	resp, err := c.api.Bulk(withRequestTimeout(ctx, bulkRequestTimeout), opensearchapi.BulkReq{Body: &buf})
-	if err != nil {
+	resp, err := c.api.Bulk(withRequestTimeout(ctx, writeRequestTimeout), opensearchapi.BulkReq{Body: &buf})
+	// A partial failure arrives with the response populated - its items decide, since a rebuild's create conflicts are expected
+	var partial *opensearchapi.PartialBulkError
+	if err != nil && (!errors.As(err, &partial) || resp == nil) {
 		return fmt.Errorf("bulk index %s (%d docs): %w", index, len(docs), err)
 	}
 	if resp == nil || !resp.Errors {
@@ -178,6 +175,9 @@ func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 	firstID, firstReason := "", ""
 	// v5 types each item as one struct with a slot per action rather than a map keyed by action name
 	for _, item := range resp.Items {
+		if item.Create != nil && item.Create.Status == http.StatusConflict {
+			item.Create = nil
+		}
 		for _, r := range []*opensearchapi.BulkRespItem{item.Index, item.Create, item.Update, item.Delete} {
 			if r == nil || r.Error == nil {
 				continue
@@ -191,17 +191,59 @@ func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 	if failed == 0 {
 		return nil
 	}
-	return fmt.Errorf("bulk index %s: %d/%d docs failed - first %s: %s", index, failed, len(docs), firstID, firstReason)
+	return fmt.Errorf("bulk index %s: %d/%d docs failed - first %s: %s", index, failed, len(docs)*len(targets), firstID, firstReason)
 }
 
+func encodeBulkOp(enc *json.Encoder, index string, d BulkDoc) error {
+	meta := map[string]any{"_index": index, "_id": d.ID}
+	if d.Routing != "" {
+		meta["routing"] = d.Routing
+	}
+	verb := "index"
+	switch {
+	case d.Delete:
+		verb = "delete"
+	case d.IfAbsent:
+		verb = "create"
+	}
+	if err := enc.Encode(map[string]any{verb: meta}); err != nil {
+		return fmt.Errorf("encode bulk action %s: %w", d.ID, err)
+	}
+	if d.Delete {
+		return nil
+	}
+	if err := enc.Encode(d.Doc); err != nil {
+		return fmt.Errorf("marshal bulk doc %s: %w", d.ID, err)
+	}
+	return nil
+}
+
+// NextAlias names the index a blue-green rebuild is filling, so live writes land in it too and the flip doesn't roll them back
+func NextAlias(alias string) string { return alias + "-next" }
+
+// The index itself plus whatever rebuild is in flight behind its -next alias, on any replica
+func (c *Client) writeTargets(ctx context.Context, index string) ([]string, error) {
+	next, err := c.ResolveAlias(ctx, NextAlias(index))
+	if err != nil {
+		return nil, err
+	}
+	return append([]string{index}, next...), nil
+}
+
+// Under the write budget, and past version conflicts - a doc a concurrent upsert rewrote mid-delete aborted the whole delete before
 func (c *Client) DeleteByQuery(ctx context.Context, index string, query any) error {
 	body, err := json.Marshal(map[string]any{"query": query})
 	if err != nil {
 		return err
 	}
-	if _, err := c.api.DeleteByQuery(ctx, &opensearchapi.DeleteByQueryReq{
-		Indices:    []string{index},
+	targets, err := c.writeTargets(ctx, index)
+	if err != nil {
+		return err
+	}
+	if _, err := c.api.DeleteByQuery(withRequestTimeout(ctx, writeRequestTimeout), &opensearchapi.DeleteByQueryReq{
+		Indices:    targets,
 		BodyReader: bytes.NewReader(body),
+		Params:     &opensearchapi.DeleteByQueryParams{Conflicts: opensearchapi.ConflictsProceed},
 	}); err != nil {
 		return fmt.Errorf("delete by query on %s: %w", index, err)
 	}
@@ -237,18 +279,8 @@ func (c *Client) RoutingRequired(ctx context.Context, name string) (bool, error)
 
 // _id is special metadata that won't take prefix queries, so filter on a regular keyword field (product_id / post_id) that the indexer already stamps onto every doc
 func (c *Client) DeleteByField(ctx context.Context, index, field, value string) error {
-	query := map[string]any{
-		"query": map[string]any{
-			"term": map[string]any{field: value},
-		},
-	}
-	body, _ := json.Marshal(query)
-	_, err := c.api.DeleteByQuery(ctx, &opensearchapi.DeleteByQueryReq{
-		Indices:    []string{index},
-		BodyReader: bytes.NewReader(body),
-	})
-	if err != nil {
-		return fmt.Errorf("delete by %s=%s on %s: %w", field, value, index, err)
+	if err := c.DeleteByQuery(ctx, index, map[string]any{"term": map[string]any{field: value}}); err != nil {
+		return fmt.Errorf("delete by %s=%s: %w", field, value, err)
 	}
 	return nil
 }
@@ -287,7 +319,7 @@ func (c *Client) SearchRouted(ctx context.Context, index, routing string, body a
 	return total, nil
 }
 
-// Client.Search drops aggregations on the floor, so the browse path needs this - the JSON round-trip is unfortunate but the SDK won't expose the raw body otherwise
+// Client.Search drops aggregations on the floor, so the browse path needs this
 type SearchRawResponse struct {
 	Hits struct {
 		Total struct {
@@ -299,10 +331,6 @@ type SearchRawResponse struct {
 	} `json:"hits"`
 	// Left raw so each caller decodes the agg shapes it expects without the client knowing every aggregation type
 	Aggregations map[string]json.RawMessage `json:"aggregations"`
-}
-
-func (c *Client) SearchRaw(ctx context.Context, index string, body any) (*SearchRawResponse, error) {
-	return c.SearchRawRouted(ctx, index, "", body)
 }
 
 func (c *Client) SearchRawRouted(ctx context.Context, index, routing string, body any) (*SearchRawResponse, error) {
@@ -318,14 +346,17 @@ func (c *Client) SearchRawRouted(ctx context.Context, index, routing string, bod
 	if err != nil {
 		return nil, fmt.Errorf("search %s: %w", index, err)
 	}
-	// The SDK hands back a parsed envelope with the aggregations still raw inside - re-marshalling is the simplest way to preserve them
-	envelope, err := json.Marshal(resp)
-	if err != nil {
-		return nil, fmt.Errorf("re-encode opensearch response: %w", err)
-	}
 	var out SearchRawResponse
-	if err := json.Unmarshal(envelope, &out); err != nil {
-		return nil, fmt.Errorf("decode opensearch response: %w", err)
+	out.Hits.Total.Value = totalHits(resp.Hits.Total)
+	for _, h := range resp.Hits.Hits {
+		out.Hits.Hits = append(out.Hits.Hits, struct {
+			Source json.RawMessage `json:"_source"`
+		}{Source: h.Source})
+	}
+	// RawJSON borrows the response buffer
+	out.Aggregations = make(map[string]json.RawMessage, len(resp.Aggregations))
+	for name, agg := range resp.Aggregations {
+		out.Aggregations[name] = bytes.Clone(agg.RawJSON())
 	}
 	return &out, nil
 }
@@ -355,10 +386,8 @@ func totalHits(t *opensearchapi.SearchHitsMetadataTotal) int64 {
 
 // Two callers can race to create the same index - treat resource_already_exists_exception as success
 func isAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "resource_already_exists_exception")
+	var apiErr *opensearch.StructError
+	return errors.As(err, &apiErr) && apiErr.Err.Type == "resource_already_exists_exception"
 }
 
 // ListDocIDsByField returns the ids of every doc matching one term. Used by the indexer to find leftover docs after a rebuild, so stale
@@ -553,14 +582,26 @@ func (c *Client) SwapAlias(ctx context.Context, alias, addIndex string, removeFr
 		actions = append(actions, map[string]any{"remove": map[string]any{"index": old, "alias": alias}})
 	}
 	actions = append(actions, map[string]any{"add": map[string]any{"index": addIndex, "alias": alias}})
+	if err := c.updateAliases(ctx, actions); err != nil {
+		return fmt.Errorf("swap alias %s -> %s: %w", alias, addIndex, err)
+	}
+	return nil
+}
+
+func (c *Client) RemoveAlias(ctx context.Context, index, alias string) error {
+	if err := c.updateAliases(ctx, []any{map[string]any{"remove": map[string]any{"index": index, "alias": alias}}}); err != nil {
+		return fmt.Errorf("remove alias %s from %s: %w", alias, index, err)
+	}
+	return nil
+}
+
+func (c *Client) updateAliases(ctx context.Context, actions []any) error {
 	raw, err := json.Marshal(map[string]any{"actions": actions})
 	if err != nil {
 		return fmt.Errorf("marshal alias actions: %w", err)
 	}
-	if _, err := c.api.Indices.UpdateAliases(ctx, &opensearchapi.IndicesUpdateAliasesReq{BodyReader: bytes.NewReader(raw)}); err != nil {
-		return fmt.Errorf("swap alias %s -> %s: %w", alias, addIndex, err)
-	}
-	return nil
+	_, err = c.api.Indices.UpdateAliases(ctx, &opensearchapi.IndicesUpdateAliasesReq{BodyReader: bytes.NewReader(raw)})
+	return err
 }
 
 func (c *Client) DeleteIndex(ctx context.Context, name string) error {

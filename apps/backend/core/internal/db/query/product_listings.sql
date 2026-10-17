@@ -65,3 +65,8 @@ JOIN channels c ON c.id = l.channel_id
 WHERE l.product_id = sqlc.arg(product_id)
   AND l.price IS NULL
   AND c.currency_code <> sqlc.arg(currency_code)::text;
+
+-- name: CountProductChannelListingsByChannel :many
+SELECT channel_id, COUNT(*)::bigint AS listings
+FROM catalog_product_channel_listings
+GROUP BY channel_id;

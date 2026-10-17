@@ -82,3 +82,30 @@ func TestRemoteBrowseFailOpen(t *testing.T) {
 		t.Fatal("down provider should fall back to OpenSearch (ok=false)")
 	}
 }
+
+func TestRemoteSearchPrefersTheChannelsOwnProvider(t *testing.T) {
+	answer := func(name string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, `{"hits": [{"productId": "%s", "name": "%s"}], "total": 1}`, uuid.New(), name)
+		}))
+	}
+	global, own := answer("global"), answer("own")
+	defer global.Close()
+	defer own.Close()
+
+	ch := uuid.New()
+	svc := remoteprovider.NewService(remoteprovider.NewMemRepo())
+	svc.AllowPrivateTargets = true
+	for _, in := range []remoteprovider.CreateInput{
+		{Kind: remoteprovider.KindSearch, Slug: "a-global", Name: "Global", TargetURL: global.URL},
+		{Kind: remoteprovider.KindSearch, Slug: "z-store", Name: "Store", TargetURL: own.URL, ChannelID: &ch},
+	} {
+		if _, err := svc.Create(context.Background(), in); err != nil {
+			t.Fatalf("create provider: %v", err)
+		}
+	}
+	hits, _, ok := NewRemoteSearchSource(svc, remoteprovider.NewInvoker(svc, nil)).Search(context.Background(), "x", ch, "en", 20, 0)
+	if !ok || len(hits) != 1 || hits[0].Name != "own" {
+		t.Fatalf("search answered by %+v, want the channel's own provider", hits)
+	}
+}

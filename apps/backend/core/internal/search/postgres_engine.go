@@ -25,8 +25,12 @@ type PostgresEngine struct {
 	catalog CatalogSearchSource
 	// nil-safe (helpers fall back to registry defaults) - without it this tier ignored the operator's limit and min-query settings while the
 	// dashboard presented them as live, and on the shipped default THIS tier is the one actually serving
-	cfg *config.Service
+	cfg   *config.Service
+	attrs *AttributeCache
 }
+
+// Optional - nil reads attributes from the catalogue on every request
+func (e *PostgresEngine) SetAttributeCache(c *AttributeCache) { e.attrs = c }
 
 func NewPostgresEngine(c CatalogSearchSource, cfg *config.Service) *PostgresEngine {
 	return &PostgresEngine{catalog: c, cfg: cfg}
@@ -118,7 +122,7 @@ func fallbackSortKey(slug string) string {
 // resolveSelection maps the request's attribute slugs and value slugs onto catalog
 // ids, returning the filterable attributes and the selection keyed by attribute id
 func (e *PostgresEngine) resolveSelection(ctx context.Context, filter BrowseFilter) ([]catalog.Attribute, map[uuid.UUID][]uuid.UUID) {
-	attrs, err := e.catalog.ListAttributes(ctx)
+	attrs, err := listAttributes(ctx, e.attrs, e.catalog)
 	if err != nil {
 		return nil, nil
 	}
