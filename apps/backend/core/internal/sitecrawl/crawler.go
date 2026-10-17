@@ -3,6 +3,7 @@
 package sitecrawl
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -20,6 +22,8 @@ import (
 const (
 	maxBodyBytes  = 4 << 20
 	maxAnchorText = 120
+	maxPageText   = 500
+	maxHeadings   = 200
 	// Zero by default now that the crawler carries a rate-limit bypass token - the adaptive backoff below only
 	// engages if the site still refuses, so a misconfigured bypass degrades instead of producing a garbage report
 	maxDelay   = 4 * time.Second
@@ -39,7 +43,6 @@ type Options struct {
 	BaseURL       string
 	MaxPages      int
 	MaxDepth      int
-	Concurrency   int
 	Delay         time.Duration
 	RespectRobots bool
 	UserAgent     string
@@ -129,9 +132,6 @@ func New(opts Options) (*Crawler, error) {
 	}
 	if opts.MaxDepth <= 0 {
 		opts.MaxDepth = 12
-	}
-	if opts.Concurrency <= 0 {
-		opts.Concurrency = 4
 	}
 	if opts.Timeout <= 0 {
 		opts.Timeout = 20 * time.Second
@@ -301,7 +301,7 @@ func (c *Crawler) fetch(ctx context.Context, item queued) (Result, []string) {
 	}
 	page.ByteSize = len(body)
 
-	doc, err := html.Parse(strings.NewReader(string(body)))
+	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return Result{Page: page}, nil
 	}
@@ -415,7 +415,7 @@ func (c *Crawler) parse(doc *html.Node, page *Page, from string) []Link {
 			switch n.Data {
 			case "title":
 				if page.Title == "" && n.FirstChild != nil {
-					page.Title = strings.TrimSpace(n.FirstChild.Data)
+					page.Title = truncate(strings.TrimSpace(n.FirstChild.Data), maxPageText)
 				}
 			case "meta":
 				name := strings.ToLower(attr(n, "name"))
@@ -423,7 +423,7 @@ func (c *Crawler) parse(doc *html.Node, page *Page, from string) []Link {
 				case "robots", "googlebot":
 					content := attr(n, "content")
 					if page.RobotsMeta == "" {
-						page.RobotsMeta = content
+						page.RobotsMeta = truncate(content, maxPageText)
 					}
 					lowered := strings.ToLower(content)
 					if strings.Contains(lowered, "noindex") {
@@ -434,16 +434,16 @@ func (c *Crawler) parse(doc *html.Node, page *Page, from string) []Link {
 					}
 				case "description":
 					if page.MetaDesc == "" {
-						page.MetaDesc = strings.TrimSpace(attr(n, "content"))
+						page.MetaDesc = truncate(strings.TrimSpace(attr(n, "content")), maxPageText)
 					}
 				}
 			case "h1", "h2", "h3", "h4", "h5", "h6":
-				if text := text(n); text != "" {
+				if text := text(n); text != "" && len(page.Headings) < maxHeadings {
 					page.Headings = append(page.Headings, Heading{Level: int(n.Data[1] - '0'), Text: text})
 				}
 			case "link":
 				if strings.Contains(strings.ToLower(attr(n, "rel")), "canonical") {
-					page.Canonical = attr(n, "href")
+					page.Canonical = truncate(attr(n, "href"), maxPageText)
 				}
 			case "a":
 				href := attr(n, "href")
@@ -533,9 +533,16 @@ func text(n *html.Node) string {
 		}
 	}
 	walk(n)
-	s := strings.Join(strings.Fields(b.String()), " ")
-	if len(s) > maxAnchorText {
-		return s[:maxAnchorText]
+	return truncate(strings.Join(strings.Fields(b.String()), " "), maxAnchorText)
+}
+
+// truncate cuts s to at most n bytes on a rune boundary - Postgres refuses text that ends mid-character
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
 	}
-	return s
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }

@@ -15,14 +15,23 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 var ErrAlreadyRunning = errors.New("a crawl is already running for this channel")
 
+var (
+	errNoPublicURL      = apperr.New("SITE_CRAWL_NO_PUBLIC_URL", apperr.ClassValidation, "this channel has no public url - set one or pass a base url")
+	errBaseURLRefused   = apperr.New("SITE_CRAWL_BASE_URL_REFUSED", apperr.ClassValidation, "the crawl can only start at the channel's public url, STOREFRONT_URL or an origin in SEO_CRAWL_ALLOWED_ORIGINS")
+	errBaseURLMalformed = apperr.New("SITE_CRAWL_BASE_URL_INVALID", apperr.ClassValidation, "the base url must be an absolute http or https url")
+)
+
 const (
 	flushEvery      = 40
+	progressEvery   = 30 * time.Second
 	crawlTimeout    = 30 * time.Minute
 	staleMinutes    = 10
 	DefaultMaxPages = 2000
@@ -69,7 +78,10 @@ func (s *Service) Start(ctx context.Context, in StartInput) (db.SeoCrawl, error)
 		base = ch.PublicUrl
 	}
 	if base == "" {
-		return db.SeoCrawl{}, errors.New("this channel has no public url - set one or pass a base url")
+		return db.SeoCrawl{}, errNoPublicURL
+	}
+	if err := checkOrigin(base, ch.PublicUrl); err != nil {
+		return db.SeoCrawl{}, err
 	}
 	if in.MaxPages <= 0 {
 		in.MaxPages = DefaultMaxPages
@@ -110,6 +122,13 @@ func (s *Service) Start(ctx context.Context, in StartInput) (db.SeoCrawl, error)
 		RespectRobots: in.RespectRobots,
 		AdminID:       sqlnull.UUID(in.AdminID),
 	})
+	if pgdb.IsUniqueViolation(err) {
+		existing, rerr := s.queries.RunningSeoCrawl(ctx, in.ChannelID)
+		if rerr != nil {
+			return db.SeoCrawl{}, rerr
+		}
+		return existing, ErrAlreadyRunning
+	}
 	if err != nil {
 		return db.SeoCrawl{}, err
 	}
@@ -169,19 +188,23 @@ func (s *Service) run(ctx context.Context, row db.SeoCrawl, crawler *Crawler, lo
 	}
 
 	rootStatus := 0
+	// A slow site can take longer than the stale sweep's window to fill a batch, so progress is also stamped on a clock
+	lastProgress := time.Now()
 	run, crawlErr := crawler.Crawl(ctx, func(res Result) error {
 		if res.Page.Path == "/" {
 			rootStatus = res.Page.StatusCode
 		}
 		buf.add(res, localePrefixes)
-		if buf.pending() >= flushEvery {
-			if err := flush(); err != nil {
-				return err
-			}
-			_ = s.queries.UpdateSeoCrawlProgress(ctx, db.UpdateSeoCrawlProgressParams{
-				ID: row.ID, PagesCrawled: int32(buf.pages), LinksFound: int32(buf.links),
-			})
+		if buf.pending() < flushEvery && time.Since(lastProgress) < progressEvery {
+			return nil
 		}
+		if err := flush(); err != nil {
+			return err
+		}
+		lastProgress = time.Now()
+		_ = s.queries.UpdateSeoCrawlProgress(ctx, db.UpdateSeoCrawlProgressParams{
+			ID: row.ID, PagesCrawled: int32(buf.pages), LinksFound: int32(buf.links),
+		})
 		return nil
 	})
 
@@ -259,6 +282,31 @@ func (s *Service) List(ctx context.Context, channelID uuid.UUID, limit int32) ([
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (db.SeoCrawl, error) {
 	return s.queries.GetSeoCrawl(ctx, id)
+}
+
+// checkOrigin holds the crawl to an origin the operator vouched for - the crawl reads whatever answers and carries the rate-limit bypass token, so an arbitrary base url would read internal services and hand the token to whoever runs the host
+func checkOrigin(base, publicURL string) error {
+	want := origin(base)
+	if want == "" {
+		return errBaseURLMalformed
+	}
+	allowed := []string{publicURL, os.Getenv("STOREFRONT_URL")}
+	allowed = append(allowed, strings.Split(os.Getenv("SEO_CRAWL_ALLOWED_ORIGINS"), ",")...)
+	for _, a := range allowed {
+		if o := origin(strings.TrimSpace(a)); o != "" && o == want {
+			return nil
+		}
+	}
+	return errBaseURLRefused
+}
+
+// origin is scheme://host[:port] lower-cased, or "" for anything that isn't an absolute http(s) url
+func origin(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
 }
 
 // hostOverride returns the public host to announce when the crawl dials a different address, and "" when they agree
