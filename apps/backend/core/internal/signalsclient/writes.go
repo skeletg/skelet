@@ -316,8 +316,8 @@ func (c *Client) PushCustomerRoster(ctx context.Context, next func() (RosterPage
 			break
 		}
 		entries := make([]*signalsv1.RosterEntry, 0, len(page.Customers))
-		for _, c := range page.Customers {
-			entries = append(entries, rosterEntry(c))
+		for _, cust := range page.Customers {
+			entries = append(entries, rosterEntry(cust))
 		}
 		if err := stream.Send(&signalsv1.SyncCustomerRosterRequest{Customers: entries}); err != nil {
 			return 0, 0, err

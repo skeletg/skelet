@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -116,6 +117,9 @@ func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.
 	if signalsclient.Unreachable(err) {
 		return fmt.Errorf("record %s activity: %w", name, err)
 	}
+	if err != nil {
+		slog.Warn("signals refused an activity write (dropped)", "event", name, "err", err)
+	}
 	return nil
 }
 
@@ -166,8 +170,15 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
 		return err
 	}
-	// gift-card-as-tender is applied during placement, surface it separately
-	if o, err := t.orders.GetByID(ctx, ev.OrderID); err == nil && o.GiftCardAmount > 0 {
+	// gift-card-as-tender is applied during placement, surface it separately - a failed load replays, the dedupe keys collapsing the order_placed write
+	o, err := t.orders.GetByID(ctx, ev.OrderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
+	}
+	if o.GiftCardAmount > 0 {
 		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 			"act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})

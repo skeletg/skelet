@@ -60,26 +60,42 @@ func Register(bus *events.Bus, q *db.Queries, client *signalsclient.Client, jobs
 	}
 
 	bus.Subscribe(customer.EventRegistered, func(ctx context.Context, e events.Event) error {
-		return push(ctx, e.(*customer.CustomerRegistered).CustomerID)
+		if ev, ok := e.(*customer.CustomerRegistered); ok {
+			return push(ctx, ev.CustomerID)
+		}
+		return nil
 	})
 	bus.Subscribe(customer.EventUpdated, func(ctx context.Context, e events.Event) error {
-		return push(ctx, e.(*customer.CustomerUpdated).CustomerID)
+		if ev, ok := e.(*customer.CustomerUpdated); ok {
+			return push(ctx, ev.CustomerID)
+		}
+		return nil
 	})
 	bus.Subscribe(customer.EventProfileUpdated, func(ctx context.Context, e events.Event) error {
-		return push(ctx, e.(*customer.CustomerProfileUpdated).CustomerID)
+		if ev, ok := e.(*customer.CustomerProfileUpdated); ok {
+			return push(ctx, ev.CustomerID)
+		}
+		return nil
 	})
 	bus.Subscribe(consent.EventChanged, func(ctx context.Context, e events.Event) error {
-		return push(ctx, e.(*consent.ConsentChanged).CustomerID)
+		if ev, ok := e.(*consent.ConsentChanged); ok {
+			return push(ctx, ev.CustomerID)
+		}
+		return nil
 	})
 	// A customer's lifetime order totals ride on their entry, so an order that counts or stops counting re-sends it
 	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
-		if id := e.(*order.OrderPlaced).CustomerID; id != nil {
-			return push(ctx, *id)
+		if ev, ok := e.(*order.OrderPlaced); ok && ev.CustomerID != nil {
+			return push(ctx, *ev.CustomerID)
 		}
 		return nil
 	})
 	bus.Subscribe(order.EventCancelled, func(ctx context.Context, e events.Event) error {
-		o, err := q.GetOrderByID(ctx, e.(*order.OrderCancelled).OrderID)
+		ev, ok := e.(*order.OrderCancelled)
+		if !ok {
+			return nil
+		}
+		o, err := q.GetOrderByID(ctx, ev.OrderID)
 		if errors.Is(err, sql.ErrNoRows) || (err == nil && !o.CustomerID.Valid) {
 			return nil
 		}
@@ -91,7 +107,10 @@ func Register(bus *events.Bus, q *db.Queries, client *signalsclient.Client, jobs
 	// The row is already gone, so there is nothing to re-read - the suite drops its copy and the
 	// traits and memberships that hung off it
 	bus.Subscribe(customer.EventDeleted, func(ctx context.Context, e events.Event) error {
-		return client.DeleteRosterCustomer(ctx, e.(*customer.CustomerDeleted).CustomerID)
+		if ev, ok := e.(*customer.CustomerDeleted); ok {
+			return client.DeleteRosterCustomer(ctx, ev.CustomerID)
+		}
+		return nil
 	})
 }
 

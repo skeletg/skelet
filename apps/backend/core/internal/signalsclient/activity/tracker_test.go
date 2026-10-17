@@ -1,10 +1,13 @@
 package activity
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -451,5 +454,48 @@ func TestALogoutCarriesNoAllDevicesFlag(t *testing.T) {
 	}
 	if _, ok := fr.calls[0].Props["all_devices"]; ok {
 		t.Error("logout still records all_devices - every Logout is one session, so the flag says nothing")
+	}
+}
+
+func TestAGiftCardLookupThatFailsGoesBackToTheOutbox(t *testing.T) {
+	cid := uuid.New()
+	for name, tc := range map[string]struct {
+		err     error
+		wantErr bool
+	}{
+		"database down": {errors.New("connection refused"), true},
+		"order gone":    {fmt.Errorf("get order: %w", sql.ErrNoRows), false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr := &Tracker{rec: &fakeRecorder{}, orders: &fakeOrders{err: tc.err}}
+			err := tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestARefusedWriteIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	cid := uuid.New()
+	refused := status.Error(codes.PermissionDenied, "bad token")
+
+	tr := &Tracker{rec: &fakeRecorder{err: refused}, orders: &fakeOrders{}}
+	if err := tr.onRegistered(context.Background(), &customer.CustomerRegistered{CustomerID: cid, ChannelID: uuid.New()}); err != nil {
+		t.Fatal(err)
+	}
+	bus := events.NewBus()
+	RegisterConversionAttribution(bus, &fakeConversions{err: refused})
+	if err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"refused an activity write", "refused a conversion write"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("log %q does not mention %q", buf.String(), want)
+		}
 	}
 }
