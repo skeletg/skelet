@@ -1,10 +1,17 @@
-// Package searchmerch is operator-managed search merchandising - synonym groups (expanded into the query at search time, no reindex), curated pins (forced to the top), boosts, and query redirects ("help" -> /pages/faq) - All lookups are tiny indexed reads on the hot search path
+// Package searchmerch is operator-managed search merchandising - synonym groups (expanded into the query at search time, no reindex), curated pins (forced to the top), boosts, and query redirects ("help" -> /pages/faq) - The hot search path reads one cached per-channel snapshot
 package searchmerch
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"log"
+	"maps"
+	"net/url"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +19,12 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+)
+
+var (
+	ErrRedirectTarget = apperr.New("SEARCH_REDIRECT_TARGET_INVALID", apperr.ClassValidation, "target must be a site path like /pages/faq or an http(s) URL")
+	ErrNotListed      = apperr.New("SEARCH_MERCH_PRODUCT_NOT_LISTED", apperr.ClassValidation, "that product isn't listed on this channel")
 )
 
 func init() {
@@ -59,9 +72,115 @@ type Redirect struct {
 
 type Service struct {
 	queries *db.Queries
+	ttl     time.Duration
+
+	mu    sync.Mutex
+	snaps map[uuid.UUID]*snapshot
+	gen   uint64
 }
 
-func NewService(queries *db.Queries) *Service { return &Service{queries: queries} }
+func NewService(queries *db.Queries) *Service {
+	return &Service{queries: queries, ttl: 30 * time.Second, snaps: map[uuid.UUID]*snapshot{}}
+}
+
+// One channel's merchandising, loaded together - four reads per keystroke became one load per TTL. Writes here drop it at once,
+// and the TTL bounds what another replica's write leaves stale
+type snapshot struct {
+	loaded    time.Time
+	redirects map[string]string
+	synonyms  [][]string
+	pins      map[string][]uuid.UUID
+	boosts    map[string]map[uuid.UUID]float64
+}
+
+func (s *Service) snapshot(ctx context.Context, channelID uuid.UUID) *snapshot {
+	s.mu.Lock()
+	snap, gen := s.snaps[channelID], s.gen
+	s.mu.Unlock()
+	if snap != nil && time.Since(snap.loaded) < s.ttl {
+		return snap
+	}
+	snap, err := s.load(ctx, channelID)
+	if err != nil {
+		log.Printf("[searchmerch] load channel %s: %v", channelID, err)
+		return &snapshot{}
+	}
+	s.mu.Lock()
+	// A write that landed mid-load already dropped what this read - storing it would serve the old rows for a whole TTL
+	if s.gen == gen {
+		s.snaps[channelID] = snap
+	}
+	s.mu.Unlock()
+	return snap
+}
+
+func (s *Service) load(ctx context.Context, channelID uuid.UUID) (*snapshot, error) {
+	snap := &snapshot{
+		loaded:    time.Now(),
+		redirects: map[string]string{},
+		pins:      map[string][]uuid.UUID{},
+		boosts:    map[string]map[uuid.UUID]float64{},
+	}
+	redirects, err := s.queries.ListSearchRedirects(ctx, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("redirects: %w", err)
+	}
+	for _, r := range redirects {
+		if !validTarget(r.TargetUrl) {
+			log.Printf("[searchmerch] redirect %q on channel %s has an unsafe target, skipped", r.Query, channelID)
+			continue
+		}
+		snap.redirects[r.Query] = r.TargetUrl
+	}
+	synonyms, err := s.queries.ListSearchSynonyms(ctx, uuid.NullUUID{UUID: channelID, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("synonyms: %w", err)
+	}
+	for _, r := range synonyms {
+		snap.synonyms = append(snap.synonyms, splitTerms(r.Terms))
+	}
+	pins, err := s.queries.ListSearchPins(ctx, db.ListSearchPinsParams{ChannelID: channelID})
+	if err != nil {
+		return nil, fmt.Errorf("pins: %w", err)
+	}
+	for _, r := range pins {
+		snap.pins[r.Query] = append(snap.pins[r.Query], r.ProductID)
+	}
+	boosts, err := s.queries.ListSearchBoosts(ctx, db.ListSearchBoostsParams{ChannelID: channelID})
+	if err != nil {
+		return nil, fmt.Errorf("boosts: %w", err)
+	}
+	for _, r := range boosts {
+		if snap.boosts[r.Query] == nil {
+			snap.boosts[r.Query] = map[uuid.UUID]float64{}
+		}
+		snap.boosts[r.Query][r.ProductID] = r.Weight
+	}
+	return snap, nil
+}
+
+func (s *Service) invalidate(channelID *uuid.UUID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gen++
+	if channelID == nil {
+		clear(s.snaps)
+		return
+	}
+	delete(s.snaps, *channelID)
+}
+
+// A pin or boost on a product the channel doesn't list is a row that looks live in the dashboard and never shows
+func (s *Service) requireListed(ctx context.Context, channelID, productID uuid.UUID) error {
+	_, err := s.queries.GetProductChannelListing(ctx, db.GetProductChannelListingParams{ProductID: productID, ChannelID: channelID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotListed
+	}
+	if err != nil {
+		return fmt.Errorf("check listing: %w", err)
+	}
+	return nil
+}
 
 // Normalize is the canonical query key: lowercased, whitespace-collapsed
 func Normalize(q string) string {
@@ -71,48 +190,33 @@ func Normalize(q string) string {
 // RedirectFor returns the target URL when the normalized query has a
 // redirect configured
 func (s *Service) RedirectFor(ctx context.Context, channelID uuid.UUID, query string) (string, bool) {
-	r, err := s.queries.GetSearchRedirect(ctx, db.GetSearchRedirectParams{
-		ChannelID: channelID,
-		Query:     Normalize(query),
-	})
-	if err != nil {
-		return "", false
-	}
-	return r.TargetUrl, true
+	target, ok := s.snapshot(ctx, channelID).redirects[Normalize(query)]
+	return target, ok
 }
 
 // ExpandQuery appends synonym-group members for every term in the query, so "tyre rack" searches "tyre rack tire tires" when a {tyre, tire, tires} group exists
-// Failure falls back to the raw query, since merchandising must never break search
+// Terms match as whole phrases, so a "t shirt, tee" group fires on "red t shirt". Failure falls back to the raw query, since merchandising must never break search
 func (s *Service) ExpandQuery(ctx context.Context, channelID uuid.UUID, query string) string {
-	rows, err := s.queries.ListSearchSynonyms(ctx, uuid.NullUUID{UUID: channelID, Valid: true})
-	if err != nil || len(rows) == 0 {
+	return expand(query, s.snapshot(ctx, channelID).synonyms)
+}
+
+func expand(query string, groups [][]string) string {
+	q := Normalize(query)
+	if q == "" {
 		return query
 	}
-	terms := strings.Fields(strings.ToLower(query))
-	if len(terms) == 0 {
-		return query
-	}
-	present := make(map[string]bool, len(terms))
-	for _, t := range terms {
-		present[t] = true
-	}
+	padded := " " + q + " "
+	added := map[string]bool{}
+	has := func(term string) bool { return added[term] || strings.Contains(padded, " "+term+" ") }
 	var extra []string
-	for _, row := range rows {
-		group := splitTerms(row.Terms)
-		hit := false
-		for _, g := range group {
-			if present[g] {
-				hit = true
-				break
-			}
-		}
-		if !hit {
+	for _, group := range groups {
+		if !slices.ContainsFunc(group, has) {
 			continue
 		}
-		for _, g := range group {
-			if !present[g] {
-				present[g] = true
-				extra = append(extra, g)
+		for _, term := range group {
+			if !has(term) {
+				added[term] = true
+				extra = append(extra, term)
 			}
 		}
 	}
@@ -125,18 +229,7 @@ func (s *Service) ExpandQuery(ctx context.Context, channelID uuid.UUID, query st
 // PinsFor returns the pinned product ids for the normalized query, in
 // position order
 func (s *Service) PinsFor(ctx context.Context, channelID uuid.UUID, query string) []uuid.UUID {
-	rows, err := s.queries.ListSearchPins(ctx, db.ListSearchPinsParams{
-		ChannelID: channelID,
-		Q:         Normalize(query),
-	})
-	if err != nil {
-		return nil
-	}
-	out := make([]uuid.UUID, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.ProductID)
-	}
-	return out
+	return slices.Clone(s.snapshot(ctx, channelID).pins[Normalize(query)])
 }
 
 // --- admin CRUD ---
@@ -170,6 +263,7 @@ func (s *Service) AddSynonym(ctx context.Context, channelID *uuid.UUID, terms st
 	if err != nil {
 		return Synonym{}, fmt.Errorf("insert synonym: %w", err)
 	}
+	s.invalidate(channelID)
 	syn := Synonym{ID: row.ID, Terms: row.Terms, CreatedAt: row.CreatedAt}
 	if row.ChannelID.Valid {
 		id := row.ChannelID.UUID
@@ -180,6 +274,7 @@ func (s *Service) AddSynonym(ctx context.Context, channelID *uuid.UUID, terms st
 
 // DeleteSynonym scopes the delete to the caller's channel - a channel-scoped admin can't reach another channel's row by id, and a global (channel-less) synonym isn't deletable through this per-channel path
 func (s *Service) DeleteSynonym(ctx context.Context, channelID, id uuid.UUID) error {
+	defer s.invalidate(&channelID)
 	return s.queries.DeleteSearchSynonym(ctx, db.DeleteSearchSynonymParams{ID: id, ChannelID: uuid.NullUUID{UUID: channelID, Valid: true}})
 }
 
@@ -203,6 +298,10 @@ func (s *Service) UpsertPin(ctx context.Context, channelID uuid.UUID, query stri
 	if position <= 0 {
 		position = 1
 	}
+	if err := s.requireListed(ctx, channelID, productID); err != nil {
+		return Pin{}, err
+	}
+	defer s.invalidate(&channelID)
 	row, err := s.queries.UpsertSearchPin(ctx, db.UpsertSearchPinParams{
 		ChannelID: channelID,
 		Query:     q,
@@ -216,21 +315,18 @@ func (s *Service) UpsertPin(ctx context.Context, channelID uuid.UUID, query stri
 }
 
 func (s *Service) DeletePin(ctx context.Context, channelID, id uuid.UUID) error {
+	defer s.invalidate(&channelID)
 	return s.queries.DeleteSearchPin(ctx, db.DeleteSearchPinParams{ID: id, ChannelID: channelID})
 }
 
 // BoostsFor returns the boost/bury weights configured for a query, keyed by product id - Keyed on the ORIGINAL
 // normalized query like pins/redirects - merchandising matches what the shopper typed, not the synonym-expanded form
 func (s *Service) BoostsFor(ctx context.Context, channelID uuid.UUID, query string) map[uuid.UUID]float64 {
-	rows, err := s.queries.BoostsForQuery(ctx, db.BoostsForQueryParams{ChannelID: channelID, Query: Normalize(query)})
-	if err != nil || len(rows) == 0 {
+	boosts := s.snapshot(ctx, channelID).boosts[Normalize(query)]
+	if len(boosts) == 0 {
 		return nil
 	}
-	out := make(map[uuid.UUID]float64, len(rows))
-	for _, r := range rows {
-		out[r.ProductID] = r.Weight
-	}
-	return out
+	return maps.Clone(boosts)
 }
 
 func (s *Service) ListBoosts(ctx context.Context, channelID uuid.UUID) ([]Boost, error) {
@@ -253,6 +349,10 @@ func (s *Service) UpsertBoost(ctx context.Context, channelID uuid.UUID, query st
 	if weight == 0 {
 		return Boost{}, fmt.Errorf("weight must be non-zero (positive boosts, negative buries)")
 	}
+	if err := s.requireListed(ctx, channelID, productID); err != nil {
+		return Boost{}, err
+	}
+	defer s.invalidate(&channelID)
 	row, err := s.queries.UpsertSearchBoost(ctx, db.UpsertSearchBoostParams{ChannelID: channelID, Query: q, ProductID: productID, Weight: weight})
 	if err != nil {
 		return Boost{}, fmt.Errorf("upsert boost: %w", err)
@@ -261,6 +361,7 @@ func (s *Service) UpsertBoost(ctx context.Context, channelID uuid.UUID, query st
 }
 
 func (s *Service) DeleteBoost(ctx context.Context, channelID, id uuid.UUID) error {
+	defer s.invalidate(&channelID)
 	return s.queries.DeleteSearchBoost(ctx, db.DeleteSearchBoostParams{ID: id, ChannelID: channelID})
 }
 
@@ -282,9 +383,10 @@ func (s *Service) UpsertRedirect(ctx context.Context, channelID uuid.UUID, query
 	if q == "" || targetURL == "" {
 		return Redirect{}, fmt.Errorf("query and target URL are required")
 	}
-	if !strings.HasPrefix(targetURL, "/") && !strings.HasPrefix(targetURL, "https://") && !strings.HasPrefix(targetURL, "http://") {
-		return Redirect{}, fmt.Errorf("target must be a path or absolute URL")
+	if !validTarget(targetURL) {
+		return Redirect{}, ErrRedirectTarget
 	}
+	defer s.invalidate(&channelID)
 	row, err := s.queries.UpsertSearchRedirect(ctx, db.UpsertSearchRedirectParams{
 		ChannelID: channelID,
 		Query:     q,
@@ -297,16 +399,32 @@ func (s *Service) UpsertRedirect(ctx context.Context, channelID uuid.UUID, query
 }
 
 func (s *Service) DeleteRedirect(ctx context.Context, channelID, id uuid.UUID) error {
+	defer s.invalidate(&channelID)
 	return s.queries.DeleteSearchRedirect(ctx, db.DeleteSearchRedirectParams{ID: id, ChannelID: channelID})
 }
 
-// splitTerms parses "tyre, tire , tires" into a deduped lowercase list
+// A site path or an http(s) URL - "//host" and backslash forms start with "/" yet browsers follow them off-site
+func validTarget(raw string) bool {
+	if raw == "" || strings.ContainsRune(raw, '\\') {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.User != nil {
+		return false
+	}
+	if strings.HasPrefix(raw, "/") {
+		return !strings.HasPrefix(raw, "//") && u.Scheme == "" && u.Host == ""
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// splitTerms parses "tyre, tire , tires" into a deduped list of normalized terms
 func splitTerms(s string) []string {
-	parts := strings.Split(strings.ToLower(s), ",")
+	parts := strings.Split(s, ",")
 	seen := map[string]bool{}
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
+		p = Normalize(p)
 		if p == "" || seen[p] {
 			continue
 		}
