@@ -5,69 +5,49 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/migfile"
 )
 
-var migrationName = regexp.MustCompile(`^(\d+)_.+\.(up|down)\.sql$`)
-
-// Rebuilds the schema from empty, recording it after every migration, then walks each migration above floor down and up against those records
+// Rebuilds the schema from empty, recording it after every migration, then walks each migration after the first baselines files down and up against those records
 // conn must be disposable - the walk starts by dropping the public schema
-func MigrationRoundTrip(t *testing.T, conn *sql.DB, dir string, floor int) {
+func MigrationRoundTrip(t *testing.T, conn *sql.DB, dir string, baselines int) {
 	t.Helper()
 	if os.Getenv("SKELET_TESTDB_SHARED") != "" {
 		t.Skip("the shared database is the template itself - never drop its schema")
 	}
-	ups, downs := map[int]string{}, map[int]string{}
-	entries, err := os.ReadDir(dir)
+	files, err := migfile.List(dir)
 	if err != nil {
 		t.Fatalf("read %s: %v", dir, err)
 	}
-	for _, e := range entries {
-		m := migrationName.FindStringSubmatch(e.Name())
-		if m == nil {
-			continue
-		}
-		v, _ := strconv.Atoi(m[1])
-		if m[2] == "up" {
-			ups[v] = filepath.Join(dir, e.Name())
-		} else {
-			downs[v] = filepath.Join(dir, e.Name())
+	for _, f := range files[min(baselines, len(files)):] {
+		if strings.TrimSpace(f.Down()) == "" {
+			t.Errorf("%s has an empty -- migrate:down", filepath.Base(f.Path))
 		}
 	}
-	var versions []int
-	for v := range ups {
-		if v > floor && downs[v] == "" {
-			t.Errorf("migration %d has no .down.sql", v)
-		}
-		versions = append(versions, v)
-	}
-	slices.Sort(versions)
 
 	if _, err := conn.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public`); err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
-	recorded := map[int][]string{}
-	for _, v := range versions {
-		runFile(t, conn, ups[v])
-		recorded[v] = schemaSnapshot(t, conn)
+	recorded := make([][]string, len(files))
+	for i, f := range files {
+		runSQL(t, conn, f, f.Up())
+		recorded[i] = schemaSnapshot(t, conn)
 	}
-	walked := slices.DeleteFunc(slices.Clone(versions), func(v int) bool { return v <= floor })
-	if len(walked) == 0 {
+	first := baselines
+	if first < 1 || first >= len(files) {
 		t.Skip("no migrations above the baseline")
 	}
-	below := func(v int) int { return versions[slices.Index(versions, v)-1] }
-
-	for _, v := range slices.Backward(walked) {
-		runFile(t, conn, downs[v])
-		sameSchema(t, fmt.Sprintf("after %s", filepath.Base(downs[v])), recorded[below(v)], schemaSnapshot(t, conn))
+	for i := len(files) - 1; i >= first; i-- {
+		runSQL(t, conn, files[i], files[i].Down())
+		sameSchema(t, fmt.Sprintf("after rolling back %s", filepath.Base(files[i].Path)), recorded[i-1], schemaSnapshot(t, conn))
 	}
-	for _, v := range walked {
-		runFile(t, conn, ups[v])
-		sameSchema(t, fmt.Sprintf("after re-running %s", filepath.Base(ups[v])), recorded[v], schemaSnapshot(t, conn))
+	for i := first; i < len(files); i++ {
+		runSQL(t, conn, files[i], files[i].Up())
+		sameSchema(t, fmt.Sprintf("after re-running %s", filepath.Base(files[i].Path)), recorded[i], schemaSnapshot(t, conn))
 	}
 }
 
@@ -88,14 +68,10 @@ func sameSchema(t *testing.T, step string, want, got []string) {
 	}
 }
 
-func runFile(t *testing.T, conn *sql.DB, path string) {
+func runSQL(t *testing.T, conn *sql.DB, f migfile.File, body string) {
 	t.Helper()
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	if _, err := conn.Exec(string(body)); err != nil {
-		t.Fatalf("%s: %v", filepath.Base(path), err)
+	if _, err := conn.Exec(body); err != nil {
+		t.Fatalf("%s: %v", filepath.Base(f.Path), err)
 	}
 }
 

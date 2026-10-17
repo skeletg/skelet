@@ -45,7 +45,7 @@ x-core-db: &core-db
 x-signals-db: &signals-db
   SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
 
-# The migration one-shots bypass the pooler, whose transaction pooling loses golang-migrate's advisory lock between statements
+# The migration one-shots bypass the pooler - DDL and a long backfill want a real session, not a transaction-pooled one
 x-core-db-direct: &core-db-direct
   DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:-}@db:5432/skelet?sslmode=disable}
 
@@ -264,7 +264,7 @@ services:
     depends_on:
       db: { condition: service_healthy, required: false }
     # $$ so the container's shell expands DATABASE_URL, not compose
-    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet plugin migrate up && skelet data-patch up"]
+    command: ["sh", "-c", "dbmate --no-dump-schema --wait --migrations-dir /app/migrations up && skelet plugin migrate up && skelet data-patch up"]
     restart: "no"
     logging: *logging
 
@@ -280,7 +280,7 @@ services:
       <<: *signals-db-direct
     depends_on:
       signals-db: { condition: service_healthy, required: false }
-    command: ["sh", "-c", "migrate -path /app/signals-migrations -database \"$$SIGNALS_DB_URL\" up"]
+    command: ["sh", "-c", "dbmate --no-dump-schema --wait --env SIGNALS_DB_URL --migrations-dir /app/signals-migrations up"]
     restart: "no"
     logging: *logging
 
@@ -579,7 +579,6 @@ services:
     logging: *logging
 
   #   docker compose -f docker-compose.prod.yml run --rm clickhouse-migrate
-  # golang-migrate wants credentials as query parameters, so its URL is derived from SIGNALS_CH_URL unless SIGNALS_CH_MIGRATE_URL is set
   clickhouse-migrate:
     image: ${SIGNALS_IMAGE:-skelet-signals:prod}
     build:
@@ -587,20 +586,9 @@ services:
       dockerfile: signals/Dockerfile.prod
     environment:
       SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
-      SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL:-}
     depends_on:
       clickhouse: { condition: service_healthy, required: false }
-    # $$ so the container's shell expands the vars, not compose
-    command:
-      - "sh"
-      - "-c"
-      - |
-        url="$$SIGNALS_CH_MIGRATE_URL"
-        if [ -z "$$url" ]; then
-          url=$$(printf '%s' "$$SIGNALS_CH_URL" | sed -E 's#^clickhouse://([^:@/]+):([^@]*)@([^/?]+)/([^?]+)[?]?(.*)$$#clickhouse://\3?username=\1\&password=\2\&database=\4\&x-multi-statement=true\&\5#')
-        fi
-        case "$$url" in *x-multi-statement=true*) ;; *) echo "SIGNALS_CH_URL is not clickhouse://user:password@host:port/db - set SIGNALS_CH_MIGRATE_URL" >&2; exit 1 ;; esac
-        migrate -path /app/clickhouse-migrations -database "$$url" up
+    command: ["sh", "-c", "dbmate --no-dump-schema --wait --env SIGNALS_CH_URL --migrations-dir /app/clickhouse-migrations up"]
     restart: "no"
     logging: *logging
 

@@ -44,7 +44,6 @@ jobs:
       DATABASE_URL: postgres://skelet:skelet@localhost:5432/skelet?sslmode=disable
       SIGNALS_DB_URL: postgres://skelet:skelet@localhost:5432/skelet_signals?sslmode=disable
       SIGNALS_CH_TEST_DSN: clickhouse://skelet:skelet@localhost:9000/skelet_test_signals
-      SIGNALS_CH_MIGRATE_URL: clickhouse://localhost:9000?username=skelet&password=skelet&database=skelet_test_signals&x-multi-statement=true
     steps:
       # Full history + tags: the SDK's apidiff gate compares the surface against the last v* tag,
       # and a depth-1 checkout has none, which silently downgrades it to a skip
@@ -58,9 +57,9 @@ jobs:
             apps/backend/core/go.sum
             apps/backend/signals/go.sum
             apps/backend/sdk/go.sum
-      - name: Install migrate
+      - name: Install dbmate
         run: |
-          go install -tags 'postgres,clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+          CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # The signals schema lives in its own database, same instance is fine (the
       # split contract) - the service container only creates the commerce one
@@ -80,13 +79,13 @@ jobs:
         run: docker exec ${{ job.services.clickhouse.id }} clickhouse-client --user=skelet --password=skelet --query "ALTER DATABASE skelet_test_signals MODIFY COMMENT 'skelet.e2e=allowed'"
       - name: Migrate commerce
         working-directory: apps/backend/core
-        run: migrate -path internal/db/migrations -database "$DATABASE_URL" up
+        run: dbmate --no-dump-schema --migrations-dir internal/db/migrations up
       - name: Migrate signals
         working-directory: apps/backend/signals
-        run: migrate -path internal/db/migrations -database "$SIGNALS_DB_URL" up
+        run: dbmate --no-dump-schema --env SIGNALS_DB_URL --migrations-dir internal/db/migrations up
       - name: Migrate clickhouse
         working-directory: apps/backend/signals
-        run: migrate -path internal/analytics/spinech/migrations -database "$SIGNALS_CH_MIGRATE_URL" up
+        run: dbmate --no-dump-schema --env SIGNALS_CH_TEST_DSN --migrations-dir internal/analytics/spinech/migrations up
       - name: Build
         working-directory: apps/backend/core
         run: go build ./...

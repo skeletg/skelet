@@ -375,7 +375,7 @@ services:
     # will actually open - not a second copy of the DSN
     env_file:
       - env/go.env
-    command: sh -c 'migrate -path internal/db/migrations -database "$$DATABASE_URL" up && go run ./cmd/cli plugin migrate up && go run ./cmd/cli data-patch up'
+    command: sh -c 'dbmate --no-dump-schema --wait --migrations-dir internal/db/migrations up && go run ./cmd/cli plugin migrate up && go run ./cmd/cli data-patch up'
     depends_on:
       db:
         condition: service_healthy
@@ -403,7 +403,7 @@ services:
     logging: *logging
 
   # The same one-shot for the signals stream - gates app, worker, signals and ingest
-  # Reuses the app image for the migrate CLI with the Signals module mounted, since the stream is the suite's
+  # Reuses the app image for dbmate with the Signals module mounted, since the stream is the suite's
   signals-migrate:
     build:
       context: .
@@ -414,7 +414,7 @@ services:
     environment:
       <<: *signals-env
       HOME: "/tmp"
-    command: sh -c 'migrate -path /var/www/backend/signals/internal/db/migrations -database "$$SIGNALS_DB_URL" up'
+    command: sh -c 'dbmate --no-dump-schema --wait --env SIGNALS_DB_URL --migrations-dir /var/www/backend/signals/internal/db/migrations up'
     depends_on:
       signals-db:
         condition: service_healthy
@@ -470,17 +470,18 @@ services:
   # editing a migration takes effect on the next up rather than only on a fresh volume
   clickhouse-migrate:
     profiles: ["signals", "ingest"]
-    image: migrate/migrate:v4.19.1
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     volumes:
       - ./apps/backend/signals/internal/analytics/spinech/migrations:/m:ro
+    environment:
+      <<: *signals-env
+      HOME: "/tmp"
     depends_on:
       clickhouse: { condition: service_healthy }
-    command:
-      [
-        "-path", "/m",
-        "-database", "clickhouse://clickhouse:9000?username=skelet&password=skelet&database=signals&x-multi-statement=true",
-        "up",
-      ]
+    command: sh -c 'dbmate --no-dump-schema --wait --env SIGNALS_CH_URL --migrations-dir /m up'
     restart: "no"
     logging: *logging
 

@@ -10,7 +10,7 @@ RUN apk add --no-cache git curl bash build-base pkgconf vips-dev
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     go install github.com/air-verse/air@latest && \
-    go install -tags 'postgres,clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+    CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
 
 # Seed /go/pkg/mod so a fresh container doesn't download everything on first boot - all three modules,
 # laid out as in the repo so the relative replaces resolve
