@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,23 +12,84 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 type postgresRepository struct {
 	queries *db.Queries
 	tx      *txrunner.Manager
+	sealer  Sealer
 }
 
-func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) Repository {
-	return &postgresRepository{queries: queries, tx: txMgr}
+// Seals the signing secret and custom header values at rest - satisfied by *secrets.Cipher, whose Decrypt passes unsealed plaintext through
+type Sealer interface {
+	Encrypt(plaintext string) (string, error)
+	Decrypt(stored string) (string, error)
+}
+
+var ErrSealedWithoutKey = errors.New("webhook: value is encrypted but no encryption key is configured")
+
+// A nil sealer stores plaintext - dev without CONFIG_ENCRYPTION_KEY
+func NewRepository(queries *db.Queries, txMgr *txrunner.Manager, sealer Sealer) Repository {
+	return &postgresRepository{queries: queries, tx: txMgr, sealer: sealer}
 }
 
 func (r *postgresRepository) WithTx(t *sql.Tx) Repository {
-	return &postgresRepository{queries: r.queries.WithTx(t)}
+	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx, sealer: r.sealer}
+}
+
+func (r *postgresRepository) seal(plain string) (string, error) {
+	if r.sealer == nil || plain == "" {
+		return plain, nil
+	}
+	return r.sealer.Encrypt(plain)
+}
+
+func (r *postgresRepository) open(stored string) (string, error) {
+	if !secrets.IsEncrypted(stored) {
+		return stored, nil
+	}
+	if r.sealer == nil {
+		return "", ErrSealedWithoutKey
+	}
+	return r.sealer.Decrypt(stored)
+}
+
+// sealHeaders seals each value - a header usually carries the receiver's API token
+func (r *postgresRepository) sealHeaders(h map[string]string) (pqtype.NullRawMessage, error) {
+	sealed := make(map[string]string, len(h))
+	for k, v := range h {
+		sv, err := r.seal(v)
+		if err != nil {
+			return pqtype.NullRawMessage{}, fmt.Errorf("seal header %q: %w", k, err)
+		}
+		sealed[k] = sv
+	}
+	return headersToJSON(sealed), nil
+}
+
+func (r *postgresRepository) openHeaders(raw pqtype.NullRawMessage) (map[string]string, error) {
+	h := headersFromJSON(raw)
+	for k, v := range h {
+		pv, err := r.open(v)
+		if err != nil {
+			return nil, fmt.Errorf("open header %q: %w", k, err)
+		}
+		h[k] = pv
+	}
+	return h, nil
 }
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateInput, signingSecret string) (Webhook, error) {
+	secret, err := r.seal(signingSecret)
+	if err != nil {
+		return Webhook{}, fmt.Errorf("seal signing secret: %w", err)
+	}
+	headers, err := r.sealHeaders(input.CustomHeaders)
+	if err != nil {
+		return Webhook{}, err
+	}
 	var sv uuid.NullUUID
 	if input.ChannelID != nil {
 		sv = uuid.NullUUID{UUID: *input.ChannelID, Valid: true}
@@ -35,27 +97,30 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateInput, sign
 	row, err := r.queries.CreateWebhook(ctx, db.CreateWebhookParams{
 		Name:           input.Name,
 		TargetUrl:      input.TargetURL,
-		SigningSecret:  signingSecret,
+		SigningSecret:  secret,
 		EventTypes:     input.EventTypes,
 		Kind:           string(input.Kind),
 		ChannelID:      sv,
 		FailurePolicy:  string(input.FailurePolicy),
 		TimeoutMs:      input.TimeoutMs,
-		CustomHeaders:  headersToJSON(input.CustomHeaders),
+		CustomHeaders:  headers,
 		PayloadVersion: input.PayloadVersion,
 	})
 	if err != nil {
 		return Webhook{}, fmt.Errorf("create webhook: %w", err)
 	}
-	return toWebhook(row), nil
+	return r.toWebhook(row)
 }
 
 func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Webhook, error) {
 	row, err := r.queries.GetWebhookByID(ctx, id)
-	if err != nil {
-		return Webhook{}, fmt.Errorf("webhook not found")
+	if errors.Is(err, sql.ErrNoRows) {
+		return Webhook{}, ErrWebhookNotFound
 	}
-	return toWebhook(row), nil
+	if err != nil {
+		return Webhook{}, fmt.Errorf("get webhook: %w", err)
+	}
+	return r.toWebhook(row)
 }
 
 func (r *postgresRepository) List(ctx context.Context) ([]Webhook, error) {
@@ -65,7 +130,9 @@ func (r *postgresRepository) List(ctx context.Context) ([]Webhook, error) {
 	}
 	out := make([]Webhook, len(rows))
 	for i, row := range rows {
-		out[i] = toWebhook(row)
+		if out[i], err = r.toWebhook(row); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -85,7 +152,9 @@ func (r *postgresRepository) ListActiveByEvent(ctx context.Context, eventType st
 	}
 	out := make([]Webhook, len(rows))
 	for i, row := range rows {
-		out[i] = toWebhook(row)
+		if out[i], err = r.toWebhook(row); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -95,8 +164,11 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateInput) (Web
 	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := r.queries.WithTx(t)
 		current, err := q.GetWebhookByID(ctx, input.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWebhookNotFound
+		}
 		if err != nil {
-			return fmt.Errorf("webhook not found")
+			return fmt.Errorf("get webhook: %w", err)
 		}
 
 		name := current.Name
@@ -121,7 +193,13 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateInput) (Web
 		}
 		customHeaders := current.CustomHeaders
 		if input.CustomHeaders != nil {
-			customHeaders = headersToJSON(input.CustomHeaders)
+			stored, err := r.openHeaders(current.CustomHeaders)
+			if err != nil {
+				return err
+			}
+			if customHeaders, err = r.sealHeaders(keepMasked(input.CustomHeaders, stored)); err != nil {
+				return err
+			}
 		}
 
 		row, err := q.UpdateWebhook(ctx, db.UpdateWebhookParams{
@@ -136,8 +214,8 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateInput) (Web
 		if err != nil {
 			return fmt.Errorf("update webhook: %w", err)
 		}
-		updated = toWebhook(row)
-		return nil
+		updated, err = r.toWebhook(row)
+		return err
 	})
 	if err != nil {
 		return Webhook{}, err
@@ -153,18 +231,22 @@ func (r *postgresRepository) SetActive(ctx context.Context, id uuid.UUID, active
 	if err != nil {
 		return Webhook{}, fmt.Errorf("set webhook active: %w", err)
 	}
-	return toWebhook(row), nil
+	return r.toWebhook(row)
 }
 
 func (r *postgresRepository) UpdateSigningSecret(ctx context.Context, id uuid.UUID, newSecret string) (Webhook, error) {
+	sealed, err := r.seal(newSecret)
+	if err != nil {
+		return Webhook{}, fmt.Errorf("seal signing secret: %w", err)
+	}
 	row, err := r.queries.UpdateWebhookSigningSecret(ctx, db.UpdateWebhookSigningSecretParams{
 		ID:            id,
-		SigningSecret: newSecret,
+		SigningSecret: sealed,
 	})
 	if err != nil {
 		return Webhook{}, fmt.Errorf("update signing secret: %w", err)
 	}
-	return toWebhook(row), nil
+	return r.toWebhook(row)
 }
 
 func (r *postgresRepository) GetSigningSecret(ctx context.Context, id uuid.UUID) (string, error) {
@@ -172,7 +254,7 @@ func (r *postgresRepository) GetSigningSecret(ctx context.Context, id uuid.UUID)
 	if err != nil {
 		return "", fmt.Errorf("get signing secret: %w", err)
 	}
-	return secret, nil
+	return r.open(secret)
 }
 
 func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -425,7 +507,11 @@ func asTimePtr(v any) *time.Time {
 	return nil
 }
 
-func toWebhook(row db.Webhook) Webhook {
+func (r *postgresRepository) toWebhook(row db.Webhook) (Webhook, error) {
+	headers, err := r.openHeaders(row.CustomHeaders)
+	if err != nil {
+		return Webhook{}, fmt.Errorf("webhook %s: %w", row.ID, err)
+	}
 	w := Webhook{
 		ID:             row.ID,
 		Name:           row.Name,
@@ -435,7 +521,7 @@ func toWebhook(row db.Webhook) Webhook {
 		EventTypes:     row.EventTypes,
 		FailurePolicy:  FailurePolicy(row.FailurePolicy),
 		TimeoutMs:      row.TimeoutMs,
-		CustomHeaders:  headersFromJSON(row.CustomHeaders),
+		CustomHeaders:  headers,
 		PayloadVersion: row.PayloadVersion,
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
@@ -444,7 +530,7 @@ func toWebhook(row db.Webhook) Webhook {
 		id := row.ChannelID.UUID
 		w.ChannelID = &id
 	}
-	return w
+	return w, nil
 }
 
 func toDelivery(row db.WebhookDelivery) Delivery {
