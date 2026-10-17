@@ -228,59 +228,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		mux.Handle("/e/", trackingProxy)
 	}
 
-	// The seam an ESP's bounce/complaint webhook posts to (SES/SNS, Postmark, SendGrid - transform to this shape) - Bearer-authed via EMAIL_WEBHOOK_TOKEN so only the configured provider can suppress addresses, 404 when unset - payload: {"type":"bounce"|"complaint","subtype":"hard"|"soft","email":"...","detail":"..."}
-	emailWebhookToken := strings.TrimSpace(os.Getenv("EMAIL_WEBHOOK_TOKEN"))
-	mux.HandleFunc("/webhooks/email/events", func(w http.ResponseWriter, r *http.Request) {
-		if emailWebhookToken == "" {
-			http.NotFound(w, r) // feature off until a token is configured
-			return
-		}
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")), []byte(emailWebhookToken)) != 1 {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		if on, _ := s.Config.GetBool(r.Context(), "signals/deliverability/auto_suppress", config.DefaultScope); !on {
-			w.WriteHeader(http.StatusNoContent) // ingest accepted but auto-suppress off
-			return
-		}
-		var ev struct {
-			Type    string `json:"type"`
-			Subtype string `json:"subtype"`
-			Email   string `json:"email"`
-			Detail  string `json:"detail"`
-		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&ev); err != nil || ev.Email == "" {
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
-		}
-		// A dropped suppression keeps mailing an address that complained, so a write failure answers 5xx and the ESP redelivers rather than reading the 204 as handled
-		var suppressErr error
-		switch {
-		case ev.Type == "complaint":
-			suppressErr = s.SignalsClient.Suppress(r.Context(), ev.Email, signalsclient.SuppressionComplaint, ev.Detail)
-		case ev.Type == "bounce" && ev.Subtype == "soft":
-			threshold := 3
-			if n, e := s.Config.GetInt(r.Context(), "signals/deliverability/soft_bounce_threshold", config.DefaultScope); e == nil && n > 0 {
-				threshold = int(n)
-			}
-			_, _, suppressErr = s.SignalsClient.RecordSoftBounce(r.Context(), ev.Email, ev.Detail, threshold)
-		case ev.Type == "bounce":
-			suppressErr = s.SignalsClient.Suppress(r.Context(), ev.Email, signalsclient.SuppressionHardBounce, ev.Detail)
-		default:
-			http.Error(w, "unknown event type", http.StatusBadRequest)
-			return
-		}
-		if suppressErr != nil {
-			slog.Error("suppression write failed", "type", ev.Type, "subtype", ev.Subtype, "err", suppressErr)
-			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
+	mux.HandleFunc("/webhooks/email/events", emailEventsHandler(strings.TrimSpace(os.Getenv("EMAIL_WEBHOOK_TOKEN")), bool(s.SignalsEnabled), s.Config, s.SignalsClient))
 
 	// Bulk transfer files move over HTTP, not GraphQL - same auth chain as admin GraphQL, same permission rules as the resolvers
 	// The same credentials the admin GraphQL endpoint takes, so a token that can queue an export can also fetch the file
@@ -469,5 +417,70 @@ func pluginRouteAuth(secret string, active authpkg.CustomerActiveFunc) func(http
 		return authpkg.Middleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			guarded.ServeHTTP(w, r.WithContext(authpkg.WithAdmin(r.Context(), nil)))
 		}))
+	}
+}
+
+type suppressionWriter interface {
+	Suppress(ctx context.Context, email, reason, detail string) error
+	RecordSoftBounce(ctx context.Context, email, detail string, threshold int) (bool, int, error)
+}
+
+type deliverabilityConfig interface {
+	GetBool(ctx context.Context, path string, scope config.Scope) (bool, error)
+	GetInt(ctx context.Context, path string, scope config.Scope) (int64, error)
+}
+
+// The seam an ESP's bounce/complaint webhook posts to (SES/SNS, Postmark, SendGrid - transform to this shape) - Bearer-authed via EMAIL_WEBHOOK_TOKEN so only the configured provider can suppress addresses, 404 when unset - payload: {"type":"bounce"|"complaint","subtype":"hard"|"soft","email":"...","detail":"..."}
+func emailEventsHandler(token string, signalsOn bool, cfg deliverabilityConfig, suppress suppressionWriter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if token == "" || !signalsOn {
+			http.NotFound(w, r) // feature off until a token is configured, and with no suite there is no suppression list to write - a 503 would have the provider redeliver forever
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")), []byte(token)) != 1 {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if on, _ := cfg.GetBool(r.Context(), "signals/deliverability/auto_suppress", config.DefaultScope); !on {
+			w.WriteHeader(http.StatusNoContent) // ingest accepted but auto-suppress off
+			return
+		}
+		var ev struct {
+			Type    string `json:"type"`
+			Subtype string `json:"subtype"`
+			Email   string `json:"email"`
+			Detail  string `json:"detail"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&ev); err != nil || ev.Email == "" {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		// A dropped suppression keeps mailing an address that complained, so a write failure answers 5xx and the ESP redelivers rather than reading the 204 as handled
+		var suppressErr error
+		switch {
+		case ev.Type == "complaint":
+			suppressErr = suppress.Suppress(r.Context(), ev.Email, signalsclient.SuppressionComplaint, ev.Detail)
+		case ev.Type == "bounce" && ev.Subtype == "soft":
+			threshold := 3
+			if n, e := cfg.GetInt(r.Context(), "signals/deliverability/soft_bounce_threshold", config.DefaultScope); e == nil && n > 0 {
+				threshold = int(n)
+			}
+			_, _, suppressErr = suppress.RecordSoftBounce(r.Context(), ev.Email, ev.Detail, threshold)
+		case ev.Type == "bounce":
+			suppressErr = suppress.Suppress(r.Context(), ev.Email, signalsclient.SuppressionHardBounce, ev.Detail)
+		default:
+			http.Error(w, "unknown event type", http.StatusBadRequest)
+			return
+		}
+		if suppressErr != nil {
+			slog.Error("suppression write failed", "type", ev.Type, "subtype", ev.Subtype, "err", suppressErr)
+			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
