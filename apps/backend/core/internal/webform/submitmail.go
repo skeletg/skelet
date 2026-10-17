@@ -3,6 +3,7 @@ package webform
 import (
 	"context"
 	"html"
+	"log/slog"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mailsend"
@@ -23,10 +24,12 @@ func RegisterSubmitEmails(bus *events.Bus, sender *mailsend.Sender) {
 			return nil
 		}
 		for _, to := range ev.NotifyEmails {
-			_ = sender.Send(ctx, mailsend.Spec{ChannelID: ev.ChannelID, To: to, MessageKey: MessageKeyFormNotify},
+			if err := sender.Send(ctx, mailsend.Spec{ChannelID: ev.ChannelID, To: to, MessageKey: MessageKeyFormNotify},
 				"New submission: "+ev.FormName,
 				"<pre style=\"font-family:sans-serif;white-space:pre-wrap\">"+html.EscapeString(ev.Summary)+"</pre>",
-				ev.Summary)
+				ev.Summary); err != nil {
+				slog.ErrorContext(ctx, "webform: submission notice not sent", "form", ev.FormID, "err", err)
+			}
 		}
 		if ev.Confirmation.Enabled && ev.SubmitterEmail != "" {
 			subject := ev.Confirmation.Subject
@@ -37,10 +40,12 @@ func RegisterSubmitEmails(bus *events.Bus, sender *mailsend.Sender) {
 			if body == "" {
 				body = "Thanks - we've received your submission and will be in touch."
 			}
-			_ = sender.Send(ctx, mailsend.Spec{ChannelID: ev.ChannelID, To: ev.SubmitterEmail, MessageKey: MessageKeyFormConfirm},
+			if err := sender.Send(ctx, mailsend.Spec{ChannelID: ev.ChannelID, To: ev.SubmitterEmail, MessageKey: MessageKeyFormConfirm},
 				subject,
 				"<p style=\"font-family:sans-serif\">"+html.EscapeString(body)+"</p>",
-				body)
+				body); err != nil {
+				slog.ErrorContext(ctx, "webform: submission confirmation not sent", "form", ev.FormID, "err", err)
+			}
 		}
 		return nil
 	})
