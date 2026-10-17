@@ -48,6 +48,7 @@ import (
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -190,9 +191,24 @@ func Config() (wiring.Config, bool) {
 	if dbURL == "" {
 		return wiring.Config{}, false
 	}
-	jwt := os.Getenv("JWT_SECRET")
-	if jwt == "" {
-		jwt = "e2e-test-secret"
+	// The runner's env when it sets the keys, so a suite started beside these tests verifies the same sessions - fixed test keys otherwise
+	getenv := func(k string) string {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+		return e2eKeys[k]
+	}
+	admin, err := authpkg.AdminKeysFromEnv(getenv)
+	if err != nil {
+		panic(err)
+	}
+	customers, err := authpkg.CustomerSignerFromEnv(getenv)
+	if err != nil {
+		panic(err)
+	}
+	links, err := emailtrack.SignerFromEnv(getenv)
+	if err != nil {
+		panic(err)
 	}
 	// The suite the runner starts beside these tests reads the same variable from the same
 	// container, so the two ends agree - the fallback is for a suite-less run
@@ -203,9 +219,11 @@ func Config() (wiring.Config, bool) {
 	return wiring.Config{
 		Env:                  os.Getenv("APP_ENV"),
 		Role:                 wiring.RoleServer,
-		JWTSecret:            jwt,
+		AdminKeys:            admin,
+		CustomerKeys:         customers,
+		EmailLinks:           links,
 		SignalsServiceSecret: service,
-		VoterTokenSecret:     []byte("vote:" + jwt),
+		VoterTokenSecret:     []byte(getenv("REVIEW_VOTER_TOKEN_SECRET")),
 		DatabaseURL:          dbURL,
 		ReplicaURL:           dbURL,
 		MaxConns:             8,
@@ -303,4 +321,12 @@ func (h *Harness) Settle(t TB) {
 		}
 	}
 	t.Fatal("settle: outbox never quiesced after 20 rounds - a handler is enqueueing in a loop")
+}
+
+// Test-only keys, never a deployment's - the customer seed is 32 fixed bytes so a suite-less run still signs real Ed25519 sessions
+var e2eKeys = map[string]string{
+	authpkg.EnvAdminSecret:        "e2e-admin-secret-0123456789abcdef",
+	authpkg.EnvCustomerPrivateKey: "ZTJlLWN1c3RvbWVyLXNlZWQtMDEyMzQ1Njc4OWFiY2Q=",
+	emailtrack.EnvLinkSecret:      "e2e-email-link-secret-0123456789",
+	"REVIEW_VOTER_TOKEN_SECRET":   "e2e-review-voter-secret-01234567",
 }

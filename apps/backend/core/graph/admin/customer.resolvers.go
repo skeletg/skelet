@@ -379,7 +379,7 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", cust.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, masqueradeSessionTTL)
+	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.CustomerKeys, masqueradeSessionTTL)
 	if err != nil {
 		return nil, err
 	}

@@ -41,7 +41,6 @@ import (
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
-	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/core/lib/httpx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
@@ -150,7 +149,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// Complexity limits bound query SHAPE, not raw payload bytes - cap the body so a multi-megabyte POST can't tie up parsing - 1MB comfortably fits any legitimate mutation (rich text, bulk CSV goes elsewhere)
 	// integration.Middleware makes this endpoint double as the machine API: an X-Api-Token integration token authorizes through the same resolver permission gates as an admin role, with its grant set global - there is no separate REST tier
-	mux.Handle(adminPath, otelx.WrapHTTP(devDebug(maxBody(1<<20)(authpkg.Middleware(infra.Config.JWTSecret)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(channel.AdminMiddleware(s.Channel)(locale.Middleware()(remoteprovider.RequestCacheMiddleware(graphadmin.RenderCacheMiddleware(adminSrv))))))))), "graphql.admin"))
+	mux.Handle(adminPath, otelx.WrapHTTP(devDebug(maxBody(1<<20)(authpkg.AdminMiddleware(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(channel.AdminMiddleware(s.Channel)(locale.Middleware()(remoteprovider.RequestCacheMiddleware(graphadmin.RenderCacheMiddleware(adminSrv))))))))), "graphql.admin"))
 	voterResolverFn := func(ctx context.Context) (review.Voter, error) { // the MyReviewVote loader's voter closure lives here because dataloaders can't import graph/front (cycle) - it delegates to s.Review.ResolveVoter, so the policy chain is the resolver's own
 		customerID := channel.OptionalCustomerID(ctx)
 		var rawToken string
@@ -171,13 +170,13 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// LocaleClampMiddleware sits inside both channel + locale middleware (it needs the resolved channel AND the extracted header) and snaps unsupported locales to the channel default - front surface only - admin reads must keep accepting arbitrary locales for translation tooling
 	frontRespCache := frontResponseCache(cache.New(infra.Cache.Client, "frontresp"), 60*time.Second) // sits INSIDE channel + locale resolution so its key uses the RESOLVED channel id and clamped locale - keying on the raw headers bled cached responses across host-resolved siblings that send no X-Channel-Id at all
-	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.Middleware(infra.Config.JWTSecret)(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(s.Cart.OfferGrantMiddleware(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv))))))))))))), "graphql.front"))
+	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.CustomerMiddleware(infra.Config.CustomerKeys.Verifier())(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(s.Cart.OfferGrantMiddleware(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv))))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))
 	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public like the storefront GraphQL endpoint, with its customer session so sdk.CustomerID and ReadCart see a signed-in shopper, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
 	if pluginRoutes := pluginhost.RouteHandler(); pluginRoutes != nil {
 		mux.Handle(pluginhost.RoutePrefix, otelx.WrapHTTP(
-			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(pluginRouteAuth(infra.Config.JWTSecret, s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
+			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(pluginRouteAuth(infra.Config.CustomerKeys.Verifier(), s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
 			"plugins.routes"))
 	}
 	// No separate REST tier - machine callers hit the admin GraphQL endpoint above with an X-Api-Token integration token; a dedicated /api/v1/ REST surface may still come back once a real consumer needs one
@@ -214,8 +213,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}))
 
 	// The suite signs the unsubscribe link over the customer id with the shared key, so it works without auth, and the opt-out lands where consent lives, which is here
-	unsubscribes := emailtrack.NewSigner([]byte(infra.Config.JWTSecret))
-	mux.HandleFunc(unsubscribePath, unsubscribeHandler(unsubscribes.VerifyUnsubscribe, s.Consent, func(r *http.Request) bool {
+	mux.HandleFunc(unsubscribePath, unsubscribeHandler(infra.Config.EmailLinks.VerifyUnsubscribe, s.Consent, func(r *http.Request) bool {
 		return tokenLimiter.Allow(r.Context(), "unsub:"+authpkg.ClientIP(r))
 	}))
 	mux.HandleFunc(customer.SignupConfirmPath, signupConfirmHandler(s.Form, func(r *http.Request) bool {
@@ -233,7 +231,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	// Bulk transfer files move over HTTP, not GraphQL - same auth chain as admin GraphQL, same permission rules as the resolvers
 	// The same credentials the admin GraphQL endpoint takes, so a token that can queue an export can also fetch the file
 	adminAuth := func(h http.Handler) http.Handler {
-		return authpkg.Middleware(infra.Config.JWTSecret)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h)))
+		return authpkg.AdminMiddleware(infra.Config.AdminKeys)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(h)))
 	}
 	mux.Handle(dataImportPath, otelx.WrapHTTP(adminAuth(dataImportHandler(s.DataJob, s.Admin)), "data.import"))
 	mux.Handle("/api/admin/data/template", otelx.WrapHTTP(adminAuth(dataTemplateHandler(s.DataJob, s.Admin)), "data.template"))
@@ -246,7 +244,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	// Ahead of the /t/ catch-all below
 	registerCommerceBeacons(mux, commerceBeaconDeps{
 		Channels: s.Channel, BackInStock: s.BackInStock, Forms: s.Form,
-		Config: s.Config, Limiter: ingestLimiter, JWTSecret: infra.Config.JWTSecret,
+		Config: s.Config, Limiter: ingestLimiter, Customers: infra.Config.CustomerKeys.Verifier(),
 	})
 	// The beacon surface is the suite's, so this is a proxy - one public entry point for a simple
 	// install, and a storefront that would rather skip the hop can point at the tier directly
@@ -410,13 +408,10 @@ func beaconProxy(enabled bool) http.Handler {
 	return proxy
 }
 
-// Plugin routes are a storefront surface - the customer session rides along, an admin token must not reach a plugin's admin gates
-func pluginRouteAuth(secret string, active authpkg.CustomerActiveFunc) func(http.Handler) http.Handler {
+// Plugin routes are a storefront surface - the customer session rides along, and CustomerMiddleware never reads an admin token, so none reaches a plugin's admin gates
+func pluginRouteAuth(customers authpkg.CustomerVerifier, active authpkg.CustomerActiveFunc) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		guarded := authpkg.CustomerSessionGuard(active)(next)
-		return authpkg.Middleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			guarded.ServeHTTP(w, r.WithContext(authpkg.WithAdmin(r.Context(), nil)))
-		}))
+		return authpkg.CustomerMiddleware(customers)(authpkg.CustomerSessionGuard(active)(next))
 	}
 }
 

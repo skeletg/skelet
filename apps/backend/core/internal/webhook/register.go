@@ -12,4 +12,5 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidTimeout, "WEBHOOK_INVALID_TIMEOUT", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrReservedHeader, "WEBHOOK_RESERVED_HEADER", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidPayloadVersion, "WEBHOOK_INVALID_PAYLOAD_VERSION", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrSealedWithoutKey, "WEBHOOK_SEALED_WITHOUT_KEY", apperr.ClassInternal)
 }

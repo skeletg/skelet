@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
@@ -26,7 +27,7 @@ func TestAFlowSendsOnlyALibraryEmailOfItsOwnChannel(t *testing.T) {
 	}
 	repo := newFakeRepo()
 	box := &mailbox{}
-	svc := NewService(repo, tmpl, optedIn{}, fixedStore{active: true}, box, nil, nil, nil, false, []byte("k"))
+	svc := NewService(repo, tmpl, optedIn{}, fixedStore{active: true}, box, nil, nil, nil, false, emailtrack.NewSigner([]byte("k")))
 	graph := func(emailID uuid.UUID) Graph {
 		return Graph{
 			Nodes: []Node{{ID: "t", Type: NodeTrigger}, {ID: "m", Type: NodeSendEmail, Data: NodeData{EmailID: emailID.String()}}},

@@ -145,7 +145,7 @@ const StorefrontSessionCookie = "storefront_access_token"
 
 // VerifiedStorefrontCustomer is the only customer identity a public endpoint may trust - header and body ids are forgeable there
 // Bearer token first, else the httpOnly session cookie, uuid.Nil when there is neither or the session belongs to another channel
-func VerifiedStorefrontCustomer(r *http.Request, secret string, channelID uuid.UUID) uuid.UUID {
+func VerifiedStorefrontCustomer(r *http.Request, v CustomerVerifier, channelID uuid.UUID) uuid.UUID {
 	tokenStr := ""
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		tokenStr = strings.TrimPrefix(h, "Bearer ")
@@ -155,7 +155,7 @@ func VerifiedStorefrontCustomer(r *http.Request, secret string, channelID uuid.U
 	if tokenStr == "" {
 		return uuid.Nil
 	}
-	cc, err := ValidateCustomerToken(tokenStr, secret)
+	cc, err := ValidateCustomerToken(tokenStr, v)
 	if err != nil || cc.ChannelID != channelID {
 		return uuid.Nil
 	}

@@ -12,9 +12,10 @@ x-logging: &logging
 # Datastore containers and the DSNs that reach them derive from one variable each, so a password can't drift out of sync with the URL that uses it - these come from the root .env, NOT env/prod.env - compose interpolates only the former - setting a URL outright wins over the derived one, which is how you point at a managed datastore - see .env.example
 # Split by tier - each backend gets its own datastore credentials and none of the other's, the same boundary the Go modules draw
 # Nested passwords are plain defaults, not :?, since compose expands them even when the URL is set - the bundled containers refuse an empty one
-# What the internet-facing beacon tier gets - it verifies customer sessions and serves no contract, so no contract secret
+# What the internet-facing beacon tier gets - it verifies customer sessions with the public key alone and serves no contract, so it can sign nothing
 x-edge-secrets: &edge-secrets
-  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+  CUSTOMER_JWT_PUBLIC_KEY: ${CUSTOMER_JWT_PUBLIC_KEY:?set CUSTOMER_JWT_PUBLIC_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS: ${CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS:-}
   VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:-}@valkey:6379}
   # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
   VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-cache:6379}}
@@ -24,10 +25,18 @@ x-edge-secrets: &edge-secrets
 x-shared-secrets: &shared-secrets
   <<: *edge-secrets
   # The contract's own secret - core signs with it, the suite verifies, the storefront and the beacon tier never get it
-  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from JWT_SECRET)}
+  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from every other key)}
+  # Unsubscribe, open and click links - the suite signs them, core verifies the unsubscribe
+  EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
+  EMAIL_LINK_SECRET_PREVIOUS: ${EMAIL_LINK_SECRET_PREVIOUS:-}
 
 # Core's alone - the suite administers its own settings over the contract and renders no storefront
 x-core-secrets: &core-secrets
+  # The two keys that mint sessions - nothing outside core holds either
+  ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
+  ADMIN_JWT_SECRET_PREVIOUS: ${ADMIN_JWT_SECRET_PREVIOUS:-}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
 
@@ -320,8 +329,8 @@ services:
       # In-network backend - environment beats env_file
       BACKEND_INTERNAL_URL: http://app:8080
       # The two values it shares with the backend, from the same root .env the backend reads - the file above keeps only
-      # what's storefront-specific, so neither has to be copied into two places
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+      # what's storefront-specific, so neither has to be copied into two places. No session key: this is the most exposed container
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }

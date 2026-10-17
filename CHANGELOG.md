@@ -11,6 +11,21 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **`JWT_SECRET` is retired and split into keys each tier holds only if it needs them.** It signed
+  admin sessions, customer sessions, email links and (as a fallback) review votes, and compose handed it
+  to core, both Signals processes and the storefront - so any of them could mint a superuser admin
+  token. Now:
+  - `ADMIN_JWT_SECRET` signs admin sessions and only core holds it.
+  - Customer sessions are Ed25519: core signs with `CUSTOMER_JWT_PRIVATE_KEY`, the Signals processes
+    verify with `CUSTOMER_JWT_PUBLIC_KEY` and can mint nothing.
+  - `EMAIL_LINK_SECRET` signs unsubscribe, open and click links (core and Signals).
+  - `REVIEW_VOTER_TOKEN_SECRET` is required, with no fallback; the storefront holds it and no session key.
+
+  Tokens carry an audience and a key id, and every key has a `_PREVIOUS` list so it can be rotated
+  without signing anyone out. Every process refuses to boot while `JWT_SECRET` is still set;
+  `./skelet setup` generates the new keys and removes it. Deploying signs everyone out once. See
+  [docs/env.md](docs/env.md#session-and-link-keys).
+
 - **Inventory location types are a fixed enum, and pickup is set through the location save.** The admin
   API's `InventoryLocation.type` and the `type` of `createInventoryLocation` / `updateInventoryLocation`
   are now `InventoryLocationType` (`RETAIL_STORE`, `WAREHOUSE`, `STORAGE`, `DROPSHIPPER`,

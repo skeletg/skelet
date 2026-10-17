@@ -78,7 +78,7 @@ var Platform = fx.Options(Settings, fx.Module("platform",
 
 func newEmailSender(cfg Config) email.Sender { return email.New(cfg.Env) }
 
-// Env-only key like JWT_SECRET; unset in dev stores plaintext, but malformed is a misconfiguration so refuse to boot
+// Env-only key like ADMIN_JWT_SECRET; unset in dev stores plaintext, but malformed is a misconfiguration so refuse to boot
 func newSecretsCipher(cfg Config) (*secrets.Cipher, error) {
 	if cfg.ConfigEncryptionKey == "" {
 		slog.Warn("CONFIG_ENCRYPTION_KEY not set - secret config values are stored UNENCRYPTED (acceptable in dev only)")

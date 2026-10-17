@@ -62,9 +62,9 @@ type segmentAudience interface {
 	SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
 }
 
-// unsubKey signs unsubscribe and tracking links, the same key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, unsubKey []byte) *Service {
-	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: emailtrack.NewSigner(unsubKey)}
+// links signs unsubscribe and tracking links with the key core verifies them with
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, links *emailtrack.Signer) *Service {
+	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: links}
 }
 
 // Turns a send failure into a suppression signal when auto-suppress is on - a permanent 5xx SMTP rejection hard-suppresses the address, a transient one accrues toward the soft-bounce threshold, and unknown errors like timeouts and resets are ignored since they aren't a verdict on the address (this is the out-of-the-box feedback loop for pure-SMTP setups, a provider webhook supplies richer signals)
