@@ -1,6 +1,7 @@
 package shipping
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,12 +13,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // Returned by Track when the carrier exists but implements no Tracker, as with the built-in
 var ErrTrackingUnsupported = errors.New("shipping: carrier does not support tracking")
 
 var ErrLabelsUnsupported = errors.New("shipping: carrier does not support labels")
+
+var (
+	errBoxCode   = apperr.New("SHIPPING_BOX_CODE_REQUIRED", apperr.ClassValidation, "a box needs a code")
+	errBoxDims   = apperr.New("SHIPPING_BOX_DIMENSIONS_INVALID", apperr.ClassValidation, "a box's inner dimensions must be positive")
+	errBoxWeight = apperr.New("SHIPPING_BOX_WEIGHT_INVALID", apperr.ClassValidation, "a box's weights can't be negative")
+)
 
 // Caps the combined wall-clock one checkout quote can spend across all carriers, on top of each plugin hook's own timeout
 const quoteAllBudget = 8 * time.Second
@@ -115,14 +124,10 @@ func (s *Service) QuoteCarriers(ctx context.Context, req RateRequest) (QuoteResu
 		if !enabled {
 			continue
 		}
-		if hasRow && cfg.CountryMode == "specific" {
-			allowed, err := s.repo.ListCountriesForCarrier(ctx, cfg.ID)
-			if err != nil {
-				return QuoteResult{}, err
-			}
-			if !containsFold(allowed, req.Destination.CountryCode) {
-				continue
-			}
+		if ok, err := s.carrierServes(ctx, cfg, req.Destination.CountryCode); err != nil {
+			return QuoteResult{}, err
+		} else if !ok {
+			continue
 		}
 		act = append(act, active{reg: reg, cfg: cfg})
 	}
@@ -167,6 +172,10 @@ func (s *Service) QuoteCarriers(ctx context.Context, req RateRequest) (QuoteResu
 			name := carrierName(a.reg, a.cfg)
 			mu.Lock()
 			for _, m := range methods {
+				if m.PriceCents < 0 {
+					log.Printf("[shipping] carrier %q quoted %q below zero (skipped)", a.reg.Slug, m.Code)
+					continue
+				}
 				// The built-in carrier's methods say for themselves; any other carrier follows its channel row
 				if a.reg.Slug != BuiltinCarrierSlug {
 					m.DeliversOnWeekends = a.cfg.DeliversOnWeekends
@@ -261,7 +270,7 @@ func (s *Service) pricedKinds(ctx context.Context, channelID uuid.UUID) ([]strin
 			return nil, err
 		}
 		for _, m := range methods {
-			if k := cmpOr(m.DeliveryKind, DefaultKind); !slices.Contains(out, k) {
+			if k := cmp.Or(m.DeliveryKind, DefaultKind); !slices.Contains(out, k) {
 				out = append(out, k)
 			}
 		}
@@ -286,6 +295,11 @@ func (s *Service) PriceSelected(ctx context.Context, slug, code string, req Rate
 		if cfgErr == nil && !cfg.IsEnabled {
 			return 0, nil, ErrMethodNotFound
 		}
+		if ok, err := s.carrierServes(ctx, cfg, req.Destination.CountryCode); err != nil {
+			return 0, nil, err
+		} else if !ok {
+			return 0, nil, ErrMethodNotFound
+		}
 		req, err := s.withDimensions(ctx, req)
 		if err != nil {
 			return 0, nil, err
@@ -308,7 +322,7 @@ func (s *Service) PriceSelected(ctx context.Context, slug, code string, req Rate
 		if s.remoteRates != nil {
 			req = s.withParcels(ctx, req)
 			cents, rErr := s.remoteRates.Price(ctx, slug, code, req)
-			if rErr != nil {
+			if rErr != nil || cents < 0 {
 				return 0, nil, ErrMethodNotFound
 			}
 			return cents, nil, nil
@@ -320,22 +334,64 @@ func (s *Service) PriceSelected(ctx context.Context, slug, code string, req Rate
 	if cfgErr != nil || !cfg.IsEnabled {
 		return 0, nil, ErrMethodNotFound
 	}
+	if ok, err := s.carrierServes(ctx, cfg, req.Destination.CountryCode); err != nil {
+		return 0, nil, err
+	} else if !ok {
+		return 0, nil, ErrMethodNotFound
+	}
 	req = s.withParcels(ctx, req)
-	methods, err := reg.Carrier.Quote(ctx, req)
+	methods, err := guardedQuote(ctx, reg, req)
 	if err != nil {
 		return 0, nil, err
 	}
 	for _, m := range methods {
-		if m.Code == code {
+		if m.Code == code && m.PriceCents >= 0 {
 			return m.PriceCents, nil, nil
 		}
 	}
 	return 0, nil, ErrMethodNotFound
 }
 
+// guardedQuote re-quotes one carrier at placement under the same budget and panic guard QuoteCarriers gives it
+func guardedQuote(ctx context.Context, reg CarrierRegistration, req RateRequest) (methods []RatedMethod, err error) {
+	qctx, cancel := context.WithTimeout(ctx, quoteAllBudget)
+	defer cancel()
+	defer func() {
+		if r := recover(); r != nil {
+			methods, err = nil, fmt.Errorf("carrier %q quote panicked: %v", reg.Slug, r)
+		}
+	}()
+	return reg.Carrier.Quote(qctx, req)
+}
+
+// carrierServes reports whether a carrier's channel row lets it ship to the country - no row, or mode "all", serves everywhere
+func (s *Service) carrierServes(ctx context.Context, cfg CarrierConfig, country string) (bool, error) {
+	if cfg.ID == uuid.Nil || cfg.CountryMode != "specific" {
+		return true, nil
+	}
+	allowed, err := s.repo.ListCountriesForCarrier(ctx, cfg.ID)
+	if err != nil {
+		return false, err
+	}
+	return containsFold(allowed, country), nil
+}
+
+// ensureCarrier makes sure the channel has a row for the carrier before a setting is written to it - a channel created after boot has none until the next SyncCarriers
+func (s *Service) ensureCarrier(ctx context.Context, channelID uuid.UUID, slug string) error {
+	reg, err := GetCarrier(slug)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.GetCarrierConfig(ctx, channelID, slug); !errors.Is(err, ErrCarrierNotFound) {
+		return err
+	}
+	_, err = s.repo.UpsertCarrier(ctx, channelID, slug, slug == BuiltinCarrierSlug, reg.DisplayName)
+	return err
+}
+
 // Toggles a carrier for a channel, validating the slug against the registry first
 func (s *Service) SetCarrierEnabled(ctx context.Context, channelID uuid.UUID, slug string, enabled bool) (CarrierConfig, error) {
-	if _, err := GetCarrier(slug); err != nil {
+	if err := s.ensureCarrier(ctx, channelID, slug); err != nil {
 		return CarrierConfig{}, err
 	}
 	return s.repo.SetCarrierEnabled(ctx, channelID, slug, enabled)
@@ -346,14 +402,14 @@ func (s *Service) SetCarrierWeekendDelivery(ctx context.Context, channelID uuid.
 	if slug == BuiltinCarrierSlug {
 		return CarrierConfig{}, errBuiltinWeekends
 	}
-	if _, err := GetCarrier(slug); err != nil {
+	if err := s.ensureCarrier(ctx, channelID, slug); err != nil {
 		return CarrierConfig{}, err
 	}
 	return s.repo.SetCarrierWeekendDelivery(ctx, channelID, slug, weekends)
 }
 
 func (s *Service) SetCarrierSortOrder(ctx context.Context, channelID uuid.UUID, slug string, sortOrder int32) (CarrierConfig, error) {
-	if _, err := GetCarrier(slug); err != nil {
+	if err := s.ensureCarrier(ctx, channelID, slug); err != nil {
 		return CarrierConfig{}, err
 	}
 	return s.repo.SetCarrierSortOrder(ctx, channelID, slug, sortOrder)
@@ -361,26 +417,28 @@ func (s *Service) SetCarrierSortOrder(ctx context.Context, channelID uuid.UUID, 
 
 // Sets a carrier's ship-to country mode and allow-list for a channel
 func (s *Service) SetCarrierCountries(ctx context.Context, channelID uuid.UUID, slug, mode string, countries []string) error {
-	if _, err := GetCarrier(slug); err != nil {
-		return err
-	}
-	cfg, err := s.repo.SetCarrierCountryMode(ctx, channelID, slug, mode)
+	countries, err := normCountries(countries)
 	if err != nil {
 		return err
 	}
-	if err := s.repo.ClearCarrierCountries(ctx, cfg.ID); err != nil {
+	if err := s.ensureCarrier(ctx, channelID, slug); err != nil {
 		return err
 	}
-	for _, c := range countries {
-		c = strings.ToUpper(strings.TrimSpace(c))
-		if c == "" {
-			continue
-		}
-		if err := s.repo.AddCountryToCarrier(ctx, cfg.ID, c); err != nil {
+	return s.inTx(ctx, func(r Repository) error {
+		cfg, err := r.SetCarrierCountryMode(ctx, channelID, slug, mode)
+		if err != nil {
 			return err
 		}
-	}
-	return nil
+		if err := r.ClearCarrierCountries(ctx, cfg.ID); err != nil {
+			return err
+		}
+		for _, c := range countries {
+			if err := r.AddCountryToCarrier(ctx, cfg.ID, c); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // One carrier with its hydrated config, so admin mutations can return the updated row
@@ -511,13 +569,13 @@ func (s *Service) ListBoxes(ctx context.Context, channelID uuid.UUID) ([]Box, er
 func (s *Service) UpsertBox(ctx context.Context, in Box) (Box, error) {
 	in.Code = strings.TrimSpace(in.Code)
 	if in.Code == "" {
-		return Box{}, fmt.Errorf("shipping: box code is required")
+		return Box{}, errBoxCode
 	}
 	if in.InnerLengthMm <= 0 || in.InnerWidthMm <= 0 || in.InnerHeightMm <= 0 {
-		return Box{}, fmt.Errorf("shipping: box inner dimensions must be positive")
+		return Box{}, errBoxDims
 	}
 	if in.MaxWeightGrams < 0 || in.BoxWeightGrams < 0 {
-		return Box{}, fmt.Errorf("shipping: box weights cannot be negative")
+		return Box{}, errBoxWeight
 	}
 	return s.repo.UpsertBox(ctx, in)
 }
@@ -540,10 +598,5 @@ func carrierName(reg CarrierRegistration, cfg CarrierConfig) string {
 }
 
 func containsFold(haystack []string, needle string) bool {
-	for _, h := range haystack {
-		if strings.EqualFold(h, needle) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(haystack, func(h string) bool { return strings.EqualFold(h, needle) })
 }

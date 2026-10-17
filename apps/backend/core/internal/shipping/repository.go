@@ -16,6 +16,7 @@ var (
 	ErrZoneNotFound   = errors.New("shipping: zone not found")
 	ErrCodeTaken      = errors.New("shipping: code already exists in this channel")
 	ErrMethodNotFound = errors.New("shipping: method not found")
+	ErrBoxNotFound    = errors.New("shipping: box not found")
 )
 
 // Repository is the thin DB layer - Zone.Countries hydration is service-level
@@ -105,6 +106,12 @@ func (r *postgresRepository) UpdateZone(ctx context.Context, in Zone) (Zone, err
 		SortOrder: in.SortOrder,
 		IsActive:  in.IsActive,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Zone{}, ErrZoneNotFound
+	}
+	if pgdb.IsUniqueViolation(err) {
+		return Zone{}, ErrCodeTaken
+	}
 	if err != nil {
 		return Zone{}, fmt.Errorf("update zone: %w", err)
 	}
@@ -231,6 +238,12 @@ func (r *postgresRepository) UpdateMethod(ctx context.Context, in Method) (Metho
 		EstimatedDays:      in.EstimatedDays,
 		DeliversOnWeekends: in.DeliversOnWeekends,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Method{}, ErrMethodNotFound
+	}
+	if pgdb.IsUniqueViolation(err) {
+		return Method{}, ErrCodeTaken
+	}
 	if err != nil {
 		return Method{}, fmt.Errorf("update method: %w", err)
 	}
@@ -278,7 +291,7 @@ func (r *postgresRepository) ListMethodsByZone(ctx context.Context, zoneID uuid.
 	for i, row := range rows {
 		out[i] = toMethod(row)
 	}
-	return r.hydrateTypeRates(ctx, out)
+	return r.hydrate(ctx, out)
 }
 
 func (r *postgresRepository) ListActiveMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]Method, error) {
@@ -290,11 +303,11 @@ func (r *postgresRepository) ListActiveMethodsByZone(ctx context.Context, zoneID
 	for i, row := range rows {
 		out[i] = toMethod(row)
 	}
-	return r.hydrateTypeRates(ctx, out)
+	return r.hydrate(ctx, out)
 }
 
-// hydrateTypeRates fills every method's per-product-type rates in one query
-func (r *postgresRepository) hydrateTypeRates(ctx context.Context, methods []Method) ([]Method, error) {
+// hydrate fills every method's per-product-type rates and, for a specific-country method, its countries - one query each
+func (r *postgresRepository) hydrate(ctx context.Context, methods []Method) ([]Method, error) {
 	if len(methods) == 0 {
 		return methods, nil
 	}
@@ -313,14 +326,25 @@ func (r *postgresRepository) hydrateTypeRates(ctx context.Context, methods []Met
 			UnitsPerCharge: row.UnitsPerCharge, FreeShippingEligible: row.FreeShippingEligible,
 		})
 	}
+	countryRows, err := r.queries.ListCountriesForMethods(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list method countries: %w", err)
+	}
+	countries := make(map[uuid.UUID][]string, len(methods))
+	for _, row := range countryRows {
+		countries[row.MethodID] = append(countries[row.MethodID], row.CountryCode)
+	}
 	for i := range methods {
 		methods[i].TypeRates = byMethod[methods[i].ID]
+		if methods[i].CountryMode == "specific" {
+			methods[i].AllowedCountries = countries[methods[i].ID]
+		}
 	}
 	return methods, nil
 }
 
 func (r *postgresRepository) hydrateOne(ctx context.Context, m Method) (Method, error) {
-	out, err := r.hydrateTypeRates(ctx, []Method{m})
+	out, err := r.hydrate(ctx, []Method{m})
 	if err != nil {
 		return Method{}, err
 	}
@@ -473,6 +497,9 @@ func (r *postgresRepository) ListCarrierConfigsByChannel(ctx context.Context, ch
 
 func (r *postgresRepository) SetCarrierEnabled(ctx context.Context, channelID uuid.UUID, slug string, enabled bool) (CarrierConfig, error) {
 	row, err := r.queries.SetShippingCarrierEnabled(ctx, db.SetShippingCarrierEnabledParams{ChannelID: channelID, CarrierSlug: slug, IsEnabled: enabled})
+	if errors.Is(err, sql.ErrNoRows) {
+		return CarrierConfig{}, ErrCarrierNotFound
+	}
 	if err != nil {
 		return CarrierConfig{}, fmt.Errorf("set carrier enabled: %w", err)
 	}
@@ -481,6 +508,9 @@ func (r *postgresRepository) SetCarrierEnabled(ctx context.Context, channelID uu
 
 func (r *postgresRepository) SetCarrierWeekendDelivery(ctx context.Context, channelID uuid.UUID, slug string, weekends bool) (CarrierConfig, error) {
 	row, err := r.queries.SetShippingCarrierWeekendDelivery(ctx, db.SetShippingCarrierWeekendDeliveryParams{ChannelID: channelID, CarrierSlug: slug, DeliversOnWeekends: weekends})
+	if errors.Is(err, sql.ErrNoRows) {
+		return CarrierConfig{}, ErrCarrierNotFound
+	}
 	if err != nil {
 		return CarrierConfig{}, fmt.Errorf("set carrier weekend delivery: %w", err)
 	}
@@ -489,6 +519,9 @@ func (r *postgresRepository) SetCarrierWeekendDelivery(ctx context.Context, chan
 
 func (r *postgresRepository) SetCarrierSortOrder(ctx context.Context, channelID uuid.UUID, slug string, sortOrder int32) (CarrierConfig, error) {
 	row, err := r.queries.SetShippingCarrierSortOrder(ctx, db.SetShippingCarrierSortOrderParams{ChannelID: channelID, CarrierSlug: slug, SortOrder: sortOrder})
+	if errors.Is(err, sql.ErrNoRows) {
+		return CarrierConfig{}, ErrCarrierNotFound
+	}
 	if err != nil {
 		return CarrierConfig{}, fmt.Errorf("set carrier sort order: %w", err)
 	}
@@ -497,6 +530,9 @@ func (r *postgresRepository) SetCarrierSortOrder(ctx context.Context, channelID 
 
 func (r *postgresRepository) SetCarrierCountryMode(ctx context.Context, channelID uuid.UUID, slug string, mode string) (CarrierConfig, error) {
 	row, err := r.queries.SetShippingCarrierCountryMode(ctx, db.SetShippingCarrierCountryModeParams{ChannelID: channelID, CarrierSlug: slug, CountryMode: normalizeMethodMode(mode)})
+	if errors.Is(err, sql.ErrNoRows) {
+		return CarrierConfig{}, ErrCarrierNotFound
+	}
 	if err != nil {
 		return CarrierConfig{}, fmt.Errorf("set carrier country mode: %w", err)
 	}
@@ -547,6 +583,9 @@ func toBox(row db.ShippingBox) Box {
 
 func (r *postgresRepository) GetBox(ctx context.Context, id uuid.UUID) (Box, error) {
 	row, err := r.queries.GetShippingBox(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Box{}, ErrBoxNotFound
+	}
 	if err != nil {
 		return Box{}, fmt.Errorf("get shipping box: %w", err)
 	}

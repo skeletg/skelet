@@ -64,7 +64,7 @@ type openParcel struct {
 }
 
 // Pack bins items into boxes, first-fit-decreasing on unit volume - Units that fit no box ship as their own parcel (BoxCode "") - Returns
-// nil when no active boxes exist - callers treat that as cartonization-off and fall back to raw Items
+// nil when no active boxes exist or the shipment is past maxPackUnits - callers treat that as cartonization-off and fall back to raw Items
 func Pack(items []RateItem, boxes []Box) []Parcel {
 	var active []Box
 	for _, b := range boxes {
@@ -72,7 +72,7 @@ func Pack(items []RateItem, boxes []Box) []Parcel {
 			active = append(active, b)
 		}
 	}
-	if len(active) == 0 {
+	if len(active) == 0 || packedUnits(items) > maxPackUnits {
 		return nil
 	}
 	// Smallest-volume-first so opening a new parcel picks the tightest box, ties by code
@@ -151,6 +151,19 @@ func Pack(items []RateItem, boxes []Box) []Parcel {
 		})
 	}
 	return append(out, oversize...)
+}
+
+// The most single units Pack bins one by one - a cart line may hold a billion, and past this the carriers rate the raw lines instead
+const maxPackUnits = 10_000
+
+func packedUnits(items []RateItem) float64 {
+	var n float64
+	for _, it := range items {
+		if it.Quantity > 0 {
+			n += math.Ceil(it.Quantity)
+		}
+	}
+	return n
 }
 
 // explodeUnits expands rate items into single physical units - Fractional
