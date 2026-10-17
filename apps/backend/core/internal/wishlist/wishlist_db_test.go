@@ -3,6 +3,7 @@ package wishlist
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -280,5 +281,58 @@ func TestSaveAndUnsavePublishForTheActivityTracker(t *testing.T) {
 		if !fired[want] {
 			t.Errorf("%s never fired", want)
 		}
+	}
+}
+
+func TestAFullWishlistRefusesANewProduct(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	customerID, kept, extra := seedCustomer(t, conn), seedProduct(t, conn), seedProduct(t, conn)
+	if err := svc.Add(ctx, customerID, kept); err != nil {
+		t.Fatal(err)
+	}
+	tag := "WFULL-" + uuid.NewString()[:8] + "-"
+	if _, err := conn.Exec(`INSERT INTO catalog_products (product_type_id, sku, url, kind)
+		SELECT p.product_type_id, $1 || g, lower($1) || g, 'simple' FROM catalog_products p, generate_series(1, $2) g WHERE p.id = $3`, tag, MaxItems-1, kept); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_products WHERE sku LIKE $1 || '%'`, tag) })
+	if _, err := conn.Exec(`INSERT INTO wishlist_items (customer_id, product_id) SELECT $1, id FROM catalog_products WHERE sku LIKE $2 || '%'`, customerID, tag); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(ctx, customerID, extra); !errors.Is(err, ErrFull) {
+		t.Errorf("Add past the cap = %v, want ErrFull", err)
+	}
+	if err := svc.Add(ctx, customerID, kept); err != nil {
+		t.Errorf("re-saving a product already on a full list = %v, want nil", err)
+	}
+}
+
+func TestSavingAProductThatDoesntExistIsNotFound(t *testing.T) {
+	svc, conn := newTestService(t)
+	if err := svc.Add(context.Background(), seedCustomer(t, conn), uuid.New()); !errors.Is(err, ErrProductNotFound) {
+		t.Fatalf("err = %v, want ErrProductNotFound", err)
+	}
+}
+
+func TestARevokedShareLinkStopsWorking(t *testing.T) {
+	svc, conn := newTestService(t)
+	ctx := context.Background()
+	customerID, productID := seedCustomer(t, conn), seedProduct(t, conn)
+	if err := svc.Add(ctx, customerID, productID); err != nil {
+		t.Fatal(err)
+	}
+	old, err := svc.ShareToken(ctx, customerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RevokeShare(ctx, customerID); err != nil {
+		t.Fatal(err)
+	}
+	if ids, _ := svc.ResolveShare(ctx, old); len(ids) != 0 {
+		t.Errorf("a revoked token still resolves %d products", len(ids))
+	}
+	if fresh, _ := svc.ShareToken(ctx, customerID); fresh == old || fresh == "" {
+		t.Errorf("token after revoke = %q, want a new one", fresh)
 	}
 }
