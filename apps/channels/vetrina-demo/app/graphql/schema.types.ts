@@ -1095,6 +1095,7 @@ export type Mutation = {
   resendVerification: Scalars['Boolean']['output'];
   resendVerificationEmail: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
+  revokeWishlistShare: Scalars['Boolean']['output'];
   saveForLater: Cart;
   savePaymentMethod: SavedPaymentMethod;
   setCartDelivery: Cart;

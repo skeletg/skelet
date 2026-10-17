@@ -22,3 +22,8 @@ extend type Query {
   # products only; unknown tokens yield an empty list.
   sharedWishlist(token: String!): [Product!]!
 }
+
+extend type Mutation {
+  # Stops the current share link working - the next myWishlistShareToken mints a new one.
+  revokeWishlistShare: Boolean!
+}

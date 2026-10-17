@@ -866,6 +866,7 @@ type ComplexityRoot struct {
 		ResendVerification             func(childComplexity int, email string) int
 		ResendVerificationEmail        func(childComplexity int) int
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
+		RevokeWishlistShare            func(childComplexity int) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
 		SavePaymentMethod              func(childComplexity int, providerSlug string, token string) int
 		SetCartDelivery                func(childComplexity int, cartID string, groupKey string, optionID string, carrierSlug string, methodCode string) int
@@ -1616,6 +1617,7 @@ type MutationResolver interface {
 	AddToWishlist(ctx context.Context, productID string) (bool, error)
 	RemoveFromWishlist(ctx context.Context, productID string) (bool, error)
 	MoveToCart(ctx context.Context, productID string) (*model1.Cart, error)
+	RevokeWishlistShare(ctx context.Context) (bool, error)
 }
 type OrderResolver interface {
 	PaymentInstructions(ctx context.Context, obj *model.Order) (*string, error)
@@ -5535,6 +5537,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetPassword(childComplexity, args["token"].(string), args["newPassword"].(string)), true
+	case "Mutation.revokeWishlistShare":
+		if e.ComplexityRoot.Mutation.RevokeWishlistShare == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeWishlistShare(childComplexity), true
 	case "Mutation.saveForLater":
 		if e.ComplexityRoot.Mutation.SaveForLater == nil {
 			break
@@ -11358,6 +11366,11 @@ extend type Query {
   # Public read-only view of a shared wishlist: channel-visible
   # products only; unknown tokens yield an empty list.
   sharedWishlist(token: String!): [Product!]!
+}
+
+extend type Mutation {
+  # Stops the current share link working - the next myWishlistShareToken mints a new one.
+  revokeWishlistShare: Boolean!
 }
 `, BuiltIn: false},
 }
@@ -32410,6 +32423,29 @@ func (ec *executionContext) fieldContext_Mutation_moveToCart(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_revokeWishlistShare(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeWishlistShare(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().RevokeWishlistShare(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeWishlistShare(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Order_id(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -53005,6 +53041,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "moveToCart":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_moveToCart(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokeWishlistShare":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revokeWishlistShare(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

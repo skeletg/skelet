@@ -1,9 +1,14 @@
 -- Customer wishlist rows
 
--- name: AddWishlistItem :exec
+-- name: AddWishlistItem :execrows
+-- Refuses past the cap - 0 rows is either already saved or full
 INSERT INTO wishlist_items (customer_id, product_id)
-VALUES ($1, $2)
+SELECT sqlc.arg(customer_id), sqlc.arg(product_id)
+WHERE (SELECT count(*) FROM wishlist_items WHERE customer_id = sqlc.arg(customer_id)) < sqlc.arg(max_items)::int
 ON CONFLICT DO NOTHING;
+
+-- name: WishlistHasItem :one
+SELECT EXISTS (SELECT 1 FROM wishlist_items WHERE customer_id = $1 AND product_id = $2);
 
 -- name: RemoveWishlistItem :exec
 DELETE FROM wishlist_items WHERE customer_id = $1 AND product_id = $2;
@@ -24,3 +29,6 @@ SELECT * FROM wishlist_shares WHERE customer_id = $1;
 
 -- name: GetWishlistShareByToken :one
 SELECT * FROM wishlist_shares WHERE token = $1;
+
+-- name: DeleteWishlistShare :exec
+DELETE FROM wishlist_shares WHERE customer_id = $1;
