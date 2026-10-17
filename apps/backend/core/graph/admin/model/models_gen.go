@@ -1668,25 +1668,28 @@ type CreateIntegrationPayload struct {
 }
 
 type CreateInventoryLocationInput struct {
-	Slug              string           `json:"slug"`
-	Name              string           `json:"name"`
-	IsActive          *bool            `json:"isActive,omitempty"`
-	Type              *string          `json:"type,omitempty"`
-	Line1             *string          `json:"line1,omitempty"`
-	Line2             *string          `json:"line2,omitempty"`
-	City              *string          `json:"city,omitempty"`
-	Region            *string          `json:"region,omitempty"`
-	PostalCode        *string          `json:"postalCode,omitempty"`
-	CountryCode       *string          `json:"countryCode,omitempty"`
-	Latitude          *float64         `json:"latitude,omitempty"`
-	Longitude         *float64         `json:"longitude,omitempty"`
-	Timezone          *string          `json:"timezone,omitempty"`
-	Hours             any              `json:"hours,omitempty"`
-	Email             *string          `json:"email,omitempty"`
-	Phone             *string          `json:"phone,omitempty"`
-	ContactName       *string          `json:"contactName,omitempty"`
-	ExternalReference *string          `json:"externalReference,omitempty"`
-	Metadata          []*MetadataInput `json:"metadata,omitempty"`
+	PickupEnabled      *bool                  `json:"pickupEnabled,omitempty"`
+	PickupInstructions *string                `json:"pickupInstructions,omitempty"`
+	Slug               string                 `json:"slug"`
+	Name               string                 `json:"name"`
+	StorefrontVisible  *bool                  `json:"storefrontVisible,omitempty"`
+	IsActive           *bool                  `json:"isActive,omitempty"`
+	Type               *InventoryLocationType `json:"type,omitempty"`
+	Line1              *string                `json:"line1,omitempty"`
+	Line2              *string                `json:"line2,omitempty"`
+	City               *string                `json:"city,omitempty"`
+	Region             *string                `json:"region,omitempty"`
+	PostalCode         *string                `json:"postalCode,omitempty"`
+	CountryCode        *string                `json:"countryCode,omitempty"`
+	Latitude           *float64               `json:"latitude,omitempty"`
+	Longitude          *float64               `json:"longitude,omitempty"`
+	Timezone           *string                `json:"timezone,omitempty"`
+	Hours              any                    `json:"hours,omitempty"`
+	Email              *string                `json:"email,omitempty"`
+	Phone              *string                `json:"phone,omitempty"`
+	ContactName        *string                `json:"contactName,omitempty"`
+	ExternalReference  *string                `json:"externalReference,omitempty"`
+	Metadata           []*MetadataInput       `json:"metadata,omitempty"`
 }
 
 type CreateLocaleInput struct {
@@ -2767,31 +2770,40 @@ type InventoryLevel struct {
 }
 
 type InventoryLocation struct {
-	ID                 string          `json:"id"`
-	Slug               string          `json:"slug"`
-	Name               string          `json:"name"`
-	IsActive           bool            `json:"isActive"`
-	Type               string          `json:"type"`
-	Line1              string          `json:"line1"`
-	Line2              string          `json:"line2"`
-	City               string          `json:"city"`
-	Region             string          `json:"region"`
-	PostalCode         string          `json:"postalCode"`
-	CountryCode        string          `json:"countryCode"`
-	Country            *Country        `json:"country,omitempty"`
-	Latitude           *float64        `json:"latitude,omitempty"`
-	Longitude          *float64        `json:"longitude,omitempty"`
-	Timezone           string          `json:"timezone"`
-	Hours              any             `json:"hours"`
-	Email              string          `json:"email"`
-	Phone              string          `json:"phone"`
-	ContactName        string          `json:"contactName"`
-	ExternalReference  string          `json:"externalReference"`
-	PickupEnabled      bool            `json:"pickupEnabled"`
-	PickupInstructions string          `json:"pickupInstructions"`
-	Metadata           []*MetadataItem `json:"metadata"`
-	CreatedAt          time.Time       `json:"createdAt"`
-	UpdatedAt          time.Time       `json:"updatedAt"`
+	ID                 string                `json:"id"`
+	Slug               string                `json:"slug"`
+	Name               string                `json:"name"`
+	IsActive           bool                  `json:"isActive"`
+	StorefrontVisible  bool                  `json:"storefrontVisible"`
+	Type               InventoryLocationType `json:"type"`
+	Line1              string                `json:"line1"`
+	Line2              string                `json:"line2"`
+	City               string                `json:"city"`
+	Region             string                `json:"region"`
+	PostalCode         string                `json:"postalCode"`
+	CountryCode        string                `json:"countryCode"`
+	Country            *Country              `json:"country,omitempty"`
+	Latitude           *float64              `json:"latitude,omitempty"`
+	Longitude          *float64              `json:"longitude,omitempty"`
+	Timezone           string                `json:"timezone"`
+	Hours              any                   `json:"hours"`
+	Email              string                `json:"email"`
+	Phone              string                `json:"phone"`
+	ContactName        string                `json:"contactName"`
+	ExternalReference  string                `json:"externalReference"`
+	PickupEnabled      bool                  `json:"pickupEnabled"`
+	PickupInstructions string                `json:"pickupInstructions"`
+	Metadata           []*MetadataItem       `json:"metadata"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	UpdatedAt          time.Time             `json:"updatedAt"`
+}
+
+type InventoryLocationFilter struct {
+	Types             []InventoryLocationType `json:"types,omitempty"`
+	City              *string                 `json:"city,omitempty"`
+	IsActive          *bool                   `json:"isActive,omitempty"`
+	StorefrontVisible *bool                   `json:"storefrontVisible,omitempty"`
+	PickupEnabled     *bool                   `json:"pickupEnabled,omitempty"`
 }
 
 type InventoryReservation struct {
@@ -5295,26 +5307,29 @@ type UpdateIntegrationInput struct {
 }
 
 type UpdateInventoryLocationInput struct {
-	ID                string           `json:"id"`
-	Name              *string          `json:"name,omitempty"`
-	IsActive          *bool            `json:"isActive,omitempty"`
-	Type              *string          `json:"type,omitempty"`
-	Line1             *string          `json:"line1,omitempty"`
-	Line2             *string          `json:"line2,omitempty"`
-	City              *string          `json:"city,omitempty"`
-	Region            *string          `json:"region,omitempty"`
-	PostalCode        *string          `json:"postalCode,omitempty"`
-	CountryCode       *string          `json:"countryCode,omitempty"`
-	Latitude          *float64         `json:"latitude,omitempty"`
-	Longitude         *float64         `json:"longitude,omitempty"`
-	ClearCoords       *bool            `json:"clearCoords,omitempty"`
-	Timezone          *string          `json:"timezone,omitempty"`
-	Hours             any              `json:"hours,omitempty"`
-	Email             *string          `json:"email,omitempty"`
-	Phone             *string          `json:"phone,omitempty"`
-	ContactName       *string          `json:"contactName,omitempty"`
-	ExternalReference *string          `json:"externalReference,omitempty"`
-	Metadata          []*MetadataInput `json:"metadata,omitempty"`
+	PickupEnabled      *bool                  `json:"pickupEnabled,omitempty"`
+	PickupInstructions *string                `json:"pickupInstructions,omitempty"`
+	ID                 string                 `json:"id"`
+	Name               *string                `json:"name,omitempty"`
+	StorefrontVisible  *bool                  `json:"storefrontVisible,omitempty"`
+	IsActive           *bool                  `json:"isActive,omitempty"`
+	Type               *InventoryLocationType `json:"type,omitempty"`
+	Line1              *string                `json:"line1,omitempty"`
+	Line2              *string                `json:"line2,omitempty"`
+	City               *string                `json:"city,omitempty"`
+	Region             *string                `json:"region,omitempty"`
+	PostalCode         *string                `json:"postalCode,omitempty"`
+	CountryCode        *string                `json:"countryCode,omitempty"`
+	Latitude           *float64               `json:"latitude,omitempty"`
+	Longitude          *float64               `json:"longitude,omitempty"`
+	ClearCoords        *bool                  `json:"clearCoords,omitempty"`
+	Timezone           *string                `json:"timezone,omitempty"`
+	Hours              any                    `json:"hours,omitempty"`
+	Email              *string                `json:"email,omitempty"`
+	Phone              *string                `json:"phone,omitempty"`
+	ContactName        *string                `json:"contactName,omitempty"`
+	ExternalReference  *string                `json:"externalReference,omitempty"`
+	Metadata           []*MetadataInput       `json:"metadata,omitempty"`
 }
 
 type UpdateKitComponentInput struct {
@@ -7189,6 +7204,69 @@ func (e *HealthStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e HealthStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type InventoryLocationType string
+
+const (
+	InventoryLocationTypeRetailStore        InventoryLocationType = "RETAIL_STORE"
+	InventoryLocationTypeWarehouse          InventoryLocationType = "WAREHOUSE"
+	InventoryLocationTypeStorage            InventoryLocationType = "STORAGE"
+	InventoryLocationTypeDropshipper        InventoryLocationType = "DROPSHIPPER"
+	InventoryLocationTypeFulfillmentPartner InventoryLocationType = "FULFILLMENT_PARTNER"
+	InventoryLocationTypeUnclassified       InventoryLocationType = "UNCLASSIFIED"
+)
+
+var AllInventoryLocationType = []InventoryLocationType{
+	InventoryLocationTypeRetailStore,
+	InventoryLocationTypeWarehouse,
+	InventoryLocationTypeStorage,
+	InventoryLocationTypeDropshipper,
+	InventoryLocationTypeFulfillmentPartner,
+	InventoryLocationTypeUnclassified,
+}
+
+func (e InventoryLocationType) IsValid() bool {
+	switch e {
+	case InventoryLocationTypeRetailStore, InventoryLocationTypeWarehouse, InventoryLocationTypeStorage, InventoryLocationTypeDropshipper, InventoryLocationTypeFulfillmentPartner, InventoryLocationTypeUnclassified:
+		return true
+	}
+	return false
+}
+
+func (e InventoryLocationType) String() string {
+	return string(e)
+}
+
+func (e *InventoryLocationType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = InventoryLocationType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid InventoryLocationType", str)
+	}
+	return nil
+}
+
+func (e InventoryLocationType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *InventoryLocationType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e InventoryLocationType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

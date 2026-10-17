@@ -1971,11 +1971,14 @@ export type CreateInventoryLocationInput = {
   metadata?: InputMaybe<Array<MetadataInput>>;
   name: Scalars['String']['input'];
   phone?: InputMaybe<Scalars['String']['input']>;
+  pickupEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  pickupInstructions?: InputMaybe<Scalars['String']['input']>;
   postalCode?: InputMaybe<Scalars['String']['input']>;
   region?: InputMaybe<Scalars['String']['input']>;
   slug: Scalars['String']['input'];
+  storefrontVisible?: InputMaybe<Scalars['Boolean']['input']>;
   timezone?: InputMaybe<Scalars['String']['input']>;
-  type?: InputMaybe<Scalars['String']['input']>;
+  type?: InputMaybe<InventoryLocationType>;
 };
 
 export type CreateLocaleInput = {
@@ -3166,10 +3169,27 @@ export type InventoryLocation = {
   postalCode: Scalars['String']['output'];
   region: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+  storefrontVisible: Scalars['Boolean']['output'];
   timezone: Scalars['String']['output'];
-  type: Scalars['String']['output'];
+  type: InventoryLocationType;
   updatedAt: Scalars['Time']['output'];
 };
+
+export type InventoryLocationFilter = {
+  city?: InputMaybe<Scalars['String']['input']>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  pickupEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  storefrontVisible?: InputMaybe<Scalars['Boolean']['input']>;
+  types?: InputMaybe<Array<InventoryLocationType>>;
+};
+
+export type InventoryLocationType =
+  | 'DROPSHIPPER'
+  | 'FULFILLMENT_PARTNER'
+  | 'RETAIL_STORE'
+  | 'STORAGE'
+  | 'UNCLASSIFIED'
+  | 'WAREHOUSE';
 
 export type InventoryMode =
   | 'FLAT'
@@ -4023,7 +4043,6 @@ export type Mutation = {
   setIntegrationActive: Integration;
   setInventoryItemBackorder: InventoryItem;
   setInventoryItemTracking: InventoryItem;
-  setLocationPickup: InventoryLocation;
   setMediaFocalPoint: MediaAsset;
   setMenuStores: Menu;
   setMyPreference: Scalars['Boolean']['output'];
@@ -6054,13 +6073,6 @@ export type MutationSetInventoryItemBackorderArgs = {
 export type MutationSetInventoryItemTrackingArgs = {
   productId: Scalars['ID']['input'];
   tracked: Scalars['Boolean']['input'];
-};
-
-
-export type MutationSetLocationPickupArgs = {
-  enabled: Scalars['Boolean']['input'];
-  id: Scalars['ID']['input'];
-  instructions?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -8379,6 +8391,7 @@ export type QueryInventoryLocationArgs = {
 
 
 export type QueryInventoryLocationsArgs = {
+  filter?: InputMaybe<InventoryLocationFilter>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   search?: InputMaybe<Scalars['String']['input']>;
@@ -8386,6 +8399,7 @@ export type QueryInventoryLocationsArgs = {
 
 
 export type QueryInventoryLocationsCountArgs = {
+  filter?: InputMaybe<InventoryLocationFilter>;
   search?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -10681,10 +10695,13 @@ export type UpdateInventoryLocationInput = {
   metadata?: InputMaybe<Array<MetadataInput>>;
   name?: InputMaybe<Scalars['String']['input']>;
   phone?: InputMaybe<Scalars['String']['input']>;
+  pickupEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  pickupInstructions?: InputMaybe<Scalars['String']['input']>;
   postalCode?: InputMaybe<Scalars['String']['input']>;
   region?: InputMaybe<Scalars['String']['input']>;
+  storefrontVisible?: InputMaybe<Scalars['Boolean']['input']>;
   timezone?: InputMaybe<Scalars['String']['input']>;
-  type?: InputMaybe<Scalars['String']['input']>;
+  type?: InputMaybe<InventoryLocationType>;
 };
 
 export type UpdateKitComponentInput = {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
   presignWebFormUploadAction,
   submitWebFormAction,
   type WebFormFile,
+  type WebFormSubmitResult,
 } from "@/app/lib/webforms/actions";
 import {
   isLayout,
@@ -46,10 +47,13 @@ export function WebFormClient({ form }: { form: InlineForm }) {
   });
   const [files, setFiles] = useState<Record<string, WebFormFile>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+  // The fields are defined in the CMS and validated by the backend, so the submission rides useActionState rather
+  // than a client schema; the answers stay live state because they drive conditional visibility as the shopper types
+  const [result, submit, submitting] = useActionState(
+    (_prev: WebFormSubmitResult | null, input: Parameters<typeof submitWebFormAction>[0]) => submitWebFormAction(input),
+    null,
+  );
   const honeypotRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLFormElement>(null);
 
@@ -67,13 +71,26 @@ export function WebFormClient({ form }: { form: InlineForm }) {
     document.head.appendChild(s);
   }, [captchaOn, provider]);
 
-  if (done) {
+  useEffect(() => {
+    if (result?.ok && result.redirectUrl) window.location.href = result.redirectUrl;
+  }, [result]);
+
+  if (result?.ok) {
+    if (result.redirectUrl) return null;
     return (
       <div className="mx-auto max-w-lg rounded-md border border-border bg-card p-6 text-center">
-        <p className="text-sm">{done}</p>
+        <p className="text-sm">{result.successMessage || t("thanks")}</p>
       </div>
     );
   }
+
+  const errors: Record<string, string> = { ...uploadErrors };
+  for (const fe of result?.errors ?? []) {
+    if (fe.field) errors[fe.field] = fe.message;
+  }
+  const formError = result
+    ? (result.errors.find((x) => !x.field)?.message ?? (result.errors.length ? t("fixErrors") : t("failed")))
+    : null;
 
   const visible = visibleFields(form.fields, answers).filter((f) => f.type !== "hidden");
 
@@ -91,7 +108,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
       return;
     }
     setUploading((u) => ({ ...u, [field.key]: true }));
-    setErrors((e) => ({ ...e, [field.key]: "" }));
+    setUploadErrors((e) => ({ ...e, [field.key]: "" }));
     try {
       const ticket = await presignWebFormUploadAction({
         formId: form.id,
@@ -101,7 +118,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
         sizeBytes: file.size,
       });
       if ("error" in ticket) {
-        setErrors((e) => ({ ...e, [field.key]: ticket.error }));
+        setUploadErrors((e) => ({ ...e, [field.key]: ticket.error }));
         return;
       }
       const put = await fetch(ticket.url, {
@@ -110,7 +127,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
         body: file,
       });
       if (!put.ok) {
-        setErrors((e) => ({ ...e, [field.key]: t("uploadFailed") }));
+        setUploadErrors((e) => ({ ...e, [field.key]: t("uploadFailed") }));
         return;
       }
       setFiles((f) => ({
@@ -126,11 +143,9 @@ export function WebFormClient({ form }: { form: InlineForm }) {
     }
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
-    setFormError(null);
-    setErrors({});
+    setUploadErrors({});
 
     const payload: Record<string, AnswerValue> = {};
     for (const f of form.fields) {
@@ -153,32 +168,15 @@ export function WebFormClient({ form }: { form: InlineForm }) {
       captchaToken = el?.value ?? "";
     }
 
-    try {
-      const res = await submitWebFormAction({
+    startTransition(() =>
+      submit({
         formId: form.id,
         values: payload,
         files: Object.values(files),
         honeypot: honeypotRef.current?.value ?? "",
         captchaToken,
-      });
-      if (res.ok) {
-        if (res.redirectUrl) {
-          window.location.href = res.redirectUrl;
-          return;
-        }
-        setDone(res.successMessage || t("thanks"));
-        return;
-      }
-      const fieldErrs: Record<string, string> = {};
-      for (const fe of res.errors) {
-        if (fe.field) fieldErrs[fe.field] = fe.message;
-      }
-      setErrors(fieldErrs);
-      const general = res.errors.find((x) => !x.field);
-      setFormError(general ? general.message : res.errors.length ? t("fixErrors") : t("failed"));
-    } finally {
-      setSubmitting(false);
-    }
+      }),
+    );
   }
 
   const visKeys = new Set(visible.map((v) => v.key));

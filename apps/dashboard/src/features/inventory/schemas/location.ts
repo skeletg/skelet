@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LOCATION_TYPES, LOCATION_TYPE_LABELS, type LocationType } from '../location-types'
 import { phoneIssue } from '@/lib/phone'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
@@ -34,8 +35,9 @@ export type ExistingLocation = {
   id: string
   slug: string
   name: string
+  storefrontVisible: boolean
   isActive: boolean
-  type: string
+  type: LocationType
   line1: string
   line2: string
   city: string
@@ -71,8 +73,9 @@ export const locationSchema = z
   .object({
     slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the location'),
     name: z.string().trim().min(1, 'Name is required').describe('Display name of the location'),
+    storefrontVisible: z.boolean().describe('Show this location to storefront customers'),
     isActive: z.boolean().describe('Whether the location is in use'),
-    type: z.string().describe('Kind of location, such as warehouse, retail, drop-shipper or fulfillment-center'),
+    type: z.enum(LOCATION_TYPES).describe('Purpose of the inventory location'),
     line1: z.string().describe('Street address - empty string for none'),
     line2: z.string().describe('Apartment, suite or floor - empty string for none'),
     city: z.string().describe('City - empty string for none'),
@@ -114,6 +117,7 @@ export type LocationValues = z.infer<typeof locationSchema>
 export const LOCATION_LABELS: Record<keyof LocationValues, string> = {
   slug: 'Slug',
   name: 'Name',
+  storefrontVisible: 'List in store finder',
   isActive: 'Active',
   type: 'Type',
   line1: 'Address line 1',
@@ -130,7 +134,7 @@ export const LOCATION_LABELS: Record<keyof LocationValues, string> = {
   phone: 'Phone',
   contactName: 'Contact name',
   externalReference: 'External reference',
-  pickupEnabled: 'Offer pickup',
+  pickupEnabled: 'Accept online orders for pickup',
   pickupInstructions: 'Pickup instructions',
   metadata: 'Metadata',
 }
@@ -172,8 +176,9 @@ export function toLocationValues(location?: ExistingLocation): LocationValues {
   return {
     slug: location?.slug ?? '',
     name: location?.name ?? '',
+    storefrontVisible: location?.storefrontVisible ?? false,
     isActive: location?.isActive ?? true,
-    type: location?.type ?? '',
+    type: location?.type ?? 'UNCLASSIFIED',
     line1: location?.line1 ?? '',
     line2: location?.line2 ?? '',
     city: location?.city ?? '',
@@ -195,10 +200,18 @@ export function toLocationValues(location?: ExistingLocation): LocationValues {
 }
 
 // Shared by create and update - slug, id and clearCoords are the only per-mutation extras
-export function toLocationInput(v: LocationValues) {
+export function effectiveLocationValues(v: LocationValues): LocationValues {
+  return v.type === 'RETAIL_STORE' ? v : { ...v, storefrontVisible: false, pickupEnabled: false }
+}
+
+export function toLocationInput(values: LocationValues) {
+  const v = effectiveLocationValues(values)
   return {
     name: v.name,
+    storefrontVisible: v.storefrontVisible,
     isActive: v.isActive,
+    pickupEnabled: v.pickupEnabled,
+    pickupInstructions: v.pickupInstructions,
     type: v.type,
     line1: v.line1,
     line2: v.line2,
@@ -222,7 +235,7 @@ export function toLocationInput(v: LocationValues) {
 // confirm dialog reads "Hours · Mon: 09:00–17:00 → closed" rather than a JSON blob. Slug is
 // immutable after create, so it never appears
 const SCALAR_FIELDS = (Object.keys(LOCATION_LABELS) as (keyof LocationValues)[]).filter(
-  (k) => k !== 'slug' && k !== 'hours' && k !== 'metadata',
+  (k) => k !== 'slug' && k !== 'hours' && k !== 'metadata' && k !== 'type',
 )
 
 function dayText(d: DayHours): string {
@@ -230,11 +243,15 @@ function dayText(d: DayHours): string {
 }
 
 
-export function locationDiff(original: LocationValues, draft: LocationValues): SectionDiffEntry[] {
+export function locationDiff(original: LocationValues, values: LocationValues): SectionDiffEntry[] {
+  const draft = effectiveLocationValues(values)
   const out = fieldDiff(
     original,
     draft,
-    SCALAR_FIELDS.map((k) => ({ label: LOCATION_LABELS[k], value: (o: LocationValues) => o[k] })),
+    [
+      { label: LOCATION_LABELS.type, value: (o: LocationValues) => LOCATION_TYPE_LABELS[o.type] },
+      ...SCALAR_FIELDS.map((k) => ({ label: LOCATION_LABELS[k], value: (o: LocationValues) => o[k] })),
+    ],
   )
   for (const [key, label] of DAYS) {
     const entry = changed(`Hours · ${label}`, dayText(original.hours[key]), dayText(draft.hours[key]))

@@ -105,6 +105,7 @@ func (h *Harness) NewStoreOpt(t TB, stock float64, priceCents int64, mutate func
 	loc, err := h.D.Inventory.CreateLocation(ctx, inventory.CreateLocationInput{
 		Slug: "e2e-loc-" + suffix,
 		Name: "E2E Location " + suffix,
+		Type: inventory.LocationRetail, // pickup tests enable click-and-collect here, which needs a retail store
 	})
 	if err != nil {
 		t.Fatalf("create location: %v", err)
@@ -135,6 +136,15 @@ func (h *Harness) NewStoreOpt(t TB, stock float64, priceCents int64, mutate func
 
 	h.SyncChannelRoster(t) // the beacon surface serves a channel only once core has pushed it across
 	return &Store{Channel: ch, Product: p, Location: loc, Item: item}
+}
+
+// EnablePickup offers click-and-collect at a store location, the way the dashboard's location save does
+func (h *Harness) EnablePickup(t TB, locationID uuid.UUID, instructions string) {
+	t.Helper()
+	on := true
+	if _, err := h.D.Inventory.UpdateLocation(h.Ctx, inventory.UpdateLocationInput{ID: locationID, PickupEnabled: &on, PickupInstructions: &instructions}); err != nil {
+		t.Fatalf("enable pickup: %v", err)
+	}
 }
 
 // SyncChannelRoster runs the channel-roster push the scheduler job runs, so the suite serves this

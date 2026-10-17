@@ -8,6 +8,7 @@ export const localeLinkMock = {
       {children}
     </a>
   ),
+  useChannelId: () => "test-channel",
   usePathname: () => "/",
   useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
 };

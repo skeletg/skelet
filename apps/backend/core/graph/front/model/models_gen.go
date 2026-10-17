@@ -531,6 +531,50 @@ type PromotionalDisplay struct {
 	PillBgColor   string              `json:"pillBgColor"`
 }
 
+type PublicStore struct {
+	ID            string            `json:"id"`
+	Slug          string            `json:"slug"`
+	Name          string            `json:"name"`
+	Line1         string            `json:"line1"`
+	Line2         string            `json:"line2"`
+	City          string            `json:"city"`
+	Region        string            `json:"region"`
+	PostalCode    string            `json:"postalCode"`
+	CountryCode   string            `json:"countryCode"`
+	Latitude      *float64          `json:"latitude,omitempty"`
+	Longitude     *float64          `json:"longitude,omitempty"`
+	Timezone      string            `json:"timezone"`
+	Hours         any               `json:"hours"`
+	Phone         string            `json:"phone"`
+	PickupEnabled bool              `json:"pickupEnabled"`
+	DistanceKm    *float64          `json:"distanceKm,omitempty"`
+	StockStatus   *StoreStockStatus `json:"stockStatus,omitempty"`
+}
+
+type PublicStoresInput struct {
+	ProductID        *string  `json:"productId,omitempty"`
+	City             *string  `json:"city,omitempty"`
+	Search           *string  `json:"search,omitempty"`
+	InStockOnly      *bool    `json:"inStockOnly,omitempty"`
+	PickupOnly       *bool    `json:"pickupOnly,omitempty"`
+	Latitude         *float64 `json:"latitude,omitempty"`
+	Longitude        *float64 `json:"longitude,omitempty"`
+	PreferredStoreID *string  `json:"preferredStoreId,omitempty"`
+	Limit            *int32   `json:"limit,omitempty"`
+	Offset           *int32   `json:"offset,omitempty"`
+}
+
+type PublicStoresResult struct {
+	Enabled                bool           `json:"enabled"`
+	StockCheckingAvailable bool           `json:"stockCheckingAvailable"`
+	ProductEligible        bool           `json:"productEligible"`
+	HasPickupStores        bool           `json:"hasPickupStores"`
+	Cities                 []string       `json:"cities"`
+	PreferredStore         *PublicStore   `json:"preferredStore,omitempty"`
+	Items                  []*PublicStore `json:"items"`
+	TotalCount             int32          `json:"totalCount"`
+}
+
 type ReferralInfo struct {
 	Enabled             bool   `json:"enabled"`
 	Code                string `json:"code"`
@@ -1270,6 +1314,65 @@ func (e *SitemapEntityType) UnmarshalJSON(b []byte) error {
 }
 
 func (e SitemapEntityType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StoreStockStatus string
+
+const (
+	StoreStockStatusInStock    StoreStockStatus = "IN_STOCK"
+	StoreStockStatusLowStock   StoreStockStatus = "LOW_STOCK"
+	StoreStockStatusOutOfStock StoreStockStatus = "OUT_OF_STOCK"
+	StoreStockStatusUnknown    StoreStockStatus = "UNKNOWN"
+)
+
+var AllStoreStockStatus = []StoreStockStatus{
+	StoreStockStatusInStock,
+	StoreStockStatusLowStock,
+	StoreStockStatusOutOfStock,
+	StoreStockStatusUnknown,
+}
+
+func (e StoreStockStatus) IsValid() bool {
+	switch e {
+	case StoreStockStatusInStock, StoreStockStatusLowStock, StoreStockStatusOutOfStock, StoreStockStatusUnknown:
+		return true
+	}
+	return false
+}
+
+func (e StoreStockStatus) String() string {
+	return string(e)
+}
+
+func (e *StoreStockStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StoreStockStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StoreStockStatus", str)
+	}
+	return nil
+}
+
+func (e StoreStockStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StoreStockStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StoreStockStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

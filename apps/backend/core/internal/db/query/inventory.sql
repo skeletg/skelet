@@ -7,7 +7,7 @@ INSERT INTO inventory_locations (
     latitude, longitude,
     type, timezone, hours,
     email, phone, contact_name, external_reference,
-    metadata
+    metadata, storefront_visible, pickup_enabled, pickup_instructions
 )
 VALUES (
     $1, $2, $3,
@@ -15,7 +15,7 @@ VALUES (
     $10, $11,
     $12, $13, $14,
     $15, $16, $17, $18,
-    $19
+    $19, $20, $21, $22
 )
 RETURNING *;
 
@@ -30,23 +30,6 @@ SELECT * FROM inventory_locations ORDER BY name;
 
 -- name: ListInventoryLocationsByIDs :many
 SELECT * FROM inventory_locations WHERE id = ANY($1::uuid[]);
-
--- name: ListInventoryLocationsPage :many
--- Paginated + searched variant of the list - search matches name, slug and city, case-insensitively - the dashboard locations grid drives this server-side once the location count outgrows one payload
-SELECT * FROM inventory_locations
-WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
-   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
-   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
-ORDER BY name
-LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
-
--- name: CountInventoryLocations :one
-SELECT COUNT(*) FROM inventory_locations
-WHERE sqlc.arg(search)::text = ''
-   OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
-   OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
-   OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%';
 
 -- name: UpdateInventoryLocation :one
 UPDATE inventory_locations
@@ -68,6 +51,9 @@ SET name                = $2,
     contact_name        = $17,
     external_reference  = $18,
     metadata            = $19,
+    storefront_visible  = $20,
+    pickup_enabled      = COALESCE(sqlc.narg(pickup_enabled)::boolean, pickup_enabled),
+    pickup_instructions = COALESCE(sqlc.narg(pickup_instructions)::text, pickup_instructions),
     updated_at          = NOW()
 WHERE id = $1
 RETURNING *;
@@ -293,14 +279,6 @@ ORDER BY (inv_items.low_stock_threshold - inv_items.quantity) DESC,
          products.url ASC
 LIMIT sqlc.arg(lim);
 
--- name: SetLocationPickup :one
--- Click-and-collect toggle: pickup-enabled active locations surface as
--- $0 shipping options via the builtin "pickup" carrier
-UPDATE inventory_locations
-SET pickup_enabled = $2, pickup_instructions = $3, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
-
 -- name: ListPickupLocations :many
 SELECT * FROM inventory_locations
 WHERE pickup_enabled AND is_active
@@ -414,3 +392,35 @@ SELECT (
         HAVING SUM(r.quantity_delta) <> 0
     ) open_chains)
 )::bigint AS total;
+
+-- name: ListPublicInventoryLocations :many
+SELECT l.* FROM inventory_locations l
+JOIN inventory_channel_locations cl ON cl.location_id = l.id
+WHERE cl.channel_id = $1 AND l.is_active AND l.storefront_visible
+ORDER BY lower(l.name), l.id;
+
+-- name: ListFilteredInventoryLocations :many
+SELECT * FROM inventory_locations
+WHERE (sqlc.arg(search)::text = ''
+ OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
+ AND (cardinality(sqlc.arg(types)::text[]) = 0 OR type = ANY(sqlc.arg(types)::text[]))
+ AND (sqlc.arg(city)::text = '' OR city ILIKE '%' || escape_like(sqlc.arg(city)::text) || '%')
+ AND (sqlc.narg(active)::boolean IS NULL OR is_active = sqlc.narg(active))
+ AND (sqlc.narg(visible)::boolean IS NULL OR storefront_visible = sqlc.narg(visible))
+ AND (sqlc.narg(pickup)::boolean IS NULL OR pickup_enabled = sqlc.narg(pickup))
+ORDER BY lower(name), id
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountFilteredInventoryLocations :one
+SELECT COUNT(*) FROM inventory_locations
+WHERE (sqlc.arg(search)::text = ''
+ OR name ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR slug ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%'
+ OR city ILIKE '%' || escape_like(sqlc.arg(search)::text) || '%')
+ AND (cardinality(sqlc.arg(types)::text[]) = 0 OR type = ANY(sqlc.arg(types)::text[]))
+ AND (sqlc.arg(city)::text = '' OR city ILIKE '%' || escape_like(sqlc.arg(city)::text) || '%')
+ AND (sqlc.narg(active)::boolean IS NULL OR is_active = sqlc.narg(active))
+ AND (sqlc.narg(visible)::boolean IS NULL OR storefront_visible = sqlc.narg(visible))
+ AND (sqlc.narg(pickup)::boolean IS NULL OR pickup_enabled = sqlc.narg(pickup));

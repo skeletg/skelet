@@ -1,0 +1,22 @@
+query PublicStores($input: PublicStoresInput) {
+  publicStores(input: $input) {
+    enabled
+    stockCheckingAvailable
+    hasPickupStores
+    productEligible
+    totalCount
+    cities
+    items { ...PublicStoreFields }
+    preferredStore { ...PublicStoreFields }
+  }
+}
+fragment PublicStoreFields on PublicStore {
+  id slug name line1 line2 city region postalCode countryCode
+  latitude longitude timezone hours phone pickupEnabled distanceKm stockStatus
+}
+query StoreProduct($id: ID!) {
+  product(id: $id) {
+    id name sku kind
+    children { id name sku kind }
+  }
+}

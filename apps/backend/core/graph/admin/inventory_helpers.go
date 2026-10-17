@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -53,13 +54,14 @@ func toInventoryLocationModel(l inventory.Location) *model.InventoryLocation {
 		hoursAny = map[string]any{}
 	}
 	return &model.InventoryLocation{
+		StorefrontVisible:  l.StorefrontVisible,
 		PickupEnabled:      l.PickupEnabled,
 		PickupInstructions: l.PickupInstructions,
 		ID:                 l.ID.String(),
 		Slug:               l.Slug,
 		Name:               l.Name,
 		IsActive:           l.IsActive,
-		Type:               l.Type,
+		Type:               toInventoryLocationType(l.Type),
 		Line1:              l.Line1,
 		Line2:              l.Line2,
 		City:               l.City,
@@ -170,6 +172,47 @@ func invMetadataFromInput(in []*model.MetadataInput) inventory.Metadata {
 			continue
 		}
 		out[item.Key] = item.Value
+	}
+	return out
+}
+
+// The one mapping between the GraphQL enum and the stored location type, read in both directions
+var locationTypes = map[model.InventoryLocationType]string{
+	model.InventoryLocationTypeRetailStore:        inventory.LocationRetail,
+	model.InventoryLocationTypeWarehouse:          inventory.LocationWarehouse,
+	model.InventoryLocationTypeStorage:            inventory.LocationStorage,
+	model.InventoryLocationTypeDropshipper:        inventory.LocationDropshipper,
+	model.InventoryLocationTypeFulfillmentPartner: inventory.LocationFulfillment,
+	model.InventoryLocationTypeUnclassified:       inventory.LocationUnclassified,
+}
+
+func toInventoryLocationType(value string) model.InventoryLocationType {
+	for enum, stored := range locationTypes {
+		if stored == value {
+			return enum
+		}
+	}
+	return model.InventoryLocationTypeUnclassified
+}
+
+func inventoryLocationTypeInput(value *model.InventoryLocationType) *string {
+	if value == nil {
+		return nil
+	}
+	v, ok := locationTypes[*value]
+	if !ok {
+		v = string(*value) // unmapped reaches the service, which rejects it rather than filing it as unclassified
+	}
+	return &v
+}
+
+func inventoryLocationFilter(input *model.InventoryLocationFilter) inventory.LocationFilter {
+	if input == nil {
+		return inventory.LocationFilter{}
+	}
+	out := inventory.LocationFilter{City: ptr.Deref(input.City), IsActive: input.IsActive, StorefrontVisible: input.StorefrontVisible, PickupEnabled: input.PickupEnabled}
+	for _, typ := range input.Types {
+		out.Types = append(out.Types, *inventoryLocationTypeInput(&typ))
 	}
 	return out
 }

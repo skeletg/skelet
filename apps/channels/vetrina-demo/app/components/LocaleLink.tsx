@@ -41,6 +41,10 @@ export function DefaultLocaleProvider({
   );
 }
 
+export function useChannelId(): string {
+  return useContext(ChannelSegmentContext);
+}
+
 export function useDefaultLocale(): string {
   return useContext(DefaultLocaleContext);
 }

@@ -20,6 +20,8 @@ func init() {
 	RegisterGroup(Group{Section: "sales", Slug: "checkout", Label: "Checkout", SortOrder: 1, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "orders", Label: "Orders", SortOrder: 2, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "inventory", Label: "Inventory", SortOrder: 3})
+	RegisterGroup(Group{Section: "sales", Slug: "store_availability", Label: "Store availability", SortOrder: 5, Scoping: ScopingChannel})
+	Register(Definition{Path: "sales/store_availability/enabled", Type: TypeBool, Default: "false", Label: "Show stores and product availability", Description: "Customers can find public stores and check product stock before visiting. Choose public locations under Inventory. Stock checking requires multi-location inventory; flat mode shows the store directory only.", Public: true})
 	RegisterGroup(Group{Section: "sales", Slug: "cart", Label: "Cart", SortOrder: 4})
 	RegisterGroup(Group{Section: "signals", Slug: "analytics", Label: "Analytics", SortOrder: 1})
 	RegisterGroup(Group{Section: "signals", Slug: "lens", Label: "Web Analytics", SortOrder: 2, Scoping: ScopingChannel})
