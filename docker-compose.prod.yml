@@ -26,6 +26,7 @@ x-shared-secrets: &shared-secrets
   <<: *edge-secrets
   # The contract's own secret - core signs with it, the suite verifies, the storefront and the beacon tier never get it
   SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from every other key)}
+  SIGNALS_SERVICE_SECRET_PREVIOUS: ${SIGNALS_SERVICE_SECRET_PREVIOUS:-}
   # Unsubscribe, open and click links - the suite signs them, core verifies the unsubscribe
   EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
   EMAIL_LINK_SECRET_PREVIOUS: ${EMAIL_LINK_SECRET_PREVIOUS:-}

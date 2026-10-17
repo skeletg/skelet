@@ -108,7 +108,7 @@ func newHarness(t *testing.T) *harness {
 		}
 		dsn, _ := testdb.URL("SIGNALS_DB_URL")
 		cfg := boot.Config{
-			Env: os.Getenv("APP_ENV"), Customers: signer.Verifier(), EmailLinks: emailtrack.NewSigner([]byte(linkKey)), ServiceSecret: service,
+			Env: os.Getenv("APP_ENV"), Customers: signer.Verifier(), EmailLinks: emailtrack.NewSigner([]byte(linkKey)), ServiceKeys: auth.MustServiceKeys(service),
 			SignalsURL: dsn, SignalsReadURL: dsn, SignalsMaxConns: 2, SignalsReadMaxConns: 2,
 		}
 		ctx := context.Background()

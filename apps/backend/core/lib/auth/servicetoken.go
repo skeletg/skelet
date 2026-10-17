@@ -73,7 +73,10 @@ func FilterGrants(grants []Grant, slugs []string) []Grant {
 	return out
 }
 
-func GenerateServiceToken(c ServiceClaims, audience, secret string, ttl time.Duration) (string, error) {
+func GenerateServiceToken(c ServiceClaims, audience string, keys ServiceKeys, ttl time.Duration) (string, error) {
+	if !keys.configured() {
+		return "", ErrNoServiceKey
+	}
 	if audience == "" {
 		return "", fmt.Errorf("service token needs an audience") // an audience-less token would validate at every service
 	}
@@ -99,7 +102,8 @@ func GenerateServiceToken(c ServiceClaims, audience, secret string, ttl time.Dur
 		ExpiresAt:  jwt.NewNumericDate(time.Now().Add(ttl)),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(secret))
+	token.Header["kid"] = keys.id // so a rotated secret keeps verifying what was signed just before
+	signed, err := token.SignedString(keys.secret)
 	if err != nil {
 		return "", fmt.Errorf("sign service token: %w", err)
 	}
@@ -107,13 +111,15 @@ func GenerateServiceToken(c ServiceClaims, audience, secret string, ttl time.Dur
 }
 
 // ValidateServiceToken refuses anything not minted for this audience, so one service's token is not a credential at another
-func ValidateServiceToken(tokenStr, audience, secret string) (*ServiceClaims, error) {
+func ValidateServiceToken(tokenStr, audience string, keys ServiceKeys) (*ServiceClaims, error) {
 	var c serviceJWTClaims
 	_, err := jwt.ParseWithClaims(tokenStr, &c, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		kid, _ := t.Header["kid"].(string)
+		k, ok := keys.verify[kid]
+		if !ok {
+			return nil, errUnknownKey
 		}
-		return []byte(secret), nil
+		return k, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, fmt.Errorf("validate service token: %w", err)

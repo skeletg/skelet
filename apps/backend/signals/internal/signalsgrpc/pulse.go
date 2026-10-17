@@ -51,6 +51,10 @@ func (s *pulseServer) GetEngagement(ctx context.Context, req *signalsv1.GetEngag
 // Gated on customers.view rather than emails.view - this hangs off a customer's profile, and an operator who may see the customer may see what was sent to them
 // A flow's email_activity condition asks this as core itself, the admin profile with a grant
 func (s *pulseServer) GetCustomerEngagement(ctx context.Context, req *signalsv1.GetCustomerEngagementRequest) (*signalsv1.GetCustomerEngagementResponse, error) {
+	// The permission before the lookup, so an anonymous caller can't tell a known customer from an unknown one
+	if err := requirePermissionOrSystem(ctx, "customers.view"); err != nil {
+		return nil, err
+	}
 	cid, err := parseID("customer_id", req.GetCustomerId())
 	if err != nil {
 		return nil, err

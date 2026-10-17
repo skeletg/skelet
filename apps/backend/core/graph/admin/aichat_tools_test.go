@@ -16,7 +16,7 @@ import (
 // Configured but never dialled - grpc.NewClient connects lazily, so this stands in for a reachable suite
 func dialableSignals(t *testing.T) *signalsclient.Client {
 	t.Helper()
-	c, err := signalsclient.New("127.0.0.1:1", "test-secret", time.Minute, nil)
+	c, err := signalsclient.New("127.0.0.1:1", auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatalf("signalsclient.New: %v", err)
 	}

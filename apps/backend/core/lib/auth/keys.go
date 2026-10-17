@@ -18,6 +18,7 @@ import (
 var (
 	ErrNoAdminKey    = errors.New("ADMIN_JWT_SECRET is not set")
 	ErrNoCustomerKey = errors.New("no customer session key is configured")
+	ErrNoServiceKey  = errors.New("SIGNALS_SERVICE_SECRET is not set")
 )
 
 // keyID is the first 8 bytes of the key's hash - stable for a key, and naming nothing about it
@@ -26,30 +27,55 @@ func keyID(material []byte) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// AdminKeys signs admin access tokens with the current secret and verifies against it and any previous one
-type AdminKeys struct {
+// An HMAC key set - the current secret signs, it and any retiring one verify
+type hmacKeys struct {
 	id     string
 	secret []byte
 	verify map[string][]byte
 }
 
-// NewAdminKeys takes the current secret and the ones still being retired, empty entries ignored
-func NewAdminKeys(current string, previous ...string) (AdminKeys, error) {
+func newHMACKeys(current string, previous []string) (hmacKeys, bool) {
 	current = strings.TrimSpace(current)
 	if current == "" {
-		return AdminKeys{}, ErrNoAdminKey
+		return hmacKeys{}, false
 	}
-	k := AdminKeys{id: keyID([]byte(current)), secret: []byte(current), verify: map[string][]byte{}}
+	k := hmacKeys{id: keyID([]byte(current)), secret: []byte(current), verify: map[string][]byte{}}
 	k.verify[k.id] = k.secret
 	for _, p := range previous {
 		if p = strings.TrimSpace(p); p != "" {
 			k.verify[keyID([]byte(p))] = []byte(p)
 		}
 	}
-	return k, nil
+	return k, true
 }
 
-func (k AdminKeys) configured() bool { return len(k.secret) > 0 }
+func (k hmacKeys) configured() bool { return len(k.secret) > 0 }
+
+// AdminKeys signs admin access tokens with the current secret and verifies against it and any previous one
+type AdminKeys struct{ hmacKeys }
+
+// NewAdminKeys takes the current secret and the ones still being retired, empty entries ignored
+func NewAdminKeys(current string, previous ...string) (AdminKeys, error) {
+	k, ok := newHMACKeys(current, previous)
+	if !ok {
+		return AdminKeys{}, ErrNoAdminKey
+	}
+	return AdminKeys{k}, nil
+}
+
+// ServiceKeys sign the tokens core and the Signals suite call each other with - the zero value means no suite is configured
+type ServiceKeys struct{ hmacKeys }
+
+func NewServiceKeys(current string, previous ...string) (ServiceKeys, error) {
+	k, ok := newHMACKeys(current, previous)
+	if !ok {
+		return ServiceKeys{}, ErrNoServiceKey
+	}
+	return ServiceKeys{k}, nil
+}
+
+// Configured is false for the zero value - a suite that is switched off or unaddressed
+func (k ServiceKeys) Configured() bool { return k.configured() }
 
 // CustomerVerifier checks customer access tokens - all the Signals tier ever holds
 type CustomerVerifier struct {
@@ -117,5 +143,15 @@ func GenerateCustomerKey() (seed, public string, err error) {
 func init() {
 	apperr.RegisterSentinel(ErrNoAdminKey, "ADMIN_SESSION_KEY_MISSING", apperr.ClassInternal)
 	apperr.RegisterSentinel(ErrNoCustomerKey, "CUSTOMER_SESSION_KEY_MISSING", apperr.ClassInternal)
+	apperr.RegisterSentinel(ErrNoServiceKey, "SERVICE_KEY_MISSING", apperr.ClassInternal)
 	apperr.RegisterSentinel(ErrRetiredJWTSecret, "JWT_SECRET_RETIRED", apperr.ClassInternal)
+}
+
+// MustServiceKeys is NewServiceKeys for a value known to be set - tests and fixed fixtures
+func MustServiceKeys(current string, previous ...string) ServiceKeys {
+	k, err := NewServiceKeys(current, previous...)
+	if err != nil {
+		panic(err)
+	}
+	return k
 }

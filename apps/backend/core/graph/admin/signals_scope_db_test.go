@@ -58,7 +58,7 @@ func (f *fakeStarterSeed) SeedStarterContent(context.Context, *signalsv1.SeedSta
 
 func fakeSignalsClient(t *testing.T) *signalsclient.Client {
 	t.Helper()
-	c, err := signalsclient.New("signals.invalid:1", "scope-test-secret", time.Minute, nil)
+	c, err := signalsclient.New("signals.invalid:1", auth.MustServiceKeys("scope-test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatalf("signals client: %v", err)
 	}

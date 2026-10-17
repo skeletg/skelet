@@ -17,7 +17,9 @@ func TestSessionKeysAreRequiredByTheServer(t *testing.T) {
 		"EMAIL_LINK_SECRET": strings.Repeat("e", 32), "REVIEW_VOTER_TOKEN_SECRET": strings.Repeat("v", 32),
 	}
 	set := func(env map[string]string) {
-		for _, k := range []string{"JWT_SECRET", "ADMIN_JWT_SECRET", "CUSTOMER_JWT_PRIVATE_KEY", "EMAIL_LINK_SECRET", "REVIEW_VOTER_TOKEN_SECRET"} {
+		// Every key variable, so whatever the container's own env holds can't leak into a case
+		for _, k := range []string{"JWT_SECRET", "ADMIN_JWT_SECRET", "ADMIN_JWT_SECRET_PREVIOUS", "CUSTOMER_JWT_PRIVATE_KEY", "CUSTOMER_JWT_PUBLIC_KEY",
+			"CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS", "EMAIL_LINK_SECRET", "EMAIL_LINK_SECRET_PREVIOUS", "REVIEW_VOTER_TOKEN_SECRET"} {
 			t.Setenv(k, env[k])
 		}
 	}

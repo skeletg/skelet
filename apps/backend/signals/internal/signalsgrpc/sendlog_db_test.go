@@ -36,7 +36,7 @@ func sendLogServer(t *testing.T) (signalsv1.IngestServiceClient, signalsv1.Pulse
 	t.Cleanup(func() { _ = spine.Close() })
 	qs := signalsdb.New(conn)
 	store := sendlog.NewStore(qs)
-	deps := Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, spine), SendLog: store, Suppression: suppression.New(qs)}
+	deps := Deps{ServiceKeys: testKeys, Analytics: analytics.NewRecorder(qs, spine), SendLog: store, Suppression: suppression.New(qs)}
 	cc := dial(t, deps)
 	return signalsv1.NewIngestServiceClient(cc), signalsv1.NewPulseServiceClient(cc), signalsv1.NewSuppressionServiceClient(cc), store
 }
