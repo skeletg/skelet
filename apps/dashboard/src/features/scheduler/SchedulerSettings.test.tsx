@@ -11,7 +11,7 @@ import { SchedulerSettings } from './SchedulerSettings'
 
 const config = {
   enabled: { __typename: 'ConfigValue', value: 'true', isDefault: true },
-  alertWebhookUrl: { __typename: 'ConfigValue', value: '', isDefault: true },
+  alertWebhookUrl: { __typename: 'ConfigValue', value: '', isDefault: true, isSet: false },
   historyRetentionDays: { __typename: 'ConfigValue', value: '30', isDefault: true },
 }
 

@@ -42,6 +42,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
 
 // Jobs owns the periodic-job engine - one engine runs every job; schedules are admin-configurable, persisted in scheduled_jobs, and claimed atomically so it's safe on every replica One ordered registration block rather than fx value groups - the jobs aren't owned by their domain packages, they're composition-root closures over several services each with env gates deciding which ones register at all, and a group:"jobs" fan-in would scatter the same closures across modules for no gain in isolation The outbox relay is deliberately NOT a job here - it's a 1s continuous drain, and a cron tick would 10x its event-delivery latency and serialize it
@@ -56,6 +57,8 @@ type jobDeps struct {
 	Queries *db.Queries
 
 	Config        *config.Service
+	Cipher        *secrets.Cipher
+	AllowPrivate  AllowPrivateTargets
 	Audit         *audit.Service
 	Notification  *notification.Service
 	SiteCrawl     *sitecrawl.Service
@@ -88,7 +91,9 @@ type jobDeps struct {
 
 func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	bootCtx := d.Ctx.Context // never named ctx - every handler below takes its own, and one shadowing the other is how a job ends up running on the boot context
-	jobScheduler := scheduler.New(d.Queries, d.Wcfg.Env != "production")
+	// The webhooks package's own rule - any non-production env used to count, so a staging scheduler could reach private targets
+	jobScheduler := scheduler.New(d.Queries, bool(d.AllowPrivate))
+	jobScheduler.SetCipher(d.Cipher)
 	// signalsJob registers a Signals-suite job only when SIGNALS_ENABLED is on - campaign/flow/analytics sweeps have nothing to do when the whole suite is off, while retention/prune jobs stay registered regardless (hygiene on existing data)
 	// How long an engine tick may keep draining before it answers - inside the minute, so the next tick is never late
 	const engineTickBudget = 45 * time.Second
