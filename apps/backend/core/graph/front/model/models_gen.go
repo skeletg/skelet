@@ -129,6 +129,7 @@ type Cart struct {
 	AppliedCodes  []*AppliedPromotionCode `json:"appliedCodes"`
 	TotalDiscount int32                   `json:"totalDiscount"`
 	Checkout      *CartCheckout           `json:"checkout"`
+	Offer         *CartOffer              `json:"offer,omitempty"`
 }
 
 type CartAddress struct {
@@ -198,6 +199,7 @@ type CartLine struct {
 	CurrentUnitPrice  *int32               `json:"currentUnitPrice,omitempty"`
 	Components        []*CartLineComponent `json:"components"`
 	Options           []*CartLineOption    `json:"options"`
+	IsCustom          bool                 `json:"isCustom"`
 }
 
 type CartLineComponent struct {
@@ -223,6 +225,21 @@ type CartLineOption struct {
 	Quantity        float64 `json:"quantity"`
 	SortOrder       int32   `json:"sortOrder"`
 	FileURL         string  `json:"fileUrl"`
+}
+
+type CartOffer struct {
+	ExpiresAt      time.Time             `json:"expiresAt"`
+	Message        string                `json:"message"`
+	State          model.CartOfferState  `json:"state"`
+	Locks          []model.CartOfferLock `json:"locks"`
+	IsGuest        bool                  `json:"isGuest"`
+	PaymentMethods []string              `json:"paymentMethods"`
+}
+
+type CartOfferOpening struct {
+	CartID        string               `json:"cartId"`
+	State         model.CartOfferState `json:"state"`
+	RequiresLogin bool                 `json:"requiresLogin"`
 }
 
 type CheckoutDestination struct {
@@ -700,6 +717,12 @@ type SubmitWebFormResult struct {
 type TierPrice struct {
 	MinQty float64 `json:"minQty"`
 	Price  int32   `json:"price"`
+}
+
+type TrackOrderResult struct {
+	OrderID       string `json:"orderId"`
+	RequiresLogin bool   `json:"requiresLogin"`
+	Email         string `json:"email"`
 }
 
 type WebFormFieldError struct {

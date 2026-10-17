@@ -3,6 +3,7 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import type { DocumentNode } from "graphql";
 import { print } from "graphql";
+import { cookies } from "next/headers";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
@@ -10,6 +11,7 @@ import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 import { shopperHeaders } from "@/app/lib/shopper-headers";
 import { isPublicOp } from "@/app/lib/public-ops";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
+import { decodeOfferSession, OFFER_COOKIE, OFFER_HEADER } from "@/app/lib/cart/offer-cookie";
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
 const FRONT_API_PATH = process.env.FRONT_API_SLUG
@@ -135,6 +137,16 @@ export async function gqlFetch<TData, TVariables>(
     headers.Authorization = `Bearer ${accessToken}`;
   }
   Object.assign(headers, await shopperHeaders());
+  // An offer cart answers to its link, not its id - the link's token goes with every private call
+  if (!isPublicOp(opName)) {
+    try {
+      const offerToken = decodeOfferSession((await cookies()).get(OFFER_COOKIE)?.value)?.token;
+      if (offerToken) headers[OFFER_HEADER] = offerToken;
+    } catch (err) {
+      rethrowIfDynamicBailout(err);
+      // not in a request scope - nothing to forward
+    }
+  }
   if (options.extraHeaders) {
     for (const [k, v] of Object.entries(options.extraHeaders)) {
       if (v) headers[k] = v;

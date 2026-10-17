@@ -23,12 +23,6 @@ var publicResolvers = map[string]string{
 	"DevImpersonate": "refuses unless r.DevMode",
 
 	// The gate lives in the plugin's own resolver, reached here only through pluginhost.Do
-
-	// Self-scoped - they demand admin claims and touch only that admin's own rows
-	"SaveChatConversation":   "own rows only, keyed by the caller's admin id",
-	"DeleteChatConversation": "own rows only, keyed by the caller's admin id",
-	"ChatConversations":      "own rows only, keyed by the caller's admin id",
-	"ChatConversation":       "own rows only, keyed by the caller's admin id",
 }
 
 // A field resolver hangs off a parent the caller already had to be authorized to hold, so demanding its own guard on each one would be noise - the risk is the OTHER direction: one added later that quietly reads a domain its parent's gate never covered (inventory through a product, say, or payouts through an order) So every ungated field resolver is written down with why the parent's gate is enough, and a new one fails this test until someone makes that call deliberately

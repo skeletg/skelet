@@ -80,9 +80,9 @@ func (r *mutationResolver) ClaimCMSPage(ctx context.Context, id string) (*model.
 	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
 		return nil, err
 	}
-	claims, ok := auth.AdminFromContext(ctx)
-	if !ok {
-		return nil, errAdminRequired()
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return nil, err
 	}
 	adminID := claims.AdminID
 	p, err := r.CMSSvc.AssignPage(ctx, uid, &adminID)

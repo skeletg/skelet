@@ -161,10 +161,9 @@ func (r *Resolver) offeredOptions(ctx context.Context, channelID uuid.UUID) []de
 // checkoutView plans the cart - read on every checkout response, so it quotes each shipment once and nothing else
 func (r *Resolver) checkoutView(ctx context.Context, c cart.Cart) *checkoutView {
 	v := &checkoutView{c: c, options: r.offeredOptions(ctx, c.ChannelID), profiles: map[string]delivery.LineProfile{}}
-	lines := make([]delivery.Line, 0, len(c.Lines))
+	lines := cart.DeliveryLines(c.Lines)
 	skus := make([]string, 0, len(c.Lines))
 	for _, l := range c.Lines {
-		lines = append(lines, delivery.Line{ID: l.ID, SKU: l.ProductSku, Name: l.ProductName, Quantity: l.Quantity, UnitPrice: l.UnitPrice})
 		skus = append(skus, l.ProductSku)
 	}
 	if r.DeliverySvc != nil {
@@ -174,6 +173,7 @@ func (r *Resolver) checkoutView(ctx context.Context, c cart.Cart) *checkoutView 
 			v.profilesErr = err
 		}
 	}
+	v.profiles = cart.DeliveryProfiles(c.Lines, v.profiles)
 	co := c.Checkout
 	v.plan = delivery.PlanGroups(lines, v.profiles, delivery.OfferedKinds(v.options), co.SplitDelivery)
 	v.splittable = len(delivery.PlanGroups(lines, v.profiles, delivery.OfferedKinds(v.options), true).Groups) > 1

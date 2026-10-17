@@ -174,6 +174,9 @@ type AdminCart struct {
 	ChannelID     string           `json:"channelId"`
 	CurrencyCode  string           `json:"currencyCode"`
 	Status        string           `json:"status"`
+	Kind          CartKind         `json:"kind"`
+	Email         string           `json:"email"`
+	Offer         *AdminCartOffer  `json:"offer,omitempty"`
 	Lines         []*AdminCartLine `json:"lines"`
 	Subtotal      int32            `json:"subtotal"`
 	ItemCount     int32            `json:"itemCount"`
@@ -181,16 +184,85 @@ type AdminCart struct {
 	UpdatedAt     time.Time        `json:"updatedAt"`
 }
 
+type AdminCartAddress struct {
+	FirstName   string  `json:"firstName"`
+	LastName    string  `json:"lastName"`
+	Company     *string `json:"company,omitempty"`
+	Street1     string  `json:"street1"`
+	Street2     *string `json:"street2,omitempty"`
+	City        string  `json:"city"`
+	State       *string `json:"state,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+	CountryCode string  `json:"countryCode"`
+	Phone       *string `json:"phone,omitempty"`
+}
+
+type AdminCartAddressInput struct {
+	FirstName   string  `json:"firstName"`
+	LastName    string  `json:"lastName"`
+	Company     *string `json:"company,omitempty"`
+	Street1     string  `json:"street1"`
+	Street2     *string `json:"street2,omitempty"`
+	City        string  `json:"city"`
+	State       *string `json:"state,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+	CountryCode string  `json:"countryCode"`
+	Phone       *string `json:"phone,omitempty"`
+}
+
+type AdminCartDeliveryChoice struct {
+	OptionID    string `json:"optionId"`
+	OptionName  string `json:"optionName"`
+	Kind        string `json:"kind"`
+	CarrierSlug string `json:"carrierSlug"`
+	MethodCode  string `json:"methodCode"`
+	MethodName  string `json:"methodName"`
+	Price       int32  `json:"price"`
+	NeedsPoint  bool   `json:"needsPoint"`
+}
+
+type AdminCartDeliveryGroup struct {
+	Key     string                     `json:"key"`
+	Lines   []string                   `json:"lines"`
+	Choices []*AdminCartDeliveryChoice `json:"choices"`
+}
+
+type AdminCartDeliveryInput struct {
+	GroupKey    string  `json:"groupKey"`
+	OptionID    string  `json:"optionId"`
+	CarrierSlug string  `json:"carrierSlug"`
+	MethodCode  string  `json:"methodCode"`
+	PointID     *string `json:"pointId,omitempty"`
+}
+
+type AdminCartDeliveryPoint struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Address string `json:"address"`
+}
+
+type AdminCartDeliverySelection struct {
+	GroupKey    string  `json:"groupKey"`
+	OptionID    string  `json:"optionId"`
+	CarrierSlug string  `json:"carrierSlug"`
+	MethodCode  string  `json:"methodCode"`
+	PointID     *string `json:"pointId,omitempty"`
+	PointName   *string `json:"pointName,omitempty"`
+}
+
 type AdminCartLine struct {
-	ID         string                    `json:"id"`
-	Name       string                    `json:"name"`
-	Sku        string                    `json:"sku"`
-	UnitPrice  int32                     `json:"unitPrice"`
-	Quantity   float64                   `json:"quantity"`
-	TotalPrice int32                     `json:"totalPrice"`
-	IsSimple   bool                      `json:"isSimple"`
-	Components []*AdminCartLineComponent `json:"components"`
-	Options    []*AdminCartLineOption    `json:"options"`
+	ID            string                    `json:"id"`
+	Name          string                    `json:"name"`
+	Sku           string                    `json:"sku"`
+	UnitPrice     int32                     `json:"unitPrice"`
+	Quantity      float64                   `json:"quantity"`
+	TotalPrice    int32                     `json:"totalPrice"`
+	IsSimple      bool                      `json:"isSimple"`
+	Components    []*AdminCartLineComponent `json:"components"`
+	Options       []*AdminCartLineOption    `json:"options"`
+	PriceOverride bool                      `json:"priceOverride"`
+	IsCustom      bool                      `json:"isCustom"`
+	TaxClass      string                    `json:"taxClass"`
 }
 
 type AdminCartLineComponent struct {
@@ -217,6 +289,53 @@ type AdminCartLineOptionInput struct {
 	FileAssetID *string  `json:"fileAssetId,omitempty"`
 }
 
+type AdminCartOffer struct {
+	State          CartOfferState          `json:"state"`
+	ExpiresAt      time.Time               `json:"expiresAt"`
+	Message        string                  `json:"message"`
+	ShowInAccount  bool                    `json:"showInAccount"`
+	Locks          []CartOfferLock         `json:"locks"`
+	PaymentMethods []string                `json:"paymentMethods"`
+	Link           string                  `json:"link"`
+	LinkPath       string                  `json:"linkPath"`
+	NeedsShipping  bool                    `json:"needsShipping"`
+	SentAt         *time.Time              `json:"sentAt,omitempty"`
+	SendCount      int32                   `json:"sendCount"`
+	OpenedAt       *time.Time              `json:"openedAt,omitempty"`
+	RevokedAt      *time.Time              `json:"revokedAt,omitempty"`
+	OrderID        *string                 `json:"orderId,omitempty"`
+	Checkout       *AdminCartOfferCheckout `json:"checkout"`
+}
+
+type AdminCartOfferCheckout struct {
+	ShippingAddress       *AdminCartAddress             `json:"shippingAddress,omitempty"`
+	BillingSameAsShipping bool                          `json:"billingSameAsShipping"`
+	BillingAddress        *AdminCartAddress             `json:"billingAddress,omitempty"`
+	PaymentProviderSlug   string                        `json:"paymentProviderSlug"`
+	Deliveries            []*AdminCartDeliverySelection `json:"deliveries"`
+}
+
+type AdminCartOfferEmailPreview struct {
+	To           string `json:"to"`
+	Subject      string `json:"subject"`
+	HTML         string `json:"html"`
+	Text         string `json:"text"`
+	Link         string `json:"link"`
+	LinkComplete bool   `json:"linkComplete"`
+}
+
+type AdminCartOfferPaymentMethod struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+type AdminCreateCartOfferInput struct {
+	ChannelID  string     `json:"channelId"`
+	CustomerID *string    `json:"customerId,omitempty"`
+	Email      *string    `json:"email,omitempty"`
+	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
+}
+
 type AdminCreateCustomerInput struct {
 	ChannelID         string  `json:"channelId"`
 	Email             string  `json:"email"`
@@ -227,6 +346,13 @@ type AdminCreateCustomerInput struct {
 	IsActive          *bool   `json:"isActive,omitempty"`
 	IsEmailVerified   *bool   `json:"isEmailVerified,omitempty"`
 	CustomerGroupSlug *string `json:"customerGroupSlug,omitempty"`
+}
+
+type AdminCustomCartLineInput struct {
+	Name      string  `json:"name"`
+	UnitPrice int32   `json:"unitPrice"`
+	Quantity  float64 `json:"quantity"`
+	TaxClass  *string `json:"taxClass,omitempty"`
 }
 
 type AdminLoginInput struct {
@@ -280,6 +406,18 @@ type AdminSession struct {
 type AdminTotpSetup struct {
 	Secret     string `json:"secret"`
 	OtpauthURL string `json:"otpauthUrl"`
+}
+
+type AdminUpdateCartOfferInput struct {
+	ExpiresAt             time.Time                 `json:"expiresAt"`
+	Message               string                    `json:"message"`
+	ShowInAccount         bool                      `json:"showInAccount"`
+	Locks                 []CartOfferLock           `json:"locks"`
+	ShippingAddress       *AdminCartAddressInput    `json:"shippingAddress,omitempty"`
+	BillingSameAsShipping bool                      `json:"billingSameAsShipping"`
+	BillingAddress        *AdminCartAddressInput    `json:"billingAddress,omitempty"`
+	PaymentMethods        []string                  `json:"paymentMethods"`
+	Deliveries            []*AdminCartDeliveryInput `json:"deliveries"`
 }
 
 type AdminUpdateCustomerInput struct {
@@ -428,15 +566,16 @@ type AttributedRevenue struct {
 }
 
 type AuditLogEntry struct {
-	ID         string    `json:"id"`
-	AdminID    *string   `json:"adminId,omitempty"`
-	AdminEmail string    `json:"adminEmail"`
-	Action     string    `json:"action"`
-	Detail     any       `json:"detail,omitempty"`
-	IP         string    `json:"ip"`
-	Success    bool      `json:"success"`
-	DurationMs int32     `json:"durationMs"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID            string    `json:"id"`
+	AdminID       *string   `json:"adminId,omitempty"`
+	IntegrationID *string   `json:"integrationId,omitempty"`
+	AdminEmail    string    `json:"adminEmail"`
+	Action        string    `json:"action"`
+	Detail        any       `json:"detail,omitempty"`
+	IP            string    `json:"ip"`
+	Success       bool      `json:"success"`
+	DurationMs    int32     `json:"durationMs"`
+	CreatedAt     time.Time `json:"createdAt"`
 }
 
 type AuditLogPage struct {
@@ -953,16 +1092,21 @@ type CartList struct {
 }
 
 type CartListItem struct {
-	ID            string    `json:"id"`
-	CustomerID    *string   `json:"customerId,omitempty"`
-	CustomerEmail *string   `json:"customerEmail,omitempty"`
-	CustomerName  *string   `json:"customerName,omitempty"`
-	ChannelID     string    `json:"channelId"`
-	CurrencyCode  string    `json:"currencyCode"`
-	Status        string    `json:"status"`
-	ItemCount     int32     `json:"itemCount"`
-	Subtotal      int32     `json:"subtotal"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID             string          `json:"id"`
+	CustomerID     *string         `json:"customerId,omitempty"`
+	CustomerEmail  *string         `json:"customerEmail,omitempty"`
+	CustomerName   *string         `json:"customerName,omitempty"`
+	ChannelID      string          `json:"channelId"`
+	CurrencyCode   string          `json:"currencyCode"`
+	Status         string          `json:"status"`
+	Kind           CartKind        `json:"kind"`
+	Email          string          `json:"email"`
+	OfferState     *CartOfferState `json:"offerState,omitempty"`
+	OfferExpiresAt *time.Time      `json:"offerExpiresAt,omitempty"`
+	OrderID        *string         `json:"orderId,omitempty"`
+	ItemCount      int32           `json:"itemCount"`
+	Subtotal       int32           `json:"subtotal"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
 type CascadeAttributeIndexableResult struct {
@@ -2070,6 +2214,7 @@ type DataJob struct {
 	Options       any     `json:"options"`
 	ChannelID     *string `json:"channelId,omitempty"`
 	AdminID       *string `json:"adminId,omitempty"`
+	IntegrationID *string `json:"integrationId,omitempty"`
 	Filename      string  `json:"filename"`
 	// False once the retention sweep has removed the file - the row outlives it
 	HasArtifact   bool     `json:"hasArtifact"`
@@ -3167,6 +3312,7 @@ type OrderLine struct {
 	Quantity   float64               `json:"quantity"`
 	TotalPrice int32                 `json:"totalPrice"`
 	IsGift     bool                  `json:"isGift"`
+	IsCustom   bool                  `json:"isCustom"`
 	Options    []*OrderLineOption    `json:"options"`
 	Components []*OrderLineComponent `json:"components"`
 }
@@ -3909,29 +4055,30 @@ type ReturnLineInput struct {
 }
 
 type Review struct {
-	ID                 string          `json:"id"`
-	ProductID          string          `json:"productId"`
-	CustomerID         *string         `json:"customerId,omitempty"`
-	GuestName          string          `json:"guestName"`
-	GuestEmail         string          `json:"guestEmail"`
-	ChannelID          string          `json:"channelId"`
-	Locale             string          `json:"locale"`
-	Title              string          `json:"title"`
-	Body               string          `json:"body"`
-	IsVerifiedPurchase bool            `json:"isVerifiedPurchase"`
-	Status             ReviewStatus    `json:"status"`
-	SubmittedAt        time.Time       `json:"submittedAt"`
-	ModeratedAt        *time.Time      `json:"moderatedAt,omitempty"`
-	ModeratedBy        *string         `json:"moderatedBy,omitempty"`
-	ModeratorNote      string          `json:"moderatorNote"`
-	ModerationLabel    string          `json:"moderationLabel"`
-	ModerationReason   string          `json:"moderationReason"`
-	ModerationTags     []string        `json:"moderationTags"`
-	CategorySlugs      []string        `json:"categorySlugs"`
-	MerchantReply      string          `json:"merchantReply"`
-	MerchantReplyAt    *time.Time      `json:"merchantReplyAt,omitempty"`
-	Answers            []*ReviewAnswer `json:"answers"`
-	Media              []*ReviewMedia  `json:"media"`
+	ID                     string          `json:"id"`
+	ProductID              string          `json:"productId"`
+	CustomerID             *string         `json:"customerId,omitempty"`
+	GuestName              string          `json:"guestName"`
+	GuestEmail             string          `json:"guestEmail"`
+	ChannelID              string          `json:"channelId"`
+	Locale                 string          `json:"locale"`
+	Title                  string          `json:"title"`
+	Body                   string          `json:"body"`
+	IsVerifiedPurchase     bool            `json:"isVerifiedPurchase"`
+	Status                 ReviewStatus    `json:"status"`
+	SubmittedAt            time.Time       `json:"submittedAt"`
+	ModeratedAt            *time.Time      `json:"moderatedAt,omitempty"`
+	ModeratedBy            *string         `json:"moderatedBy,omitempty"`
+	ModeratedByIntegration *string         `json:"moderatedByIntegration,omitempty"`
+	ModeratorNote          string          `json:"moderatorNote"`
+	ModerationLabel        string          `json:"moderationLabel"`
+	ModerationReason       string          `json:"moderationReason"`
+	ModerationTags         []string        `json:"moderationTags"`
+	CategorySlugs          []string        `json:"categorySlugs"`
+	MerchantReply          string          `json:"merchantReply"`
+	MerchantReplyAt        *time.Time      `json:"merchantReplyAt,omitempty"`
+	Answers                []*ReviewAnswer `json:"answers"`
+	Media                  []*ReviewMedia  `json:"media"`
 }
 
 type ReviewAnswer struct {
@@ -6382,6 +6529,185 @@ func (e *CMSWorkflowState) UnmarshalJSON(b []byte) error {
 }
 
 func (e CMSWorkflowState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type CartKind string
+
+const (
+	CartKindShopper CartKind = "SHOPPER"
+	CartKindOffer   CartKind = "OFFER"
+)
+
+var AllCartKind = []CartKind{
+	CartKindShopper,
+	CartKindOffer,
+}
+
+func (e CartKind) IsValid() bool {
+	switch e {
+	case CartKindShopper, CartKindOffer:
+		return true
+	}
+	return false
+}
+
+func (e CartKind) String() string {
+	return string(e)
+}
+
+func (e *CartKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CartKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CartKind", str)
+	}
+	return nil
+}
+
+func (e CartKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CartKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CartKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type CartOfferLock string
+
+const (
+	CartOfferLockLines    CartOfferLock = "LINES"
+	CartOfferLockBilling  CartOfferLock = "BILLING"
+	CartOfferLockShipping CartOfferLock = "SHIPPING"
+	CartOfferLockDelivery CartOfferLock = "DELIVERY"
+	CartOfferLockCoupons  CartOfferLock = "COUPONS"
+)
+
+var AllCartOfferLock = []CartOfferLock{
+	CartOfferLockLines,
+	CartOfferLockBilling,
+	CartOfferLockShipping,
+	CartOfferLockDelivery,
+	CartOfferLockCoupons,
+}
+
+func (e CartOfferLock) IsValid() bool {
+	switch e {
+	case CartOfferLockLines, CartOfferLockBilling, CartOfferLockShipping, CartOfferLockDelivery, CartOfferLockCoupons:
+		return true
+	}
+	return false
+}
+
+func (e CartOfferLock) String() string {
+	return string(e)
+}
+
+func (e *CartOfferLock) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CartOfferLock(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CartOfferLock", str)
+	}
+	return nil
+}
+
+func (e CartOfferLock) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CartOfferLock) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CartOfferLock) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type CartOfferState string
+
+const (
+	CartOfferStateDraft     CartOfferState = "DRAFT"
+	CartOfferStateSent      CartOfferState = "SENT"
+	CartOfferStateOpened    CartOfferState = "OPENED"
+	CartOfferStateCompleted CartOfferState = "COMPLETED"
+	CartOfferStateExpired   CartOfferState = "EXPIRED"
+	CartOfferStateRevoked   CartOfferState = "REVOKED"
+)
+
+var AllCartOfferState = []CartOfferState{
+	CartOfferStateDraft,
+	CartOfferStateSent,
+	CartOfferStateOpened,
+	CartOfferStateCompleted,
+	CartOfferStateExpired,
+	CartOfferStateRevoked,
+}
+
+func (e CartOfferState) IsValid() bool {
+	switch e {
+	case CartOfferStateDraft, CartOfferStateSent, CartOfferStateOpened, CartOfferStateCompleted, CartOfferStateExpired, CartOfferStateRevoked:
+		return true
+	}
+	return false
+}
+
+func (e CartOfferState) String() string {
+	return string(e)
+}
+
+func (e *CartOfferState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CartOfferState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CartOfferState", str)
+	}
+	return nil
+}
+
+func (e CartOfferState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CartOfferState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CartOfferState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

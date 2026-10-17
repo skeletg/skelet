@@ -10,7 +10,7 @@ import (
 
 func (r *queryResolver) SignalsInsights(ctx context.Context, channelID string, sinceDays *int32) ([]*model.SignalsInsight, error) {
 	// Deterministic scan of notable changes, no LLM - and digestPermsFor treats a missing admin as full bypass (see LoadPermittedChannels), so without this guard an anonymous caller reads every channel's Signals analytics
-	if _, err := auth.RequireAuth(ctx); err != nil {
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)

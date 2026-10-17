@@ -124,6 +124,15 @@ func (e *Enroller) OnAccountExists(ctx context.Context, channelID, customerID uu
 		})
 }
 
+// Every send is its own moment - an admin resending an offer means another mail
+func (e *Enroller) OnCartOffer(ctx context.Context, channelID, customerID uuid.UUID, to string, cartID uuid.UUID, link, expiresAt, message, storeName, firstName string) int {
+	return e.answered(ctx, signalsapi.TriggerCartOffer, moment(signalsapi.TriggerCartOffer, cartID.String(), strconv.FormatInt(time.Now().UnixNano(), 10)),
+		channelID, customerID, to, map[string]any{
+			signalsapi.PayloadCartID: cartID.String(), signalsapi.PayloadOfferLink: link, signalsapi.PayloadOfferExpires: expiresAt,
+			signalsapi.PayloadOfferMessage: message, signalsapi.PayloadStoreName: storeName, signalsapi.PayloadFirstName: firstName,
+		})
+}
+
 // --- the marketing moments core's domains and jobs raise ---
 // No mail of core's to fall back on, so an unknown answer comes back as the error and the relay or the next tick asks again
 

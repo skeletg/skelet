@@ -1,0 +1,10 @@
+# Account badges use only ids and offer states, without fetching product or cart lines.
+query AccountCounts {
+  wishlistProductIds
+  myCartOffers {
+    id
+    offer {
+      state
+    }
+  }
+}

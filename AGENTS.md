@@ -86,8 +86,9 @@ anything.
 | ClickHouse spine | `apps/backend/signals/internal/analytics/spinech/migrations/` |
 
 The baseline migration in each stream is generated rather than hand-written, so don't
-edit one. A schema change is a new numbered migration on top, paired with its
-`.down.sql`. Rows every install needs belong in the reference-data migration rather
+edit one. A schema change is a new migration on top, made with `./skelet db migrate new <name>`:
+one dbmate file, timestamped so parallel branches never collide, with its `-- migrate:up` and
+`-- migrate:down` halves. Rows every install needs belong in the reference-data migration rather
 than in a data patch. Layout and the regeneration procedure:
 [docs/database.md](docs/database.md).
 

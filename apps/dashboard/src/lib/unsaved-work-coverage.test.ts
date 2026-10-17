@@ -54,8 +54,6 @@ const NO_STAGED_EDITS: Record<string, string> = {
   '@/features/audit/AuditLogPage': 'read-only log viewer - the only state is filters',
   '@/features/preferences/PreferencesPage':
     'preferences write immediately by convention - the control IS its own preview',
-  '@/features/carts/CartDetail':
-    'admin cart console - line editors are inline CRUD rows that apply on their own',
   '@/features/webhooks/WebhookDetail':
     'lifecycle actions (rotate, clear, delete) behind confirms - no staged form',
   '@/features/segments/SegmentsListPage': 'list only - the editor is SegmentDetailPage',

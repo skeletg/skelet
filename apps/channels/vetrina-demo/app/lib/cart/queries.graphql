@@ -62,6 +62,15 @@ fragment CartFull on Cart {
       quantity
       fileUrl
     }
+    isCustom
+  }
+  offer {
+    expiresAt
+    message
+    state
+    locks
+    paymentMethods
+    isGuest
   }
 }
 

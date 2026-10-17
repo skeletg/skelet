@@ -115,10 +115,14 @@ func TestRateItemsFromLines(t *testing.T) {
 	lines := []OrderLine{
 		{ProductSku: "A-1", Quantity: 2, UnitPrice: 1000},
 		{ProductSku: "B-2", Quantity: 1.5, UnitPrice: 250},
+		{ProductSku: "CUSTOM-1", Quantity: 1, UnitPrice: 50000, IsCustom: true},
 	}
-	got := rateItemsFromLines(lines)
+	got, subtotal := rateItemsFromLines(lines)
 	if len(got) != 2 {
-		t.Fatalf("%d rate items, want 2", len(got))
+		t.Fatalf("%d rate items, want 2 - a custom line never ships", len(got))
+	}
+	if subtotal != 2375 {
+		t.Errorf("shipping subtotal = %d, want 2375 - the custom line's value is not goods shipped", subtotal)
 	}
 	if got[0] != (shippingpkg.RateItem{SKU: "A-1", Quantity: 2, UnitPriceCents: 1000}) {
 		t.Errorf("item 0 = %+v, want the line's sku, qty and unit price", got[0])
@@ -126,7 +130,7 @@ func TestRateItemsFromLines(t *testing.T) {
 	if got[1].Quantity != 1.5 {
 		t.Errorf("fractional quantity = %v, want 1.5 preserved", got[1].Quantity)
 	}
-	if empty := rateItemsFromLines(nil); empty == nil || len(empty) != 0 {
+	if empty, _ := rateItemsFromLines(nil); empty == nil || len(empty) != 0 {
 		t.Errorf("rateItemsFromLines(nil) = %v, want an empty non-nil slice", empty)
 	}
 }

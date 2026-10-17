@@ -18,7 +18,9 @@ export function useReturnToNextStep(lastResult: FormResult | undefined) {
   const params = useSearchParams();
   useEffect(() => {
     if (lastResult?.status === "success" && params.has("step")) {
-      router.replace(pathname, { scroll: false });
+      const next = new URLSearchParams(params.toString());
+      next.delete("step");
+      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
     }
   }, [lastResult, params, pathname, router]);
 }

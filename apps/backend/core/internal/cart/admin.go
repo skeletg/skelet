@@ -102,6 +102,9 @@ func (s *Service) AdminDuplicateCart(ctx context.Context, sourceCartID uuid.UUID
 		}
 		return Cart{}, err
 	}
+	if src.IsOffer() {
+		return Cart{}, ErrOfferLocked
+	}
 	lines, err := s.repo.ListCartLinesByCart(ctx, sourceCartID)
 	if err != nil {
 		return Cart{}, fmt.Errorf("load source lines: %w", err)

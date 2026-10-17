@@ -99,7 +99,7 @@ func (r *mutationResolver) ResetAdminPassword(ctx context.Context, token string,
 }
 
 func (r *mutationResolver) AdminTotpSetup(ctx context.Context) (*model.AdminTotpSetup, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (r *mutationResolver) AdminTotpSetup(ctx context.Context) (*model.AdminTotp
 }
 
 func (r *mutationResolver) AdminTotpEnable(ctx context.Context, code string) ([]string, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (r *mutationResolver) AdminTotpEnable(ctx context.Context, code string) ([]
 }
 
 func (r *mutationResolver) AdminTotpDisable(ctx context.Context, code string) (bool, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -203,7 +203,7 @@ func (r *mutationResolver) Logout(ctx context.Context, token string) (bool, erro
 }
 
 func (r *mutationResolver) LogoutOtherDevices(ctx context.Context, currentRefreshToken string) (bool, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -230,7 +230,7 @@ func (r *mutationResolver) CreateAdmin(ctx context.Context, input model.CreateAd
 
 // input.RoleSlugs nil = leave role assignments alone, [] = remove every role
 func (r *mutationResolver) UpdateAdmin(ctx context.Context, id string, input model.UpdateAdminInput) (*model.AdminUser, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (r *mutationResolver) UpdateAdmin(ctx context.Context, id string, input mod
 }
 
 func (r *mutationResolver) DeleteAdmin(ctx context.Context, id string) (bool, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -297,7 +297,7 @@ func (r *mutationResolver) DeleteAdmin(ctx context.Context, id string) (bool, er
 }
 
 func (r *mutationResolver) ChangePassword(ctx context.Context, currentPassword string, newPassword string) (bool, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -389,7 +389,7 @@ func (r *mutationResolver) DeleteRole(ctx context.Context, id string) (bool, err
 }
 
 func (r *queryResolver) Me(ctx context.Context) (*model.AdminUser, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}

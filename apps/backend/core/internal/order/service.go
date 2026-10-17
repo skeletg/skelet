@@ -396,7 +396,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		evalResult promotion.EvalResult
 		ranEngine  bool
 	)
-	if s.promotion != nil {
+	if s.promotion != nil && !cartObj.Locked(cart.LockCoupons) {
 		// Segment slugs and per-line catalog facts are resolved inside EvaluateCart, so this and the storefront's cart hydration can't drift into pricing the same cart differently
 		cartEval, err := s.promotion.EvaluateCart(ctx, promotion.CartEvalInput{
 			CartID:            cartObj.ID,
@@ -652,9 +652,26 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 				return err
 			}
 		}
+		if cartObj.IsOffer() {
+			locked, err := cartR.LockCart(ctx, cartObj.ID)
+			if err != nil {
+				return fmt.Errorf("lock checkout offer: %w", err)
+			}
+			if err := cart.CheckCartAccess(ctx, locked, in.CustomerID); err != nil {
+				return err
+			}
+			if locked.Offer.LinkVersion != cartObj.Offer.LinkVersion {
+				return cart.ErrOfferLinkInvalid
+			}
+		}
 		// ConvertCart is the serialization point - a concurrent placement that already converted returns ErrCartAlreadyConverted, rolling back everything above
 		if err := cartR.ConvertCart(ctx, cartObj.ID); err != nil {
 			return err
+		}
+		if cartObj.IsOffer() { // the console links a completed offer to what it became
+			if err := cartR.SetCartOrder(ctx, cartObj.ID, order.ID); err != nil {
+				return fmt.Errorf("link offer to order: %w", err)
+			}
 		}
 		// Durable dispatch - OrderPlaced commits with the order and is relayed after commit, so a crash can't lose it
 		if s.outbox != nil {
@@ -763,6 +780,14 @@ func (s *Service) GetGuestOrder(ctx context.Context, orderID uuid.UUID, email st
 		return Order{}, apperr.New("EMAIL_REQUIRED", apperr.ClassValidation, "email required")
 	}
 	return s.repo.GetGuestOrder(ctx, orderID, email)
+}
+
+// Finds an order by number, email and postcode for the storefront's track-order page - all three required, since the number alone is guessable
+func (s *Service) TrackOrderLookup(ctx context.Context, number, email, postalCode string) (TrackedOrder, error) {
+	if strings.TrimSpace(number) == "" || strings.TrimSpace(email) == "" || strings.TrimSpace(postalCode) == "" {
+		return TrackedOrder{}, ErrOrderNotFound
+	}
+	return s.repo.TrackOrderLookup(ctx, number, email, postalCode)
 }
 
 // Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.email_verified so history shows up once the address is proven

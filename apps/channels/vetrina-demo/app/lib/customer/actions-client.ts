@@ -7,7 +7,8 @@ export type HeaderIdentity = { id: string; firstName: string; lastName: string; 
 
 export async function loadHeaderIdentity(): Promise<HeaderIdentity> {
   const res = await loadCurrentCustomer();
-  if (res.kind !== "customer") return null;
+  if (res.kind === "error") throw res.error;
+  if (res.kind === "anonymous") return null;
   const c: Customer = res.customer;
   return { id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email };
 }

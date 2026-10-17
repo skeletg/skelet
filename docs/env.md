@@ -113,7 +113,7 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, and nothing else. The default value is rejected in production. |
+| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, plus the email unsubscribe links and legacy signed cart offer links ([cart-offers.md](cart-offers.md)); rotating it signs everyone out and invalidates those legacy links. New opaque offer links are unaffected. The default value is rejected in production. |
 | `SIGNALS_SERVICE_SECRET` | A second `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value. Compose hands it to core and the Signals processes alone: the storefront holds `JWT_SECRET`, and a storefront that could mint service tokens could call the contract as core. Production refuses it empty, short, or equal to `JWT_SECRET`. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
@@ -194,8 +194,8 @@ more than it works.
 `POOL_MODE=transaction` is what makes any of that true, and it has three
 consequences worth knowing:
 
-- **Migrations bypass it.** golang-migrate holds a session-level advisory
-  lock for the whole run, so `migrate` and `signals-migrate` keep the
+- **Migrations bypass it.** DDL and a long backfill want a real session,
+  not a transaction-pooled one, so `migrate` and `signals-migrate` keep the
   direct DSNs.
 - **Server-side prepared statements are off.** The pooled DSNs carry
   `default_query_exec_mode=exec`, because a `PREPARE` lands on whichever
@@ -273,14 +273,11 @@ so `./skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `./skelet doc
 fails if the suite is on and either the container or `signals.analytics_events`
 is missing.
 
-There are two URLs because the app driver and golang-migrate disagree on
-DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`. In prod the
-migrate one-shot rewrites a `clickhouse://user:password@host:port/db` form of
-`SIGNALS_CH_URL` itself, so `SIGNALS_CH_MIGRATE_URL` is only for a URL it can't
-rewrite.
+The spine and its migrations share one URL, `SIGNALS_CH_URL` - dbmate reads the
+same `clickhouse://user:password@host:port/db` the app does.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
-both ClickHouse URLs derive from it. Backing the spine up is
+the ClickHouse URL derive from it. Backing the spine up is
 `BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
 
 The server is generic infrastructure, so each consumer gets its own

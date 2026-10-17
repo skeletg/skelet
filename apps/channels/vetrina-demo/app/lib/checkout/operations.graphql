@@ -409,3 +409,11 @@ mutation SetCheckoutDeliveryPoint($cartId: ID!, $groupKey: String!, $pointId: St
     id
   }
 }
+
+query TrackOrder($number: String!, $email: String!, $postalCode: String!) {
+  trackOrder(number: $number, email: $email, postalCode: $postalCode) {
+    orderId
+    requiresLogin
+    email
+  }
+}

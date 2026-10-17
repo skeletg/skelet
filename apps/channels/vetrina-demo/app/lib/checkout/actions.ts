@@ -7,8 +7,10 @@ import { refresh, revalidatePath } from "next/cache";
 
 import { AccountAddAddressDocument } from "@/app/lib/auth/operations.gql";
 import { ACCESS_TOKEN_COOKIE } from "@/app/lib/auth/session";
-import { SetCartNoteDocument } from "@/app/lib/cart/mutations.gql";
-import { CART_COOKIE, getCart } from "@/app/lib/cart/read";
+import { ApplyCouponDocument, SetCartNoteDocument } from "@/app/lib/cart/mutations.gql";
+import { CART_COOKIE } from "@/app/lib/cart/read";
+import { getCheckoutCart } from "@/app/lib/cart/offer";
+import { decodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE } from "@/app/lib/cart/offer-cookie";
 import {
   ApplyCheckoutGiftCardDocument,
   FinalizeOrderPaymentDocument,
@@ -46,6 +48,9 @@ import { errorMessage } from "@/app/lib/forms/reply";
 import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
 import { withLocalePrefix } from "@/app/lib/locale/path";
+import { formatCouponError } from "@/app/lib/cart/coupon-errors";
+import { couponSchema } from "@/app/lib/cart/schemas";
+import { checkoutHref } from "./path";
 import { getCurrentLocale } from "@/app/lib/locale/read";
 
 // Delivery saves return to the delivery step for review; Continue opens details. Other step saves refresh
@@ -86,6 +91,10 @@ const CODE_KEYS: Record<string, string> = {
   INSUFFICIENT_STOCK: "insufficientStock",
   ORDER_MINIMUM_NOT_MET: "orderMinimumNotMet",
   GUEST_CHECKOUT_DISABLED: "guestCheckoutDisabled",
+  CART_OFFER_PAYMENT_NOT_ALLOWED: "offerPaymentNotAllowed",
+  CART_OFFER_LOCKED: "offerLocked",
+  CART_OFFER_EXPIRED: "offerExpired",
+  CART_OFFER_REVOKED: "offerRevoked",
   // The front API scrubs an unavailable-class message, so the code is all that survives
   ADDRESS_VALIDATION_UNAVAILABLE: "addressValidationUnavailable",
 };
@@ -96,24 +105,28 @@ function checkoutError(submission: AnySubmission, err: unknown, fallbackKey: str
   return submission.reply({ formErrors: [key ?? errorMessage(err, fallbackKey)] });
 }
 
-async function currentCartId(): Promise<string | null> {
-  return (await getCart())?.id ?? null;
+// The offer while the shopper is completing one, else their own cart
+async function submittedCart(formData: FormData) {
+  const id = String(formData.get("cartId") ?? "");
+  return id ? getCheckoutCart(id) : null;
 }
 
 async function runStep(
+  formData: FormData,
   submission: AnySubmission,
   fallbackKey: string,
   save: (cartId: string) => Promise<unknown>,
   stayOnDelivery = false,
 ): Promise<FormResult> {
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
   if (!cartId) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   try {
     await save(cartId);
   } catch (err) {
     return checkoutError(submission, err, fallbackKey);
   }
-  if (stayOnDelivery) redirect(await withLocalePrefix("/checkout?step=delivery", await getCurrentLocale()), RedirectType.replace);
+  if (stayOnDelivery) redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { step: "delivery" }), await getCurrentLocale()), RedirectType.replace);
   refresh();
   return submission.reply();
 }
@@ -126,7 +139,7 @@ export async function saveDestinationStep(
   const submission = parseForm(formData, destinationSchema);
   if (submission.status !== "success") return submission.reply();
   const { countryCode, postalCode } = submission.value;
-  return runStep(submission, "checkoutSaveFailed", (cartId) =>
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
     gqlFetch(SetCheckoutDestinationDocument, { cartId, countryCode, postalCode }),
     true,
   );
@@ -140,7 +153,7 @@ export async function saveSplitDeliveryAction(
   const submission = parseForm(formData, splitDeliverySchema);
   if (submission.status !== "success") return submission.reply();
   const split = submission.value.split === "split";
-  return runStep(submission, "checkoutSaveFailed", (cartId) => gqlFetch(SetCheckoutSplitDeliveryDocument, { cartId, split }), true);
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) => gqlFetch(SetCheckoutSplitDeliveryDocument, { cartId, split }), true);
 }
 
 // Step 1c - one group's delivery, one of the option and carrier-method choices quoted for it
@@ -152,7 +165,7 @@ export async function saveGroupDeliveryAction(
   if (submission.status !== "success") return submission.reply();
   const { optionId, carrierSlug, methodCode } = splitSelection(submission.value.selection);
   const groupKey = submission.value.groupKey;
-  return runStep(submission, "checkoutSaveFailed", (cartId) =>
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
     gqlFetch(SetCheckoutDeliveryDocument, { cartId, groupKey, optionId, carrierSlug, methodCode }),
     true,
   );
@@ -166,7 +179,7 @@ export async function saveDeliveryPointAction(
   const submission = parseForm(formData, deliveryPointSchema);
   if (submission.status !== "success") return submission.reply();
   const { groupKey, pointId } = submission.value;
-  return runStep(submission, "checkoutSaveFailed", (cartId) =>
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
     gqlFetch(SetCheckoutDeliveryPointDocument, { cartId, groupKey, pointId }),
     true,
   );
@@ -196,7 +209,8 @@ export async function saveDetailsStep(
   _prev: FormResult | undefined,
   formData: FormData,
 ): Promise<FormResult> {
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
   const [settings, checkout, countries, customer] = await Promise.all([
     getCheckoutSettings(),
     cartId ? getCheckoutState(cartId) : null,
@@ -260,7 +274,7 @@ export async function saveDetailsStep(
   }
   if (deliveryDropped) {
     // The address moved the order somewhere a chosen delivery doesn't reach - back to step 1, saying why
-    redirect(await withLocalePrefix("/checkout?notice=delivery-changed", String(formData.get("locale") ?? "")));
+    redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { notice: "delivery-changed" }), String(formData.get("locale") ?? "")));
   }
   refresh();
   return submission.reply();
@@ -272,7 +286,8 @@ export async function applyGiftCardAction(
 ): Promise<FormResult> {
   const submission = parseForm(formData, giftCardSchema);
   if (submission.status !== "success") return submission.reply();
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
   if (!cartId) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   try {
     await gqlFetch(ApplyCheckoutGiftCardDocument, { cartId, code: submission.value.code });
@@ -287,7 +302,8 @@ export async function applyGiftCardAction(
 // leaves the page showing what the cart still holds
 export async function removeGiftCardAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
   if (!code || !cartId) return;
   try {
     await gqlFetch(RemoveCheckoutGiftCardDocument, { cartId, code });
@@ -298,7 +314,8 @@ export async function removeGiftCardAction(formData: FormData): Promise<void> {
 }
 
 export async function setStoreCreditAction(formData: FormData): Promise<void> {
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
   if (!cartId) return;
   try {
     await gqlFetch(SetCheckoutStoreCreditDocument, { cartId, use: formData.get("use") === "1" });
@@ -317,7 +334,9 @@ export async function placeOrderAction(
   _prev: PlaceOrderResult | undefined,
   formData: FormData,
 ): Promise<PlaceOrderResult> {
-  const cartId = await currentCartId();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  const offer = cart?.offer ?? null;
   const [settings, checkout] = await Promise.all([
     getCheckoutSettings(),
     cartId ? getCheckoutState(cartId) : null,
@@ -352,10 +371,19 @@ export async function placeOrderAction(
   }
 
   const cookieStore = await cookies();
-  cookieStore.delete(CART_COOKIE);
+  if (offer) {
+    // The offer is history - the shopper's own cart is untouched and takes over again
+    if (decodeOfferSession(cookieStore.get(OFFER_COOKIE)?.value)?.cartId === cartId) {
+      cookieStore.delete(OFFER_COOKIE);
+      cookieStore.delete(OFFER_CHECKOUT_COOKIE);
+    }
+  } else {
+    if (cookieStore.get(CART_COOKIE)?.value === cartId) cookieStore.delete(CART_COOKIE);
+  }
   revalidatePath("/", "layout");
 
-  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined;
+  // A guest offer places a guest order for its recipient, whoever is signed in on this browser
+  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
   const redirectTo = await withLocalePrefix(
     signedIn
       ? `/account/orders/${orderId}?just_placed=1`
@@ -375,4 +403,19 @@ export async function finalizeOrderPaymentAction(orderId: string): Promise<boole
   } catch {
     return false;
   }
+}
+
+
+export async function applyCheckoutCouponAction(_prev: FormResult | undefined, formData: FormData): Promise<FormResult> {
+  const submission = parseForm(formData, couponSchema);
+  if (submission.status !== "success") return submission.reply();
+  const cart = await submittedCart(formData);
+  if (!cart) return submission.reply({ formErrors: ["checkoutCartMissing"] });
+  try {
+    await gqlFetch(ApplyCouponDocument, { cartId: cart.id, code: submission.value.code });
+  } catch (err) {
+    return submission.reply({ fieldErrors: { code: [formatCouponError(err)] } });
+  }
+  refresh();
+  return replyReset(submission);
 }

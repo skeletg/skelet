@@ -286,7 +286,7 @@ func (s *Service) linesFromCart(ctx context.Context, c cart.Cart) ([]ReserveLine
 				continue
 			}
 		}
-		if line.ProductSku == "" {
+		if line.ProductSku == "" || line.IsCustom { // a custom offer line has no product to hold stock for
 			continue
 		}
 		productID, err := s.products.GetProductIDBySKU(ctx, line.ProductSku)

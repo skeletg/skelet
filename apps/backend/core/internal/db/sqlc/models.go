@@ -333,15 +333,16 @@ type AttributeValue struct {
 }
 
 type AuditLog struct {
-	ID         uuid.UUID             `json:"id"`
-	AdminID    uuid.NullUUID         `json:"admin_id"`
-	AdminEmail string                `json:"admin_email"`
-	Action     string                `json:"action"`
-	Detail     pqtype.NullRawMessage `json:"detail"`
-	Ip         string                `json:"ip"`
-	Success    bool                  `json:"success"`
-	DurationMs int64                 `json:"duration_ms"`
-	CreatedAt  time.Time             `json:"created_at"`
+	ID            uuid.UUID             `json:"id"`
+	AdminID       uuid.NullUUID         `json:"admin_id"`
+	AdminEmail    string                `json:"admin_email"`
+	Action        string                `json:"action"`
+	Detail        pqtype.NullRawMessage `json:"detail"`
+	Ip            string                `json:"ip"`
+	Success       bool                  `json:"success"`
+	DurationMs    int64                 `json:"duration_ms"`
+	CreatedAt     time.Time             `json:"created_at"`
+	IntegrationID uuid.NullUUID         `json:"integration_id"`
 }
 
 type AuthRefreshToken struct {
@@ -512,38 +513,53 @@ type CacheRevalidation struct {
 }
 
 type Cart struct {
-	ID                    uuid.UUID             `json:"id"`
-	CustomerID            uuid.NullUUID         `json:"customer_id"`
-	Status                string                `json:"status"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
-	ChannelID             uuid.UUID             `json:"channel_id"`
-	AbandonedNotifiedAt   sql.NullTime          `json:"abandoned_notified_at"`
-	Email                 string                `json:"email"`
-	Note                  string                `json:"note"`
-	LastActivityAt        time.Time             `json:"last_activity_at"`
-	ShippingAddress       pqtype.NullRawMessage `json:"shipping_address"`
-	ShippingAddressID     uuid.NullUUID         `json:"shipping_address_id"`
-	BillingSameAsShipping bool                  `json:"billing_same_as_shipping"`
-	BillingAddress        pqtype.NullRawMessage `json:"billing_address"`
-	BillingAddressID      uuid.NullUUID         `json:"billing_address_id"`
-	ShippingCarrierSlug   string                `json:"shipping_carrier_slug"`
-	ShippingMethodCode    string                `json:"shipping_method_code"`
-	PaymentProviderSlug   string                `json:"payment_provider_slug"`
-	PoNumber              string                `json:"po_number"`
-	UseStoreCredit        bool                  `json:"use_store_credit"`
-	GiftCardCodes         []string              `json:"gift_card_codes"`
-	DestinationCountry    string                `json:"destination_country"`
-	DestinationRegion     string                `json:"destination_region"`
-	DestinationPostalCode string                `json:"destination_postal_code"`
-	ContactPhone          string                `json:"contact_phone"`
-	PurchaseType          string                `json:"purchase_type"`
-	CompanyName           string                `json:"company_name"`
-	BusinessIds           json.RawMessage       `json:"business_ids"`
-	PickupContact         pqtype.NullRawMessage `json:"pickup_contact"`
-	CheckoutVersion       int64                 `json:"checkout_version"`
-	Deliveries            json.RawMessage       `json:"deliveries"`
-	SplitDelivery         bool                  `json:"split_delivery"`
+	ID                     uuid.UUID             `json:"id"`
+	CustomerID             uuid.NullUUID         `json:"customer_id"`
+	Status                 string                `json:"status"`
+	CreatedAt              time.Time             `json:"created_at"`
+	UpdatedAt              time.Time             `json:"updated_at"`
+	ChannelID              uuid.UUID             `json:"channel_id"`
+	AbandonedNotifiedAt    sql.NullTime          `json:"abandoned_notified_at"`
+	Email                  string                `json:"email"`
+	Note                   string                `json:"note"`
+	LastActivityAt         time.Time             `json:"last_activity_at"`
+	ShippingAddress        pqtype.NullRawMessage `json:"shipping_address"`
+	ShippingAddressID      uuid.NullUUID         `json:"shipping_address_id"`
+	BillingSameAsShipping  bool                  `json:"billing_same_as_shipping"`
+	BillingAddress         pqtype.NullRawMessage `json:"billing_address"`
+	BillingAddressID       uuid.NullUUID         `json:"billing_address_id"`
+	ShippingCarrierSlug    string                `json:"shipping_carrier_slug"`
+	ShippingMethodCode     string                `json:"shipping_method_code"`
+	PaymentProviderSlug    string                `json:"payment_provider_slug"`
+	PoNumber               string                `json:"po_number"`
+	UseStoreCredit         bool                  `json:"use_store_credit"`
+	GiftCardCodes          []string              `json:"gift_card_codes"`
+	DestinationCountry     string                `json:"destination_country"`
+	DestinationRegion      string                `json:"destination_region"`
+	DestinationPostalCode  string                `json:"destination_postal_code"`
+	ContactPhone           string                `json:"contact_phone"`
+	PurchaseType           string                `json:"purchase_type"`
+	CompanyName            string                `json:"company_name"`
+	BusinessIds            json.RawMessage       `json:"business_ids"`
+	PickupContact          pqtype.NullRawMessage `json:"pickup_contact"`
+	CheckoutVersion        int64                 `json:"checkout_version"`
+	Deliveries             json.RawMessage       `json:"deliveries"`
+	SplitDelivery          bool                  `json:"split_delivery"`
+	Kind                   string                `json:"kind"`
+	OfferExpiresAt         sql.NullTime          `json:"offer_expires_at"`
+	OfferMessage           string                `json:"offer_message"`
+	OfferShowInAccount     bool                  `json:"offer_show_in_account"`
+	OfferLocks             []string              `json:"offer_locks"`
+	OfferPaymentMethods    []string              `json:"offer_payment_methods"`
+	OfferLinkVersion       int32                 `json:"offer_link_version"`
+	OfferSentAt            sql.NullTime          `json:"offer_sent_at"`
+	OfferSendCount         int32                 `json:"offer_send_count"`
+	OfferOpenedAt          sql.NullTime          `json:"offer_opened_at"`
+	OfferRevokedAt         sql.NullTime          `json:"offer_revoked_at"`
+	OfferExpiredNotifiedAt sql.NullTime          `json:"offer_expired_notified_at"`
+	OfferCreatedBy         uuid.NullUUID         `json:"offer_created_by"`
+	OrderID                uuid.NullUUID         `json:"order_id"`
+	OfferLinkToken         string                `json:"offer_link_token"`
 }
 
 type CartAppliedCode struct {
@@ -566,6 +582,9 @@ type CartLine struct {
 	UpdatedAt       time.Time     `json:"updated_at"`
 	IsGift          bool          `json:"is_gift"`
 	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
+	PriceOverride   bool          `json:"price_override"`
+	IsCustom        bool          `json:"is_custom"`
+	TaxClass        string        `json:"tax_class"`
 }
 
 type CartLineComponent struct {
@@ -1320,6 +1339,7 @@ type DataJob struct {
 	StartedAt       sql.NullTime    `json:"started_at"`
 	FinishedAt      sql.NullTime    `json:"finished_at"`
 	ExpiresAt       sql.NullTime    `json:"expires_at"`
+	IntegrationID   uuid.NullUUID   `json:"integration_id"`
 }
 
 type DataJobError struct {
@@ -1719,6 +1739,8 @@ type OrderLine struct {
 	OfferedByRuleID uuid.NullUUID `json:"offered_by_rule_id"`
 	RemovedAt       sql.NullTime  `json:"removed_at"`
 	CostCents       sql.NullInt64 `json:"cost_cents"`
+	IsCustom        bool          `json:"is_custom"`
+	TaxClass        string        `json:"tax_class"`
 }
 
 type OrderLineComponent struct {
@@ -1983,18 +2005,19 @@ type ProductMedium struct {
 }
 
 type ProductQuestion struct {
-	ID          uuid.UUID     `json:"id"`
-	ProductID   uuid.UUID     `json:"product_id"`
-	ChannelID   uuid.UUID     `json:"channel_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	AuthorName  string        `json:"author_name"`
-	AuthorEmail string        `json:"author_email"`
-	Question    string        `json:"question"`
-	Answer      string        `json:"answer"`
-	AnsweredBy  uuid.NullUUID `json:"answered_by"`
-	AnsweredAt  sql.NullTime  `json:"answered_at"`
-	Status      string        `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
+	ID                      uuid.UUID     `json:"id"`
+	ProductID               uuid.UUID     `json:"product_id"`
+	ChannelID               uuid.UUID     `json:"channel_id"`
+	CustomerID              uuid.NullUUID `json:"customer_id"`
+	AuthorName              string        `json:"author_name"`
+	AuthorEmail             string        `json:"author_email"`
+	Question                string        `json:"question"`
+	Answer                  string        `json:"answer"`
+	AnsweredBy              uuid.NullUUID `json:"answered_by"`
+	AnsweredAt              sql.NullTime  `json:"answered_at"`
+	Status                  string        `json:"status"`
+	CreatedAt               time.Time     `json:"created_at"`
+	AnsweredByIntegrationID uuid.NullUUID `json:"answered_by_integration_id"`
 }
 
 type ProductReviewSummary struct {
@@ -2160,29 +2183,30 @@ type RemoteProvider struct {
 }
 
 type Review struct {
-	ID                  uuid.UUID       `json:"id"`
-	ProductID           uuid.UUID       `json:"product_id"`
-	CustomerID          uuid.NullUUID   `json:"customer_id"`
-	ChannelID           uuid.UUID       `json:"channel_id"`
-	Locale              string          `json:"locale"`
-	Title               string          `json:"title"`
-	Body                string          `json:"body"`
-	IsVerifiedPurchase  bool            `json:"is_verified_purchase"`
-	Status              string          `json:"status"`
-	SubmittedAt         time.Time       `json:"submitted_at"`
-	ModeratedAt         sql.NullTime    `json:"moderated_at"`
-	ModeratedBy         uuid.NullUUID   `json:"moderated_by"`
-	ModeratorNote       string          `json:"moderator_note"`
-	GuestName           string          `json:"guest_name"`
-	GuestEmail          string          `json:"guest_email"`
-	ModerationLabel     string          `json:"moderation_label"`
-	ModerationReason    string          `json:"moderation_reason"`
-	ModerationCheckedAt sql.NullTime    `json:"moderation_checked_at"`
-	MerchantReply       string          `json:"merchant_reply"`
-	MerchantReplyAt     sql.NullTime    `json:"merchant_reply_at"`
-	MerchantReplyBy     uuid.NullUUID   `json:"merchant_reply_by"`
-	ModerationTags      json.RawMessage `json:"moderation_tags"`
-	CategorySlugs       json.RawMessage `json:"category_slugs"`
+	ID                       uuid.UUID       `json:"id"`
+	ProductID                uuid.UUID       `json:"product_id"`
+	CustomerID               uuid.NullUUID   `json:"customer_id"`
+	ChannelID                uuid.UUID       `json:"channel_id"`
+	Locale                   string          `json:"locale"`
+	Title                    string          `json:"title"`
+	Body                     string          `json:"body"`
+	IsVerifiedPurchase       bool            `json:"is_verified_purchase"`
+	Status                   string          `json:"status"`
+	SubmittedAt              time.Time       `json:"submitted_at"`
+	ModeratedAt              sql.NullTime    `json:"moderated_at"`
+	ModeratedBy              uuid.NullUUID   `json:"moderated_by"`
+	ModeratorNote            string          `json:"moderator_note"`
+	GuestName                string          `json:"guest_name"`
+	GuestEmail               string          `json:"guest_email"`
+	ModerationLabel          string          `json:"moderation_label"`
+	ModerationReason         string          `json:"moderation_reason"`
+	ModerationCheckedAt      sql.NullTime    `json:"moderation_checked_at"`
+	MerchantReply            string          `json:"merchant_reply"`
+	MerchantReplyAt          sql.NullTime    `json:"merchant_reply_at"`
+	MerchantReplyBy          uuid.NullUUID   `json:"merchant_reply_by"`
+	ModerationTags           json.RawMessage `json:"moderation_tags"`
+	CategorySlugs            json.RawMessage `json:"category_slugs"`
+	ModeratedByIntegrationID uuid.NullUUID   `json:"moderated_by_integration_id"`
 }
 
 type ReviewAnswer struct {
@@ -2517,14 +2541,15 @@ type SignupFormSubmission struct {
 }
 
 type StoreCreditEntry struct {
-	ID           uuid.UUID     `json:"id"`
-	CustomerID   uuid.UUID     `json:"customer_id"`
-	OrderID      uuid.NullUUID `json:"order_id"`
-	AmountCents  int64         `json:"amount_cents"`
-	CurrencyCode string        `json:"currency_code"`
-	Reason       string        `json:"reason"`
-	AdminID      uuid.NullUUID `json:"admin_id"`
-	CreatedAt    time.Time     `json:"created_at"`
+	ID            uuid.UUID     `json:"id"`
+	CustomerID    uuid.UUID     `json:"customer_id"`
+	OrderID       uuid.NullUUID `json:"order_id"`
+	AmountCents   int64         `json:"amount_cents"`
+	CurrencyCode  string        `json:"currency_code"`
+	Reason        string        `json:"reason"`
+	AdminID       uuid.NullUUID `json:"admin_id"`
+	CreatedAt     time.Time     `json:"created_at"`
+	IntegrationID uuid.NullUUID `json:"integration_id"`
 }
 
 type Subscription struct {

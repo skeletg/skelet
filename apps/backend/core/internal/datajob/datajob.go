@@ -28,15 +28,16 @@ func (s Status) Terminal() bool {
 }
 
 type Job struct {
-	ID        uuid.UUID
-	Direction dataio.Direction
-	Resource  string
-	Format    dataio.Format
-	Status    Status
-	Options   map[string]string
-	DryRun    bool
-	ChannelID uuid.UUID
-	AdminID   uuid.UUID
+	ID            uuid.UUID
+	Direction     dataio.Direction
+	Resource      string
+	Format        dataio.Format
+	Status        Status
+	Options       map[string]string
+	DryRun        bool
+	ChannelID     uuid.UUID
+	AdminID       uuid.UUID
+	IntegrationID uuid.UUID
 
 	Filename  string
 	ObjectKey string

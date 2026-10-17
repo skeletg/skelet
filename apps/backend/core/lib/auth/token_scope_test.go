@@ -40,8 +40,9 @@ func TestChannelPinnedTokenScoping(t *testing.T) {
 }
 
 func TestLoadPermittedChannelsForTokens(t *testing.T) {
+	held := map[string]struct{}{"catalog.view": {}}
 	mine := uuid.New()
-	ctx := WithApiToken(context.Background(), &ApiTokenClaims{TokenID: uuid.New(), ChannelID: &mine})
+	ctx := WithApiToken(context.Background(), &ApiTokenClaims{TokenID: uuid.New(), ChannelID: &mine, Permissions: held})
 	p, err := LoadPermittedChannels(ctx, nil, "catalog.view")
 	if err != nil {
 		t.Fatal(err)
@@ -50,12 +51,23 @@ func TestLoadPermittedChannelsForTokens(t *testing.T) {
 		t.Errorf("pinned token sees %v, want exactly its channel", p)
 	}
 
-	ctx = WithApiToken(context.Background(), &ApiTokenClaims{TokenID: uuid.New()})
+	ctx = WithApiToken(context.Background(), &ApiTokenClaims{TokenID: uuid.New(), Permissions: held})
 	p, err = LoadPermittedChannels(ctx, nil, "catalog.view")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !p.Bypass() {
-		t.Error("unpinned token lost the historical bypass")
+		t.Error("unpinned token holding the slug should see every channel")
+	}
+
+	for _, pin := range []*uuid.UUID{nil, &mine} {
+		ctx = WithApiToken(context.Background(), &ApiTokenClaims{TokenID: uuid.New(), ChannelID: pin, Permissions: held})
+		p, err = LoadPermittedChannels(ctx, nil, "signals.view")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Bypass() || p.Allows(mine) {
+			t.Errorf("token without the slug (pinned=%v) sees %v, want nothing", pin != nil, p)
+		}
 	}
 }

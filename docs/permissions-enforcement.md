@@ -55,6 +55,15 @@ that later grows a guard has to leave the list.
 
 If you add a resolver, the test tells you which of the two things you forgot.
 
+The same endpoint serves integration tokens, so a resolver also has to decide whether a
+token may use it. A permission guard already lets one through. When a resolver needs to
+know who is calling, use `auth.RequireActor` - an admin or a token, with
+`AdminID()` / `IntegrationID()` for the columns that record an author. Only when the thing is
+genuinely a person's, use `auth.RequireAdmin` and add the resolver to `humanOnly` in
+`graph/admin/actor_coverage_test.go` with the reason. That test fails on a bare
+`auth.RequireAuth`, on an unlisted `RequireAdmin`, on a stale entry, and on
+`claims, _ := auth.AdminFromContext(ctx)`, which hands a token caller a nil to dereference.
+
 ## Permission slugs
 
 Resources register their own slugs in their `register.go` (or domain init).
@@ -242,7 +251,7 @@ to act on anything.
 | Blog taxonomy (categories, tags, authors) | ✅ `blog.view` | ✅ `blog.view` | ✅ `blog.manage` | Global entities. Authors carry an email, so the reads are gated too |
 | Review questions | ✅ `reviews.view` | ✅ `reviews.view` | ✅ `reviews.manage` | Global entities (assigned to product types) |
 | Promotion condition/action catalogs | ✅ `promotions.view` | n/a | n/a | Static registry metadata |
-| Feature + mode flags (`serverFeatures`, `aiStatus`, `inventoryMode`), `resolveUrl` | ✅ `RequireAuth` | n/a | n/a | Every signed-in admin needs these for nav and page chrome, so authentication rather than a slug |
+| Feature + mode flags (`serverFeatures`, `aiStatus`, `inventoryMode`), `resolveUrl` | ✅ `RequireActor` | n/a | n/a | Every signed-in caller needs these for nav and page chrome, so authentication rather than a slug |
 
 ## Refunds and credit memos
 

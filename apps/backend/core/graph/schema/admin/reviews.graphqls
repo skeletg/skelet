@@ -68,6 +68,8 @@ type Review {
   submittedAt:         Time!
   moderatedAt:         Time
   moderatedBy:         ID
+  # set instead of moderatedBy when an integration token moderated
+  moderatedByIntegration: ID
   moderatorNote:       String!
   # AI moderation verdict (suggestion only - never changes status). Derived
   # coarse flag: "" until checked, "genuine" = no concerns, "flagged" = has tags.

@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Lives in its own file so gqlgen's regen of inventory.resolvers.go doesn't strip it on every schema change
@@ -214,4 +215,16 @@ func inventoryLocationFilter(input *model.InventoryLocationFilter) inventory.Loc
 		out.Types = append(out.Types, *inventoryLocationTypeInput(&typ))
 	}
 	return out
+}
+
+func syncSource(ctx context.Context) string {
+	a, ok := auth.ActorFromContext(ctx)
+	switch {
+	case !ok:
+		return "manual"
+	case a.Kind == auth.ActorIntegration:
+		return "integration:" + a.Name
+	default:
+		return "admin:" + a.Name
+	}
 }

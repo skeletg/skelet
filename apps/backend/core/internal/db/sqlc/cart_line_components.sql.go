@@ -152,7 +152,7 @@ ON CONFLICT (cart_id, product_sku) DO UPDATE
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class
 `
 
 type UpsertBundleCartLineParams struct {
@@ -184,6 +184,9 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		&i.UpdatedAt,
 		&i.IsGift,
 		&i.OfferedByRuleID,
+		&i.PriceOverride,
+		&i.IsCustom,
+		&i.TaxClass,
 	)
 	return i, err
 }

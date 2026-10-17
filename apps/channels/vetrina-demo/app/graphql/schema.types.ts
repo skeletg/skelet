@@ -423,6 +423,7 @@ export type Cart = {
   id: Scalars['ID']['output'];
   lines: Array<CartLine>;
   note: Scalars['String']['output'];
+  offer?: Maybe<CartOffer>;
   savedItems: Array<SavedItem>;
   subtotal: Scalars['Int']['output'];
   totalDiscount: Scalars['Int']['output'];
@@ -494,6 +495,7 @@ export type CartLine = {
   currentUnitPrice?: Maybe<Scalars['Int']['output']>;
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
+  isCustom: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   options: Array<CartLineOption>;
   quantity: Scalars['Float']['output'];
@@ -528,6 +530,38 @@ export type CartLineOption = {
   textValue: Scalars['String']['output'];
   valueLabel: Scalars['String']['output'];
 };
+
+export type CartOffer = {
+  __typename?: 'CartOffer';
+  expiresAt: Scalars['Time']['output'];
+  isGuest: Scalars['Boolean']['output'];
+  locks: Array<CartOfferLock>;
+  message: Scalars['String']['output'];
+  paymentMethods: Array<Scalars['String']['output']>;
+  state: CartOfferState;
+};
+
+export type CartOfferLock =
+  | 'BILLING'
+  | 'COUPONS'
+  | 'DELIVERY'
+  | 'LINES'
+  | 'SHIPPING';
+
+export type CartOfferOpening = {
+  __typename?: 'CartOfferOpening';
+  cartId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
+  state: CartOfferState;
+};
+
+export type CartOfferState =
+  | 'COMPLETED'
+  | 'DRAFT'
+  | 'EXPIRED'
+  | 'OPENED'
+  | 'REVOKED'
+  | 'SENT';
 
 export type Category = {
   __typename?: 'Category';
@@ -1040,9 +1074,11 @@ export type Mutation = {
   deleteAddress: Scalars['Boolean']['output'];
   deleteMyPaymentMethod: Scalars['Boolean']['output'];
   finalizeOrderPayment: Scalars['Boolean']['output'];
+  markCartOfferOpened: Scalars['Boolean']['output'];
   mergeGuestCart: Cart;
   moveSavedToCart: Cart;
   moveToCart: Cart;
+  openCartOffer: CartOfferOpening;
   placeOrder: Order;
   presignWebFormUpload: WebFormUploadTicket;
   redeemLoyaltyPoints: LoyaltyRedeemResult;
@@ -1176,6 +1212,11 @@ export type MutationFinalizeOrderPaymentArgs = {
 };
 
 
+export type MutationMarkCartOfferOpenedArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
 export type MutationMergeGuestCartArgs = {
   guestCartId: Scalars['ID']['input'];
 };
@@ -1189,6 +1230,11 @@ export type MutationMoveSavedToCartArgs = {
 
 export type MutationMoveToCartArgs = {
   productId: Scalars['ID']['input'];
+};
+
+
+export type MutationOpenCartOfferArgs = {
+  token: Scalars['String']['input'];
 };
 
 
@@ -1966,6 +2012,7 @@ export type Query = {
   menu?: Maybe<Menu>;
   menus: Array<Menu>;
   myCart: Cart;
+  myCartOffers: Array<Cart>;
   myDataExport: Scalars['String']['output'];
   myDownloads: Array<DownloadGrant>;
   myOrder: Order;
@@ -1999,6 +2046,7 @@ export type Query = {
   shippingQuotes: Array<ShippingQuote>;
   sitemapCounts: SitemapCounts;
   sitemapEntries: Array<SitemapEntry>;
+  trackOrder?: Maybe<TrackOrderResult>;
   validateAddress: AddressValidationResult;
   wishlistProductIds: Array<Scalars['ID']['output']>;
 };
@@ -2251,6 +2299,13 @@ export type QuerySitemapEntriesArgs = {
   entityType: SitemapEntityType;
   limit: Scalars['Int']['input'];
   offset: Scalars['Int']['input'];
+};
+
+
+export type QueryTrackOrderArgs = {
+  email: Scalars['String']['input'];
+  number: Scalars['String']['input'];
+  postalCode: Scalars['String']['input'];
 };
 
 
@@ -2558,6 +2613,13 @@ export type TierPrice = {
   __typename?: 'TierPrice';
   minQty: Scalars['Float']['output'];
   price: Scalars['Int']['output'];
+};
+
+export type TrackOrderResult = {
+  __typename?: 'TrackOrderResult';
+  email: Scalars['String']['output'];
+  orderId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
 };
 
 export type VariantMode =

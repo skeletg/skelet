@@ -224,7 +224,7 @@ func toPermissionGroupModel(g admin.PermissionGroup) *model.PermissionGroup {
 
 // Admins and roles are install-wide, and what a holder hands out stays inside what they hold
 func (r *Resolver) requireGrantable(ctx context.Context, grants []auth.Grant) error {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (r *Resolver) requireGrantable(ctx context.Context, grants []auth.Grant) er
 }
 
 func (r *Resolver) requireRolesGrantable(ctx context.Context, roleSlugs []string) error {
-	if claims, err := auth.RequireAuth(ctx); err == nil && claims.IsSuperuser {
+	if claims, err := auth.RequireAdmin(ctx); err == nil && claims.IsSuperuser {
 		return nil
 	}
 	grants, err := r.AdminSvc.RoleGrants(ctx, roleSlugs)
@@ -246,7 +246,7 @@ func (r *Resolver) requireRolesGrantable(ctx context.Context, roleSlugs []string
 }
 
 func (r *Resolver) requireOutranks(ctx context.Context, targetID uuid.UUID) error {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (r *Resolver) requireOutranks(ctx context.Context, targetID uuid.UUID) erro
 }
 
 func (r *Resolver) requireOutranksRoleMembers(ctx context.Context, roleID uuid.UUID) error {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (r *Resolver) requireOutranksRoleMembers(ctx context.Context, roleID uuid.U
 
 // A role its editor holds is off limits to them, or admins.manage becomes whatever the holder wants
 func (r *Resolver) requireRoleEditable(ctx context.Context, roleID uuid.UUID) (admin.Role, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return admin.Role{}, err
 	}

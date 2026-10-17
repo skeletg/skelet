@@ -98,7 +98,11 @@ type OrderLine struct {
 	// The unit COGS snapshot at placement - nil means unknown, i.e. no catalog cost at the time
 	CostCents *int64
 	// A promotion free gift granted by core.add_free_gift - zero-priced, stock reserved like any other line, and excluded from pro-rata refunds since nothing was paid for it
-	IsGift     bool
+	IsGift bool
+	// An admin's free-form charge from an offer - no catalog product, nothing reserved or shipped
+	IsCustom bool
+	// The tax class the admin gave a custom line - empty on catalog lines, which take their product's
+	TaxClass   string
 	Components []OrderLineComponent
 	// What the line took stock from besides or instead of itself, per line unit, snapshotted at placement
 	StockParts []OrderLineStockPart
@@ -187,6 +191,7 @@ type Repository interface {
 	ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error)
 	ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID) ([]Order, error)
 	GetGuestOrder(ctx context.Context, id uuid.UUID, email string) (Order, error)
+	TrackOrderLookup(ctx context.Context, number, email, postalCode string) (TrackedOrder, error)
 	// Attaches guest orders on channelID under email to customerID and returns the count, where zero is valid - so a new customer's first /account/orders visit shows pre-registration history
 	ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error)
 	// fromStatus is the status the caller validated the transition against - no row matches when it already moved, so concurrent callers can't both commit
@@ -275,6 +280,14 @@ const (
 	FulfillmentShipped   = "shipped"
 	FulfillmentCancelled = "cancelled"
 )
+
+// What a track-order lookup may reveal once number, email and postcode all matched - never the order itself
+type TrackedOrder struct {
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	Email      string // as stored, so a guest hand-off can call GetGuestOrder with the exact value
+	HasAccount bool
+}
 
 type Fulfillment struct {
 	ID             uuid.UUID

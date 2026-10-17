@@ -205,7 +205,7 @@ func (r *mutationResolver) AdjustInventoryLevel(ctx context.Context, input model
 		NewQuantity:     input.NewQuantity,
 		Note:            ptr.Deref(input.Note),
 	}
-	if claims, err := auth.RequireAuth(ctx); err == nil {
+	if claims, ok := auth.AdminFromContext(ctx); ok {
 		domainInput.AdminID = &claims.AdminID
 	}
 	level, err := r.InventorySvc.AdjustLevel(ctx, domainInput)
@@ -219,7 +219,7 @@ func (r *mutationResolver) AdjustInventoryLevel(ctx context.Context, input model
 	return toInventoryLevelModel(level, loc, 0), nil
 }
 
-// Flat-mode write surface for external ERP integrations. Resolves the product by SKU or ID, fills in the source attribution from the authenticated admin's email when the caller omits one, and overwrites inventory_items.quantity atomically. Permitted in both modes so the audit trail is always populated.
+// Flat-mode write surface for external ERP integrations. Resolves the product by SKU or ID, fills in the source attribution from the caller - the admin's email or the integration's name - when it omits one, and overwrites inventory_items.quantity atomically. Permitted in both modes so the audit trail is always populated.
 func (r *mutationResolver) SyncProductInventory(ctx context.Context, input model.SyncProductInventoryInput) (*model.InventoryItem, error) {
 	pid, err := resolveSyncProductID(ctx, r.CatalogSvc, input)
 	if err != nil {
@@ -230,11 +230,7 @@ func (r *mutationResolver) SyncProductInventory(ctx context.Context, input model
 	}
 	source := strings.TrimSpace(stringOr(input.Source, ""))
 	if source == "" {
-		if claims, ok := auth.AdminFromContext(ctx); ok {
-			source = "admin:" + claims.Email
-		} else {
-			source = "manual"
-		}
+		source = syncSource(ctx)
 	}
 	item, err := r.InventorySvc.SetItemQuantity(ctx, inventory.SetItemQuantityInput{
 		ProductID: pid,
@@ -253,12 +249,7 @@ func (r *mutationResolver) SyncProductInventoryBatch(ctx context.Context, items 
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
 		return nil, err
 	}
-	var defaultSource string
-	if claims, ok := auth.AdminFromContext(ctx); ok {
-		defaultSource = "admin:" + claims.Email
-	} else {
-		defaultSource = "manual"
-	}
+	defaultSource := syncSource(ctx)
 	result := &model.SyncProductInventoryBatchResult{
 		Failed: []*model.SyncProductInventoryFailure{},
 	}
@@ -403,8 +394,8 @@ func (r *queryResolver) LowStockLevels(ctx context.Context, limit *int32) ([]*mo
 // InventoryMode reads sales/inventory/flat_mode and maps it to the GraphQL enum. Unauthenticated; the dashboard fetches
 // this at boot before the admin context is materialized to pick the right inventory UI shape
 func (r *queryResolver) InventoryMode(ctx context.Context) (model.InventoryMode, error) {
-	// Any signed-in admin renders inventory UI, so this is authentication rather than a slug - it just must not answer anonymous callers
-	if _, err := auth.RequireAuth(ctx); err != nil {
+	// Any signed-in caller renders inventory UI, so this is authentication rather than a slug - it just must not answer anonymous callers
+	if _, err := auth.RequireActor(ctx); err != nil {
 		return "", err
 	}
 	enabled, err := r.ConfigSvc.GetBool(ctx, "sales/inventory/flat_mode", config.DefaultScope)

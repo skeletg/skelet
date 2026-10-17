@@ -7,6 +7,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Scenario: a gift card is a TENDER, not a discount - the total stands, the card drains inside
@@ -164,7 +165,7 @@ func TestStoreCreditTenderAndCancelRestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register customer: %v", err)
 	}
-	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 800, "USD", "e2e grant", nil); err != nil {
+	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 800, "USD", "e2e grant", auth.Actor{}); err != nil {
 		t.Fatalf("grant credit: %v", err)
 	}
 

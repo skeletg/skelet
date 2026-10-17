@@ -88,6 +88,7 @@ func init() {
 	// so retention must comfortably exceed the return window - a return against a pruned order restocks nothing, silently
 	Register(Definition{Path: "sales/inventory/reservations_retention_days", Type: TypeInt, Default: "180", Label: "Reservation retention (days, keep well past the return window; 0 disables pruning)", Public: false})
 	Register(Definition{Path: "sales/cart/retention_days", Type: TypeInt, Default: "90", Label: "Cart retention (days)", Description: "How long an untouched cart survives before it is deleted. Abandoned-cart flows can't fire on a cart that is already gone.", Public: false})
+	Register(Definition{Path: "sales/cart/offer_expiry_days", Scoping: ScopingChannel, Type: TypeInt, Default: "7", Label: "Offer expiry (days)", Description: "How long a new cart offer stays open by default. Each offer's expiry can still be changed before or after it is sent.", Public: false})
 
 	// whole months only (the send log's partition unit) - the log lives in the commerce database and every transactional
 	// mail writes a row, so it ages out by default rather than growing forever on a store that never opens Signals

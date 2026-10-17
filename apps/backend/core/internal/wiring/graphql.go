@@ -22,6 +22,7 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
@@ -167,6 +168,9 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 			return next(ctx)
 		}
 		opName := oc.OperationName
+		if opName == "" && oc.Operation.Name != "" {
+			opName = oc.Operation.Name // a client that names its operation in the document but not the request still gets the name on its row
+		}
 		if opName == "" {
 			opName = "(anonymous " + string(oc.Operation.Operation) + ")"
 		}
@@ -295,6 +299,10 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		LoginThrottle:        rl.Login,
 		Bus:                  s.Bus,
 	}
+	// Offers: links signed off the app secret, the console quoting through the storefront's own checkout so the admin picks what the recipient will be offered
+	s.Cart.SetOfferLinks(cart.NewOfferLinks(s.Cart.Repo()))
+	adminResolver.OfferCheckout = frontResolver
+	adminResolver.OfferMail = NewOfferMail(s.Flows, s.TransactionalSender, s.Config, s.Customer)
 	frontSrv := handler.New(graphfront.NewExecutableSchema(graphfront.Config{Resolvers: frontResolver}))
 	frontSrv.AddTransport(transport.Options{})
 	frontSrv.AddTransport(transport.GET{})

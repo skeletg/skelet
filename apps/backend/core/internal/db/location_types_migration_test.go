@@ -1,9 +1,9 @@
 package db
 
 import (
-	"os"
 	"testing"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/migfile"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
@@ -14,14 +14,12 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, file := range []string{"migrations/000041_inventory_location_types.down.sql"} {
-		sql, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = tx.ExecContext(t.Context(), string(sql)); err != nil {
-			t.Fatal(err)
-		}
+	mig, err := migfile.Read("migrations/20261017100001_inventory_location_types.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(), mig.Down()); err != nil {
+		t.Fatal(err)
 	}
 	for _, typ := range []string{"store", "warehouse", "custom-backroom", "custom-shelf", ""} {
 		access := typ != "custom-shelf"
@@ -29,11 +27,7 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	sql, err := os.ReadFile("migrations/000041_inventory_location_types.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = tx.ExecContext(t.Context(), string(sql)); err != nil {
+	if _, err = tx.ExecContext(t.Context(), mig.Up()); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -48,11 +42,7 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 		}
 	}
 	// Rolling back restores every changed type, including the untyped pickup point promoted to retail
-	down, err := os.ReadFile("migrations/000041_inventory_location_types.down.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = tx.ExecContext(t.Context(), string(down)); err != nil {
+	if _, err = tx.ExecContext(t.Context(), mig.Down()); err != nil {
 		t.Fatal(err)
 	}
 	for _, raw := range []string{"store", "warehouse", "custom-backroom", "custom-shelf", ""} {
