@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
@@ -23,7 +25,7 @@ func (l *loopingSegments) ListMembers(context.Context, *signalsv1.ListMembersReq
 
 func TestSegmentMembersStopOnARepeatedPageToken(t *testing.T) {
 	seg := &loopingSegments{}
-	c := &Client{secret: "s", ttl: time.Minute, Segments: seg}
+	c := &Client{keys: auth.MustServiceKeys("s"), ttl: time.Minute, Segments: seg}
 	if _, err := c.SegmentMemberIDs(context.Background(), uuid.New()); err == nil {
 		t.Fatal("a server repeating its page token was paged forever")
 	}
@@ -59,7 +61,7 @@ func (r *recordingSuppressions) Unsuppress(_ context.Context, in *signalsv1.Unsu
 
 func TestSuppressionCallsSendTheNormalizedAddress(t *testing.T) {
 	rec := &recordingSuppressions{}
-	c := &Client{secret: "s", ttl: time.Minute, Suppressions: rec}
+	c := &Client{keys: auth.MustServiceKeys("s"), ttl: time.Minute, Suppressions: rec}
 	ctx := context.Background()
 	const raw = "  Ann@Example.COM "
 	c.IsSuppressed(ctx, raw)

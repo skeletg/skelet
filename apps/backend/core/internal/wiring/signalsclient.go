@@ -28,10 +28,10 @@ func newSignalsClient(lc fx.Lifecycle, cfg Config, enabled SignalsEnabled, adm *
 		return nil, errors.New(envcheck.ErrSignalsUnaddressed)
 	}
 	// A missing secret would otherwise read as "no suite", and every call would quietly go nowhere
-	if addr != "" && cfg.SignalsServiceSecret == "" {
+	if addr != "" && !cfg.SignalsServiceKeys.Configured() {
 		return nil, errors.New("SIGNALS_GRPC_ADDR is set but SIGNALS_SERVICE_SECRET is not - core signs every call on the contract with it, and the suite verifies with the same value")
 	}
-	c, err := signalsclient.New(addr, cfg.SignalsServiceSecret, signalsTokenTTL, adm)
+	c, err := signalsclient.New(addr, cfg.SignalsServiceKeys, signalsTokenTTL, adm)
 	if err != nil {
 		return nil, err
 	}

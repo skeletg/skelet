@@ -32,10 +32,10 @@ const (
 
 // Catalog is an emailtemplate.CatalogReader over core's storefront GraphQL endpoint
 type Catalog struct {
-	endpoint      string
-	http          *http.Client
-	stores        emailtemplate.StoreReader
-	serviceSecret string // signs the token each request carries so core's per-IP limiter doesn't count the suite as a flood - empty sends none
+	endpoint    string
+	http        *http.Client
+	stores      emailtemplate.StoreReader
+	serviceKeys auth.ServiceKeys // signs the token each request carries so core's per-IP limiter doesn't count the suite as a flood - unset sends none
 
 	mu    sync.Mutex
 	cache map[string]cached
@@ -49,14 +49,14 @@ type cached struct {
 
 // New returns nil for an empty endpoint - the products block then renders nothing, which is how the
 // builder behaves with no catalog reader wired at all
-func New(endpoint string, stores emailtemplate.StoreReader, serviceSecret string) *Catalog {
+func New(endpoint string, stores emailtemplate.StoreReader, serviceKeys auth.ServiceKeys) *Catalog {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return nil
 	}
 	return &Catalog{
 		endpoint: endpoint, http: &http.Client{Timeout: 10 * time.Second}, stores: stores,
-		serviceSecret: strings.TrimSpace(serviceSecret), cache: map[string]cached{},
+		serviceKeys: serviceKeys, cache: map[string]cached{},
 	}
 }
 
@@ -184,9 +184,9 @@ func (c *Catalog) query(ctx context.Context, channelID uuid.UUID, q string, vars
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Channel-Id", channelID.String())
-	if c.serviceSecret != "" {
+	if c.serviceKeys.Configured() {
 		// Minted per request - a leaked one is worth two minutes of catalog reads
-		tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.CoreAudience, c.serviceSecret, 2*time.Minute)
+		tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.CoreAudience, c.serviceKeys, 2*time.Minute)
 		if err != nil {
 			return err
 		}

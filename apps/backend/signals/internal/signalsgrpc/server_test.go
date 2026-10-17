@@ -26,11 +26,13 @@ import (
 
 const testSecret = "test-secret-for-the-service-token"
 
+var testKeys = auth.MustServiceKeys(testSecret)
+
 // Every service is left nil on purpose - permission and argument checks have to happen before a
 // handler touches one, so a nil service is what proves the order
 func testConn(t *testing.T) *grpc.ClientConn {
 	t.Helper()
-	return testConnWith(t, Deps{ServiceSecret: testSecret, Channels: analytics.NewChannelRoster(nil)})
+	return testConnWith(t, Deps{ServiceKeys: testKeys, Channels: analytics.NewChannelRoster(nil)})
 }
 
 func testConnWith(t *testing.T, deps Deps) *grpc.ClientConn {
@@ -52,7 +54,7 @@ func testConnWith(t *testing.T, deps Deps) *grpc.ClientConn {
 func tokenCtx(t *testing.T, grants ...auth.Grant) context.Context {
 	t.Helper()
 	claims := auth.ServiceClaims{AdminID: uuid.New(), Email: "a@b.c", IsSuperuser: len(grants) == 0, Grants: grants}
-	tok, err := auth.GenerateServiceToken(claims, signalsapi.Audience, testSecret, time.Minute)
+	tok, err := auth.GenerateServiceToken(claims, signalsapi.Audience, testKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -305,7 +307,7 @@ func TestTheStreamingPathRunsItsOwnAuth(t *testing.T) {
 // A system token is core writing as itself, and it must buy nothing else on this server
 func systemCtx(t *testing.T) context.Context {
 	t.Helper()
-	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, testSecret, time.Minute)
+	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, testKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint system: %v", err)
 	}
@@ -314,12 +316,12 @@ func systemCtx(t *testing.T) context.Context {
 
 func TestASystemTokenCarriesNoAuthorityOfItsOwn(t *testing.T) {
 	if _, err := auth.GenerateServiceToken(
-		auth.ServiceClaims{System: true, IsSuperuser: true}, signalsapi.Audience, testSecret, time.Minute,
+		auth.ServiceClaims{System: true, IsSuperuser: true}, signalsapi.Audience, testKeys, time.Minute,
 	); err == nil {
 		t.Error("a superuser system token was minted, which would open every read to the ingest credential")
 	}
 	if _, err := auth.GenerateServiceToken(
-		auth.ServiceClaims{System: true, Grants: []auth.Grant{{Slug: "lens.view"}}}, signalsapi.Audience, testSecret, time.Minute,
+		auth.ServiceClaims{System: true, Grants: []auth.Grant{{Slug: "lens.view"}}}, signalsapi.Audience, testKeys, time.Minute,
 	); err == nil {
 		t.Error("a granted system token was minted, which would let the ingest credential read")
 	}
@@ -512,7 +514,7 @@ func TestASystemTokenReachesTheAutomationMethodsOnly(t *testing.T) {
 
 func customerCtx(t *testing.T, customerID uuid.UUID) context.Context {
 	t.Helper()
-	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{CustomerID: customerID}, signalsapi.Audience, testSecret, time.Minute)
+	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{CustomerID: customerID}, signalsapi.Audience, testKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -654,9 +656,9 @@ func (f fakeRevocations) Revoked(_ context.Context, id uuid.UUID) bool { return 
 // A token minted before a logout still verifies - the list core publishes is what refuses it here
 func TestARevokedSessionIsRefusedOnTheContract(t *testing.T) {
 	list := fakeRevocations{killed: map[uuid.UUID]bool{}}
-	c := signalsv1.NewPrismServiceClient(testConnWith(t, Deps{ServiceSecret: testSecret, Revocations: list, Channels: analytics.NewChannelRoster(nil)}))
+	c := signalsv1.NewPrismServiceClient(testConnWith(t, Deps{ServiceKeys: testKeys, Revocations: list, Channels: analytics.NewChannelRoster(nil)}))
 	session := uuid.New()
-	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{AdminID: uuid.New(), SessionID: session, Email: "a@b.c", IsSuperuser: true}, signalsapi.Audience, testSecret, time.Minute)
+	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{AdminID: uuid.New(), SessionID: session, Email: "a@b.c", IsSuperuser: true}, signalsapi.Audience, testKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -694,7 +696,7 @@ func TestAnEmptyChannelPushIsRefused(t *testing.T) {
 }
 
 func TestEmailGroupsAreChangedOnlyWithAGlobalGrant(t *testing.T) {
-	c := signalsv1.NewEmailBuilderServiceClient(testConnWith(t, Deps{ServiceSecret: testSecret, Channels: analytics.NewChannelRoster(nil), Builder: emailtemplate.NewService(nil, nil)}))
+	c := signalsv1.NewEmailBuilderServiceClient(testConnWith(t, Deps{ServiceKeys: testKeys, Channels: analytics.NewChannelRoster(nil), Builder: emailtemplate.NewService(nil, nil)}))
 	ctx := tokenCtx(t, auth.Grant{Slug: "emails.manage", ChannelID: new(uuid.New())})
 	id := uuid.New().String()
 	for name, call := range map[string]func() error{

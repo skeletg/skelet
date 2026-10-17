@@ -84,12 +84,12 @@ func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 	conn := testdb.RequireSignals(t)
 	qs := signalsdb.New(conn)
 	return qs, Deps{
-		ServiceSecret: testSecret,
-		Channels:      analytics.NewChannelRoster(nil),
-		Experiment:    experiment.NewService(experiment.NewRepository(qs, nil)),
-		Destination:   destination.NewService(qs, nil, allowAllGuard{}, true),
-		Lens:          lens.NewService(qs, nil, nil, nil),
-		Builder:       emailtemplate.NewService(emailtemplate.NewRepository(qs), nil),
+		ServiceKeys: testKeys,
+		Channels:    analytics.NewChannelRoster(nil),
+		Experiment:  experiment.NewService(experiment.NewRepository(qs, nil)),
+		Destination: destination.NewService(qs, nil, allowAllGuard{}, true),
+		Lens:        lens.NewService(qs, nil, nil, nil),
+		Builder:     emailtemplate.NewService(emailtemplate.NewRepository(qs), nil),
 	}
 }
 

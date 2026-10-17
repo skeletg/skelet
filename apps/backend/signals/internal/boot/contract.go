@@ -73,7 +73,7 @@ func newGRPCServer(d contractDeps) *grpc.Server {
 		Builder:        d.Builder,
 		Stores:         d.Stores,
 		Contacts:       PreviewContacts{RosterContacts: d.Contacts},
-		ServiceSecret:  d.Config.ServiceSecret,
+		ServiceKeys:    d.Config.ServiceKeys,
 		Revocations:    d.Revocations,
 		Dev:            d.Config.IsDev(),
 	})

@@ -11,7 +11,9 @@
 // YYYY-MM-DD string rather than a Timestamp, since a bucket is not an instant and has no timezone.
 // A lookup by identifier that misses answers NOT_FOUND rather than an empty message, so "absent"
 // always means the field is genuinely optional. A list that grows with the store pages with
-// page_size and page_token; one that is a ranked top-N takes a limit instead, since it has no page 2
+// page_size and page_token; one that is a ranked top-N takes a limit instead, since it has no page 2;
+// and an admin table that shows a total and jumps to a numbered page takes limit and offset beside
+// that total, since a token can only walk forward
 
 package signalsv1
 

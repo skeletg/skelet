@@ -16,7 +16,7 @@ func (f fakeRevocations) Revoked(_ context.Context, id uuid.UUID) bool { return 
 
 func incoming(t *testing.T, claims ServiceClaims) context.Context {
 	t.Helper()
-	tok, err := GenerateServiceToken(claims, "signals", svcSecret, time.Minute)
+	tok, err := GenerateServiceToken(claims, "signals", svcKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -29,11 +29,11 @@ func TestServiceContextDropsARevokedSession(t *testing.T) {
 	list := fakeRevocations{killed: map[uuid.UUID]bool{}}
 	claims := ServiceClaims{AdminID: uuid.New(), SessionID: session, Email: "a@b.c", IsSuperuser: true}
 
-	if _, ok := AdminFromContext(serviceContext(incoming(t, claims), "signals", svcSecret, list)); !ok {
+	if _, ok := AdminFromContext(serviceContext(incoming(t, claims), "signals", svcKeys, list)); !ok {
 		t.Fatal("a live session was not admitted")
 	}
 	list.Revoke(context.Background(), session)
-	if _, ok := AdminFromContext(serviceContext(incoming(t, claims), "signals", svcSecret, list)); ok {
+	if _, ok := AdminFromContext(serviceContext(incoming(t, claims), "signals", svcKeys, list)); ok {
 		t.Fatal("a revoked session was admitted")
 	}
 }
@@ -42,14 +42,14 @@ func TestServiceContextDropsARevokedSession(t *testing.T) {
 func TestServiceContextRevocationOnlyAppliesToSessions(t *testing.T) {
 	list := fakeRevocations{killed: map[uuid.UUID]bool{uuid.New(): true}}
 	background := ServiceClaims{AdminID: uuid.New(), Email: "a@b.c", IsSuperuser: true}
-	if _, ok := AdminFromContext(serviceContext(incoming(t, background), "signals", svcSecret, list)); !ok {
+	if _, ok := AdminFromContext(serviceContext(incoming(t, background), "signals", svcKeys, list)); !ok {
 		t.Error("a token with no session id was refused")
 	}
-	if !IsSystemCaller(serviceContext(incoming(t, ServiceClaims{System: true}), "signals", svcSecret, list)) {
+	if !IsSystemCaller(serviceContext(incoming(t, ServiceClaims{System: true}), "signals", svcKeys, list)) {
 		t.Error("the system token was refused")
 	}
 	withSession := ServiceClaims{AdminID: uuid.New(), SessionID: uuid.New(), Email: "a@b.c", IsSuperuser: true}
-	if _, ok := AdminFromContext(serviceContext(incoming(t, withSession), "signals", svcSecret, nil)); !ok {
+	if _, ok := AdminFromContext(serviceContext(incoming(t, withSession), "signals", svcKeys, nil)); !ok {
 		t.Error("a nil list refused a token")
 	}
 }

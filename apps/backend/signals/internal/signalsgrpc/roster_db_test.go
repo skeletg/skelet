@@ -33,7 +33,7 @@ func rosterServer(t *testing.T) (signalsv1.IngestServiceClient, *signalsdb.Queri
 
 	qs := signalsdb.New(conn)
 	lis := bufconn.Listen(1 << 20)
-	srv := NewServer(Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, nil), CustomerRoster: analytics.NewRoster(qs)})
+	srv := NewServer(Deps{ServiceKeys: testKeys, Analytics: analytics.NewRecorder(qs, nil), CustomerRoster: analytics.NewRoster(qs)})
 	go func() { _ = srv.Serve(lis) }()
 	cc, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }),
@@ -47,7 +47,7 @@ func rosterServer(t *testing.T) (signalsv1.IngestServiceClient, *signalsdb.Queri
 
 func rosterCtx(t *testing.T) context.Context {
 	t.Helper()
-	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, testSecret, time.Minute)
+	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, testKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestAnErasedCustomerNeverReachesTheSpineAgain(t *testing.T) {
 	conn := testdb.RequireSignals(t)
 	qs := signalsdb.New(conn)
 	spine := &countingSpine{}
-	cc := dial(t, Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, spine), CustomerRoster: analytics.NewRoster(qs)})
+	cc := dial(t, Deps{ServiceKeys: testKeys, Analytics: analytics.NewRecorder(qs, spine), CustomerRoster: analytics.NewRoster(qs)})
 	c := signalsv1.NewIngestServiceClient(cc)
 	ctx := rosterCtx(t)
 	id, channelID := uuid.New(), uuid.New()

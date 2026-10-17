@@ -217,17 +217,17 @@ func Config() (wiring.Config, bool) {
 		service = "e2e-service-secret"
 	}
 	return wiring.Config{
-		Env:                  os.Getenv("APP_ENV"),
-		Role:                 wiring.RoleServer,
-		AdminKeys:            admin,
-		CustomerKeys:         customers,
-		EmailLinks:           links,
-		SignalsServiceSecret: service,
-		VoterTokenSecret:     []byte(getenv("REVIEW_VOTER_TOKEN_SECRET")),
-		DatabaseURL:          dbURL,
-		ReplicaURL:           dbURL,
-		MaxConns:             8,
-		AnalyticsMaxConns:    2,
+		Env:                os.Getenv("APP_ENV"),
+		Role:               wiring.RoleServer,
+		AdminKeys:          admin,
+		CustomerKeys:       customers,
+		EmailLinks:         links,
+		SignalsServiceKeys: serviceKeys(service),
+		VoterTokenSecret:   []byte(getenv("REVIEW_VOTER_TOKEN_SECRET")),
+		DatabaseURL:        dbURL,
+		ReplicaURL:         dbURL,
+		MaxConns:           8,
+		AnalyticsMaxConns:  2,
 	}, true
 }
 
@@ -329,4 +329,12 @@ var e2eKeys = map[string]string{
 	authpkg.EnvCustomerPrivateKey: "ZTJlLWN1c3RvbWVyLXNlZWQtMDEyMzQ1Njc4OWFiY2Q=",
 	emailtrack.EnvLinkSecret:      "e2e-email-link-secret-0123456789",
 	"REVIEW_VOTER_TOKEN_SECRET":   "e2e-review-voter-secret-01234567",
+}
+
+func serviceKeys(secret string) authpkg.ServiceKeys {
+	k, err := authpkg.NewServiceKeys(secret)
+	if err != nil {
+		panic(err)
+	}
+	return k
 }
