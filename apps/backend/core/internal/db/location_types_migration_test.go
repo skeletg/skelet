@@ -41,16 +41,17 @@ func TestLocationTypeMigrationClassifiesLegacyDataSafely(t *testing.T) {
 			t.Fatalf("migration %s: %s %s %v %v %v", tc.raw, typ, legacy, visible, pickup, err)
 		}
 	}
-	// Rolling back restores every changed type, including the untyped pickup point promoted to retail
+	// Rolling back restores every changed type, including the untyped pickup point promoted to retail,
+	// and the pickup the upgrade withdrew from the warehouse
 	if _, err = tx.ExecContext(t.Context(), mig.Down()); err != nil {
 		t.Fatal(err)
 	}
 	for _, raw := range []string{"store", "warehouse", "custom-backroom", "custom-shelf", ""} {
 		var typ string
-		var kept bool
-		err = tx.QueryRowContext(t.Context(), `SELECT type, metadata ? '_legacy_location_type' FROM inventory_locations WHERE slug=$1`, "migration-type-"+raw).Scan(&typ, &kept)
-		if err != nil || typ != raw || kept {
-			t.Fatalf("rollback %q: got %q, legacy key kept %v, %v", raw, typ, kept, err)
+		var pickup, kept bool
+		err = tx.QueryRowContext(t.Context(), `SELECT type, pickup_enabled, metadata ?| array['_legacy_location_type','_legacy_pickup_enabled'] FROM inventory_locations WHERE slug=$1`, "migration-type-"+raw).Scan(&typ, &pickup, &kept)
+		if err != nil || typ != raw || pickup != (raw != "custom-shelf") || kept {
+			t.Fatalf("rollback %q: got %q, pickup %v, legacy key kept %v, %v", raw, typ, pickup, kept, err)
 		}
 	}
 }
