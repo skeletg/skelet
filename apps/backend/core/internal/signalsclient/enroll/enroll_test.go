@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
@@ -36,7 +37,7 @@ func enrollerAgainst(t *testing.T, fake enrollAnswer) *Enroller {
 	signalsv1.RegisterFlowServiceServer(srv, fake)
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(srv.Stop)
-	c, err := signalsclient.New(ln.Addr().String(), "test-secret", time.Minute, nil)
+	c, err := signalsclient.New(ln.Addr().String(), auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -63,7 +63,7 @@ func newCustomerService(ctx context.Context) (*customer.Service, func(), error) 
 	valkey := redis.NewClient(opt)
 	// GDPR erasure asks the suite to drop its identity mappings - nil without SIGNALS_GRPC_ADDR, which
 	// the repository treats as no Signals half to erase
-	signals, err := signalsclient.New(os.Getenv("SIGNALS_GRPC_ADDR"), os.Getenv("SIGNALS_SERVICE_SECRET"), time.Minute, nil)
+	signals, err := signalsclient.New(os.Getenv("SIGNALS_GRPC_ADDR"), auth.ServiceKeysFromEnv(os.Getenv), time.Minute, nil)
 	if err != nil {
 		valkey.Close()
 		conn.Close()

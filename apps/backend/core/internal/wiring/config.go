@@ -30,14 +30,14 @@ type Config struct {
 	WorkerPort string
 
 	// Each signs one thing and is held only where that thing is checked - see docs/env.md for who holds which
-	AdminKeys            auth.AdminKeys      // admin sessions, core alone
-	CustomerKeys         auth.CustomerSigner // customer sessions - Signals gets only the public half
-	EmailLinks           *emailtrack.Signer  // unsubscribe, open and click links, shared with Signals
-	VoterTokenSecret     []byte              // anonymous review votes, shared with the storefront
-	SignalsServiceSecret string              // signs core's calls on the Signals contract - the suite verifies with the same value, and the storefront never sees it
-	DashboardURL         string
-	TrustedProxies       string
-	ConfigEncryptionKey  string // Empty in dev means secret config values are stored as plaintext
+	AdminKeys           auth.AdminKeys      // admin sessions, core alone
+	CustomerKeys        auth.CustomerSigner // customer sessions - Signals gets only the public half
+	EmailLinks          *emailtrack.Signer  // unsubscribe, open and click links, shared with Signals
+	VoterTokenSecret    []byte              // anonymous review votes, shared with the storefront
+	SignalsServiceKeys  auth.ServiceKeys    // signs core's calls on the Signals contract - the suite verifies with the same keys, and the storefront never sees them
+	DashboardURL        string
+	TrustedProxies      string
+	ConfigEncryptionKey string // Empty in dev means secret config values are stored as plaintext
 
 	JobsExternal  bool
 	RunBackground bool // False only when the server role hands the background layer to a worker
@@ -89,9 +89,9 @@ func loadBase() (Config, error) {
 		WorkerPort:   os.Getenv("WORKER_PORT"),
 		DashboardURL: os.Getenv("DASHBOARD_URL"),
 
-		SignalsServiceSecret: strings.TrimSpace(os.Getenv("SIGNALS_SERVICE_SECRET")),
-		TrustedProxies:       os.Getenv("TRUSTED_PROXIES"),
-		JobsExternal:         EnvBool("JOBS_EXTERNAL", false),
+		SignalsServiceKeys: auth.ServiceKeysFromEnv(os.Getenv),
+		TrustedProxies:     os.Getenv("TRUSTED_PROXIES"),
+		JobsExternal:       EnvBool("JOBS_EXTERNAL", false),
 
 		ConfigEncryptionKey: strings.TrimSpace(os.Getenv("CONFIG_ENCRYPTION_KEY")),
 
