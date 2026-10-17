@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -129,8 +130,9 @@ func (s *Service) QueueImport(ctx context.Context, in ImportRequest, src io.Read
 
 	id := uuid.New()
 	key := importKey(id, in.Resource, codec.Extension())
+	// Past validation every failure is the platform's, not the request's - classed internal so the HTTP layer logs it instead of echoing storage or database detail
 	if err := s.blobs.UploadStream(ctx, key, codec.ContentType(), src); err != nil {
-		return Job{}, fmt.Errorf("store upload: %w", err)
+		return Job{}, apperr.WrapClass(fmt.Errorf("store upload: %w", err), apperr.ClassInternal, "datajob.QueueImport")
 	}
 	filename := in.Filename
 	if filename == "" {
@@ -152,7 +154,7 @@ func (s *Service) QueueImport(ctx context.Context, in ImportRequest, src io.Read
 	if err != nil {
 		// The row is what the sweeper walks, so an orphaned upload has to go now or it leaks forever
 		_ = s.blobs.Delete(ctx, key)
-		return Job{}, err
+		return Job{}, apperr.WrapClass(err, apperr.ClassInternal, "datajob.QueueImport")
 	}
 	return toJob(row), nil
 }
