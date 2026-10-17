@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -187,5 +188,32 @@ func TestKeysAreChannelScoped(t *testing.T) {
 	}
 	if got := r.counts[rollupKey{channelID: ch2, day: day, kind: rollupKindHuman}]; got != 1 {
 		t.Errorf("ch2 human counter = %d, want 1 (separate channel)", got)
+	}
+}
+
+// /t/crawl is unauthenticated, so the page key a beacon names is attacker-chosen - only a bounded path may become a rollup row
+func TestPageKeysAreBoundedPaths(t *testing.T) {
+	r := newTestRollup()
+	day := dayKey(testDay)
+	r.AddBot(ch1, "/p/1?utm=x#top", "Googlebot", "search", testDay)
+	if got := r.counts[rollupKey{channelID: ch1, day: day, kind: rollupKindBot, botName: "Googlebot", botCat: "search", pageKey: "/p/1"}]; got != 1 {
+		t.Errorf("query and fragment should be stripped, got %d under /p/1", got)
+	}
+	for _, bad := range []string{"", "p/1", "https://evil.example/", "/" + strings.Repeat("a", maxPageKey), "/\xff"} {
+		r.AddBot(ch2, bad, "Googlebot", "search", testDay)
+		r.AddHumanView(ch2, bad, "d", "r", "", testDay)
+	}
+	for k := range r.counts {
+		if k.channelID == ch2 && k.kind == rollupKindBot {
+			t.Errorf("a malformed page key became a bot row: %q", k.pageKey)
+		}
+	}
+	for k := range r.lensViews {
+		if k.channelID == ch2 && k.dim == "page" {
+			t.Errorf("a malformed page key became a page row: %q", k.key)
+		}
+	}
+	if got := r.lensViews[lensKey{ch2, day, "total", ""}]; got != 5 {
+		t.Errorf("a bad page key should still count the view, total = %d", got)
 	}
 }

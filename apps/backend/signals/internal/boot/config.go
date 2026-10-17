@@ -12,7 +12,11 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
+
+// EnvEncryptionKey seals the credentials the suite stores - destination secrets - and is the suite's own, never core's CONFIG_ENCRYPTION_KEY
+const EnvEncryptionKey = "SIGNALS_ENCRYPTION_KEY"
 
 // Config is what the two suite processes read from the environment, once, before a connection opens
 // No commerce database here - everything of core's is pushed across or asked for over the contract
@@ -24,6 +28,8 @@ type Config struct {
 	EmailLinks *emailtrack.Signer
 	// Verifies the tokens core signs its contract calls with - shared with core alone, empty in the beacon tier
 	ServiceKeys auth.ServiceKeys
+	// Seals stored destination credentials - nil in dev without a key, where they stay plaintext, and in the beacon tier
+	Secrets *secrets.Cipher
 
 	SignalsURL     string
 	SignalsReadURL string
@@ -51,6 +57,11 @@ func Load() (Config, error) {
 	}
 	if c.EmailLinks, err = emailtrack.SignerFromEnv(os.Getenv); err != nil {
 		return Config{}, err
+	}
+	if key := strings.TrimSpace(os.Getenv(EnvEncryptionKey)); key != "" {
+		if c.Secrets, err = secrets.NewCipher(key); err != nil {
+			return Config{}, fmt.Errorf("%s: %w", EnvEncryptionKey, err)
+		}
 	}
 	return c, nil
 }

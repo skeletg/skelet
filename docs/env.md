@@ -17,7 +17,7 @@ most a one-line hint. Everything that needs a paragraph lives here.
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
-| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
@@ -118,15 +118,16 @@ silent default in production is worse than a refusal to start.
 | `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
 | `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
 | `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
+| `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
+| `SIGNALS_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`, and different from `CONFIG_ENCRYPTION_KEY`. The `signals` process seals the destination secrets with it (webhook signing keys, the GA4 API secret, the Meta access token). Keep it stable for the same reason. Dev without it stores them in plaintext. |
+| `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
+| `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
+| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
 
 Production refuses any of these empty, short, a dev default, or equal to
 another one. `JWT_SECRET` is retired: every process refuses to boot while it is
 still set, since it used to sign both session types and a leftover value would
 read as if it still meant something.
-| `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
-| `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
-| `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
-| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
 
 Media storage config (`S3_BUCKET_NAME`, `AWS_REGION`) is also checked at
 boot. The bucket doesn't have to be reachable for the app to start, but
