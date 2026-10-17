@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cacheinvalidate"
+	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
@@ -48,6 +49,7 @@ import (
 // The one call the entrypoint makes - every "what reacts when X fires" decision is below it, and registration order is load-bearing where sync priorities tie, so treat the sequence here as part of the contract
 type subscriberDeps struct {
 	fx.In
+	Cart                *cart.Service
 	Lifecycle           fx.Lifecycle
 	Bus                 *events.Bus
 	Outbox              *outbox.Outbox
@@ -87,6 +89,8 @@ type subscriberDeps struct {
 
 func RegisterDomainSubscribers(d subscriberDeps) {
 	bus := d.Bus
+	cart.RegisterOutboxTypes(d.Outbox)
+	d.Cart.SetOutbox(d.Outbox)
 	order.RegisterOutboxTypes(d.Outbox) // decoders first - the relay can't replay a type it can't materialize
 	payment.RegisterOutboxTypes(d.Outbox)
 	customer.RegisterOutboxTypes(d.Outbox)

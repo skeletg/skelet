@@ -86,6 +86,32 @@ func (f fakeRepo) DeleteSavedItem(context.Context, uuid.UUID, uuid.UUID) (bool, 
 func (f fakeRepo) SetBundleLineQuantity(context.Context, uuid.UUID, float64) error { return nil }
 func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error)  { return nil, nil }
 func (f fakeRepo) WithTx(*sql.Tx) Repository                                       { return f }
+func (f fakeRepo) SetCartOrder(context.Context, uuid.UUID, uuid.UUID) error        { return nil }
+func (f fakeRepo) GetOfferByToken(context.Context, string) (Cart, error) {
+	return Cart{}, sql.ErrNoRows
+}
+
+func (f fakeRepo) CreateOfferCart(context.Context, CreateOfferInput) (Cart, error) {
+	return Cart{}, nil
+}
+func (f fakeRepo) SetOffer(context.Context, uuid.UUID, OfferSettings) error { return nil }
+func (f fakeRepo) MarkOfferSent(context.Context, uuid.UUID) error           { return nil }
+func (f fakeRepo) MarkOfferOpened(context.Context, uuid.UUID) (bool, error) { return true, nil }
+func (f fakeRepo) RevokeOffer(context.Context, uuid.UUID) error             { return nil }
+func (f fakeRepo) BumpOfferLink(context.Context, uuid.UUID) (int32, error)  { return 0, nil }
+func (f fakeRepo) MarkOffersExpiredNotified(context.Context, []uuid.UUID) ([]Cart, error) {
+	return nil, nil
+}
+func (f fakeRepo) ListCustomerOffers(context.Context, uuid.UUID, uuid.UUID) ([]Cart, error) {
+	return nil, nil
+}
+func (f fakeRepo) ListExpiredOffers(context.Context, int32) ([]Cart, error) { return nil, nil }
+func (f fakeRepo) SetLinePrice(context.Context, uuid.UUID, int64, bool) (CartLine, error) {
+	return CartLine{}, nil
+}
+func (f fakeRepo) InsertCustomLine(context.Context, uuid.UUID, CustomLineInput) (CartLine, error) {
+	return CartLine{}, nil
+}
 
 func TestAuthorizeCart(t *testing.T) {
 	owner := uuid.New()

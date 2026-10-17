@@ -19,11 +19,18 @@ export const newCartSchema = z
     email: z.string().describe('Email of the customer to create - required in new mode'),
     firstName: z.string().describe('First name of the customer to create - required in new mode'),
     lastName: z.string().describe('Last name of the customer to create - required in new mode'),
+    offer: z
+      .boolean()
+      .describe('Build it as an offer - a separate cart sent to the recipient as a link, never their own cart'),
+    guestEmail: z.string().describe('Who a guest offer is sent to - required for an offer in guest mode'),
   })
   .describe('A new cart, started by an admin on behalf of a shopper')
   .superRefine((v, ctx) => {
     if (v.mode === 'existing' && !v.customer) {
       ctx.addIssue({ code: 'custom', path: ['customer'], message: 'Pick a customer' })
+    }
+    if (v.offer && v.mode === 'guest' && !isEmail(v.guestEmail)) {
+      ctx.addIssue({ code: 'custom', path: ['guestEmail'], message: EMAIL_MESSAGE })
     }
     if (v.mode !== 'new') return
     if (!isEmail(v.email)) {
@@ -35,7 +42,15 @@ export const newCartSchema = z
 
 export type NewCartValues = z.infer<typeof newCartSchema>
 
-export const emptyNewCart: NewCartValues = { mode: 'existing', customer: null, email: '', firstName: '', lastName: '' }
+export const emptyNewCart: NewCartValues = {
+  mode: 'existing',
+  customer: null,
+  email: '',
+  firstName: '',
+  lastName: '',
+  offer: false,
+  guestEmail: '',
+}
 
 // A strong throwaway password for an admin-created customer - they set their own via password reset
 export function randomPassword(): string {

@@ -25,13 +25,15 @@ const (
 	TriggerSignupConfirmation = "signup_confirmation"
 	// Mailed to an account's owner when someone tries to register with the address it already holds
 	TriggerAccountExists = "account_exists"
+	// An offer cart an admin sends - its link goes out while the admin waits, like the account links
+	TriggerCartOffer = "cart_offer"
 )
 
 // FlowTriggerTypes is every trigger something fires - the composer offers these and nothing else
 func FlowTriggerTypes() []string {
 	return []string{
 		TriggerOrderPlaced, TriggerOrderShipped, TriggerOrderCancelled, TriggerPaymentRefunded,
-		TriggerEmailVerification, TriggerPasswordReset, TriggerSignupConfirmation, TriggerAccountExists,
+		TriggerEmailVerification, TriggerPasswordReset, TriggerSignupConfirmation, TriggerAccountExists, TriggerCartOffer,
 		TriggerCustomerRegistered, TriggerCartAbandoned, TriggerBrowseAbandoned, TriggerBackInStock,
 		TriggerFormSubmitted, TriggerEmailOpened, TriggerEmailClicked, TriggerSegmentEntered,
 	}
@@ -39,7 +41,7 @@ func FlowTriggerTypes() []string {
 
 // IsAuthTrigger names the one-time-link triggers that enroll synchronously
 func IsAuthTrigger(t string) bool {
-	return t == TriggerEmailVerification || t == TriggerPasswordReset || t == TriggerSignupConfirmation || t == TriggerAccountExists
+	return t == TriggerEmailVerification || t == TriggerPasswordReset || t == TriggerSignupConfirmation || t == TriggerAccountExists || t == TriggerCartOffer
 }
 
 // The keys an enrollment payload carries, read back by the run as it renders - what each trigger
@@ -57,6 +59,9 @@ const (
 	PayloadConfirmExpires = "confirm_expires_in"
 	PayloadSignInLink     = "signin_link"
 	PayloadForgotLink     = "forgot_link"
+	PayloadOfferLink      = "offer_link"
+	PayloadOfferExpires   = "offer_expires"
+	PayloadOfferMessage   = "offer_message"
 	PayloadStoreName      = "store_name"
 	PayloadFirstName      = "first_name"
 	PayloadCartID         = "cart_id"

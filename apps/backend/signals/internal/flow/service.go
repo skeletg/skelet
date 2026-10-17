@@ -686,6 +686,15 @@ func (s *Service) mergeVars(ctx context.Context, ch Store, cust Contact, run Flo
 			if v, _ := rc["forgot_link"].(string); v != "" {
 				vars["forgot.link"] = v
 			}
+			if v, _ := rc["offer_link"].(string); v != "" {
+				vars["offer.link"] = v
+			}
+			if v, _ := rc["offer_expires"].(string); v != "" {
+				vars["offer.expiresAt"] = v
+			}
+			if v, ok := rc["offer_message"].(string); ok { // an empty message still replaces its tag
+				vars["offer.message"] = v
+			}
 			// Auth triggers pass an explicit name, since the customer may be brand new
 			if v, _ := rc["first_name"].(string); v != "" {
 				vars["customer.firstName"] = v

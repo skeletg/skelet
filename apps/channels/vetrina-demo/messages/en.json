@@ -78,6 +78,10 @@
       "deliveryGroupChanged": "Your cart changed - choose the delivery again.",
       "deliveryPointUnavailable": "That place isn't available any more - choose another.",
       "deliverySourceUnavailable": "We couldn't reach the delivery service - try again in a moment.",
+      "offerPaymentNotAllowed": "Choose a payment method allowed for this offer.",
+      "offerLocked": "The store set this for your offer, so it can’t be changed.",
+      "offerExpired": "This offer has expired.",
+      "offerRevoked": "This offer is no longer available.",
       "orderNotFound": "We couldn't find an order with those details. Check the order number, email and postcode on your confirmation email.",
       "trackOrderFailed": "Could not look up your order. Please try again."
     },
@@ -196,7 +200,11 @@
       "password": "Password",
       "privacy": "Data & privacy",
       "shopping": "Shopping",
-      "yourDetails": "Your details"
+      "yourDetails": "Your details",
+      "offers": "Offers",
+      "offerCount": "{count, plural, one {# offer} other {# offers}}",
+      "wishlistCount": "{count, plural, one {# wishlist item} other {# wishlist items}}",
+      "newOffers": "{count, plural, one {# new offer} other {# new offers}}"
     },
     "signOut": "Sign out",
     "signingOut": "Signing out…",
@@ -224,6 +232,7 @@
       "startShopping": "Start shopping",
       "shortcuts": "Account shortcuts",
       "ordersHint": "Track, reorder, return",
+      "offersHint": "Offers the store prepared for you",
       "wishlistHint": "Saved for later",
       "addressesHint": "{count} saved",
       "paymentMethodsHint": "Saved cards",
@@ -378,6 +387,14 @@
       "updateDetails": "Update your name, phone or addresses from <link>your profile</link>.",
       "marketingPrefs": "Change marketing preferences via the cookie banner - your choice is saved for 180 days.",
       "readPolicy": "Read the full <link>privacy policy</link>."
+    },
+    "offers": {
+      "title": "Offers",
+      "new": "New",
+      "intro": "Offers the store prepared for you. Each is open until its date.",
+      "empty": "No offers right now.",
+      "open": "Open",
+      "items": "{count, plural, one {# item} other {# items}}"
     }
   },
   "order": {
@@ -1080,6 +1097,51 @@
   },
   "meta": {
     "description": "Demo storefront powered by the Skelet commerce backend"
+  },
+  "offer": {
+    "title": "Your offer",
+    "expires": "Open until {date}",
+    "custom": "Custom",
+    "each": "{price} each",
+    "quantity": "Quantity",
+    "update": "Update",
+    "remove": "Remove",
+    "subtotal": "Subtotal",
+    "taxNote": "Tax and delivery are added at checkout.",
+    "continue": "Continue to checkout →",
+    "locked": "Set by the store: {parts}.",
+    "lock": {
+      "LINES": "the items",
+      "BILLING": "billing address",
+      "SHIPPING": "shipping address",
+      "DELIVERY": "delivery",
+      "COUPONS": "discounts and gift cards"
+    },
+    "checkoutBanner": "You’re checking out an offer the store prepared for you.",
+    "backToCart": "Back to your own cart",
+    "lockedStep": "Set by the store for this offer.",
+    "states": {
+      "invalid": {
+        "title": "This link isn’t valid",
+        "body": "It may have been replaced by a newer one. Use the latest email from the store, or get in touch with them."
+      },
+      "expired": {
+        "title": "This offer has expired",
+        "body": "Get in touch with the store if you’d still like it - they can extend it."
+      },
+      "completed": {
+        "title": "This offer is complete",
+        "body": "It has already been ordered. You’ll find the order in your account or your confirmation email."
+      },
+      "revoked": {
+        "title": "This offer is no longer available",
+        "body": "The store has withdrawn it. Get in touch with them if you have questions."
+      },
+      "other-account": {
+        "title": "This offer is for another account",
+        "body": "Sign out, then open the link again and sign in with the account the offer was sent to."
+      }
+    }
   },
   "trackOrder": {
     "title": "Track your order",

@@ -3,6 +3,7 @@ package cart
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -44,7 +45,41 @@ const ( // subscribe by these, e.g. bus.SubscribeSync(cart.EventLineAdding, 100,
 	EventMerged       = "cart.merged"
 	EventBundleAdding = "cart.bundle.adding"
 	EventBundleAdded  = "cart.bundle.added"
+	EventOfferSent    = "cart.offer.sent"
+	EventOfferOpened  = "cart.offer.opened"
+	EventOfferExpired = "cart.offer.expired"
 )
+
+type OfferSent struct { // fires AFTER an admin emails an offer, async
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	Email      string
+	ExpiresAt  time.Time
+}
+
+func (*OfferSent) Type() string                { return EventOfferSent }
+func (e *OfferSent) EventChannelID() uuid.UUID { return e.ChannelID }
+
+type OfferOpened struct { // fires AFTER an offer link is first followed by its recipient, async
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+}
+
+func (*OfferOpened) Type() string                { return EventOfferOpened }
+func (e *OfferOpened) EventChannelID() uuid.UUID { return e.ChannelID }
+
+type OfferExpired struct { // fires once, AFTER an offer runs out unfinished, async
+	CartID     uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	Email      string
+	ExpiresAt  time.Time
+}
+
+func (*OfferExpired) Type() string                { return EventOfferExpired }
+func (e *OfferExpired) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type LineAdding struct { // fires BEFORE a simple line is upserted - sync handlers abort with a non-nil error or enrich through the pointer fields, which the service reads back before hitting the repository
 	CartID      uuid.UUID

@@ -9,9 +9,10 @@ import { SignInButton } from "@/app/components/SignInButton";
 
 // Same 9x9 footprint in every state, so resolving identity after hydration never shifts the header
 export function AccountSlot() {
-  const { identity } = useCustomerIdentity();
+  const { identity, resolved } = useCustomerIdentity();
   const t = useTranslations("auth");
   const th = useTranslations("header");
+  if (!resolved) return <span aria-hidden="true" className="h-9 w-9 rounded-md bg-muted animate-pulse" />;
   if (!identity) return <SignInButton />;
   return (
     <Link

@@ -1,7 +1,7 @@
 // Maps a browser path onto /<channel>/<locale>/ so each channel and language caches its own render - no imports, the proxy runs it
 
 // Segments that keep their exact path: the backend proxies and the root route handlers external links point at
-export const NOT_LOCALIZED = new Set(["api", "t", "download", "unsubscribe", "subscribe", "e", "coupon", "masquerade"]);
+export const NOT_LOCALIZED = new Set(["api", "t", "download", "unsubscribe", "subscribe", "e", "coupon", "masquerade", "offer"]);
 
 // Pages never carry a file extension, and the root-level files that do (sitemaps, robots.txt) are not per-locale routes
 export function isPagePath(pathname: string): boolean {

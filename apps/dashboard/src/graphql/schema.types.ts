@@ -191,23 +191,100 @@ export type AdminCart = {
   customerEmail?: Maybe<Scalars['String']['output']>;
   customerId?: Maybe<Scalars['ID']['output']>;
   customerName?: Maybe<Scalars['String']['output']>;
+  email: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   itemCount: Scalars['Int']['output'];
+  kind: CartKind;
   lines: Array<AdminCartLine>;
+  offer?: Maybe<AdminCartOffer>;
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type AdminCartAddress = {
+  __typename?: 'AdminCartAddress';
+  city: Scalars['String']['output'];
+  company?: Maybe<Scalars['String']['output']>;
+  countryCode: Scalars['String']['output'];
+  firstName: Scalars['String']['output'];
+  lastName: Scalars['String']['output'];
+  phone?: Maybe<Scalars['String']['output']>;
+  postalCode: Scalars['String']['output'];
+  state?: Maybe<Scalars['String']['output']>;
+  street1: Scalars['String']['output'];
+  street2?: Maybe<Scalars['String']['output']>;
+};
+
+export type AdminCartAddressInput = {
+  city: Scalars['String']['input'];
+  company?: InputMaybe<Scalars['String']['input']>;
+  countryCode: Scalars['String']['input'];
+  firstName: Scalars['String']['input'];
+  lastName: Scalars['String']['input'];
+  phone?: InputMaybe<Scalars['String']['input']>;
+  postalCode: Scalars['String']['input'];
+  state?: InputMaybe<Scalars['String']['input']>;
+  street1: Scalars['String']['input'];
+  street2?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type AdminCartDeliveryChoice = {
+  __typename?: 'AdminCartDeliveryChoice';
+  carrierSlug: Scalars['String']['output'];
+  kind: Scalars['String']['output'];
+  methodCode: Scalars['String']['output'];
+  methodName: Scalars['String']['output'];
+  needsPoint: Scalars['Boolean']['output'];
+  optionId: Scalars['ID']['output'];
+  optionName: Scalars['String']['output'];
+  price: Scalars['Int']['output'];
+};
+
+export type AdminCartDeliveryGroup = {
+  __typename?: 'AdminCartDeliveryGroup';
+  choices: Array<AdminCartDeliveryChoice>;
+  key: Scalars['String']['output'];
+  lines: Array<Scalars['String']['output']>;
+};
+
+export type AdminCartDeliveryInput = {
+  carrierSlug: Scalars['String']['input'];
+  groupKey: Scalars['String']['input'];
+  methodCode: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+  pointId?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type AdminCartDeliveryPoint = {
+  __typename?: 'AdminCartDeliveryPoint';
+  address: Scalars['String']['output'];
+  id: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+};
+
+export type AdminCartDeliverySelection = {
+  __typename?: 'AdminCartDeliverySelection';
+  carrierSlug: Scalars['String']['output'];
+  groupKey: Scalars['String']['output'];
+  methodCode: Scalars['String']['output'];
+  optionId: Scalars['ID']['output'];
+  pointId?: Maybe<Scalars['String']['output']>;
+  pointName?: Maybe<Scalars['String']['output']>;
 };
 
 export type AdminCartLine = {
   __typename?: 'AdminCartLine';
   components: Array<AdminCartLineComponent>;
   id: Scalars['ID']['output'];
+  isCustom: Scalars['Boolean']['output'];
   isSimple: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
+  priceOverride: Scalars['Boolean']['output'];
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
+  taxClass: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -238,6 +315,57 @@ export type AdminCartLineOptionInput = {
   valueIds?: InputMaybe<Array<Scalars['ID']['input']>>;
 };
 
+export type AdminCartOffer = {
+  __typename?: 'AdminCartOffer';
+  checkout: AdminCartOfferCheckout;
+  expiresAt: Scalars['Time']['output'];
+  link: Scalars['String']['output'];
+  linkPath: Scalars['String']['output'];
+  locks: Array<CartOfferLock>;
+  message: Scalars['String']['output'];
+  needsShipping: Scalars['Boolean']['output'];
+  openedAt?: Maybe<Scalars['Time']['output']>;
+  orderId?: Maybe<Scalars['ID']['output']>;
+  paymentMethods: Array<Scalars['String']['output']>;
+  revokedAt?: Maybe<Scalars['Time']['output']>;
+  sendCount: Scalars['Int']['output'];
+  sentAt?: Maybe<Scalars['Time']['output']>;
+  showInAccount: Scalars['Boolean']['output'];
+  state: CartOfferState;
+};
+
+export type AdminCartOfferCheckout = {
+  __typename?: 'AdminCartOfferCheckout';
+  billingAddress?: Maybe<AdminCartAddress>;
+  billingSameAsShipping: Scalars['Boolean']['output'];
+  deliveries: Array<AdminCartDeliverySelection>;
+  paymentProviderSlug: Scalars['String']['output'];
+  shippingAddress?: Maybe<AdminCartAddress>;
+};
+
+export type AdminCartOfferEmailPreview = {
+  __typename?: 'AdminCartOfferEmailPreview';
+  html: Scalars['String']['output'];
+  link: Scalars['String']['output'];
+  linkComplete: Scalars['Boolean']['output'];
+  subject: Scalars['String']['output'];
+  text: Scalars['String']['output'];
+  to: Scalars['String']['output'];
+};
+
+export type AdminCartOfferPaymentMethod = {
+  __typename?: 'AdminCartOfferPaymentMethod';
+  displayName: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+};
+
+export type AdminCreateCartOfferInput = {
+  channelId: Scalars['ID']['input'];
+  customerId?: InputMaybe<Scalars['ID']['input']>;
+  email?: InputMaybe<Scalars['String']['input']>;
+  expiresAt?: InputMaybe<Scalars['Time']['input']>;
+};
+
 export type AdminCreateCustomerInput = {
   channelId: Scalars['ID']['input'];
   customerGroupSlug?: InputMaybe<Scalars['String']['input']>;
@@ -248,6 +376,13 @@ export type AdminCreateCustomerInput = {
   lastName: Scalars['String']['input'];
   password: Scalars['String']['input'];
   phone?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type AdminCustomCartLineInput = {
+  name: Scalars['String']['input'];
+  quantity: Scalars['Float']['input'];
+  taxClass?: InputMaybe<Scalars['String']['input']>;
+  unitPrice: Scalars['Int']['input'];
 };
 
 export type AdminLoginInput = {
@@ -306,6 +441,18 @@ export type AdminTotpSetup = {
   __typename?: 'AdminTotpSetup';
   otpauthUrl: Scalars['String']['output'];
   secret: Scalars['String']['output'];
+};
+
+export type AdminUpdateCartOfferInput = {
+  billingAddress?: InputMaybe<AdminCartAddressInput>;
+  billingSameAsShipping: Scalars['Boolean']['input'];
+  deliveries: Array<AdminCartDeliveryInput>;
+  expiresAt: Scalars['Time']['input'];
+  locks: Array<CartOfferLock>;
+  message: Scalars['String']['input'];
+  paymentMethods: Array<Scalars['String']['input']>;
+  shippingAddress?: InputMaybe<AdminCartAddressInput>;
+  showInAccount: Scalars['Boolean']['input'];
 };
 
 export type AdminUpdateCustomerInput = {
@@ -1115,6 +1262,10 @@ export type CarrierRef = {
   slug: Scalars['String']['output'];
 };
 
+export type CartKind =
+  | 'OFFER'
+  | 'SHOPPER';
+
 export type CartList = {
   __typename?: 'CartList';
   items: Array<CartListItem>;
@@ -1128,12 +1279,32 @@ export type CartListItem = {
   customerEmail?: Maybe<Scalars['String']['output']>;
   customerId?: Maybe<Scalars['ID']['output']>;
   customerName?: Maybe<Scalars['String']['output']>;
+  email: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   itemCount: Scalars['Int']['output'];
+  kind: CartKind;
+  offerExpiresAt?: Maybe<Scalars['Time']['output']>;
+  offerState?: Maybe<CartOfferState>;
+  orderId?: Maybe<Scalars['ID']['output']>;
   status: Scalars['String']['output'];
   subtotal: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
 };
+
+export type CartOfferLock =
+  | 'BILLING'
+  | 'COUPONS'
+  | 'DELIVERY'
+  | 'LINES'
+  | 'SHIPPING';
+
+export type CartOfferState =
+  | 'COMPLETED'
+  | 'DRAFT'
+  | 'EXPIRED'
+  | 'OPENED'
+  | 'REVOKED'
+  | 'SENT';
 
 export type CascadeAttributeIndexableResult = {
   __typename?: 'CascadeAttributeIndexableResult';
@@ -3526,18 +3697,25 @@ export type Mutation = {
   adjustStoreCredit: StoreCreditSummary;
   adminAddAddress: Address;
   adminAddCartLine: AdminCart;
+  adminAddCustomCartLine: AdminCart;
   adminClearCart: AdminCart;
   adminCreateCart: AdminCart;
+  adminCreateCartOffer: AdminCart;
   adminCreateCustomer: Customer;
   adminDeleteAddress: Scalars['Boolean']['output'];
   adminDuplicateCart: AdminCart;
   adminLogin: AdminAuthPayload;
+  adminRegenerateCartOfferLink: AdminCart;
   adminRemoveCartLine: AdminCart;
+  adminRevokeCartOffer: AdminCart;
+  adminSendCartOffer: AdminCart;
+  adminSetCartLinePrice: AdminCart;
   adminSetCustomerConsent: CustomerConsent;
   adminTotpDisable: Scalars['Boolean']['output'];
   adminTotpEnable: Array<Scalars['String']['output']>;
   adminTotpSetup: AdminTotpSetup;
   adminUpdateCartLine: AdminCart;
+  adminUpdateCartOffer: AdminCart;
   adminUpdateCustomer: Customer;
   adoptDefaultDeliveryOptions: CheckoutConfiguration;
   anonymizeCustomer: Scalars['Boolean']['output'];
@@ -4105,6 +4283,12 @@ export type MutationAdminAddCartLineArgs = {
 };
 
 
+export type MutationAdminAddCustomCartLineArgs = {
+  cartId: Scalars['ID']['input'];
+  input: AdminCustomCartLineInput;
+};
+
+
 export type MutationAdminClearCartArgs = {
   cartId: Scalars['ID']['input'];
 };
@@ -4113,6 +4297,11 @@ export type MutationAdminClearCartArgs = {
 export type MutationAdminCreateCartArgs = {
   channelId: Scalars['ID']['input'];
   customerId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type MutationAdminCreateCartOfferArgs = {
+  input: AdminCreateCartOfferInput;
 };
 
 
@@ -4137,9 +4326,31 @@ export type MutationAdminLoginArgs = {
 };
 
 
+export type MutationAdminRegenerateCartOfferLinkArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
 export type MutationAdminRemoveCartLineArgs = {
   cartId: Scalars['ID']['input'];
   lineId: Scalars['ID']['input'];
+};
+
+
+export type MutationAdminRevokeCartOfferArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
+export type MutationAdminSendCartOfferArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
+export type MutationAdminSetCartLinePriceArgs = {
+  cartId: Scalars['ID']['input'];
+  lineId: Scalars['ID']['input'];
+  unitPrice?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -4164,6 +4375,12 @@ export type MutationAdminUpdateCartLineArgs = {
   cartId: Scalars['ID']['input'];
   lineId: Scalars['ID']['input'];
   quantity: Scalars['Float']['input'];
+};
+
+
+export type MutationAdminUpdateCartOfferArgs = {
+  cartId: Scalars['ID']['input'];
+  input: AdminUpdateCartOfferInput;
 };
 
 
@@ -6715,6 +6932,7 @@ export type OrderLine = {
   __typename?: 'OrderLine';
   components: Array<OrderLineComponent>;
   id: Scalars['ID']['output'];
+  isCustom: Scalars['Boolean']['output'];
   isGift: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
@@ -7447,6 +7665,10 @@ export type Query = {
   __typename?: 'Query';
   admin: AdminUser;
   adminActions: Array<AdminAction>;
+  adminCartDeliveryGroups: Array<AdminCartDeliveryGroup>;
+  adminCartDeliveryPoints: Array<AdminCartDeliveryPoint>;
+  adminCartOfferEmailPreview: AdminCartOfferEmailPreview;
+  adminCartOfferPaymentMethods: Array<AdminCartOfferPaymentMethod>;
   admins: Array<AdminUser>;
   aiStatus: AiStatus;
   allMediaDirectories: Array<MediaDirectoryChild>;
@@ -7691,6 +7913,29 @@ export type QueryAdminArgs = {
 };
 
 
+export type QueryAdminCartDeliveryGroupsArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminCartDeliveryPointsArgs = {
+  cartId: Scalars['ID']['input'];
+  groupKey: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryAdminCartOfferEmailPreviewArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminCartOfferPaymentMethodsArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
 export type QueryAttributeArgs = {
   id: Scalars['ID']['input'];
 };
@@ -7780,6 +8025,7 @@ export type QueryCartsArgs = {
   abandoned?: InputMaybe<Scalars['Boolean']['input']>;
   channelId: Scalars['ID']['input'];
   customerId?: InputMaybe<Scalars['ID']['input']>;
+  kind?: InputMaybe<CartKind>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   search?: InputMaybe<Scalars['String']['input']>;

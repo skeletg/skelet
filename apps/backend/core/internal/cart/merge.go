@@ -23,7 +23,7 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 			}
 			return fmt.Errorf("load guest cart: %w", err)
 		}
-		if guest.CustomerID != nil { // another customer's cart answers like a missing one, so the id can't be probed
+		if guest.CustomerID != nil || guest.Kind == KindOffer { // another customer's cart answers like a missing one, so the id can't be probed - and an offer stays a side cart, it never folds into the shopper's
 			return fmt.Errorf("%w: not a guest cart", ErrCartForbidden)
 		}
 

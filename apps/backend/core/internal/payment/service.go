@@ -209,6 +209,21 @@ func (s *Service) ListEligiblePaymentMethods(ctx context.Context, channelID uuid
 	return out, nil
 }
 
+// ListEnabledPaymentMethods is the channel's enabled methods whose provider is still installed, whatever the country - what an admin may narrow an offer to
+func (s *Service) ListEnabledPaymentMethods(ctx context.Context, channelID uuid.UUID) ([]PaymentMethod, error) {
+	methods, err := s.repo.ListEnabledPaymentMethodsByChannel(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PaymentMethod, 0, len(methods))
+	for _, m := range methods {
+		if reg, err := GetProvider(m.ProviderSlug); err == nil && ProviderAvailable(ctx, reg, channelID) {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
 // Mirrors shipping's ReplaceMethodCountries - one transaction, since a failure after the clear left a "specific countries" method with none, gone from checkout everywhere
 func (s *Service) SetPaymentMethodCountries(ctx context.Context, channelID uuid.UUID, providerSlug, mode string, countries []string) error {
 	if _, err := GetProvider(providerSlug); err != nil {

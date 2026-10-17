@@ -16,13 +16,18 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
-// rateItemsFromLines summarizes order lines for a carrier rate request
-func rateItemsFromLines(lines []OrderLine) []shippingpkg.RateItem {
+// rateItemsFromLines summarizes order lines for a carrier rate request - what the carrier prices, and their value the shipping subtotal - a custom offer line never ships, so placement left it out of both
+func rateItemsFromLines(lines []OrderLine) ([]shippingpkg.RateItem, int64) {
 	out := make([]shippingpkg.RateItem, 0, len(lines))
+	var subtotal int64
 	for _, l := range lines {
+		if l.IsCustom {
+			continue
+		}
 		out = append(out, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice})
+		subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
 	}
-	return out
+	return out, subtotal
 }
 
 // editableStatuses are the statuses an edit may mutate - strictly pre-fulfillment
@@ -162,11 +167,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 	if len(active)+len(adds) == 0 {
 		return Order{}, apperr.New("ORDER_EDIT_EMPTY_RESULT", apperr.ClassValidation, "an edit can't remove every line; cancel the order instead")
 	}
-	items := rateItemsFromLines(active)
-	var newSubtotal int64
-	for _, l := range active {
-		newSubtotal += money.LineTotal(l.UnitPrice, l.Quantity)
-	}
+	items, newSubtotal := rateItemsFromLines(active)
 	for _, a := range adds {
 		items = append(items, shippingpkg.RateItem{SKU: a.sku, Quantity: a.qty, UnitPriceCents: a.unit})
 		newSubtotal += money.LineTotal(a.unit, a.qty)
@@ -335,6 +336,8 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 			Quantity:    l.Quantity,
 			Components:  comps,
 			StockParts:  parts,
+			IsCustom:    l.IsCustom,
+			TaxClass:    l.TaxClass,
 		}
 	}
 	return cart.Cart{ChannelID: o.ChannelID, CustomerID: o.CustomerID, Lines: cl}
@@ -408,7 +411,8 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 		requoted bool
 	)
 	if in.Shipping != nil {
-		if quoted, requoted, err = s.requoteShipping(ctx, o, shipping, rateItemsFromLines(o.Lines), subtotal, store.CurrencyCode); err != nil {
+		items, shipSubtotal := rateItemsFromLines(o.Lines)
+		if quoted, requoted, err = s.requoteShipping(ctx, o, shipping, items, shipSubtotal, store.CurrencyCode); err != nil {
 			return Order{}, err
 		}
 	}
