@@ -61,7 +61,7 @@ func toWebhookModel(w webhook.Webhook) *model.Webhook {
 		UpdatedAt:      w.UpdatedAt,
 	}
 	if len(w.CustomHeaders) > 0 {
-		m.CustomHeaders = w.CustomHeaders
+		m.CustomHeaders = webhook.MaskHeaders(w.CustomHeaders)
 	}
 	if w.Kind == webhook.KindSync { // breaker state only means something for sync webhooks - async attempts never feed it
 		m.Circuit = toCircuitModel(webhook.CircuitInfoFor(w.ID))
