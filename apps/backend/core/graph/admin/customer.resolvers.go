@@ -337,12 +337,11 @@ func (r *mutationResolver) AdjustStoreCredit(ctx context.Context, customerID str
 	if err != nil {
 		return nil, err
 	}
-	claims, err := auth.RequireAuth(ctx)
+	by, err := auth.RequireActor(ctx)
 	if err != nil {
 		return nil, err
 	}
-	adminID := claims.AdminID
-	if _, err := r.StoreCreditSvc.Adjust(ctx, c.ID, int64(amountCents), currency, strings.TrimSpace(reason), &adminID); err != nil {
+	if _, err := r.StoreCreditSvc.Adjust(ctx, c.ID, int64(amountCents), currency, strings.TrimSpace(reason), by); err != nil {
 		return nil, err
 	}
 	return r.storeCreditSummary(ctx, c.ID, currency)
@@ -363,7 +362,7 @@ func (r *mutationResolver) AdjustLoyaltyPoints(ctx context.Context, customerID s
 // A short-lived storefront session so an operator sees the store as that customer does - a support
 // and sales tool, not a B2B one, which is why it stays in core
 func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID string) (*model.MasqueradeSession, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}

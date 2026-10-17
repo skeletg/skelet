@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -33,7 +34,7 @@ func TestQuestionsFollowTheProductsVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := qs.Answer(t.Context(), asked.ID, uuid.New(), "True to size."); err != nil {
+	if _, err := qs.Answer(t.Context(), asked.ID, auth.Actor{Kind: auth.ActorAdmin, ID: uuid.New()}, "True to size."); err != nil {
 		t.Fatal(err)
 	}
 	tx := txrunner.New(conn)

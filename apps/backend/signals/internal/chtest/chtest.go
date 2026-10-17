@@ -11,13 +11,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/migfile"
 )
 
 const marker = "skelet.e2e=allowed"
@@ -96,23 +97,29 @@ func applySchema(ctx context.Context, db clickhouse.Conn) error {
 	if !ok {
 		return fmt.Errorf("locate the spine migrations")
 	}
-	files, err := filepath.Glob(filepath.Join(filepath.Dir(here), "..", "analytics", "spinech", "migrations", "*.up.sql"))
-	if err != nil || len(files) == 0 {
+	files, err := migfile.List(filepath.Join(filepath.Dir(here), "..", "analytics", "spinech", "migrations"))
+	if err != nil {
+		return fmt.Errorf("read the spine migrations beside %s: %w", here, err)
+	}
+	if len(files) == 0 {
 		return fmt.Errorf("no spine migrations found beside %s", here)
 	}
-	sort.Strings(files)
 	for _, f := range files {
-		ddl, err := os.ReadFile(f)
-		if err != nil {
+		if err := ApplyUp(ctx, db, f); err != nil {
 			return err
 		}
-		for stmt := range strings.SplitSeq(string(ddl), ";") {
-			if strings.TrimSpace(stripComments(stmt)) == "" {
-				continue
-			}
-			if err := db.Exec(ctx, stmt); err != nil {
-				return fmt.Errorf("apply %s: %w", filepath.Base(f), err)
-			}
+	}
+	return nil
+}
+
+// ApplyUp runs a spine migration's up sections one query each, as dbmate does - ClickHouse refuses a query holding several statements
+func ApplyUp(ctx context.Context, db clickhouse.Conn, f migfile.File) error {
+	for _, stmt := range f.Ups {
+		if strings.TrimSpace(stripComments(stmt)) == "" {
+			continue
+		}
+		if err := db.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("apply %s: %w", filepath.Base(f.Path), err)
 		}
 	}
 	return nil

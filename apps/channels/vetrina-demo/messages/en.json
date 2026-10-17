@@ -81,7 +81,9 @@
       "offerPaymentNotAllowed": "Choose a payment method allowed for this offer.",
       "offerLocked": "The store set this for your offer, so it can’t be changed.",
       "offerExpired": "This offer has expired.",
-      "offerRevoked": "This offer is no longer available."
+      "offerRevoked": "This offer is no longer available.",
+      "orderNotFound": "We couldn't find an order with those details. Check the order number, email and postcode on your confirmation email.",
+      "trackOrderFailed": "Could not look up your order. Please try again."
     },
     "fields": {
       "email": "Email",
@@ -1140,5 +1142,15 @@
         "body": "Sign out, then open the link again and sign in with the account the offer was sent to."
       }
     }
+  },
+  "trackOrder": {
+    "title": "Track your order",
+    "description": "Enter the order number from your confirmation email, the email you ordered with and the delivery postcode.",
+    "orderNumber": "Order number",
+    "postalCode": "Postcode",
+    "submit": "Find my order",
+    "submitting": "Looking up…",
+    "haveAccount": "Have an account?",
+    "signInHint": "Sign in to see all your orders"
   }
 }

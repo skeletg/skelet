@@ -14,9 +14,9 @@ convention is the one most code comments point at.
 - Front model autobinds to `apps/backend/core/graph/admin/model` for shared
   types (Customer, Product, Order, …); cart-only types live in
   `apps/backend/core/graph/front/model`.
-- Migrations in `apps/backend/core/internal/db/migrations/` - numbered
-  sequentially. Each `<n>_<name>.up.sql` paired with
-  `<n>_<name>.down.sql`.
+- Migrations in `apps/backend/core/internal/db/migrations/` - one dbmate file
+  each, `<timestamp>_<name>.sql` from `./skelet db migrate new <name>`, holding its
+  `-- migrate:up` and `-- migrate:down` halves.
 - Both streams apply themselves on `docker compose up`: the `migrate` and
   `signals-migrate` one-shots run `up` and gate app/worker/media/signals/ingest
   on completing successfully, so nothing boots against a stale schema. Adding a

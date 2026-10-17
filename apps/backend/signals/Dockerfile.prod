@@ -1,4 +1,4 @@
-# Prod Signals image - the suite's two binaries, the migrate runner and the spine schema on alpine, static CGO-off builds
+# Prod Signals image - the suite's two binaries, dbmate and the spine schema on alpine, static CGO-off builds
 # Build from apps/backend, since this module replaces core's by relative path: docker build -f apps/backend/signals/Dockerfile.prod -t skelet-signals:prod apps/backend
 
 # The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
@@ -21,9 +21,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # The web-ingest tier - the public /t beacon surface, scaled out on its own
 RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ingest ./cmd/ingest
-# The migrations runner - clickhouse alongside postgres for the columnar spine engine
+# The migrations runner, dbmate - one binary for the Postgres stream and the ClickHouse spine
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go install -tags 'postgres,clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+    CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
 
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for the retention windows' day math
@@ -31,7 +31,7 @@ RUN apk add --no-cache ca-certificates curl tzdata && adduser -D -u 10001 app
 WORKDIR /app
 COPY --from=build /out/signals /app/signals
 COPY --from=build /out/ingest /app/ingest
-COPY --from=build /go/bin/migrate /usr/local/bin/migrate
+COPY --from=build /go/bin/dbmate /usr/local/bin/dbmate
 # The signals database's own stream - the suite's, applied by the signals-migrate one-shot
 COPY --from=build /src/signals/internal/db/migrations /app/signals-migrations
 # The spine schema - applied by the clickhouse-migrate one-shot

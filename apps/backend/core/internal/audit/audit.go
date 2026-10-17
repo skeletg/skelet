@@ -40,21 +40,24 @@ type Service struct {
 func NewService(queries *db.Queries) *Service { return &Service{queries: queries} }
 
 type Entry struct {
-	AdminID    uuid.UUID // uuid.Nil = unknown
-	AdminEmail string
-	Action     string
-	Detail     map[string]any
-	IP         string
-	Success    bool
-	DurationMS int64
+	AdminID       uuid.UUID // uuid.Nil = unknown
+	IntegrationID uuid.UUID
+	AdminEmail    string
+	Action        string
+	Detail        map[string]any
+	IP            string
+	Success       bool
+	DurationMS    int64
 }
 
 func Identify(ctx context.Context, e *Entry) { // fills who and from where off the request context - machine callers have no admin row, so the email column carries the integration's name instead
-	if claims, ok := auth.AdminFromContext(ctx); ok && claims != nil {
-		e.AdminID = claims.AdminID
-		e.AdminEmail = claims.Email
-	} else if tok, ok := auth.ApiTokenFromContext(ctx); ok && tok != nil {
-		e.AdminEmail = "integration:" + tok.Name
+	if a, ok := auth.ActorFromContext(ctx); ok {
+		e.AdminID = a.AdminID().UUID
+		e.IntegrationID = a.IntegrationID().UUID
+		e.AdminEmail = a.Name
+		if a.Kind == auth.ActorIntegration {
+			e.AdminEmail = "integration:" + a.Name
+		}
 	}
 	if r, ok := auth.RequestFromContext(ctx); ok && r != nil {
 		e.IP = auth.ClientIP(r)
@@ -71,31 +74,33 @@ func (s *Service) Record(ctx context.Context, e Entry) { // redacts secret-ish k
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := s.queries.InsertAuditLog(wctx, db.InsertAuditLogParams{
-		AdminID:    adminID,
-		AdminEmail: e.AdminEmail,
-		Action:     e.Action,
-		Detail:     detail,
-		Ip:         e.IP,
-		Success:    e.Success,
-		DurationMs: e.DurationMS,
+		IntegrationID: uuid.NullUUID{UUID: e.IntegrationID, Valid: e.IntegrationID != uuid.Nil},
+		AdminID:       adminID,
+		AdminEmail:    e.AdminEmail,
+		Action:        e.Action,
+		Detail:        detail,
+		Ip:            e.IP,
+		Success:       e.Success,
+		DurationMs:    e.DurationMS,
 	}); err != nil {
 		slog.Error("audit: insert failed", "action", e.Action, "err", err)
 	}
 }
 
 type Row struct {
-	ID         uuid.UUID
-	AdminID    *uuid.UUID
-	AdminEmail string
-	Action     string
-	Detail     json.RawMessage
-	IP         string
-	Success    bool
-	DurationMS int64
-	CreatedAt  time.Time
+	ID            uuid.UUID
+	AdminID       *uuid.UUID
+	IntegrationID *uuid.UUID
+	AdminEmail    string
+	Action        string
+	Detail        json.RawMessage
+	IP            string
+	Success       bool
+	DurationMS    int64
+	CreatedAt     time.Time
 }
 
-func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, limit, offset int32) ([]Row, int64, error) {
+func (s *Service) List(ctx context.Context, adminID, integrationID *uuid.UUID, action *string, limit, offset int32) ([]Row, int64, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -104,12 +109,16 @@ func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, 
 	if adminID != nil {
 		aid = uuid.NullUUID{UUID: *adminID, Valid: true}
 	}
+	iid := uuid.NullUUID{}
+	if integrationID != nil {
+		iid = uuid.NullUUID{UUID: *integrationID, Valid: true}
+	}
 	act := sqlnull.StringNonEmpty(action)
-	rows, err := s.queries.ListAuditLog(ctx, db.ListAuditLogParams{AdminID: aid, Action: act, Lim: limit, Off: offset})
+	rows, err := s.queries.ListAuditLog(ctx, db.ListAuditLogParams{AdminID: aid, IntegrationID: iid, Action: act, Lim: limit, Off: offset})
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.queries.CountAuditLog(ctx, db.CountAuditLogParams{AdminID: aid, Action: act})
+	total, err := s.queries.CountAuditLog(ctx, db.CountAuditLogParams{AdminID: aid, IntegrationID: iid, Action: act})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -127,6 +136,10 @@ func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, 
 		if r.AdminID.Valid {
 			v := r.AdminID.UUID
 			row.AdminID = &v
+		}
+		if r.IntegrationID.Valid {
+			v := r.IntegrationID.UUID
+			row.IntegrationID = &v
 		}
 		if r.Detail.Valid {
 			row.Detail = r.Detail.RawMessage

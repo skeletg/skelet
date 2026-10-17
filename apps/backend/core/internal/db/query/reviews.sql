@@ -88,6 +88,7 @@ SET title  = $2,
     status = 'pending',
     moderated_at   = NULL,
     moderated_by   = NULL,
+    moderated_by_integration_id = NULL,
     moderator_note = ''
 WHERE id = $1
 RETURNING *;
@@ -175,7 +176,8 @@ UPDATE reviews
 SET status         = $2,
     moderated_at   = NOW(),
     moderated_by   = $3,
-    moderator_note = $4
+    moderator_note = $4,
+    moderated_by_integration_id = $5
 WHERE id = $1
 RETURNING *;
 

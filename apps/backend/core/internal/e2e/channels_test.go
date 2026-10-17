@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Scenario: a customer IS (channel, email) - the same address registers separately per store, and
@@ -188,7 +189,7 @@ func TestStoreCreditIsPerCurrency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 800, "USD", "e2e usd grant", nil); err != nil {
+	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 800, "USD", "e2e usd grant", auth.Actor{}); err != nil {
 		t.Fatalf("grant USD: %v", err)
 	}
 
@@ -208,7 +209,7 @@ func TestStoreCreditIsPerCurrency(t *testing.T) {
 	if o := place(); o.StoreCreditAmount != 0 {
 		t.Errorf("USD credit applied %d on a EUR order, want 0", o.StoreCreditAmount)
 	}
-	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 600, "EUR", "e2e eur grant", nil); err != nil {
+	if _, err := h.D.StoreCredit.Adjust(h.Ctx, c.ID, 600, "EUR", "e2e eur grant", auth.Actor{}); err != nil {
 		t.Fatalf("grant EUR: %v", err)
 	}
 	if o := place(); o.StoreCreditAmount != 600 {

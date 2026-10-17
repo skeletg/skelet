@@ -9,7 +9,7 @@ import (
 )
 
 func (r *mutationResolver) SetMyPreference(ctx context.Context, key string, value interface{}) (bool, error) {
-	claims, err := auth.RequireAuth(ctx) // self-scoped by design - integration tokens carry no admin identity and are refused here
+	claims, err := auth.RequireAdmin(ctx) // self-scoped by design - integration tokens carry no admin identity and are refused here
 	if err != nil {
 		return false, err
 	}
@@ -20,7 +20,7 @@ func (r *mutationResolver) SetMyPreference(ctx context.Context, key string, valu
 }
 
 func (r *queryResolver) MyPreferences(ctx context.Context) ([]*model.AdminPreference, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}

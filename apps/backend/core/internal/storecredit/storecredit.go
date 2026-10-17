@@ -11,8 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -23,14 +24,15 @@ var (
 )
 
 type Entry struct {
-	ID           uuid.UUID
-	CustomerID   uuid.UUID
-	OrderID      *uuid.UUID
-	AmountCents  int64
-	CurrencyCode string
-	Reason       string
-	AdminID      *uuid.UUID
-	CreatedAt    time.Time
+	ID            uuid.UUID
+	CustomerID    uuid.UUID
+	OrderID       *uuid.UUID
+	AmountCents   int64
+	CurrencyCode  string
+	Reason        string
+	AdminID       *uuid.UUID
+	IntegrationID *uuid.UUID
+	CreatedAt     time.Time
 }
 
 // Holds the ledger logic - all writes go through the queries layer, and redemption joins the order-placement transaction
@@ -73,7 +75,7 @@ func (s *Service) Entries(ctx context.Context, customerID uuid.UUID, limit int32
 }
 
 // Applies a signed admin correction, granting when positive and deducting when negative - deductions cap at the current balance so the ledger never goes negative, and lock, sum and insert run in one transaction
-func (s *Service) Adjust(ctx context.Context, customerID uuid.UUID, amountCents int64, currency, reason string, adminID *uuid.UUID) (Entry, error) {
+func (s *Service) Adjust(ctx context.Context, customerID uuid.UUID, amountCents int64, currency, reason string, by auth.Actor) (Entry, error) {
 	if amountCents == 0 {
 		return Entry{}, ErrInvalidAmount
 	}
@@ -96,12 +98,13 @@ func (s *Service) Adjust(ctx context.Context, customerID uuid.UUID, amountCents 
 			}
 		}
 		row, err := q.InsertStoreCreditEntry(ctx, db.InsertStoreCreditEntryParams{
-			CustomerID:   customerID,
-			OrderID:      uuid.NullUUID{},
-			AmountCents:  amountCents,
-			CurrencyCode: currency,
-			Reason:       reason,
-			AdminID:      uuid.NullUUID{UUID: ptr.Deref(adminID), Valid: adminID != nil},
+			CustomerID:    customerID,
+			OrderID:       uuid.NullUUID{},
+			AmountCents:   amountCents,
+			CurrencyCode:  currency,
+			Reason:        reason,
+			AdminID:       by.AdminID(),
+			IntegrationID: by.IntegrationID(),
 		})
 		if err != nil {
 			return fmt.Errorf("insert store credit entry: %w", err)
@@ -211,5 +214,6 @@ func toEntry(r db.StoreCreditEntry) Entry {
 		id := r.AdminID.UUID
 		e.AdminID = &id
 	}
+	e.IntegrationID = sqlnull.UUIDPtr(r.IntegrationID)
 	return e
 }

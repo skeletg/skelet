@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -9,6 +10,15 @@ import (
 	sqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
+
+func seedChannel(t *testing.T, tx *sql.Tx, prefix string) (uuid.UUID, string) {
+	t.Helper()
+	id, slug := uuid.New(), prefix+"-"+uuid.NewString()[:8]
+	if _, err := tx.Exec(`INSERT INTO channels (id, slug, name, currency_code, is_active) VALUES ($1,$2,'L','USD',true)`, id, slug); err != nil {
+		t.Fatal(err)
+	}
+	return id, slug
+}
 
 func TestBrowseRecoveryExcludesShopperCartsButNotOffers(t *testing.T) {
 	tx, err := testdb.Require(t).Begin()

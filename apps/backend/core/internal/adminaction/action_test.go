@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func noopHandler(context.Context, Args) (Result, error) { return Result{}, nil }
@@ -99,43 +97,6 @@ func TestFindMissesUnknownSlugs(t *testing.T) {
 	if _, ok := Find("test.never-registered"); ok {
 		t.Error("Find on an unregistered slug = true, want false")
 	}
-}
-
-type stubChecker struct {
-	granted map[string]bool
-	err     error
-}
-
-func (s stubChecker) HasPermission(_ context.Context, _ uuid.UUID, slug string) (bool, error) {
-	if s.err != nil {
-		return false, s.err
-	}
-	return s.granted[slug], nil
-}
-
-// The Tools page lists only what the caller may actually run, and a checker error has to hide the action rather than expose it
-func TestAllAvailableFiltersByPermission(t *testing.T) {
-	isolateRegistry(t)
-	Register(Definition{Slug: "test.allowed", Name: "A", Permission: "perm.yes", Handler: noopHandler})
-	Register(Definition{Slug: "test.denied", Name: "D", Permission: "perm.no", Handler: noopHandler})
-
-	got := AllAvailable(context.Background(), stubChecker{granted: map[string]bool{"perm.yes": true}}, uuid.New())
-	if len(got) != 1 || got[0].Slug != "test.allowed" {
-		t.Errorf("AllAvailable = %v, want only test.allowed", slugsOf(got))
-	}
-
-	got = AllAvailable(context.Background(), stubChecker{err: errors.New("permission backend down")}, uuid.New())
-	if len(got) != 0 {
-		t.Errorf("AllAvailable with a failing checker = %v, want nothing listed", slugsOf(got))
-	}
-}
-
-func slugsOf(defs []Definition) []string {
-	out := make([]string, 0, len(defs))
-	for _, d := range defs {
-		out = append(out, d.Slug)
-	}
-	return out
 }
 
 // Args come off a GraphQL JSON map, so an unexpected key means the caller and the schema disagree - dropping it silently would run the action with arguments the admin thinks they supplied

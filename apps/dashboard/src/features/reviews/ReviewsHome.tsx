@@ -7,7 +7,7 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { cn } from '@/lib/utils'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReviewCountsDocument } from './Reviews.gql'
 import { ReviewsList } from './ReviewsList'
 import { ReviewInsightsContent } from './ReviewInsights'
@@ -56,28 +56,26 @@ export function ReviewsHome() {
         }
       />
 
-      <nav className="flex flex-wrap gap-1 border-b px-4 pt-1">
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            to={t.path}
-            className={cn(
-              '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-              active === t.key
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
+      {/* manual activation: the triggers are links, so the URL decides the tab and arrow keys only move focus */}
+      <Tabs value={active} activationMode="manual">
+        <div className="px-6 pt-6">
+          <TabsList>
+            {TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key} asChild>
+                <Link to={t.path}>{t.label}</Link>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-      {active === 'reviews' && <ReviewsOverview />}
-      {active === 'insights' && <ReviewInsightsContent />}
-      {active === 'questions' && <ReviewQuestionsTable />}
-      {active === 'categories' && <ReviewCategoriesContent />}
-      {active === 'tags' && <ReviewModerationTagsContent />}
+        <TabsContent value={active} className="mt-0">
+          {active === 'reviews' && <ReviewsOverview />}
+          {active === 'insights' && <ReviewInsightsContent />}
+          {active === 'questions' && <ReviewQuestionsTable />}
+          {active === 'categories' && <ReviewCategoriesContent />}
+          {active === 'tags' && <ReviewModerationTagsContent />}
+        </TabsContent>
+      </Tabs>
     </DetailPageLayout>
   )
 }

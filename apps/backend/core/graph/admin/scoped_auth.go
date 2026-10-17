@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -18,8 +19,24 @@ func requireConfigScopePermission(ctx context.Context, checker auth.ScopedPermis
 	return auth.RequireChannelPermission(ctx, checker, slug, *scope.ChannelID, scope.Locale)
 }
 
+// tokenChannels is the channel-picker fallback for a token - its grants hold on every channel unless it is pinned, and a token holding nothing sees none
+func tokenChannels(tok *auth.ApiTokenClaims) (all bool, ids []uuid.UUID) {
+	if len(tok.Permissions) == 0 {
+		return false, nil
+	}
+	if tok.ChannelID != nil {
+		return false, []uuid.UUID{*tok.ChannelID}
+	}
+	return true, nil
+}
+
+func isAdminCaller(ctx context.Context) bool {
+	_, ok := auth.AdminFromContext(ctx)
+	return ok
+}
+
 func hasGlobalPermission(ctx context.Context, checker auth.ScopedPermissionChecker, slug string) (bool, error) {
-	claims, err := auth.RequireAuth(ctx)
+	claims, err := auth.RequireAdmin(ctx)
 	if err != nil {
 		return false, err
 	}
