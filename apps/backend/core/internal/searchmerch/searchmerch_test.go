@@ -99,3 +99,25 @@ func TestSplitTermsOutputIsComparableToQueryTerms(t *testing.T) {
 		}
 	}
 }
+
+func TestValidTargetRefusesOffSiteForms(t *testing.T) {
+	for target, want := range map[string]bool{
+		"/pages/faq":                  true,
+		"/search?q=tee#top":           true,
+		"https://help.example.com/x":  true,
+		"http://help.example.com":     true,
+		"//evil.example":              false,
+		"/\\evil.example":             false,
+		"\\\\evil.example":            false,
+		"/\tevil":                     false,
+		"https://user:pw@example.com": false,
+		"https://":                    false,
+		"javascript:alert(1)":         false,
+		"pages/faq":                   false,
+		"":                            false,
+	} {
+		if got := validTarget(target); got != want {
+			t.Errorf("validTarget(%q) = %v, want %v", target, got, want)
+		}
+	}
+}
