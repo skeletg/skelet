@@ -174,6 +174,40 @@ func (q *Queries) DeleteSignupForm(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getActiveSignupFormBySlug = `-- name: GetActiveSignupFormBySlug :one
+SELECT id, channel_id, slug, name, status, form_type, heading, body, button_label, success_message, collect_name, consent_kind, target_segment_id, trigger_flow, display_config, created_at, updated_at FROM signup_forms WHERE channel_id = $1 AND slug = $2 AND status = 'active'
+`
+
+type GetActiveSignupFormBySlugParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Slug      string    `json:"slug"`
+}
+
+func (q *Queries) GetActiveSignupFormBySlug(ctx context.Context, arg GetActiveSignupFormBySlugParams) (SignupForm, error) {
+	row := q.db.QueryRowContext(ctx, getActiveSignupFormBySlug, arg.ChannelID, arg.Slug)
+	var i SignupForm
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.Slug,
+		&i.Name,
+		&i.Status,
+		&i.FormType,
+		&i.Heading,
+		&i.Body,
+		&i.ButtonLabel,
+		&i.SuccessMessage,
+		&i.CollectName,
+		&i.ConsentKind,
+		&i.TargetSegmentID,
+		&i.TriggerFlow,
+		&i.DisplayConfig,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPendingSignupConfirmation = `-- name: GetPendingSignupConfirmation :one
 SELECT id, token_hash, form_id, channel_id, email, first_name, consent_kind, customer_id, created_at, expires_at, confirmed_at FROM signup_confirmations
 WHERE token_hash = $1 AND confirmed_at IS NULL AND expires_at > NOW()
