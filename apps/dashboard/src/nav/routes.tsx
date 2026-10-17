@@ -70,6 +70,7 @@ registerNavNode({
     // orders list's Status column filter (in the table toolbar)
     { title: 'All orders', path: '/orders', element: lazyPage(() => import('@/features/orders/OrdersList'), 'OrdersList'), permission: 'orders.view' },
     { title: 'Carts', path: '/carts', element: lazyPage(() => import('@/features/carts/CartsList'), 'CartsList'), permission: 'orders.view' },
+    { title: 'Offers', path: '/offers', element: lazyPage(() => import('@/features/carts/CartsList'), 'OffersList'), permission: 'orders.view' },
   ],
 })
 
@@ -477,6 +478,7 @@ const detailLeaves = [
   { title: 'New order', path: '/orders/new', element: lazyPage(() => import('@/features/orders/DraftOrderCreate'), 'DraftOrderCreate'), permission: 'orders.update' },
   { title: 'Order detail', path: '/orders/:id', element: lazyPage(() => import('@/features/orders/OrderDetail'), 'OrderDetail') },
   { title: 'Cart detail', path: '/carts/:id', element: lazyPage(() => import('@/features/carts/CartDetail'), 'CartDetail'), permission: 'orders.view' },
+  { title: 'Offer detail', path: '/offers/:id', element: lazyPage(() => import('@/features/carts/CartDetail'), 'CartDetail'), permission: 'orders.view' },
   { title: 'New product', path: '/products/new', element: lazyPage(() => import('@/features/catalog/ProductCreate'), 'ProductCreate') },
   { title: 'Product detail', path: '/products/:id', element: lazyPage(() => import('@/features/catalog/ProductDetail'), 'ProductDetail') },
   { title: 'Channel detail', path: '/channels/:id', element: lazyPage(() => import('@/features/channels/ChannelDetail'), 'ChannelDetail') },

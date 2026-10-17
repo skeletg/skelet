@@ -38,6 +38,8 @@ export type CartLine = {
   currentUnitPrice?: number | null;
   components: CartLineComponent[];
   options: CartLineOption[];
+  // A charge the store added to an offer by hand - no product page, nothing to deliver
+  isCustom?: boolean;
 };
 
 export type AppliedPromotionCode = {
@@ -78,7 +80,25 @@ export type Cart = {
   appliedCodes: AppliedPromotionCode[];
   lines: CartLine[];
   savedItems: SavedItem[];
+  // Set on an offer the store built and sent - null on the shopper's own cart
+  offer?: CartOffer | null;
 };
+
+export type CartOfferLock = "LINES" | "BILLING" | "SHIPPING" | "DELIVERY" | "COUPONS";
+export type CartOfferState = "DRAFT" | "SENT" | "OPENED" | "COMPLETED" | "EXPIRED" | "REVOKED";
+
+export type CartOffer = {
+  expiresAt: string;
+  message: string;
+  state: CartOfferState;
+  locks: CartOfferLock[];
+  paymentMethods: string[];
+  isGuest: boolean;
+};
+
+export function offerLocks(cart: Pick<Cart, "offer"> | null | undefined, lock: CartOfferLock): boolean {
+  return !!cart?.offer?.locks.includes(lock);
+}
 
 export function cartLineCount(cart: Cart | null): number {
   if (!cart) return 0;

@@ -19,8 +19,11 @@ func (s *Service) ListSavedItems(ctx context.Context, cartID uuid.UUID, callerID
 }
 
 func (s *Service) SaveForLater(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return Cart{}, err
+	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
 		return Cart{}, err
 	}
 	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
@@ -43,7 +46,7 @@ func (s *Service) SaveForLater(ctx context.Context, cartID, lineID uuid.UUID, ca
 
 // Goes back through AddToCart so it re-prices and hits the stock guard - the saved row is claimed by deleting it first, so a double-click moves it once, and put back if the add refuses
 func (s *Service) MoveSavedToCart(ctx context.Context, cartID, savedID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return Cart{}, err
 	}

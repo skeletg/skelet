@@ -27,6 +27,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | Doc | What's in it |
 |---|---|
 | [checkout.md](checkout.md) | Delivery options at checkout - ship to address, store pickup, PO boxes - and how product types limit and price them |
+| [cart-offers.md](cart-offers.md) | Carts an admin builds and sends as a link - offer prices, custom lines, locks, expiry and the recipient's checkout |
 | [channels.md](channels.md) | What's global vs per-channel, the scope ladder, how locale and currency resolve |
 | [deploying.md](deploying.md) | The two deployment shapes, putting an edge in front, health, backups, logs |
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |

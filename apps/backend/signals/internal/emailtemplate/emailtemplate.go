@@ -20,6 +20,7 @@ const (
 	KeyPasswordReset      = "password_reset"
 	KeySignupConfirmation = "signup_confirmation"
 	KeyAccountExists      = "account_exists"
+	KeyCartOffer          = "cart_offer"
 	KeyHeader             = "_header"
 	KeyFooter             = "_footer"
 )
@@ -27,7 +28,7 @@ const (
 // Editable keys in display order - the layout keys come last, and the admin UI groups them separately
 var CanonicalKeys = []string{
 	KeyOrderConfirmation, KeyOrderShipment, KeyOrderCancellation, KeyOrderRefund,
-	KeyVerification, KeyPasswordReset, KeySignupConfirmation, KeyAccountExists, KeyHeader, KeyFooter,
+	KeyVerification, KeyPasswordReset, KeySignupConfirmation, KeyAccountExists, KeyCartOffer, KeyHeader, KeyFooter,
 }
 
 // Only the fields relevant to its Type are populated - extra fields are ignored on decode, and per-type validation happens at save

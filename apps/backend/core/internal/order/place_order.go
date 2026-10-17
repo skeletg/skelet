@@ -222,6 +222,9 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 				return cart.Cart{}, apperr.New("CART_FORBIDDEN", apperr.ClassForbidden, "cart belongs to another customer")
 			}
 		}
+		if err := cart.CheckCartAccess(ctx, cartObj, in.CustomerID); err != nil {
+			return cart.Cart{}, err
+		}
 		return cartObj, nil
 	}
 	if in.CustomerID != nil {
@@ -257,6 +260,11 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 		}
 		for i, l := range cc.cart.Lines {
 			classByLine[i] = classes[l.ProductSku]
+		}
+	}
+	for i, l := range cc.cart.Lines { // a custom line has no product to take a class from - the admin gave it one
+		if l.IsCustom {
+			classByLine[i] = l.TaxClass
 		}
 	}
 
@@ -453,6 +461,8 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 			TotalPrice:  money.LineTotal(l.UnitPrice, l.Quantity),
 			CostCents:   costCents,
 			IsGift:      l.IsGift,
+			IsCustom:    l.IsCustom,
+			TaxClass:    l.TaxClass,
 		})
 		if err != nil {
 			return fmt.Errorf("add order line: %w", err)
@@ -502,7 +512,7 @@ func (s *Service) stampStockParts(ctx context.Context, lines []cart.CartLine) ([
 	copy(out, lines)
 	for i := range out {
 		l := &out[i]
-		if len(l.Components) > 0 || len(l.StockParts) > 0 || l.ProductSku == "" {
+		if len(l.Components) > 0 || len(l.StockParts) > 0 || l.ProductSku == "" || l.IsCustom {
 			continue
 		}
 		if s.kits != nil {

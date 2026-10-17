@@ -212,6 +212,8 @@ type OrderLine {
   totalPrice:  Int!
   # A promotion free gift: zero-priced, granted by a rule rather than added by the customer. It contributes nothing to the subtotal, so a pro-rata refund must not pay money back for it.
   isGift:      Boolean!
+  # A free-form charge from an offer cart - no catalog product, nothing to reserve or ship
+  isCustom:    Boolean!
   # Custom-option picks captured at placement (engraving text, gift wrap,
   # etc.) - the immutable record of what was configured, for fulfillment.
   options:     [OrderLineOption!]!

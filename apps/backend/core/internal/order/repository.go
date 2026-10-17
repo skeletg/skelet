@@ -843,6 +843,8 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 		TotalPrice:  line.TotalPrice,
 		CostCents:   costCents,
 		IsGift:      line.IsGift,
+		IsCustom:    line.IsCustom,
+		TaxClass:    line.TaxClass,
 	})
 	if err != nil {
 		return OrderLine{}, fmt.Errorf("add order line: %w", err)
@@ -1288,6 +1290,8 @@ func toOrderLine(row db.OrderLine) OrderLine {
 		Quantity:    row.Quantity,
 		TotalPrice:  row.TotalPrice,
 		IsGift:      row.IsGift,
+		IsCustom:    row.IsCustom,
+		TaxClass:    row.TaxClass,
 		CreatedAt:   row.CreatedAt,
 	}
 }

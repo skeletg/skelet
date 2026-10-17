@@ -31,6 +31,8 @@ type Service struct {
 	files         FileAssetResolver
 	bus           *events.Bus
 	remotePricing RemotePricingSource // overrides the catalog price for B2B or dynamic pricing, consulted through resolvePricing - nil means catalog price
+	links         *OfferLinks         // resolves offer links - nil means no offer link opens
+	outbox        OutboxEnqueuer
 }
 
 const (
@@ -122,6 +124,12 @@ func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *
 	if err != nil {
 		return err
 	}
+	if cart.IsOffer() { // the offer was made out to this address
+		if email == cart.Email {
+			return nil
+		}
+		return lockedErr("email")
+	}
 	return s.repo.SetEmail(ctx, cart.ID, email)
 }
 
@@ -145,9 +153,24 @@ var errCheckoutMoved = errors.New("checkout moved")
 
 // UpdateCheckout saves one checkout step. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards inside apply - the cart only stores what it's given
 // apply runs on the cart as loaded, with its lines, and outside any transaction: its quotes, payment eligibility and address checks may wait on a third party and read through the shared pool, so holding the row lock and a pooled connection across them would let a burst of saves exhaust the pool. The commit is a short transaction that re-checks access, writes only when checkout_version hasn't moved since the load, and otherwise recomputes the step
+// On an offer, a step that moves a locked part - or the recipient's email - is refused whole
 func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	return s.updateCheckout(ctx, cartID, func(c Cart) error { return CheckCartAccess(ctx, c, callerID) }, true, apply, nil)
+}
+
+// AdminUpdateCheckout is UpdateCheckout for the console - it fills in an offer's checkout up front, so it neither asks who owns the cart nor stops at the locks the admin is setting up
+func (s *Service) AdminUpdateCheckout(ctx context.Context, cartID uuid.UUID, apply func(c *Cart) error) error {
+	return s.updateCheckout(ctx, cartID, func(c Cart) error {
+		if c.Status != "active" {
+			return ErrCartNotActive
+		}
+		return nil
+	}, false, apply, nil)
+}
+
+func (s *Service) updateCheckout(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
 	for range checkoutSaveAttempts {
-		err := s.updateCheckoutOnce(ctx, cartID, callerID, apply)
+		err := s.updateCheckoutOnce(ctx, cartID, authorize, enforceLocks, apply, offer)
 		if !errors.Is(err, errCheckoutMoved) {
 			return err
 		}
@@ -155,16 +178,25 @@ func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID
 	return ErrCheckoutConflict
 }
 
-func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, authorize func(Cart) error, enforceLocks bool, apply func(c *Cart) error, offer *OfferSettings) error {
 	// Prepare - no transaction and no lock
-	cart, err := s.GetCart(ctx, cartID, callerID)
+	cart, err := s.repo.GetCartByID(ctx, cartID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCartForbidden
+		}
+		return fmt.Errorf("load cart: %w", err)
+	}
+	if err := authorize(cart); err != nil {
 		return err
+	}
+	if cart.Lines, err = s.repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+		return fmt.Errorf("load cart lines: %w", err)
 	}
 	next := cart
 	next.Checkout.GiftCardCodes = slices.Clone(cart.Checkout.GiftCardCodes)
 	next.Checkout.BusinessIDs = maps.Clone(cart.Checkout.BusinessIDs)
-	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries)
+	next.Checkout.Deliveries = maps.Clone(cart.Checkout.Deliveries) // a step writes the map in place, and the lock diff needs the before
 	if err := apply(&next); err != nil {
 		return err
 	}
@@ -185,15 +217,29 @@ func (s *Service) updateCheckoutOnce(ctx context.Context, cartID uuid.UUID, call
 			}
 			return fmt.Errorf("lock cart: %w", err)
 		}
-		if err := checkCartAccess(locked, callerID); err != nil {
+		if err := authorize(locked); err != nil {
 			return err
 		}
 		if locked.CheckoutVersion != cart.CheckoutVersion {
 			return errCheckoutMoved
 		}
+		// Check locks against the locked row even when the prepared checkout version still matches.
+		if enforceLocks && locked.IsOffer() {
+			if err := checkOfferLocks(locked, next); err != nil {
+				return err
+			}
+			if emailChanged && locked.Email != "" && !strings.EqualFold(next.Email, locked.Email) {
+				return lockedErr("email")
+			}
+		}
 		if emailChanged {
 			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
 				return err
+			}
+		}
+		if offer != nil {
+			if err := r.SetOffer(ctx, cart.ID, *offer); err != nil {
+				return fmt.Errorf("save offer: %w", err)
 			}
 		}
 		return r.SetCheckout(ctx, cart.ID, next.Checkout)
@@ -214,7 +260,7 @@ func (s *Service) CurrentSimpleLinePrices(ctx context.Context, c Cart) map[uuid.
 		return out
 	}
 	for _, l := range c.Lines {
-		if len(l.Components) > 0 || len(l.Options) > 0 {
+		if len(l.Components) > 0 || len(l.Options) > 0 || l.PriceOverride || l.IsCustom {
 			continue
 		}
 		p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
@@ -233,8 +279,11 @@ func (s *Service) GetCartByIDReadOnly(ctx context.Context, cartID uuid.UUID) (Ca
 
 // Sums quantity on a same-SKU conflict where the incoming unit_price wins - the direct-line-kinds admission check lives in the catalog adapter's ResolveSimplePricing, so the cart stays decoupled and placement inherits the invariant
 func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, sku string, quantity float64) (Cart, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return Cart{}, err
+	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, sku); err != nil {
 		return Cart{}, err
 	}
 	input, err := s.prepareSimpleAdd(ctx, cart, sku, quantity)
@@ -320,7 +369,11 @@ func (s *Service) prepareSimpleAdd(ctx context.Context, c Cart, sku string, quan
 
 // Shared by customer and admin quantity edits - enforces the forced-qty lock (fail-closed, the lock is an invariant not a hint) and the min/max/step bounds, returning the tier-repriced unit with the line's snapshot option deltas back on top (nil = price unchanged)
 // Bundle lines keep their snapshot price, since a bundle SKU has no simple pricing to re-resolve
+// A custom line has no catalog product to check against, and an admin-priced line keeps its price at any quantity - it still sits inside its product's bounds
 func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line CartLine, quantity float64) (*int64, error) {
+	if line.IsCustom {
+		return nil, validCustomQuantity(quantity)
+	}
 	if s.products == nil || len(line.Components) > 0 {
 		return nil, nil
 	}
@@ -339,6 +392,9 @@ func (s *Service) validateQuantityEdit(ctx context.Context, cart Cart, line Cart
 	}
 	if err := validateQtyBounds(p, quantity); err != nil {
 		return nil, err
+	}
+	if line.PriceOverride {
+		return nil, nil
 	}
 	unit := pricing.ApplyTiers(p.UnitPrice, p.Tiers, quantity) // crossing a tier boundary in EITHER direction moves the base price, and the snapshot option surcharges are re-added below so a quantity edit never strips personalization pricing
 	for _, o := range line.Options {
@@ -371,12 +427,15 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err := validQuantity(quantity); err != nil {
 		return Cart{}, err
 	}
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return Cart{}, err
 	}
 	line, err := s.findHydratedLine(ctx, cart.ID, lineID)
 	if err != nil {
+		return Cart{}, err
+	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
 		return Cart{}, err
 	}
 	repricedUnit, err := s.validateQuantityEdit(ctx, cart, line, quantity)
@@ -421,8 +480,11 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 }
 
 func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return Cart{}, err
+	}
+	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
 		return Cart{}, err
 	}
 	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
@@ -455,8 +517,11 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 }
 
 func (s *Service) ClearCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID) error {
-	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
+	cart, err := authorizeLineEdit(ctx, s.repo, cartID, callerID)
 	if err != nil {
+		return err
+	}
+	if err := checkProtectedOfferLine(cart, uuid.Nil, ""); err != nil {
 		return err
 	}
 	if err := s.repo.ClearCartLines(ctx, cart.ID); err != nil {
@@ -493,7 +558,7 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 		return nil
 	}
 	for _, l := range c.Lines {
-		if l.IsGift {
+		if l.IsGift || l.IsCustom {
 			continue
 		}
 		if len(l.Components) == 0 {
@@ -526,7 +591,7 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	}
 	for i := range c.Lines {
 		l := &c.Lines[i]
-		if len(l.Components) > 0 {
+		if len(l.Components) > 0 || l.PriceOverride || l.IsCustom { // an admin's offer price is the price
 			continue
 		}
 		p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
@@ -594,15 +659,36 @@ func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, calle
 		}
 		return Cart{}, fmt.Errorf("load cart: %w", err) // a DB failure is NOT a permission answer - masking it as forbidden told the shopper their own cart was gone
 	}
-	if err := checkCartAccess(cart, callerID); err != nil {
+	if err := CheckCartAccess(ctx, cart, callerID); err != nil {
 		return Cart{}, err
 	}
 	return cart, nil
 }
 
-func checkCartAccess(cart Cart, callerID *uuid.UUID) error {
+// authorizeCart for a change to the lines - an offer with its lines locked refuses it
+func authorizeLineEdit(ctx context.Context, repo Repository, cartID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
+	cart, err := authorizeCart(ctx, repo, cartID, callerID)
+	if err != nil {
+		return Cart{}, err
+	}
+	if cart.Locked(LockLines) {
+		return Cart{}, lockedErr(LockLines)
+	}
+	if cart.IsOffer() {
+		if cart.Lines, err = repo.ListCartLinesByCart(ctx, cart.ID); err != nil {
+			return Cart{}, fmt.Errorf("load offer lines: %w", err)
+		}
+	}
+	return cart, nil
+}
+
+// CheckCartAccess validates a storefront caller against the current cart row, including offer grants and lifetime.
+func CheckCartAccess(ctx context.Context, cart Cart, callerID *uuid.UUID) error {
 	if cart.Status != "active" {
 		return ErrCartNotActive
+	}
+	if cart.Kind == KindOffer {
+		return checkOfferAccess(ctx, cart, callerID)
 	}
 	if cart.CustomerID == nil {
 		return nil

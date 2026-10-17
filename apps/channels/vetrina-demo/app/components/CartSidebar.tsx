@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
+import { clearOfferCheckout } from "@/app/components/offer/LeaveOfferCheckout";
 
 import { cartRecommendationsAction, type CartRecoItem } from "@/app/lib/cart/actions";
 import { mergePendingRemovals, useCartStore } from "@/app/lib/cart/store";
@@ -230,14 +231,20 @@ export function CartSidebar({
             <div className="mt-4 flex flex-col gap-2">
               <Link
                 href="/cart"
-                onClick={closeCart}
+                onClick={() => {
+                  clearOfferCheckout();
+                  closeCart();
+                }}
                 className="flex h-10 items-center justify-center rounded-md border border-foreground/25 text-sm font-semibold transition-colors hover:border-foreground"
               >
                 {t("viewFull")}
               </Link>
               <Link
                 href="/checkout"
-                onClick={closeCart}
+                onClick={() => {
+                  clearOfferCheckout();
+                  closeCart();
+                }}
                 className="flex h-10 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
               >
                 {tc("checkout")}
