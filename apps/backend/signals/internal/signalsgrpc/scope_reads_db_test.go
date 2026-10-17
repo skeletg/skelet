@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
@@ -73,7 +74,7 @@ func TestAPreviewRendersOnlyACustomerOfItsOwnChannel(t *testing.T) {
 func TestVariantStatsAreGatedOnTheCampaignsChannel(t *testing.T) {
 	qs, deps := channelScopeServer(t)
 	mine, theirs := uuid.New(), uuid.New()
-	deps.Campaigns = campaign.NewService(campaign.NewRepository(qs), deps.Builder, nil, nil, nil, nil, nil, nil, nil, []byte("k"))
+	deps.Campaigns = campaign.NewService(campaign.NewRepository(qs), deps.Builder, nil, nil, nil, nil, nil, nil, nil, emailtrack.NewSigner([]byte("k")))
 	camp, err := campaign.NewRepository(qs).Create(context.Background(), campaign.Campaign{
 		ChannelID: theirs, Name: "Theirs", Subject: "s", AudienceKind: campaign.AudienceAll, Status: campaign.StatusDraft,
 	})

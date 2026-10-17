@@ -62,7 +62,7 @@ func (r *mutationResolver) customerAuthPayload(ctx context.Context, c customer.C
 
 // Takes an already-issued refresh token - login/register mint one via Create, the refresh path passes the rotated successor from Rotate straight through
 func (r *mutationResolver) customerAuthPayloadWithRefresh(ctx context.Context, c customer.Customer, refreshToken string) (*model.CustomerAuthPayload, error) {
-	accessToken, err := auth.GenerateCustomerToken(c.ID, c.ChannelID, c.Email, r.JWTSecret, r.JWTTTL)
+	accessToken, err := auth.GenerateCustomerToken(c.ID, c.ChannelID, c.Email, r.CustomerKeys, r.JWTTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}

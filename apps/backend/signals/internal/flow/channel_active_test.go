@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	emailpkg "github.com/skeletg/skelet/apps/backend/core/lib/email"
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
 
@@ -54,7 +55,7 @@ func TestADeactivatedChannelSendsOnlyTransactionalMail(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			repo := newFakeRepo()
 			box := &mailbox{}
-			svc := NewService(repo, emailtemplate.NewService(nil, nil), optedIn{}, fixedStore{active: false}, box, nil, nil, nil, false, []byte("k"))
+			svc := NewService(repo, emailtemplate.NewService(nil, nil), optedIn{}, fixedStore{active: false}, box, nil, nil, nil, false, emailtrack.NewSigner([]byte("k")))
 			f := mailingFlow(repo, c.transactional)
 
 			n, err := svc.EnrollMoment(ctx, f.TriggerType, f.ChannelID, uuid.New(), "", nil, "password_reset:"+uuid.NewString())

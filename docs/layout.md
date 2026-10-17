@@ -77,7 +77,7 @@ templates on first run.
 so it is committed as-is. Every variable, which file it belongs in, and the
 tradeoffs behind the optional ones: [env.md](env.md).
 
-Secrets that apply install-wide (`JWT_SECRET`, `SIGNALS_SERVICE_SECRET`,
+Secrets that apply install-wide (the session and link keys, `SIGNALS_SERVICE_SECRET`,
 `CONFIG_ENCRYPTION_KEY`, `DB_PASSWORD`) live in the root `.env`, from `.env.example`.
 
 ### `deploy/`

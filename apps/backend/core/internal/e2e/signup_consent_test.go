@@ -13,7 +13,6 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
-	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 )
 
 var confirmLink = regexp.MustCompile(`/subscribe/confirm/([A-Za-z0-9_-]+)`)
@@ -90,7 +89,7 @@ func TestSignupFormDoubleOptInAndOneClickUnsubscribe(t *testing.T) {
 	}
 
 	cfg, _ := e2ekit.Config()
-	unsub := "/unsubscribe/" + emailtrack.NewSigner([]byte(cfg.JWTSecret)).SignUnsubscribe(st.customerID)
+	unsub := "/unsubscribe/" + cfg.EmailLinks.SignUnsubscribe(st.customerID)
 	if status, _, _ := tRequest(t, ts, http.MethodGet, unsub, "", ""); status != http.StatusOK {
 		t.Fatalf("GET unsubscribe page = %d, want 200", status)
 	}

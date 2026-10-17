@@ -138,7 +138,8 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		RefreshStore:      s.AdminRefresh.RefreshStore,
 		BlogPreviewStore:  s.BlogPreview.Store,
 		CMSPreviewStore:   s.CMSPreview.Store,
-		JWTSecret:         infra.Config.JWTSecret,
+		AdminKeys:         infra.Config.AdminKeys,
+		CustomerKeys:      infra.Config.CustomerKeys,
 		JWTTTL:            AccessTokenTTL,
 		RateLimiter:       rl.General,
 		AuthLimiter:       rl.Auth,
@@ -215,7 +216,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 			if tokenStr == "" {
 				return ctx, nil, errors.New("missing authorization in connection_init")
 			}
-			claims, err := authpkg.ValidateToken(tokenStr, infra.Config.JWTSecret)
+			claims, err := authpkg.ValidateToken(tokenStr, infra.Config.AdminKeys)
 			if err != nil {
 				return ctx, nil, errors.New("invalid token")
 			}
@@ -290,7 +291,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		MediaLibrarySvc:      s.MediaLibrary,
 		DownloadSvc:          s.Download,
 		SubscriptionSvc:      s.Subscription,
-		JWTSecret:            infra.Config.JWTSecret,
+		CustomerKeys:         infra.Config.CustomerKeys,
 		JWTTTL:               AccessTokenTTL,
 		VoterTokenSecret:     infra.Config.VoterTokenSecret,
 		RateLimiter:          rl.General,

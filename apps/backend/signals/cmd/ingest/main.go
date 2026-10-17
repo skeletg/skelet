@@ -38,7 +38,7 @@ func run() error {
 
 	// Env validation before anything opens a connection, same order as the other entrypoints
 	if err := envcheck.Report(envcheck.Production(os.Getenv,
-		envcheck.JWTSecret, envcheck.TrustedProxies, envcheck.SignalsDatabase,
+		envcheck.IngestSessionKeys, envcheck.TrustedProxies, envcheck.SignalsDatabase,
 		envcheck.RateLimiting, // the beacon endpoint is public and unauthenticated
 	)); err != nil {
 		return err

@@ -11,7 +11,10 @@ x-logging: &logging
 # Same split as prod: secrets in the root .env (the only file compose
 # interpolates), everything else in env/small.env - see .env.example and docs/env.md
 x-secrets: &secrets
-  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+  ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
+  REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
 
@@ -80,7 +83,7 @@ services:
       BACKEND_INTERNAL_URL: http://app:8080
       # The two it shares with the backend, from the same root .env - it gets
       # neither the encryption key nor a DB password
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }

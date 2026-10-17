@@ -17,7 +17,7 @@ most a one-line hint. Everything that needs a paragraph lives here.
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
-| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `JWT_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
@@ -61,9 +61,9 @@ instead, so it fires only when the profile is actually on.
 
 The storefront still keeps its own file. That's a security boundary, not
 duplication: the most internet-exposed container holds no DB password, S3
-key or SMTP credential. The two values it shares with the backend
-(`JWT_SECRET`, `STOREFRONT_REVALIDATE_SECRET`) come from the root `.env`
-via compose, so they aren't written twice either.
+key or SMTP credential, and no session key either. The two values it shares
+with the backend (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`)
+come from the root `.env` via compose, so they aren't written twice either.
 
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
@@ -113,8 +113,16 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, plus the email unsubscribe links and legacy signed cart offer links ([cart-offers.md](cart-offers.md)); rotating it signs everyone out and invalidates those legacy links. New opaque offer links are unaffected. The default value is rejected in production. |
-| `SIGNALS_SERVICE_SECRET` | A second `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value. Compose hands it to core and the Signals processes alone: the storefront holds `JWT_SECRET`, and a storefront that could mint service tokens could call the contract as core. Production refuses it empty, short, or equal to `JWT_SECRET`. |
+| `ADMIN_JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs admin sessions, and only core holds it. See [Session and link keys](#session-and-link-keys). |
+| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in the root `.env` - `./skelet setup` generates it, or `./skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
+| `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
+| `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
+| `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
+
+Production refuses any of these empty, short, a dev default, or equal to
+another one. `JWT_SECRET` is retired: every process refuses to boot while it is
+still set, since it used to sign both session types and a leftover value would
+read as if it still meant something.
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
@@ -123,6 +131,36 @@ silent default in production is worse than a refusal to start.
 Media storage config (`S3_BUCKET_NAME`, `AWS_REGION`) is also checked at
 boot. The bucket doesn't have to be reachable for the app to start, but
 media breaks the moment anyone uploads or views an image.
+
+## Session and link keys
+
+Each key signs one thing and lives only where that thing is checked, so a
+compromised tier can forge only what it already holds:
+
+| Key | Signs | Core | Signals (`signals`) | Beacon tier (`ingest`) | Storefront |
+|---|---|---|---|---|---|
+| `ADMIN_JWT_SECRET` | admin sessions | signs, verifies | - | - | - |
+| `CUSTOMER_JWT_PRIVATE_KEY` | customer sessions | signs | - | - | - |
+| `CUSTOMER_JWT_PUBLIC_KEY` | - | checks it pairs | verifies | verifies | - |
+| `EMAIL_LINK_SECRET` | email links | verifies unsubscribe | signs, verifies | - | - |
+| `REVIEW_VOTER_TOKEN_SECRET` | review votes | verifies | - | - | signs |
+| `SIGNALS_SERVICE_SECRET` | contract calls | signs | verifies | - | - |
+
+Admin and customer tokens also carry different audiences and algorithms
+(HS256 and EdDSA), so neither can stand in for the other even if a deploy got
+the keys wrong.
+
+Rotating a key doesn't have to sign anyone out. Every token names the key it
+was signed with, and each key has a `_PREVIOUS` variable - a comma-separated
+list that keeps verifying while its tokens run out:
+
+1. Put the current value in the `_PREVIOUS` variable and a fresh one in the key
+   itself. For the customer pair that means the old *public* key goes into
+   `CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS`, which core and both Signals tiers read.
+2. Restart. New sessions and links use the new key, old ones still verify.
+3. Once the old tokens have expired, clear `_PREVIOUS`. Sessions last 15
+   minutes and refresh, so a day is plenty; email links live in inboxes, so give
+   `EMAIL_LINK_SECRET_PREVIOUS` as long as an unsubscribe link should work.
 
 ## Datastores
 
@@ -434,7 +472,7 @@ robots.txt. Absolute URLs (canonicals, sitemap, JSON-LD) use the channel's
 public URL, with `STOREFRONT_BASE_URL` as the fallback for a channel without
 one. Neither is needed at build time: the image is the same for every
 channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and voting
-500s without it.
+500s without it - it comes from the root `.env`, matching core's.
 
 `BACKEND_INTERNAL_URL` is where the storefront reaches the backend, and it's
 read at runtime too, so compose sets it on the container rather than the

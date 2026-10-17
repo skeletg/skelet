@@ -49,7 +49,7 @@ func (r *mutationResolver) AdminLogin(ctx context.Context, input model.AdminLogi
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
-	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.JWTSecret, r.JWTTTL)
+	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.AdminKeys, r.JWTTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
@@ -150,7 +150,7 @@ func (r *mutationResolver) RefreshToken(ctx context.Context, token string) (*mod
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
-	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.JWTSecret, r.JWTTTL)
+	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.AdminKeys, r.JWTTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
@@ -184,7 +184,7 @@ func (r *mutationResolver) DevImpersonate(ctx context.Context, adminID string) (
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
-	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.JWTSecret, r.JWTTTL)
+	accessToken, err := auth.GenerateToken(user.ID, sessionID, user.Email, user.IsSuperuser, r.AdminKeys, r.JWTTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}

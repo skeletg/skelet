@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -15,22 +14,16 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Reorder lives in the front resolver rather than a service, so these drive the real GraphQL surface - the first authenticated HTTP scenarios in the suite
 
-func e2eJWTSecret() string { // mirrors e2eConfig, which is what the running graph was built with
-	if s := os.Getenv("JWT_SECRET"); s != "" {
-		return s
-	}
-	return "e2e-test-secret"
-}
-
 func (h *harness) customerToken(t *testing.T, customerID, channelID uuid.UUID, email string) string {
 	t.Helper()
-	tok, err := authpkg.GenerateCustomerToken(customerID, channelID, email, e2eJWTSecret(), time.Hour)
+	tok, err := authpkg.GenerateCustomerToken(customerID, channelID, email, e2eCustomerKeys(t), time.Hour)
 	if err != nil {
 		t.Fatalf("mint customer token: %v", err)
 	}
@@ -374,4 +367,14 @@ func TestReorderRejectsAMalformedOrderID(t *testing.T) {
 		t.Error("a malformed order id was accepted")
 	}
 	h.Settle(t)
+}
+
+// e2eCustomerKeys are the keys the running graph was built with - e2ekit.Config resolves them the same way
+func e2eCustomerKeys(t *testing.T) authpkg.CustomerSigner {
+	t.Helper()
+	cfg, ok := e2ekit.Config()
+	if !ok {
+		t.Skip("no e2e database")
+	}
+	return cfg.CustomerKeys
 }

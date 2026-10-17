@@ -53,7 +53,7 @@ func newBeaconMux(d beaconDeps) *http.ServeMux {
 		Channels: d.Channels, Lens: d.Lens, Experiments: d.Experiment, Segments: d.Segment,
 		Geo: d.Geo, Rollup: d.Rollup,
 		Limiter:   ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute),
-		JWTSecret: d.Config.JWTSecret,
+		Customers: d.Config.Customers,
 	}))
 	// The open pixel and click redirect every marketing mail carries, so the hit lands beside the send log it names
 	mux.Handle("/e/", pulsehttp.New(pulsehttp.Options{

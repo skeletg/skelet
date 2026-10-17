@@ -38,7 +38,7 @@ type commerceBeaconDeps struct {
 	Forms       *signupform.Service
 	Config      *config.Service
 	Limiter     *ratelimit.RedisLimiter
-	JWTSecret   string
+	Customers   auth.CustomerVerifier
 }
 
 // Public and unauthenticated like the rest of /t - per-IP, per-endpoint rate limited, channel from the header
@@ -82,7 +82,7 @@ func (d commerceBeaconDeps) backInStock(w http.ResponseWriter, r *http.Request, 
 				ChannelID: channelID, ProductID: pid, Email: b.Email,
 				AnonID: auth.SanitizeAnonID(r.Header.Get(auth.AnonHeader)),
 			}
-			if cid := auth.VerifiedStorefrontCustomer(r, d.JWTSecret, channelID); cid != uuid.Nil {
+			if cid := auth.VerifiedStorefrontCustomer(r, d.Customers, channelID); cid != uuid.Nil {
 				req.CustomerID = &cid
 			}
 			_ = d.BackInStock.Record(r.Context(), req)
