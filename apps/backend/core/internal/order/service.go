@@ -765,6 +765,14 @@ func (s *Service) GetGuestOrder(ctx context.Context, orderID uuid.UUID, email st
 	return s.repo.GetGuestOrder(ctx, orderID, email)
 }
 
+// Finds an order by number, email and postcode for the storefront's track-order page - all three required, since the number alone is guessable
+func (s *Service) TrackOrderLookup(ctx context.Context, number, email, postalCode string) (TrackedOrder, error) {
+	if strings.TrimSpace(number) == "" || strings.TrimSpace(email) == "" || strings.TrimSpace(postalCode) == "" {
+		return TrackedOrder{}, ErrOrderNotFound
+	}
+	return s.repo.TrackOrderLookup(ctx, number, email, postalCode)
+}
+
 // Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.email_verified so history shows up once the address is proven
 func (s *Service) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error) {
 	if email == "" {

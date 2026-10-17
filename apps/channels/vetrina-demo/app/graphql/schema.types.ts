@@ -1952,6 +1952,7 @@ export type Query = {
   shippingQuotes: Array<ShippingQuote>;
   sitemapCounts: SitemapCounts;
   sitemapEntries: Array<SitemapEntry>;
+  trackOrder?: Maybe<TrackOrderResult>;
   validateAddress: AddressValidationResult;
   wishlistProductIds: Array<Scalars['ID']['output']>;
 };
@@ -2199,6 +2200,13 @@ export type QuerySitemapEntriesArgs = {
   entityType: SitemapEntityType;
   limit: Scalars['Int']['input'];
   offset: Scalars['Int']['input'];
+};
+
+
+export type QueryTrackOrderArgs = {
+  email: Scalars['String']['input'];
+  number: Scalars['String']['input'];
+  postalCode: Scalars['String']['input'];
 };
 
 
@@ -2500,6 +2508,13 @@ export type TierPrice = {
   __typename?: 'TierPrice';
   minQty: Scalars['Float']['output'];
   price: Scalars['Int']['output'];
+};
+
+export type TrackOrderResult = {
+  __typename?: 'TrackOrderResult';
+  email: Scalars['String']['output'];
+  orderId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
 };
 
 export type VariantMode =

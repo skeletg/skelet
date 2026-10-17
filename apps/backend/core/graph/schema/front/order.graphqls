@@ -182,6 +182,17 @@ extend type Query {
 extend type Query {
   # Guest order lookup. (id, email) acts as a bearer credential - anyone who knows both can view the order, no auth required. Customer orders are NOT accessible via this query; they go through myOrder() instead. Returns null when the pair doesn't match a guest order.
   guestOrder(id: ID!, email: String!): Order
+  # Track-order lookup by what's on the receipt: order number, email and shipping postcode (billing postcode for orders with no shipping address), all compared case- and spacing-insensitively. Null when the three don't match an order on this store. Rate-limited per IP.
+  trackOrder(number: String!, email: String!, postalCode: String!): TrackOrderResult
+}
+
+# Where a track-order lookup sends the shopper - never the order itself.
+type TrackOrderResult {
+  orderId: ID!
+  # The order belongs to a customer account, so it opens only through myOrder after sign-in. Otherwise open it with guestOrder(orderId, email).
+  requiresLogin: Boolean!
+  # The order's email as stored - pass this to guestOrder, which matches it exactly. Empty when requiresLogin is true.
+  email: String!
 }
 
 extend type Mutation {

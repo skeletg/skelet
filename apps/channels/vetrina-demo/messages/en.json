@@ -77,7 +77,9 @@
       "deliveryPointRequired": "Choose where it goes.",
       "deliveryGroupChanged": "Your cart changed - choose the delivery again.",
       "deliveryPointUnavailable": "That place isn't available any more - choose another.",
-      "deliverySourceUnavailable": "We couldn't reach the delivery service - try again in a moment."
+      "deliverySourceUnavailable": "We couldn't reach the delivery service - try again in a moment.",
+      "orderNotFound": "We couldn't find an order with those details. Check the order number, email and postcode on your confirmation email.",
+      "trackOrderFailed": "Could not look up your order. Please try again."
     },
     "fields": {
       "email": "Email",
@@ -1078,5 +1080,15 @@
   },
   "meta": {
     "description": "Demo storefront powered by the Skelet commerce backend"
+  },
+  "trackOrder": {
+    "title": "Track your order",
+    "description": "Enter the order number from your confirmation email, the email you ordered with and the delivery postcode.",
+    "orderNumber": "Order number",
+    "postalCode": "Postcode",
+    "submit": "Find my order",
+    "submitting": "Looking up…",
+    "haveAccount": "Have an account?",
+    "signInHint": "Sign in to see all your orders"
   }
 }

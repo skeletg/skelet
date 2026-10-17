@@ -187,6 +187,7 @@ type Repository interface {
 	ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error)
 	ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID) ([]Order, error)
 	GetGuestOrder(ctx context.Context, id uuid.UUID, email string) (Order, error)
+	TrackOrderLookup(ctx context.Context, number, email, postalCode string) (TrackedOrder, error)
 	// Attaches guest orders on channelID under email to customerID and returns the count, where zero is valid - so a new customer's first /account/orders visit shows pre-registration history
 	ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error)
 	// fromStatus is the status the caller validated the transition against - no row matches when it already moved, so concurrent callers can't both commit
@@ -275,6 +276,14 @@ const (
 	FulfillmentShipped   = "shipped"
 	FulfillmentCancelled = "cancelled"
 )
+
+// What a track-order lookup may reveal once number, email and postcode all matched - never the order itself
+type TrackedOrder struct {
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	Email      string // as stored, so a guest hand-off can call GetGuestOrder with the exact value
+	HasAccount bool
+}
 
 type Fulfillment struct {
 	ID             uuid.UUID
