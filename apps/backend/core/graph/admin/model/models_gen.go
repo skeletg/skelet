@@ -4233,7 +4233,7 @@ type ScheduledJobRun struct {
 }
 
 type ScheduledJobWebhook struct {
-	URL       string `json:"url"`
+	Host      string `json:"host"`
 	Method    string `json:"method"`
 	HasSecret bool   `json:"hasSecret"`
 }

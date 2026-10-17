@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -49,9 +50,9 @@ type Run struct {
 	Attempt    int32
 }
 
-// WebhookView is the safe read projection of a webhook job's config
+// WebhookView is the safe read projection of a webhook job's config - the host only, since the path and query of a hook URL are often the credential
 type WebhookView struct {
-	URL       string
+	Host      string
 	Method    string
 	HasSecret bool
 }
@@ -91,7 +92,11 @@ func toJob(row db.ScheduledJob) Job {
 	if row.Kind == "webhook" {
 		var cfg WebhookConfig
 		_ = json.Unmarshal(row.Payload, &cfg)
-		j.Webhook = &WebhookView{URL: cfg.URL, Method: cfg.Method, HasSecret: cfg.Secret != ""}
+		host := ""
+		if u, err := url.Parse(cfg.URL); err == nil {
+			host = u.Host
+		}
+		j.Webhook = &WebhookView{Host: host, Method: cfg.Method, HasSecret: cfg.Secret != ""}
 	}
 	return j
 }
@@ -182,7 +187,11 @@ func (s *Service) CreateWebhook(ctx context.Context, in CreateWebhookInput, by *
 	in.Schedule = strings.TrimSpace(in.Schedule)
 	in.Timezone = strings.TrimSpace(in.Timezone)
 	if in.Name == "" {
-		return Job{}, fmt.Errorf("name is required")
+		return Job{}, ErrWebhookNameNeeded
+	}
+	// Code jobs seed by name, so a webhook holding one's name would keep that job from ever being created
+	if s.isCodeJob(in.Name) {
+		return Job{}, ErrWebhookNameTaken
 	}
 	if err := ValidateScheduleTZ(in.Schedule, in.Timezone); err != nil {
 		return Job{}, err
@@ -190,10 +199,17 @@ func (s *Service) CreateWebhook(ctx context.Context, in CreateWebhookInput, by *
 	if err := ValidateWebhookURL(in.URL, s.webhook.allowPrivate); err != nil {
 		return Job{}, err
 	}
-	payload, err := json.Marshal(WebhookConfig{
+	if err := validateMethod(in.Method); err != nil {
+		return Job{}, ErrWebhookMethod
+	}
+	sealed, err := s.webhook.seal(WebhookConfig{
 		URL: strings.TrimSpace(in.URL), Method: normalizeMethod(in.Method),
 		Headers: in.Headers, Body: in.Body, Secret: in.Secret,
 	})
+	if err != nil {
+		return Job{}, err
+	}
+	payload, err := json.Marshal(sealed)
 	if err != nil {
 		return Job{}, err
 	}
@@ -238,6 +254,9 @@ func (s *Service) UpdateWebhook(ctx context.Context, in UpdateWebhookInput, by *
 	if err := ValidateWebhookURL(in.URL, s.webhook.allowPrivate); err != nil {
 		return Job{}, err
 	}
+	if err := validateMethod(in.Method); err != nil {
+		return Job{}, ErrWebhookMethod
+	}
 	cur, err := s.queries.GetScheduledJob(ctx, in.ID)
 	if err != nil {
 		return Job{}, err
@@ -247,14 +266,17 @@ func (s *Service) UpdateWebhook(ctx context.Context, in UpdateWebhookInput, by *
 	}
 	var prev WebhookConfig
 	_ = json.Unmarshal(cur.Payload, &prev)
-	secret := in.Secret
-	if secret == "" {
-		secret = prev.Secret // blank = keep existing
-	}
-	payload, err := json.Marshal(WebhookConfig{
+	sealed, err := s.webhook.seal(WebhookConfig{
 		URL: strings.TrimSpace(in.URL), Method: normalizeMethod(in.Method),
-		Headers: in.Headers, Body: in.Body, Secret: secret,
+		Headers: in.Headers, Body: in.Body, Secret: in.Secret,
 	})
+	if err != nil {
+		return Job{}, err
+	}
+	if in.Secret == "" {
+		sealed.Secret = prev.Secret // blank = keep existing, already sealed as stored
+	}
+	payload, err := json.Marshal(sealed)
 	if err != nil {
 		return Job{}, err
 	}
@@ -290,8 +312,13 @@ func (s *Service) WebhookDetail(ctx context.Context, id uuid.UUID) (WebhookDetai
 	if row.Kind != "webhook" {
 		return WebhookDetail{}, fmt.Errorf("job %q is not a webhook job", row.Name)
 	}
-	var cfg WebhookConfig
-	_ = json.Unmarshal(row.Payload, &cfg)
+	var stored WebhookConfig
+	_ = json.Unmarshal(row.Payload, &stored)
+	// Opened for the manage-gated edit dialog only - a save round-trips the headers instead of wiping them
+	cfg, err := s.webhook.open(stored)
+	if err != nil {
+		return WebhookDetail{}, err
+	}
 	return WebhookDetail{
 		URL:       cfg.URL,
 		Method:    cfg.Method,

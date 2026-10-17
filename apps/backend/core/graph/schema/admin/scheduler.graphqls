@@ -23,9 +23,10 @@ type ScheduledJob {
   updatedAt:            Time!
 }
 
-# Safe read projection of a webhook job's config - the secret is never echoed.
+# Safe read projection of a webhook job's config - the secret is never echoed, and only the host shows,
+# since a hook URL's path is often its credential. The full URL is on webhookJobConfig (scheduler.manage).
 type ScheduledJobWebhook {
-  url:       String!
+  host:      String!
   method:    String!
   hasSecret: Boolean!
 }

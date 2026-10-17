@@ -19,7 +19,8 @@ func init() {
 	config.RegisterSection(config.Section{Slug: "system", Label: "System", SortOrder: 99})
 	config.RegisterGroup(config.Group{Section: "system", Slug: "scheduler", Label: "Scheduled jobs", SortOrder: 1})
 	config.Register(config.Definition{Path: cfgEnabled, Type: config.TypeBool, Default: "true", Label: "Scheduler enabled (master pause switch)"})
-	config.Register(config.Definition{Path: cfgAlertWebhook, Type: config.TypeString, Default: "", Label: "Failure alert webhook URL"})
+	// Secret-typed: a chat-hook URL is itself the credential
+	config.Register(config.Definition{Path: cfgAlertWebhook, Type: config.TypeSecret, Default: "", Label: "Failure alert webhook URL"})
 	config.Register(config.Definition{Path: cfgHistoryDays, Type: config.TypeInt, Default: "30", Label: "Run-history retention (days)"})
 }
 

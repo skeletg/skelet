@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -202,5 +203,121 @@ func TestRunNowByNamePullsTheJobForward(t *testing.T) {
 	}
 	if err := svc.RunNowByName(ctx, "no-such-job-"+uuid.NewString()[:8]); err == nil {
 		t.Error("an unknown job name was accepted")
+	}
+}
+
+func TestRunNowRefusesADisabledJob(t *testing.T) {
+	svc, conn, q := newDBService(t)
+	ctx := context.Background()
+	name := "run-now-off-" + uuid.NewString()[:8]
+	svc.RegisterDisabled(name, "@every 24h", "disabled fixture", func(context.Context) error { return nil })
+	if err := svc.Seed(ctx); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM scheduled_jobs WHERE name = $1`, name) })
+	var id uuid.UUID
+	if err := conn.QueryRow(`SELECT id FROM scheduled_jobs WHERE name = $1`, name).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RunNow(ctx, id); !errors.Is(err, ErrJobDisabled) {
+		t.Fatalf("RunNow on a disabled job = %v, want ErrJobDisabled", err)
+	}
+	row, err := q.GetScheduledJob(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.NextRunAt.Valid && time.Until(row.NextRunAt.Time) < time.Hour {
+		t.Error("a refused run-now still pulled the job forward")
+	}
+}
+
+func TestWebhookJobsCannotTakeACodeJobsName(t *testing.T) {
+	svc, conn, _ := newDBService(t)
+	name := "code-owned-" + uuid.NewString()[:8]
+	svc.Register(name, "@every 24h", "fixture", func(context.Context) error { return nil })
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM scheduled_jobs WHERE name = $1`, name) })
+	_, err := svc.CreateWebhook(context.Background(), CreateWebhookInput{Name: name, Schedule: "@every 1h", URL: "https://hooks.example.com/x"}, nil)
+	if !errors.Is(err, ErrWebhookNameTaken) {
+		t.Fatalf("CreateWebhook on a code job's name = %v, want ErrWebhookNameTaken", err)
+	}
+}
+
+func TestWebhookSecretsAreSealedInTheRow(t *testing.T) {
+	svc, conn, _ := newDBService(t)
+	svc.SetCipher(testCipher(t))
+	ctx := context.Background()
+	job, err := svc.CreateWebhook(ctx, CreateWebhookInput{
+		Name: "sealed-" + uuid.NewString()[:8], Schedule: "@every 1h", URL: "https://hooks.example.com/x?token=abc",
+		Secret: "sign-me", Headers: map[string]string{"Authorization": "Bearer api-key"},
+	}, nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM scheduled_jobs WHERE id = $1`, job.ID) })
+	var stored string
+	if err := conn.QueryRow(`SELECT payload::text FROM scheduled_jobs WHERE id = $1`, job.ID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stored, "sign-me") || strings.Contains(stored, "api-key") {
+		t.Fatalf("payload holds a plaintext secret: %s", stored)
+	}
+	if job.Webhook == nil || job.Webhook.Host != "hooks.example.com" || !job.Webhook.HasSecret {
+		t.Errorf("list view = %+v, want the host alone and the secret flagged", job.Webhook)
+	}
+	detail, err := svc.WebhookDetail(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Headers["Authorization"] != "Bearer api-key" {
+		t.Errorf("detail headers = %v, want them opened", detail.Headers)
+	}
+	if _, err := svc.UpdateWebhook(ctx, UpdateWebhookInput{ID: job.ID, URL: "https://hooks.example.com/y", Method: "POST"}, nil); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	after, err := svc.Get(ctx, job.ID)
+	if err != nil || !after.Webhook.HasSecret {
+		t.Errorf("update with a blank secret dropped it: %+v %v", after.Webhook, err)
+	}
+}
+
+// A deploy interrupting a daily job must not cost a day - it stays due for the next replica or boot
+func TestAnInterruptedRunStaysDue(t *testing.T) {
+	svc, conn, q := newDBService(t)
+	name := "interrupted-" + uuid.NewString()[:8]
+	started := make(chan struct{})
+	svc.Register(name, "@every 24h", "fixture", func(ctx context.Context) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if err := svc.Seed(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM scheduled_jobs WHERE name = $1`, name) })
+	markDue(t, conn, name)
+	var row dbsqlc.ScheduledJob
+	rows, err := q.ClaimDueScheduledJobs(context.Background(), dbsqlc.ClaimDueScheduledJobsParams{Now: time.Now(), BatchSize: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if r.Name == name {
+			row = r
+		} else {
+			_, _ = conn.Exec(`UPDATE scheduled_jobs SET locked_until = NULL WHERE id = $1`, r.ID)
+		}
+	}
+	if row.Name == "" {
+		t.Fatal("job was not claimed")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { <-started; cancel() }()
+	svc.runOne(ctx, row)
+	var due sql.NullTime
+	if err := conn.QueryRow(`SELECT next_run_at FROM scheduled_jobs WHERE name = $1`, name).Scan(&due); err != nil {
+		t.Fatal(err)
+	}
+	if !due.Valid || time.Until(due.Time) > time.Minute {
+		t.Errorf("an interrupted run was rescheduled to %v, want it still due", due)
 	}
 }

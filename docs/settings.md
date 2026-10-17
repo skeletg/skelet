@@ -497,7 +497,7 @@ waiting to be written rather than a setting with nothing to say.
 | Path | What it does | Type | Scope | Public | Default |
 |---|---|---|---|---|---|
 | `system/scheduler/enabled` | Scheduler enabled (master pause switch) | bool | global |  | `true` |
-| `system/scheduler/alert_webhook_url` | Failure alert webhook URL | string | global |  | - |
+| `system/scheduler/alert_webhook_url` | Failure alert webhook URL | secret | global |  | - |
 | `system/scheduler/history_retention_days` | Run-history retention (days) | int | global |  | `30` |
 
 **Audit log**
