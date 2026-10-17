@@ -384,3 +384,18 @@ func TestRedeemRollsBackWithTheCallersTransaction(t *testing.T) {
 		t.Fatalf("balance = %d after a rolled-back placement, want 400 - credit was spent on an order that never existed", got)
 	}
 }
+
+func TestEntriesCapsTheLimitAt200(t *testing.T) {
+	conn := testDB(t)
+	svc := newService(conn)
+	id := seedCustomer(t, conn)
+	if _, err := conn.Exec(`INSERT INTO store_credit_entries (customer_id, amount_cents, currency_code, reason)
+		SELECT $1, 1, 'USD', 'seed' FROM generate_series(1, 201)`, id); err != nil {
+		t.Fatal(err)
+	}
+	for limit, want := range map[int32]int{1000: 200, 0: 50, 3: 3} {
+		if got, err := svc.Entries(context.Background(), id, limit); err != nil || len(got) != want {
+			t.Errorf("Entries(%d) = %d rows, %v - want %d", limit, len(got), err, want)
+		}
+	}
+}
