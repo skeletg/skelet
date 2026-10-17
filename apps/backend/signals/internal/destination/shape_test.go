@@ -31,10 +31,7 @@ func TestHashIdentifier(t *testing.T) {
 }
 
 func TestShapeWebhook(t *testing.T) {
-	body, err := ShapePayload(KindWebhook, []Event{evt("page_view", "web", "anon-1", nil, `{"path":"/"}`)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := onlyBody(t, KindWebhook, []Event{evt("page_view", "web", "anon-1", nil, `{"path":"/"}`)})
 	var out struct {
 		Count  int `json:"count"`
 		Events []struct {
@@ -50,27 +47,50 @@ func TestShapeWebhook(t *testing.T) {
 	}
 }
 
+type mpEnvelope struct {
+	ClientID string `json:"client_id"`
+	Events   []struct {
+		Name string `json:"name"`
+	} `json:"events"`
+}
+
+// The Measurement Protocol takes one object per request - an array is answered 2xx and dropped, so every body must decode as one envelope
+func ga4Envelopes(t *testing.T, batch []Event) []mpEnvelope {
+	t.Helper()
+	bodies, err := ShapePayload(KindGA4, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]mpEnvelope, len(bodies))
+	for i, b := range bodies {
+		if err := json.Unmarshal(b, &out[i]); err != nil {
+			t.Fatalf("body %d is not one MP object: %v: %s", i, err, b)
+		}
+	}
+	return out
+}
+
+func onlyBody(t *testing.T, kind string, batch []Event) []byte {
+	t.Helper()
+	bodies, err := ShapePayload(kind, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bodies) != 1 {
+		t.Fatalf("%s: want one body, got %d", kind, len(bodies))
+	}
+	return bodies[0]
+}
+
 func TestShapeGA4GroupsByClient(t *testing.T) {
 	cust := uuid.New()
-	body, err := ShapePayload(KindGA4, []Event{
+	envs := ga4Envelopes(t, []Event{
 		evt("Page View", "web", "anon-1", nil, `{"path":"/a"}`),
 		evt("page_view", "web", "anon-1", nil, `{"path":"/b"}`),
 		evt("email_opened", "campaign", "", &cust, `{}`),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var envs []struct {
-		ClientID string `json:"client_id"`
-		Events   []struct {
-			Name string `json:"name"`
-		} `json:"events"`
-	}
-	if err := json.Unmarshal(body, &envs); err != nil {
-		t.Fatal(err)
-	}
 	if len(envs) != 2 {
-		t.Fatalf("want 2 MP envelopes (2 identities), got %d", len(envs))
+		t.Fatalf("want 2 MP requests (2 identities), got %d", len(envs))
 	}
 	if envs[0].ClientID != "anon-1" || len(envs[0].Events) != 2 {
 		t.Errorf("anon envelope wrong: %+v", envs[0])
@@ -83,16 +103,34 @@ func TestShapeGA4GroupsByClient(t *testing.T) {
 	}
 }
 
+func TestShapeGA4SplitsAtTheEventCeiling(t *testing.T) {
+	batch := make([]Event, ga4MaxEvents*2+1)
+	for i := range batch {
+		batch[i] = evt("page_view", "web", "anon-1", nil, `{}`)
+	}
+	envs := ga4Envelopes(t, batch)
+	if len(envs) != 3 {
+		t.Fatalf("want 3 requests for %d events, got %d", len(batch), len(envs))
+	}
+	total := 0
+	for _, e := range envs {
+		if len(e.Events) > ga4MaxEvents {
+			t.Errorf("request carries %d events, over the %d ceiling", len(e.Events), ga4MaxEvents)
+		}
+		total += len(e.Events)
+	}
+	if total != len(batch) {
+		t.Errorf("forwarded %d of %d events", total, len(batch))
+	}
+}
+
 func TestShapeMetaCAPI(t *testing.T) {
 	cust := uuid.New()
-	body, err := ShapePayload(KindMetaCAPI, []Event{
+	body := onlyBody(t, KindMetaCAPI, []Event{
 		evt("conversion", "campaign", "", &cust, `{"value":42}`),
 		evt("page_view", "web", "anon-9", nil, `{}`),
 		evt("cart_add", "commerce", "anon-9", nil, `{}`),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var out struct {
 		Data []struct {
 			EventName    string         `json:"event_name"`

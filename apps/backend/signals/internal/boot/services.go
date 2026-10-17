@@ -156,8 +156,12 @@ func (o spineOrders) CustomerOrdersSince(ctx context.Context, channelID uuid.UUI
 	return out, nil
 }
 
-func newDestination(q Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
-	return destination.NewService(q.Queries, rec, urlGuard{}, bool(allow))
+func newDestination(cfg Config, q Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
+	var sealer destination.Sealer // a nil *Cipher boxed in the interface would read as configured
+	if cfg.Secrets != nil {
+		sealer = cfg.Secrets
+	}
+	return destination.NewService(q.Queries, rec, urlGuard{}, sealer, bool(allow))
 }
 
 // The beacon surface's copy of core's active channels, which core's push job keeps current

@@ -10,15 +10,19 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
@@ -29,7 +33,22 @@ const (
 	KindMetaCAPI = "meta_capi"
 
 	batchSize = 500
+	// A backlogged destination yields after this many batches, so one slow receiver can't hold the rest of the sweep
+	maxBatchesPerRun = 20
+	requestTimeout   = 15 * time.Second
+	lastErrorMax     = 500
+	responseDrain    = 4 << 10
 )
+
+var (
+	ErrInvalid              = errors.New("invalid destination")
+	ErrNotFound             = errors.New("destination not found")
+	ErrAudienceNeedsWebhook = errors.New("audience sync posts to webhook destinations only")
+	ErrSealedWithoutKey     = errors.New("destination secret is encrypted but SIGNALS_ENCRYPTION_KEY is not set")
+)
+
+// The query parameter GA4 and Meta read their credential from - it lives in the write-only secret and joins the URL only at send time
+var credentialParam = map[string]string{KindGA4: "api_secret", KindMetaCAPI: "access_token"}
 
 type Destination struct {
 	ID              uuid.UUID
@@ -37,7 +56,6 @@ type Destination struct {
 	Name            string
 	Kind            string
 	TargetURL       string
-	Secret          string
 	EventSources    []string
 	EventNames      []string
 	IsActive        bool
@@ -67,14 +85,18 @@ type SpineReader interface {
 }
 
 type Service struct {
-	queries *signalsdb.Queries // signals: destination rows + forwarding cursor
-	// commerce: the audience export reads segments, which stay core's
-	spine  SpineReader // whichever engine holds the spine
-	client *http.Client
-	guard  URLGuard
+	queries      *signalsdb.Queries
+	spine        SpineReader // whichever engine holds the spine
+	client       *http.Client
+	guard        URLGuard
+	sealer       Sealer
+	allowPrivate bool // dev-only SSRF-guard bypass so localhost receivers work
+}
 
-	// AllowPrivateTargets is a dev-only SSRF-guard bypass so localhost receivers work
-	AllowPrivateTargets bool
+// Sealer is *secrets.Cipher - nil stores plaintext (dev without a key)
+type Sealer interface {
+	Encrypt(plaintext string) (string, error)
+	Decrypt(stored string) (string, error)
 }
 
 // URLGuard is the SSRF guard a destination is held to - the check at create time, and the transport
@@ -84,16 +106,19 @@ type URLGuard interface {
 	SafeTransport(allowPrivate bool) *http.Transport
 }
 
-func NewService(queries *signalsdb.Queries, spine SpineReader, guard URLGuard, allowPrivate bool) *Service {
+func NewService(queries *signalsdb.Queries, spine SpineReader, guard URLGuard, sealer Sealer, allowPrivate bool) *Service {
 	return &Service{
 		queries: queries,
 		spine:   spine,
 		guard:   guard,
+		sealer:  sealer,
 		client: &http.Client{
-			Timeout:   15 * time.Second,
+			Timeout:   requestTimeout,
 			Transport: guard.SafeTransport(allowPrivate),
+			// A redirect would re-send the signed body, or the credential in the query, to wherever the receiver points
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
-		AllowPrivateTargets: allowPrivate,
+		allowPrivate: allowPrivate,
 	}
 }
 
@@ -112,28 +137,64 @@ type UpsertInput struct {
 	IsActive     bool
 }
 
-func (s *Service) validate(in UpsertInput) error {
+func (s *Service) validate(in UpsertInput, creating bool) error {
 	if strings.TrimSpace(in.Name) == "" {
-		return fmt.Errorf("destination: name is required")
+		return fmt.Errorf("%w: name is required", ErrInvalid)
 	}
 	switch in.Kind {
 	case KindWebhook, KindGA4, KindMetaCAPI:
 	default:
-		return fmt.Errorf("destination: unknown kind %q", in.Kind)
+		return fmt.Errorf("%w: unknown kind %q", ErrInvalid, in.Kind)
 	}
-	return s.guard.ValidateTargetURL(in.TargetURL, s.AllowPrivateTargets)
+	if err := s.guard.ValidateTargetURL(in.TargetURL, s.allowPrivate); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	u, err := url.Parse(in.TargetURL)
+	if err != nil {
+		return fmt.Errorf("%w: target url: %w", ErrInvalid, err)
+	}
+	for _, p := range credentialParam {
+		if u.Query().Has(p) {
+			return fmt.Errorf("%w: put the %s in the secret field, not the URL", ErrInvalid, p)
+		}
+	}
+	if p, ok := credentialParam[in.Kind]; ok && creating && strings.TrimSpace(in.Secret) == "" {
+		return fmt.Errorf("%w: %s needs its %s as the secret", ErrInvalid, in.Kind, p)
+	}
+	return nil
+}
+
+func (s *Service) seal(plain string) (string, error) {
+	if s.sealer == nil || plain == "" {
+		return plain, nil
+	}
+	return s.sealer.Encrypt(plain)
+}
+
+func (s *Service) open(stored string) (string, error) {
+	if !secrets.IsEncrypted(stored) {
+		return stored, nil
+	}
+	if s.sealer == nil {
+		return "", ErrSealedWithoutKey
+	}
+	return s.sealer.Decrypt(stored)
 }
 
 func (s *Service) Create(ctx context.Context, in UpsertInput) (Destination, error) {
-	if err := s.validate(in); err != nil {
+	if err := s.validate(in, true); err != nil {
 		return Destination{}, err
+	}
+	secret, err := s.seal(in.Secret)
+	if err != nil {
+		return Destination{}, fmt.Errorf("seal secret: %w", err)
 	}
 	row, err := s.queries.CreateEventDestination(ctx, signalsdb.CreateEventDestinationParams{
 		ChannelID:    in.ChannelID,
 		Name:         in.Name,
 		Kind:         in.Kind,
 		TargetUrl:    in.TargetURL,
-		Secret:       in.Secret,
+		Secret:       secret,
 		EventSources: emptyIfNil(in.EventSources),
 		EventNames:   emptyIfNil(in.EventNames),
 		IsActive:     in.IsActive,
@@ -146,10 +207,14 @@ func (s *Service) Create(ctx context.Context, in UpsertInput) (Destination, erro
 
 func (s *Service) Update(ctx context.Context, in UpsertInput) (Destination, error) {
 	if in.ID == nil {
-		return Destination{}, fmt.Errorf("destination: id is required")
+		return Destination{}, fmt.Errorf("%w: id is required", ErrInvalid)
 	}
-	if err := s.validate(in); err != nil {
+	if err := s.validate(in, false); err != nil {
 		return Destination{}, err
+	}
+	secret, err := s.seal(in.Secret)
+	if err != nil {
+		return Destination{}, fmt.Errorf("seal secret: %w", err)
 	}
 	row, err := s.queries.UpdateEventDestination(ctx, signalsdb.UpdateEventDestinationParams{
 		ID:           *in.ID,
@@ -157,11 +222,14 @@ func (s *Service) Update(ctx context.Context, in UpsertInput) (Destination, erro
 		Name:         in.Name,
 		Kind:         in.Kind,
 		TargetUrl:    in.TargetURL,
-		Secret:       in.Secret,
+		Secret:       secret,
 		EventSources: emptyIfNil(in.EventSources),
 		EventNames:   emptyIfNil(in.EventNames),
 		IsActive:     in.IsActive,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Destination{}, ErrNotFound
+	}
 	if err != nil {
 		return Destination{}, fmt.Errorf("update destination: %w", err)
 	}
@@ -175,17 +243,28 @@ func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
 		return err
 	}
 	if n == 0 {
-		return fmt.Errorf("destination not found")
+		return ErrNotFound
 	}
 	return nil
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Destination, error) {
-	row, err := s.queries.GetEventDestination(ctx, id)
+	row, err := s.get(ctx, id)
 	if err != nil {
 		return Destination{}, err
 	}
 	return toDestination(row), nil
+}
+
+func (s *Service) get(ctx context.Context, id uuid.UUID) (signalsdb.EventDestination, error) {
+	row, err := s.queries.GetEventDestination(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return row, ErrNotFound
+	}
+	if err != nil {
+		return row, fmt.Errorf("get destination: %w", err)
+	}
+	return row, nil
 }
 
 func (s *Service) ListByChannel(ctx context.Context, channelID uuid.UUID) ([]Destination, error) {
@@ -225,15 +304,21 @@ func (s *Service) ForwardAll(ctx context.Context) error {
 	for _, row := range rows {
 		if err := s.forwardOne(ctx, row); err != nil {
 			log.Printf("[destination] %s (%s): %v", row.Name, row.ID, err)
-			_ = s.queries.SetEventDestinationError(ctx, signalsdb.SetEventDestinationErrorParams{
-				ID: row.ID, LastError: truncate(err.Error(), 500),
-			})
+			if serr := s.queries.SetEventDestinationError(ctx, signalsdb.SetEventDestinationErrorParams{
+				ID: row.ID, LastError: truncate(err.Error(), lastErrorMax),
+			}); serr != nil {
+				log.Printf("[destination] %s (%s): record error: %v", row.Name, row.ID, serr)
+			}
 		}
 	}
 	return nil
 }
 
 func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination) error {
+	secret, err := s.open(row.Secret)
+	if err != nil {
+		return err
+	}
 	// NULL cursor = start at creation, forwarding the future not the historical spine
 	cursorAt, cursorID := row.CreatedAt, uuid.Nil
 	prevAt, prevID := row.CursorCreatedAt, row.CursorEventID
@@ -241,7 +326,7 @@ func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination
 		cursorAt = row.CursorCreatedAt.Time
 		cursorID = row.CursorEventID.UUID
 	}
-	for {
+	for range maxBatchesPerRun {
 		rows, err := s.spine.EventsForForwarding(ctx, row.ChannelID, cursorAt, cursorID, batchSize)
 		if err != nil {
 			return fmt.Errorf("page events: %w", err)
@@ -260,7 +345,7 @@ func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination
 			}
 		}
 		if len(batch) > 0 {
-			if err := s.deliver(ctx, toDestination(row), batch); err != nil {
+			if err := s.deliver(ctx, toDestination(row), secret, batch); err != nil {
 				return err
 			}
 		}
@@ -286,6 +371,7 @@ func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination
 			return nil
 		}
 	}
+	return nil
 }
 
 func matchesFilters(e Event, sources, names []string) bool {
@@ -303,35 +389,74 @@ func containsFold(list []string, v string) bool {
 }
 
 // deliver shapes + posts one batch - Non-2xx is an error (cursor stays)
-func (s *Service) deliver(ctx context.Context, d Destination, batch []Event) error {
-	body, err := ShapePayload(d.Kind, batch)
+func (s *Service) deliver(ctx context.Context, d Destination, secret string, batch []Event) error {
+	bodies, err := ShapePayload(d.Kind, batch)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.TargetURL, bytes.NewReader(body))
+	for _, body := range bodies {
+		if err := s.post(ctx, d, secret, body); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// post sends one body - errors name the destination, never the URL, which can carry the credential once it is added
+func (s *Service) post(ctx context.Context, d Destination, secret string, body []byte) error {
+	target, err := withCredential(d.Kind, d.TargetURL, secret)
 	if err != nil {
-		return err
+		return fmt.Errorf("post %s: target url is invalid", d.Name)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("post %s: target url is invalid", d.Name)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if d.Kind == KindWebhook && d.Secret != "" {
-		// Same as admin webhooks - HMAC over "<ts>.<body>" plus the ts header, so receivers can bound replay
-		ts := fmt.Sprintf("%d", time.Now().Unix())
-		mac := hmac.New(sha256.New, []byte(d.Secret))
-		mac.Write([]byte(ts + "."))
-		mac.Write(body)
-		req.Header.Set("X-Destination-Timestamp", ts)
-		req.Header.Set("X-Destination-Signature", hex.EncodeToString(mac.Sum(nil)))
+	if d.Kind == KindWebhook && secret != "" {
+		sign(req, secret, body)
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {
+		if ue, ok := errors.AsType[*url.Error](err); ok {
+			err = ue.Err
+		}
 		return fmt.Errorf("post %s: %w", d.Name, err)
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, responseDrain))
+	switch {
+	case resp.StatusCode >= 300 && resp.StatusCode < 400:
+		return fmt.Errorf("post %s: HTTP %d - redirects are not followed, point the destination at the final URL", d.Name, resp.StatusCode)
+	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		return fmt.Errorf("post %s: HTTP %d", d.Name, resp.StatusCode)
 	}
 	return nil
+}
+
+// Same as admin webhooks - HMAC over "<ts>.<body>" plus the ts header, so receivers can bound replay
+func sign(req *http.Request, secret string, body []byte) {
+	ts := fmt.Sprintf("%d", time.Now().Unix())
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(ts + "."))
+	mac.Write(body)
+	req.Header.Set("X-Destination-Timestamp", ts)
+	req.Header.Set("X-Destination-Signature", hex.EncodeToString(mac.Sum(nil)))
+}
+
+func withCredential(kind, target, secret string) (string, error) {
+	p, ok := credentialParam[kind]
+	if !ok || secret == "" {
+		return target, nil
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set(p, secret)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // ---------- helpers ----------
@@ -343,7 +468,6 @@ func toDestination(row signalsdb.EventDestination) Destination {
 		Name:         row.Name,
 		Kind:         row.Kind,
 		TargetURL:    row.TargetUrl,
-		Secret:       row.Secret,
 		EventSources: row.EventSources,
 		EventNames:   row.EventNames,
 		IsActive:     row.IsActive,
@@ -365,9 +489,13 @@ func emptyIfNil(v []string) []string {
 	return v
 }
 
+// truncate cuts on a rune boundary - proto strings must be valid UTF-8, so a split rune would fail the whole list call
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n]
 }

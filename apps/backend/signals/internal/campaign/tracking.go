@@ -39,6 +39,15 @@ func (s *Service) RecordOpen(ctx context.Context, token string, h analytics.Hit)
 	return nil
 }
 
+// ClickTarget is the signed destination alone, recording nothing - an over-limit click still sends the reader on
+func (s *Service) ClickTarget(token string) string {
+	p, err := s.track.Verify(token)
+	if err != nil {
+		return ""
+	}
+	return p.U
+}
+
 // Returns the signed destination URL ("" when invalid) plus the engagement a human click by a known customer amounts to - the redirect happens even when the send is gone from the log, so links never break
 func (s *Service) RecordClick(ctx context.Context, token string, h analytics.Hit) (string, *Engaged) {
 	p, err := s.track.Verify(token)

@@ -40,7 +40,7 @@ func run() error {
 
 	// The contract verifies core's calls with the service secret, /t the customer sessions with the public key alone
 	if err := envcheck.Report(envcheck.Production(os.Getenv,
-		envcheck.SignalsSessionKeys, envcheck.SignalsServiceSecret, envcheck.SignalsDatabase, envcheck.RateLimiting,
+		envcheck.SignalsSessionKeys, envcheck.SignalsServiceSecret, envcheck.SignalsEncryptionKey, envcheck.SignalsDatabase, envcheck.RateLimiting,
 		envcheck.TrustedProxies, // /t and /e arrive through core's proxy, so the shopper's IP is in X-Forwarded-For
 	)); err != nil {
 		return err

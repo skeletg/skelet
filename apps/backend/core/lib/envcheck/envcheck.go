@@ -145,14 +145,24 @@ func TrustedProxies(getenv Getenv) (errs, warnings []string) {
 
 // ConfigEncryptionKey guards any process that reads secret config values, which is anything building the config service
 func ConfigEncryptionKey(getenv Getenv) (errs, warnings []string) {
-	s := strings.TrimSpace(getenv("CONFIG_ENCRYPTION_KEY"))
+	return aesKey(getenv, "CONFIG_ENCRYPTION_KEY", "secret config values"), nil
+}
+
+// SignalsEncryptionKey guards cmd/signals, which stores the destination credentials it forwards with
+func SignalsEncryptionKey(getenv Getenv) (errs, warnings []string) {
+	errs = aesKey(getenv, "SIGNALS_ENCRYPTION_KEY", "destination credentials")
+	return append(errs, distinct(getenv, "SIGNALS_ENCRYPTION_KEY", "CONFIG_ENCRYPTION_KEY")...), nil
+}
+
+func aesKey(getenv Getenv, name, what string) []string {
+	s := strings.TrimSpace(getenv(name))
 	switch {
 	case s == "":
-		errs = append(errs, "CONFIG_ENCRYPTION_KEY must be set (base64 of 32 random bytes, e.g. `openssl rand -base64 32`) to encrypt secret config values at rest")
+		return []string{name + " must be set (base64 of 32 random bytes, e.g. `openssl rand -base64 32`) to encrypt " + what + " at rest"}
 	case !validConfigEncryptionKey(s):
-		errs = append(errs, "CONFIG_ENCRYPTION_KEY must base64-decode to exactly 32 bytes (AES-256)")
+		return []string{name + " must base64-decode to exactly 32 bytes (AES-256)"}
 	}
-	return errs, nil
+	return nil
 }
 
 // Database guards any process that opens a pool

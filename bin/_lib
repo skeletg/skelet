@@ -96,6 +96,11 @@ sync_signals_env() {
     grep -v '^JWT_SECRET=' "$sig" > "$tmp" || true
     cat "$tmp" > "$sig"
     rm -f "$tmp"
+    # The suite's own key, generated rather than copied - core never holds it
+    if ! grep -qE '^SIGNALS_ENCRYPTION_KEY=.+' "$sig"; then
+        env_set "$sig" SIGNALS_ENCRYPTION_KEY "$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '\n')"
+        echo "==> generated SIGNALS_ENCRYPTION_KEY in env/signals.env"
+    fi
     for key in CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET SIGNALS_SERVICE_SECRET; do
         val="$(grep -E "^${key}=" "$go" | head -1 | cut -d= -f2-)"
         [ -n "$val" ] || continue

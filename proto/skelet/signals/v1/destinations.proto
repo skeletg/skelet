@@ -38,7 +38,7 @@ message DestinationInput {
   string name = 2;
   string kind = 3;
   string target_url = 4;
-  // webhook kind: the HMAC signing key. Other kinds carry credentials in target_url per their own conventions
+  // webhook: the HMAC signing key. ga4_mp: the api_secret, meta_capi: the access_token, joined to target_url only at send time
   // Absent leaves the stored secret alone, which is how an edit that does not rotate it looks
   optional string secret = 5;
   repeated string event_sources = 6;

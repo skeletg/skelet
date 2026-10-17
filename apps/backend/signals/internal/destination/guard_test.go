@@ -42,16 +42,16 @@ func (realGuard) ValidateTargetURL(raw string, allowPrivate bool) error {
 func TestAPrivateTargetIsRefusedUnlessAllowed(t *testing.T) {
 	in := UpsertInput{Name: "internal", Kind: KindWebhook, TargetURL: "http://169.254.169.254/latest/meta-data"}
 
-	if err := (&Service{guard: realGuard{}}).validate(in); err == nil {
+	if err := (&Service{guard: realGuard{}}).validate(in, true); err == nil {
 		t.Error("a link-local target was accepted")
 	}
-	if err := (&Service{guard: realGuard{}, AllowPrivateTargets: true}).validate(in); err != nil {
+	if err := (&Service{guard: realGuard{}, allowPrivate: true}).validate(in, true); err != nil {
 		t.Errorf("dev bypass refused a private target: %v", err)
 	}
 }
 
 func TestAPublicTargetPasses(t *testing.T) {
-	err := (&Service{guard: realGuard{}}).validate(UpsertInput{Name: "ok", Kind: KindWebhook, TargetURL: "https://hooks.example.com/spine"})
+	err := (&Service{guard: realGuard{}}).validate(UpsertInput{Name: "ok", Kind: KindWebhook, TargetURL: "https://hooks.example.com/spine"}, true)
 	if err != nil && !strings.Contains(err.Error(), "lookup") { // an offline builder can't resolve the host, which is not the guard talking
 		t.Errorf("public target refused: %v", err)
 	}
@@ -64,5 +64,5 @@ func TestTheGuardIsRequired(t *testing.T) {
 			t.Error("validate ran with no guard wired, so every target would be accepted")
 		}
 	}()
-	_ = (&Service{}).validate(UpsertInput{Name: "x", Kind: KindWebhook, TargetURL: "http://127.0.0.1/"})
+	_ = (&Service{}).validate(UpsertInput{Name: "x", Kind: KindWebhook, TargetURL: "http://127.0.0.1/"}, true)
 }

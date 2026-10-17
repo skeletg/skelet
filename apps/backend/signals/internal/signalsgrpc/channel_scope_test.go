@@ -87,7 +87,7 @@ func channelScopeServer(t *testing.T) (*signalsdb.Queries, Deps) {
 		ServiceKeys: testKeys,
 		Channels:    analytics.NewChannelRoster(nil),
 		Experiment:  experiment.NewService(experiment.NewRepository(qs, nil)),
-		Destination: destination.NewService(qs, nil, allowAllGuard{}, true),
+		Destination: destination.NewService(qs, nil, allowAllGuard{}, nil, true),
 		Lens:        lens.NewService(qs, nil, nil, nil),
 		Builder:     emailtemplate.NewService(emailtemplate.NewRepository(qs), nil),
 	}

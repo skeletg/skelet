@@ -194,6 +194,8 @@ services:
     # `app`, which shares env/prod.env - OTEL endpoint/exporter come from the file
     environment:
       <<: [*shared-secrets, *signals-secrets, *signals-db]
+      # Seals the destination credentials - the signals process alone stores them, so the beacon tier never gets it
+      SIGNALS_ENCRYPTION_KEY: ${SIGNALS_ENCRYPTION_KEY:?set SIGNALS_ENCRYPTION_KEY in the root .env (openssl rand -base64 32, distinct from CONFIG_ENCRYPTION_KEY)}
       OTEL_SERVICE_NAME: skelet-signals
     command: ["/app/signals"]
     depends_on:

@@ -312,3 +312,41 @@ func TestSignalsCallerSecret(t *testing.T) {
 		})
 	}
 }
+
+// The suite seals destination credentials under its own key - missing, short or shared with core's config key all refuse
+func TestSignalsEncryptionKey(t *testing.T) {
+	other := base64.StdEncoding.EncodeToString(bytes32('o'))
+	cases := map[string]struct {
+		env  map[string]string
+		want string
+	}{
+		"missing":     {map[string]string{}, "must be set"},
+		"short":       {map[string]string{"SIGNALS_ENCRYPTION_KEY": base64.StdEncoding.EncodeToString(make([]byte, 16))}, "32 bytes"},
+		"core's key":  {map[string]string{"SIGNALS_ENCRYPTION_KEY": validEncKey, "CONFIG_ENCRYPTION_KEY": validEncKey}, "must differ"},
+		"its own key": {map[string]string{"SIGNALS_ENCRYPTION_KEY": other, "CONFIG_ENCRYPTION_KEY": validEncKey}, ""},
+		"no core key": {map[string]string{"SIGNALS_ENCRYPTION_KEY": other}, ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			tc.env["APP_ENV"] = "production"
+			errs, _ := Production(envMap(tc.env), SignalsEncryptionKey)
+			if tc.want == "" {
+				if len(errs) != 0 {
+					t.Fatalf("refused a valid key: %v", errs)
+				}
+				return
+			}
+			if len(errs) != 1 || !strings.Contains(errs[0], tc.want) {
+				t.Fatalf("errs = %v, want one containing %q", errs, tc.want)
+			}
+		})
+	}
+}
+
+func bytes32(c byte) []byte {
+	b := make([]byte, 32)
+	for i := range b {
+		b[i] = c
+	}
+	return b
+}
