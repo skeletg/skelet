@@ -23,7 +23,7 @@ type Config struct {
 	// Signs the unsubscribe, open and click links - shared with core, which verifies the unsubscribe, and nil in the beacon tier
 	EmailLinks *emailtrack.Signer
 	// Verifies the tokens core signs its contract calls with - shared with core alone, empty in the beacon tier
-	ServiceSecret string
+	ServiceKeys auth.ServiceKeys
 
 	SignalsURL     string
 	SignalsReadURL string
@@ -46,7 +46,7 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	// Without it the contract refuses every call silently, so fail at boot
-	if c.ServiceSecret == "" {
+	if !c.ServiceKeys.Configured() {
 		return Config{}, errors.New("SIGNALS_SERVICE_SECRET is not set - the contract verifies core's calls with it, and core signs them with the same value")
 	}
 	if c.EmailLinks, err = emailtrack.SignerFromEnv(os.Getenv); err != nil {
@@ -63,7 +63,7 @@ func LoadIngest() (Config, error) {
 func load(maxConns int) (Config, error) {
 	c := Config{
 		Env:                 os.Getenv("APP_ENV"),
-		ServiceSecret:       strings.TrimSpace(os.Getenv("SIGNALS_SERVICE_SECRET")),
+		ServiceKeys:         auth.ServiceKeysFromEnv(os.Getenv),
 		SignalsURL:          os.Getenv("SIGNALS_DB_URL"),
 		SignalsReadURL:      os.Getenv("SIGNALS_REPLICA_URL"),
 		ValkeyURL:           EnvOr("VALKEY_CACHE_URL", strings.TrimSpace(os.Getenv("VALKEY_URL"))),

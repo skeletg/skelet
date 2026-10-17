@@ -3,6 +3,7 @@ package signalsclient
 import (
 	"context"
 	"errors"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"net"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestSegmentReadsFailFastOnAHungSuite(t *testing.T) {
 		}
 	}()
 
-	c, err := New(ln.Addr().String(), "test-secret", time.Minute, nil)
+	c, err := New(ln.Addr().String(), auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestACallerThatGivesUpDoesNotTripTheSegmentBreaker(t *testing.T) {
 			held = append(held, conn)
 		}
 	}()
-	c, err := New(ln.Addr().String(), "test-secret", time.Minute, nil)
+	c, err := New(ln.Addr().String(), auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestAnAbandonedProbeLetsTheNextReadThrough(t *testing.T) {
 			held = append(held, conn)
 		}
 	}()
-	c, err := New(ln.Addr().String(), "test-secret", time.Minute, nil)
+	c, err := New(ln.Addr().String(), auth.MustServiceKeys("test-secret"), time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

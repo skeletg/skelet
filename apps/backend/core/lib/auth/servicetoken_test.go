@@ -12,6 +12,8 @@ import (
 
 const svcSecret = "service-token-test-secret"
 
+var svcKeys = MustServiceKeys(svcSecret)
+
 // A service token is a credential for one service and one slug set - widening either edge turns an analytics token into one that authorizes more of the admin API
 
 func signalsClaims(grants ...Grant) ServiceClaims {
@@ -22,11 +24,11 @@ func TestServiceTokenRoundTripsTheCallerAndTheirGrants(t *testing.T) {
 	eu := uuid.New()
 	want := signalsClaims(channelGrant("lens.view", eu), globalGrant("experiments.manage"))
 
-	token, err := GenerateServiceToken(want, "signals", svcSecret, time.Minute)
+	token, err := GenerateServiceToken(want, "signals", svcKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
-	got, err := ValidateServiceToken(token, "signals", svcSecret)
+	got, err := ValidateServiceToken(token, "signals", svcKeys)
 	if err != nil {
 		t.Fatalf("ValidateServiceToken: %v", err)
 	}
@@ -49,18 +51,18 @@ func TestServiceTokenRoundTripsTheCallerAndTheirGrants(t *testing.T) {
 }
 
 func TestServiceTokenRefusesAnotherAudience(t *testing.T) {
-	token, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcSecret, time.Minute)
+	token, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
 	for name, aud := range map[string]string{"another service": "search", "no audience at all": ""} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ValidateServiceToken(token, aud, svcSecret); err == nil {
+			if _, err := ValidateServiceToken(token, aud, svcKeys); err == nil {
 				t.Error("token validated outside the audience it was minted for")
 			}
 		})
 	}
-	if _, err := GenerateServiceToken(signalsClaims(), "", svcSecret, time.Minute); err == nil {
+	if _, err := GenerateServiceToken(signalsClaims(), "", svcKeys, time.Minute); err == nil {
 		t.Error("minted an audience-less token, which would validate anywhere")
 	}
 }
@@ -73,18 +75,18 @@ func TestServiceTokenIsNotInterchangeableWithAnAdminToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateToken: %v", err)
 	}
-	if _, err := ValidateServiceToken(adminTok, "signals", svcSecret); err == nil {
+	if _, err := ValidateServiceToken(adminTok, "signals", svcKeys); err == nil {
 		t.Error("an admin token passed as a service token")
 	}
 
-	svcTok, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcSecret, time.Minute)
+	svcTok, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
 	if _, err := ValidateToken(svcTok, sameValue); err == nil {
 		t.Error("a service token passed as an admin token, which would authorize the whole admin API")
 	}
-	if _, err := ValidateServiceToken(svcTok, "signals", "another-secret"); err == nil {
+	if _, err := ValidateServiceToken(svcTok, "signals", MustServiceKeys("another-secret")); err == nil {
 		t.Error("a token signed with a different secret validated")
 	}
 }
@@ -117,11 +119,11 @@ func TestFilterGrantsKeepsOnlyTheAudiencesSlugs(t *testing.T) {
 func TestSuperuserTokenCarriesNoGrants(t *testing.T) {
 	c := signalsClaims()
 	c.IsSuperuser = true
-	token, err := GenerateServiceToken(c, "signals", svcSecret, time.Minute)
+	token, err := GenerateServiceToken(c, "signals", svcKeys, time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
-	got, err := ValidateServiceToken(token, "signals", svcSecret)
+	got, err := ValidateServiceToken(token, "signals", svcKeys)
 	if err != nil {
 		t.Fatalf("ValidateServiceToken: %v", err)
 	}
@@ -134,11 +136,11 @@ func TestSuperuserTokenCarriesNoGrants(t *testing.T) {
 }
 
 func TestServiceTokenExpires(t *testing.T) {
-	token, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcSecret, -time.Minute)
+	token, err := GenerateServiceToken(signalsClaims(globalGrant("lens.view")), "signals", svcKeys, -time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
-	if _, err := ValidateServiceToken(token, "signals", svcSecret); err == nil {
+	if _, err := ValidateServiceToken(token, "signals", svcKeys); err == nil {
 		t.Error("an expired token validated, so revocation by TTL would never take effect")
 	}
 }
@@ -149,19 +151,39 @@ func TestServiceTokenRefusesNoExpiryAndOtherHMACs(t *testing.T) {
 		if exp {
 			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
 		}
-		s, err := jwt.NewWithClaims(m, c).SignedString([]byte(svcSecret))
+		tok := jwt.NewWithClaims(m, c)
+		tok.Header["kid"] = svcKeys.id
+		s, err := tok.SignedString([]byte(svcSecret))
 		if err != nil {
 			t.Fatal(err)
 		}
 		return s
 	}
-	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, false), "signals", svcSecret); err == nil {
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, false), "signals", svcKeys); err == nil {
 		t.Error("a service token with no expiry validated, so a leaked one would work forever")
 	}
-	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS512, true), "signals", svcSecret); err == nil {
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS512, true), "signals", svcKeys); err == nil {
 		t.Error("an HS512 service token validated, want only the HS256 core mints")
 	}
-	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, true), "signals", svcSecret); err != nil {
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, true), "signals", svcKeys); err != nil {
 		t.Errorf("an HS256 token with an expiry = %v, want valid", err)
+	}
+}
+
+// Rotation: tokens signed with the retiring secret keep verifying while it is listed, so core and the suite can restart one at a time
+func TestARotatedServiceSecretKeepsInFlightCallsVerifying(t *testing.T) {
+	old := MustServiceKeys("the-old-service-secret-0123456789")
+	tok, err := GenerateServiceToken(ServiceClaims{System: true}, "signals", old, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateServiceToken(tok, "signals", MustServiceKeys(svcSecret, "the-old-service-secret-0123456789")); err != nil {
+		t.Errorf("a token from the previous service secret stopped verifying: %v", err)
+	}
+	if _, err := ValidateServiceToken(tok, "signals", svcKeys); err == nil {
+		t.Error("a token from a secret no longer listed still verified")
+	}
+	if _, err := GenerateServiceToken(ServiceClaims{System: true}, "signals", ServiceKeys{}, time.Minute); err == nil {
+		t.Error("the zero key set minted a token")
 	}
 }

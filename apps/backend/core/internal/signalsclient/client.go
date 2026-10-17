@@ -37,7 +37,7 @@ var ErrAdminInactive = errors.New("the admin this work acts for is no longer act
 
 type Client struct {
 	conn   *grpc.ClientConn
-	secret string
+	keys   auth.ServiceKeys
 	ttl    time.Duration
 	grants Grants
 
@@ -60,15 +60,16 @@ type Client struct {
 }
 
 // Dialling is lazy, so this never blocks on a service that is not up yet
-// serviceSecret signs the tokens this client mints - not the session secret, which the storefront holds too
-func New(addr, serviceSecret string, ttl time.Duration, grants Grants) (*Client, error) {
-	if addr == "" || serviceSecret == "" {
+// keys sign the tokens this client mints
+func New(addr string, keys auth.ServiceKeys, ttl time.Duration, grants Grants) (*Client, error) {
+	if addr == "" || !keys.Configured() {
 		return nil, nil
 	}
-	// passthrough, so the hostname resolves on every reconnect - otherwise a restart of the suite leaves this client on an empty address list
-	// In-cluster and behind the same trust boundary as the databases, so no TLS here
-	conn, err := grpc.NewClient("passthrough:///"+addr,
+	// dns re-resolves the name on every reconnect and balances across every address it answers, so a suite scaled to several replicas behind one name shares the load
+	conn, err := grpc.NewClient("dns:///"+addr,
+		// Plaintext - the contract runs on a private network, or one encrypted underneath (docs/env.md)
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 		grpc.WithChainUnaryInterceptor(deadlineUnary()),
 		grpc.WithChainStreamInterceptor(deadlineStream()),
 		otelx.GRPCClient(),
@@ -77,7 +78,7 @@ func New(addr, serviceSecret string, ttl time.Duration, grants Grants) (*Client,
 		return nil, err
 	}
 	return &Client{
-		conn: conn, secret: serviceSecret, ttl: ttl, grants: grants,
+		conn: conn, keys: keys, ttl: ttl, grants: grants,
 		segments:     newSegmentGuard(),
 		Ingest:       signalsv1.NewIngestServiceClient(conn),
 		Prism:        signalsv1.NewPrismServiceClient(conn),
@@ -181,7 +182,7 @@ func (c *Client) Authed(ctx context.Context) (context.Context, error) {
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
 	}
-	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.secret, c.ttl)
+	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +195,7 @@ func (c *Client) System(ctx context.Context) (context.Context, error) {
 	if c == nil {
 		return nil, ErrUnavailable
 	}
-	token, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, c.secret, c.ttl)
+	token, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +242,7 @@ func (c *Client) AsAdmin(ctx context.Context, adminID uuid.UUID) (context.Contex
 		}
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
 	}
-	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.secret, c.ttl)
+	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +255,7 @@ func (c *Client) AsCustomer(ctx context.Context, customerID uuid.UUID) (context.
 	if c == nil {
 		return nil, ErrUnavailable
 	}
-	token, err := auth.GenerateServiceToken(auth.ServiceClaims{CustomerID: customerID}, signalsapi.Audience, c.secret, c.ttl)
+	token, err := auth.GenerateServiceToken(auth.ServiceClaims{CustomerID: customerID}, signalsapi.Audience, c.keys, c.ttl)
 	if err != nil {
 		return nil, err
 	}

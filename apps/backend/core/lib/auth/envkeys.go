@@ -14,6 +14,8 @@ const (
 	EnvCustomerPublicKey    = "CUSTOMER_JWT_PUBLIC_KEY"
 	EnvCustomerPublicKeyOld = "CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS"
 	EnvRetiredJWTSecret     = "JWT_SECRET"
+	EnvServiceSecret        = "SIGNALS_SERVICE_SECRET"
+	EnvServiceSecretOld     = "SIGNALS_SERVICE_SECRET_PREVIOUS"
 )
 
 // ErrRetiredJWTSecret refuses a boot that still sets the old shared secret - it signed both session types, and a value left behind would be read as if it still meant something
@@ -45,6 +47,12 @@ func CustomerSignerFromEnv(getenv func(string) string) (CustomerSigner, error) {
 // CustomerVerifierFromEnv is the Signals tier's half - public keys only
 func CustomerVerifierFromEnv(getenv func(string) string) (CustomerVerifier, error) {
 	return NewCustomerVerifier(append([]string{getenv(EnvCustomerPublicKey)}, SplitKeyList(getenv(EnvCustomerPublicKeyOld))...)...)
+}
+
+// ServiceKeysFromEnv is the contract's key set - unset answers the zero value, which callers read as no suite to talk to
+func ServiceKeysFromEnv(getenv func(string) string) ServiceKeys {
+	k, _ := NewServiceKeys(getenv(EnvServiceSecret), SplitKeyList(getenv(EnvServiceSecretOld))...)
+	return k
 }
 
 func SplitKeyList(raw string) []string {

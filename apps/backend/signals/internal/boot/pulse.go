@@ -179,7 +179,7 @@ func (r campaignAudience) OptedInByIDs(ctx context.Context, customerIDs []uuid.U
 // The builder, with the products block reading core's storefront API when CORE_FRONT_API_URL names it
 func newBuilder(cfg Config, q Queries, stores *RosterStores) *emailtemplate.Service {
 	svc := emailtemplate.NewService(emailtemplate.NewRepository(q.Queries), stores)
-	if cat := corefront.New(os.Getenv("CORE_FRONT_API_URL"), stores, cfg.ServiceSecret); cat != nil {
+	if cat := corefront.New(os.Getenv("CORE_FRONT_API_URL"), stores, cfg.ServiceKeys); cat != nil {
 		svc.SetCatalogReader(cat)
 	}
 	return svc

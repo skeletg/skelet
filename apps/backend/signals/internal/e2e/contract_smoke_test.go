@@ -81,7 +81,7 @@ func invoke(cc *grpc.ClientConn, ctx context.Context, full string, m protoreflec
 
 func tokenCtx(t *testing.T, secret string, claims auth.ServiceClaims) context.Context {
 	t.Helper()
-	tok, err := auth.GenerateServiceToken(claims, signalsapi.Audience, secret, time.Minute)
+	tok, err := auth.GenerateServiceToken(claims, signalsapi.Audience, auth.MustServiceKeys(secret), time.Minute)
 	if err != nil {
 		t.Fatalf("mint token: %v", err)
 	}

@@ -162,6 +162,23 @@ list that keeps verifying while its tokens run out:
    minutes and refresh, so a day is plenty; email links live in inboxes, so give
    `EMAIL_LINK_SECRET_PREVIOUS` as long as an unsubscribe link should work.
 
+`SIGNALS_SERVICE_SECRET` rotates the same way, with
+`SIGNALS_SERVICE_SECRET_PREVIOUS` on both core and the Signals processes, so the
+two can restart one at a time instead of in lockstep. Its tokens last two
+minutes, so the previous value can go once both sides run the new one.
+
+### The Signals connection
+
+Core calls the suite over gRPC in plaintext. Every call carries a short-lived
+bearer token and customer data, so keep the link on a network nothing else can
+see: one compose network on one host is that by default. When core and Signals
+run on different machines, encrypt the network underneath - a WireGuard or
+Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
+than leaving the traffic on a shared or public network.
+
+`SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
+resolves it and spreads calls across every address it answers with.
+
 ## Datastores
 
 ### Commerce Postgres

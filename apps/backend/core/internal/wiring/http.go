@@ -170,13 +170,13 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// LocaleClampMiddleware sits inside both channel + locale middleware (it needs the resolved channel AND the extracted header) and snaps unsupported locales to the channel default - front surface only - admin reads must keep accepting arbitrary locales for translation tooling
 	frontRespCache := frontResponseCache(cache.New(infra.Cache.Client, "frontresp"), 60*time.Second) // sits INSIDE channel + locale resolution so its key uses the RESOLVED channel id and clamped locale - keying on the raw headers bled cached responses across host-resolved siblings that send no X-Channel-Id at all
-	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.CustomerMiddleware(infra.Config.CustomerKeys.Verifier())(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(s.Cart.OfferGrantMiddleware(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv))))))))))))), "graphql.front"))
+	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceKeys)(devDebug(maxBody(256<<10)(authpkg.CustomerMiddleware(infra.Config.CustomerKeys.Verifier())(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(s.Cart.OfferGrantMiddleware(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv))))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))
 	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public like the storefront GraphQL endpoint, with its customer session so sdk.CustomerID and ReadCart see a signed-in shopper, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints
 	if pluginRoutes := pluginhost.RouteHandler(); pluginRoutes != nil {
 		mux.Handle(pluginhost.RoutePrefix, otelx.WrapHTTP(
-			frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(maxBody(64<<10)(pluginRouteAuth(infra.Config.CustomerKeys.Verifier(), s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
+			frontRateLimit(rl.Front, infra.Config.SignalsServiceKeys)(maxBody(64<<10)(pluginRouteAuth(infra.Config.CustomerKeys.Verifier(), s.Customer.IsActive)(channel.Middleware(s.Channel)(pluginRoutes)))),
 			"plugins.routes"))
 	}
 	// No separate REST tier - machine callers hit the admin GraphQL endpoint above with an X-Api-Token integration token; a dedicated /api/v1/ REST surface may still come back once a real consumer needs one
@@ -294,8 +294,8 @@ func maxBody(n int64) func(http.Handler) http.Handler { // GraphQL's complexity 
 // A crawl's per-IP bucket would refuse thousands of SSR renders halfway through - the crawler carries this token so the map measures the real site
 const crawlBypassHeader = "X-Skelet-Crawl"
 
-// serviceSecret is the one the Signals suite signs with - its builder's catalog reads from one address are not a flood
-func frontRateLimit(limiter ratelimit.Limiter, serviceSecret string) func(http.Handler) http.Handler {
+// serviceKeys are the ones the Signals suite signs with - its builder's catalog reads from one address are not a flood
+func frontRateLimit(limiter ratelimit.Limiter, serviceKeys authpkg.ServiceKeys) func(http.Handler) http.Handler {
 	bypass := os.Getenv("SEO_CRAWL_BYPASS_TOKEN")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -303,8 +303,8 @@ func frontRateLimit(limiter ratelimit.Limiter, serviceSecret string) func(http.H
 				next.ServeHTTP(w, r)
 				return
 			}
-			if tok := r.Header.Get(signalsapi.ServiceTokenHeader); tok != "" && serviceSecret != "" {
-				if c, err := authpkg.ValidateServiceToken(tok, signalsapi.CoreAudience, serviceSecret); err == nil && c.System {
+			if tok := r.Header.Get(signalsapi.ServiceTokenHeader); tok != "" && serviceKeys.Configured() {
+				if c, err := authpkg.ValidateServiceToken(tok, signalsapi.CoreAudience, serviceKeys); err == nil && c.System {
 					next.ServeHTTP(w, r)
 					return
 				}

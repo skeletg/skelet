@@ -12,16 +12,16 @@ import (
 
 // ServiceUnaryInterceptor puts the caller a service token names on the context - audience-scoped, read off the authorization metadata
 // Non-blocking: a bad or revoked token injects nothing and the handler's own permission check refuses - a nil revoked list skips that check
-func ServiceUnaryInterceptor(audience, secret string, revoked Revocations) grpc.UnaryServerInterceptor {
+func ServiceUnaryInterceptor(audience string, keys ServiceKeys, revoked Revocations) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return handler(serviceContext(ctx, audience, secret, revoked), req)
+		return handler(serviceContext(ctx, audience, keys, revoked), req)
 	}
 }
 
 // The streaming half - a wrapped stream is the only way to hand a handler a different context
-func ServiceStreamInterceptor(audience, secret string, revoked Revocations) grpc.StreamServerInterceptor {
+func ServiceStreamInterceptor(audience string, keys ServiceKeys, revoked Revocations) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		return handler(srv, contextStream{ServerStream: ss, ctx: serviceContext(ss.Context(), audience, secret, revoked)})
+		return handler(srv, contextStream{ServerStream: ss, ctx: serviceContext(ss.Context(), audience, keys, revoked)})
 	}
 }
 
@@ -32,7 +32,7 @@ type contextStream struct {
 
 func (s contextStream) Context() context.Context { return s.ctx }
 
-func serviceContext(ctx context.Context, audience, secret string, revoked Revocations) context.Context {
+func serviceContext(ctx context.Context, audience string, keys ServiceKeys, revoked Revocations) context.Context {
 	ctx = WithRequestCache(ctx)
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -43,7 +43,7 @@ func serviceContext(ctx context.Context, audience, secret string, revoked Revoca
 		if !found {
 			continue
 		}
-		if c, err := ValidateServiceToken(after, audience, secret); err == nil {
+		if c, err := ValidateServiceToken(after, audience, keys); err == nil {
 			if c.System { // carries no admin and no grants, so only a handler asking for it by name lets it through
 				return WithSystemCaller(ctx)
 			}

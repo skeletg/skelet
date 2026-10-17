@@ -69,7 +69,7 @@ type Deps struct {
 	// Where a customer's channel comes from, since this service has no customers table
 	Roster *signalsdb.Queries
 	// Verifies the tokens core signs its calls with - the contract's own secret, not the session one
-	ServiceSecret string
+	ServiceKeys auth.ServiceKeys
 	// Killed admin sessions, so a token minted before a logout is refused - nil skips the check
 	Revocations auth.Revocations
 	// Dev turns on reflection, which lets grpcurl introspect a running server
@@ -87,8 +87,8 @@ func NewServer(d Deps) *grpc.Server {
 	// Recovery outermost, so a panic in auth is caught too - the stats handler continues the trace core started
 	srv := grpc.NewServer(
 		otelx.GRPCServer(),
-		grpc.ChainUnaryInterceptor(recoverUnary(), auth.ServiceUnaryInterceptor(signalsapi.Audience, d.ServiceSecret, d.Revocations)),
-		grpc.ChainStreamInterceptor(recoverStream(), auth.ServiceStreamInterceptor(signalsapi.Audience, d.ServiceSecret, d.Revocations)),
+		grpc.ChainUnaryInterceptor(recoverUnary(), auth.ServiceUnaryInterceptor(signalsapi.Audience, d.ServiceKeys, d.Revocations)),
+		grpc.ChainStreamInterceptor(recoverStream(), auth.ServiceStreamInterceptor(signalsapi.Audience, d.ServiceKeys, d.Revocations)),
 	)
 	signalsv1.RegisterPrismServiceServer(srv, &prismServer{svc: d.Experiment})
 	signalsv1.RegisterLensServiceServer(srv, &lensServer{svc: d.Lens})

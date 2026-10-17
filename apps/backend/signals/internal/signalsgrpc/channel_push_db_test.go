@@ -20,7 +20,7 @@ func TestAPushThatCannotSayWhichChannelsAreDeactivatedPrunesNothing(t *testing.T
 	if _, err := conn.Exec(`INSERT INTO flows (channel_id, name, trigger_type) VALUES ($1, 'Test', 'order_placed')`, paused); err != nil {
 		t.Fatal(err)
 	}
-	c := signalsv1.NewIngestServiceClient(testConnWith(t, Deps{ServiceSecret: testSecret, Channels: analytics.NewChannelRoster(conn)}))
+	c := signalsv1.NewIngestServiceClient(testConnWith(t, Deps{ServiceKeys: testKeys, Channels: analytics.NewChannelRoster(conn)}))
 	yes := true
 	if _, err := c.SyncChannels(systemCtx(t), &signalsv1.SyncChannelsRequest{Channels: []*signalsv1.ChannelEntry{
 		{ChannelId: live.String(), IsActive: &yes}, {ChannelId: paused.String(), IsActive: &yes},
