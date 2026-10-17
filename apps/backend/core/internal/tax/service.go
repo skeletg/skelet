@@ -2,16 +2,24 @@ package tax
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // The tax-domain entry point - rule CRUD plus the Compute seam the order service calls, stateless beyond the repo and engine
 type Service struct {
 	repo   Repository
 	engine *Engine
+	tx     *txrunner.Manager
 }
+
+// SetTx makes a rule save atomic with its conditions and effects - without it each write commits on its own
+func (s *Service) SetTx(tx *txrunner.Manager) { s.tx = tx }
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo, engine: NewEngine(repo, DefaultRegistry)}
@@ -28,17 +36,14 @@ func (s *Service) Compute(ctx context.Context, in ComputeInput) (ComputeResult, 
 	if in.TaxableCents <= 0 || in.ChannelID == uuid.Nil {
 		return ComputeResult{}, nil
 	}
-	env := BuildEnvironment(EnvironmentInput{
-		ChannelID:    in.ChannelID,
-		CountryCode:  in.CountryCode,
-		RegionCode:   in.RegionCode,
-		TaxableCents: in.TaxableCents,
-		TaxInclusive: in.TaxInclusive,
+	order, err := s.ComputeOrder(ctx, ComputeOrderInput{
+		ChannelID: in.ChannelID, CountryCode: in.CountryCode, RegionCode: in.RegionCode, TaxInclusive: in.TaxInclusive,
+		Lines: []LineTaxInput{{TaxableCents: in.TaxableCents}},
 	})
-	res, err := s.engine.Evaluate(ctx, env)
 	if err != nil {
 		return ComputeResult{}, err
 	}
+	res := order.Lines[0]
 	out := ComputeResult{Cents: res.TotalCents}
 	if len(res.Applied) > 0 {
 		first := res.Applied[0]
@@ -70,10 +75,14 @@ type OrderTaxResult struct {
 	Lines      []EvalResult
 }
 
-// Evaluates tax per line and sums - a single-class cart gives the same total as whole-order Compute, so it's parity-preserving until tax classes are used
+// Evaluates tax per line and sums - a single-class cart gives the same total as whole-order Compute, so it's parity-preserving until tax classes are used. The channel's rules load once for the whole order
 func (s *Service) ComputeOrder(ctx context.Context, in ComputeOrderInput) (OrderTaxResult, error) {
 	if in.ChannelID == uuid.Nil {
 		return OrderTaxResult{}, nil
+	}
+	rules, err := s.engine.activeRules(ctx, in.ChannelID)
+	if err != nil {
+		return OrderTaxResult{}, err
 	}
 	out := OrderTaxResult{Lines: make([]EvalResult, 0, len(in.Lines))}
 	for _, line := range in.Lines {
@@ -90,7 +99,7 @@ func (s *Service) ComputeOrder(ctx context.Context, in ComputeOrderInput) (Order
 			ProductTaxClass:   line.ProductTaxClass,
 			CustomerGroupSlug: in.CustomerGroupSlug,
 		})
-		res, err := s.engine.Evaluate(ctx, env)
+		res, err := s.engine.evaluate(ctx, env, rules)
 		if err != nil {
 			return OrderTaxResult{}, err
 		}
@@ -117,17 +126,22 @@ func (s *Service) CreateRule(ctx context.Context, in CreateRuleInput) (Rule, err
 	if err := s.validate(in.Conditions, in.Effects); err != nil {
 		return Rule{}, err
 	}
-	rule, err := s.repo.CreateRule(ctx, in.Rule)
+	var id uuid.UUID
+	err := s.inTx(ctx, func(r Repository) error {
+		rule, err := r.CreateRule(ctx, in.Rule)
+		if err != nil {
+			return err
+		}
+		id = rule.ID
+		if err := r.ReplaceConditions(ctx, rule.ID, in.Conditions); err != nil {
+			return err
+		}
+		return r.ReplaceEffects(ctx, rule.ID, in.Effects)
+	})
 	if err != nil {
 		return Rule{}, err
 	}
-	if err := s.repo.ReplaceConditions(ctx, rule.ID, in.Conditions); err != nil {
-		return Rule{}, err
-	}
-	if err := s.repo.ReplaceEffects(ctx, rule.ID, in.Effects); err != nil {
-		return Rule{}, err
-	}
-	return s.GetRuleHydrated(ctx, rule.ID)
+	return s.GetRuleHydrated(ctx, id)
 }
 
 func (s *Service) UpdateRule(ctx context.Context, in UpdateRuleInput) (Rule, error) {
@@ -136,21 +150,33 @@ func (s *Service) UpdateRule(ctx context.Context, in UpdateRuleInput) (Rule, err
 	if err := s.validate(conds, effs); err != nil {
 		return Rule{}, err
 	}
-	rule, err := s.repo.UpdateRule(ctx, in.Rule)
+	err := s.inTx(ctx, func(r Repository) error {
+		rule, err := r.UpdateRule(ctx, in.Rule)
+		if err != nil {
+			return err
+		}
+		if in.Conditions != nil {
+			if err := r.ReplaceConditions(ctx, rule.ID, *in.Conditions); err != nil {
+				return err
+			}
+		}
+		if in.Effects != nil {
+			return r.ReplaceEffects(ctx, rule.ID, *in.Effects)
+		}
+		return nil
+	})
 	if err != nil {
 		return Rule{}, err
 	}
-	if in.Conditions != nil {
-		if err := s.repo.ReplaceConditions(ctx, rule.ID, *in.Conditions); err != nil {
-			return Rule{}, err
-		}
+	return s.GetRuleHydrated(ctx, in.Rule.ID)
+}
+
+// inTx runs fn on a transactional repository, or on the plain one when no tx manager is wired
+func (s *Service) inTx(ctx context.Context, fn func(Repository) error) error {
+	if s.tx == nil {
+		return fn(s.repo)
 	}
-	if in.Effects != nil {
-		if err := s.repo.ReplaceEffects(ctx, rule.ID, *in.Effects); err != nil {
-			return Rule{}, err
-		}
-	}
-	return s.GetRuleHydrated(ctx, rule.ID)
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(s.repo.WithTx(t)) })
 }
 
 func (s *Service) DeleteRule(ctx context.Context, id uuid.UUID) error {
@@ -178,33 +204,26 @@ func (s *Service) ListAllRulesHydrated(ctx context.Context) ([]Rule, error) {
 
 // The channel's rules, each with its conditions and effects, for the admin list
 func (s *Service) ListRulesByChannelHydrated(ctx context.Context, channelID uuid.UUID) ([]Rule, error) {
-	rules, err := s.repo.ListRulesByChannel(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range rules {
-		if rules[i].Conditions, err = s.repo.ListConditionsByRule(ctx, rules[i].ID); err != nil {
-			return nil, err
-		}
-		if rules[i].Effects, err = s.repo.ListEffectsByRule(ctx, rules[i].ID); err != nil {
-			return nil, err
-		}
-	}
-	return rules, nil
+	return s.repo.ListRulesByChannelHydrated(ctx, channelID)
 }
 
 func (s *Service) validate(conditions []Condition, effects []Effect) error {
 	for i, c := range conditions {
 		if err := DefaultRegistry.ValidateCondition(c.Type, c.Params); err != nil {
-			return fmt.Errorf("condition %d: %w", i, err)
+			return invalidRule(fmt.Sprintf("condition %d: %v", i+1, err))
 		}
 	}
 	for i, e := range effects {
 		if err := DefaultRegistry.ValidateEffect(e.Type, e.Params); err != nil {
-			return fmt.Errorf("effect %d: %w", i, err)
+			return invalidRule(fmt.Sprintf("effect %d: %v", i+1, err))
 		}
 	}
 	return nil
+}
+
+// invalidRule is a validation error carrying the registry's reason, so the admin sees what's wrong instead of a 500
+func invalidRule(msg string) error {
+	return &apperr.Error{Code: "TAX_RULE_INVALID", Class: apperr.ClassValidation, Message: msg}
 }
 
 func derefSlice[T any](p *[]T) []T {
