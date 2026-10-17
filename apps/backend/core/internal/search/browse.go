@@ -139,7 +139,7 @@ func (i *ProductIndexer) BrowseProducts(
 
 	// Filterable=true means the operator marked the attribute suitable for faceted browsing - a lookup failure degrades to hits with no facets
 	// IsPublic gates too: a private attribute must not surface as a facet nor be probeable through the filter input
-	attrs, _ := i.catalog.ListAttributes(ctx)
+	attrs, _ := listAttributes(ctx, i.attrs, i.catalog)
 	filterable := make([]catalog.Attribute, 0, len(attrs))
 	for _, a := range attrs {
 		if a.Filterable && a.IsPublic {

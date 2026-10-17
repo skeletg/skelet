@@ -173,6 +173,10 @@ func (s *listingService) ListProductChannelListings(ctx context.Context, product
 	return s.repo.ListProductChannelListingsByProduct(ctx, productID)
 }
 
+func (s *listingService) CountProductChannelListingsByChannel(ctx context.Context) (map[uuid.UUID]int64, error) {
+	return s.repo.CountProductChannelListingsByChannel(ctx)
+}
+
 func (s *listingService) ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
 	return s.repo.ListProductChannelListingsByProductIDs(ctx, productIDs)
 }
