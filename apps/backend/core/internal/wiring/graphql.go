@@ -168,6 +168,9 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 			return next(ctx)
 		}
 		opName := oc.OperationName
+		if opName == "" && oc.Operation.Name != "" {
+			opName = oc.Operation.Name // a client that names its operation in the document but not the request still gets the name on its row
+		}
 		if opName == "" {
 			opName = "(anonymous " + string(oc.Operation.Operation) + ")"
 		}

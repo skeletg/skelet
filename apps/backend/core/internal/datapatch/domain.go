@@ -1,4 +1,4 @@
-// Package datapatch runs one-time, code-based data changes on deploy - the Go counterpart to golang-migrate for core schema and pluginmigrate for plugin schema
+// Package datapatch runs one-time, code-based data changes on deploy - the Go counterpart to dbmate for core schema and pluginmigrate for plugin schema
 package datapatch
 
 import (

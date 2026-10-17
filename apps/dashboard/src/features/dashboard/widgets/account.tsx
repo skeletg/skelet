@@ -11,7 +11,7 @@ export function AccountWidget() {
     <WidgetSection
       title="Your account"
       description="Who you're signed in as and what you can do."
-      to="/preferences"
+      to="/preferences?tab=account"
       toLabel="Preferences"
       loading={loading && !me}
       error={error ?? null}

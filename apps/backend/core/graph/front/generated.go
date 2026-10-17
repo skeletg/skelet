@@ -1290,6 +1290,7 @@ type ComplexityRoot struct {
 		ShippingQuotes        func(childComplexity int, countryCode string, cartID *string, regionCode *string, postalCode *string) int
 		SitemapCounts         func(childComplexity int) int
 		SitemapEntries        func(childComplexity int, entityType model1.SitemapEntityType, limit int32, offset int32) int
+		TrackOrder            func(childComplexity int, number string, email string, postalCode string) int
 		ValidateAddress       func(childComplexity int, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) int
 		WishlistProductIds    func(childComplexity int) int
 	}
@@ -1467,6 +1468,12 @@ type ComplexityRoot struct {
 	TierPrice struct {
 		MinQty func(childComplexity int) int
 		Price  func(childComplexity int) int
+	}
+
+	TrackOrderResult struct {
+		Email         func(childComplexity int) int
+		OrderID       func(childComplexity int) int
+		RequiresLogin func(childComplexity int) int
 	}
 
 	WebFormFieldError struct {
@@ -1696,6 +1703,7 @@ type QueryResolver interface {
 	MyOrders(ctx context.Context) ([]*model.Order, error)
 	MyOrder(ctx context.Context, id string) (*model.Order, error)
 	GuestOrder(ctx context.Context, id string, email string) (*model.Order, error)
+	TrackOrder(ctx context.Context, number string, email string, postalCode string) (*model1.TrackOrderResult, error)
 	MyPaymentMethods(ctx context.Context) ([]*model1.SavedPaymentMethod, error)
 	ValidateAddress(ctx context.Context, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) (*model1.AddressValidationResult, error)
 	PaymentMethods(ctx context.Context, countryCode string, cartID *string) ([]*model1.PaymentMethodOption, error)
@@ -7894,6 +7902,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SitemapEntries(childComplexity, args["entityType"].(model1.SitemapEntityType), args["limit"].(int32), args["offset"].(int32)), true
+	case "Query.trackOrder":
+		if e.ComplexityRoot.Query.TrackOrder == nil {
+			break
+		}
+
+		args, err := ec.field_Query_trackOrder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TrackOrder(childComplexity, args["number"].(string), args["email"].(string), args["postalCode"].(string)), true
 	case "Query.validateAddress":
 		if e.ComplexityRoot.Query.ValidateAddress == nil {
 			break
@@ -8553,6 +8572,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TierPrice.Price(childComplexity), true
+
+	case "TrackOrderResult.email":
+		if e.ComplexityRoot.TrackOrderResult.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackOrderResult.Email(childComplexity), true
+	case "TrackOrderResult.orderId":
+		if e.ComplexityRoot.TrackOrderResult.OrderID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackOrderResult.OrderID(childComplexity), true
+	case "TrackOrderResult.requiresLogin":
+		if e.ComplexityRoot.TrackOrderResult.RequiresLogin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TrackOrderResult.RequiresLogin(childComplexity), true
 
 	case "WebFormFieldError.field":
 		if e.ComplexityRoot.WebFormFieldError.Field == nil {
@@ -10535,6 +10573,17 @@ extend type Query {
 extend type Query {
   # Guest order lookup. (id, email) acts as a bearer credential - anyone who knows both can view the order, no auth required. Customer orders are NOT accessible via this query; they go through myOrder() instead. Returns null when the pair doesn't match a guest order.
   guestOrder(id: ID!, email: String!): Order
+  # Track-order lookup by what's on the receipt: order number, email and shipping postcode (billing postcode for orders with no shipping address), all compared case- and spacing-insensitively. Null when the three don't match an order on this store. Rate-limited per IP.
+  trackOrder(number: String!, email: String!, postalCode: String!): TrackOrderResult
+}
+
+# Where a track-order lookup sends the shopper - never the order itself.
+type TrackOrderResult {
+  orderId: ID!
+  # The order belongs to a customer account, so it opens only through myOrder after sign-in. Otherwise open it with guestOrder(orderId, email).
+  requiresLogin: Boolean!
+  # The order's email as stored - pass this to guestOrder, which matches it exactly. Empty when requiresLogin is true.
+  email: String!
 }
 
 extend type Mutation {
@@ -13553,6 +13602,18 @@ func (ec *executionContext) childFields_TierPrice(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type TierPrice", field.Name)
 }
 
+func (ec *executionContext) childFields_TrackOrderResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "orderId":
+		return ec.fieldContext_TrackOrderResult_orderId(ctx, field)
+	case "requiresLogin":
+		return ec.fieldContext_TrackOrderResult_requiresLogin(ctx, field)
+	case "email":
+		return ec.fieldContext_TrackOrderResult_email(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TrackOrderResult", field.Name)
+}
+
 func (ec *executionContext) childFields_WebFormFieldError(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "field":
@@ -15952,6 +16013,36 @@ func (ec *executionContext) field_Query_sitemapEntries_args(ctx context.Context,
 		return nil, err
 	}
 	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_trackOrder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "number",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["number"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "email",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["email"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "postalCode",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["postalCode"] = arg2
 	return args, nil
 }
 
@@ -40390,6 +40481,50 @@ func (ec *executionContext) fieldContext_Query_guestOrder(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_trackOrder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_trackOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TrackOrder(ctx, fc.Args["number"].(string), fc.Args["email"].(string), fc.Args["postalCode"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.TrackOrderResult) graphql.Marshaler {
+			return ec.marshalOTrackOrderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐTrackOrderResult(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_trackOrder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TrackOrderResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_trackOrder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_myPaymentMethods(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43352,6 +43487,75 @@ func (ec *executionContext) _TierPrice_price(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_TierPrice_price(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TierPrice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TrackOrderResult_orderId(ctx context.Context, field graphql.CollectedField, obj *model1.TrackOrderResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackOrderResult_orderId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrderID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackOrderResult_orderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackOrderResult", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _TrackOrderResult_requiresLogin(ctx context.Context, field graphql.CollectedField, obj *model1.TrackOrderResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackOrderResult_requiresLogin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequiresLogin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackOrderResult_requiresLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackOrderResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TrackOrderResult_email(ctx context.Context, field graphql.CollectedField, obj *model1.TrackOrderResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TrackOrderResult_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TrackOrderResult_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TrackOrderResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _WebFormFieldError_field(ctx context.Context, field graphql.CollectedField, obj *model1.WebFormFieldError) (ret graphql.Marshaler) {
@@ -56651,6 +56855,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "trackOrder":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_trackOrder(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "myPaymentMethods":
 			field := field
 
@@ -58464,6 +58690,54 @@ func (ec *executionContext) _TierPrice(ctx context.Context, sel ast.SelectionSet
 			}
 		case "price":
 			out.Values[i] = ec._TierPrice_price(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var trackOrderResultImplementors = []string{"TrackOrderResult"}
+
+func (ec *executionContext) _TrackOrderResult(ctx context.Context, sel ast.SelectionSet, obj *model1.TrackOrderResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, trackOrderResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TrackOrderResult")
+		case "orderId":
+			out.Values[i] = ec._TrackOrderResult_orderId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requiresLogin":
+			out.Values[i] = ec._TrackOrderResult_requiresLogin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._TrackOrderResult_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -62911,6 +63185,13 @@ func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel
 	_ = ctx
 	res := graphql.MarshalTime(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTrackOrderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐTrackOrderResult(ctx context.Context, sel ast.SelectionSet, v *model1.TrackOrderResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TrackOrderResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐVariantMode(ctx context.Context, v any) (*model.VariantMode, error) {

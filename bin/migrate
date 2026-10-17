@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# golang-migrate on the dev DB: up | down 1 | force <v> | version
+# dbmate on the dev DB: up | rollback | status | new <name>
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
 docker compose exec app sh -c \
-    'migrate -path internal/db/migrations -database "$DATABASE_URL" "$@"' \
+    'dbmate --no-dump-schema --migrations-dir internal/db/migrations "$@"' \
     -- "$@"

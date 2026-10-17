@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-// The generated migrations are pg_dump output, and pg_dump emits a search_path reset that has to be stripped every time one is regenerated. migrate reuses ONE connection for the whole run, so an empty search_path leaks into every migration after it and unqualified names stop resolving
+// The generated migrations are pg_dump output, and pg_dump emits a search_path reset that has to be stripped every time one is regenerated. a migration run keeps one session, so an empty search_path leaks into every migration after it and unqualified names stop resolving
 // the dumps themselves are public-qualified throughout and survive, but the next hand-written migration that says `DELETE FROM config_values` would not
 func TestGeneratedMigrationsKeepSearchPathStripped(t *testing.T) {
 	generated := []string{
-		"migrations/000001_schema.up.sql",
-		"migrations/000002_reference_data.up.sql",
-		"../../../signals/internal/db/migrations/000001_schema.up.sql", // the suite's stream, generated the same way
-		"../../../signals/internal/db/migrations/000002_reference_data.up.sql",
+		"migrations/20261016220000_schema.sql",
+		"migrations/20261016220001_reference_data.sql",
+		"../../../signals/internal/db/migrations/20261016220000_schema.sql", // the suite's stream, generated the same way
+		"../../../signals/internal/db/migrations/20261016220001_reference_data.sql",
 	}
 	for _, path := range generated {
 		raw, err := os.ReadFile(path)

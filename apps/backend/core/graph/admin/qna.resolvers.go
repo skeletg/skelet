@@ -13,11 +13,11 @@ func (r *mutationResolver) AnswerProductQuestion(ctx context.Context, id string,
 	if err != nil {
 		return nil, err
 	}
-	claims, err := auth.RequireAuth(ctx)
+	by, err := auth.RequireActor(ctx)
 	if err != nil {
 		return nil, err
 	}
-	updated, err := r.QnaSvc.Answer(ctx, q.ID, claims.AdminID, answer)
+	updated, err := r.QnaSvc.Answer(ctx, q.ID, by, answer)
 	if err != nil {
 		return nil, err
 	}

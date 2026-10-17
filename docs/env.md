@@ -194,8 +194,8 @@ more than it works.
 `POOL_MODE=transaction` is what makes any of that true, and it has three
 consequences worth knowing:
 
-- **Migrations bypass it.** golang-migrate holds a session-level advisory
-  lock for the whole run, so `migrate` and `signals-migrate` keep the
+- **Migrations bypass it.** DDL and a long backfill want a real session,
+  not a transaction-pooled one, so `migrate` and `signals-migrate` keep the
   direct DSNs.
 - **Server-side prepared statements are off.** The pooled DSNs carry
   `default_query_exec_mode=exec`, because a `PREPARE` lands on whichever
@@ -273,14 +273,11 @@ so `./skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `./skelet doc
 fails if the suite is on and either the container or `signals.analytics_events`
 is missing.
 
-There are two URLs because the app driver and golang-migrate disagree on
-DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`. In prod the
-migrate one-shot rewrites a `clickhouse://user:password@host:port/db` form of
-`SIGNALS_CH_URL` itself, so `SIGNALS_CH_MIGRATE_URL` is only for a URL it can't
-rewrite.
+The spine and its migrations share one URL, `SIGNALS_CH_URL` - dbmate reads the
+same `clickhouse://user:password@host:port/db` the app does.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
-both ClickHouse URLs derive from it. Backing the spine up is
+the ClickHouse URL derive from it. Backing the spine up is
 `BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
 
 The server is generic infrastructure, so each consumer gets its own

@@ -17,16 +17,17 @@ WITH prev AS (
   SELECT p.id, p.status FROM product_questions p WHERE p.id = $1 FOR UPDATE
 )
 UPDATE product_questions q
-SET    answer = $2, answered_by = $3, answered_at = now(), status = 'published'
+SET    answer = $2, answered_by = $3, answered_by_integration_id = $4, answered_at = now(), status = 'published'
 FROM   prev
 WHERE  q.id = prev.id
-RETURNING q.id, q.product_id, q.channel_id, q.customer_id, q.author_name, q.author_email, q.question, q.answer, q.answered_by, q.answered_at, q.status, q.created_at, prev.status AS prev_status
+RETURNING q.id, q.product_id, q.channel_id, q.customer_id, q.author_name, q.author_email, q.question, q.answer, q.answered_by, q.answered_at, q.status, q.created_at, q.answered_by_integration_id, prev.status AS prev_status
 `
 
 type AnswerProductQuestionParams struct {
-	ID         uuid.UUID     `json:"id"`
-	Answer     string        `json:"answer"`
-	AnsweredBy uuid.NullUUID `json:"answered_by"`
+	ID                      uuid.UUID     `json:"id"`
+	Answer                  string        `json:"answer"`
+	AnsweredBy              uuid.NullUUID `json:"answered_by"`
+	AnsweredByIntegrationID uuid.NullUUID `json:"answered_by_integration_id"`
 }
 
 type AnswerProductQuestionRow struct {
@@ -36,7 +37,12 @@ type AnswerProductQuestionRow struct {
 
 // prev_status is read under the row lock, so of two racing answers only one sees the question unpublished and announces it
 func (q *Queries) AnswerProductQuestion(ctx context.Context, arg AnswerProductQuestionParams) (AnswerProductQuestionRow, error) {
-	row := q.db.QueryRowContext(ctx, answerProductQuestion, arg.ID, arg.Answer, arg.AnsweredBy)
+	row := q.db.QueryRowContext(ctx, answerProductQuestion,
+		arg.ID,
+		arg.Answer,
+		arg.AnsweredBy,
+		arg.AnsweredByIntegrationID,
+	)
 	var i AnswerProductQuestionRow
 	err := row.Scan(
 		&i.ProductQuestion.ID,
@@ -51,6 +57,7 @@ func (q *Queries) AnswerProductQuestion(ctx context.Context, arg AnswerProductQu
 		&i.ProductQuestion.AnsweredAt,
 		&i.ProductQuestion.Status,
 		&i.ProductQuestion.CreatedAt,
+		&i.ProductQuestion.AnsweredByIntegrationID,
 		&i.PrevStatus,
 	)
 	return i, err
@@ -66,7 +73,7 @@ func (q *Queries) DeleteProductQuestion(ctx context.Context, id uuid.UUID) error
 }
 
 const getProductQuestion = `-- name: GetProductQuestion :one
-SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at FROM product_questions WHERE id = $1
+SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at, answered_by_integration_id FROM product_questions WHERE id = $1
 `
 
 func (q *Queries) GetProductQuestion(ctx context.Context, id uuid.UUID) (ProductQuestion, error) {
@@ -85,6 +92,7 @@ func (q *Queries) GetProductQuestion(ctx context.Context, id uuid.UUID) (Product
 		&i.AnsweredAt,
 		&i.Status,
 		&i.CreatedAt,
+		&i.AnsweredByIntegrationID,
 	)
 	return i, err
 }
@@ -92,7 +100,7 @@ func (q *Queries) GetProductQuestion(ctx context.Context, id uuid.UUID) (Product
 const insertProductQuestion = `-- name: InsertProductQuestion :one
 INSERT INTO product_questions (product_id, channel_id, customer_id, author_name, author_email, question)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at
+RETURNING id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at, answered_by_integration_id
 `
 
 type InsertProductQuestionParams struct {
@@ -127,12 +135,13 @@ func (q *Queries) InsertProductQuestion(ctx context.Context, arg InsertProductQu
 		&i.AnsweredAt,
 		&i.Status,
 		&i.CreatedAt,
+		&i.AnsweredByIntegrationID,
 	)
 	return i, err
 }
 
 const listPublishedQuestions = `-- name: ListPublishedQuestions :many
-SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at FROM product_questions
+SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at, answered_by_integration_id FROM product_questions
 WHERE  product_id = $1 AND channel_id = $2 AND status = 'published'
 ORDER  BY answered_at DESC NULLS LAST, created_at DESC
 LIMIT  $3
@@ -166,6 +175,7 @@ func (q *Queries) ListPublishedQuestions(ctx context.Context, arg ListPublishedQ
 			&i.AnsweredAt,
 			&i.Status,
 			&i.CreatedAt,
+			&i.AnsweredByIntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -181,7 +191,7 @@ func (q *Queries) ListPublishedQuestions(ctx context.Context, arg ListPublishedQ
 }
 
 const listQuestionsForModeration = `-- name: ListQuestionsForModeration :many
-SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at FROM product_questions
+SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at, answered_by_integration_id FROM product_questions
 WHERE  ($3::bool OR channel_id = ANY ($4::uuid[]))
   AND  ($5::text = '' OR status = $5::text)
 ORDER  BY created_at DESC
@@ -224,6 +234,7 @@ func (q *Queries) ListQuestionsForModeration(ctx context.Context, arg ListQuesti
 			&i.AnsweredAt,
 			&i.Status,
 			&i.CreatedAt,
+			&i.AnsweredByIntegrationID,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +253,7 @@ const setProductQuestionStatus = `-- name: SetProductQuestionStatus :one
 UPDATE product_questions
 SET    status = $2
 WHERE  id = $1
-RETURNING id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at
+RETURNING id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at, answered_by_integration_id
 `
 
 type SetProductQuestionStatusParams struct {
@@ -266,6 +277,7 @@ func (q *Queries) SetProductQuestionStatus(ctx context.Context, arg SetProductQu
 		&i.AnsweredAt,
 		&i.Status,
 		&i.CreatedAt,
+		&i.AnsweredByIntegrationID,
 	)
 	return i, err
 }

@@ -339,9 +339,9 @@ func (r *mutationResolver) MintCMSPagePreviewToken(ctx context.Context, input mo
 	if err := r.requireOnPageChannels(ctx, "cms.view", pageID, ""); err != nil {
 		return nil, err
 	}
-	claims, ok := auth.AdminFromContext(ctx)
-	if !ok || claims == nil {
-		return nil, errAdminRequired()
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return nil, err
 	}
 	loc := ""
 	if input.Locale != nil {

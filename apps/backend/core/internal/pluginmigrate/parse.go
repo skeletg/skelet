@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-// Matches "0001_some_name.up.sql" and its .down.sql - mirrors golang-migrate's naming so existing muscle memory transfers
+// Matches "0001_some_name.up.sql" and its .down.sql - the classic up/down pair naming
 var migrationFilePattern = regexp.MustCompile(`^(\d+)_([a-zA-Z0-9_-]+)\.(up|down)\.sql$`)
 
 // Walks a registration's FS, pairs up the .up.sql and .down.sql files, and returns them sorted by version ascending

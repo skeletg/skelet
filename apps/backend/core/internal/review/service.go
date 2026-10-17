@@ -14,6 +14,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -676,34 +677,36 @@ func (s *Service) hydrate(ctx context.Context, rows []Review, total int64) ([]Re
 	return rows, total, nil
 }
 
-func (s *Service) ApproveReview(ctx context.Context, id, moderatorID uuid.UUID, note string) (Review, error) {
-	rev, err := s.repo.SetReviewStatus(ctx, id, StatusApproved, moderatorID, note)
+func (s *Service) ApproveReview(ctx context.Context, id uuid.UUID, by auth.Actor, note string) (Review, error) {
+	rev, err := s.repo.SetReviewStatus(ctx, id, StatusApproved, by, note)
 	if err != nil {
 		return Review{}, err
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Approved{
-			ReviewID:    rev.ID,
-			ProductID:   rev.ProductID,
-			ChannelID:   rev.ChannelID,
-			ModeratorID: moderatorID,
+			ReviewID:               rev.ID,
+			ProductID:              rev.ProductID,
+			ChannelID:              rev.ChannelID,
+			ModeratorID:            by.AdminID().UUID,
+			ModeratorIntegrationID: by.IntegrationID().UUID,
 		})
 	}
 	return rev, nil
 }
 
-func (s *Service) RejectReview(ctx context.Context, id, moderatorID uuid.UUID, note string) (Review, error) {
-	rev, err := s.repo.SetReviewStatus(ctx, id, StatusRejected, moderatorID, note)
+func (s *Service) RejectReview(ctx context.Context, id uuid.UUID, by auth.Actor, note string) (Review, error) {
+	rev, err := s.repo.SetReviewStatus(ctx, id, StatusRejected, by, note)
 	if err != nil {
 		return Review{}, err
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Rejected{
-			ReviewID:    rev.ID,
-			ProductID:   rev.ProductID,
-			ChannelID:   rev.ChannelID,
-			ModeratorID: moderatorID,
-			Note:        note,
+			ReviewID:               rev.ID,
+			ProductID:              rev.ProductID,
+			ChannelID:              rev.ChannelID,
+			ModeratorID:            by.AdminID().UUID,
+			ModeratorIntegrationID: by.IntegrationID().UUID,
+			Note:                   note,
 		})
 	}
 	return rev, nil

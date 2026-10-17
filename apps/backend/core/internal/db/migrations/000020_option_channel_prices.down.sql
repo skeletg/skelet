@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS public.catalog_product_option_channel_prices;
-DROP TABLE IF EXISTS public.catalog_product_option_value_channel_prices;

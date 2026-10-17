@@ -17,16 +17,18 @@ import (
 const countAuditLog = `-- name: CountAuditLog :one
 SELECT COUNT(*) FROM audit_log
 WHERE ($1::uuid IS NULL OR admin_id = $1::uuid)
-  AND ($2::text IS NULL OR action = $2::text)
+  AND ($2::uuid IS NULL OR integration_id = $2::uuid)
+  AND ($3::text IS NULL OR action = $3::text)
 `
 
 type CountAuditLogParams struct {
-	AdminID uuid.NullUUID  `json:"admin_id"`
-	Action  sql.NullString `json:"action"`
+	AdminID       uuid.NullUUID  `json:"admin_id"`
+	IntegrationID uuid.NullUUID  `json:"integration_id"`
+	Action        sql.NullString `json:"action"`
 }
 
 func (q *Queries) CountAuditLog(ctx context.Context, arg CountAuditLogParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countAuditLog, arg.AdminID, arg.Action)
+	row := q.db.QueryRowContext(ctx, countAuditLog, arg.AdminID, arg.IntegrationID, arg.Action)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -34,18 +36,19 @@ func (q *Queries) CountAuditLog(ctx context.Context, arg CountAuditLogParams) (i
 
 const insertAuditLog = `-- name: InsertAuditLog :exec
 
-INSERT INTO audit_log (admin_id, admin_email, action, detail, ip, success, duration_ms)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO audit_log (admin_id, admin_email, action, detail, ip, success, duration_ms, integration_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertAuditLogParams struct {
-	AdminID    uuid.NullUUID         `json:"admin_id"`
-	AdminEmail string                `json:"admin_email"`
-	Action     string                `json:"action"`
-	Detail     pqtype.NullRawMessage `json:"detail"`
-	Ip         string                `json:"ip"`
-	Success    bool                  `json:"success"`
-	DurationMs int64                 `json:"duration_ms"`
+	AdminID       uuid.NullUUID         `json:"admin_id"`
+	AdminEmail    string                `json:"admin_email"`
+	Action        string                `json:"action"`
+	Detail        pqtype.NullRawMessage `json:"detail"`
+	Ip            string                `json:"ip"`
+	Success       bool                  `json:"success"`
+	DurationMs    int64                 `json:"duration_ms"`
+	IntegrationID uuid.NullUUID         `json:"integration_id"`
 }
 
 // Admin audit trail
@@ -58,28 +61,32 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 		arg.Ip,
 		arg.Success,
 		arg.DurationMs,
+		arg.IntegrationID,
 	)
 	return err
 }
 
 const listAuditLog = `-- name: ListAuditLog :many
-SELECT id, admin_id, admin_email, action, detail, ip, success, duration_ms, created_at FROM audit_log
+SELECT id, admin_id, admin_email, action, detail, ip, success, duration_ms, created_at, integration_id FROM audit_log
 WHERE ($1::uuid IS NULL OR admin_id = $1::uuid)
-  AND ($2::text IS NULL OR action = $2::text)
+  AND ($2::uuid IS NULL OR integration_id = $2::uuid)
+  AND ($3::text IS NULL OR action = $3::text)
 ORDER BY created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListAuditLogParams struct {
-	AdminID uuid.NullUUID  `json:"admin_id"`
-	Action  sql.NullString `json:"action"`
-	Off     int32          `json:"off"`
-	Lim     int32          `json:"lim"`
+	AdminID       uuid.NullUUID  `json:"admin_id"`
+	IntegrationID uuid.NullUUID  `json:"integration_id"`
+	Action        sql.NullString `json:"action"`
+	Off           int32          `json:"off"`
+	Lim           int32          `json:"lim"`
 }
 
 func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]AuditLog, error) {
 	rows, err := q.db.QueryContext(ctx, listAuditLog,
 		arg.AdminID,
+		arg.IntegrationID,
 		arg.Action,
 		arg.Off,
 		arg.Lim,
@@ -101,6 +108,7 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]A
 			&i.Success,
 			&i.DurationMs,
 			&i.CreatedAt,
+			&i.IntegrationID,
 		); err != nil {
 			return nil, err
 		}

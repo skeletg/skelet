@@ -528,9 +528,9 @@ func (r *mutationResolver) MintBlogPostPreviewToken(ctx context.Context, input m
 		}
 		return nil, err
 	}
-	claims, ok := auth.AdminFromContext(ctx)
-	if !ok || claims == nil {
-		return nil, errAdminRequired()
+	claims, err := auth.RequireAdmin(ctx)
+	if err != nil {
+		return nil, err
 	}
 	loc := ""
 	if input.Locale != nil {
