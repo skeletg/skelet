@@ -71,6 +71,17 @@ func (r *mutationResolver) MoveToCart(ctx context.Context, productID string) (*m
 	return r.fullCartModel(ctx, updated), nil
 }
 
+func (r *mutationResolver) RevokeWishlistShare(ctx context.Context) (bool, error) {
+	claims, err := channel.RequireCustomerForCurrentStore(ctx)
+	if err != nil {
+		return false, err
+	}
+	if err := r.WishlistSvc.RevokeShare(ctx, claims.CustomerID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *queryResolver) WishlistProductIds(ctx context.Context) ([]string, error) {
 	cid := channel.OptionalCustomerID(ctx)
 	if cid == nil {
