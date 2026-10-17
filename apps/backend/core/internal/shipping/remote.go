@@ -1,9 +1,11 @@
 package shipping
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -163,13 +165,17 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) ([]Rated
 			}
 			mu.Lock()
 			for _, rate := range resp.Rates {
+				if !usableRate(rate, req.CurrencyCode) {
+					log.Printf("[shipping] remote carrier %q rate %q is negative or in another currency (skipped)", p.Slug, rate.Code)
+					continue
+				}
 				out = append(out, RatedQuote{
 					CarrierSlug: p.Slug,
 					CarrierName: p.Name,
 					Method: RatedMethod{
 						Code: rate.Code, Name: rate.Name,
 						PriceCents: rate.AmountCents, EstimatedDays: rate.EtaDays,
-						Kind:               cmpOr(rate.Kind, DefaultKind),
+						Kind:               cmp.Or(rate.Kind, DefaultKind),
 						DeliversOnWeekends: cfg.DeliversOnWeekends,
 					},
 				})
@@ -199,11 +205,9 @@ func (r *remoteRateSource) Kinds(ctx context.Context, channelID uuid.UUID) map[s
 	return out
 }
 
-func cmpOr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
+// usableRate refuses a rate that would lower the order total or that is priced in a currency other than the cart's
+func usableRate(r remoteRate, currency string) bool {
+	return r.AmountCents >= 0 && (r.Currency == "" || currency == "" || strings.EqualFold(r.Currency, currency))
 }
 
 func (r *remoteRateSource) Price(ctx context.Context, slug, code string, req RateRequest) (int64, error) {
@@ -223,7 +227,7 @@ func (r *remoteRateSource) Price(ctx context.Context, slug, code string, req Rat
 		return 0, ErrMethodNotFound
 	}
 	for _, rate := range resp.Rates {
-		if rate.Code == code {
+		if rate.Code == code && usableRate(rate, req.CurrencyCode) {
 			return rate.AmountCents, nil
 		}
 	}

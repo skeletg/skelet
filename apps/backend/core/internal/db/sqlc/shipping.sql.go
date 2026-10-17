@@ -484,6 +484,35 @@ func (q *Queries) ListCountriesForMethod(ctx context.Context, methodID uuid.UUID
 	return items, nil
 }
 
+const listCountriesForMethods = `-- name: ListCountriesForMethods :many
+SELECT method_id, country_code FROM shipping_method_countries
+WHERE method_id = ANY($1::uuid[])
+ORDER BY method_id, country_code
+`
+
+func (q *Queries) ListCountriesForMethods(ctx context.Context, methodIds []uuid.UUID) ([]ShippingMethodCountry, error) {
+	rows, err := q.db.QueryContext(ctx, listCountriesForMethods, pq.Array(methodIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ShippingMethodCountry{}
+	for rows.Next() {
+		var i ShippingMethodCountry
+		if err := rows.Scan(&i.MethodID, &i.CountryCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCountriesForZone = `-- name: ListCountriesForZone :many
 SELECT country_code FROM shipping_zone_countries
 WHERE zone_id = $1

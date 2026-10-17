@@ -126,6 +126,11 @@ SELECT country_code FROM shipping_method_countries
 WHERE method_id = $1
 ORDER BY country_code;
 
+-- name: ListCountriesForMethods :many
+SELECT method_id, country_code FROM shipping_method_countries
+WHERE method_id = ANY(sqlc.arg(method_ids)::uuid[])
+ORDER BY method_id, country_code;
+
 -- name: ClearMethodCountries :exec
 DELETE FROM shipping_method_countries WHERE method_id = $1;
 

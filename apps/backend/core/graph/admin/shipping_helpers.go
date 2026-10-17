@@ -27,9 +27,6 @@ func (r *Resolver) hydrateZoneModel(ctx context.Context, zoneID uuid.UUID) (*mod
 	if err != nil {
 		return nil, err
 	}
-	if methods, err = r.ShippingSvc.HydrateMethodCountries(ctx, methods); err != nil {
-		return nil, err
-	}
 	return toShippingZoneModel(zone, methods), nil
 }
 
