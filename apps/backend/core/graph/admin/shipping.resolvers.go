@@ -19,20 +19,15 @@ func (r *mutationResolver) CreateShippingZone(ctx context.Context, input model.C
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "settings.manage", channelID, nil); err != nil {
 		return nil, err
 	}
-	zone, err := r.ShippingSvc.Repo().CreateZone(ctx, shipping.Zone{
+	zone, err := r.ShippingSvc.SaveZone(ctx, shipping.Zone{
 		ChannelID: channelID,
 		Code:      input.Code,
 		Name:      ptr.Deref(input.Name),
 		SortOrder: intDeref(input.SortOrder, 0),
 		IsActive:  boolDeref(input.IsActive, true),
-	})
+	}, input.Countries)
 	if err != nil {
 		return nil, err
-	}
-	if len(input.Countries) > 0 {
-		if err := r.ShippingSvc.ReplaceZoneCountries(ctx, zone.ID, input.Countries); err != nil {
-			return nil, err
-		}
 	}
 	return r.hydrateZoneModel(ctx, zone.ID)
 }
@@ -58,13 +53,8 @@ func (r *mutationResolver) UpdateShippingZone(ctx context.Context, input model.U
 	if input.IsActive != nil {
 		existing.IsActive = *input.IsActive
 	}
-	if _, err := r.ShippingSvc.Repo().UpdateZone(ctx, existing); err != nil {
+	if _, err := r.ShippingSvc.SaveZone(ctx, existing, input.Countries); err != nil {
 		return nil, err
-	}
-	if input.Countries != nil {
-		if err := r.ShippingSvc.ReplaceZoneCountries(ctx, id, input.Countries); err != nil {
-			return nil, err
-		}
 	}
 	return r.hydrateZoneModel(ctx, id)
 }
