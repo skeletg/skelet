@@ -12,9 +12,8 @@ import (
 // only the methods the country filter touches are implemented
 type fakeShipRepo struct {
 	Repository
-	zoneID          uuid.UUID
-	methods         []Method
-	methodCountries map[uuid.UUID][]string
+	zoneID  uuid.UUID
+	methods []Method
 }
 
 func (f fakeShipRepo) FindZoneForCountry(context.Context, uuid.UUID, string) (Zone, error) {
@@ -31,18 +30,14 @@ func (f fakeShipRepo) GetMethod(_ context.Context, id uuid.UUID) (Method, error)
 	}
 	return Method{}, ErrMethodNotFound
 }
-func (f fakeShipRepo) ListCountriesForMethod(_ context.Context, id uuid.UUID) ([]string, error) {
-	return f.methodCountries[id], nil
-}
 
 func newShipFixture() (*Service, Method, Method, uuid.UUID) {
 	zone := uuid.New()
 	all := Method{ID: uuid.New(), ZoneID: zone, Code: "std", CalcType: CalcFlat, FlatCents: 500, IsActive: true, CountryMode: "all"}
-	usOnly := Method{ID: uuid.New(), ZoneID: zone, Code: "us-only", CalcType: CalcFlat, FlatCents: 700, IsActive: true, CountryMode: "specific"}
+	usOnly := Method{ID: uuid.New(), ZoneID: zone, Code: "us-only", CalcType: CalcFlat, FlatCents: 700, IsActive: true, CountryMode: "specific", AllowedCountries: []string{"US"}}
 	repo := fakeShipRepo{
-		zoneID:          zone,
-		methods:         []Method{all, usOnly},
-		methodCountries: map[uuid.UUID][]string{usOnly.ID: {"US"}},
+		zoneID:  zone,
+		methods: []Method{all, usOnly},
 	}
 	return NewService(repo), all, usOnly, uuid.New()
 }

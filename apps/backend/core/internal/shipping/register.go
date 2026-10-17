@@ -6,6 +6,7 @@ func init() {
 	apperr.RegisterSentinel(ErrZoneNotFound, "SHIPPING_ZONE_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrMethodNotFound, "SHIPPING_METHOD_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrCarrierNotFound, "SHIPPING_CARRIER_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrBoxNotFound, "SHIPPING_BOX_NOT_FOUND", apperr.ClassNotFound)
 
 	apperr.RegisterSentinel(ErrCodeTaken, "SHIPPING_CODE_TAKEN", apperr.ClassConflict)
 

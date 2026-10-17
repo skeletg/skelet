@@ -38,6 +38,7 @@ func (s *Service) Repo() Repository { return s.repo }
 
 // Every active method whose zone covers the country, priced against the subtotal, in sort order - empty means no zone covers it, and the storefront shows "delivery not available"
 func (s *Service) Quote(ctx context.Context, in QuoteInput) ([]Quote, error) {
+	in.CountryCode = normCountry(in.CountryCode)
 	if in.ChannelID == uuid.Nil || in.CountryCode == "" {
 		return nil, nil
 	}
@@ -54,11 +55,7 @@ func (s *Service) Quote(ctx context.Context, in QuoteInput) ([]Quote, error) {
 	}
 	out := make([]Quote, 0, len(methods))
 	for _, m := range methods {
-		ok, err := s.methodAllowsCountry(ctx, m, in.CountryCode)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
+		if !methodAllowsCountry(m, in.CountryCode) {
 			continue
 		}
 		out = append(out, Quote{
@@ -79,7 +76,7 @@ func (s *Service) FreeShippingThreshold(ctx context.Context, channelID uuid.UUID
 	if channelID == uuid.Nil {
 		return 0, nil
 	}
-	country = strings.ToUpper(strings.TrimSpace(country))
+	country = normCountry(country)
 
 	// Zones to scan - the one covering the country, or every zone when none is known yet
 	var zones []Zone
@@ -111,14 +108,8 @@ func (s *Service) FreeShippingThreshold(ctx context.Context, channelID uuid.UUID
 				continue
 			}
 			// With a known country, respect per-method allow-lists; the channel-wide estimate takes any
-			if country != "" {
-				ok, err := s.methodAllowsCountry(ctx, m, country)
-				if err != nil {
-					return 0, err
-				}
-				if !ok {
-					continue
-				}
+			if country != "" && !methodAllowsCountry(m, country) {
+				continue
 			}
 			if threshold == 0 || m.FreeAboveCents < threshold {
 				threshold = m.FreeAboveCents
@@ -128,25 +119,35 @@ func (s *Service) FreeShippingThreshold(ctx context.Context, channelID uuid.UUID
 	return threshold, nil
 }
 
-// Always true for mode "all", else only when the country is in the per-method allow-list, case-insensitively
-func (s *Service) methodAllowsCountry(ctx context.Context, m Method, country string) (bool, error) {
-	if m.CountryMode != "specific" {
-		return true, nil
-	}
-	countries, err := s.repo.ListCountriesForMethod(ctx, m.ID)
-	if err != nil {
-		return false, err
-	}
-	for _, c := range countries {
-		if strings.EqualFold(c, country) {
-			return true, nil
+// Always true for mode "all", else only when the country is in the method's hydrated allow-list
+func methodAllowsCountry(m Method, country string) bool {
+	return m.CountryMode != "specific" || containsFold(m.AllowedCountries, country)
+}
+
+var errCountryInvalid = apperr.New("SHIPPING_COUNTRY_INVALID", apperr.ClassValidation, "countries are two-letter ISO codes")
+
+// normCountry is the stored and looked-up form of a country code - trimmed and upper-case
+func normCountry(c string) string { return strings.ToUpper(strings.TrimSpace(c)) }
+
+// normCountries cleans an admin's country list, dropping blanks and duplicates and refusing anything that isn't two letters
+func normCountries(in []string) ([]string, error) {
+	out := make([]string, 0, len(in))
+	for _, c := range in {
+		c = normCountry(c)
+		if c == "" || slices.Contains(out, c) {
+			continue
 		}
+		if len(c) != 2 || c[0] < 'A' || c[0] > 'Z' || c[1] < 'A' || c[1] > 'Z' {
+			return nil, errCountryInvalid
+		}
+		out = append(out, c)
 	}
-	return false, nil
+	return out, nil
 }
 
 // The authoritative price at placement - verifies methodCode still exists and is active for the zone, then prices it with the live formula rather than the client's cents - ErrMethodNotFound means "option no longer available, retry"
 func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in QuoteInput) (int64, Method, error) {
+	in.CountryCode = normCountry(in.CountryCode)
 	if in.ChannelID == uuid.Nil || in.CountryCode == "" {
 		return 0, Method{}, fmt.Errorf("shipping: channel and country required")
 	}
@@ -161,9 +162,7 @@ func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in Quo
 	if !method.IsActive {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	if ok, err := s.methodAllowsCountry(ctx, method, in.CountryCode); err != nil {
-		return 0, Method{}, err
-	} else if !ok {
+	if !methodAllowsCountry(method, in.CountryCode) {
 		return 0, Method{}, ErrMethodNotFound
 	}
 	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
@@ -171,6 +170,7 @@ func (s *Service) ComputeForOrder(ctx context.Context, methodCode string, in Quo
 
 // The ID-based sibling of ComputeForOrder - verifies the method belongs to the country's zone, so one from another zone can't be smuggled in, and is still active
 func (s *Service) ComputeForOrderByID(ctx context.Context, methodID uuid.UUID, in QuoteInput) (int64, Method, error) {
+	in.CountryCode = normCountry(in.CountryCode)
 	if in.ChannelID == uuid.Nil || in.CountryCode == "" {
 		return 0, Method{}, fmt.Errorf("shipping: channel and country required")
 	}
@@ -185,9 +185,7 @@ func (s *Service) ComputeForOrderByID(ctx context.Context, methodID uuid.UUID, i
 	if method.ZoneID != zone.ID || !method.IsActive {
 		return 0, Method{}, ErrMethodNotFound
 	}
-	if ok, err := s.methodAllowsCountry(ctx, method, in.CountryCode); err != nil {
-		return 0, Method{}, err
-	} else if !ok {
+	if !methodAllowsCountry(method, in.CountryCode) {
 		return 0, Method{}, ErrMethodNotFound
 	}
 	return ComputePrice(method, in.SubtotalCents, in.Items), method, nil
@@ -205,35 +203,44 @@ func (s *Service) HydrateZoneCountries(ctx context.Context, zones []Zone) ([]Zon
 	return zones, nil
 }
 
-// Rewrites a zone's country membership - the caller wraps it in repo.WithTx for atomicity
-func (s *Service) ReplaceZoneCountries(ctx context.Context, zoneID uuid.UUID, countries []string) error {
-	if err := s.repo.ClearZoneCountries(ctx, zoneID); err != nil {
-		return err
-	}
-	for _, c := range countries {
-		if c == "" {
-			continue
+// SaveZone creates a zone (no ID) or updates one, with its countries, in one transaction - a failed country write never leaves a zone live with none. Nil countries keep what the zone has
+func (s *Service) SaveZone(ctx context.Context, z Zone, countries []string) (Zone, error) {
+	if countries != nil {
+		var err error
+		if countries, err = normCountries(countries); err != nil {
+			return Zone{}, err
 		}
-		if err := s.repo.AddCountryToZone(ctx, zoneID, c); err != nil {
+	}
+	var out Zone
+	err := s.inTx(ctx, func(r Repository) error {
+		var err error
+		if z.ID == uuid.Nil {
+			out, err = r.CreateZone(ctx, z)
+		} else {
+			out, err = r.UpdateZone(ctx, z)
+		}
+		if err != nil || countries == nil {
 			return err
 		}
-	}
-	return nil
+		if err := r.ClearZoneCountries(ctx, out.ID); err != nil {
+			return err
+		}
+		for _, c := range countries {
+			if err := r.AddCountryToZone(ctx, out.ID, c); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return out, err
 }
 
-// Fills Method.AllowedCountries for "specific"-mode methods, leaving "all" empty
-func (s *Service) HydrateMethodCountries(ctx context.Context, methods []Method) ([]Method, error) {
-	for i := range methods {
-		if methods[i].CountryMode != "specific" {
-			continue
-		}
-		countries, err := s.repo.ListCountriesForMethod(ctx, methods[i].ID)
-		if err != nil {
-			return nil, err
-		}
-		methods[i].AllowedCountries = countries
+// inTx runs fn on a transactional repository, or on the plain one when no tx manager is wired
+func (s *Service) inTx(ctx context.Context, fn func(Repository) error) error {
+	if s.tx == nil {
+		return fn(s.repo)
 	}
-	return methods, nil
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(s.repo.WithTx(t)) })
 }
 
 // The kinds a built-in method can price - store pickup is the pickup carrier's, never a zone method
@@ -244,6 +251,7 @@ var (
 	errMethodUnits     = apperr.New("SHIPPING_METHOD_UNITS_INVALID", apperr.ClassValidation, "units per charge can't be negative")
 	errBuiltinWeekends = apperr.New("SHIPPING_CARRIER_WEEKENDS_PER_METHOD", apperr.ClassValidation, "the built-in carrier's methods each set their own weekend delivery")
 	errMethodDays      = apperr.New("SHIPPING_METHOD_DAYS_INVALID", apperr.ClassValidation, "delivery days can't be negative")
+	errMethodPrice     = apperr.New("SHIPPING_METHOD_PRICE_INVALID", apperr.ClassValidation, "a method's price and free-shipping threshold can't be negative")
 	errTypeRate        = apperr.New("SHIPPING_TYPE_RATE_INVALID", apperr.ClassValidation, "each product type is priced once, at zero or more")
 	errTypeRateUnknown = apperr.New("SHIPPING_TYPE_RATE_UNKNOWN_TYPE", apperr.ClassValidation, "a type rate names a product type that doesn't exist")
 )
@@ -258,6 +266,9 @@ func CheckMethodPricing(m Method) error {
 	}
 	if m.EstimatedDays < 0 {
 		return errMethodDays
+	}
+	if m.FlatCents < 0 || m.FreeAboveCents < 0 {
+		return errMethodPrice
 	}
 	return nil
 }
@@ -289,6 +300,12 @@ func (s *Service) SaveMethod(ctx context.Context, m Method, rates []TypeRate, co
 	if err := checkTypeRates(rates); err != nil {
 		return Method{}, err
 	}
+	if countries != nil {
+		var err error
+		if countries, err = normCountries(countries); err != nil {
+			return Method{}, err
+		}
+	}
 	var out Method
 	save := func(r Repository) error {
 		var err error
@@ -313,9 +330,6 @@ func (s *Service) SaveMethod(ctx context.Context, m Method, rates []TypeRate, co
 				return err
 			}
 			for _, c := range countries {
-				if c == "" {
-					continue
-				}
 				if err := r.AddCountryToMethod(ctx, out.ID, c); err != nil {
 					return err
 				}
@@ -323,21 +337,8 @@ func (s *Service) SaveMethod(ctx context.Context, m Method, rates []TypeRate, co
 		}
 		return nil
 	}
-	var err error
-	if s.tx == nil {
-		err = save(s.repo)
-	} else {
-		err = s.tx.InTransaction(ctx, func(t *sql.Tx) error { return save(s.repo.WithTx(t)) })
-	}
-	if err != nil {
+	if err := s.inTx(ctx, save); err != nil {
 		return Method{}, err
 	}
-	if out, err = s.repo.GetMethod(ctx, out.ID); err != nil {
-		return Method{}, err
-	}
-	methods, err := s.HydrateMethodCountries(ctx, []Method{out})
-	if err != nil {
-		return Method{}, err
-	}
-	return methods[0], nil
+	return s.repo.GetMethod(ctx, out.ID)
 }

@@ -42,12 +42,7 @@ func (s *Service) trackRemoteFirst(ctx context.Context, carrierSlug, trackingNum
 	if s.remoteTracking == nil {
 		return TrackResult{}, false
 	}
-	res, ok := s.remoteTracking.Track(ctx, carrierSlug, trackingNumber)
-	if !ok {
-		return TrackResult{}, false
-	}
-	log.Printf("[shipping] remote tracking resolved %s/%s", carrierSlug, trackingNumber)
-	return res, true
+	return s.remoteTracking.Track(ctx, carrierSlug, trackingNumber)
 }
 
 type remoteTrackRequest struct {
