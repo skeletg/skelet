@@ -289,6 +289,7 @@ func newDataServices() (*dataServices, error) {
 	})
 	inventorySvc := inventory.NewService(inventory.NewRepository(queries, txMgr), txMgr)
 	taxSvc := tax.NewService(tax.NewRepository(queries))
+	taxSvc.SetTx(txMgr)
 
 	reg := dataio.NewRegistry()
 	reg.Register(catalogio.Resource(queries, catalogSvc))

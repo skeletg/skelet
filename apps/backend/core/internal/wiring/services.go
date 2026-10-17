@@ -80,10 +80,12 @@ var Services = fx.Module("services",
 )
 
 // Optional seams - PlaceOrder falls through to "zero" when nil and no plugin claimed the field - wiring them means a fresh install gets per-country tax, zone shipping and coupons with no plugin
-func newTaxService(q *db.Queries) *tax.Service {
+func newTaxService(q *db.Queries, txMgr *txrunner.Manager) *tax.Service {
 	taxconditions.Register(tax.DefaultRegistry)
 	taxeffects.Register(tax.DefaultRegistry)
-	return tax.NewService(tax.NewRepository(q))
+	s := tax.NewService(tax.NewRepository(q))
+	s.SetTx(txMgr)
+	return s
 }
 
 func newShippingService(q *db.Queries, txMgr *txrunner.Manager) *shipping.Service {
