@@ -1,5 +1,7 @@
 "use client";
 
+import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
+
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -170,6 +172,7 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
           </SelectionHint>
         ) : null}
 
+        <StoreAvailability productId={product.id} productName={heading} />
       </PdpBuyBox>
 
       <Description

@@ -3,6 +3,8 @@ package inventory
 import "github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 
 func init() {
+	apperr.RegisterSentinel(ErrInvalidLocationType, "INVENTORY_INVALID_LOCATION_TYPE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrRetailLocationRequired, "INVENTORY_RETAIL_LOCATION_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrLocationNotFound, "INVENTORY_LOCATION_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrItemNotFound, "INVENTORY_ITEM_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrLevelNotFound, "INVENTORY_LEVEL_NOT_FOUND", apperr.ClassNotFound)

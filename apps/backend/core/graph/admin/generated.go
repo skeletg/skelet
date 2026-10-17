@@ -1952,6 +1952,7 @@ type ComplexityRoot struct {
 		PostalCode         func(childComplexity int) int
 		Region             func(childComplexity int) int
 		Slug               func(childComplexity int) int
+		StorefrontVisible  func(childComplexity int) int
 		Timezone           func(childComplexity int) int
 		Type               func(childComplexity int) int
 		UpdatedAt          func(childComplexity int) int
@@ -2695,7 +2696,6 @@ type ComplexityRoot struct {
 		SetIntegrationActive              func(childComplexity int, id string, active bool) int
 		SetInventoryItemBackorder         func(childComplexity int, productID string, backorderable bool, lowStockThreshold *float64) int
 		SetInventoryItemTracking          func(childComplexity int, productID string, tracked bool) int
-		SetLocationPickup                 func(childComplexity int, id string, enabled bool, instructions *string) int
 		SetMediaFocalPoint                func(childComplexity int, assetID string, x *float64, y *float64) int
 		SetMenuStores                     func(childComplexity int, menuID string, channelIds []string) int
 		SetMyPreference                   func(childComplexity int, key string, value interface{}) int
@@ -3567,8 +3567,8 @@ type ComplexityRoot struct {
 		GiftCards                    func(childComplexity int, limit *int32, offset *int32) int
 		Integrations                 func(childComplexity int) int
 		InventoryLocation            func(childComplexity int, id string) int
-		InventoryLocations           func(childComplexity int, search *string, limit *int32, offset *int32) int
-		InventoryLocationsCount      func(childComplexity int, search *string) int
+		InventoryLocations           func(childComplexity int, search *string, limit *int32, offset *int32, filter *model.InventoryLocationFilter) int
+		InventoryLocationsCount      func(childComplexity int, search *string, filter *model.InventoryLocationFilter) int
 		InventoryMode                func(childComplexity int) int
 		LensCustomerSessions         func(childComplexity int, customerID string, limit *int32) int
 		LensErrors                   func(childComplexity int, channelID string, sinceDays *int32, limit *int32) int
@@ -5051,7 +5051,6 @@ type MutationResolver interface {
 	AdjustInventoryLevel(ctx context.Context, input model.AdjustInventoryLevelInput) (*model.InventoryLevel, error)
 	SyncProductInventory(ctx context.Context, input model.SyncProductInventoryInput) (*model.InventoryItem, error)
 	SyncProductInventoryBatch(ctx context.Context, items []*model.SyncProductInventoryInput) (*model.SyncProductInventoryBatchResult, error)
-	SetLocationPickup(ctx context.Context, id string, enabled bool, instructions *string) (*model.InventoryLocation, error)
 	StartSiteCrawl(ctx context.Context, input model.StartSiteCrawlInput) (*model.SiteCrawl, error)
 	CancelSiteCrawl(ctx context.Context, channelID string) (bool, error)
 	CreateLocale(ctx context.Context, input model.CreateLocaleInput) (*model.Locale, error)
@@ -5364,8 +5363,8 @@ type QueryResolver interface {
 	GiftCard(ctx context.Context, code string) (*model.GiftCard, error)
 	SignalsInsights(ctx context.Context, channelID string, sinceDays *int32) ([]*model.SignalsInsight, error)
 	Integrations(ctx context.Context) ([]*model.Integration, error)
-	InventoryLocations(ctx context.Context, search *string, limit *int32, offset *int32) ([]*model.InventoryLocation, error)
-	InventoryLocationsCount(ctx context.Context, search *string) (int32, error)
+	InventoryLocations(ctx context.Context, search *string, limit *int32, offset *int32, filter *model.InventoryLocationFilter) ([]*model.InventoryLocation, error)
+	InventoryLocationsCount(ctx context.Context, search *string, filter *model.InventoryLocationFilter) (int32, error)
 	InventoryLocation(ctx context.Context, id string) (*model.InventoryLocation, error)
 	ProductInventory(ctx context.Context, productID string) (*model.InventoryItem, error)
 	LowStockLevels(ctx context.Context, limit *int32) ([]*model.LowStockLevel, error)
@@ -13699,6 +13698,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InventoryLocation.Slug(childComplexity), true
+	case "InventoryLocation.storefrontVisible":
+		if e.ComplexityRoot.InventoryLocation.StorefrontVisible == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InventoryLocation.StorefrontVisible(childComplexity), true
 	case "InventoryLocation.timezone":
 		if e.ComplexityRoot.InventoryLocation.Timezone == nil {
 			break
@@ -19107,17 +19112,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetInventoryItemTracking(childComplexity, args["productId"].(string), args["tracked"].(bool)), true
-	case "Mutation.setLocationPickup":
-		if e.ComplexityRoot.Mutation.SetLocationPickup == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_setLocationPickup_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.SetLocationPickup(childComplexity, args["id"].(string), args["enabled"].(bool), args["instructions"].(*string)), true
 	case "Mutation.setMediaFocalPoint":
 		if e.ComplexityRoot.Mutation.SetMediaFocalPoint == nil {
 			break
@@ -24476,7 +24470,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.InventoryLocations(childComplexity, args["search"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.InventoryLocations(childComplexity, args["search"].(*string), args["limit"].(*int32), args["offset"].(*int32), args["filter"].(*model.InventoryLocationFilter)), true
 	case "Query.inventoryLocationsCount":
 		if e.ComplexityRoot.Query.InventoryLocationsCount == nil {
 			break
@@ -24487,7 +24481,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.InventoryLocationsCount(childComplexity, args["search"].(*string)), true
+		return e.ComplexityRoot.Query.InventoryLocationsCount(childComplexity, args["search"].(*string), args["filter"].(*model.InventoryLocationFilter)), true
 	case "Query.inventoryMode":
 		if e.ComplexityRoot.Query.InventoryMode == nil {
 			break
@@ -29851,6 +29845,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputFulfillmentLineInput,
 		ec.unmarshalInputGenerateConfigurableChildInput,
 		ec.unmarshalInputHTTPHeaderInput,
+		ec.unmarshalInputInventoryLocationFilter,
 		ec.unmarshalInputIssueCreditMemoInput,
 		ec.unmarshalInputLocationAssignmentInput,
 		ec.unmarshalInputMetadataInput,
@@ -34885,14 +34880,31 @@ enum InventoryMode {
   FLAT
 }
 
+enum InventoryLocationType {
+  RETAIL_STORE
+  WAREHOUSE
+  STORAGE
+  DROPSHIPPER
+  FULFILLMENT_PARTNER
+  UNCLASSIFIED
+}
+
+input InventoryLocationFilter {
+  types: [InventoryLocationType!]
+  city: String
+  isActive: Boolean
+  storefrontVisible: Boolean
+  pickupEnabled: Boolean
+}
+
 type InventoryLocation {
   id:        ID!
   slug:      String!
   name:      String!
   isActive:  Boolean!
-  # Free-form classifier (admin types it). Examples: "warehouse",
-  # "retail", "drop-shipper", "fulfillment-center". Empty when unset.
-  type:      String!
+  storefrontVisible: Boolean!
+  # Purpose, independent of online pickup eligibility.
+  type:      InventoryLocationType!
   # Structured address.
   line1:        String!
   line2:        String!
@@ -34987,10 +34999,13 @@ type InventoryReservation {
 }
 
 input CreateInventoryLocationInput {
+  pickupEnabled: Boolean
+  pickupInstructions: String
   slug:               String!
   name:               String!
+  storefrontVisible:  Boolean
   isActive:           Boolean
-  type:               String
+  type:               InventoryLocationType
   line1:              String
   line2:              String
   city:               String
@@ -35009,10 +35024,13 @@ input CreateInventoryLocationInput {
 }
 
 input UpdateInventoryLocationInput {
+  pickupEnabled: Boolean
+  pickupInstructions: String
   id:                 ID!
   name:               String
+  storefrontVisible:  Boolean
   isActive:           Boolean
-  type:               String
+  type:               InventoryLocationType
   line1:              String
   line2:              String
   city:               String
@@ -35067,8 +35085,8 @@ type SyncProductInventoryBatchResult {
 extend type Query {
   # All args optional for compatibility - search matches name/slug/city,
   # limit defaults to everything so pickers keep their full list
-  inventoryLocations(search: String, limit: Int, offset: Int): [InventoryLocation!]!  # requires inventory.view
-  inventoryLocationsCount(search: String): Int!             # requires inventory.view
+  inventoryLocations(search: String, limit: Int, offset: Int, filter: InventoryLocationFilter): [InventoryLocation!]!  # requires inventory.view
+  inventoryLocationsCount(search: String, filter: InventoryLocationFilter): Int!             # requires inventory.view
   inventoryLocation(id: ID!): InventoryLocation!            # requires inventory.view
   # Returns the inventory item for a product, or null when the product
   # isn't tracked.
@@ -35099,11 +35117,6 @@ extend type Mutation {
   syncProductInventory(input: SyncProductInventoryInput!): InventoryItem!             # requires inventory.manage
   # Batched form for ERP daily sync runs. Partial success is the norm (one bad SKU shouldn't block the rest); the failed array carries per-item error reasons.
   syncProductInventoryBatch(items: [SyncProductInventoryInput!]!): SyncProductInventoryBatchResult!  # requires inventory.manage
-}
-
-extend type Mutation {
-  # Toggle click-and-collect for a location (inventory.manage).
-  setLocationPickup(id: ID!, enabled: Boolean!, instructions: String): InventoryLocation!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/linkgraph.graphqls", Input: `enum LinkNodeType {
@@ -42761,6 +42774,8 @@ func (ec *executionContext) childFields_InventoryLocation(ctx context.Context, f
 		return ec.fieldContext_InventoryLocation_name(ctx, field)
 	case "isActive":
 		return ec.fieldContext_InventoryLocation_isActive(ctx, field)
+	case "storefrontVisible":
+		return ec.fieldContext_InventoryLocation_storefrontVisible(ctx, field)
 	case "type":
 		return ec.fieldContext_InventoryLocation_type(ctx, field)
 	case "line1":
@@ -53141,36 +53156,6 @@ func (ec *executionContext) field_Mutation_setInventoryItemTracking_args(ctx con
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_setLocationPickup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
-		func(ctx context.Context, v any) (bool, error) {
-			return ec.unmarshalNBoolean2bool(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["enabled"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "instructions",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["instructions"] = arg2
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_setMediaFocalPoint_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -57624,6 +57609,14 @@ func (ec *executionContext) field_Query_inventoryLocationsCount_args(ctx context
 		return nil, err
 	}
 	args["search"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*model.InventoryLocationFilter, error) {
+			return ec.unmarshalOInventoryLocationFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg1
 	return args, nil
 }
 
@@ -57654,6 +57647,14 @@ func (ec *executionContext) field_Query_inventoryLocations_args(ctx context.Cont
 		return nil, err
 	}
 	args["offset"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*model.InventoryLocationFilter, error) {
+			return ec.unmarshalOInventoryLocationFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg3
 	return args, nil
 }
 
@@ -92106,6 +92107,29 @@ func (ec *executionContext) fieldContext_InventoryLocation_isActive(_ context.Co
 	return graphql.NewScalarFieldContext("InventoryLocation", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _InventoryLocation_storefrontVisible(ctx context.Context, field graphql.CollectedField, obj *model.InventoryLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InventoryLocation_storefrontVisible(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StorefrontVisible, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InventoryLocation_storefrontVisible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InventoryLocation", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _InventoryLocation_type(ctx context.Context, field graphql.CollectedField, obj *model.InventoryLocation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -92118,15 +92142,15 @@ func (ec *executionContext) _InventoryLocation_type(ctx context.Context, field g
 			return obj.Type, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v model.InventoryLocationType) graphql.Marshaler {
+			return ec.marshalNInventoryLocationType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_InventoryLocation_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("InventoryLocation", field, false, false, errors.New("field of type String does not have child fields"))
+	return graphql.NewScalarFieldContext("InventoryLocation", field, false, false, errors.New("field of type InventoryLocationType does not have child fields"))
 }
 
 func (ec *executionContext) _InventoryLocation_line1(ctx context.Context, field graphql.CollectedField, obj *model.InventoryLocation) (ret graphql.Marshaler) {
@@ -113211,50 +113235,6 @@ func (ec *executionContext) fieldContext_Mutation_syncProductInventoryBatch(ctx 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_syncProductInventoryBatch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_setLocationPickup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_setLocationPickup(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SetLocationPickup(ctx, fc.Args["id"].(string), fc.Args["enabled"].(bool), fc.Args["instructions"].(*string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.InventoryLocation) graphql.Marshaler {
-			return ec.marshalNInventoryLocation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocation(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_setLocationPickup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_InventoryLocation(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_setLocationPickup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -136138,7 +136118,7 @@ func (ec *executionContext) _Query_inventoryLocations(ctx context.Context, field
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().InventoryLocations(ctx, fc.Args["search"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().InventoryLocations(ctx, fc.Args["search"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["filter"].(*model.InventoryLocationFilter))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.InventoryLocation) graphql.Marshaler {
@@ -136182,7 +136162,7 @@ func (ec *executionContext) _Query_inventoryLocationsCount(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().InventoryLocationsCount(ctx, fc.Args["search"].(*string))
+			return ec.Resolvers.Query().InventoryLocationsCount(ctx, fc.Args["search"].(*string), fc.Args["filter"].(*model.InventoryLocationFilter))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
@@ -161403,13 +161383,27 @@ func (ec *executionContext) unmarshalInputCreateInventoryLocationInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "name", "isActive", "type", "line1", "line2", "city", "region", "postalCode", "countryCode", "latitude", "longitude", "timezone", "hours", "email", "phone", "contactName", "externalReference", "metadata"}
+	fieldsInOrder := [...]string{"pickupEnabled", "pickupInstructions", "slug", "name", "storefrontVisible", "isActive", "type", "line1", "line2", "city", "region", "postalCode", "countryCode", "latitude", "longitude", "timezone", "hours", "email", "phone", "contactName", "externalReference", "metadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "pickupEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupEnabled = data
+		case "pickupInstructions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupInstructions"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupInstructions = data
 		case "slug":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -161424,6 +161418,13 @@ func (ec *executionContext) unmarshalInputCreateInventoryLocationInput(ctx conte
 				return it, err
 			}
 			it.Name = data
+		case "storefrontVisible":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("storefrontVisible"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StorefrontVisible = data
 		case "isActive":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -161433,7 +161434,7 @@ func (ec *executionContext) unmarshalInputCreateInventoryLocationInput(ctx conte
 			it.IsActive = data
 		case "type":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalOInventoryLocationType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -164090,6 +164091,64 @@ func (ec *executionContext) unmarshalInputHTTPHeaderInput(ctx context.Context, o
 				return it, err
 			}
 			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputInventoryLocationFilter(ctx context.Context, obj any) (model.InventoryLocationFilter, error) {
+	var it model.InventoryLocationFilter
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"types", "city", "isActive", "storefrontVisible", "pickupEnabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "types":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("types"))
+			data, err := ec.unmarshalOInventoryLocationType2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationTypeᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Types = data
+		case "city":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("city"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.City = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
+		case "storefrontVisible":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("storefrontVisible"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StorefrontVisible = data
+		case "pickupEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupEnabled = data
 		}
 	}
 	return it, nil
@@ -168694,13 +168753,27 @@ func (ec *executionContext) unmarshalInputUpdateInventoryLocationInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "isActive", "type", "line1", "line2", "city", "region", "postalCode", "countryCode", "latitude", "longitude", "clearCoords", "timezone", "hours", "email", "phone", "contactName", "externalReference", "metadata"}
+	fieldsInOrder := [...]string{"pickupEnabled", "pickupInstructions", "id", "name", "storefrontVisible", "isActive", "type", "line1", "line2", "city", "region", "postalCode", "countryCode", "latitude", "longitude", "clearCoords", "timezone", "hours", "email", "phone", "contactName", "externalReference", "metadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "pickupEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupEnabled = data
+		case "pickupInstructions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pickupInstructions"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PickupInstructions = data
 		case "id":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 			data, err := ec.unmarshalNID2string(ctx, v)
@@ -168715,6 +168788,13 @@ func (ec *executionContext) unmarshalInputUpdateInventoryLocationInput(ctx conte
 				return it, err
 			}
 			it.Name = data
+		case "storefrontVisible":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("storefrontVisible"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StorefrontVisible = data
 		case "isActive":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -168724,7 +168804,7 @@ func (ec *executionContext) unmarshalInputUpdateInventoryLocationInput(ctx conte
 			it.IsActive = data
 		case "type":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalOInventoryLocationType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -185077,6 +185157,11 @@ func (ec *executionContext) _InventoryLocation(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "storefrontVisible":
+			out.Values[i] = ec._InventoryLocation_storefrontVisible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "type":
 			out.Values[i] = ec._InventoryLocation_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -190279,13 +190364,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "syncProductInventoryBatch":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_syncProductInventoryBatch(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "setLocationPickup":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_setLocationPickup(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -214169,6 +214247,16 @@ func (ec *executionContext) marshalNInventoryLocation2ᚖgithubᚗcomᚋskeletg�
 	return ec._InventoryLocation(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNInventoryLocationType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx context.Context, v any) (model.InventoryLocationType, error) {
+	var res model.InventoryLocationType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInventoryLocationType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx context.Context, sel ast.SelectionSet, v model.InventoryLocationType) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNInventoryMode2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryMode(ctx context.Context, v any) (model.InventoryMode, error) {
 	var res model.InventoryMode
 	err := res.UnmarshalGQL(v)
@@ -221110,6 +221198,66 @@ func (ec *executionContext) marshalOInventoryItem2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._InventoryItem(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOInventoryLocationFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationFilter(ctx context.Context, v any) (*model.InventoryLocationFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputInventoryLocationFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOInventoryLocationType2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationTypeᚄ(ctx context.Context, v any) ([]model.InventoryLocationType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.InventoryLocationType, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNInventoryLocationType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOInventoryLocationType2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.InventoryLocationType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNInventoryLocationType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalOInventoryLocationType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx context.Context, v any) (*model.InventoryLocationType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.InventoryLocationType)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInventoryLocationType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐInventoryLocationType(ctx context.Context, sel ast.SelectionSet, v *model.InventoryLocationType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOJSON2interface(ctx context.Context, v any) (any, error) {

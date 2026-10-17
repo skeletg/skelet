@@ -30,25 +30,28 @@ func (r *mutationResolver) CreateInventoryLocation(ctx context.Context, input mo
 		return nil, err
 	}
 	loc, err := r.InventorySvc.CreateLocation(ctx, inventory.CreateLocationInput{
-		Slug:              input.Slug,
-		Name:              input.Name,
-		IsActive:          boolOrDefault(input.IsActive, true),
-		Type:              ptr.Deref(input.Type),
-		Line1:             ptr.Deref(input.Line1),
-		Line2:             ptr.Deref(input.Line2),
-		City:              ptr.Deref(input.City),
-		Region:            ptr.Deref(input.Region),
-		PostalCode:        ptr.Deref(input.PostalCode),
-		CountryCode:       ptr.Deref(input.CountryCode),
-		Latitude:          input.Latitude,
-		Longitude:         input.Longitude,
-		Timezone:          ptr.Deref(input.Timezone),
-		Hours:             marshalJSON(input.Hours),
-		Email:             ptr.Deref(input.Email),
-		Phone:             ptr.Deref(input.Phone),
-		ContactName:       ptr.Deref(input.ContactName),
-		ExternalReference: ptr.Deref(input.ExternalReference),
-		Metadata:          invMetadataFromInput(input.Metadata),
+		StorefrontVisible:  boolOrDefault(input.StorefrontVisible, false),
+		PickupEnabled:      boolOrDefault(input.PickupEnabled, false),
+		PickupInstructions: ptr.Deref(input.PickupInstructions),
+		Slug:               input.Slug,
+		Name:               input.Name,
+		IsActive:           boolOrDefault(input.IsActive, true),
+		Type:               ptr.Deref(inventoryLocationTypeInput(input.Type)),
+		Line1:              ptr.Deref(input.Line1),
+		Line2:              ptr.Deref(input.Line2),
+		City:               ptr.Deref(input.City),
+		Region:             ptr.Deref(input.Region),
+		PostalCode:         ptr.Deref(input.PostalCode),
+		CountryCode:        ptr.Deref(input.CountryCode),
+		Latitude:           input.Latitude,
+		Longitude:          input.Longitude,
+		Timezone:           ptr.Deref(input.Timezone),
+		Hours:              marshalJSON(input.Hours),
+		Email:              ptr.Deref(input.Email),
+		Phone:              ptr.Deref(input.Phone),
+		ContactName:        ptr.Deref(input.ContactName),
+		ExternalReference:  ptr.Deref(input.ExternalReference),
+		Metadata:           invMetadataFromInput(input.Metadata),
 	})
 	if err != nil {
 		return nil, err
@@ -65,24 +68,27 @@ func (r *mutationResolver) UpdateInventoryLocation(ctx context.Context, input mo
 		return nil, err
 	}
 	domainInput := inventory.UpdateLocationInput{
-		ID:                id,
-		Name:              input.Name,
-		IsActive:          input.IsActive,
-		Type:              input.Type,
-		Line1:             input.Line1,
-		Line2:             input.Line2,
-		City:              input.City,
-		Region:            input.Region,
-		PostalCode:        input.PostalCode,
-		CountryCode:       input.CountryCode,
-		Latitude:          input.Latitude,
-		Longitude:         input.Longitude,
-		ClearCoords:       input.ClearCoords != nil && *input.ClearCoords,
-		Timezone:          input.Timezone,
-		Email:             input.Email,
-		Phone:             input.Phone,
-		ContactName:       input.ContactName,
-		ExternalReference: input.ExternalReference,
+		PickupEnabled:      input.PickupEnabled,
+		PickupInstructions: input.PickupInstructions,
+		ID:                 id,
+		Name:               input.Name,
+		StorefrontVisible:  input.StorefrontVisible,
+		IsActive:           input.IsActive,
+		Type:               inventoryLocationTypeInput(input.Type),
+		Line1:              input.Line1,
+		Line2:              input.Line2,
+		City:               input.City,
+		Region:             input.Region,
+		PostalCode:         input.PostalCode,
+		CountryCode:        input.CountryCode,
+		Latitude:           input.Latitude,
+		Longitude:          input.Longitude,
+		ClearCoords:        input.ClearCoords != nil && *input.ClearCoords,
+		Timezone:           input.Timezone,
+		Email:              input.Email,
+		Phone:              input.Phone,
+		ContactName:        input.ContactName,
+		ExternalReference:  input.ExternalReference,
 	}
 	if input.Hours != nil {
 		raw := marshalJSON(input.Hours)
@@ -287,36 +293,16 @@ func (r *mutationResolver) SyncProductInventoryBatch(ctx context.Context, items 
 	return result, nil
 }
 
-// SetLocationPickup toggles click-and-collect for one location.
-func (r *mutationResolver) SetLocationPickup(ctx context.Context, id string, enabled bool, instructions *string) (*model.InventoryLocation, error) {
-	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
-		return nil, err
-	}
-	lid, err := parseID(id, "location")
-	if err != nil {
-		return nil, err
-	}
-	instr := ""
-	if instructions != nil {
-		instr = *instructions
-	}
-	l, err := r.InventorySvc.SetLocationPickup(ctx, lid, enabled, instr)
-	if err != nil {
-		return nil, err
-	}
-	return toInventoryLocationModel(l), nil
-}
-
-func (r *queryResolver) InventoryLocations(ctx context.Context, search *string, limit *int32, offset *int32) ([]*model.InventoryLocation, error) {
+func (r *queryResolver) InventoryLocations(ctx context.Context, search *string, limit *int32, offset *int32, filter *model.InventoryLocationFilter) ([]*model.InventoryLocation, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
 		return nil, err
 	}
 	var locs []inventory.Location
 	var err error
-	if search == nil && limit == nil && offset == nil {
+	if filter == nil && search == nil && limit == nil && offset == nil {
 		locs, err = r.InventorySvc.ListLocations(ctx) // the bare query stays the full list, so pickers and existing clients keep working
 	} else {
-		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, ptr.Deref(search), int32Or(limit, 0), int32Or(offset, 0))
+		locs, _, err = r.InventorySvc.ListLocationsPage(ctx, ptr.Deref(search), inventoryLocationFilter(filter), int32Or(limit, 0), int32Or(offset, 0))
 	}
 	if err != nil {
 		return nil, err
@@ -328,11 +314,11 @@ func (r *queryResolver) InventoryLocations(ctx context.Context, search *string, 
 	return out, nil
 }
 
-func (r *queryResolver) InventoryLocationsCount(ctx context.Context, search *string) (int32, error) {
+func (r *queryResolver) InventoryLocationsCount(ctx context.Context, search *string, filter *model.InventoryLocationFilter) (int32, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
 		return 0, err
 	}
-	n, err := r.InventorySvc.CountLocations(ctx, ptr.Deref(search))
+	n, err := r.InventorySvc.CountLocations(ctx, ptr.Deref(search), inventoryLocationFilter(filter))
 	if err != nil {
 		return 0, err
 	}

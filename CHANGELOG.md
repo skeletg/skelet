@@ -11,6 +11,15 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **Inventory location types are a fixed enum, and pickup is set through the location save.** The admin
+  API's `InventoryLocation.type` and the `type` of `createInventoryLocation` / `updateInventoryLocation`
+  are now `InventoryLocationType` (`RETAIL_STORE`, `WAREHOUSE`, `STORAGE`, `DROPSHIPPER`,
+  `FULFILLMENT_PARTNER`, `UNCLASSIFIED`) instead of a free-form string, so a client sending
+  `type: "warehouse"` must send `WAREHOUSE`. `setLocationPickup` is gone: pass `pickupEnabled` and
+  `pickupInstructions` to `updateInventoryLocation`. Only retail stores may offer pickup, and the upgrade
+  withdraws pickup from locations explicitly typed as something else - see
+  [docs/store-availability.md](docs/store-availability.md).
+
 - `placeOrder` takes an `acceptTerms` argument. A store whose `sales/checkout/terms_consent` is `checkbox` (the
   default) now refuses an order sent without it as `TERMS_NOT_ACCEPTED`, so a custom storefront must pass it.
 

@@ -1,5 +1,6 @@
 // SIMPLE PDP shell - server-rendered, since a plain product has nothing to pick before the add
 
+import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
 import { getTranslations } from "next-intl/server";
 
 import { formatPrice } from "@/app/lib/cart/read";
@@ -80,12 +81,7 @@ export async function SimplePDP({
         ) : null}
 
         {signalsEnabled && !product.inStock && !product.backorderable ? (
-          <BackInStockForm
-            productId={product.id}
-            sku={product.sku}
-            name={heading}
-            image={product.mainImage?.url ?? ""}
-          />
+          <BackInStockForm productId={product.id} />
         ) : null}
 
         {/* Prism A/B "pdp_layout" - layout tokens are set as each variation's value in the dashboard */}
@@ -102,6 +98,7 @@ export async function SimplePDP({
             </p>
           </ExperimentGate>
         </div>
+        <StoreAvailability productId={product.kind === "SIMPLE" ? product.id : undefined} productName={heading} />
       </PdpBuyBox>
 
       <Description

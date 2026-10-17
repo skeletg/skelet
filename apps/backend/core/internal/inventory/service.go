@@ -139,6 +139,11 @@ func (s *Service) CreateLocation(ctx context.Context, input CreateLocationInput)
 	if err := validateCoords(input.Latitude, input.Longitude); err != nil {
 		return Location{}, err
 	}
+	typ, err := NormalizeLocationType(input.Type)
+	if err != nil {
+		return Location{}, err
+	}
+	input.Type = typ
 	p, err := phone.Normalize(input.Phone, input.CountryCode)
 	if err != nil {
 		return Location{}, err
@@ -164,12 +169,16 @@ func (s *Service) GetLocationsByIDs(ctx context.Context, ids []uuid.UUID) (map[u
 	return s.repo.ListLocationsByIDs(ctx, ids)
 }
 
-func (s *Service) CountLocations(ctx context.Context, search string) (int64, error) {
-	return s.repo.CountLocations(ctx, strings.TrimSpace(search))
+func (s *Service) CountLocations(ctx context.Context, search string, filter LocationFilter) (int64, error) {
+	search, filter, err := normalizeLocationQuery(search, filter)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.CountLocations(ctx, search, filter)
 }
 
 // ListLocationsPage answers the dashboard grid server-side - a nil-search full page keeps parity with ListLocations ordering
-func (s *Service) ListLocationsPage(ctx context.Context, search string, limit, offset int32) ([]Location, int64, error) {
+func (s *Service) ListLocationsPage(ctx context.Context, search string, filter LocationFilter, limit, offset int32) ([]Location, int64, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -179,12 +188,15 @@ func (s *Service) ListLocationsPage(ctx context.Context, search string, limit, o
 	if offset < 0 {
 		offset = 0
 	}
-	search = strings.TrimSpace(search)
-	locs, err := s.repo.ListLocationsPage(ctx, search, limit, offset)
+	search, filter, err := normalizeLocationQuery(search, filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.repo.CountLocations(ctx, search)
+	locs, err := s.repo.ListLocationsPage(ctx, search, filter, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.repo.CountLocations(ctx, search, filter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -193,10 +205,6 @@ func (s *Service) ListLocationsPage(ctx context.Context, search string, limit, o
 
 func (s *Service) PickupLocations(ctx context.Context) ([]Location, error) {
 	return s.repo.ListPickupLocations(ctx)
-}
-
-func (s *Service) SetLocationPickup(ctx context.Context, id uuid.UUID, enabled bool, instructions string) (Location, error) {
-	return s.repo.SetLocationPickup(ctx, id, enabled, instructions)
 }
 
 func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput) (Location, error) {
@@ -209,6 +217,17 @@ func (s *Service) UpdateLocation(ctx context.Context, input UpdateLocationInput)
 	}
 	if err := validateCoords(input.Latitude, input.Longitude); err != nil {
 		return Location{}, err
+	}
+	if input.Type != nil {
+		typ, err := NormalizeLocationType(*input.Type)
+		if err != nil {
+			return Location{}, err
+		}
+		input.Type = &typ
+		if typ != LocationRetail { // changing purpose withdraws customer access instead of failing the save
+			off := false
+			input.StorefrontVisible, input.PickupEnabled = &off, &off
+		}
 	}
 	if input.Phone != nil {
 		// A nationally typed number is read in the location's country - the one this update sets, else the one it has

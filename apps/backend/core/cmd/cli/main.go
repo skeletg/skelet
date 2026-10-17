@@ -30,6 +30,7 @@ func main() {
 	rootCmd.AddCommand(commands.CustomerCmd)
 	rootCmd.AddCommand(commands.DataCmd)
 	rootCmd.AddCommand(commands.DevResetCmd)
+	rootCmd.AddCommand(commands.DevStoreDemoCmd)
 	rootCmd.AddCommand(commands.MediaOrphansCmd)
 	rootCmd.AddCommand(commands.MediaMigrateCmd)
 	rootCmd.AddCommand(commands.DataPatchCmd)

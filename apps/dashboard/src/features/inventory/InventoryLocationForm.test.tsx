@@ -14,6 +14,7 @@ import {
 // Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
 // suite is loading the machine, which made these flaky
 const SLOW = { timeout: 5000 }
+const nativeScrollIntoView = HTMLElement.prototype.scrollIntoView
 
 // What these pin, end to end through the real page: the header Save lights up for an edit (it
 // didn't - the section registered into a context that wasn't there yet), the dialog lists what
@@ -24,9 +25,10 @@ const stored = {
   __typename: 'InventoryLocation' as const,
   id: 'loc-1',
   slug: 'main',
-  name: 'Main warehouse',
+  name: 'Main store',
   isActive: true,
-  type: 'warehouse',
+  storefrontVisible: false,
+  type: 'RETAIL_STORE' as const,
   line1: 'Street 1',
   line2: '',
   city: 'Berlin',
@@ -48,9 +50,10 @@ const stored = {
   metadata: [{ __typename: 'MetadataItem' as const, key: 'carrier', value: 'dhl' }],
 }
 
-function renderPage(onUpdate = vi.fn()) {
+function renderPage(onUpdate = vi.fn(), overrides: Partial<Omit<typeof stored, 'type'>> = {}) {
+  const record = { ...stored, ...overrides }
   const mocks = [
-    { request: { query: InventoryLocationDocument, variables: { id: 'loc-1' } }, result: { data: { inventoryLocation: stored } } },
+    { request: { query: InventoryLocationDocument, variables: { id: 'loc-1' } }, result: { data: { inventoryLocation: record } } },
     { request: { query: CountriesPickerDocument }, result: { data: { countries: [] } } },
     { request: { query: InventoryModeDocument }, result: { data: { inventoryMode: 'MULTI' } } },
     {
@@ -61,12 +64,12 @@ function renderPage(onUpdate = vi.fn()) {
           return true
         },
       },
-      result: { data: { updateInventoryLocation: { ...stored, city: 'Hamburg' } } },
+      result: { data: { updateInventoryLocation: { ...record, city: 'Hamburg' } } },
     },
     { request: { query: InventoryLocationsDocument }, result: { data: { inventoryLocations: [] } }, maxUsageCount: 5 },
     {
       request: { query: InventoryLocationDocument, variables: { id: 'loc-1' } },
-      result: { data: { inventoryLocation: { ...stored, city: 'Hamburg' } } },
+      result: { data: { inventoryLocation: { ...record, city: 'Hamburg' } } },
     },
   ]
   render(
@@ -86,12 +89,14 @@ const saveButton = () => screen.getByRole('button', { name: 'Save changes' })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  if (nativeScrollIntoView) HTMLElement.prototype.scrollIntoView = nativeScrollIntoView
+  else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
 })
 
 describe('InventoryLocationEditPage', () => {
   it('stays clean until something is edited', async () => {
     renderPage()
-    await screen.findByDisplayValue('Main warehouse')
+    await screen.findByDisplayValue('Main store')
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -119,6 +124,35 @@ describe('InventoryLocationEditPage', () => {
     )
     // Stored with no hours - the form shows that as closed every day, which must not be written back
     expect(onUpdate.mock.calls[0][0].hours).toBeUndefined()
+  })
+
+  it('stages public visibility until the page save is confirmed', async () => {
+    const onUpdate = renderPage()
+    fireEvent.click(await screen.findByRole('switch', { name: 'List in store finder' }))
+    expect(onUpdate).not.toHaveBeenCalled()
+    fireEvent.click(saveButton())
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('List in store finder')).toBeDefined()
+    expect(onUpdate).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
+    await screen.findByText('locations list', {}, SLOW)
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ storefrontVisible: true }))
+  })
+
+  it('reviews customer-service removal when changing a store to a warehouse', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: vi.fn() })
+    const onUpdate = renderPage(vi.fn(), { storefrontVisible: true, pickupEnabled: true })
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Location type' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Warehouse' }))
+    expect(screen.queryByRole('switch', { name: 'List in store finder' })).toBeNull()
+    expect(onUpdate).not.toHaveBeenCalled()
+    fireEvent.click(saveButton())
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('List in store finder')).toBeDefined()
+    expect(within(dialog).getByText('Accept online orders for pickup')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 3 changes/ }))
+    await screen.findByText('locations list', {}, SLOW)
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ type: 'WAREHOUSE', storefrontVisible: false, pickupEnabled: false }))
   })
 
   it('keeps the dialog open with the reason when the schema rejects the edit', async () => {

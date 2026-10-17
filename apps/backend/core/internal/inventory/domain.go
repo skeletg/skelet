@@ -48,12 +48,13 @@ const (
 
 // A physical place stock is held - warehouse, shop, drop-shipper - A channel sees N locations through the inventory_channel_locations junction
 type Location struct {
-	ID       uuid.UUID
-	Slug     string
-	Name     string
-	IsActive bool
+	ID                uuid.UUID
+	Slug              string
+	Name              string
+	IsActive          bool
+	StorefrontVisible bool
 
-	Type string // free-form admin classifier ("warehouse", "retail", …), empty when unset
+	Type string // Validated location purpose; see LocationRetail and the other location types.
 
 	// Structured address - CountryCode references countries.code, uppercased
 	Line1       string
@@ -128,10 +129,13 @@ type Reservation struct {
 }
 
 type CreateLocationInput struct {
-	Slug     string
-	Name     string
-	IsActive bool
-	Type     string
+	Slug               string
+	Name               string
+	IsActive           bool
+	Type               string
+	StorefrontVisible  bool
+	PickupEnabled      bool
+	PickupInstructions string
 
 	Line1       string
 	Line2       string
@@ -154,10 +158,13 @@ type CreateLocationInput struct {
 }
 
 type UpdateLocationInput struct {
-	ID       uuid.UUID
-	Name     *string
-	IsActive *bool
-	Type     *string
+	ID                 uuid.UUID
+	Name               *string
+	IsActive           *bool
+	Type               *string
+	StorefrontVisible  *bool
+	PickupEnabled      *bool
+	PickupInstructions *string
 
 	Line1       *string
 	Line2       *string
@@ -253,20 +260,22 @@ type ModeBackfillRow struct {
 }
 
 var (
-	ErrLocationNotFound      = errors.New("inventory location not found")
-	ErrLocationSlugTaken     = errors.New("inventory location slug already in use")
-	ErrInvalidSlug           = errors.New("inventory location slug must be lowercase letters, digits, hyphens or underscores")
-	ErrItemNotFound          = errors.New("inventory item not found")
-	ErrItemAlreadyExists     = errors.New("inventory item already exists for this product")
-	ErrLevelNotFound         = errors.New("inventory level not found")
-	ErrInsufficientStock     = errors.New("insufficient stock")
-	ErrNoLocationsForChannel = errors.New("channel has no inventory locations assigned")
-	ErrNegativeQuantity      = errors.New("quantity cannot be negative")
-	ErrFlatModePerLocation   = errors.New("per-location adjustments are disabled in flat inventory mode; use syncProductInventory")
-	ErrLocationNameRequired  = errors.New("inventory location name is required")
-	ErrInvalidCoordinates    = errors.New("latitude must be within -90..90 and longitude within -180..180")
-	ErrLocationInactive      = errors.New("inventory location is inactive - stock parked there would be unsellable")
-	ErrLocationInUse         = errors.New("inventory location still holds stock or open order reservations - deactivate it instead")
+	ErrLocationNotFound       = errors.New("inventory location not found")
+	ErrLocationSlugTaken      = errors.New("inventory location slug already in use")
+	ErrInvalidSlug            = errors.New("inventory location slug must be lowercase letters, digits, hyphens or underscores")
+	ErrItemNotFound           = errors.New("inventory item not found")
+	ErrItemAlreadyExists      = errors.New("inventory item already exists for this product")
+	ErrLevelNotFound          = errors.New("inventory level not found")
+	ErrInsufficientStock      = errors.New("insufficient stock")
+	ErrNoLocationsForChannel  = errors.New("channel has no inventory locations assigned")
+	ErrNegativeQuantity       = errors.New("quantity cannot be negative")
+	ErrFlatModePerLocation    = errors.New("per-location adjustments are disabled in flat inventory mode; use syncProductInventory")
+	ErrLocationNameRequired   = errors.New("inventory location name is required")
+	ErrInvalidCoordinates     = errors.New("latitude must be within -90..90 and longitude within -180..180")
+	ErrLocationInactive       = errors.New("inventory location is inactive - stock parked there would be unsellable")
+	ErrInvalidLocationType    = errors.New("invalid inventory location type")
+	ErrRetailLocationRequired = errors.New("customer access is only available for retail stores")
+	ErrLocationInUse          = errors.New("inventory location still holds stock or open order reservations - deactivate it instead")
 )
 
 // Safe for concurrent use - the ledger keeps writes commutative, so only per-row ordering matters
@@ -276,12 +285,12 @@ type Repository interface {
 	CreateLocation(ctx context.Context, input CreateLocationInput) (Location, error)
 	GetLocationByID(ctx context.Context, id uuid.UUID) (Location, error)
 	GetLocationBySlug(ctx context.Context, slug string) (Location, error)
+	ListPublicLocations(ctx context.Context, channelID uuid.UUID) ([]Location, error)
 	ListLocations(ctx context.Context) ([]Location, error)
 	ListLocationsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Location, error)
-	ListLocationsPage(ctx context.Context, search string, limit, offset int32) ([]Location, error)
-	CountLocations(ctx context.Context, search string) (int64, error)
+	ListLocationsPage(ctx context.Context, search string, filter LocationFilter, limit, offset int32) ([]Location, error)
+	CountLocations(ctx context.Context, search string, filter LocationFilter) (int64, error)
 	ListPickupLocations(ctx context.Context) ([]Location, error)
-	SetLocationPickup(ctx context.Context, id uuid.UUID, enabled bool, instructions string) (Location, error)
 	UpdateLocation(ctx context.Context, input UpdateLocationInput) (Location, error)
 	DeleteLocation(ctx context.Context, id uuid.UUID) error
 
