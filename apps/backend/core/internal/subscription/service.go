@@ -3,8 +3,8 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +15,17 @@ import (
 
 // Caps how many due subscriptions one ProcessDue pass handles, so a large backlog can't hold a tick open indefinitely - the next tick picks up the rest
 const dueBatchSize = 200
+
+// The most periods one billing run mints for a subscription - a daily plan after a long outage, or a row with a zero billing date, would otherwise mint thousands in one transaction. The rest are minted by the following runs
+const maxCatchUpPeriods = 366
+
+// cycleAmount is what one period costs - the snapshotted unit price times the subscribed quantity, rounded to cents
+func cycleAmount(sub Subscription) int64 {
+	if sub.Quantity <= 0 {
+		return sub.Price
+	}
+	return int64(math.Round(float64(sub.Price) * sub.Quantity))
+}
 
 // Runs the recurring-billing engine - it starts subscriptions on purchase, through the OrderPlaced subscriber, and advances active ones through billing periods
 type Service struct {
@@ -92,8 +103,11 @@ func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) erro
 			return err
 		}
 		periods, start, end, next := planBilling(sub, now, count)
+		if len(periods) == maxCatchUpPeriods {
+			log.Printf("[subscription] %s is more than %d periods behind - billing the rest on the next runs", sub.ID, maxCatchUpPeriods)
+		}
 		for _, p := range periods {
-			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, sub.Price, sub.CurrencyCode, p.Sequence)
+			created, err := r.CreateInvoice(ctx, sub.ID, p.PeriodStart, p.PeriodEnd, cycleAmount(sub), sub.CurrencyCode, p.Sequence)
 			if err != nil {
 				return err
 			}
@@ -126,7 +140,7 @@ type plannedPeriod struct {
 func planBilling(sub Subscription, now time.Time, existingInvoices int64) (periods []plannedPeriod, newStart, newEnd, newNext time.Time) {
 	seq := int32(existingInvoices)
 	start, end, next := sub.CurrentPeriodStart, sub.CurrentPeriodEnd, sub.NextBillingAt
-	for !next.After(now) {
+	for !next.After(now) && len(periods) < maxCatchUpPeriods {
 		ps := end
 		pe := nextBillingTime(ps, sub.IntervalUnit, sub.IntervalCount)
 		seq++
@@ -159,8 +173,15 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, customerID *uuid.UUI
 	return out, err
 }
 
-// Suspends billing without cancelling - the scheduler skips a paused subscription until it resumes
+// Suspends billing without cancelling - the scheduler skips a paused subscription until it resumes. Only a live subscription pauses, so a cancelled one can't come back through pause and resume
 func (s *Service) Pause(ctx context.Context, id uuid.UUID) (Subscription, error) {
+	sub, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return Subscription{}, err
+	}
+	if sub.Status != StatusActive && sub.Status != StatusPastDue {
+		return Subscription{}, ErrNotActive
+	}
 	out, err := s.repo.SetStatus(ctx, id, StatusPaused, nil)
 	if err == nil {
 		s.publishLifecycle(ctx, EventPaused, out)
@@ -168,20 +189,40 @@ func (s *Service) Pause(ctx context.Context, id uuid.UUID) (Subscription, error)
 	return out, err
 }
 
-// Reactivates a paused subscription - billing periods that elapsed while paused are billed by the next scheduler pass
+// Reactivates a paused subscription - the time spent paused is never billed: a billing date that passed while paused restarts the period now, so the next scheduler pass mints one fresh period
 func (s *Service) Resume(ctx context.Context, id uuid.UUID) (Subscription, error) {
 	sub, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return Subscription{}, err
 	}
-	if sub.Status == StatusCanceled {
+	if sub.Status != StatusPaused {
 		return Subscription{}, ErrNotActive
 	}
-	out, err := s.repo.SetStatus(ctx, id, StatusActive, nil)
-	if err == nil {
-		s.publishLifecycle(ctx, EventResumed, out)
+	now := s.now()
+	var out Subscription
+	err = s.inTx(ctx, func(r Repository) error {
+		if !sub.NextBillingAt.After(now) {
+			if _, err := r.AdvancePeriod(ctx, id, now, now, now); err != nil {
+				return err
+			}
+		}
+		var err error
+		out, err = r.SetStatus(ctx, id, StatusActive, nil)
+		return err
+	})
+	if err != nil {
+		return Subscription{}, err
 	}
-	return out, err
+	s.publishLifecycle(ctx, EventResumed, out)
+	return out, nil
+}
+
+// inTx runs fn on a transactional repository, or on the plain one when no tx manager is wired
+func (s *Service) inTx(ctx context.Context, fn func(Repository) error) error {
+	if s.tx == nil {
+		return fn(s.repo)
+	}
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error { return fn(s.repo.WithTx(t)) })
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -199,7 +240,7 @@ func (s *Service) SetPaymentMethodForCustomer(ctx context.Context, customerID, i
 		return Subscription{}, err
 	}
 	if sub.CustomerID == nil || *sub.CustomerID != customerID {
-		return Subscription{}, fmt.Errorf("subscription not found")
+		return Subscription{}, ErrNotFound
 	}
 	return s.repo.SetPaymentMethod(ctx, id, paymentMethodID)
 }
