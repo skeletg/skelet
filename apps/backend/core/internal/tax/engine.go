@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+
+	"github.com/google/uuid"
 )
 
 // Engine evaluates tax rules against an Environment - Stateless beyond the repo
@@ -20,11 +22,19 @@ func NewEngine(repo Repository, registry *Registry) *Engine {
 // Evaluate applies every matching rule in (priority, sort_order, id) order - A non-empty ExclusivityGroup applies only if no earlier rule
 // in the same group did - "most specific jurisdiction wins" when they share a group, free stacking when groups are empty/distinct
 func (e *Engine) Evaluate(ctx context.Context, env Environment) (EvalResult, error) {
-	rules, err := e.repo.ListActiveRulesByChannel(ctx, env.ChannelID())
+	rules, err := e.activeRules(ctx, env.ChannelID())
 	if err != nil {
 		return EvalResult{}, err
 	}
+	return e.evaluate(ctx, env, rules)
+}
 
+// activeRules loads a channel's active rules in evaluation order, so one load serves every line of an order
+func (e *Engine) activeRules(ctx context.Context, channelID uuid.UUID) ([]Rule, error) {
+	rules, err := e.repo.ListActiveRulesByChannel(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
 	sort.SliceStable(rules, func(i, j int) bool {
 		if rules[i].Priority != rules[j].Priority {
 			return rules[i].Priority < rules[j].Priority
@@ -34,7 +44,10 @@ func (e *Engine) Evaluate(ctx context.Context, env Environment) (EvalResult, err
 		}
 		return rules[i].ID.String() < rules[j].ID.String()
 	})
+	return rules, nil
+}
 
+func (e *Engine) evaluate(ctx context.Context, env Environment, rules []Rule) (EvalResult, error) {
 	var (
 		ledger  Ledger
 		applied []AppliedTax

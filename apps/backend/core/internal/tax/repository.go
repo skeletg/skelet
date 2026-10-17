@@ -30,6 +30,8 @@ type Repository interface {
 	// ListActiveRulesByChannel returns active rules fully hydrated with
 	// their conditions + effects - the engine hot path
 	ListActiveRulesByChannel(ctx context.Context, channelID uuid.UUID) ([]Rule, error)
+	// Every rule of a channel, active or not, hydrated in bulk - the admin list
+	ListRulesByChannelHydrated(ctx context.Context, channelID uuid.UUID) ([]Rule, error)
 	// ListAllRulesHydrated returns every rule (any channel, active or
 	// not) hydrated - the admin GLOBAL cross-channel view
 	ListAllRulesHydrated(ctx context.Context) ([]Rule, error)
@@ -119,6 +121,14 @@ func (r *postgresRepository) ListActiveRulesByChannel(ctx context.Context, chann
 	rows, err := r.queries.ListActiveTaxRulesByChannel(ctx, channelID)
 	if err != nil {
 		return nil, fmt.Errorf("list active tax rules: %w", err)
+	}
+	return r.hydrateRules(ctx, rows)
+}
+
+func (r *postgresRepository) ListRulesByChannelHydrated(ctx context.Context, channelID uuid.UUID) ([]Rule, error) {
+	rows, err := r.queries.ListTaxRulesByChannel(ctx, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("list tax rules: %w", err)
 	}
 	return r.hydrateRules(ctx, rows)
 }
