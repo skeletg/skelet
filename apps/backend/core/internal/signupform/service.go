@@ -166,16 +166,29 @@ func normType(t string) string {
 	return "popup"
 }
 
+// formConsentKind is the consent a confirmed signup records - one the shopper may decline, since the form only asks once they've confirmed
+func formConsentKind(kind string) (string, error) {
+	kind = orDefault(kind, consentkind.MarketingEmail)
+	if def, ok := consentkind.Find(kind); !ok || def.Required {
+		return "", ErrConsentKindInvalid
+	}
+	return kind, nil
+}
+
 func (s *Service) Create(ctx context.Context, in SaveInput) (Form, error) {
 	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Slug) == "" {
 		return Form{}, ErrNameAndSlugRequired
+	}
+	kind, err := formConsentKind(in.ConsentKind)
+	if err != nil {
+		return Form{}, err
 	}
 	dc, _ := json.Marshal(in.Display.sanitized())
 	row, err := s.q.CreateSignupForm(ctx, db.CreateSignupFormParams{
 		ChannelID: in.ChannelID, Slug: slugify(in.Slug), Name: in.Name, Status: normStatus(in.Status),
 		FormType: normType(in.Type), Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, defaultButtonLabel),
 		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
+		ConsentKind: kind, TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if pgdb.IsUniqueViolation(err) {
@@ -192,12 +205,16 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in SaveInput) (Form,
 	if strings.TrimSpace(in.Name) == "" {
 		return Form{}, ErrNameAndSlugRequired
 	}
+	kind, err := formConsentKind(in.ConsentKind)
+	if err != nil {
+		return Form{}, err
+	}
 	dc, _ := json.Marshal(in.Display.sanitized())
 	row, err := s.q.UpdateSignupForm(ctx, db.UpdateSignupFormParams{
 		ID: id, Name: in.Name, Status: normStatus(in.Status), FormType: normType(in.Type),
 		Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, defaultButtonLabel),
 		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
+		ConsentKind: kind, TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -247,9 +264,10 @@ func (s *Service) SubmissionCount(ctx context.Context, formID uuid.UUID) (int64,
 }
 
 func (s *Service) RecentSubmissions(ctx context.Context, formID uuid.UUID, limit int32) ([]db.ListSignupSubmissionsRow, error) {
-	if limit <= 0 || limit > 500 {
+	if limit <= 0 {
 		limit = 100
 	}
+	limit = min(limit, 500)
 	return s.q.ListSignupSubmissions(ctx, db.ListSignupSubmissionsParams{FormID: formID, Lim: limit})
 }
 
@@ -390,16 +408,14 @@ func (s *Service) resolveActive(ctx context.Context, channelID uuid.UUID, slugOr
 			return f, nil
 		}
 	}
-	active, err := s.Active(ctx, channelID)
+	row, err := s.q.GetActiveSignupFormBySlug(ctx, db.GetActiveSignupFormBySlugParams{ChannelID: channelID, Slug: slugOrID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Form{}, ErrFormNotFound
+	}
 	if err != nil {
 		return Form{}, err
 	}
-	for _, f := range active {
-		if f.Slug == slugOrID {
-			return f, nil
-		}
-	}
-	return Form{}, ErrFormNotFound
+	return toForm(row), nil
 }
 
 func mapForms(rows []db.SignupForm) []Form {

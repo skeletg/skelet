@@ -34,12 +34,14 @@ func orStr(s, def string) string {
 	return s
 }
 
-func saveInputToForm(in model.SaveSignupFormInput, channelID uuid.UUID) signupform.SaveInput {
+func saveInputToForm(in model.SaveSignupFormInput, channelID uuid.UUID) (signupform.SaveInput, error) {
 	var seg *uuid.UUID
 	if in.TargetSegmentID != nil && *in.TargetSegmentID != "" {
-		if id, err := uuid.Parse(*in.TargetSegmentID); err == nil {
-			seg = &id
+		id, err := uuid.Parse(*in.TargetSegmentID)
+		if err != nil {
+			return signupform.SaveInput{}, errInvalidID("targetSegmentId", err)
 		}
+		seg = &id
 	}
 	return signupform.SaveInput{
 		ChannelID: channelID, Slug: in.Slug, Name: in.Name, Status: in.Status, Type: in.Type,
@@ -49,5 +51,5 @@ func saveInputToForm(in model.SaveSignupFormInput, channelID uuid.UUID) signupfo
 			Trigger: in.Display.Trigger, DelaySeconds: int(in.Display.DelaySeconds),
 			ScrollPercent: int(in.Display.ScrollPercent), FrequencyDays: int(in.Display.FrequencyDays),
 		},
-	}
+	}, nil
 }

@@ -1,10 +1,15 @@
 package wiring
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 )
 
@@ -49,5 +54,22 @@ func TestTheCommerceBeaconsRateLimitSeparately(t *testing.T) {
 			t.Errorf("%s shares the %q bucket with %s", b.path, b.limitKey, prev)
 		}
 		seen[b.limitKey] = b.path
+	}
+}
+
+type formsSwitchedOff struct{ config.Repository }
+
+func (formsSwitchedOff) GetCandidates(_ context.Context, scope config.Scope, path string) ([]config.StoredValue, error) {
+	return []config.StoredValue{{Scope: scope, Path: path, Value: "false"}}, nil
+}
+
+// The widget hides when the master switch is off, so a direct post must not mail a confirmation either
+func TestASwitchedOffFormTakesNoSubmissions(t *testing.T) {
+	d := commerceBeaconDeps{Config: config.NewService(formsSwitchedOff{})}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/t/forms/submit", strings.NewReader(`{"form":"news","email":"a@b.test"}`))
+	d.submitForm(w, r, uuid.New())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 with the forms switched off", w.Code)
 	}
 }

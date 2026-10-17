@@ -125,10 +125,14 @@ func (d commerceBeaconDeps) activeForms(w http.ResponseWriter, r *http.Request, 
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// Records the lead, ensures a marketing contact, opts them in, adds to the segment, fires the welcome flow - returns the success message
+// Records the lead and mails the double opt-in link - the contact, consent, segment and flow wait for the confirmation. Returns the success message
 func (d commerceBeaconDeps) submitForm(w http.ResponseWriter, r *http.Request, channelID uuid.UUID) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if on, _ := d.Config.GetBool(r.Context(), "outreach/forms/enabled", config.DefaultScope); !on {
+		w.WriteHeader(http.StatusNotFound) // the master switch hides the widget, so a direct post finds no form either
 		return
 	}
 	var b struct {

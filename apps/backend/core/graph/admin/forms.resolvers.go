@@ -16,7 +16,11 @@ func (r *mutationResolver) CreateSignupForm(ctx context.Context, input model.Sav
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "forms.manage", cid, nil); err != nil {
 		return nil, err
 	}
-	f, err := r.FormSvc.Create(ctx, saveInputToForm(input, cid))
+	in, err := saveInputToForm(input, cid)
+	if err != nil {
+		return nil, err
+	}
+	f, err := r.FormSvc.Create(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +42,11 @@ func (r *mutationResolver) UpdateSignupForm(ctx context.Context, id string, inpu
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "forms.manage", existing.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	f, err := r.FormSvc.Update(ctx, fid, saveInputToForm(input, existing.ChannelID))
+	in, err := saveInputToForm(input, existing.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	f, err := r.FormSvc.Update(ctx, fid, in)
 	if err != nil {
 		return nil, err
 	}
