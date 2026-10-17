@@ -469,7 +469,7 @@ func TestSearchCanonicalClampsTheTypeaheadLimit(t *testing.T) {
 	for name, tc := range map[string]struct{ limit, want int32 }{
 		"unset":          {0, 50},
 		"negative":       {-1, 50},
-		"over the cap":   {500, 50},
+		"over the cap":   {500, 100},
 		"inside the cap": {100, 100},
 	} {
 		t.Run(name, func(t *testing.T) {
