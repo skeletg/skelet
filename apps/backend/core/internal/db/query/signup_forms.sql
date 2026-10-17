@@ -35,6 +35,9 @@ SELECT * FROM signup_forms WHERE channel_id = sqlc.arg(channel_id) ORDER BY crea
 -- Active forms for the storefront widget (public)
 SELECT * FROM signup_forms WHERE channel_id = sqlc.arg(channel_id) AND status = 'active' ORDER BY created_at;
 
+-- name: GetActiveSignupFormBySlug :one
+SELECT * FROM signup_forms WHERE channel_id = sqlc.arg(channel_id) AND slug = sqlc.arg(slug) AND status = 'active';
+
 -- name: RecordSignupSubmission :exec
 -- Idempotent per (form, email)
 INSERT INTO signup_form_submissions (form_id, channel_id, email, customer_id)
