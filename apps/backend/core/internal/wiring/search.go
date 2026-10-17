@@ -57,6 +57,13 @@ func newSearchTier(d searchDeps) SearchTier {
 	registry := search.NewIndexRegistry()
 	var productIndexer *search.ProductIndexer
 	var blogPostIndexer *search.BlogPostIndexer
+	attrCache := search.NewAttributeCache(d.Catalog, 30*time.Second)
+	for _, ev := range []string{catalog.EventAttributeUpdated, catalog.EventAttributeDeleted, catalog.EventAttributeValueSlugChanged} {
+		d.Bus.Subscribe(ev, func(context.Context, events.Event) error {
+			attrCache.Invalidate()
+			return nil
+		})
+	}
 	var searchClient *search.Client                                           // hoisted so /health can report search reachability, and so the tier can be assembled below - browse is the only listing path, so a silent outage looks like an empty catalogue
 	if osURL := strings.TrimSpace(os.Getenv("OPENSEARCH_URL")); osURL != "" { // empty disables search entirely (docker-compose.yml, profile "search")
 		var caPEM []byte
@@ -80,6 +87,7 @@ func newSearchTier(d searchDeps) SearchTier {
 		} else {
 			productIndexer = search.NewProductIndexer(searchClient, d.Catalog, d.Channel, d.Inventory, d.Config)
 			productIndexer.SetSalesSource(NewSalesVelocitySource(d.Queries))
+			productIndexer.SetAttributeCache(attrCache)
 			productIndexer.SetRemoteSource(search.NewRemoteSearchSource(d.RemoteProvider, d.RemoteInvoker)) // a remote provider answers the search box via an external engine, failing open to this OpenSearch indexer
 			blogPostIndexer = search.NewBlogPostIndexer(searchClient, d.Blog, d.Channel, d.Config)
 			_ = registry.Register(search.RegisteredIndex{Slug: "products", Lifecycle: productIndexer}) // register errors are duplicate slugs, impossible for the two core entries
@@ -125,7 +133,11 @@ func newSearchTier(d searchDeps) SearchTier {
 			}
 			return productIndexer
 		}(),
-		search.NewPostgresEngine(d.Catalog, d.Config),
+		func() search.Engine {
+			pg := search.NewPostgresEngine(d.Catalog, d.Config)
+			pg.SetAttributeCache(attrCache)
+			return pg
+		}(),
 		func(ctx context.Context, op string, cause error) {
 			graphqlx.MarkUncacheable(ctx)
 		},

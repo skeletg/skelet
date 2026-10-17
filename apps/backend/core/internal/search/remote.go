@@ -39,8 +39,12 @@ type remoteSearchResponse struct {
 	Total int64             `json:"total"`
 }
 
+type providerLookup interface {
+	ActiveFor(ctx context.Context, kind remoteprovider.Kind, channelID *uuid.UUID) (remoteprovider.Provider, bool, error)
+}
+
 type remoteSearchSource struct {
-	svc     *remoteprovider.Service
+	svc     providerLookup
 	invoker *remoteprovider.Invoker
 }
 
@@ -48,13 +52,20 @@ func NewRemoteSearchSource(svc *remoteprovider.Service, invoker *remoteprovider.
 	return &remoteSearchSource{svc: svc, invoker: invoker}
 }
 
+// The channel's own provider wins over a global one - the first by slug let a global engine answer a store that brought its own
+func (r *remoteSearchSource) provider(ctx context.Context, channelID uuid.UUID) (remoteprovider.Provider, bool) {
+	p, ok, err := r.svc.ActiveFor(ctx, remoteprovider.KindSearch, &channelID)
+	if err != nil {
+		log.Printf("[search] resolve remote search provider: %v", err)
+	}
+	return p, ok && err == nil
+}
+
 func (r *remoteSearchSource) Search(ctx context.Context, query string, channelID uuid.UUID, locale string, limit, offset int) ([]ProductHit, int64, bool) {
-	ch := channelID
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindSearch, &ch)
-	if err != nil || len(providers) == 0 {
+	p, ok := r.provider(ctx, channelID)
+	if !ok {
 		return nil, 0, false
 	}
-	p := providers[0]
 
 	req := remoteSearchRequest{Query: query, ChannelID: channelID.String(), Locale: locale, Limit: limit, Offset: offset}
 	var resp remoteSearchResponse
@@ -117,12 +128,10 @@ type remoteBrowseResponse struct {
 }
 
 func (r *remoteSearchSource) Browse(ctx context.Context, channelID uuid.UUID, locale, query string, filter BrowseFilter, sortSlug string, limit, offset int) (BrowseResult, bool) {
-	ch := channelID
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindSearch, &ch)
-	if err != nil || len(providers) == 0 {
+	p, ok := r.provider(ctx, channelID)
+	if !ok {
 		return BrowseResult{}, false
 	}
-	p := providers[0]
 
 	req := remoteBrowseRequest{
 		ChannelID: channelID.String(), Locale: locale, Query: query, Sort: sortSlug,

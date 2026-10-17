@@ -26,6 +26,13 @@ func rebuildAndSwap(
 	if err := client.CreateIndex(ctx, fresh, mappingJSON); err != nil {
 		return 0, err
 	}
+	// Live writes from here on land in the fresh index too - without it an edit made after the build read that row came back stale at the flip
+	if err := client.SwapAlias(ctx, NextAlias(alias), fresh, nil); err != nil {
+		if derr := client.DeleteIndex(ctx, fresh); derr != nil {
+			log.Printf("[search] cleanup of failed rebuild %s: %v", fresh, derr)
+		}
+		return 0, err
+	}
 	n, err := build(ctx, fresh)
 	if err != nil {
 		// Strict on purpose: swapping in a partially-built index trades a complete
@@ -64,6 +71,9 @@ func rebuildAndSwap(
 		// NOT fail(): past that deletion the fresh index may be the only copy,
 		// and deleting it on a flaky swap response would drop the catalogue outright
 		return n, err
+	}
+	if err := client.RemoveAlias(ctx, fresh, NextAlias(alias)); err != nil {
+		log.Printf("[search] %v", err)
 	}
 	for _, retired := range old {
 		if retired == fresh {

@@ -41,6 +41,11 @@ func (f *fakeCluster) handler() http.Handler {
 		}
 		f.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/_alias/") {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"alias missing","status":404}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"took":1,"errors":false,"items":[]}`))
 	})
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/blockkit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -203,6 +206,7 @@ type ProductIndexer struct {
 	sales     SalesSource
 	// When wired, answers SearchProducts through an external engine instead of OpenSearch - see remote.go
 	remoteSearch RemoteSearchSource
+	attrs        *AttributeCache
 	routed       atomic.Bool
 }
 
@@ -283,6 +287,9 @@ type SalesSource interface {
 
 func (i *ProductIndexer) SetSalesSource(s SalesSource) { i.sales = s }
 
+// Optional - nil reads attributes from the catalogue on every search
+func (i *ProductIndexer) SetAttributeCache(c *AttributeCache) { i.attrs = c }
+
 func NewProductIndexer(c *Client, cat ProductSource, sv ChannelSource, inv InventorySource, cfg *config.Service) *ProductIndexer {
 	return &ProductIndexer{client: c, catalog: cat, channel: sv, inventory: inv, cfg: cfg}
 }
@@ -301,21 +308,30 @@ func (i *ProductIndexer) EnsureIndex(ctx context.Context) error {
 	return nil
 }
 
-// An upper bound on docs, the safe side to size shards from
+type listingCounter interface {
+	CountProductChannelListingsByChannel(ctx context.Context) (map[uuid.UUID]int64, error)
+}
+
+// A doc per listing per locale - counted, since loading the catalogue to size shards doubled what the rebuild then loads again
 func (i *ProductIndexer) estimateDocs(ctx context.Context) int64 {
+	counter, ok := i.catalog.(listingCounter)
+	if !ok {
+		return 0
+	}
+	listings, err := counter.CountProductChannelListingsByChannel(ctx)
+	if err != nil {
+		log.Printf("[search] count listings for shard sizing: %v", err)
+		return 0
+	}
 	channels, err := i.channel.List(ctx)
 	if err != nil {
 		return 0
 	}
-	products, err := i.catalog.ListProducts(ctx, "", 0)
-	if err != nil {
-		return 0
-	}
-	var perProduct int64
+	var docs int64
 	for _, sv := range channels {
-		perProduct += int64(len(localeCodes(sv)))
+		docs += listings[sv.ID] * int64(len(localeCodes(sv)))
 	}
-	return perProduct * int64(len(products))
+	return docs
 }
 
 // RebuildAndSwap reindexes into a fresh physical index and atomically flips the ProductIndex alias - the catalogue
@@ -440,21 +456,16 @@ func (i *ProductIndexer) Upsert(ctx context.Context, productID uuid.UUID) error 
 				content = contents[product.ID]
 				contentByLocale[locale] = content
 			}
-			doc, err := i.buildDoc(product, lst, sv, locale, indexedAttrs, categoryIDs, collectionIDs, localeValues[locale], content, slugRows, inStock, salesByChannel[lst.ChannelID])
-			if err != nil {
-				return fmt.Errorf("build doc %s/%s/%s: %w", product.ID, sv.ID, locale, err)
-			}
+			doc := i.buildDoc(product, lst, sv, locale, indexedAttrs, categoryIDs, collectionIDs, localeValues[locale], content, slugRows, inStock, salesByChannel[lst.ChannelID])
 			built = append(built, pending{id: docID(product.ID, sv.ID, locale), doc: doc})
 		}
 	}
 	if len(built) == 0 {
 		return i.Delete(ctx, productID)
 	}
-	// New docs and stale-doc deletes go in one _bulk - a failed stale-doc listing only leaves a harmless sibling
-	existing, lerr := i.client.ListDocIDsByField(ctx, ProductIndex, "product_id", productID.String())
-	if lerr != nil {
-		log.Printf("[search] list existing docs for product %s: %v", productID, lerr)
-	}
+	// New docs and stale-doc deletes go in one _bulk. A failed listing still writes the fresh docs but fails the upsert, since a product
+	// taken off a channel stays searchable there until the next reindex
+	existing, staleErr := i.client.ListDocIDsByField(ctx, ProductIndex, "product_id", productID.String())
 	fresh := make(map[string]struct{}, len(built))
 	ops := make([]BulkDoc, 0, len(built)+len(existing))
 	for _, b := range built {
@@ -466,7 +477,13 @@ func (i *ProductIndexer) Upsert(ctx context.Context, productID uuid.UUID) error 
 			ops = append(ops, BulkDoc{ID: id, Delete: true, Routing: docRouting(id)})
 		}
 	}
-	return i.client.Bulk(ctx, ProductIndex, ops)
+	if err := i.client.Bulk(ctx, ProductIndex, ops); err != nil {
+		return err
+	}
+	if staleErr != nil {
+		return fmt.Errorf("stale docs left in place: %w", staleErr)
+	}
+	return nil
 }
 
 // Used when a channel is deleted so its per-locale docs can't serve stale results
@@ -556,7 +573,7 @@ func (i *ProductIndexer) SearchProducts(ctx context.Context, query string, chann
 	}
 	// Searchable attributes auto-merge with default settings and stay overridable per field in the dashboard - a load failure falls back to core fields only rather than taking search down
 	// Filterable-only attributes are in the index but sit out the search query; only browseProducts uses them
-	indexed, _ := i.indexedAttributes(ctx)
+	indexed, _ := i.searchedAttributes(ctx)
 	searchable := indexed[:0]
 	for _, a := range indexed {
 		if a.Searchable {
@@ -786,15 +803,12 @@ func (i *ProductIndexer) reindexPage(
 				inStock = salable[p.ID] != 0
 			}
 			for _, locale := range localeCodes(sv) {
-				doc, derr := i.buildDoc(
+				doc := i.buildDoc(
 					p, lst, sv, locale, indexedAttrs, categoryIDs, collectionIDs,
 					localeValues[p.ID][locale], contentByLocale[locale][p.ID],
 					slugsByProduct[p.ID], inStock, salesBySKU[p.SKU][lst.ChannelID],
 				)
-				if derr != nil {
-					return indexed, fmt.Errorf("build doc %s/%s/%s: %w", p.ID, sv.ID, locale, derr)
-				}
-				docs = append(docs, BulkDoc{ID: docID(p.ID, sv.ID, locale), Doc: doc, Routing: sv.ID.String()})
+				docs = append(docs, BulkDoc{ID: docID(p.ID, sv.ID, locale), Doc: doc, Routing: sv.ID.String(), IfAbsent: target != ProductIndex})
 				built++
 			}
 		}
@@ -860,7 +874,7 @@ func (i *ProductIndexer) buildDoc(
 	slugRows []catalog.ProductAttributeSlug,
 	inStock bool,
 	sales30d float64,
-) (map[string]any, error) {
+) map[string]any {
 	name := p.SKU
 	description := ""
 	if content.Name != "" {
@@ -959,7 +973,7 @@ func (i *ProductIndexer) buildDoc(
 		doc[AttributeSlugFieldName(attr.Slug)] = slug
 		doc[AttributeIndexableFieldName(attr.Slug)] = attr.IsIndexable
 	}
-	return doc, nil
+	return doc
 }
 
 func AttributeSlugFieldName(slug string) string {
@@ -996,8 +1010,35 @@ func extractAttributeValue(p catalog.Product, attr catalog.Attribute) string {
 			return "true"
 		}
 		return "false"
+	case map[string]any, []any:
+		// A rich-text attribute holds editor state, anything else structured gives up its words - %v indexed Go map syntax
+		if b, err := json.Marshal(v); err == nil {
+			if text := stripJSON(b); text != "" {
+				return text
+			}
+		}
+		var leaves []string
+		collectLeaves(v, &leaves)
+		return strings.Join(leaves, " ")
 	}
-	return fmt.Sprintf("%v", raw)
+	return fmt.Sprint(raw)
+}
+
+func collectLeaves(v any, out *[]string) {
+	switch t := v.(type) {
+	case string:
+		if t != "" {
+			*out = append(*out, t)
+		}
+	case []any:
+		for _, item := range t {
+			collectLeaves(item, out)
+		}
+	case map[string]any:
+		for _, k := range slices.Sorted(maps.Keys(t)) {
+			collectLeaves(t[k], out)
+		}
+	}
 }
 
 // An array rather than space-joined, so attr_<slug>.keyword exposes one keyword per value and facets resolve per value
@@ -1023,13 +1064,25 @@ func (i *ProductIndexer) indexedAttributes(ctx context.Context) ([]catalog.Attri
 	if err != nil {
 		return nil, err
 	}
+	return indexedOnly(all), nil
+}
+
+func (i *ProductIndexer) searchedAttributes(ctx context.Context) ([]catalog.Attribute, error) {
+	all, err := listAttributes(ctx, i.attrs, i.catalog)
+	if err != nil {
+		return nil, err
+	}
+	return indexedOnly(all), nil
+}
+
+func indexedOnly(all []catalog.Attribute) []catalog.Attribute {
 	out := make([]catalog.Attribute, 0, len(all))
 	for _, a := range all {
 		if (a.Searchable || a.Filterable) && a.IsPublic {
 			out = append(out, a)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // Falls back to {DefaultLocale} when the junction is empty - single-locale stores often skip it
@@ -1062,7 +1115,7 @@ func docID(productID, channelID uuid.UUID, locale string) string {
 	return strings.Join([]string{productID.String(), channelID.String(), locale}, ":")
 }
 
-// The WYSIWYG stores Lexical-style structured JSON - just pull the text out so the analyzer has something to tokenize
+// Descriptions are Lexical editor state and block bodies are blockkit documents - only the words a shopper reads are indexed, in reading order
 func stripJSON(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -1071,30 +1124,39 @@ func stripJSON(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return s
 	}
-	// Only string leaves - numbers and booleans are noise for search
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
+	var doc blockkit.Document
+	if err := json.Unmarshal(raw, &doc); err == nil && len(doc.Blocks) > 0 {
+		return blockkit.PlainText(doc)
+	}
+	var node lexicalNode
+	if err := json.Unmarshal(raw, &node); err != nil {
 		return ""
 	}
 	var b strings.Builder
-	collectText(v, &b)
-	return strings.TrimSpace(b.String())
+	node.collect(&b)
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-func collectText(v any, b *strings.Builder) {
-	switch t := v.(type) {
-	case string:
-		if t != "" {
-			b.WriteString(t)
-			b.WriteByte(' ')
-		}
-	case []any:
-		for _, item := range t {
-			collectText(item, b)
-		}
-	case map[string]any:
-		for _, item := range t {
-			collectText(item, b)
-		}
+type lexicalNode struct {
+	Type     string        `json:"type"`
+	Text     string        `json:"text"`
+	Root     *lexicalNode  `json:"root"`
+	Children []lexicalNode `json:"children"`
+}
+
+// Text runs inside one paragraph join as written - a bold word mid-sentence is its own node - while block nodes end on a space
+func (n lexicalNode) collect(b *strings.Builder) {
+	if n.Root != nil {
+		n.Root.collect(b)
+	}
+	b.WriteString(n.Text)
+	if n.Type == "linebreak" || n.Type == "tab" {
+		b.WriteByte(' ')
+	}
+	for _, c := range n.Children {
+		c.collect(b)
+	}
+	if len(n.Children) > 0 {
+		b.WriteByte(' ')
 	}
 }

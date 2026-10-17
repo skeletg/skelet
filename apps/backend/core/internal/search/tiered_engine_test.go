@@ -99,4 +99,23 @@ func TestTieredEngine(t *testing.T) {
 			t.Fatal("want an error when every tier fails")
 		}
 	})
+
+	t.Run("a cancelled caller is not a primary outage", func(t *testing.T) {
+		primary := &stubEngine{name: "primary", err: context.Canceled}
+		backup := &stubEngine{name: "backup", total: 3}
+		var degraded bool
+		e := NewTieredEngine(primary, backup, func(context.Context, string, error) { degraded = true })
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		if _, _, err := e.SearchProducts(ctx, "q", uuid.New(), "en", 10, 0, nil); !errors.Is(err, context.Canceled) {
+			t.Fatalf("search err = %v, want context.Canceled", err)
+		}
+		if _, err := e.BrowseProducts(ctx, uuid.New(), "en", "", BrowseFilter{}, "", 10, 0, nil); !errors.Is(err, context.Canceled) {
+			t.Fatalf("browse err = %v, want context.Canceled", err)
+		}
+		if backup.calls != 0 || degraded {
+			t.Fatalf("backup called %d times, degraded=%v - want neither", backup.calls, degraded)
+		}
+	})
 }

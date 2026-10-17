@@ -34,6 +34,40 @@ func (q *Queries) CountInheritingListingsWithCurrencyMismatchForProduct(ctx cont
 	return column_1, err
 }
 
+const countProductChannelListingsByChannel = `-- name: CountProductChannelListingsByChannel :many
+SELECT channel_id, COUNT(*)::bigint AS listings
+FROM catalog_product_channel_listings
+GROUP BY channel_id
+`
+
+type CountProductChannelListingsByChannelRow struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Listings  int64     `json:"listings"`
+}
+
+func (q *Queries) CountProductChannelListingsByChannel(ctx context.Context) ([]CountProductChannelListingsByChannelRow, error) {
+	rows, err := q.db.QueryContext(ctx, countProductChannelListingsByChannel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountProductChannelListingsByChannelRow{}
+	for rows.Next() {
+		var i CountProductChannelListingsByChannelRow
+		if err := rows.Scan(&i.ChannelID, &i.Listings); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteProductChannelListing = `-- name: DeleteProductChannelListing :exec
 DELETE FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2
