@@ -803,7 +803,7 @@ func metadataFromJSON(raw json.RawMessage) Metadata {
 	return m
 }
 
-func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) }
+func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
 
 // The inventory_locations_*_retail_check constraints are the one statement of "customer access needs a retail store"
 func isRetailAccessViolation(err error) bool {
@@ -812,7 +812,7 @@ func isRetailAccessViolation(err error) bool {
 		return true
 	}
 	return false
-} // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
+}
 
 func (r *postgresRepository) ListPickupLocations(ctx context.Context) ([]Location, error) {
 	rows, err := r.queries.ListPickupLocations(ctx)
