@@ -531,6 +531,12 @@ every request so a storefront behind basic auth, a staging password or a
 maintenance gate still answers it. Empty means the crawler gets whatever an
 anonymous visitor gets.
 
+`SEO_CRAWL_ALLOWED_ORIGINS` is OPTIONAL, a comma-separated list of extra
+origins the link-map crawl may start at, like `http://vetrina:3000` when the
+storefront is reached on its compose address. Without it a crawl only starts
+at the channel's public URL or `STOREFRONT_URL` - the crawl reads whatever
+answers and carries the bypass token, so it can't be pointed anywhere else.
+
 `PORT` overrides the port a process listens on. Each service has its own
 default (8080 for the app), so you only need this when running one outside
 compose.
