@@ -31,8 +31,12 @@ func newAllowPrivateTargets() AllowPrivateTargets {
 }
 
 // SSRF guard both halves: validated at save time AND the transport refuses private dials (DNS-rebinding-safe)
-func newWebhookService(q *db.Queries, txMgr *txrunner.Manager, allow AllowPrivateTargets) *webhook.Service {
-	svc := webhook.NewService(webhook.NewRepository(q, txMgr))
+func newWebhookService(q *db.Queries, txMgr *txrunner.Manager, allow AllowPrivateTargets, cipher *secrets.Cipher) *webhook.Service {
+	var sealer webhook.Sealer // a nil *Cipher in the interface would read as a key that panics on use
+	if cipher != nil {
+		sealer = cipher
+	}
+	svc := webhook.NewService(webhook.NewRepository(q, txMgr, sealer))
 	svc.AllowPrivateTargets = bool(allow)
 	return svc
 }

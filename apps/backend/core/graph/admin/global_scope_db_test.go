@@ -73,7 +73,7 @@ func TestWebhooksProvidersAndPaymentsStayOnTheirChannel(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, other) })
 	q := db.New(conn)
-	hooks := webhook.NewService(webhook.NewRepository(q, txrunner.New(conn)))
+	hooks := webhook.NewService(webhook.NewRepository(q, txrunner.New(conn), nil))
 	providers := remoteprovider.NewService(remoteprovider.NewRepository(q, nil))
 	ctx := context.Background()
 

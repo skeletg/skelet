@@ -206,6 +206,36 @@ var reservedHeaderNames = map[string]struct{}{
 
 const maxCustomHeaders = 20
 
+// MaskedHeaderValue is what the admin API shows in place of a custom header's value - sending it back on update keeps the stored value, so a round-trip through the dashboard never wipes a token
+const MaskedHeaderValue = "********"
+
+// MaskHeaders is the admin view of custom headers - names kept, values hidden
+func MaskHeaders(h map[string]string) map[string]string {
+	if len(h) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(h))
+	for k := range h {
+		out[k] = MaskedHeaderValue
+	}
+	return out
+}
+
+// keepMasked resolves an update's masked values to what is stored under the same name - a masked value for a header that isn't stored is dropped rather than saved as the mask
+func keepMasked(in, stored map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		if v != MaskedHeaderValue {
+			out[k] = v
+			continue
+		}
+		if sv, ok := stored[k]; ok {
+			out[k] = sv
+		}
+	}
+	return out
+}
+
 // validateDeliverySettings checks the shared create/update knobs - Empty
 // policy / zero timeout mean "unchanged or default" and pass through
 func validateDeliverySettings(policy FailurePolicy, timeoutMs int32, headers map[string]string) error {
