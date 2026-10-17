@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -17,8 +18,8 @@ type conversionRecorder interface {
 
 func RegisterConversionAttribution(bus *events.Bus, rec conversionRecorder) {
 	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error { // credits an order to the customer's recent marketing email engagement - last touch within the window, marketing only, one per order
-		evt := e.(*order.OrderPlaced)
-		if evt.CustomerID == nil {
+		evt, ok := e.(*order.OrderPlaced)
+		if !ok || evt.CustomerID == nil {
 			return nil
 		}
 		cctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
@@ -30,6 +31,9 @@ func RegisterConversionAttribution(bus *events.Bus, rec conversionRecorder) {
 		// An unreachable suite hands the order back to the outbox, whose replay the conversion:<order> key collapses - a refusal is final
 		if signalsclient.Unreachable(err) {
 			return fmt.Errorf("record conversion for order %s: %w", evt.OrderID, err)
+		}
+		if err != nil {
+			slog.Warn("signals refused a conversion write (dropped)", "order", evt.OrderID, "err", err)
 		}
 		return nil
 	})

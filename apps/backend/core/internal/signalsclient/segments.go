@@ -2,6 +2,7 @@ package signalsclient
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	segmentReadTimeout   = time.Second
 	segmentTripThreshold = 3
 	segmentCooldown      = 15 * time.Second
+	segmentMemberPage    = 500
 )
 
 var segmentCircuit = uuid.Nil // segment reads share one circuit, the Signals suite itself
@@ -94,9 +96,10 @@ func (c *Client) SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]u
 	}
 	out := make([]uuid.UUID, 0)
 	token := ""
+	seen := map[string]bool{}
 	for {
 		res, err := c.Segments.ListMembers(actx, &signalsv1.ListMembersRequest{
-			SegmentId: segmentID.String(), PageSize: 500, PageToken: token,
+			SegmentId: segmentID.String(), PageSize: segmentMemberPage, PageToken: token,
 		})
 		if err != nil {
 			return nil, err
@@ -112,6 +115,10 @@ func (c *Client) SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]u
 		if token == "" {
 			return out, nil
 		}
+		if seen[token] {
+			return nil, fmt.Errorf("segment %s members: page token %q came back twice", segmentID, token)
+		}
+		seen[token] = true
 	}
 }
 
