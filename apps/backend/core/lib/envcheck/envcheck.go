@@ -45,31 +45,78 @@ func Report(errs, warnings []string) error {
 	return nil
 }
 
-// JWTSecret guards every process that mints or verifies a session token
-func JWTSecret(getenv Getenv) (errs, warnings []string) {
-	s := strings.TrimSpace(getenv("JWT_SECRET"))
-	switch {
-	case s == "" || s == "change-me":
-		errs = append(errs, "JWT_SECRET must be a strong secret (not empty or the dev default 'change-me')")
-	case len(s) < 32:
-		// HS256 keys below the 256-bit hash output add no security and are brute-forceable; this secret also derives the review-voter-token HMAC key, so a weak value widens the blast radius
-		errs = append(errs, "JWT_SECRET must be at least 32 characters (use a 256-bit random secret)")
-	}
+// Each process holds only the keys its job needs - see docs/env.md for the map - and every secret shared between two tiers must differ from every other one, or holding one would hand over the rest
+
+// CoreSessionKeys guards the server, which mints both session types and verifies email links and review votes
+func CoreSessionKeys(getenv Getenv) (errs, warnings []string) {
+	errs = append(errs, retired(getenv)...)
+	errs = append(errs, strongSecret(getenv, "ADMIN_JWT_SECRET")...)
+	errs = append(errs, ed25519Key(getenv, "CUSTOMER_JWT_PRIVATE_KEY")...)
+	errs = append(errs, strongSecret(getenv, "EMAIL_LINK_SECRET")...)
+	errs = append(errs, strongSecret(getenv, "REVIEW_VOTER_TOKEN_SECRET")...)
+	errs = append(errs, distinct(getenv, "ADMIN_JWT_SECRET", "EMAIL_LINK_SECRET", "REVIEW_VOTER_TOKEN_SECRET", "SIGNALS_SERVICE_SECRET")...)
 	return errs, nil
 }
 
-// SignalsServiceSecret guards the two ends of the Signals contract - not JWT_SECRET, which the storefront holds too
-func SignalsServiceSecret(getenv Getenv) (errs, warnings []string) {
-	s := strings.TrimSpace(getenv("SIGNALS_SERVICE_SECRET"))
-	switch {
-	case s == "" || s == "change-me":
-		errs = append(errs, "SIGNALS_SERVICE_SECRET must be a strong secret (not empty or the dev default 'change-me')")
-	case len(s) < 32:
-		errs = append(errs, "SIGNALS_SERVICE_SECRET must be at least 32 characters (use a 256-bit random secret)")
-	case s == strings.TrimSpace(getenv("JWT_SECRET")):
-		errs = append(errs, "SIGNALS_SERVICE_SECRET must differ from JWT_SECRET - the storefront holds that one, and a second secret only helps if it stays between core and the suite")
-	}
+// SignalsSessionKeys guards cmd/signals - customer sessions verified with the public key alone, and the email links it signs
+func SignalsSessionKeys(getenv Getenv) (errs, warnings []string) {
+	errs = append(errs, retired(getenv)...)
+	errs = append(errs, ed25519Key(getenv, "CUSTOMER_JWT_PUBLIC_KEY")...)
+	errs = append(errs, strongSecret(getenv, "EMAIL_LINK_SECRET")...)
+	errs = append(errs, distinct(getenv, "EMAIL_LINK_SECRET", "SIGNALS_SERVICE_SECRET")...)
 	return errs, nil
+}
+
+// IngestSessionKeys guards cmd/ingest, the internet-facing beacon tier - it verifies customer sessions and holds nothing that signs
+func IngestSessionKeys(getenv Getenv) (errs, warnings []string) {
+	errs = append(errs, retired(getenv)...)
+	errs = append(errs, ed25519Key(getenv, "CUSTOMER_JWT_PUBLIC_KEY")...)
+	return errs, nil
+}
+
+func retired(getenv Getenv) []string {
+	if strings.TrimSpace(getenv("JWT_SECRET")) != "" {
+		return []string{"JWT_SECRET is retired - remove it; ADMIN_JWT_SECRET, CUSTOMER_JWT_PRIVATE_KEY / CUSTOMER_JWT_PUBLIC_KEY and EMAIL_LINK_SECRET replace it (docs/env.md)"}
+	}
+	return nil
+}
+
+func strongSecret(getenv Getenv, name string) []string {
+	s := strings.TrimSpace(getenv(name))
+	switch {
+	case s == "" || strings.HasPrefix(s, "change-me"):
+		return []string{name + " must be a strong secret (not empty or a dev default)"}
+	case len(s) < 32:
+		// HMAC keys below the 256-bit hash output add no security and are brute-forceable
+		return []string{name + " must be at least 32 characters (use a 256-bit random secret)"}
+	}
+	return nil
+}
+
+func ed25519Key(getenv Getenv, name string) []string {
+	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(getenv(name)))
+	if err != nil || len(b) != 32 {
+		return []string{name + " must be base64 of a 32-byte Ed25519 key - `./skelet setup` generates the pair"}
+	}
+	return nil
+}
+
+func distinct(getenv Getenv, names ...string) []string {
+	var errs []string
+	for i, a := range names {
+		va := strings.TrimSpace(getenv(a))
+		for _, b := range names[i+1:] {
+			if vb := strings.TrimSpace(getenv(b)); va != "" && va == vb {
+				errs = append(errs, a+" and "+b+" must differ - they are held by different tiers, and one value would hand over both")
+			}
+		}
+	}
+	return errs
+}
+
+// SignalsServiceSecret guards the two ends of the Signals contract
+func SignalsServiceSecret(getenv Getenv) (errs, warnings []string) {
+	return strongSecret(getenv, "SIGNALS_SERVICE_SECRET"), nil
 }
 
 const ErrSignalsUnaddressed = "SIGNALS_ENABLED is true (the default) but SIGNALS_GRPC_ADDR is empty - point it at the signals service (e.g. signals:8092), or set SIGNALS_ENABLED=false to run without the suite"

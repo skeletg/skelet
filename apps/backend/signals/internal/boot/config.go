@@ -4,18 +4,24 @@ package boot
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 )
 
 // Config is what the two suite processes read from the environment, once, before a connection opens
 // No commerce database here - everything of core's is pushed across or asked for over the contract
 type Config struct {
 	Env string
-	// The session secret - verifies the customer sessions /t reads and signs the unsubscribe links core verifies
-	JWTSecret string
+	// Verifies the customer sessions /t reads - public keys only, so the suite can check a session but never mint one
+	Customers auth.CustomerVerifier
+	// Signs the unsubscribe, open and click links - shared with core, which verifies the unsubscribe, and nil in the beacon tier
+	EmailLinks *emailtrack.Signer
 	// Verifies the tokens core signs its contract calls with - shared with core alone, empty in the beacon tier
 	ServiceSecret string
 
@@ -43,6 +49,9 @@ func Load() (Config, error) {
 	if c.ServiceSecret == "" {
 		return Config{}, errors.New("SIGNALS_SERVICE_SECRET is not set - the contract verifies core's calls with it, and core signs them with the same value")
 	}
+	if c.EmailLinks, err = emailtrack.SignerFromEnv(os.Getenv); err != nil {
+		return Config{}, err
+	}
 	return c, nil
 }
 
@@ -54,7 +63,6 @@ func LoadIngest() (Config, error) {
 func load(maxConns int) (Config, error) {
 	c := Config{
 		Env:                 os.Getenv("APP_ENV"),
-		JWTSecret:           os.Getenv("JWT_SECRET"),
 		ServiceSecret:       strings.TrimSpace(os.Getenv("SIGNALS_SERVICE_SECRET")),
 		SignalsURL:          os.Getenv("SIGNALS_DB_URL"),
 		SignalsReadURL:      os.Getenv("SIGNALS_REPLICA_URL"),
@@ -67,10 +75,15 @@ func load(maxConns int) (Config, error) {
 	if c.SignalsURL == "" {
 		return Config{}, errors.New("SIGNALS_DB_URL is not set - the suite has no other database")
 	}
-	// /t and the unsubscribe links need it, so an empty value fails at boot and not at the first shopper
-	if c.JWTSecret == "" {
-		return Config{}, errors.New("JWT_SECRET is not set - /t verifies the customer sessions with it, and the unsubscribe links are signed with it")
+	// /t reads the shopper's session with it, so a missing key fails at boot and not at the first shopper
+	if err := auth.RefuseRetiredSecret(os.Getenv); err != nil {
+		return Config{}, err
 	}
+	customers, err := auth.CustomerVerifierFromEnv(os.Getenv)
+	if err != nil {
+		return Config{}, fmt.Errorf("%s: %w", auth.EnvCustomerPublicKey, err)
+	}
+	c.Customers = customers
 	if c.SignalsReadURL == "" { // a replica is an optimisation, not a requirement
 		c.SignalsReadURL = c.SignalsURL
 	}

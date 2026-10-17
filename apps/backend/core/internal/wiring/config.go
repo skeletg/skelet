@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 )
 
 // server answers HTTP, worker runs the background layer behind nothing but /healthz - both at once is safe, just redundant, since the loops are all DB-claim based (SKIP LOCKED + leases)
@@ -26,9 +29,12 @@ type Config struct {
 	Port       string
 	WorkerPort string
 
-	JWTSecret            string
-	VoterTokenSecret     []byte
-	SignalsServiceSecret string // signs core's calls on the Signals contract - the suite verifies with the same value, and the storefront never sees it
+	// Each signs one thing and is held only where that thing is checked - see docs/env.md for who holds which
+	AdminKeys            auth.AdminKeys      // admin sessions, core alone
+	CustomerKeys         auth.CustomerSigner // customer sessions - Signals gets only the public half
+	EmailLinks           *emailtrack.Signer  // unsubscribe, open and click links, shared with Signals
+	VoterTokenSecret     []byte              // anonymous review votes, shared with the storefront
+	SignalsServiceSecret string              // signs core's calls on the Signals contract - the suite verifies with the same value, and the storefront never sees it
 	DashboardURL         string
 	TrustedProxies       string
 	ConfigEncryptionKey  string // Empty in dev means secret config values are stored as plaintext
@@ -54,26 +60,33 @@ func LoadConfig() (Config, error) { // an error here fails the boot before a sin
 	if err != nil {
 		return Config{}, err
 	}
-	if c.JWTSecret == "" {
-		return Config{}, errors.New("JWT_SECRET is not set")
+	if err := auth.RefuseRetiredSecret(os.Getenv); err != nil {
+		return Config{}, err
 	}
-
-	// Signs anon review-vote cookie tokens, so a hostile caller can't forge a voter with any UUID - derived from JWT_SECRET when unset to keep existing deploys working, production should set both
-	c.VoterTokenSecret = []byte(os.Getenv("REVIEW_VOTER_TOKEN_SECRET"))
+	if c.AdminKeys, err = auth.AdminKeysFromEnv(os.Getenv); err != nil {
+		return Config{}, err
+	}
+	if c.CustomerKeys, err = auth.CustomerSignerFromEnv(os.Getenv); err != nil {
+		return Config{}, err
+	}
+	if c.EmailLinks, err = emailtrack.SignerFromEnv(os.Getenv); err != nil {
+		return Config{}, err
+	}
+	// Signs anon review-vote cookie tokens, so a hostile caller can't forge a voter with any UUID - the storefront mints them with the same value
+	c.VoterTokenSecret = []byte(strings.TrimSpace(os.Getenv("REVIEW_VOTER_TOKEN_SECRET")))
 	if len(c.VoterTokenSecret) == 0 {
-		c.VoterTokenSecret = []byte("vote:" + c.JWTSecret)
+		return Config{}, errors.New("REVIEW_VOTER_TOKEN_SECRET is not set - it signs anonymous review votes, shared with the storefront")
 	}
 	return c, nil
 }
 
-// loadBase is what every entrypoint needs - the JWT and voter-token rules live in LoadConfig because only the HTTP surfaces sign or verify anything
+// loadBase is what every entrypoint needs - the session, link and voter keys live in LoadConfig because only the HTTP surfaces sign or verify anything
 func loadBase() (Config, error) {
 	c := Config{
 		Env:          os.Getenv("APP_ENV"),
 		Role:         strings.TrimSpace(os.Getenv("SKELET_ROLE")),
 		Port:         os.Getenv("PORT"),
 		WorkerPort:   os.Getenv("WORKER_PORT"),
-		JWTSecret:    os.Getenv("JWT_SECRET"),
 		DashboardURL: os.Getenv("DASHBOARD_URL"),
 
 		SignalsServiceSecret: strings.TrimSpace(os.Getenv("SIGNALS_SERVICE_SECRET")),

@@ -65,10 +65,11 @@ func TestServiceTokenRefusesAnotherAudience(t *testing.T) {
 	}
 }
 
-// The three token kinds share a secret, so only the type claim keeps them apart
+// Even an operator who reused one value for both keys can't turn either token into the other - audience and type still keep them apart
 func TestServiceTokenIsNotInterchangeableWithAnAdminToken(t *testing.T) {
 	adminID := uuid.New()
-	adminTok, err := GenerateToken(adminID, uuid.New(), "ops@example.test", false, svcSecret, time.Minute)
+	sameValue, _ := NewAdminKeys(svcSecret)
+	adminTok, err := GenerateToken(adminID, uuid.New(), "ops@example.test", false, sameValue, time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateToken: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestServiceTokenIsNotInterchangeableWithAnAdminToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateServiceToken: %v", err)
 	}
-	if _, err := ValidateToken(svcTok, svcSecret); err == nil {
+	if _, err := ValidateToken(svcTok, sameValue); err == nil {
 		t.Error("a service token passed as an admin token, which would authorize the whole admin API")
 	}
 	if _, err := ValidateServiceToken(svcTok, "signals", "another-secret"); err == nil {

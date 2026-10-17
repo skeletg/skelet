@@ -8,32 +8,33 @@ import (
 	"github.com/google/uuid"
 )
 
-func Middleware(secret string) func(http.Handler) http.Handler { // non-blocking, so a missing or invalid token is silently ignored and resolvers enforce authorization
+// AdminMiddleware reads an admin access token for the admin surface - non-blocking, so a missing or invalid token is silently ignored and resolvers enforce authorization, and a customer token never counts here
+func AdminMiddleware(keys AdminKeys) func(http.Handler) http.Handler {
+	return bearer(func(r *http.Request, token string) *http.Request {
+		if c, err := parseAdmin(token, keys); err == nil {
+			return r.WithContext(WithAdmin(r.Context(), &Claims{AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser}))
+		}
+		return r
+	})
+}
+
+// CustomerMiddleware is the storefront's half - only a customer token signs anyone in, so an admin token on a storefront route reads as anonymous
+func CustomerMiddleware(v CustomerVerifier) func(http.Handler) http.Handler {
+	return bearer(func(r *http.Request, token string) *http.Request {
+		if c, err := parseCustomer(token, v); err == nil {
+			return r.WithContext(WithCustomer(r.Context(), &CustomerClaims{CustomerID: c.CustomerID, ChannelID: c.ChannelID, Email: c.Email}))
+		}
+		return r
+	})
+}
+
+func bearer(identify func(r *http.Request, token string) *http.Request) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r = r.WithContext(WithRequest(r.Context(), r))
 			r = r.WithContext(WithRequestCache(r.Context())) // memoizes permission and scope lookups, so a gated resolver and every per-row channel filter resolve the admin's grants once rather than once per check
-			header := r.Header.Get("Authorization")
-			if after, ok := strings.CutPrefix(header, "Bearer "); ok {
-				tokenStr := after
-				if c, err := parse(tokenStr, secret); err == nil {
-					switch c.Type {
-					case "customer":
-						r = r.WithContext(WithCustomer(r.Context(), &CustomerClaims{
-							CustomerID: c.CustomerID,
-							ChannelID:  c.ChannelID,
-							Email:      c.Email,
-						}))
-					case "admin":
-						r = r.WithContext(WithAdmin(r.Context(), &Claims{
-							AdminID:     c.AdminID,
-							SessionID:   c.SessionID,
-							Email:       c.Email,
-							IsSuperuser: c.IsSuperuser,
-						}))
-					default: // a type-less or unknown token injects nothing - reads as anonymous instead of falling through to admin
-					}
-				}
+			if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+				r = identify(r, token)
 			}
 			next.ServeHTTP(w, r)
 		})

@@ -32,29 +32,42 @@ type Payload struct {
 	L int       `json:"l,omitempty"` // link index (clicks only)
 }
 
-// Signs and verifies tracking tokens with an HMAC key, the app's unsubKey
-type Signer struct{ key []byte }
+// Signs tracking and unsubscribe tokens with EMAIL_LINK_SECRET and verifies against it and any retiring key, so a rotation leaves links already in inboxes working
+type Signer struct {
+	key    []byte
+	verify [][]byte
+}
 
-func NewSigner(key []byte) *Signer { return &Signer{key: key} }
+func NewSigner(key []byte, previous ...[]byte) *Signer {
+	s := &Signer{key: key, verify: [][]byte{key}}
+	for _, p := range previous {
+		if len(p) > 0 {
+			s.verify = append(s.verify, p)
+		}
+	}
+	return s
+}
 
 // Produces a URL-safe `payload.mac` token
 func (s *Signer) Sign(p Payload) string {
 	raw, _ := json.Marshal(p)
 	payload := base64.RawURLEncoding.EncodeToString(raw)
-	mac := hmac.New(sha256.New, s.key)
-	mac.Write([]byte(payload))
-	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return payload + "." + macWith(s.key, payload)
+}
+
+// signed reports whether any key in the set produced mac over payload
+func (s *Signer) signed(payload, mac string) bool {
+	for _, k := range s.verify {
+		if hmac.Equal([]byte(macWith(k, payload)), []byte(mac)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Signer) Verify(token string) (Payload, error) {
 	parts := strings.SplitN(token, ".", 2)
-	if len(parts) != 2 {
-		return Payload{}, ErrInvalid
-	}
-	mac := hmac.New(sha256.New, s.key)
-	mac.Write([]byte(parts[0]))
-	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(want), []byte(parts[1])) {
+	if len(parts) != 2 || !s.signed(parts[0], parts[1]) {
 		return Payload{}, ErrInvalid
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
@@ -111,13 +124,13 @@ func (s *Signer) InjectPixel(html, baseURL string, sendID uuid.UUID) string {
 // every marketing mail and core, where consent lives, verifies it when the link is followed
 func (s *Signer) SignUnsubscribe(customerID uuid.UUID) string {
 	payload := base64.RawURLEncoding.EncodeToString([]byte(customerID.String()))
-	return payload + "." + s.mac(payload)
+	return payload + "." + macWith(s.key, payload)
 }
 
 // VerifyUnsubscribe answers the customer a valid link names, ErrInvalid for anything else
 func (s *Signer) VerifyUnsubscribe(token string) (uuid.UUID, error) {
 	parts := strings.SplitN(token, ".", 2)
-	if len(parts) != 2 || !hmac.Equal([]byte(s.mac(parts[0])), []byte(parts[1])) {
+	if len(parts) != 2 || !s.signed(parts[0], parts[1]) {
 		return uuid.Nil, ErrInvalid
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
@@ -131,8 +144,30 @@ func (s *Signer) VerifyUnsubscribe(token string) (uuid.UUID, error) {
 	return id, nil
 }
 
-func (s *Signer) mac(payload string) string {
-	mac := hmac.New(sha256.New, s.key)
+func macWith(key []byte, payload string) string {
+	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte(payload))
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+const (
+	EnvLinkSecret         = "EMAIL_LINK_SECRET"
+	EnvLinkSecretPrevious = "EMAIL_LINK_SECRET_PREVIOUS"
+)
+
+var ErrNoLinkSecret = errors.New("EMAIL_LINK_SECRET is not set - it signs the unsubscribe, open and click links")
+
+// SignerFromEnv is the one key set core and the Signals tier both build, EMAIL_LINK_SECRET_PREVIOUS a comma-separated list
+func SignerFromEnv(getenv func(string) string) (*Signer, error) {
+	key := strings.TrimSpace(getenv(EnvLinkSecret))
+	if key == "" {
+		return nil, ErrNoLinkSecret
+	}
+	var previous [][]byte
+	for p := range strings.SplitSeq(getenv(EnvLinkSecretPrevious), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			previous = append(previous, []byte(p))
+		}
+	}
+	return NewSigner([]byte(key), previous...), nil
 }

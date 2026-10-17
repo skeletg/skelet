@@ -83,7 +83,7 @@ npm_tree_hint() { # npm_tree_hint <app dir>
     echo "    rm -rf $1/node_modules && (cd $1 && pnpm install)" >&2
 }
 
-# env/signals.env from its template, with the two secrets it must share with core copied from env/go.env
+# env/signals.env from its template, with what it must share with core copied from env/go.env - the customer PUBLIC key, never the private one
 sync_signals_env() {
     local go="$_skelet_root/env/go.env" sig="$_skelet_root/env/signals.env" key val tmp
     [ -f "$go" ] || return 0
@@ -91,7 +91,12 @@ sync_signals_env() {
         cp "$_skelet_root/env/signals.env.example" "$sig"
         echo "==> wrote env/signals.env from its template"
     fi
-    for key in JWT_SECRET SIGNALS_SERVICE_SECRET; do
+    # JWT_SECRET is retired, and the suite refuses to boot while it is set
+    tmp="$sig.tmp.$$"
+    grep -v '^JWT_SECRET=' "$sig" > "$tmp" || true
+    cat "$tmp" > "$sig"
+    rm -f "$tmp"
+    for key in CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET SIGNALS_SERVICE_SECRET; do
         val="$(grep -E "^${key}=" "$go" | head -1 | cut -d= -f2-)"
         [ -n "$val" ] || continue
         tmp="$sig.tmp.$$"

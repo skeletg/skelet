@@ -125,7 +125,8 @@ type Resolver struct {
 	RefreshStore     *auth.RefreshStore // admin refresh tokens
 	BlogPreviewStore *preview.Store     // short-lived blog preview tokens
 	CMSPreviewStore  *preview.Store     // short-lived CMS page preview tokens
-	JWTSecret        string
+	AdminKeys        auth.AdminKeys
+	CustomerKeys     auth.CustomerSigner // masquerade mints a storefront session
 	JWTTTL           time.Duration
 
 	RateLimiter   ratelimit.Limiter   // shares the Valkey-backed counters with the storefront limiter so every pod sees the same budget - nil disables the check, which is what tests do

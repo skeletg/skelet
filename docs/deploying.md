@@ -15,7 +15,7 @@ dev stack.
 ```bash
 cp env/small.env.example env/small.env
 cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-cp .env.example .env    # JWT_SECRET, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD
+cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - ./skelet setup fills them
 docker compose -f docker-compose.small.yml up -d
 ```
 

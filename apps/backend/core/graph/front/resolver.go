@@ -92,7 +92,7 @@ type Resolver struct {
 	OriginPlanner        OriginPlanner     // where each line ships from, for the packages a delivery group splits into - nil puts every line in one package
 	DownloadSvc          *download.Service
 	SubscriptionSvc      *subscription.Service
-	JWTSecret            string
+	CustomerKeys         auth.CustomerSigner
 	JWTTTL               time.Duration
 	VoterTokenSecret     []byte              // signs anon review-vote cookie tokens - the storefront mints `<uuid>.<hmac>` server-side with the same secret and the backend verifies it, so nobody can forge a UUID and stuff the counts
 	RateLimiter          ratelimit.Limiter   // per-IP cap on abuse-prone ops (login, password reset, signup, review submit/vote); optional - nil falls through, which is what tests and CLI paths get, while production wires ratelimit.NewRedis so every instance shares one set of counters
