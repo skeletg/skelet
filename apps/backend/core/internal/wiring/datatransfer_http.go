@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -129,6 +132,11 @@ func dataImportHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handl
 			http.Error(w, fmt.Sprintf("that file is over the %d MB limit - split it", maxImportUpload>>20), http.StatusRequestEntityTooLarge)
 			return
 		}
+		if apperr.ClassOf(err) == apperr.ClassInternal {
+			slog.Error("data import: queue", "resource", slug, "err", err)
+			http.Error(w, "could not store the upload right now", http.StatusInternalServerError)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -204,7 +212,7 @@ func dataDownloadHandler(svc *datajob.Service, adminSvc *admin.Service) http.Han
 			contentType = codec.ContentType()
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(job.Filename)+`"`)
+		w.Header().Set("Content-Disposition", attachment(sanitizeFilename(job.Filename)))
 		w.Header().Set("Cache-Control", "no-store")
 		// A mid-stream error can no longer change the status line - the truncated file is the signal
 		_, _ = io.Copy(w, body)
@@ -246,6 +254,14 @@ func dataTemplateHandler(svc *datajob.Service, adminSvc *admin.Service) http.Han
 		w.Header().Set("Cache-Control", "no-store")
 		_ = svc.Registry().Template(r.Context(), slug, format, w)
 	})
+}
+
+// attachment encodes a non-ASCII name as filename* (RFC 6266), which browsers decode instead of mangling the raw bytes
+func attachment(name string) string {
+	if v := mime.FormatMediaType("attachment", map[string]string{"filename": name}); v != "" {
+		return v
+	}
+	return `attachment; filename="export"`
 }
 
 func jobIDFromPath(path string) string {

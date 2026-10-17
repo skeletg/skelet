@@ -633,9 +633,21 @@ func (t StoreCreditTender) RedeemTx(ctx context.Context, tx *sql.Tx, customerID 
 	return t.svc.RedeemUpToTx(ctx, tx, customerID, amountDue, currency, orderID)
 }
 
+// The order and catalog reads the order-placed issuers make - a SKU the catalog no longer has is skipped, but any other failure goes back to the outbox, since a dropped line is a gift card, download or subscription the customer paid for and never gets
+type orderReader interface {
+	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
+}
+
+type catalogSKUReader interface {
+	GetProductBySKU(ctx context.Context, sku string) (catalog.Product, error)
+	ProductKindBySKU(ctx context.Context, sku string) (string, error)
+	ListProductDownloads(ctx context.Context, productID uuid.UUID) ([]catalog.ProductDownload, error)
+	GetSubscriptionTerms(ctx context.Context, productID uuid.UUID) (catalog.SubscriptionTerms, error)
+}
+
 type DownloadOrderLookup struct { // adapts order + catalog to download.OrderDownloadLookup: the downloadable files of a placed order's product lines
-	orderSvc   *order.Service
-	catalogSvc *catalog.Service
+	orderSvc   orderReader
+	catalogSvc catalogSKUReader
 }
 
 func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid.UUID) (download.OrderDownloads, error) {
@@ -649,12 +661,15 @@ func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid
 			continue
 		}
 		p, err := l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
-		if err != nil {
+		if errors.Is(err, catalog.ErrProductNotFound) {
 			continue
 		}
+		if err != nil {
+			return download.OrderDownloads{}, fmt.Errorf("product %q: %w", line.ProductSku, err)
+		}
 		dls, err := l.catalogSvc.ListProductDownloads(ctx, p.ID)
-		if err != nil || len(dls) == 0 {
-			continue
+		if err != nil {
+			return download.OrderDownloads{}, fmt.Errorf("downloads for %q: %w", line.ProductSku, err)
 		}
 		for _, d := range dls {
 			out.Items = append(out.Items, download.GrantableDownload{
@@ -671,8 +686,8 @@ func (l DownloadOrderLookup) DownloadsForOrder(ctx context.Context, orderID uuid
 
 // GiftcardOrderLookup adapts order + catalog to giftcard.OrderGiftcardLookup: it returns the gift-card lines of a placed order (face value + quantity), resolving each line's kind via the catalog
 type GiftcardOrderLookup struct {
-	orderSvc   *order.Service
-	catalogSvc *catalog.Service
+	orderSvc   orderReader
+	catalogSvc catalogSKUReader
 }
 
 func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUID) (giftcard.OrderGiftcards, error) {
@@ -687,9 +702,11 @@ func (l GiftcardOrderLookup) GiftcardLines(ctx context.Context, orderID uuid.UUI
 			continue
 		}
 		kind, err := l.catalogSvc.ProductKindBySKU(ctx, line.ProductSku)
-		if err != nil {
-			log.Printf("[giftcard] resolve sku %q for order %s issuance: %v", line.ProductSku, orderID, err)
+		if errors.Is(err, catalog.ErrProductNotFound) {
 			continue
+		}
+		if err != nil {
+			return giftcard.OrderGiftcards{}, fmt.Errorf("resolve sku %q for order %s issuance: %w", line.ProductSku, orderID, err)
 		}
 		if kind == string(catalog.KindGiftcard) {
 			out.Lines = append(out.Lines, giftcard.IssuableLine{UnitPrice: line.UnitPrice, Quantity: line.Quantity})
@@ -766,8 +783,8 @@ func (c SubscriptionRenewalCharger) ChargeInvoice(ctx context.Context, sub subsc
 
 // SubscriptionOrderLookup adapts order + catalog to subscription.OrderSubscriptionLookup: it returns the subscription lines of a placed order (terms resolved from the catalog, price/sku/title snapshotted from the line) so the issuer can start a subscription per line
 type SubscriptionOrderLookup struct {
-	orderSvc   *order.Service
-	catalogSvc *catalog.Service
+	orderSvc   orderReader
+	catalogSvc catalogSKUReader
 }
 
 func (l SubscriptionOrderLookup) SubscriptionsForOrder(ctx context.Context, orderID uuid.UUID) ([]subscription.StartableSubscription, error) {
@@ -781,13 +798,22 @@ func (l SubscriptionOrderLookup) SubscriptionsForOrder(ctx context.Context, orde
 			continue
 		}
 		p, err := l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
-		if err != nil || p.Kind != catalog.KindSubscription {
+		if errors.Is(err, catalog.ErrProductNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("product %q: %w", line.ProductSku, err)
+		}
+		if p.Kind != catalog.KindSubscription {
 			continue
 		}
 		terms, err := l.catalogSvc.GetSubscriptionTerms(ctx, p.ID)
-		if err != nil {
-			log.Printf("[subscription] no terms for product %s (order %s): %v", p.ID, orderID, err) // no terms configured - can't start a subscription, skip
+		if errors.Is(err, catalog.ErrSubscriptionTermsNotFound) {
+			log.Printf("[subscription] no terms for product %s (order %s) - can't start a subscription, skipping", p.ID, orderID)
 			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("subscription terms for %q: %w", line.ProductSku, err)
 		}
 		// Fold custom-option picks into the snapshot title so recurring fulfillment keeps the personalization ("Coffee Club (Grind: Espresso)") - the subscription model has no options field
 		title := line.ProductName
