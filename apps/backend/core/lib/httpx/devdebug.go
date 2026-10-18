@@ -11,7 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 )
 
-// DEV ONLY, wired behind APP_ENV=development - plants a per-request DB query counter on the context and answers with X-DB-Queries and X-Trace-Id, which the dashboard's dev inspector reads for a one-click jump to the Jaeger trace
+// DEV ONLY, wired behind APP_ENV=development - plants a per-request DB query counter on the context and answers with X-DB-Queries and X-Trace-Id, which the dashboard's dev inspector reads to show the trace id beside each request
 // Headers must be set before the first body byte, so the writer wraps WriteHeader and Write and injects lazily - by the time a GraphQL response starts writing, resolution and its queries are done - Queries fired during response streaming are missed, which is acceptable for a debugging aid
 func DevDebugMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

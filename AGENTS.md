@@ -35,7 +35,7 @@ repo through the verbs so there's a single vocabulary.
 
 ```bash
 ./skelet setup            # first run: picks apps, writes env, migrates, boots
-./skelet up               # start the dev stack     (--lean skips OpenSearch, Jaeger and the Signals process with its ClickHouse)
+./skelet up               # start the dev stack     (--lean skips OpenSearch, the dev tools and the Signals process with its ClickHouse)
 ./skelet check            # every gate that can fail a commit, in about a second
 ./skelet test             # go test + frontend typechecks + unit tests
 ./skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)

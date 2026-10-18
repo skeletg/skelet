@@ -117,7 +117,7 @@ func TestACrawlStartsOnlyAtAVouchedOrigin(t *testing.T) {
 			t.Errorf("checkOrigin(%q) = %v, want allowed", ok, err)
 		}
 	}
-	for _, bad := range []string{"https://attacker.test", "http://shop.example.com", "http://jaeger:16686", "http://vetrina:3001"} {
+	for _, bad := range []string{"https://attacker.test", "http://shop.example.com", "http://internal-tool:16686", "http://vetrina:3001"} {
 		if err := checkOrigin(bad, "https://shop.example.com"); !errors.Is(err, errBaseURLRefused) {
 			t.Errorf("checkOrigin(%q) = %v, want %v", bad, err, errBaseURLRefused)
 		}

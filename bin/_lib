@@ -13,11 +13,19 @@ else
     SKELET_APPS=""
 fi
 
+# Optional dev tools (mailpit, webhook-tester, grafana, garage-webui) - .skelet-tools if there is one, else none
+# Each is a compose profile of its own name, and bin/dev --lean empties SKELET_TOOLS along with the sidecars
+_skelet_tools_picked="$(tr -d '[:space:]' < "$_skelet_root/.skelet-tools" 2>/dev/null || true)"
+SKELET_TOOLS="${SKELET_TOOLS-$_skelet_tools_picked}"
+
 # Sidecar profiles - bin/dev --lean empties SKELET_SIDECARS
-_skelet_sidecars="${SKELET_SIDECARS-search,tracing}"
+_skelet_sidecars="${SKELET_SIDECARS-search}"
 _skelet_profiles="$_skelet_sidecars"
 if [ -n "$SKELET_APPS" ]; then
     _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_APPS"
+fi
+if [ -n "$SKELET_TOOLS" ]; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_TOOLS"
 fi
 
 # The Signals process follows core's switch - SIGNALS_ENABLED lives in the backend env and unset
@@ -112,6 +120,33 @@ sync_signals_env() {
     done
 }
 
+# Points the backend env files at the dev tools .skelet-tools picks and away from the ones it doesn't - the
+# picked list, not SKELET_TOOLS, so a --lean run doesn't unwire them. Only values a tool owns are touched,
+# so an SMTP relay or OTLP collector of your own is left alone
+sync_tool_env() {
+    local f val
+    for f in "$_skelet_root/env/go.env" "$_skelet_root/env/signals.env"; do
+        [ -f "$f" ] || continue
+        val="$(grep -E '^SMTP_HOST=' "$f" | head -1 | cut -d= -f2-)"
+        case ",$_skelet_tools_picked," in
+            *,mailpit,*) case "$val" in ''|mailpit) env_set "$f" SMTP_HOST mailpit; env_set "$f" SMTP_PORT 1025 ;; esac ;;
+            *)           [ "$val" = mailpit ] && env_set "$f" SMTP_HOST "" ;;
+        esac
+        val="$(grep -E '^OTEL_EXPORTER_OTLP_ENDPOINT=' "$f" | head -1 | cut -d= -f2-)"
+        case "$val" in ''|http://grafana:4318) ;; *) continue ;; esac
+        case ",$_skelet_tools_picked," in
+            *,grafana,*)
+                env_set "$f" OTEL_EXPORTER_OTLP_ENDPOINT http://grafana:4318
+                env_set "$f" OTEL_TRACES_EXPORTER otlp
+                env_set "$f" OTEL_METRICS_EXPORTER otlp ;;
+            *)
+                env_set "$f" OTEL_EXPORTER_OTLP_ENDPOINT ""
+                env_set "$f" OTEL_TRACES_EXPORTER ""
+                env_set "$f" OTEL_METRICS_EXPORTER "" ;;
+        esac
+    done
+}
+
 # env_set FILE KEY VALUE - replace the KEY= line, or append one, keeping the file's mode
 env_set() {
     local tmp="$1.tmp.$$"
@@ -135,6 +170,7 @@ host_port_var() { # host_port_var <service> <container port>
         nats:4222)       echo NATS_HOST_PORT ;;
         signals:8090)    echo SIGNALS_HOST_PORT ;;
         garage:3903)     echo GARAGE_ADMIN_HOST_PORT ;;
+        grafana:3000)    echo GRAFANA_HOST_PORT ;;
     esac
 }
 
