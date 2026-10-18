@@ -138,12 +138,26 @@ DELETE FROM lens_visitor_seen WHERE last_seen < sqlc.arg(before);
 -- One-time backfill (run off-peak via `skelet lens backfill-rollups`). Aggregates existing raw web events into the rollups so the hub shows
 -- history immediately. Idempotent for the view dims (DO UPDATE SET = EXCLUDED overwrites covered days)
 
--- name: LensUpsertSnapshot :exec
--- Store a layout once per state; a repeat visit to the same layout just bumps last_seen
+-- name: LensInsertSnapshot :execrows
+-- A layout is stored once and never replaced - the beacon is unauthenticated, so a later post for a known layout must not swap its
+-- backdrop - and a page state holds at most max_layouts of them, so invented layout hashes can't fill object storage
 INSERT INTO lens_page_snapshots (channel_id, page_key, viewport_bucket, state_key, layout_hash, blob_key, width, height)
-VALUES (sqlc.arg(channel_id), sqlc.arg(page_key), sqlc.arg(viewport_bucket), sqlc.arg(state_key), sqlc.arg(layout_hash), sqlc.arg(blob_key), sqlc.arg(width), sqlc.arg(height))
-ON CONFLICT (channel_id, page_key, viewport_bucket, state_key, layout_hash)
-DO UPDATE SET last_seen_at = NOW();
+SELECT sqlc.arg(channel_id), sqlc.arg(page_key), sqlc.arg(viewport_bucket), sqlc.arg(state_key), sqlc.arg(layout_hash), sqlc.arg(blob_key), sqlc.arg(width), sqlc.arg(height)
+WHERE (SELECT count(*) FROM lens_page_snapshots
+       WHERE channel_id = sqlc.arg(channel_id) AND page_key = sqlc.arg(page_key)
+         AND viewport_bucket = sqlc.arg(viewport_bucket) AND state_key = sqlc.arg(state_key)) < sqlc.arg(max_layouts)::bigint
+ON CONFLICT (channel_id, page_key, viewport_bucket, state_key, layout_hash) DO NOTHING;
+
+-- name: LensTouchSnapshot :exec
+UPDATE lens_page_snapshots SET last_seen_at = NOW()
+WHERE channel_id = sqlc.arg(channel_id) AND page_key = sqlc.arg(page_key) AND viewport_bucket = sqlc.arg(viewport_bucket)
+  AND state_key = sqlc.arg(state_key) AND layout_hash = sqlc.arg(layout_hash);
+
+-- name: LensDeleteSnapshot :exec
+-- Drops a row whose upload failed, so the latest-snapshot read never lands on a backdrop that isn't there
+DELETE FROM lens_page_snapshots
+WHERE channel_id = sqlc.arg(channel_id) AND page_key = sqlc.arg(page_key) AND viewport_bucket = sqlc.arg(viewport_bucket)
+  AND state_key = sqlc.arg(state_key) AND layout_hash = sqlc.arg(layout_hash);
 
 -- Stage B: heatmap reads ------------------------------------------------------
 
@@ -204,6 +218,12 @@ UPDATE lens_sessions SET
     error_count = error_count + (CASE WHEN sqlc.arg(kind)::text = 'error' THEN 1 ELSE 0 END)
 WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
+-- name: LensReplayState :one
+-- Whether this flush's seq already landed, and the earliest client timestamp the session's chunks carry - both in the
+-- tracker's own clock, which is the one the recording-length cap has to be measured in
+SELECT EXISTS (SELECT 1 FROM lens_session_chunks t WHERE t.session_id = sqlc.arg(session_id)::uuid AND t.seq = sqlc.arg(seq)::int)::boolean AS seq_taken,
+       COALESCE((SELECT min(f.first_ts) FROM lens_session_chunks f WHERE f.session_id = sqlc.arg(session_id)::uuid), 0)::bigint AS first_ts;
+
 -- name: LensInsertChunk :exec
 -- blob_key names the gzip bytes in object storage
 INSERT INTO lens_session_chunks (session_id, seq, blob_key, event_count, first_ts, last_ts)
@@ -213,31 +233,27 @@ ON CONFLICT (session_id, seq) DO NOTHING;
 -- name: LensSessionsForCustomer :many
 -- Every session for a customer: those resolved to the customer id PLUS sessions
 -- recorded under any anon id they later identified with (pre-login coverage).
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT * FROM lens_sessions
 WHERE (customer_id = sqlc.arg(customer_id) OR anon_id = ANY(sqlc.arg(anon_ids)::text[]))
   AND (sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY started_at DESC
 LIMIT sqlc.arg(lim);
 
 -- name: LensSessionsForAnon :many
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT * FROM lens_sessions
 WHERE anon_id = sqlc.arg(anon_id)
   AND (sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY started_at DESC
 LIMIT sqlc.arg(lim);
 
 -- name: LensSessionsForChannel :many
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT * FROM lens_sessions
 WHERE channel_id = sqlc.arg(channel_id)
 ORDER BY started_at DESC
 LIMIT sqlc.arg(lim);
 
 -- name: LensGetSession :one
-SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent
-FROM lens_sessions WHERE id = sqlc.arg(id);
+SELECT * FROM lens_sessions WHERE id = sqlc.arg(id);
 
 -- name: LensSessionChunks :many
 -- The object keys of a session's compressed event chunks, in replay order
