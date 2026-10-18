@@ -3,7 +3,8 @@ package behavioralsegment
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -32,6 +33,9 @@ func (s *Service) Evaluate(ctx context.Context, def Definition, now time.Time) (
 	if root == nil {
 		return nil, ErrEmptyDefinition
 	}
+	if err := validateTree(root); err != nil {
+		return nil, err
+	}
 	ev := &nodeEvaluator{rec: s.rec, cid: cid, now: now}
 	set, err := ev.eval(ctx, root)
 	if err != nil {
@@ -50,7 +54,10 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Segment, error) {
 	if !ok {
 		return Segment{}, ErrNotBehavioral
 	}
-	count, _ := s.segs.MemberCount(ctx, id)
+	count, err := s.segs.MemberCount(ctx, id)
+	if err != nil {
+		return Segment{}, err
+	}
 	return Segment{Segment: seg, Definition: def, MemberCount: int(count)}, nil
 }
 
@@ -70,7 +77,10 @@ func (s *Service) List(ctx context.Context, channelID string) ([]Segment, error)
 		mine = append(mine, Segment{Segment: seg, Definition: def})
 		ids = append(ids, seg.ID)
 	}
-	counts, _ := s.segs.MemberCounts(ctx, ids)
+	counts, err := s.segs.MemberCounts(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range mine {
 		mine[i].MemberCount = int(counts[mine[i].ID])
 	}
@@ -212,14 +222,22 @@ func (s *Service) Detail(ctx context.Context, id uuid.UUID, memberCap, growthDay
 	}, nil
 }
 
-// RefreshAll re-materialises every behavioral segment - one segment's failure is logged and skipped, never fatal
-// onEntered fires only for customers newly joining on this pass, which is what drives Pulse's segment_entered trigger
-func (s *Service) RefreshAll(ctx context.Context, now time.Time, onEntered func(channelID, customerID uuid.UUID, slug string)) (int, error) {
+// Entered is one customer newly joining a segment on a refresh pass - what drives Pulse's segment_entered trigger
+type Entered struct {
+	ChannelID, CustomerID, SegmentID uuid.UUID
+	Slug                             string
+}
+
+// RefreshAll re-materialises every behavioral segment - one segment's failure is skipped so the rest still refresh, and every
+// failure comes back joined. onEntered hears only customers newly joining on this pass, and never for a segment whose prior
+// membership couldn't be read, since then everyone would read as new
+func (s *Service) RefreshAll(ctx context.Context, now time.Time, onEntered func(Entered)) (int, error) {
 	list, err := s.listAll(ctx)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
+	var errs []error
 	for _, seg := range list {
 		def, ok := Parse(seg.Definition)
 		if !ok {
@@ -227,32 +245,35 @@ func (s *Service) RefreshAll(ctx context.Context, now time.Time, onEntered func(
 		}
 		ids, err := s.Evaluate(ctx, def, now)
 		if err != nil {
-			log.Printf("synapse: refresh segment %s (%s): eval: %v", seg.Slug, seg.ID, err)
+			errs = append(errs, fmt.Errorf("segment %s: evaluate: %w", seg.Slug, err))
 			continue
 		}
 		var prior map[uuid.UUID]bool
 		if onEntered != nil {
-			pm, _ := s.segs.MemberIDs(ctx, seg.ID)
-			prior = make(map[uuid.UUID]bool, len(pm))
-			for _, id := range pm {
-				prior[id] = true
+			if pm, err := s.segs.MemberIDs(ctx, seg.ID); err != nil {
+				errs = append(errs, fmt.Errorf("segment %s: prior members, no entered runs this pass: %w", seg.Slug, err))
+			} else {
+				prior = make(map[uuid.UUID]bool, len(pm))
+				for _, id := range pm {
+					prior[id] = true
+				}
 			}
 		}
 		if err := s.materialize(ctx, seg.ID, ids); err != nil {
-			log.Printf("synapse: refresh segment %s (%s): materialize: %v", seg.Slug, seg.ID, err)
+			errs = append(errs, fmt.Errorf("segment %s: materialize: %w", seg.Slug, err))
 			continue
 		}
-		if onEntered != nil {
+		if prior != nil {
 			cid, _ := uuid.Parse(def.ChannelID)
 			for _, id := range ids {
 				if !prior[id] {
-					onEntered(cid, id, seg.Slug)
+					onEntered(Entered{ChannelID: cid, CustomerID: id, SegmentID: seg.ID, Slug: seg.Slug})
 				}
 			}
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }
 
 // AffinitySyncOptions bounds one sync pass - zero values take the defaults
@@ -273,9 +294,10 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 		opts.MinActors = 1
 	}
 	if opts.WindowDays <= 0 {
-		opts.WindowDays = 90
+		opts.WindowDays = DefaultAffinityWindowDays
 	}
 	key := func(parts ...string) string { return strings.Join(parts, "|") }
+	var errs []error
 
 	list, err := s.listAll(ctx)
 	if err != nil {
@@ -298,7 +320,7 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 		for _, a := range opts.Attributes {
 			vals, err := s.rec.AffinityValueCounts(ctx, cid, a.Slug, since, opts.MaxValues)
 			if err != nil {
-				log.Printf("synapse: affinity sync %s/%s: discover values: %v", cid, a.Slug, err)
+				errs = append(errs, fmt.Errorf("affinity sync %s/%s: discover values: %w", cid, a.Slug, err))
 				continue // a transient discovery error must not prune this (channel, attr)
 			}
 			scanned[key(cid.String(), a.Slug)] = true
@@ -311,30 +333,31 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 				def := Definition{ChannelID: cid.String(), Affinity: &Affinity{Attr: a.Slug, Value: v.Value, Days: opts.WindowDays, Auto: true}}
 				ids, err := s.Evaluate(ctx, def, now)
 				if err != nil {
-					log.Printf("synapse: affinity sync %s/%s=%q: eval: %v", cid, a.Slug, v.Value, err)
+					errs = append(errs, fmt.Errorf("affinity sync %s/%s=%q: eval: %w", cid, a.Slug, v.Value, err))
 					continue
 				}
 				defJSON, err := json.Marshal(def)
 				if err != nil {
+					errs = append(errs, err)
 					continue
 				}
 				name := a.Name + ": " + v.Value
 				seg, ok := existing[k]
 				if ok {
 					if _, err := s.segs.Update(ctx, segment.UpdateInput{ID: seg.ID, Slug: seg.Slug, Name: name, Description: seg.Description, Definition: string(defJSON), IsActive: true}); err != nil {
-						log.Printf("synapse: affinity sync %s/%s=%q: update: %v", cid, a.Slug, v.Value, err)
+						errs = append(errs, fmt.Errorf("affinity sync %s/%s=%q: update: %w", cid, a.Slug, v.Value, err))
 						continue
 					}
 				} else {
 					seg, err = s.segs.Create(ctx, segment.CreateInput{Slug: Slugify(name) + "-" + uuid.NewString()[:6], Name: name, Definition: string(defJSON), IsActive: true})
 					if err != nil {
-						log.Printf("synapse: affinity sync %s/%s=%q: create: %v", cid, a.Slug, v.Value, err)
+						errs = append(errs, fmt.Errorf("affinity sync %s/%s=%q: create: %w", cid, a.Slug, v.Value, err))
 						continue
 					}
 					created++
 				}
 				if err := s.materialize(ctx, seg.ID, ids); err != nil {
-					log.Printf("synapse: affinity sync %s/%s=%q: materialize: %v", cid, a.Slug, v.Value, err)
+					errs = append(errs, fmt.Errorf("affinity sync %s/%s=%q: materialize: %w", cid, a.Slug, v.Value, err))
 				}
 			}
 		}
@@ -350,16 +373,16 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 			continue
 		}
 		if err := s.segs.ClearMembership(ctx, seg.ID); err != nil {
-			log.Printf("synapse: affinity prune %s (%s): clear: %v", seg.Slug, seg.ID, err)
+			errs = append(errs, fmt.Errorf("affinity prune %s (%s): clear: %w", seg.Slug, seg.ID, err))
 			continue
 		}
 		if err := s.segs.Delete(ctx, seg.ID); err != nil {
-			log.Printf("synapse: affinity prune %s (%s): delete: %v", seg.Slug, seg.ID, err)
+			errs = append(errs, fmt.Errorf("affinity prune %s (%s): delete: %w", seg.Slug, seg.ID, err))
 			continue
 		}
 		pruned++
 	}
-	return created, pruned, nil
+	return created, pruned, errors.Join(errs...)
 }
 
 // Pages rather than one capped list - auto-affinity segments alone can push the total past any fixed cap, and a capped list silently stops refreshing the rest
