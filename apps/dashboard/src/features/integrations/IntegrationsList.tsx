@@ -41,6 +41,7 @@ import {
   useListUrlState,
 } from '@/components/data-table'
 import { IntegrationFormDialog, type ExistingIntegration } from './IntegrationFormDialog'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { NewTokenDialog } from './NewTokenDialog'
 import {
   DeleteIntegrationDocument,
@@ -71,6 +72,7 @@ export function IntegrationsList() {
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<IntegrationRow | null>(null)
   const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null)
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState<IntegrationRow | null>(null)
 
   const [setActive, { loading: toggling }] = useMutation(SetIntegrationActiveDocument, {
     refetchQueries: [{ query: IntegrationsDocument }],
@@ -93,22 +95,17 @@ export function IntegrationsList() {
     [setActive],
   )
 
-  const onRegenerate = useCallback(
-    async (row: IntegrationRow) => {
-      try {
-        const { data } = await regenerate({ variables: { id: row.id } })
-        if (data) {
-          setNewToken({
-            token: data.regenerateIntegrationToken.rawToken,
-            name: data.regenerateIntegrationToken.integration.name,
-          })
-        }
-      } catch {
-        /* noop */
-      }
-    },
-    [regenerate],
-  )
+  // The old token dies the moment this runs, so it goes through a confirm - and a failure stays in that dialog instead of vanishing
+  async function onConfirmRegenerate() {
+    if (!confirmingRegenerate) return
+    const { data } = await regenerate({ variables: { id: confirmingRegenerate.id } })
+    if (data) {
+      setNewToken({
+        token: data.regenerateIntegrationToken.rawToken,
+        name: data.regenerateIntegrationToken.integration.name,
+      })
+    }
+  }
 
   async function onConfirmRowDelete() {
     if (!confirmingRowDelete) return
@@ -270,7 +267,7 @@ export function IntegrationsList() {
               <DropdownMenuItem asChild>
                 <Link to={`/integrations/${row.original.id}`}>View</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onRegenerate(row.original)}>
+              <DropdownMenuItem onSelect={() => setConfirmingRegenerate(row.original)}>
                 <RefreshCwIcon className="size-4" />
                 Regenerate token
               </DropdownMenuItem>
@@ -289,7 +286,7 @@ export function IntegrationsList() {
         ),
       },
     ],
-    [toggling, onRegenerate, onToggleActive],
+    [toggling, onToggleActive],
   )
 
   const rows = (data?.integrations ?? []) as IntegrationRow[]
@@ -329,6 +326,15 @@ export function IntegrationsList() {
         }
       />
 
+      <ConfirmDialog
+        open={!!confirmingRegenerate}
+        onOpenChange={(open) => !open && setConfirmingRegenerate(null)}
+        title={`Regenerate the token for ${confirmingRegenerate?.name ?? 'this integration'}?`}
+        description="The current token stops working immediately. Anything still using it fails until you give it the new one."
+        confirmLabel="Regenerate token"
+        destructive
+        onConfirm={onConfirmRegenerate}
+      />
       <NewTokenDialog
         token={newToken?.token ?? null}
         integrationName={newToken?.name ?? null}
