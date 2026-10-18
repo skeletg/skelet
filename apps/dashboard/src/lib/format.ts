@@ -24,6 +24,34 @@ export function setCurrencyRegistry(
   }
 }
 
+// Minor-unit digits: the registry's hint, else what Intl knows (JPY 0, BHD 3), else 2
+export function currencyDecimals(currencyCode: string): number {
+  const hint = registry.get(currencyCode)
+  if (hint) return hint.decimals
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode }).resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    return 2
+  }
+}
+
+// What an admin types ("12.50") to integer minor units - null when blank, not a number, or more decimals than the currency has,
+// so "12.50" in JPY or "1.234" in USD is refused instead of rounded into a different amount
+export function toMinor(v: string, currencyCode: string): number | null {
+  const t = v.trim()
+  if (t === '') return null
+  const scaled = Number(t) * 10 ** currencyDecimals(currencyCode)
+  if (!Number.isFinite(scaled)) return null
+  const minor = Math.round(scaled)
+  return Math.abs(minor - scaled) < 1e-6 ? minor : null
+}
+
+// Integer minor units back to the plain text an admin would type - "12.50", or "1250" for JPY
+export function fromMinor(amount: number, currencyCode: string): string {
+  const d = currencyDecimals(currencyCode)
+  return (amount / 10 ** d).toFixed(d)
+}
+
 export function formatCents(amount: number, currencyCode: string): string {
   const hint = registry.get(currencyCode)
   if (hint && hint.symbol) {
@@ -46,7 +74,7 @@ export function formatCents(amount: number, currencyCode: string): string {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currencyCode,
-    }).format(amount / 100)
+    }).format(amount / 10 ** currencyDecimals(currencyCode))
   } catch {
     // Intl throws RangeError on an empty or malformed code, which takes the whole page down through the error boundary - an aggregate with
     // no currency of its own (a cross-currency total, or a figure read before its report resolves) is worth rendering as a plain number

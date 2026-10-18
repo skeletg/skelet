@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   formatCents,
+  fromMinor,
+  toMinor,
   formatDate,
   formatDateTime,
   formatNumber,
@@ -27,6 +29,32 @@ describe('formatCents', () => {
 
   it('never throws on unknown currency codes', () => {
     expect(() => formatCents(1234, 'XXX')).not.toThrow()
+  })
+
+  it('does not divide zero-decimal currencies by 100', () => {
+    expect(formatCents(1250, 'JPY')).toMatch(/1[,.]?250/)
+  })
+})
+
+describe('toMinor / fromMinor', () => {
+  it('converts by the currency decimals', () => {
+    expect(toMinor('12.50', 'USD')).toBe(1250)
+    expect(toMinor('0.29', 'USD')).toBe(29)
+    expect(toMinor('1250', 'JPY')).toBe(1250)
+    expect(toMinor('1.234', 'BHD')).toBe(1234)
+  })
+
+  it('refuses blank, junk and extra decimals instead of rounding', () => {
+    expect(toMinor('', 'USD')).toBeNull()
+    expect(toMinor('abc', 'USD')).toBeNull()
+    expect(toMinor('1.234', 'USD')).toBeNull()
+    expect(toMinor('12.5', 'JPY')).toBeNull()
+  })
+
+  it('round-trips', () => {
+    expect(fromMinor(1250, 'USD')).toBe('12.50')
+    expect(fromMinor(1250, 'JPY')).toBe('1250')
+    expect(toMinor(fromMinor(1999, 'EUR'), 'EUR')).toBe(1999)
   })
 })
 
