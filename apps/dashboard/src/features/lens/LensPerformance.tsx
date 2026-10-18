@@ -14,6 +14,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensPerformanceQuery, LensPerformanceDocument } from './Lens.gql'
+import { LoadError } from '@/shared/errors/LoadError'
 
 type Row = LensPerformanceQuery['lensPerformance'][number]
 type Metric = 'lcp' | 'cls' | 'inp' | 'ttfb'
@@ -48,7 +49,7 @@ function VitalCell({ metric, value }: { metric: Metric; value?: number | null })
 export function LensPerformance() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
-  const { data, loading } = useQuery(LensPerformanceDocument, {
+  const { data, loading, error, refetch } = useQuery(LensPerformanceDocument, {
     variables: { channelId, sinceDays: 30 },
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
@@ -90,6 +91,10 @@ export function LensPerformance() {
     ],
     [],
   )
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load performance" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>
