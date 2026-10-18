@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/skeletg/skelet/security/advisories/new
+    about: Please report security problems privately, not in a public issue.
+  - name: Question or idea
+    url: https://github.com/skeletg/skelet/discussions
+    about: Not sure it's a bug, or want to talk an idea through first? Start a discussion.

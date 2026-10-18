@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest something Skelet should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Skelet makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: How you picture it working. Rough is fine.
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Could it be a plugin?
+      description: New capability often fits best as a plugin - see docs/plugins.md.
+      options:
+        - Not sure
+        - Yes, it could be a plugin
+        - No, it needs a change in core

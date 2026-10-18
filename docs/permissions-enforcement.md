@@ -291,7 +291,7 @@ card.
 Both publish an event that other subsystems react to, and they carry **different
 sets** of reversals. Getting this backwards pays the customer twice.
 
-| | Tenders consumed (gift card, store credit, B2B credit) | Rewards granted (loyalty, referral) |
+| | Tenders consumed (gift card, store credit, a plugin's credit line) | Rewards granted (loyalty, referral) |
 | --- | --- | --- |
 | `order.cancelled` | Restored - the order is void, nothing was paid for | Revoked |
 | `order.refunded` | **Left alone** - the refund itself already returns the money | Revoked |
