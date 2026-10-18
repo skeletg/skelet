@@ -271,6 +271,10 @@ The release process, and which version number means what, is in
 
 ### Removed
 
+- **The dashboard's example plugins.** The "Example plugin widget" on the home page, the example section
+  on the locale page and the "Callout" rich-text block were demos compiled into every install. The plugin
+  registries they used are unchanged; [docs/plugins.md](docs/plugins.md) describes them.
+
 - **Database backups.** skelet no longer takes them: gone are the `lib/backup` package, the nightly
   `db-backup` scheduled job, the `skelet cli db backup|backups|restore` commands, the backups health
   group, the ClickHouse spine's `BACKUP DATABASE` job, and the contract's `BackupDatabase` and
