@@ -32,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DetailPageSection } from '@/components/layout/detail-page'
-import { formatCents } from '@/lib/format'
+import { formatCents, fromMinor, toMinor } from '@/lib/format'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   OfflinePaymentMethodsDocument,
@@ -44,6 +44,7 @@ import {
   type OrderQuery,
   OrdersPagedDocument,
 } from './Orders.gql'
+import { paymentRemaining } from './payment-remaining'
 
 type OrderData = OrderQuery['order']
 
@@ -96,8 +97,9 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
   const canRecordOffline = canManage && ps === 'UNPAID'
   const busy = captureState.loading || refundState.loading || voidState.loading || recordState.loading
 
-  const amountCents = amount.trim() === '' ? null : Number.parseInt(amount.trim(), 10)
-  const amountValid = amount.trim() === '' || (Number.isInteger(amountCents) && (amountCents as number) > 0)
+  // Typed in major units like every other money field - "12.50" is 1250 cents, never truncated to 12
+  const amountCents = toMinor(amount, order.currencyCode)
+  const amountValid = amount.trim() === '' || (amountCents !== null && amountCents > 0)
 
   function openDialog(kind: 'capture' | 'refund') {
     setError(null)
@@ -108,7 +110,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
 
   async function onSubmit() {
     if (!amountValid) {
-      setError('Amount must be a whole number of minor units (cents), or blank for the full amount.')
+      setError('Enter a positive amount, or leave it blank for the full remaining.')
       return
     }
     setError(null)
@@ -276,7 +278,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             <DialogDescription>
               {dialog === 'record'
                 ? `Money taken outside a gateway - cash on delivery, bank transfer, cheque, pay on pickup. Record part of the balance and the order stays partially paid until the rest lands.`
-                : `Leave the amount blank to ${dialog === 'capture' ? 'capture the full authorized remaining' : 'refund the full captured remaining'}. Amount is in minor units (cents). Amount due: ${formatCents(amountDue, order.currencyCode)}.`}
+                : `Leave the amount blank to ${dialog === 'capture' ? 'capture the full authorized remaining' : 'refund the full captured remaining'}. Amount due: ${formatCents(amountDue, order.currencyCode)}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -355,13 +357,13 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             ) : (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor="pay-amount">Amount (cents)</Label>
+                  <Label htmlFor="pay-amount">Amount</Label>
                   <Input
                     id="pay-amount"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="blank = full"
+                    placeholder={fromMinor(paymentRemaining(dialog === 'refund' ? 'refund' : 'capture', txns), order.currencyCode)}
                   />
                   {amount.trim() !== '' && amountValid && (
                     <p className="text-xs text-muted-foreground">
