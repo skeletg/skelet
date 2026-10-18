@@ -17,6 +17,7 @@ x-secrets: &secrets
   REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+  STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
 
 # The DSN derives from the one password the db container below uses, so they
 # can't drift - set the URL outright to point at a managed Postgres instead

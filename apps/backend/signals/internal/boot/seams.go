@@ -40,7 +40,7 @@ func archiveDestination(ctx context.Context) (archivefile.ObjectStore, string) {
 }
 
 // The BACKUP_* bucket and prefix the retention archive writes under - nil when it is not configured
-func backupBucket(ctx context.Context) (*objstore.Storage, string) {
+func backupBucket(ctx context.Context) (objstore.Storage, string) {
 	bucket := strings.TrimSpace(os.Getenv("BACKUP_S3_BUCKET"))
 	if bucket == "" {
 		return nil, ""
@@ -68,20 +68,16 @@ func backupBucket(ctx context.Context) (*objstore.Storage, string) {
 	return store, prefix
 }
 
-// Lens keeps replay chunks and DOM snapshots in LENS_S3_BUCKET, else the store's own media bucket - the same S3_* endpoint and
-// credentials core's media reads. Without either the rest of Lens still works, so this warns rather than refusing to boot
-// A dedicated bucket is private - it gets no public URL base, since nothing in it is ever linked to
+// Lens keeps replay chunks and DOM snapshots in LENS_S3_BUCKET (or LENS_STORAGE_DIR on the filesystem driver), else in core's
+// media store, read from the same variables core's own process reads. Without either the rest of Lens still works, so this warns
+// rather than refusing to boot. A dedicated store is private - it gets no public URL base, since nothing in it is ever linked to
 func lensStoreConfig(getenv func(string) string) objstore.Config {
-	cfg := objstore.Config{
-		Bucket:           strings.TrimSpace(getenv("S3_BUCKET_NAME")),
-		Region:           getenv("AWS_REGION"),
-		InternalEndpoint: getenv("S3_ENDPOINT_URL"),
-		PresignEndpoint:  getenv("S3_PRESIGN_ENDPOINT_URL"),
-		PublicURLBase:    getenv("S3_PUBLIC_URL_BASE"),
-		UsePathStyle:     getenv("S3_USE_PATH_STYLE") == "true",
-		MaxUploadBytes:   EnvInt64("S3_MAX_UPLOAD_BYTES", 10*1024*1024),
-	}
-	if own := strings.TrimSpace(getenv("LENS_S3_BUCKET")); own != "" {
+	cfg := objstore.ConfigFromEnv(getenv)
+	if cfg.Driver == objstore.DriverFilesystem {
+		if own := strings.TrimSpace(getenv("LENS_STORAGE_DIR")); own != "" {
+			cfg.Dir, cfg.PublicURLBase, cfg.PresignEndpoint = own, "", ""
+		}
+	} else if own := strings.TrimSpace(getenv("LENS_S3_BUCKET")); own != "" {
 		cfg.Bucket, cfg.PublicURLBase, cfg.PresignEndpoint = own, "", ""
 	}
 	return cfg
@@ -89,12 +85,12 @@ func lensStoreConfig(getenv func(string) string) objstore.Config {
 
 func wireLensBlobStore(ctx context.Context, lensSvc *lens.Service, channels *analytics.ChannelRoster) error {
 	cfg := lensStoreConfig(os.Getenv)
-	if cfg.Bucket == "" {
-		slog.Warn("S3 not configured - session replays and page snapshots are dropped at ingest, so replay and heatmaps stay empty")
+	if cfg.Bucket == "" && cfg.Dir == "" {
+		slog.Warn("object storage not configured - session replays and page snapshots are dropped at ingest, so replay and heatmaps stay empty")
 		return nil
 	}
 	if cfg.PublicURLBase != "" && os.Getenv("APP_ENV") == "production" {
-		slog.Warn("Lens recordings share the publicly served media bucket - their keys are random, but LENS_S3_BUCKET keeps them off the public endpoint", "bucket", cfg.Bucket)
+		slog.Warn("Lens recordings share the publicly served media store - their keys are random, but LENS_S3_BUCKET or LENS_STORAGE_DIR keeps them off the public endpoint", "store", cfg.Bucket+cfg.Dir)
 	}
 	store, err := objstore.New(ctx, cfg)
 	if err != nil {

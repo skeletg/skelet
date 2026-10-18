@@ -33,14 +33,7 @@ func runMediaOrphans(cmd *cobra.Command, args []string) error {
 	defer conn.Close()
 
 	ctx := context.Background()
-	storage, err := objstore.New(ctx, objstore.Config{
-		Bucket:           os.Getenv("S3_BUCKET_NAME"),
-		Region:           os.Getenv("AWS_REGION"),
-		InternalEndpoint: os.Getenv("S3_ENDPOINT_URL"),
-		PresignEndpoint:  os.Getenv("S3_PRESIGN_ENDPOINT_URL"),
-		PublicURLBase:    os.Getenv("S3_PUBLIC_URL_BASE"),
-		UsePathStyle:     os.Getenv("S3_USE_PATH_STYLE") == "true",
-	})
+	storage, err := objstore.New(ctx, objstore.FromEnv())
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}

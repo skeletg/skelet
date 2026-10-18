@@ -40,6 +40,8 @@ x-core-secrets: &core-secrets
   REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+  # The filesystem driver signs upload URLs with it - unused on S3
+  STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
 
 # The suite's alone - core reaches the spine and the queue over the contract, never by opening them
 x-signals-secrets: &signals-secrets

@@ -234,7 +234,7 @@ stay in sync; the storefront has its own codegen step
 | Refresh tokens, cache | Valkey (Redis-compatible) |
 | Async / durable delivery | Transactional outbox (Postgres); optional NATS JetStream queue for beacon ingest |
 | Search | OpenSearch (optional sidecar - the app runs without it) |
-| Object storage | Amazon S3 (managed) or Garage (self-hosted/on-prem); Garage in dev |
+| Object storage | Amazon S3 (managed), Garage (self-hosted/on-prem) or a local directory; Garage in dev |
 | Email (dev) | Log output, or the optional Mailpit SMTP catcher |
 | Observability | OpenTelemetry + Sentry, both opt-in; logs are structured JSON on stdout for whatever collector the deployment runs |
 | Hot reload | air (backend), Vite (dashboard) |
