@@ -266,6 +266,32 @@ func (q *Queries) LensDailyViews(ctx context.Context, arg LensDailyViewsParams) 
 	return items, nil
 }
 
+const lensDeleteSnapshot = `-- name: LensDeleteSnapshot :exec
+DELETE FROM lens_page_snapshots
+WHERE channel_id = $1 AND page_key = $2 AND viewport_bucket = $3
+  AND state_key = $4 AND layout_hash = $5
+`
+
+type LensDeleteSnapshotParams struct {
+	ChannelID      uuid.UUID `json:"channel_id"`
+	PageKey        string    `json:"page_key"`
+	ViewportBucket string    `json:"viewport_bucket"`
+	StateKey       string    `json:"state_key"`
+	LayoutHash     string    `json:"layout_hash"`
+}
+
+// Drops a row whose upload failed, so the latest-snapshot read never lands on a backdrop that isn't there
+func (q *Queries) LensDeleteSnapshot(ctx context.Context, arg LensDeleteSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, lensDeleteSnapshot,
+		arg.ChannelID,
+		arg.PageKey,
+		arg.ViewportBucket,
+		arg.StateKey,
+		arg.LayoutHash,
+	)
+	return err
+}
+
 const lensDeviceSplit = `-- name: LensDeviceSplit :many
 SELECT key AS device, SUM(views)::bigint AS views
 FROM lens_traffic_daily
@@ -308,27 +334,12 @@ func (q *Queries) LensDeviceSplit(ctx context.Context, arg LensDeviceSplitParams
 }
 
 const lensGetSession = `-- name: LensGetSession :one
-SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent
-FROM lens_sessions WHERE id = $1
+SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, user_agent, viewport, created_at, rage_count, dead_count, error_count FROM lens_sessions WHERE id = $1
 `
 
-type LensGetSessionRow struct {
-	ID          uuid.UUID     `json:"id"`
-	ChannelID   uuid.UUID     `json:"channel_id"`
-	AnonID      string        `json:"anon_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	StartedAt   time.Time     `json:"started_at"`
-	LastEventAt time.Time     `json:"last_event_at"`
-	EventCount  int64         `json:"event_count"`
-	EntryPage   string        `json:"entry_page"`
-	ExitPage    string        `json:"exit_page"`
-	Viewport    string        `json:"viewport"`
-	UserAgent   string        `json:"user_agent"`
-}
-
-func (q *Queries) LensGetSession(ctx context.Context, id uuid.UUID) (LensGetSessionRow, error) {
+func (q *Queries) LensGetSession(ctx context.Context, id uuid.UUID) (LensSession, error) {
 	row := q.db.QueryRowContext(ctx, lensGetSession, id)
-	var i LensGetSessionRow
+	var i LensSession
 	err := row.Scan(
 		&i.ID,
 		&i.ChannelID,
@@ -339,8 +350,12 @@ func (q *Queries) LensGetSession(ctx context.Context, id uuid.UUID) (LensGetSess
 		&i.EventCount,
 		&i.EntryPage,
 		&i.ExitPage,
-		&i.Viewport,
 		&i.UserAgent,
+		&i.Viewport,
+		&i.CreatedAt,
+		&i.RageCount,
+		&i.DeadCount,
+		&i.ErrorCount,
 	)
 	return i, err
 }
@@ -371,6 +386,50 @@ func (q *Queries) LensInsertChunk(ctx context.Context, arg LensInsertChunkParams
 		arg.LastTs,
 	)
 	return err
+}
+
+const lensInsertSnapshot = `-- name: LensInsertSnapshot :execrows
+
+INSERT INTO lens_page_snapshots (channel_id, page_key, viewport_bucket, state_key, layout_hash, blob_key, width, height)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8
+WHERE (SELECT count(*) FROM lens_page_snapshots
+       WHERE channel_id = $1 AND page_key = $2
+         AND viewport_bucket = $3 AND state_key = $4) < $9::bigint
+ON CONFLICT (channel_id, page_key, viewport_bucket, state_key, layout_hash) DO NOTHING
+`
+
+type LensInsertSnapshotParams struct {
+	ChannelID      uuid.UUID `json:"channel_id"`
+	PageKey        string    `json:"page_key"`
+	ViewportBucket string    `json:"viewport_bucket"`
+	StateKey       string    `json:"state_key"`
+	LayoutHash     string    `json:"layout_hash"`
+	BlobKey        string    `json:"blob_key"`
+	Width          int32     `json:"width"`
+	Height         int32     `json:"height"`
+	MaxLayouts     int64     `json:"max_layouts"`
+}
+
+// One-time backfill (run off-peak via `skelet lens backfill-rollups`). Aggregates existing raw web events into the rollups so the hub shows
+// history immediately. Idempotent for the view dims (DO UPDATE SET = EXCLUDED overwrites covered days)
+// A layout is stored once and never replaced - the beacon is unauthenticated, so a later post for a known layout must not swap its
+// backdrop - and a page state holds at most max_layouts of them, so invented layout hashes can't fill object storage
+func (q *Queries) LensInsertSnapshot(ctx context.Context, arg LensInsertSnapshotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, lensInsertSnapshot,
+		arg.ChannelID,
+		arg.PageKey,
+		arg.ViewportBucket,
+		arg.StateKey,
+		arg.LayoutHash,
+		arg.BlobKey,
+		arg.Width,
+		arg.Height,
+		arg.MaxLayouts,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const lensLatestSnapshot = `-- name: LensLatestSnapshot :one
@@ -428,6 +487,30 @@ func (q *Queries) LensPruneStaleSnapshots(ctx context.Context, before time.Time)
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const lensReplayState = `-- name: LensReplayState :one
+SELECT EXISTS (SELECT 1 FROM lens_session_chunks t WHERE t.session_id = $1::uuid AND t.seq = $2::int)::boolean AS seq_taken,
+       COALESCE((SELECT min(f.first_ts) FROM lens_session_chunks f WHERE f.session_id = $1::uuid), 0)::bigint AS first_ts
+`
+
+type LensReplayStateParams struct {
+	SessionID uuid.UUID `json:"session_id"`
+	Seq       int32     `json:"seq"`
+}
+
+type LensReplayStateRow struct {
+	SeqTaken bool  `json:"seq_taken"`
+	FirstTs  int64 `json:"first_ts"`
+}
+
+// Whether this flush's seq already landed, and the earliest client timestamp the session's chunks carry - both in the
+// tracker's own clock, which is the one the recording-length cap has to be measured in
+func (q *Queries) LensReplayState(ctx context.Context, arg LensReplayStateParams) (LensReplayStateRow, error) {
+	row := q.db.QueryRowContext(ctx, lensReplayState, arg.SessionID, arg.Seq)
+	var i LensReplayStateRow
+	err := row.Scan(&i.SeqTaken, &i.FirstTs)
+	return i, err
 }
 
 const lensSearchDaily = `-- name: LensSearchDaily :many
@@ -561,8 +644,7 @@ func (q *Queries) LensSessionChunks(ctx context.Context, sessionID uuid.UUID) ([
 }
 
 const lensSessionsForAnon = `-- name: LensSessionsForAnon :many
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, user_agent, viewport, created_at, rage_count, dead_count, error_count FROM lens_sessions
 WHERE anon_id = $1
   AND ($2::boolean OR channel_id = ANY($3::uuid[]))
 ORDER BY started_at DESC
@@ -576,22 +658,7 @@ type LensSessionsForAnonParams struct {
 	Lim         int32       `json:"lim"`
 }
 
-type LensSessionsForAnonRow struct {
-	ID          uuid.UUID     `json:"id"`
-	AnonID      string        `json:"anon_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	StartedAt   time.Time     `json:"started_at"`
-	LastEventAt time.Time     `json:"last_event_at"`
-	EventCount  int64         `json:"event_count"`
-	EntryPage   string        `json:"entry_page"`
-	ExitPage    string        `json:"exit_page"`
-	Viewport    string        `json:"viewport"`
-	UserAgent   string        `json:"user_agent"`
-	RageCount   int32         `json:"rage_count"`
-	ErrorCount  int32         `json:"error_count"`
-}
-
-func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAnonParams) ([]LensSessionsForAnonRow, error) {
+func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAnonParams) ([]LensSession, error) {
 	rows, err := q.db.QueryContext(ctx, lensSessionsForAnon,
 		arg.AnonID,
 		arg.AllChannels,
@@ -602,11 +669,12 @@ func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAn
 		return nil, err
 	}
 	defer rows.Close()
-	items := []LensSessionsForAnonRow{}
+	items := []LensSession{}
 	for rows.Next() {
-		var i LensSessionsForAnonRow
+		var i LensSession
 		if err := rows.Scan(
 			&i.ID,
+			&i.ChannelID,
 			&i.AnonID,
 			&i.CustomerID,
 			&i.StartedAt,
@@ -614,9 +682,11 @@ func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAn
 			&i.EventCount,
 			&i.EntryPage,
 			&i.ExitPage,
-			&i.Viewport,
 			&i.UserAgent,
+			&i.Viewport,
+			&i.CreatedAt,
 			&i.RageCount,
+			&i.DeadCount,
 			&i.ErrorCount,
 		); err != nil {
 			return nil, err
@@ -633,8 +703,7 @@ func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAn
 }
 
 const lensSessionsForChannel = `-- name: LensSessionsForChannel :many
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, user_agent, viewport, created_at, rage_count, dead_count, error_count FROM lens_sessions
 WHERE channel_id = $1
 ORDER BY started_at DESC
 LIMIT $2
@@ -645,32 +714,18 @@ type LensSessionsForChannelParams struct {
 	Lim       int32     `json:"lim"`
 }
 
-type LensSessionsForChannelRow struct {
-	ID          uuid.UUID     `json:"id"`
-	AnonID      string        `json:"anon_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	StartedAt   time.Time     `json:"started_at"`
-	LastEventAt time.Time     `json:"last_event_at"`
-	EventCount  int64         `json:"event_count"`
-	EntryPage   string        `json:"entry_page"`
-	ExitPage    string        `json:"exit_page"`
-	Viewport    string        `json:"viewport"`
-	UserAgent   string        `json:"user_agent"`
-	RageCount   int32         `json:"rage_count"`
-	ErrorCount  int32         `json:"error_count"`
-}
-
-func (q *Queries) LensSessionsForChannel(ctx context.Context, arg LensSessionsForChannelParams) ([]LensSessionsForChannelRow, error) {
+func (q *Queries) LensSessionsForChannel(ctx context.Context, arg LensSessionsForChannelParams) ([]LensSession, error) {
 	rows, err := q.db.QueryContext(ctx, lensSessionsForChannel, arg.ChannelID, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []LensSessionsForChannelRow{}
+	items := []LensSession{}
 	for rows.Next() {
-		var i LensSessionsForChannelRow
+		var i LensSession
 		if err := rows.Scan(
 			&i.ID,
+			&i.ChannelID,
 			&i.AnonID,
 			&i.CustomerID,
 			&i.StartedAt,
@@ -678,9 +733,11 @@ func (q *Queries) LensSessionsForChannel(ctx context.Context, arg LensSessionsFo
 			&i.EventCount,
 			&i.EntryPage,
 			&i.ExitPage,
-			&i.Viewport,
 			&i.UserAgent,
+			&i.Viewport,
+			&i.CreatedAt,
 			&i.RageCount,
+			&i.DeadCount,
 			&i.ErrorCount,
 		); err != nil {
 			return nil, err
@@ -697,8 +754,7 @@ func (q *Queries) LensSessionsForChannel(ctx context.Context, arg LensSessionsFo
 }
 
 const lensSessionsForCustomer = `-- name: LensSessionsForCustomer :many
-SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
-FROM lens_sessions
+SELECT id, channel_id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, user_agent, viewport, created_at, rage_count, dead_count, error_count FROM lens_sessions
 WHERE (customer_id = $1 OR anon_id = ANY($2::text[]))
   AND ($3::boolean OR channel_id = ANY($4::uuid[]))
 ORDER BY started_at DESC
@@ -713,24 +769,9 @@ type LensSessionsForCustomerParams struct {
 	Lim         int32         `json:"lim"`
 }
 
-type LensSessionsForCustomerRow struct {
-	ID          uuid.UUID     `json:"id"`
-	AnonID      string        `json:"anon_id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	StartedAt   time.Time     `json:"started_at"`
-	LastEventAt time.Time     `json:"last_event_at"`
-	EventCount  int64         `json:"event_count"`
-	EntryPage   string        `json:"entry_page"`
-	ExitPage    string        `json:"exit_page"`
-	Viewport    string        `json:"viewport"`
-	UserAgent   string        `json:"user_agent"`
-	RageCount   int32         `json:"rage_count"`
-	ErrorCount  int32         `json:"error_count"`
-}
-
 // Every session for a customer: those resolved to the customer id PLUS sessions
 // recorded under any anon id they later identified with (pre-login coverage).
-func (q *Queries) LensSessionsForCustomer(ctx context.Context, arg LensSessionsForCustomerParams) ([]LensSessionsForCustomerRow, error) {
+func (q *Queries) LensSessionsForCustomer(ctx context.Context, arg LensSessionsForCustomerParams) ([]LensSession, error) {
 	rows, err := q.db.QueryContext(ctx, lensSessionsForCustomer,
 		arg.CustomerID,
 		pq.Array(arg.AnonIds),
@@ -742,11 +783,12 @@ func (q *Queries) LensSessionsForCustomer(ctx context.Context, arg LensSessionsF
 		return nil, err
 	}
 	defer rows.Close()
-	items := []LensSessionsForCustomerRow{}
+	items := []LensSession{}
 	for rows.Next() {
-		var i LensSessionsForCustomerRow
+		var i LensSession
 		if err := rows.Scan(
 			&i.ID,
+			&i.ChannelID,
 			&i.AnonID,
 			&i.CustomerID,
 			&i.StartedAt,
@@ -754,9 +796,11 @@ func (q *Queries) LensSessionsForCustomer(ctx context.Context, arg LensSessionsF
 			&i.EventCount,
 			&i.EntryPage,
 			&i.ExitPage,
-			&i.Viewport,
 			&i.UserAgent,
+			&i.Viewport,
+			&i.CreatedAt,
 			&i.RageCount,
+			&i.DeadCount,
 			&i.ErrorCount,
 		); err != nil {
 			return nil, err
@@ -1087,6 +1131,31 @@ func (q *Queries) LensTotalViews(ctx context.Context, arg LensTotalViewsParams) 
 	return views, err
 }
 
+const lensTouchSnapshot = `-- name: LensTouchSnapshot :exec
+UPDATE lens_page_snapshots SET last_seen_at = NOW()
+WHERE channel_id = $1 AND page_key = $2 AND viewport_bucket = $3
+  AND state_key = $4 AND layout_hash = $5
+`
+
+type LensTouchSnapshotParams struct {
+	ChannelID      uuid.UUID `json:"channel_id"`
+	PageKey        string    `json:"page_key"`
+	ViewportBucket string    `json:"viewport_bucket"`
+	StateKey       string    `json:"state_key"`
+	LayoutHash     string    `json:"layout_hash"`
+}
+
+func (q *Queries) LensTouchSnapshot(ctx context.Context, arg LensTouchSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, lensTouchSnapshot,
+		arg.ChannelID,
+		arg.PageKey,
+		arg.ViewportBucket,
+		arg.StateKey,
+		arg.LayoutHash,
+	)
+	return err
+}
+
 const lensUpsertSession = `-- name: LensUpsertSession :execrows
 INSERT INTO lens_sessions (
     id, channel_id, anon_id, customer_id, started_at, last_event_at,
@@ -1140,42 +1209,6 @@ func (q *Queries) LensUpsertSession(ctx context.Context, arg LensUpsertSessionPa
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const lensUpsertSnapshot = `-- name: LensUpsertSnapshot :exec
-
-INSERT INTO lens_page_snapshots (channel_id, page_key, viewport_bucket, state_key, layout_hash, blob_key, width, height)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (channel_id, page_key, viewport_bucket, state_key, layout_hash)
-DO UPDATE SET last_seen_at = NOW()
-`
-
-type LensUpsertSnapshotParams struct {
-	ChannelID      uuid.UUID `json:"channel_id"`
-	PageKey        string    `json:"page_key"`
-	ViewportBucket string    `json:"viewport_bucket"`
-	StateKey       string    `json:"state_key"`
-	LayoutHash     string    `json:"layout_hash"`
-	BlobKey        string    `json:"blob_key"`
-	Width          int32     `json:"width"`
-	Height         int32     `json:"height"`
-}
-
-// One-time backfill (run off-peak via `skelet lens backfill-rollups`). Aggregates existing raw web events into the rollups so the hub shows
-// history immediately. Idempotent for the view dims (DO UPDATE SET = EXCLUDED overwrites covered days)
-// Store a layout once per state; a repeat visit to the same layout just bumps last_seen
-func (q *Queries) LensUpsertSnapshot(ctx context.Context, arg LensUpsertSnapshotParams) error {
-	_, err := q.db.ExecContext(ctx, lensUpsertSnapshot,
-		arg.ChannelID,
-		arg.PageKey,
-		arg.ViewportBucket,
-		arg.StateKey,
-		arg.LayoutHash,
-		arg.BlobKey,
-		arg.Width,
-		arg.Height,
-	)
-	return err
 }
 
 const lensViewports = `-- name: LensViewports :many
