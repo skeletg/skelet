@@ -247,18 +247,18 @@ describe('theme roaming bridge', () => {
     expect(h.state.appearance).toMatchObject({ frame: 'docked', sidebarSide: 'left' })
   })
 
-  it('adopts a layout change from another device, and an unknown style reads as docked', () => {
+  it('adopts a layout change from another device, and an unknown style reads as the default', () => {
     const h = mount()
     act(() => {
-      store.values.set(THEME_PREF_KEY, { ...DEFAULTS, frame: 'inset', sidebarSide: 'right' })
+      store.values.set(THEME_PREF_KEY, { ...DEFAULTS, frame: 'floating', sidebarSide: 'right' })
       for (const cb of store.listeners) cb()
     })
-    expect(h.state.appearance).toMatchObject({ frame: 'inset', sidebarSide: 'right' })
+    expect(h.state.appearance).toMatchObject({ frame: 'floating', sidebarSide: 'right' })
     act(() => {
       store.values.set(THEME_PREF_KEY, { ...DEFAULTS, frame: 'hovering', sidebarSide: 'up' } as unknown as ThemePref)
       for (const cb of store.listeners) cb()
     })
-    expect(h.state.appearance).toMatchObject({ frame: 'docked', sidebarSide: 'left' })
+    expect(h.state.appearance).toMatchObject({ frame: DEFAULTS.frame, sidebarSide: 'left' })
   })
 
   it('no two themes share a palette pairing and layout', () => {
@@ -311,9 +311,9 @@ describe('theme roaming bridge', () => {
     expect(presetMatches(southpaw, h.state.appearance)).toBe(false)
   })
 
-  it('the default look is the Skelet theme', () => {
-    const skelet = THEME_PRESETS.find((p) => p.id === 'skelet')!
-    expect(presetMatches(skelet, DEFAULTS)).toBe(true)
+  it('the default look is the Skelet Modern theme', () => {
+    const modern = THEME_PRESETS.find((p) => p.id === 'skelet-modern')!
+    expect(presetMatches(modern, DEFAULTS)).toBe(true)
     expect(THEME_PRESETS.filter((p) => presetMatches(p, DEFAULTS))).toHaveLength(1)
   })
 
