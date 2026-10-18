@@ -92,7 +92,7 @@ beside the dev stack, but the in-network ports don't move):
 |---|---|---|
 | apex, e.g. `shop.example.com` | `vetrina-demo:3000` | the storefront - every channel's host can point at the same upstream |
 | `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
-| `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with Stripe/Braintree. Skip this host and captures never settle |
+| `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with your payment provider. Skip this host and captures never settle |
 
 `/t/*` is the Signals tier's, and `app` proxies it there per `SIGNALS_INGEST_URL`
 - one public entry point, no routing needed. Route `/t/*` at `ingest:8091` to skip

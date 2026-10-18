@@ -37,14 +37,12 @@ covered by the same gates.
 `apps/backend/core/plugins/example` exercises every registration verb - start there.
 `apps/backend/core/plugins/plugins.json` decides which plugin directories compile in.
 
-The six first-party payment gateways - Stripe, Braintree, PayPal, Klarna, Mollie
-and Affirm - each live in their own repository, named after the plugin slug
-(`payment-stripe`, `payment-braintree`, ...). Naming the repo after the slug is
-what makes the install need no flags. A deployment that takes card payment
-installs the ones it needs:
+Payment gateways are plugins too, each in its own repository named after its slug - naming the
+repo after the slug is what makes the install need no flags. A deployment that takes card
+payment installs the gateway it needs:
 
 ```
-./skelet cli plugin add github.com/skeletg/payment-stripe@<version>
+./skelet cli plugin add github.com/acme/payment-gateway@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
@@ -151,8 +149,8 @@ Runtime status reports whether the plugin can run; it is not a credential or con
 ## What the SDK gives a plugin that owns a domain
 
 A gateway is the small case. A plugin that owns tables, a graph surface and a place in the
-money path needs more, and the `b2b` plugin is the reference for all of it - company accounts,
-credit lines, quotes and on-account payment, all out of tree.
+money path needs more - say company accounts with credit lines and their own checkout tender,
+all out of tree. This is what the SDK gives it.
 
 - **`sdk.Database()`** - the application pool, for a plugin whose own migrations created
   tables to read on the request path. The same pool core uses, not a sandbox: scope your SQL
@@ -197,8 +195,8 @@ a zone like `cart:summary` or `cart:actions`.
 
 Everything in the storefront registry is client-safe on purpose. The host components are all
 `"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
-data calls its own `"use server"` action from the slot, which is how `b2b` shows a credit
-hint without core ever fetching a company on its behalf.
+data calls its own `"use server"` action from the slot, which is how a plugin shows its own
+data at checkout without core fetching it on the plugin's behalf.
 
 `loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
 `plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,
@@ -241,8 +239,9 @@ func TestCreditIsReservedInThePlacementTx(t *testing.T) {
 core's suite and need no copying into it. The depguard rule that bars `plugins/**` from
 importing `internal/` carries `"!$test"`, which is what makes the import above legal.
 
-The `b2b` plugin is the worked example: credit reserved inside the placement transaction,
-released on cancel, prorated to the unshipped share, idempotent under outbox redelivery.
+A credit-line tender is the case this was built for: credit reserved inside the placement
+transaction, released on cancel, prorated to the unshipped share, idempotent under outbox
+redelivery.
 
 ## Known limitations
 
