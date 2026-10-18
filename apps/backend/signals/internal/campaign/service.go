@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
@@ -34,7 +33,7 @@ type Service struct {
 	contacts audienceReader
 	segments segmentAudience
 	stores   storeReader
-	config   *config.Service // the suite's settings - the deliverability switches the bounce loop reads
+	bounces  bounceCapturer
 	sender   email.Sender
 	recorder sendTracker
 	track    *emailtrack.Signer
@@ -42,10 +41,7 @@ type Service struct {
 }
 
 type suppressionChecker interface { // the slice of the suppression service the send loop needs
-	IsSuppressed(ctx context.Context, email string) bool
 	SuppressedSet(ctx context.Context, emails []string) map[string]bool // one query for a whole recipient page, keyed by the caller's original email strings
-	Suppress(ctx context.Context, email, reason, detail string) error
-	RecordSoftBounce(ctx context.Context, email, detail string, threshold int) (bool, int, error)
 }
 
 // The record of what this service sends: the send log the tracking token names, the spine event
@@ -63,42 +59,19 @@ type segmentAudience interface {
 }
 
 // links signs unsubscribe and tracking links with the key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, links *emailtrack.Signer) *Service {
-	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: links}
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, bounces bounceCapturer, sender email.Sender, recorder sendTracker, suppress suppressionChecker, links *emailtrack.Signer) *Service {
+	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, bounces: bounces, sender: sender, recorder: recorder, suppress: suppress, track: links}
 }
 
-// Turns a send failure into a suppression signal when auto-suppress is on - a permanent 5xx SMTP rejection hard-suppresses the address, a transient one accrues toward the soft-bounce threshold, and unknown errors like timeouts and resets are ignored since they aren't a verdict on the address (this is the out-of-the-box feedback loop for pure-SMTP setups, a provider webhook supplies richer signals)
+// The deliverability loop a failed send feeds - satisfied by *suppression.Bounces, nil captures nothing
+type bounceCapturer interface {
+	Capture(ctx context.Context, addr string, sendErr error)
+}
+
 func (s *Service) captureBounce(ctx context.Context, addr string, sendErr error) {
-	if s.suppress == nil || s.config == nil {
-		return
+	if s.bounces != nil {
+		s.bounces.Capture(ctx, addr, sendErr)
 	}
-	if on, _ := s.config.GetBool(ctx, "signals/deliverability/auto_suppress", config.DefaultScope); !on {
-		return
-	}
-	permanent, matched := email.ClassifyBounce(sendErr)
-	if !matched {
-		return
-	}
-	if permanent {
-		if err := s.suppress.Suppress(ctx, addr, "hard_bounce", truncate(sendErr.Error(), 240)); err != nil {
-			log.Printf("[campaign] suppress hard bounce for %s: %v", addr, err) // dropping it silently keeps mailing a dead address, which costs sender reputation
-		}
-		return
-	}
-	threshold := 3
-	if n, err := s.config.GetInt(ctx, "signals/deliverability/soft_bounce_threshold", config.DefaultScope); err == nil && n > 0 {
-		threshold = int(n)
-	}
-	if _, _, err := s.suppress.RecordSoftBounce(ctx, addr, truncate(sendErr.Error(), 240), threshold); err != nil {
-		log.Printf("[campaign] record soft bounce for %s: %v", addr, err)
-	}
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
 }
 
 type Input struct {
@@ -134,26 +107,29 @@ func (in *Input) normalizeAB() { // fills A/B defaults so a half-specified test 
 
 func (s *Service) validate(in Input) error {
 	if strings.TrimSpace(in.Name) == "" {
-		return fmt.Errorf("campaign name is required")
+		return fmt.Errorf("%w: name is required", ErrInvalid)
 	}
 	if !validAudience(in.AudienceKind) {
-		return fmt.Errorf("invalid audience %q", in.AudienceKind)
+		return fmt.Errorf("%w: unknown audience %q", ErrInvalid, in.AudienceKind)
 	}
 	if (in.AudienceKind == AudienceGroup || in.AudienceKind == AudienceSegment) && in.AudienceID == nil {
-		return fmt.Errorf("a %s audience requires a target id", in.AudienceKind)
+		return fmt.Errorf("%w: a %s audience requires a target id", ErrInvalid, in.AudienceKind)
 	}
 	if in.ABEnabled { // subject-line A/B only - variant A keeps the email's own subject, library or inline, while B overrides it with ab_subject_b, and the content is the same either way
 		if strings.TrimSpace(in.ABSubjectB) == "" {
-			return fmt.Errorf("A/B test needs a subject B")
+			return fmt.Errorf("%w: A/B test needs a subject B", ErrInvalid)
 		}
 		if in.ABWinnerMetric != ABMetricOpen && in.ABWinnerMetric != ABMetricClick {
-			return fmt.Errorf("A/B winner metric must be 'open' or 'click'")
+			return fmt.Errorf("%w: A/B winner metric must be 'open' or 'click'", ErrInvalid)
 		}
 		if in.ABTestPercent < 1 || in.ABTestPercent > 90 {
-			return fmt.Errorf("A/B test percent must be between 1 and 90")
+			return fmt.Errorf("%w: A/B test percent must be between 1 and 90", ErrInvalid)
 		}
 	}
-	return s.tmpl.ValidateContent(in.Blocks, in.Styles)
+	if err := s.tmpl.ValidateContent(in.Blocks, in.Styles); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	return nil
 }
 
 // A campaign sends only a library email of its own channel - another channel's would carry that store's content and branding
@@ -166,7 +142,7 @@ func (s *Service) libraryEmail(ctx context.Context, channelID uuid.UUID, emailID
 		return nil, err
 	}
 	if !ok || le.ChannelID != channelID {
-		return nil, fmt.Errorf("library email %s not found", *emailID)
+		return nil, fmt.Errorf("%w: library email %s not found", ErrInvalid, *emailID)
 	}
 	return &le, nil
 }
@@ -205,7 +181,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Campaign,
 		return Campaign{}, err
 	}
 	if !ok {
-		return Campaign{}, fmt.Errorf("only draft campaigns can be edited")
+		return Campaign{}, fmt.Errorf("%w: only draft campaigns can be edited", ErrWrongState)
 	}
 	c, _, err := s.repo.Get(ctx, id)
 	return c, err
@@ -233,13 +209,13 @@ func (s *Service) Schedule(ctx context.Context, id uuid.UUID, when *time.Time) e
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("campaign not found")
+		return ErrNotFound
 	}
 	if c.Status != StatusDraft && c.Status != StatusScheduled {
-		return fmt.Errorf("only draft or scheduled campaigns can be (re)scheduled")
+		return fmt.Errorf("%w: only draft or scheduled campaigns can be (re)scheduled", ErrWrongState)
 	}
 	if c.EmailID == nil && len(c.Blocks) == 0 {
-		return fmt.Errorf("campaign has no email - pick a library email or add content")
+		return fmt.Errorf("%w: no email - pick a library email or add content", ErrInvalid)
 	}
 	at := time.Now()
 	if when != nil {
@@ -250,7 +226,7 @@ func (s *Service) Schedule(ctx context.Context, id uuid.UUID, when *time.Time) e
 		return err
 	}
 	if !done {
-		return fmt.Errorf("campaign could not be scheduled")
+		return fmt.Errorf("%w: it could not be scheduled", ErrWrongState)
 	}
 	return nil
 }
@@ -261,7 +237,7 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("only scheduled or sending campaigns can be cancelled")
+		return fmt.Errorf("%w: only scheduled, sending or testing campaigns can be cancelled", ErrWrongState)
 	}
 	return nil
 }
@@ -274,64 +250,83 @@ type candidate struct {
 	firstName  string
 }
 
-func (s *Service) resolveAudience(ctx context.Context, channelID uuid.UUID, kind string, audienceID *uuid.UUID) ([]candidate, error) {
-	all, err := s.contacts.ListForChannel(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
+// How much of the roster one audience read holds at a time
+const audiencePage = 1000
+
+// eachAudiencePage walks the channel's roster a keyset page at a time and hands fn each page's audience members, so neither an
+// estimate nor a send holds the whole roster
+func (s *Service) eachAudiencePage(ctx context.Context, channelID uuid.UUID, kind string, audienceID *uuid.UUID, fn func([]candidate) error) error {
 	var segSet map[uuid.UUID]bool
 	if kind == AudienceSegment && audienceID != nil {
 		ids, err := s.segments.SegmentMemberIDs(ctx, *audienceID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		segSet = make(map[uuid.UUID]bool, len(ids))
 		for _, id := range ids {
 			segSet[id] = true
 		}
 	}
-	out := make([]candidate, 0, len(all))
-	for _, cust := range all {
-		if !cust.Active || strings.TrimSpace(cust.Email) == "" {
-			continue
+	after := uuid.Nil
+	for {
+		page, err := s.contacts.ListForChannel(ctx, channelID, after, audiencePage)
+		if err != nil {
+			return err
 		}
-		switch kind {
-		case AudienceGroup:
-			if audienceID == nil || cust.GroupID != *audienceID {
+		if len(page) == 0 {
+			return nil
+		}
+		after = page[len(page)-1].ID
+		out := make([]candidate, 0, len(page))
+		for _, cust := range page {
+			if !cust.Active || strings.TrimSpace(cust.Email) == "" {
 				continue
 			}
-		case AudienceSegment:
-			if segSet == nil || !segSet[cust.ID] {
-				continue
+			switch kind {
+			case AudienceGroup:
+				if audienceID == nil || cust.GroupID != *audienceID {
+					continue
+				}
+			case AudienceSegment:
+				if segSet == nil || !segSet[cust.ID] {
+					continue
+				}
+			}
+			out = append(out, candidate{customerID: cust.ID, email: cust.Email, firstName: cust.FirstName})
+		}
+		if len(out) > 0 {
+			if err := fn(out); err != nil {
+				return err
 			}
 		}
-		out = append(out, candidate{customerID: cust.ID, email: cust.Email, firstName: cust.FirstName})
+		if len(page) < audiencePage {
+			return nil
+		}
 	}
-	return out, nil
 }
 
 func (s *Service) EstimateAudience(ctx context.Context, channelID uuid.UUID, kind string, audienceID *uuid.UUID) (total, eligible int, err error) { // eligible = after the marketing-consent gate, surfaced in the composer before sending
 	if !validAudience(kind) {
-		return 0, 0, fmt.Errorf("invalid audience %q", kind)
+		return 0, 0, fmt.Errorf("%w: unknown audience %q", ErrInvalid, kind)
 	}
-	cands, err := s.resolveAudience(ctx, channelID, kind, audienceID)
-	if err != nil {
-		return 0, 0, err
-	}
-	ids := make([]uuid.UUID, 0, len(cands))
-	for _, c := range cands {
-		ids = append(ids, c.customerID)
-	}
-	optedIn, err := s.contacts.OptedInByIDs(ctx, ids)
-	if err != nil {
-		return 0, 0, err
-	}
-	for _, c := range cands {
-		if optedIn[c.customerID] {
-			eligible++
+	err = s.eachAudiencePage(ctx, channelID, kind, audienceID, func(cands []candidate) error {
+		ids := make([]uuid.UUID, len(cands))
+		for i, c := range cands {
+			ids[i] = c.customerID
 		}
-	}
-	return len(cands), eligible, nil
+		optedIn, err := s.contacts.OptedInByIDs(ctx, ids)
+		if err != nil {
+			return err
+		}
+		total += len(cands)
+		for _, id := range ids {
+			if optedIn[id] {
+				eligible++
+			}
+		}
+		return nil
+	})
+	return total, eligible, err
 }
 
 // --- send pipeline (scheduler-driven) ---
@@ -403,15 +398,30 @@ func (s *Service) materialize(ctx context.Context, c Campaign) error {
 	if c.MaterializedAt != nil {
 		return nil
 	}
-	cands, err := s.resolveAudience(ctx, c.ChannelID, c.AudienceKind, c.AudienceID)
-	if err != nil {
+	toRecipients := func(cands []candidate) []NewRecipient {
+		rows := make([]NewRecipient, len(cands))
+		for i, cand := range cands {
+			rows[i] = NewRecipient{CustomerID: cand.customerID, Email: cand.email, FirstName: cand.firstName, Phase: PhaseSend}
+		}
+		return rows
+	}
+	if !c.ABEnabled { // written as the roster is read, a page at a time
+		if err := s.eachAudiencePage(ctx, c.ChannelID, c.AudienceKind, c.AudienceID, func(cands []candidate) error {
+			return s.insertRecipients(ctx, c.ID, toRecipients(cands))
+		}); err != nil {
+			return err
+		}
+		return s.repo.MarkMaterialized(ctx, c.ID)
+	}
+	// The A/B split ranks the whole audience, so only an A/B campaign holds it - members only, never the rest of the roster
+	var rows []NewRecipient
+	if err := s.eachAudiencePage(ctx, c.ChannelID, c.AudienceKind, c.AudienceID, func(cands []candidate) error {
+		rows = append(rows, toRecipients(cands)...)
+		return nil
+	}); err != nil {
 		return err
 	}
-	rows := make([]NewRecipient, len(cands))
-	for i, cand := range cands {
-		rows[i] = NewRecipient{CustomerID: cand.customerID, Email: cand.email, FirstName: cand.firstName, Phase: PhaseSend}
-	}
-	if c.ABEnabled && len(cands) >= 2 { // carve a test slice for the A/B split and hold the rest back for whichever subject wins
+	if len(rows) >= 2 { // carve a test slice for the A/B split and hold the rest back for whichever subject wins
 		// Ordered by a per-customer hash, so a restarted materialization deals nearly the same test slice even if the roster moved
 		rank := func(id uuid.UUID) uint64 {
 			h := fnv.New64a()
@@ -431,12 +441,19 @@ func (s *Service) materialize(ctx context.Context, c Campaign) error {
 			}
 		}
 	}
+	if err := s.insertRecipients(ctx, c.ID, rows); err != nil {
+		return err
+	}
+	return s.repo.MarkMaterialized(ctx, c.ID)
+}
+
+func (s *Service) insertRecipients(ctx context.Context, campaignID uuid.UUID, rows []NewRecipient) error {
 	for start := 0; start < len(rows); start += recipientInsertBatch {
-		if err := s.repo.InsertRecipients(ctx, c.ID, rows[start:min(start+recipientInsertBatch, len(rows))]); err != nil {
+		if err := s.repo.InsertRecipients(ctx, campaignID, rows[start:min(start+recipientInsertBatch, len(rows))]); err != nil {
 			return err
 		}
 	}
-	return s.repo.MarkMaterialized(ctx, c.ID)
+	return nil
 }
 
 func (s *Service) materializeAll(ctx context.Context, campaigns []Campaign, errs *[]error) {
@@ -502,7 +519,7 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 				break
 			}
 			sent++
-			if r.CustomerID != nil && !optedIn[*r.CustomerID] { // re-checked at send time so an unsubscribe since scheduling is honored
+			if r.CustomerID == nil || !optedIn[*r.CustomerID] { // re-checked at send time so an unsubscribe since scheduling is honored, and no account means no consent record and no unsubscribe link
 				if err := s.repo.MarkSkipped(ctx, r.ID, "not opted in to marketing email"); err != nil {
 					log.Printf("[campaign] mark skipped (consent) %s: %v", r.ID, err) // a dropped skip leaves the row pending, so the next tick re-evaluates it forever and the campaign never drains
 				} else {
@@ -635,7 +652,7 @@ func (s *Service) renderVariant(ctx context.Context, c Campaign, libEmail *email
 	return
 }
 
-// Mirrors render() but takes the library email fetched ONCE per send, so recipients don't each trigger a GetLibraryEmail - falls back to the campaign's inline content when it isn't library-backed
+// Takes the library email fetched ONCE per send, so recipients don't each trigger a GetLibraryEmail - falls back to the campaign's inline content when it isn't library-backed
 func (s *Service) renderPrepared(ctx context.Context, c Campaign, libEmail *emailtemplate.LibraryEmail, vars map[string]string) (subject, html, text string, err error) {
 	if libEmail != nil {
 		return s.tmpl.RenderContent(ctx, libEmail.ChannelID, libEmail.Subject, libEmail.Preheader, libEmail.Blocks, libEmail.Styles, vars)
@@ -659,14 +676,6 @@ func (s *Service) VariantStats(ctx context.Context, id uuid.UUID) ([]VariantStat
 	return out, nil
 }
 
-// Produces a campaign's email - from the referenced library email when EmailID is set, else from the campaign's own inline content
-func (s *Service) render(ctx context.Context, c Campaign, vars map[string]string) (subject, html, text string, err error) {
-	if c.EmailID != nil {
-		return s.tmpl.RenderLibraryEmail(ctx, *c.EmailID, vars)
-	}
-	return s.tmpl.RenderContent(ctx, c.ChannelID, c.Subject, "", c.Blocks, c.Styles, vars)
-}
-
 // --- preview + test send ---
 
 func (s *Service) Preview(ctx context.Context, channelID uuid.UUID, subject string, blocks []emailtemplate.Block, styles emailtemplate.EmailStyles) (string, string, error) { // composer preview - unsaved content rendered with sample vars
@@ -680,27 +689,31 @@ func (s *Service) Preview(ctx context.Context, channelID uuid.UUID, subject stri
 
 func (s *Service) SendTest(ctx context.Context, id uuid.UUID, to string) error { // the stored campaign rendered with sample vars, mailed to one address
 	if strings.TrimSpace(to) == "" {
-		return fmt.Errorf("recipient is required")
+		return fmt.Errorf("%w: recipient is required", ErrInvalid)
 	}
 	c, ok, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("campaign not found")
+		return ErrNotFound
 	}
-	if _, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID); err != nil {
+	libEmail, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID)
+	if err != nil {
 		return err
 	}
 	ch, err := s.stores.Get(ctx, c.ChannelID)
 	if err != nil {
 		return err
 	}
-	subj, html, text, err := s.render(ctx, c, sampleVars(ch))
+	subj, html, text, err := s.renderPrepared(ctx, c, libEmail, sampleVars(ch))
 	if err != nil {
 		return err
 	}
-	return s.sender.Send(ctx, email.Message{From: s.fromAddress(ch), To: to, Subject: "[TEST] " + subj, HTMLBody: html, TextBody: text})
+	if err := s.sender.Send(ctx, email.Message{From: s.fromAddress(ch), To: to, Subject: "[TEST] " + subj, HTMLBody: html, TextBody: text}); err != nil {
+		return fmt.Errorf("%w: %w", ErrSendFailed, err)
+	}
+	return nil
 }
 
 // --- merge-tag vars ---
@@ -744,17 +757,11 @@ func (s *Service) marketingMessage(ch Store, r Recipient, from, subj, html, text
 // Signed over the customer id with the key core verifies with - the link works without a session, and
 // following it records the opt-out where consent lives, which is core
 func (s *Service) unsubscribeLink(ch Store, customerID uuid.UUID) string {
-	return storefrontURL(ch) + "/unsubscribe/" + s.track.SignUnsubscribe(customerID)
+	return s.track.UnsubscribeURL(ch.PublicURL, customerID)
 }
 
-// The channel's sender identity as core pushed it, with the store's name when no sender name was
-// ever set - an empty From is refused by every relay
 func (s *Service) fromAddress(ch Store) string {
-	name := strings.TrimSpace(ch.FromName)
-	if name == "" {
-		name = ch.Name
-	}
-	return email.FromHeader(name, ch.FromAddress)
+	return email.SenderHeader(ch.FromName, ch.Name, ch.FromAddress)
 }
 
 func storefrontURL(ch Store) string {

@@ -31,7 +31,9 @@ func TestOnlyMarketingFlowMailCarriesListUnsubscribe(t *testing.T) {
 			box := &mailbox{}
 			svc := NewService(repo, emailtemplate.NewService(nil, nil), optedIn{}, publicStore{}, box, nil, nil, nil, false, emailtrack.NewSigner([]byte("k")))
 			f := mailingFlow(repo, c.transactional)
-			svc.execEmail(context.Background(), f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()})
+			if err := svc.execEmail(context.Background(), f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()}); err != nil {
+				t.Fatal(err)
+			}
 			if len(box.sent) != 1 {
 				t.Fatalf("mailed %d, want 1", len(box.sent))
 			}

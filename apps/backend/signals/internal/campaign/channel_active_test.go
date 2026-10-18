@@ -2,12 +2,15 @@ package campaign
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
@@ -66,5 +69,21 @@ func TestADeactivatedChannelsCampaignIsHeldWithoutStallingTheDrain(t *testing.T)
 	}
 	if !slices.Contains(repo.touched, paused.ID) {
 		t.Error("the held campaign was not moved back, so it leads every pass")
+	}
+}
+
+type refusingSender struct{}
+
+func (refusingSender) Send(context.Context, email.Message) error {
+	return errors.New("550 relay denied")
+}
+
+// A failed test send is the relay talking, not a bad campaign - it travels as its own sentinel so the composer can say so
+func TestAFailedTestSendNamesTheRelay(t *testing.T) {
+	stored := Campaign{ID: uuid.New(), ChannelID: uuid.New(), Status: StatusDraft, Subject: "Spring"}
+	svc := &Service{repo: &fakeCampaignRepo{campaign: stored, found: true}, tmpl: emailtemplate.NewService(nil, nil), stores: anyStore{}, sender: refusingSender{}, track: emailtrack.NewSigner([]byte("k"))}
+	err := svc.SendTest(context.Background(), stored.ID, "qa@example.test")
+	if !errors.Is(err, ErrSendFailed) || !strings.Contains(err.Error(), "relay denied") {
+		t.Fatalf("err = %v, want ErrSendFailed carrying the relay's answer", err)
 	}
 }

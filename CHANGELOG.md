@@ -275,6 +275,12 @@ The release process, and which version number means what, is in
 
 ### Security
 
+- A webhook node could be added to the password-reset and other account flows, and it posted the run's
+  context, sign-in and reset links included, to any URL. Account flows now refuse webhook nodes, every
+  webhook payload drops the one-time links, and webhooks no longer follow redirects. A flow can only be
+  transactional - skipping consent, suppression and the unsubscribe header - on an order or account
+  trigger, whatever its config says.
+
 - **Logging out logs out of the suite too.** The wire contract's interceptor now consults the list of
   killed admin sessions that core publishes on logout, "log out other devices" and session deletion, so
   a service token minted just before is refused for the rest of its two minutes instead of honoured.
@@ -294,6 +300,17 @@ The release process, and which version number means what, is in
   exhaust the send loop. Saving one now needs a sample render inside 200 ms and 512 KB, literal loops are
   capped at 1000, `append`/`prepend`/`replace` results are capped, and `capture` is refused. Button,
   image, video and social links must be http(s), mailto, tel or a merge tag, including inside rows.
+
+- A flow email that failed to send was dropped and the run moved on, so a passing SMTP error lost an order
+  receipt or a reset email for good. The run now waits on its node and retries on a 1m/5m/15m/1h ladder
+  before failing; permanent bounces don't retry and, like campaign bounces, feed the suppression list.
+  A run batch stops at half its lease instead of running into another replica's claim.
+
+- An A/B campaign in its test window couldn't be cancelled, so the winner job still mailed the held-back
+  audience. It can now, a deleted one is never resolved, and a cancel or delete stops a send pass at its
+  next recipient instead of after up to 500 more emails. A recipient without an account is skipped rather
+  than mailed without a consent check or unsubscribe link, and audiences are read from the roster a page
+  at a time.
 
 - Lens enforces its limits on the server instead of trusting the tracker: a recording stops at
   `replay_max_minutes` and 1000 chunks, a retransmitted chunk is written once, and the player reads at

@@ -118,3 +118,36 @@ func TestOneChannelsBacklogDoesNotStarveAnothersRuns(t *testing.T) {
 		t.Fatalf("claimed %d of the busy channel's runs and %d of the quiet one's, want the quiet channel to get its turn", mine(runs, busy), mine(runs, quiet))
 	}
 }
+
+// The attempt count is what ends a run whose mail never gets through, so it has to survive the round trip to the claim
+func TestSendAttemptsSurviveTheClaim(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	r := &repo{q: db.New(conn)}
+	var flowID uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO flows (channel_id, name, trigger_type, status) VALUES ($1, 'attempts', 'order_placed', 'active') RETURNING id`, uuid.New()).Scan(&flowID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM flows WHERE id = $1`, flowID) })
+	past := time.Now().Add(-time.Minute)
+	run, err := r.CreateRun(ctx, FlowRun{FlowID: flowID, CustomerID: uuid.New(), CurrentNodeID: "m", Status: RunActive, ResumeAt: &past})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run.SendAttempts = 3
+	if err := r.UpdateRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := r.ClaimRunnable(ctx, 100, runLease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, got := range runs {
+		if got.ID == run.ID && got.SendAttempts != 3 {
+			t.Fatalf("claimed run carries %d attempts, want 3", got.SendAttempts)
+		}
+	}
+	if mine(runs, flowID) != 1 {
+		t.Fatal("the run was not claimed")
+	}
+}
