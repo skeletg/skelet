@@ -3,9 +3,9 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -24,15 +24,15 @@ type segmentServer struct {
 func (s *segmentServer) ListSegments(ctx context.Context, req *signalsv1.ListSegmentsRequest) (*signalsv1.ListSegmentsResponse, error) {
 	scope, err := permittedScope(ctx, "promotions.view")
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	size, offset, err := page(req.GetPageSize(), req.GetPageToken(), 25)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	segs, total, err := s.svc.ListVisible(ctx, scope, size, offset)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	out := make([]*signalsv1.CustomerSegment, 0, len(segs))
 	for _, sg := range segs {
@@ -47,7 +47,7 @@ func (s *segmentServer) ListSegments(ctx context.Context, req *signalsv1.ListSeg
 func (s *segmentServer) GetSegment(ctx context.Context, req *signalsv1.GetSegmentRequest) (*signalsv1.GetSegmentResponse, error) {
 	sg, err := s.load(ctx, req.GetId(), "promotions.view", false)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.GetSegmentResponse{Segment: segmentProto(sg, s.visibleCount(ctx, sg.ID, "promotions.view"))}, nil
 }
@@ -56,19 +56,19 @@ func (s *segmentServer) GetSegment(ctx context.Context, req *signalsv1.GetSegmen
 // match-everything rule would otherwise enumerate the whole book through a marketing grant
 func (s *segmentServer) ListMembers(ctx context.Context, req *signalsv1.ListMembersRequest) (*signalsv1.ListMembersResponse, error) {
 	if err := requirePermissionOrSystem(ctx, "promotions.view", "customers.view"); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	id, err := parseID("segment_id", req.GetSegmentId())
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	size, offset, err := page(req.GetPageSize(), req.GetPageToken(), 50)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	perm, err := auth.LoadPermittedChannels(ctx, auth.GrantCheckerFrom(ctx), "customers.view")
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	var channels []uuid.UUID
 	if !perm.Bypass() {
@@ -78,7 +78,7 @@ func (s *segmentServer) ListMembers(ctx context.Context, req *signalsv1.ListMemb
 	}
 	rows, err := s.svc.ListMembers(ctx, id, size, offset, channels)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	out := make([]*signalsv1.SegmentMember, 0, len(rows))
 	for _, m := range rows {
@@ -90,15 +90,15 @@ func (s *segmentServer) ListMembers(ctx context.Context, req *signalsv1.ListMemb
 func (s *segmentServer) ListSegmentOptions(ctx context.Context, req *signalsv1.ListSegmentOptionsRequest) (*signalsv1.ListSegmentOptionsResponse, error) {
 	scope, err := permittedScope(ctx, "experiments.view")
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	size, offset, err := page(req.GetPageSize(), req.GetPageToken(), 200)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	segs, _, err := s.svc.ListVisible(ctx, scope, size, offset)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	out := make([]*signalsv1.SegmentOption, 0, len(segs))
 	for _, sg := range segs {
@@ -112,17 +112,14 @@ func (s *segmentServer) ListSegmentOptions(ctx context.Context, req *signalsv1.L
 // A segment made here is global, and a global segment gates every channel's promotions
 func (s *segmentServer) CreateSegment(ctx context.Context, req *signalsv1.CreateSegmentRequest) (*signalsv1.CreateSegmentResponse, error) {
 	if err := requireGlobal(ctx, "promotions.manage"); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(req.GetSlug()) == "" || strings.TrimSpace(req.GetName()) == "" {
-		return nil, invalidArgument("slug and name are required")
+		return nil, segmentErr(err)
 	}
 	sg, err := s.svc.Create(ctx, segment.CreateInput{
 		Slug: req.GetSlug(), Name: req.GetName(), Description: req.GetDescription(),
 		IsActive: req.IsActive == nil || req.GetIsActive(), // a segment created without saying so is active
 	})
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.CreateSegmentResponse{Segment: segmentProto(sg, 0)}, nil
 }
@@ -131,7 +128,7 @@ func (s *segmentServer) CreateSegment(ctx context.Context, req *signalsv1.Create
 func (s *segmentServer) UpdateSegment(ctx context.Context, req *signalsv1.UpdateSegmentRequest) (*signalsv1.UpdateSegmentResponse, error) {
 	existing, err := s.load(ctx, req.GetId(), "promotions.manage", true)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	id := existing.ID
 	in := segment.UpdateInput{
@@ -152,7 +149,7 @@ func (s *segmentServer) UpdateSegment(ctx context.Context, req *signalsv1.Update
 	}
 	sg, err := s.svc.Update(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.UpdateSegmentResponse{Segment: segmentProto(sg, s.visibleCount(ctx, id, "promotions.manage"))}, nil
 }
@@ -160,10 +157,10 @@ func (s *segmentServer) UpdateSegment(ctx context.Context, req *signalsv1.Update
 func (s *segmentServer) DeleteSegment(ctx context.Context, req *signalsv1.DeleteSegmentRequest) (*signalsv1.DeleteSegmentResponse, error) {
 	sg, err := s.load(ctx, req.GetId(), "promotions.manage", true)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if err := s.svc.Delete(ctx, sg.ID); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.DeleteSegmentResponse{Deleted: true}, nil
 }
@@ -171,26 +168,26 @@ func (s *segmentServer) DeleteSegment(ctx context.Context, req *signalsv1.Delete
 func (s *segmentServer) AssignCustomers(ctx context.Context, req *signalsv1.AssignCustomersRequest) (*signalsv1.AssignCustomersResponse, error) {
 	id, err := parseID("segment_id", req.GetSegmentId())
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if !auth.IsSystemCaller(ctx) {
 		if _, err := s.load(ctx, req.GetSegmentId(), "promotions.manage", false); err != nil {
-			return nil, err
+			return nil, segmentErr(err)
 		}
 	}
 	ids := make([]uuid.UUID, 0, len(req.GetCustomerIds()))
 	for _, raw := range req.GetCustomerIds() {
 		cid, err := parseID("customer_ids", raw)
 		if err != nil {
-			return nil, err
+			return nil, segmentErr(err)
 		}
 		ids = append(ids, cid)
 	}
 	if err := s.requireCustomers(ctx, "promotions.manage", ids); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if err := s.svc.AssignCustomers(ctx, id, ids); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.AssignCustomersResponse{Assigned: true}, nil
 }
@@ -198,17 +195,17 @@ func (s *segmentServer) AssignCustomers(ctx context.Context, req *signalsv1.Assi
 func (s *segmentServer) RemoveCustomer(ctx context.Context, req *signalsv1.RemoveCustomerRequest) (*signalsv1.RemoveCustomerResponse, error) {
 	sg, err := s.load(ctx, req.GetSegmentId(), "promotions.manage", false)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	custID, err := parseID("customer_id", req.GetCustomerId())
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if err := s.requireCustomers(ctx, "promotions.manage", []uuid.UUID{custID}); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if err := s.svc.RemoveCustomer(ctx, custID, sg.ID); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.RemoveCustomerResponse{Removed: true}, nil
 }
@@ -216,10 +213,10 @@ func (s *segmentServer) RemoveCustomer(ctx context.Context, req *signalsv1.Remov
 func (s *segmentServer) ClearMembership(ctx context.Context, req *signalsv1.ClearMembershipRequest) (*signalsv1.ClearMembershipResponse, error) {
 	sg, err := s.load(ctx, req.GetSegmentId(), "promotions.manage", true)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if err := s.svc.ClearMembership(ctx, sg.ID); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.ClearMembershipResponse{Cleared: true}, nil
 }
@@ -228,7 +225,7 @@ func (s *segmentServer) ClearMembership(ctx context.Context, req *signalsv1.Clea
 func (s *segmentServer) SetRules(ctx context.Context, req *signalsv1.SetRulesRequest) (*signalsv1.SetRulesResponse, error) {
 	existing, err := s.load(ctx, req.GetSegmentId(), "promotions.manage", true)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	id := existing.ID
 	var raw json.RawMessage
@@ -240,7 +237,7 @@ func (s *segmentServer) SetRules(ctx context.Context, req *signalsv1.SetRulesReq
 	}
 	sg, err := s.svc.SetRules(ctx, id, raw)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.SetRulesResponse{Segment: segmentProto(sg, s.visibleCount(ctx, id, "promotions.manage"))}, nil
 }
@@ -248,10 +245,10 @@ func (s *segmentServer) SetRules(ctx context.Context, req *signalsv1.SetRulesReq
 func (s *segmentServer) RefreshSegment(ctx context.Context, req *signalsv1.RefreshSegmentRequest) (*signalsv1.RefreshSegmentResponse, error) {
 	sg, err := s.load(ctx, req.GetSegmentId(), "promotions.manage", true)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if _, err := s.svc.RefreshDynamic(ctx, sg.ID); err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	return &signalsv1.RefreshSegmentResponse{MemberCount: s.visibleCount(ctx, sg.ID, "promotions.manage")}, nil
 }
@@ -267,7 +264,7 @@ func (s *segmentServer) load(ctx context.Context, raw, perm string, write bool) 
 	}
 	sg, err := s.svc.Get(ctx, id)
 	if err != nil {
-		return segment.Segment{}, status.Error(codes.NotFound, "segment not found")
+		return segment.Segment{}, segmentErr(err)
 	}
 	if ch, owned := sg.OwnerChannel(); owned {
 		if err := requireChannel(ctx, perm, ch); err != nil {
@@ -370,14 +367,14 @@ func nextToken(offset, limit, returned, total int32) string {
 func (s *segmentServer) ListCustomerSegments(ctx context.Context, req *signalsv1.ListCustomerSegmentsRequest) (*signalsv1.ListCustomerSegmentsResponse, error) {
 	asked, err := parseID("customer_id", req.GetCustomerId())
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	if caller := auth.CustomerCallerFrom(ctx); caller == uuid.Nil || caller != asked {
 		return nil, status.Error(codes.PermissionDenied, "this method takes a token naming the customer it asks about")
 	}
 	refs, err := s.svc.SegmentRefsForCustomer(ctx, asked)
 	if err != nil {
-		return nil, err
+		return nil, segmentErr(err)
 	}
 	out := make([]*signalsv1.CustomerSegmentRef, 0, len(refs))
 	for _, r := range refs {
@@ -391,4 +388,19 @@ func idOrEmpty(id uuid.UUID) string {
 		return ""
 	}
 	return id.String()
+}
+
+// The segment service's sentinels as the codes core's resolvers render - status errors and anything else pass through
+func segmentErr(err error) error {
+	switch {
+	case errors.Is(err, segment.ErrSegmentNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, segment.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, segment.ErrSlugTaken):
+		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, segment.ErrSlugImmutable):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return err
 }

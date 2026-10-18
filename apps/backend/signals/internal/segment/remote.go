@@ -2,6 +2,7 @@ package segment
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -17,8 +18,7 @@ type SegmentRef struct {
 func (s *Service) SegmentRefsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentRef, error) {
 	rows, err := s.repo.SegmentsForCustomer(ctx, customerID)
 	if err != nil {
-		// The segments live in the signals database, so an unreachable one reads the same as the suite being off
-		return nil, nil
+		return nil, fmt.Errorf("segments for customer: %w", err) // an empty answer would read as "in no segment", which fails a negated promotion open
 	}
 	seen := make(map[string]struct{}, len(rows))
 	out := make([]SegmentRef, 0, len(rows))
