@@ -40,9 +40,6 @@ DELETE FROM customer_segments WHERE id = $1;
 -- name: GetCustomerSegment :one
 SELECT * FROM customer_segments WHERE id = $1;
 
--- name: GetCustomerSegmentBySlug :one
-SELECT * FROM customer_segments WHERE slug = $1;
-
 -- name: ListCustomerSegments :many
 SELECT * FROM customer_segments
 ORDER BY slug
@@ -50,11 +47,6 @@ LIMIT $1 OFFSET $2;
 
 -- name: CountCustomerSegments :one
 SELECT COUNT(*)::INTEGER FROM customer_segments;
-
--- name: AddCustomerToSegment :exec
-INSERT INTO customer_segment_memberships (customer_id, segment_id)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING;
 
 -- name: BulkAddCustomersToSegment :exec
 -- The admin "assign N customers" path and the refreshes that swap a computed membership in
@@ -89,15 +81,6 @@ GROUP BY segment_id;
 -- name: SegmentMemberCustomerIDs :many
 -- Every customer id in a segment (used to resolve a campaign audience)
 SELECT customer_id FROM customer_segment_memberships WHERE segment_id = sqlc.arg(segment_id);
-
--- name: SegmentSlugsForCustomer :many
--- Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
--- rules + definition ride along so the caller can tell a computed segment from a hand-picked one
-SELECT s.slug, s.rules, s.definition
-FROM customer_segments s
-JOIN customer_segment_memberships m ON m.segment_id = s.id
-WHERE m.customer_id = $1 AND s.is_active = TRUE
-ORDER BY s.slug;
 
 -- name: SegmentsForCustomer :many
 -- Active segments a customer belongs to, with id + name (for the Synapse
