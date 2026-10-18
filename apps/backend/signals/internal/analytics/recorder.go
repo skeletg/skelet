@@ -218,7 +218,7 @@ type LensElementIncrement struct {
 
 // ONE batch per flush, so retransmits collapse per cell on the batch key - `at` has to be as stable as that key (the flush's client timestamp), because the ClickHouse dedupe window is the daily partition and a retransmit stamped with a fresh server time could cross midnight into a partition where it never collapses
 func (r *Recorder) RecordLensGrid(ctx context.Context, channelID uuid.UUID, batchKey string, at time.Time, cells []LensCellIncrement, elems []LensElementIncrement) error {
-	at = orNow(at)
+	at = ClientTime(at, time.Now())
 	events := make([]SpineEvent, 0, len(cells)+len(elems))
 	for _, c := range cells {
 		events = append(events, SpineEvent{
@@ -251,7 +251,7 @@ func (r *Recorder) RecordWeb(ctx context.Context, w WebSpec) (bool, error) { // 
 	cid := w.ChannelID
 	return r.spine.AppendEvent(ctx, SpineEvent{
 		EventName:  w.EventName,
-		OccurredAt: orNow(w.At),
+		OccurredAt: ClientTime(w.At, time.Now()),
 		ChannelID:  &cid,
 		CustomerID: w.CustomerID,
 		AnonID:     w.AnonID,
@@ -353,6 +353,21 @@ func hitProps(h Hit, extra map[string]any) map[string]any {
 func uaHash(ua string) string {
 	sum := sha1.Sum([]byte(ua))
 	return hex.EncodeToString(sum[:])[:8]
+}
+
+// The spine partitions by event day, so browser-stamped times are held to a window around the server clock - a forged spread of
+// timestamps would otherwise fan one shared insert across more partitions than ClickHouse accepts, failing everyone's events with it
+const (
+	clientClockBehind = 24 * time.Hour
+	clientClockAhead  = 5 * time.Minute
+)
+
+// ClientTime is a browser-supplied instant, or now when it is zero or outside the window
+func ClientTime(t, now time.Time) time.Time {
+	if t.IsZero() || t.Before(now.Add(-clientClockBehind)) || t.After(now.Add(clientClockAhead)) {
+		return now
+	}
+	return t
 }
 
 func orNow(t time.Time) time.Time {

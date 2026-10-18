@@ -290,6 +290,11 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- A tracker batch whose events claimed timestamps spread over more than 100 days made ClickHouse refuse the
+  shared insert, and the flusher retried that batch forever, so the spine stopped taking anyone's events.
+  Browser timestamps more than a day old or five minutes ahead now take the server's clock, and a batch
+  ClickHouse keeps refusing is split until only the refused events are dropped.
+
 - GA4 forwarding sent every batch as one JSON array, which the Measurement Protocol accepts with a 2xx
   and then discards, so nothing ever reached GA4. Each visitor now goes as its own request of at most 25
   events.
