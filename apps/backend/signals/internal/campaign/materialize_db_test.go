@@ -34,11 +34,11 @@ type flakyAudience struct {
 	fail bool
 }
 
-func (f *flakyAudience) ListForChannel(ctx context.Context, channelID uuid.UUID) ([]Contact, error) {
+func (f *flakyAudience) ListForChannel(ctx context.Context, channelID, after uuid.UUID, limit int) ([]Contact, error) {
 	if f.fail {
 		return nil, errors.New("roster unavailable")
 	}
-	return f.fakeAudience.ListForChannel(ctx, channelID)
+	return f.fakeAudience.ListForChannel(ctx, channelID, after, limit)
 }
 
 func seedDueCampaign(t *testing.T, conn *sql.DB, channelID uuid.UUID) uuid.UUID {

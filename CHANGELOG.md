@@ -290,6 +290,12 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- An A/B campaign in its test window couldn't be cancelled, so the winner job still mailed the held-back
+  audience. It can now, a deleted one is never resolved, and a cancel or delete stops a send pass at its
+  next recipient instead of after up to 500 more emails. A recipient without an account is skipped rather
+  than mailed without a consent check or unsubscribe link, and audiences are read from the roster a page
+  at a time.
+
 - Lens enforces its limits on the server instead of trusting the tracker: a recording stops at
   `replay_max_minutes` and 1000 chunks, a retransmitted chunk is written once, and the player reads at
   most 64 MB of a recording. A known heatmap layout's backdrop can no longer be replaced by a later post,

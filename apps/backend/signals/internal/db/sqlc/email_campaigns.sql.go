@@ -76,7 +76,7 @@ func (q *Queries) BumpCampaignOpened(ctx context.Context, id uuid.UUID) error {
 const cancelEmailCampaign = `-- name: CancelEmailCampaign :execrows
 UPDATE email_campaigns
 SET status = 'cancelled', updated_at = NOW()
-WHERE id = $1 AND status IN ('scheduled', 'sending')
+WHERE id = $1 AND status IN ('scheduled', 'sending', 'testing')
 `
 
 func (q *Queries) CancelEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -348,7 +348,7 @@ func (q *Queries) InsertCampaignRecipients(ctx context.Context, arg InsertCampai
 
 const listABTestingDue = `-- name: ListABTestingDue :many
 SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns
-WHERE status = 'testing' AND ab_test_started_at IS NOT NULL
+WHERE status = 'testing' AND deleted_at IS NULL AND ab_test_started_at IS NOT NULL
   AND ab_test_started_at + make_interval(mins => ab_test_minutes) <= NOW()
 ORDER BY ab_test_started_at
 `
@@ -731,12 +731,14 @@ func (q *Queries) MarkRecipientSendFailed(ctx context.Context, arg MarkRecipient
 }
 
 const markRecipientSent = `-- name: MarkRecipientSent :execrows
-UPDATE email_campaign_recipients
+UPDATE email_campaign_recipients r
 SET status = 'sent', sent_at = NOW()
-WHERE id = $1 AND status = 'pending'
+WHERE r.id = $1 AND r.status = 'pending'
+  AND EXISTS (SELECT 1 FROM email_campaigns c WHERE c.id = r.campaign_id AND c.status = 'sending' AND c.deleted_at IS NULL)
 `
 
 // Claimed BEFORE the message is handed to the sender: this row is the only thing that stops a resend, so marking after delivery leaves a window where a failed write re-mails the recipient on every later tick - returns rows affected so the caller can tell "I own this one" from "a concurrent sweep already took it"
+// The campaign must still be sending, so a cancel or delete stops the pass already in flight at its next recipient
 func (q *Queries) MarkRecipientSent(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markRecipientSent, id)
 	if err != nil {

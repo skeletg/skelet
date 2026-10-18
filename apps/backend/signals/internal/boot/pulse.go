@@ -131,8 +131,8 @@ func (r PreviewContacts) Get(ctx context.Context, customerID uuid.UUID) (signals
 // The audience a campaign draws from, consent included, and consent re-read for a page at send time
 type campaignAudience struct{ *RosterContacts }
 
-func (r campaignAudience) ListForChannel(ctx context.Context, channelID uuid.UUID) ([]campaign.Contact, error) {
-	rows, err := r.q.ChannelRosterContacts(ctx, channelID)
+func (r campaignAudience) ListForChannel(ctx context.Context, channelID, after uuid.UUID, limit int) ([]campaign.Contact, error) {
+	rows, err := r.q.ChannelRosterContacts(ctx, signalsdb.ChannelRosterContactsParams{ChannelID: channelID, AfterID: after, Lim: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
