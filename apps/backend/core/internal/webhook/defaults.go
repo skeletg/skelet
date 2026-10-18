@@ -527,7 +527,7 @@ func init() {
 		Type:        payment.EventProviderWebhook,
 		Kind:        KindAsync,
 		Name:        "Payment Provider Webhook Received",
-		Description: "Fires when an inbound payment-provider callback (e.g. Stripe/Braintree/PayPal) is received and processed - useful for reconciliation of async/delayed settlement events.",
+		Description: "Fires when an inbound payment-provider callback is received and processed - useful for reconciliation of async/delayed settlement events.",
 	})
 
 	// Auth - session lifecycle beyond login - Useful for SIEM, device tracking,
