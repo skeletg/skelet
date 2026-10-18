@@ -51,7 +51,7 @@ const geistMono = Geist_Mono({
 // operator uploading a favicon shouldn't need a redeploy
 //
 // The bundled default lives in public/, NOT app/. Next auto-emits a <link rel="icon"> for an
-// app/favicon.ico on top of whatever metadata declares, which left two competing icon links and the
+// app/favicon file on top of whatever metadata declares, which left two competing icon links and the
 // browser choosing between them - serving the default from public/ means exactly one link either way
 export async function generateMetadata({
   params,
@@ -64,7 +64,7 @@ export async function generateMetadata({
   return {
     title: "Vetrina",
     description: t("description"),
-    icons: { icon: faviconUrl ?? "/favicon.ico" },
+    icons: { icon: faviconUrl ?? "/favicon.svg" },
   };
 }
 
