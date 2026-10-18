@@ -4,6 +4,7 @@ package behavioralsegment
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -22,6 +23,16 @@ var (
 	ErrOtherChannel    = errors.New("behavioralsegment: segment belongs to another channel")
 	// The triple is a cadence, so it is all three ascending or nothing
 	ErrLifecycleWindows = errors.New("behavioralsegment: lifecycle windows must be positive and ascending (new <= active <= at-risk)")
+	ErrTooLarge         = errors.New("behavioralsegment: definition is too large")
+	ErrBadCondition     = errors.New("behavioralsegment: invalid condition")
+)
+
+// Each node is a spine query per refresh, so a definition is bounded in breadth and depth
+const (
+	maxNodes = 50
+	maxDepth = 4
+	// The look-back an affinity uses when it names none, and the auto-affinity sync's default window
+	DefaultAffinityWindowDays = 90
 )
 
 // Node kinds, as they are spelled in the stored JSON
@@ -83,7 +94,7 @@ func (a *Affinity) Active() bool {
 
 func (a *Affinity) Window() int {
 	if a == nil || a.Days <= 0 {
-		return 90
+		return DefaultAffinityWindowDays
 	}
 	return a.Days
 }
@@ -136,6 +147,44 @@ func (d Definition) legacyRoot() *Node {
 		return nil
 	}
 	return g
+}
+
+// validateTree bounds a definition before it runs: node count, depth, known kinds and ops, and sane event conditions
+func validateTree(root *Node) error {
+	nodes := 0
+	var walk func(n *Node, depth int) error
+	walk = func(n *Node, depth int) error {
+		if nodes++; nodes > maxNodes {
+			return fmt.Errorf("%w: more than %d conditions", ErrTooLarge, maxNodes)
+		}
+		if depth > maxDepth {
+			return fmt.Errorf("%w: groups nest deeper than %d", ErrTooLarge, maxDepth)
+		}
+		switch n.Kind {
+		case KindGroup:
+			if n.Op != "" && !strings.EqualFold(n.Op, OpAnd) && !strings.EqualFold(n.Op, OpOr) {
+				return fmt.Errorf("%w: group op %q", ErrBadCondition, n.Op)
+			}
+			for i := range n.Children {
+				if err := walk(&n.Children[i], depth+1); err != nil {
+					return err
+				}
+			}
+		case KindEvent:
+			if strings.TrimSpace(n.Event) == "" || n.Count < 0 || n.Days < 0 {
+				return fmt.Errorf("%w: an event condition needs an event name and a count and days of 0 or more", ErrBadCondition)
+			}
+		case KindAffinity:
+			if n.Affinity != nil && n.Affinity.Days < 0 {
+				return fmt.Errorf("%w: affinity days can't be negative", ErrBadCondition)
+			}
+		case KindTrait:
+		default:
+			return ErrUnknownKind
+		}
+		return nil
+	}
+	return walk(root, 1)
 }
 
 func (d Definition) Tree() *Node {

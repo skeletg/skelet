@@ -206,7 +206,9 @@ func definitionError(err error) error {
 		errors.Is(err, behavioralsegment.ErrEmptyGroup),
 		errors.Is(err, behavioralsegment.ErrNameRequired),
 		errors.Is(err, behavioralsegment.ErrOtherChannel),
-		errors.Is(err, behavioralsegment.ErrLifecycleWindows):
+		errors.Is(err, behavioralsegment.ErrLifecycleWindows),
+		errors.Is(err, behavioralsegment.ErrTooLarge),
+		errors.Is(err, behavioralsegment.ErrBadCondition):
 		return status.Error(codes.InvalidArgument, wireMessage(err))
 	case errors.Is(err, behavioralsegment.ErrNotBehavioral):
 		return status.Error(codes.FailedPrecondition, wireMessage(err))
