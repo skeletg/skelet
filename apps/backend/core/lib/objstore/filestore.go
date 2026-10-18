@@ -371,7 +371,7 @@ func (s *FileStore) HasPublicBase() bool { return s.cfg.PublicURLBase != "" }
 func (s *FileStore) PublicURL(key string) string {
 	base := s.cfg.PublicURLBase
 	if base == "" {
-		base = strings.TrimSuffix(filesObjectPath, "/")
+		base = strings.TrimSuffix(FilesPath, "/")
 	}
 	return base + "/" + escapeKey(key)
 }

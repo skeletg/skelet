@@ -56,11 +56,8 @@ func New(ctx context.Context, cfg Config) (Storage, error) {
 	return nil, fmt.Errorf("media: STORAGE_DRIVER %q is neither %q nor %q", cfg.Driver, DriverS3, DriverFilesystem)
 }
 
-const (
-	FilesPath       = "/files/"
-	filesObjectPath = "/files/o/"
-	filesUploadPath = "/files/u/"
-)
+// Where core serves the filesystem driver's objects - GET and HEAD read one, a PUT signed by PresignUpload writes it
+const FilesPath = "/files/"
 
 // Development only - envcheck refuses it in production
 const devSigningKey = "skelet-dev-storage-signing-key-not-for-prod"
@@ -78,9 +75,12 @@ func ConfigFromEnv(getenv func(string) string) Config {
 		return cfg
 	}
 	cfg.Dir = strings.TrimSpace(getenv("STORAGE_DIR"))
-	if base := strings.TrimRight(strings.TrimSpace(getenv("STORAGE_PUBLIC_URL")), "/"); base != "" {
-		cfg.PublicURLBase = base + strings.TrimSuffix(filesObjectPath, "/")
-		cfg.PresignEndpoint = base + strings.TrimSuffix(filesUploadPath, "/")
+	if core := strings.TrimRight(strings.TrimSpace(getenv("STORAGE_UPLOAD_URL")), "/"); core != "" {
+		cfg.PresignEndpoint = core + strings.TrimSuffix(FilesPath, "/")
+		cfg.PublicURLBase = cfg.PresignEndpoint
+	}
+	if pub := strings.TrimRight(strings.TrimSpace(getenv("STORAGE_PUBLIC_URL")), "/"); pub != "" {
+		cfg.PublicURLBase = pub
 	}
 	cfg.SigningKey = strings.TrimSpace(getenv("STORAGE_SIGNING_KEY"))
 	if cfg.SigningKey == "" && getenv("APP_ENV") == "development" {

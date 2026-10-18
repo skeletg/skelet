@@ -219,8 +219,8 @@ func Storage(getenv Getenv) (errs, warnings []string) {
 		if strings.TrimSpace(getenv("STORAGE_DIR")) == "" {
 			errs = append(errs, "STORAGE_DIR must name the directory the filesystem driver keeps files in")
 		}
-		if strings.TrimSpace(getenv("STORAGE_PUBLIC_URL")) == "" {
-			warnings = append(warnings, "STORAGE_PUBLIC_URL is empty - browsers can't upload, and media URLs only resolve on the API's own host")
+		if strings.TrimSpace(getenv("STORAGE_UPLOAD_URL")) == "" {
+			warnings = append(warnings, "STORAGE_UPLOAD_URL is empty - browsers can't upload, and media URLs only resolve on the API's own host")
 		}
 		errs = append(errs, strongSecret(getenv, "STORAGE_SIGNING_KEY")...)
 		if strings.HasPrefix(strings.TrimSpace(getenv("STORAGE_SIGNING_KEY")), "skelet-dev-") {

@@ -353,7 +353,7 @@ func bytes32(c byte) []byte {
 
 // The filesystem driver signs browser uploads itself, so a missing or dev key is a refusal, not a warning
 func TestStorageFilesystemDriver(t *testing.T) {
-	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data", "STORAGE_PUBLIC_URL": "https://api.shop", "STORAGE_SIGNING_KEY": strings.Repeat("s", 40)}
+	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data", "STORAGE_UPLOAD_URL": "https://api.shop", "STORAGE_SIGNING_KEY": strings.Repeat("s", 40)}
 	if errs, warns := Storage(envMap(env)); len(errs) != 0 || len(warns) != 0 {
 		t.Fatalf("a complete filesystem config: errs=%v warns=%v", errs, warns)
 	}
@@ -369,8 +369,8 @@ func TestStorageFilesystemDriver(t *testing.T) {
 	if errs, _ := Storage(envMap(e)); len(errs) == 0 {
 		t.Error("the development signing key passed")
 	}
-	delete(env, "STORAGE_PUBLIC_URL")
+	delete(env, "STORAGE_UPLOAD_URL")
 	if _, warns := Storage(envMap(env)); len(warns) != 1 {
-		t.Errorf("no STORAGE_PUBLIC_URL warns once, got %v", warns)
+		t.Errorf("no STORAGE_UPLOAD_URL warns once, got %v", warns)
 	}
 }
