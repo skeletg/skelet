@@ -63,6 +63,7 @@ var Services = fx.Module("services",
 		newArchive,
 		newSendLog,
 		newSuppression,
+		newBounces,
 	),
 )
 
@@ -190,6 +191,10 @@ func newSendLog(q Queries, rq ReadQueries, a Archive) *sendlog.Store {
 }
 
 func newSuppression(q Queries) *suppression.Service { return suppression.New(q.Queries) }
+
+func newBounces(list *suppression.Service, settings *config.Service) *suppression.Bounces {
+	return suppression.NewBounces(list, settings)
+}
 
 func newGeo() *geo.Resolver { // a bad GEOIP_DB_PATH is logged rather than fatal - geo just stops appearing on profiles
 	resolver, err := geo.Open(os.Getenv("GEOIP_DB_PATH"))

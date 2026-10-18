@@ -67,7 +67,9 @@ func TestADeactivatedChannelSendsOnlyTransactionalMail(t *testing.T) {
 			}
 
 			box.sent = nil
-			svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()})
+			if err := svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()}); err != nil {
+				t.Fatal(err)
+			}
 			if len(box.sent) != c.want {
 				t.Fatalf("a run already under way mailed %d, want %d", len(box.sent), c.want)
 			}

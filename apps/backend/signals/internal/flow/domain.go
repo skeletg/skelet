@@ -155,12 +155,18 @@ type FlowRun struct {
 	Context       json.RawMessage
 	Error         string
 	EnrollmentKey string // the moment this run was started for, as core named it - unique per flow, empty when unkeyed
+	SendAttempts  int    // failed deliveries at the current send node, reset once one goes through
 }
 
 // ErrMomentTaken is CreateRun refusing a keyed moment that already has its run in this flow
 var ErrMomentTaken = errors.New("flow: this moment already started its run")
 
 var ErrAlreadyInFlow = errors.New("flow: already in this flow")
+
+var (
+	ErrNotFound = errors.New("flow not found")
+	ErrInvalid  = errors.New("invalid flow")
+)
 
 func (r FlowRun) IsGuest() bool { return r.CustomerID == uuid.Nil }
 

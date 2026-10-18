@@ -6,6 +6,7 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 
 	"github.com/google/uuid"
@@ -61,7 +62,7 @@ func (s *flowServer) CreateFlow(ctx context.Context, req *signalsv1.CreateFlowRe
 	}
 	f, err := s.svc.Create(ctx, in)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, flowErr(err)
 	}
 	return &signalsv1.CreateFlowResponse{Flow: flowProto(f)}, nil
 }
@@ -78,7 +79,7 @@ func (s *flowServer) UpdateFlow(ctx context.Context, req *signalsv1.UpdateFlowRe
 	in.ChannelID = existing.ChannelID // a flow does not move between channels
 	f, err := s.svc.Update(ctx, existing.ID, in)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, flowErr(err)
 	}
 	return &signalsv1.UpdateFlowResponse{Flow: flowProto(f)}, nil
 }
@@ -112,7 +113,7 @@ func (s *flowServer) SetFlowStatus(ctx context.Context, req *signalsv1.SetFlowSt
 	}
 	updated, err := s.svc.SetStatus(ctx, f.ID, req.GetStatus())
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, flowErr(err)
 	}
 	return &signalsv1.SetFlowStatusResponse{Flow: flowProto(updated)}, nil
 }
@@ -188,7 +189,7 @@ func (s *flowServer) SeedStarterContent(ctx context.Context, req *signalsv1.Seed
 	}
 	res, err := s.svc.SeedStarterContent(ctx, channelID)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, flowErr(err)
 	}
 	return &signalsv1.SeedStarterContentResponse{Blocks: int32(res.Blocks), Emails: int32(res.Emails), Flows: int32(res.Flows)}, nil
 }
@@ -300,4 +301,15 @@ func runProto(r flow.FlowRun) *signalsv1.FlowRun {
 		out.ContextJson = string(r.Context)
 	}
 	return out
+}
+
+// The flow service's sentinels as the codes core's resolvers render - anything else is the suite's own failure
+func flowErr(err error) error {
+	switch {
+	case errors.Is(err, flow.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, flow.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	return err
 }
