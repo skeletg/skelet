@@ -1,5 +1,3 @@
-import { ExternalLinkIcon } from 'lucide-react'
-import { JAEGER_URL } from '@/lib/app-origins'
 import { GQ } from './graphiqlTheme'
 import {
   formatBytes,
@@ -41,16 +39,7 @@ export function ResponseDetailsBar({ details }: { details: ResponseDetails | nul
       )}
       {details.dbQueries !== null && <Item label="DB queries" value={String(details.dbQueries)} />}
       {details.requestId && <Item label="Request" value={details.requestId} mono />}
-      {details.traceId && (
-        <a
-          href={`${JAEGER_URL}/trace/${details.traceId}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 hover:underline"
-        >
-          Trace <ExternalLinkIcon className="size-3" aria-hidden />
-        </a>
-      )}
+      {details.traceId && <Item label="Trace" value={details.traceId} mono />}
     </dl>
   )
 }

@@ -24,14 +24,14 @@ Three things they share (living in `_lib`, which is sourced, not run):
   including sidecars, and compose auto-merges your git-ignored
   `docker-compose.override.yml` on its own, so `_lib` sets no
   `COMPOSE_FILE` at all. `stop`, `down`, `ps` and friends therefore cover
-  Garage, Mailpit and co. as well as the apps.
+  Garage, the dev tools and co. as well as the apps.
 - **Profiles follow your app selection** - `_lib` exports
-  `COMPOSE_PROFILES` built from the sidecars (`search,tracing`, plus
+  `COMPOSE_PROFILES` built from the sidecars (`search`, plus
   `signals` unless `env/go.env` switches `SIGNALS_ENABLED` off - that profile
-  carries the Signals process and its ClickHouse) and
-  whatever `.skelet-apps` lists, so the apps you picked in `setup` come up
-  and the ones you skipped stay down (see `dev --lean` below to drop the
-  sidecars).
+  carries the Signals process and its ClickHouse),
+  whatever `.skelet-apps` lists and whatever dev tools `.skelet-tools` lists,
+  so what you picked in `setup` comes up and what you skipped stays down
+  (see `dev --lean` below to drop the sidecars and tools).
 - **Files stay yours** - containers run as your uid, so generated code
   doesn't end up root-owned and break `git pull`. Set
   `SKELET_NO_USER_MAP=1` if you actually need root inside a container.
@@ -40,7 +40,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 
 | Command | What it does |
 |---|---|
-| `./skelet up` | Start the full dev stack: backend with hot reload, dashboard on :5173, storefront on :3000, plus the sidecars - Garage (S3 :9900, console :9901), Mailpit (:8025), Jaeger (:16686), webhook-tester (:8081). Idempotent - re-run any time, it only touches what changed. `./skelet up --lean` skips OpenSearch, Jaeger and the Signals process with its ClickHouse (~1GB+ less RAM; search returns empty, traces go nowhere, and the dashboard's Signals pages have no suite to ask). |
+| `./skelet up` | Start the full dev stack: backend with hot reload, dashboard on :5173, storefront on :3000, plus the sidecars - Garage (S3 :9900), OpenSearch - and the optional dev tools `.skelet-tools` picks (Mailpit :8025, webhook-tester :8081, Grafana :3030, Garage web UI :9901; see [workflow.md](workflow.md#optional-dev-tools)). `./skelet up <name>` starts one tool ad hoc. Idempotent - re-run any time, it only touches what changed. `./skelet up --lean` skips OpenSearch, the dev tools and the Signals process with its ClickHouse (~1GB+ less RAM; search returns empty, and the dashboard's Signals pages have no suite to ask). |
 | `./skelet stop` | Halt everything (sidecars too) without removing containers. |
 | `./skelet down` | Remove the containers. Volumes (your data) survive. |
 | `./skelet restart` | Restart containers in place. For a full recreate: `down` then `dev`. |
@@ -48,7 +48,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 | `./skelet serve` | Run one frontend on the HOST instead of in its container - `./skelet serve dashboard`, `./skelet serve vetrina-demo`. It exports the root `.env` first, because Next only reads `.env` files from its own directory and would otherwise need a second copy of `STOREFRONT_CHANNEL_ID` that drifts from the one compose reads. Trailing args go to the dev server, with no `--` in front - pnpm passes that through verbatim. |
 | `./skelet logs` | Tail logs - `./skelet logs app`, `./skelet logs --tail 50 garage`. |
 | `./skelet doctor` | See "Other tools" below - worth running right after `setup`, it's what catches a datastore the config expects but the stack isn't running. |
-| `./skelet setup` | Guided first-run. Asks which apps you want (backend always does; deselected apps also leave the working tree via sparse-checkout unless `--keep-code`) and, separately, whether to run the frontends in Docker rather than on the host - the host is the default, and `.skelet-apps` lists only the containerized ones, the deployment target, which suites and engines you want, which payment gateways compile in, and whether to hide the admin API. Writes the target's env files with generated secrets - an existing non-placeholder value is never overwritten - plus the root `.env`, `plugins.json` and git-ignored `.skelet-profile`. Then boots the stack with `--lean`, migrates, and regenerates when the plugin set changed. Safe to re-run. `--yes` takes defaults, `--profile FILE` replays answers, `--all` / `--backend-only` / `--apps LIST` set the selection directly, and `--docker-apps LIST|none` sets the placement. |
+| `./skelet setup` | Guided first-run. Asks which apps you want (backend always does; deselected apps also leave the working tree via sparse-checkout unless `--keep-code`) and, separately, whether to run the frontends in Docker rather than on the host - the host is the default, and `.skelet-apps` lists only the containerized ones, the deployment target, which suites and engines you want, which payment gateways compile in, whether to hide the admin API, and which optional dev tools to run (saved to `.skelet-tools`). Writes the target's env files with generated secrets - an existing non-placeholder value is never overwritten - plus the root `.env`, `plugins.json` and git-ignored `.skelet-profile`. Then boots the stack with `--lean`, migrates, and regenerates when the plugin set changed. Safe to re-run. `--yes` takes defaults, `--profile FILE` replays answers, `--all` / `--backend-only` / `--apps LIST` set the selection directly, `--docker-apps LIST|none` sets the placement, and `--tools LIST|none` the dev tools. |
 
 ## Running things inside containers
 

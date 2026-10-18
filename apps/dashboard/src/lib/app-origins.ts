@@ -9,7 +9,3 @@
 export const STOREFRONT_ORIGIN = (
   (import.meta.env.VITE_STOREFRONT_ORIGIN as string | undefined) ?? 'http://localhost:3000'
 ).replace(/\/$/, '')
-
-export const JAEGER_URL = (
-  (import.meta.env.VITE_JAEGER_URL as string | undefined) ?? 'http://localhost:16686'
-).replace(/\/$/, '')

@@ -30,7 +30,7 @@ type SMTPSender struct {
 }
 
 // Composes a multipart/alternative message, text plus HTML, and hands it to the SMTP server
-// With a username set it uses PLAIN auth, which net/smtp only allows over a TLS-upgraded connection, so the provider must advertise STARTTLS; with an empty username, as with a dev catcher like Mailpit, auth is skipped and the connection stays plaintext
+// With a username set it uses PLAIN auth, which net/smtp only allows over a TLS-upgraded connection, so the provider must advertise STARTTLS; with an empty username, as with a local mail catcher, auth is skipped and the connection stays plaintext
 func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -55,7 +55,7 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	}
 	defer c.Close()
 
-	// Upgrade to TLS when the server advertises STARTTLS - real relays do, while dev catchers like Mailpit don't, keeping the plaintext path
+	// Upgrade to TLS when the server advertises STARTTLS - real relays do, while local mail catchers don't, keeping the plaintext path
 	if ok, _ := c.Extension("STARTTLS"); ok {
 		if err := c.StartTLS(&tls.Config{ServerName: s.Host}); err != nil {
 			return fmt.Errorf("starttls: %w", err)

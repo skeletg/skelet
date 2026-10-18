@@ -1,5 +1,6 @@
-# Per-clone app selection written by bin/setup (dashboard/storefront profiles).
+# Per-clone app and dev-tool selection written by bin/setup (compose profiles).
 .skelet-apps
+.skelet-tools
 .skelet-profile
 # Per-clone compose additions (custom storefront services) - see README
 docker-compose.override.yml

@@ -149,9 +149,10 @@ against the bundled containers, and back the ClickHouse spine up with its own
 [backups.md](backups.md).
 
 **Tracing and metrics.** OpenTelemetry, opt-in - nothing is exported until you
-set the `OTEL_*` vars. Sentry activates when a DSN is set. In dev, `docker
-compose --profile tracing up` starts Jaeger and the app sends traces to it out of
-the box.
+set the `OTEL_*` vars. Sentry activates when a DSN is set. In dev, the optional
+`grafana` tool gives you a local Grafana to send them to
+([workflow.md](workflow.md#optional-dev-tools)); in production, point the vars at the
+collector you already run.
 
 **Logs.** Every service writes structured JSON to stdout, and the compose files cap
 Docker's copy at 10 MB x 3 per service, so that cap is also the retention. Shipping
