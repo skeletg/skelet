@@ -99,6 +99,13 @@ copies of the security headers that have to agree.
 The vhost map in the Caddyfile is meant to be edited - it names the demo
 storefront rather than deriving yours.
 
+### `changelog/`
+
+One file per release, `changelog/0.2.0.md` and on, with `CHANGELOG.md` at the root as
+their index. Pending entries wait in `changelog/unreleased/` as one small file each, so
+branches never edit the same lines, and a release gathers them into the next version's
+file - the naming rule is in that folder's README.
+
 ### Root files
 
 `docker-compose.yml` is the dev stack. `docker-compose.small.yml` is the
