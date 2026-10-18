@@ -48,10 +48,13 @@ type LifecycleWindows struct {
 	AtRiskDays int // "at_risk" inside this, "lapsed" beyond
 }
 
+// The cadence a channel gets until it sets its own - the setting registry's defaults, which a test holds these to
+var DefaultLifecycleWindows = LifecycleWindows{NewDays: 30, ActiveDays: 90, AtRiskDays: 180}
+
 // Guards against missing or misordered config - a non-positive value falls back to the fast-cadence defaults, and the bands are forced ascending so each stage owns a real range
 func (lc LifecycleWindows) normalized() LifecycleWindows {
 	if lc.NewDays <= 0 {
-		lc.NewDays = 30
+		lc.NewDays = DefaultLifecycleWindows.NewDays
 	}
 	if lc.ActiveDays < lc.NewDays {
 		lc.ActiveDays = lc.NewDays

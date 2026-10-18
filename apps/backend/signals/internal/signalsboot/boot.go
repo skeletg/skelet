@@ -1,5 +1,5 @@
-// Package signalsboot assembles the Signals spine stack shared by cmd/server, cmd/signals and cmd/ingest, so the order the Recorder needs (enabled -> read pools -> engine -> queue wrap) is right by construction instead of re-derived per main
-// First extracted slice of cmd/server's wiring - the Signals half was the piece duplicated three ways with order-sensitive landmines; the commerce assembly stays in cmd/server until a second consumer exists
+// Package signalsboot builds the spine stack - the ClickHouse engine, the ingest queue wrapped over it last, the Recorder on top -
+// and holds the maintenance job bodies and the settings store, which the composition root and the contract handlers both use
 package signalsboot
 
 import (
@@ -70,7 +70,7 @@ func Build(ctx context.Context, o Options) (*Stack, error) {
 		st.Queue = q
 		st.cleanups = append(st.cleanups, q.Close)
 		if o.WrapQueue {
-			rec.WrapSpine(q.WrapSpine) // LAST - SetSpine/SetSpineReadQueries replace the store wholesale
+			rec.WrapSpine(q.WrapSpine) // last, so every append the Recorder makes goes through the queue
 			slog.Info("signals ingest queue enabled", "url", qURL)
 		}
 	}
@@ -115,9 +115,9 @@ func TraitComputeJob(roster TraitRoster, traits TraitComputer, cfgSvc Settings) 
 				return def
 			}
 			lc := analytics.LifecycleWindows{
-				NewDays:    cfg("signals/synapse/lifecycle_new_days", 30),
-				ActiveDays: cfg("signals/synapse/lifecycle_active_days", 90),
-				AtRiskDays: cfg("signals/synapse/lifecycle_at_risk_days", 180),
+				NewDays:    cfg("signals/synapse/lifecycle_new_days", analytics.DefaultLifecycleWindows.NewDays),
+				ActiveDays: cfg("signals/synapse/lifecycle_active_days", analytics.DefaultLifecycleWindows.ActiveDays),
+				AtRiskDays: cfg("signals/synapse/lifecycle_at_risk_days", analytics.DefaultLifecycleWindows.AtRiskDays),
 			}
 			if err := roster.MarkTraitsAttempted(ctx, chID, time.Now()); err != nil {
 				errs = append(errs, fmt.Errorf("channel %s: mark attempted: %w", chID, err))
