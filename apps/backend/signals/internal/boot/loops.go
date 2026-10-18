@@ -44,6 +44,9 @@ func RegisterPprof(mux *http.ServeMux) bool {
 	if os.Getenv("PPROF_ENABLED") != "true" {
 		return false
 	}
+	if os.Getenv("APP_ENV") == "production" {
+		slog.Warn("PPROF_ENABLED in production - /debug/pprof serves heap and goroutine dumps on this port, so keep it off the public route or turn it off")
+	}
 	mux.HandleFunc("/debug/pprof/", netpprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", netpprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", netpprof.Profile)

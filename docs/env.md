@@ -438,6 +438,13 @@ jobs export aged spine events and send-log months as identity-stripped
 `BACKUP_S3_BUCKET` the sweep fails closed - it deletes nothing rather than
 archiving nowhere.
 
+Lens session recordings and heatmap page snapshots go to the media bucket by
+default, and that bucket is usually served publicly. Their object keys are
+random, so nobody can guess one, but `LENS_S3_BUCKET` moves them to a private
+bucket of their own on the same endpoint and credentials, which keeps them off
+the public endpoint entirely. Set it on both the `signals` and `ingest`
+services; production logs a warning while Lens shares the public bucket.
+
 ## Email and SMS
 
 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev,

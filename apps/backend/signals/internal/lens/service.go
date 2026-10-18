@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -89,14 +90,21 @@ func (s *Service) SetReadQueries(qr *signalsdb.Queries) { s.qr = qr }
 
 func (s *Service) SetBlobStore(b BlobStore) { s.blobs = b }
 
-// Deterministic object keys derived from a row's identity, so writes are idempotent and the prune path can recompute a key
-// Snapshot PK columns are hashed into one path-safe segment, since page_key contains slashes
+// Object keys carry a random part, since the bucket can be served publicly and a key built only from a session, a channel or a
+// page could be guessed - each row stores its key, which is what every read, prune and retirement goes by
+// The snapshot's identity is hashed into one path-safe segment, since page_key contains slashes
 func chunkBlobKey(sessionID uuid.UUID, seq int32) string {
-	return fmt.Sprintf("lens/replay/%s/%d.gz", sessionID, seq)
+	return fmt.Sprintf("lens/replay/%s/%d-%s.gz", sessionID, seq, blobNonce())
 }
 func snapshotBlobKey(channelID uuid.UUID, pageKey, viewport, state, layoutHash string) string {
 	sum := sha256.Sum256([]byte(pageKey + "|" + viewport + "|" + state + "|" + layoutHash))
-	return fmt.Sprintf("lens/snapshot/%s/%s.gz", channelID, hex.EncodeToString(sum[:16]))
+	return fmt.Sprintf("lens/snapshot/%s/%s-%s.gz", channelID, hex.EncodeToString(sum[:16]), blobNonce())
+}
+
+func blobNonce() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Read-only aggregations only - ingest, snapshot and prune always use s.q directly
