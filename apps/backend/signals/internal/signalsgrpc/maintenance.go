@@ -6,6 +6,7 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -304,6 +305,7 @@ func (s *maintenanceServer) RefreshBehavioralSegments(ctx context.Context, req *
 		return nil, err
 	}
 	now := time.Now()
+	var syncErr error
 	if attrs := req.GetAutoSegmentAttributes(); len(attrs) > 0 {
 		auto := make([]analytics.AffinityAttr, 0, len(attrs))
 		for _, a := range attrs {
@@ -313,30 +315,28 @@ func (s *maintenanceServer) RefreshBehavioralSegments(ctx context.Context, req *
 		if err != nil {
 			return nil, err
 		}
-		_, _, _ = s.behavioral.SyncAffinity(ctx, behavioralsegment.AffinitySyncOptions{
+		_, _, syncErr = s.behavioral.SyncAffinity(ctx, behavioralsegment.AffinitySyncOptions{
 			Channels: channels, Attributes: auto,
 			MinActors:  s.settingInt(ctx, "signals/synapse/affinity_segment_min_actors", 5),
 			MaxValues:  s.settingInt(ctx, "signals/synapse/affinity_segment_max_values", 20),
-			WindowDays: s.settingInt(ctx, "signals/synapse/affinity_segment_window_days", 90),
+			WindowDays: s.settingInt(ctx, "signals/synapse/affinity_segment_window_days", behavioralsegment.DefaultAffinityWindowDays),
 		}, now)
 	}
 	// Collected first and enrolled after, so the membership swap holds no transaction open while runs are written
-	type entry struct {
-		channel, customer uuid.UUID
-		slug              string
-	}
-	var entered []entry
-	n, err := s.behavioral.RefreshAll(ctx, now, func(ch, cust uuid.UUID, slug string) {
-		entered = append(entered, entry{channel: ch, customer: cust, slug: slug})
-	})
-	if err != nil {
-		return nil, err
-	}
+	var entered []behavioralsegment.Entered
+	n, refreshErr := s.behavioral.RefreshAll(ctx, now, func(e behavioralsegment.Entered) { entered = append(entered, e) })
 	if s.flows != nil {
+		day := now.UTC().Format(time.DateOnly)
 		for _, e := range entered {
-			payload, _ := json.Marshal(map[string]string{signalsapi.PayloadSegmentSlug: e.slug})
-			s.flows.Enroll(ctx, signalsapi.TriggerSegmentEntered, e.channel, e.customer, "", payload, "")
+			payload, _ := json.Marshal(map[string]string{signalsapi.PayloadSegmentSlug: e.Slug})
+			// Keyed per segment, customer and day, so a retried sweep never starts a second run for the same entry
+			key := "segment_entered:" + e.SegmentID.String() + ":" + e.CustomerID.String() + ":" + day
+			s.flows.Enroll(ctx, signalsapi.TriggerSegmentEntered, e.ChannelID, e.CustomerID, "", payload, key)
 		}
+	}
+	// Every segment that could refresh did, and its entries were enrolled - the failures still fail the job, so it shows and retries
+	if err := errors.Join(syncErr, refreshErr); err != nil {
+		return nil, err
 	}
 	return &signalsv1.RefreshBehavioralSegmentsResponse{Refreshed: int32(n)}, nil
 }
