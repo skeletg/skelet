@@ -17,7 +17,7 @@ reason. So skelet leaves it to tools built for the job.
 | Commerce Postgres | Orders, customers, catalog, everything that matters | PITR, below |
 | Signals Postgres | Campaigns, flows, segments, the send log | PITR, below |
 | ClickHouse spine | Raw analytics events, Lens sessions | `BACKUP DATABASE`, below |
-| Object storage | Media, and Lens replay blobs | Bucket replication or versioning |
+| Object storage | Media, and Lens replay blobs | Bucket replication or versioning, or a snapshot of `STORAGE_DIR` on the filesystem driver |
 
 What you don't need to back up: OpenSearch, which is rebuilt from Postgres with
 `./skelet cli search reindex`, and Valkey, which is caches and sessions.

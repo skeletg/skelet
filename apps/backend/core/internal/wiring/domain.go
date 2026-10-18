@@ -95,11 +95,11 @@ func newLinkGraphService(q *db.Queries) *linkgraph.Service { return linkgraph.Ne
 func newSignalsEnabled() SignalsEnabled { return SignalsEnabled(EnvBool("SIGNALS_ENABLED", true)) }
 
 // Fails loudly without bucket/region - silent defaults would produce broken media URLs
-func newMediaStorage(rc RootContext) (*objstore.Storage, error) {
-	return objstore.New(rc.Context, mediaConfigFromEnv()) // root ctx, not Background - this runs inside fx.New, where a hung endpoint would ignore SIGTERM
+func newMediaStorage(rc RootContext) (objstore.Storage, error) {
+	return objstore.New(rc.Context, objstore.FromEnv()) // root ctx, not Background - this runs inside fx.New, where a hung endpoint would ignore SIGTERM
 }
 
-func newMediaLibraryService(q *db.Queries, store *objstore.Storage) *medialibrary.Service {
+func newMediaLibraryService(q *db.Queries, store objstore.Storage) *medialibrary.Service {
 	return medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
 }
 
@@ -171,7 +171,7 @@ func newPaymentAuthorizer(p *payment.Service) order.PaymentAuthorizer {
 }
 
 func newCatalogService( // catalog depends on channel for the listing-currency-match check
-	q *db.Queries, txMgr *txrunner.Manager, store *objstore.Storage, ch *channel.Service,
+	q *db.Queries, txMgr *txrunner.Manager, store objstore.Storage, ch *channel.Service,
 	loc *locale.Service, def CatalogDefaultLocaleProvider, rw *urlrewrite.Service,
 	bus *events.Bus, vk CacheRedis, // category tree is a read-through cache so it rides the evictable client
 ) *catalog.Service {
@@ -216,7 +216,7 @@ func newTransactionalSender(sender email.Sender, cfg *config.Service) *mailsend.
 // On restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 func newBackInStockService(
 	q *db.Queries, inv *inventory.Service, cust *customer.Service, flows *enroll.Enroller,
-	ch *channel.Service, cfg *config.Service, sender email.Sender, sc *signalsclient.Client, store *objstore.Storage,
+	ch *channel.Service, cfg *config.Service, sender email.Sender, sc *signalsclient.Client, store objstore.Storage,
 ) *backinstock.Service {
 	svc := backinstock.New(q, inv, cust, flows, ch, cfg, sender, sc)
 	svc.SetMedia(store)

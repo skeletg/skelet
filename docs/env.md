@@ -382,8 +382,11 @@ private CA needs `OPENSEARCH_CA_CERT_FILE`.
 
 ## Object storage
 
-S3-compatible, and required for media to work. There's no filesystem
-driver.
+Required for media to work. `STORAGE_DRIVER` picks where files live: `s3`
+(the default when it's empty) for S3 or anything that speaks it, or
+`filesystem` for a directory on the box.
+
+### S3
 
 Two shapes:
 
@@ -392,7 +395,58 @@ Two shapes:
   at the web-endpoint vhost, `S3_USE_PATH_STYLE=true`.
 
 `S3_PRESIGN_ENDPOINT_URL` is the browser-facing presign endpoint and falls
-back to `S3_ENDPOINT_URL`. `S3_MAX_UPLOAD_BYTES` defaults to 10 MB.
+back to `S3_ENDPOINT_URL`. `STORAGE_MAX_UPLOAD_BYTES` defaults to 10 MB, on
+either driver.
+
+### Filesystem
+
+Every key is a file under `STORAGE_DIR`, and core serves them itself at
+`/files/<key>`. A browser upload is a PUT to that same path with a signed
+`?t=` token, just like a presigned S3 URL. That
+makes it the simplest thing for a single server, and the wrong thing for
+more than one, since every process that touches files has to see the same
+directory.
+
+- `STORAGE_DIR` - the directory. Created on boot if it's missing.
+- `STORAGE_UPLOAD_URL` - core's public origin, e.g. `https://api.shop.com`.
+  Browsers upload to it, and media URLs default to `<it>/files/<key>`.
+  Without it browsers can't upload, and image links only work on the API's
+  own host.
+- `STORAGE_PUBLIC_URL` - OPTIONAL. The base media URLs are built from, when
+  something other than core serves the directory: nginx, Caddy or a CDN in
+  front of it, e.g. `https://cdn.shop.com` for `https://cdn.shop.com/<key>`.
+  Uploads still go to core. Whatever serves it should send the same headers
+  core does (below).
+- `STORAGE_SIGNING_KEY` - signs the upload URLs the way S3 signs a presigned
+  PUT: one key, one content type, one exact size, fifteen minutes. It lives
+  in the root `.env`, `./skelet setup` generates it, and production refuses
+  to boot without a strong one. Dev falls back to a fixed key.
+
+Every process that touches files reads the directory, so in the prod shape
+mount the same volume at `/data/media` on `app`, `worker` and `media`, plus
+`signals` and `ingest` for Lens recordings (the images create it owned by the
+app user):
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:    { volumes: ["media-files:/data/media"] }
+  worker: { volumes: ["media-files:/data/media"] }
+  media:  { volumes: ["media-files:/data/media"] }
+  signals: { volumes: ["media-files:/data/media"] }
+  ingest:  { volumes: ["media-files:/data/media"] }
+volumes:
+  media-files:
+```
+
+Files are served with `nosniff` and a sandboxing CSP, and anything that isn't
+an image, video, audio or PDF downloads rather than rendering - they share the
+API's origin, so nothing uploaded may run there.
+
+Signals reads the same variables. Its Lens recordings go in core's directory
+unless `LENS_STORAGE_DIR` gives them their own, which keeps them off the
+public `/files/` route - the filesystem twin of `LENS_S3_BUCKET`. The database
+backup archive stays S3-only.
 
 In dev, `./skelet up` points all of it at the Garage sidecar, so leave it
 blank in `go.env`.
@@ -407,8 +461,9 @@ means the whole bucket, minus the prefixes the platform writes itself
 (`catalog/`, `webforms/`, `data/`, `derived/`) - the library won't list,
 upload into, rename or delete those, and won't delete its own root.
 
-Moving a store between buckets, `skelet media-migrate` reads the S3 vars
-above as the source and takes the destination from its own flags, falling back
+Moving between stores, `skelet media-migrate` reads the storage vars above as
+the source and takes the destination from its own flags - `--dest-dir` for a
+directory, `--dest-bucket` and friends for S3 - falling back
 to `DEST_AWS_ACCESS_KEY_ID` / `DEST_AWS_SECRET_ACCESS_KEY` when the flags are
 omitted. Neither is needed in normal operation.
 

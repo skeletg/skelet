@@ -1,5 +1,6 @@
-// Package objstore wraps S3, or any S3-compatible store like Garage - PresignUpload hands clients PUT URLs, the rest are server-side
-// Two endpoints exist because a presigned URL embeds a hostname: in dev the server reaches Garage by its network name while the browser needs localhost
+// Package objstore is the object store behind every file - S3 or any S3-compatible service like Garage, or a local directory
+// PresignUpload hands browsers PUT URLs, the rest is server-side. S3 takes two endpoints because a presigned URL embeds a
+// hostname: in dev the server reaches Garage by its network name while the browser needs localhost
 package objstore
 
 import (
@@ -23,8 +24,14 @@ import (
 )
 
 type Config struct {
-	Bucket string
-	Region string
+	// DriverS3 (the default when empty) or DriverFilesystem
+	Driver string
+	// The filesystem driver's root directory - every key is a path beneath it
+	Dir string
+	// Signs the filesystem driver's upload URLs, which stand in for presigned S3 PUTs
+	SigningKey string
+	Bucket     string
+	Region     string
 	// The server-side client (Head / Delete) - empty for real AWS S3, set to the S3-compatible URL in dev or on-prem
 	InternalEndpoint string
 	// Baked into presigned URLs, so it's what the browser PUTs to - empty means use InternalEndpoint - In compose dev that's http://localhost:9900 while internal is http://garage:3900
@@ -41,15 +48,15 @@ type Config struct {
 	MaxUploadBytes int64
 }
 
-// Safe for concurrent use
-type Storage struct {
+// S3Store is the Storage on any S3-compatible service - AWS, Garage, MinIO, R2. Safe for concurrent use
+type S3Store struct {
 	cfg            Config
 	internalClient *s3.Client
 	presignClient  *s3.PresignClient
 }
 
 // Credentials come from the SDK's default chain (env, shared config, IAM role), so a prod deployment with a role attached needs no explicit creds
-func New(ctx context.Context, cfg Config) (*Storage, error) {
+func newS3(ctx context.Context, cfg Config) (*S3Store, error) {
 	if cfg.Bucket == "" {
 		return nil, fmt.Errorf("media: S3_BUCKET_NAME is required")
 	}
@@ -96,19 +103,19 @@ func New(ctx context.Context, cfg Config) (*Storage, error) {
 	presignSource := s3.NewFromConfig(awsCfg, tuneClient(cfg.PresignEndpoint))
 	presignClient := s3.NewPresignClient(presignSource)
 
-	return &Storage{
+	return &S3Store{
 		cfg:            cfg,
 		internalClient: internalClient,
 		presignClient:  presignClient,
 	}, nil
 }
 
-func (s *Storage) MaxUploadBytes() int64 { return s.cfg.MaxUploadBytes }
+func (s *S3Store) MaxUploadBytes() int64 { return s.cfg.MaxUploadBytes }
 
-func (s *Storage) Bucket() string { return s.cfg.Bucket }
+func (s *S3Store) Bucket() string { return s.cfg.Bucket }
 
 // Content-Type is locked into the presigned URL - the client MUST send the exact same header on the upload PUT or S3 rejects it A positive sizeBytes is signed in as the exact Content-Length too, so the store rejects any other body size - without it a client could declare 1 byte and PUT gigabytes ttl bounds how long the URL is usable; 15 minutes suits interactive admin uploads
-func (s *Storage) PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (string, error) {
+func (s *S3Store) PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (string, error) {
 	in := &s3.PutObjectInput{
 		Bucket:      aws.String(s.cfg.Bucket),
 		Key:         aws.String(key),
@@ -125,7 +132,7 @@ func (s *Storage) PresignUpload(ctx context.Context, key, contentType string, si
 }
 
 // Returns (0, "", false, nil) for a missing object rather than an error - ConfirmMediaUpload uses it to verify the client finished uploading
-func (s *Storage) Head(ctx context.Context, key string) (int64, string, bool, error) {
+func (s *S3Store) Head(ctx context.Context, key string) (int64, string, bool, error) {
 	out, err := s.internalClient.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),
 		Key:    aws.String(key),
@@ -148,7 +155,7 @@ func (s *Storage) Head(ctx context.Context, key string) (int64, string, bool, er
 }
 
 // Idempotent - a missing object returns nil
-func (s *Storage) Delete(ctx context.Context, key string) error {
+func (s *S3Store) Delete(ctx context.Context, key string) error {
 	_, err := s.internalClient.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),
 		Key:    aws.String(key),
@@ -160,7 +167,7 @@ func (s *Storage) Delete(ctx context.Context, key string) error {
 }
 
 // Server-side rather than presigned - used for server-owned blobs like Lens replay chunks and DOM snapshots, with contentType defaulting to application/octet-stream
-func (s *Storage) PutBytes(ctx context.Context, key string, data []byte, contentType string) error {
+func (s *S3Store) PutBytes(ctx context.Context, key string, data []byte, contentType string) error {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -177,7 +184,7 @@ func (s *Storage) PutBytes(ctx context.Context, key string, data []byte, content
 }
 
 // Streams an object of unknown length, multipart under the hood - the writer never has to know the size or buffer it
-func (s *Storage) UploadStream(ctx context.Context, key, contentType string, body io.Reader) error {
+func (s *S3Store) UploadStream(ctx context.Context, key, contentType string, body io.Reader) error {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -201,7 +208,7 @@ func (s *Storage) UploadStream(ctx context.Context, key, contentType string, bod
 }
 
 // The caller owns the ReadCloser, so a large object streams through rather than being buffered in memory
-func (s *Storage) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
+func (s *S3Store) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
 	out, err := s.internalClient.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),
 		Key:    aws.String(key),
@@ -213,7 +220,7 @@ func (s *Storage) GetStream(ctx context.Context, key string) (io.ReadCloser, err
 }
 
 // A missing object is an error - the caller treats it as data loss, not an empty blob It's ErrObjectNotFound specifically, so callers can tell "this key is gone" from "the store is down" - the transform handler answers 404 for the first and 502 for the second, and a CDN must not cache an outage as a 404
-func (s *Storage) GetBytes(ctx context.Context, key string) ([]byte, error) {
+func (s *S3Store) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	out, err := s.internalClient.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),
 		Key:    aws.String(key),
@@ -233,7 +240,7 @@ func (s *Storage) GetBytes(ctx context.Context, key string) ([]byte, error) {
 }
 
 // GetBytes plus the stored content type in one round trip - a cache read that went HEAD then GET paid two
-func (s *Storage) GetBytesTyped(ctx context.Context, key string) ([]byte, string, error) {
+func (s *S3Store) GetBytesTyped(ctx context.Context, key string) ([]byte, string, error) {
 	out, err := s.internalClient.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),
 		Key:    aws.String(key),
@@ -252,7 +259,7 @@ func (s *Storage) GetBytesTyped(ctx context.Context, key string) ([]byte, string
 	return b, aws.ToString(out.ContentType), nil
 }
 
-func (s *Storage) PutEmptyObject(ctx context.Context, key string) error {
+func (s *S3Store) PutEmptyObject(ctx context.Context, key string) error {
 	_, err := s.internalClient.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.cfg.Bucket),
 		Key:         aws.String(key),
@@ -265,7 +272,7 @@ func (s *Storage) PutEmptyObject(ctx context.Context, key string) error {
 	return nil
 }
 
-func (s *Storage) Copy(ctx context.Context, fromKey, toKey string) error {
+func (s *S3Store) Copy(ctx context.Context, fromKey, toKey string) error {
 	source := s.cfg.Bucket + "/" + escapeKey(fromKey)
 	_, err := s.internalClient.CopyObject(ctx, &s3.CopyObjectInput{
 		Bucket:     aws.String(s.cfg.Bucket),
@@ -278,8 +285,20 @@ func (s *Storage) Copy(ctx context.Context, fromKey, toKey string) error {
 	return nil
 }
 
-func (s *Storage) ListPrefix(ctx context.Context, prefix string) ([]string, error) {
-	keys := []string{}
+func (s *S3Store) ListPrefix(ctx context.Context, prefix string) ([]string, error) {
+	objs, err := s.ListObjects(ctx, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("media: list prefix: %w", err)
+	}
+	keys := make([]string, len(objs))
+	for i, o := range objs {
+		keys[i] = o.Key
+	}
+	return keys, nil
+}
+
+func (s *S3Store) ListObjects(ctx context.Context, prefix string) ([]StorageObject, error) {
+	objs := []StorageObject{}
 	var token *string
 	for {
 		out, err := s.internalClient.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -288,22 +307,23 @@ func (s *Storage) ListPrefix(ctx context.Context, prefix string) ([]string, erro
 			ContinuationToken: token,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("media: list prefix: %w", err)
+			return nil, err
 		}
 		for _, obj := range out.Contents {
-			if obj.Key != nil {
-				keys = append(keys, *obj.Key)
+			if obj.Key == nil {
+				continue
 			}
+			objs = append(objs, StorageObject{Key: *obj.Key, Size: aws.ToInt64(obj.Size), ContentType: "application/octet-stream", LastModified: aws.ToTime(obj.LastModified)})
 		}
 		if out.IsTruncated == nil || !*out.IsTruncated || out.NextContinuationToken == nil {
 			break
 		}
 		token = out.NextContinuationToken
 	}
-	return keys, nil
+	return objs, nil
 }
 
-func (s *Storage) ListImmediatePrefixes(ctx context.Context, prefix string) ([]string, error) {
+func (s *S3Store) ListImmediatePrefixes(ctx context.Context, prefix string) ([]string, error) {
 	seen := map[string]struct{}{}
 	outPrefixes := []string{}
 	var token *string
@@ -343,7 +363,7 @@ type StorageObject struct {
 }
 
 // Immediate subdirectory prefixes and immediate objects in one paginated call (Delimiter=/), avoiding a second round-trip
-func (s *Storage) ListDirectoryContents(ctx context.Context, prefix string) (prefixes []string, objects []StorageObject, err error) {
+func (s *S3Store) ListDirectoryContents(ctx context.Context, prefix string) (prefixes []string, objects []StorageObject, err error) {
 	seenPfx := map[string]struct{}{}
 	var token *string
 	for {
@@ -388,10 +408,10 @@ func (s *Storage) ListDirectoryContents(ctx context.Context, prefix string) (pre
 }
 
 // PublicURL always returns something, but its fallback is container-network only - check this before handing a URL to a browser
-func (s *Storage) HasPublicBase() bool { return s.cfg.PublicURLBase != "" }
+func (s *S3Store) HasPublicBase() bool { return s.cfg.PublicURLBase != "" }
 
 // Honors PublicURLBase, falling back to a URL built from InternalEndpoint
-func (s *Storage) PublicURL(key string) string {
+func (s *S3Store) PublicURL(key string) string {
 	base := s.cfg.PublicURLBase
 	if base == "" {
 		base = s.cfg.InternalEndpoint
