@@ -10,11 +10,9 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
@@ -35,7 +33,7 @@ type Service struct {
 	contacts audienceReader
 	segments segmentAudience
 	stores   storeReader
-	config   *config.Service // the suite's settings - the deliverability switches the bounce loop reads
+	bounces  bounceCapturer
 	sender   email.Sender
 	recorder sendTracker
 	track    *emailtrack.Signer
@@ -43,10 +41,7 @@ type Service struct {
 }
 
 type suppressionChecker interface { // the slice of the suppression service the send loop needs
-	IsSuppressed(ctx context.Context, email string) bool
 	SuppressedSet(ctx context.Context, emails []string) map[string]bool // one query for a whole recipient page, keyed by the caller's original email strings
-	Suppress(ctx context.Context, email, reason, detail string) error
-	RecordSoftBounce(ctx context.Context, email, detail string, threshold int) (bool, int, error)
 }
 
 // The record of what this service sends: the send log the tracking token names, the spine event
@@ -64,46 +59,19 @@ type segmentAudience interface {
 }
 
 // links signs unsubscribe and tracking links with the key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, links *emailtrack.Signer) *Service {
-	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: links}
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, bounces bounceCapturer, sender email.Sender, recorder sendTracker, suppress suppressionChecker, links *emailtrack.Signer) *Service {
+	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, bounces: bounces, sender: sender, recorder: recorder, suppress: suppress, track: links}
 }
 
-// Turns a send failure into a suppression signal when auto-suppress is on - a permanent 5xx SMTP rejection hard-suppresses the address, a transient one accrues toward the soft-bounce threshold, and unknown errors like timeouts and resets are ignored since they aren't a verdict on the address (this is the out-of-the-box feedback loop for pure-SMTP setups, a provider webhook supplies richer signals)
+// The deliverability loop a failed send feeds - satisfied by *suppression.Bounces, nil captures nothing
+type bounceCapturer interface {
+	Capture(ctx context.Context, addr string, sendErr error)
+}
+
 func (s *Service) captureBounce(ctx context.Context, addr string, sendErr error) {
-	if s.suppress == nil || s.config == nil {
-		return
+	if s.bounces != nil {
+		s.bounces.Capture(ctx, addr, sendErr)
 	}
-	if on, _ := s.config.GetBool(ctx, "signals/deliverability/auto_suppress", config.DefaultScope); !on {
-		return
-	}
-	permanent, matched := email.ClassifyBounce(sendErr)
-	if !matched {
-		return
-	}
-	if permanent {
-		if err := s.suppress.Suppress(ctx, addr, "hard_bounce", truncate(sendErr.Error(), 240)); err != nil {
-			log.Printf("[campaign] suppress hard bounce for %s: %v", addr, err) // dropping it silently keeps mailing a dead address, which costs sender reputation
-		}
-		return
-	}
-	threshold := 3
-	if n, err := s.config.GetInt(ctx, "signals/deliverability/soft_bounce_threshold", config.DefaultScope); err == nil && n > 0 {
-		threshold = int(n)
-	}
-	if _, _, err := s.suppress.RecordSoftBounce(ctx, addr, truncate(sendErr.Error(), 240), threshold); err != nil {
-		log.Printf("[campaign] record soft bounce for %s: %v", addr, err)
-	}
-}
-
-// Cuts on a rune boundary - the suppression detail is stored text, and a split rune would fail the insert that stops the next send
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	for n > 0 && !utf8.RuneStart(s[n]) {
-		n--
-	}
-	return s[:n]
 }
 
 type Input struct {
@@ -789,17 +757,11 @@ func (s *Service) marketingMessage(ch Store, r Recipient, from, subj, html, text
 // Signed over the customer id with the key core verifies with - the link works without a session, and
 // following it records the opt-out where consent lives, which is core
 func (s *Service) unsubscribeLink(ch Store, customerID uuid.UUID) string {
-	return storefrontURL(ch) + "/unsubscribe/" + s.track.SignUnsubscribe(customerID)
+	return s.track.UnsubscribeURL(ch.PublicURL, customerID)
 }
 
-// The channel's sender identity as core pushed it, with the store's name when no sender name was
-// ever set - an empty From is refused by every relay
 func (s *Service) fromAddress(ch Store) string {
-	name := strings.TrimSpace(ch.FromName)
-	if name == "" {
-		name = ch.Name
-	}
-	return email.FromHeader(name, ch.FromAddress)
+	return email.SenderHeader(ch.FromName, ch.Name, ch.FromAddress)
 }
 
 func storefrontURL(ch Store) string {

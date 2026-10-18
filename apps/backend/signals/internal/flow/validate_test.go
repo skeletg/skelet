@@ -27,6 +27,11 @@ func draft(nodes ...Node) Input {
 	return Input{ChannelID: uuid.New(), Name: "Welcome", TriggerType: TriggerCustomerRegistered, Graph: Graph{Nodes: nodes}}
 }
 
+func onTrigger(in Input, trigger string) Input {
+	in.TriggerType = trigger
+	return in
+}
+
 func withConfig(in Input, cfg string) Input {
 	in.TriggerConfig = json.RawMessage(cfg)
 	return in
@@ -66,7 +71,8 @@ func TestValidateGatesEveryNodeType(t *testing.T) {
 		"an unparseable triggerConfig":          {withConfig(draft(), `{"transactional":`), true},
 		"an enrollment filter on a bad kind":    {withConfig(draft(), `{"enrollmentFilter":{"kind":"vibes"}}`), true},
 		"an enrollment filter on a live kind":   {withConfig(draft(), `{"enrollmentFilter":{"kind":"consent","consentKind":"marketing_email"}}`), false},
-		"a triggerConfig with no filter at all": {withConfig(draft(), `{"transactional":true}`), false},
+		"a triggerConfig with no filter at all": {withConfig(onTrigger(draft(), TriggerOrderPlaced), `{"transactional":true}`), false},
+		"a transactional welcome flow":          {withConfig(draft(), `{"transactional":true}`), true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := validator().validate(tc.in)

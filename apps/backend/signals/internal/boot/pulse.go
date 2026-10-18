@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
@@ -189,9 +188,10 @@ func newBuilder(cfg Config, q Queries, stores *RosterStores) *emailtemplate.Serv
 func newFlow(
 	cfg Config, allow AllowPrivateTargets, q Queries, tmpl *emailtemplate.Service,
 	contacts *RosterContacts, stores *RosterStores, mailer email.Sender, texter sms.Sender,
-	track *engagement.Tracker, rec *analytics.Recorder, segs *segment.Service, suppress *suppression.Service,
+	track *engagement.Tracker, rec *analytics.Recorder, segs *segment.Service, suppress *suppression.Service, bounces *suppression.Bounces,
 ) *flow.Service {
 	svc := flow.NewService(flow.NewRepository(q.Queries), tmpl, contacts, flowStores{stores}, mailer, texter, track, suppress, bool(allow), cfg.EmailLinks)
+	svc.SetBounces(bounces)
 	members := segmentMembers{segs}
 	traits := traitReader{rec}
 	svc.RegisterCondition(flow.NewEmailActivityCondition(track))
@@ -206,9 +206,9 @@ func newFlow(
 
 func newCampaign(
 	cfg Config, q Queries, tmpl *emailtemplate.Service, contacts *RosterContacts, stores *RosterStores,
-	settings *config.Service, mailer email.Sender, track *engagement.Tracker, segs *segment.Service, suppress *suppression.Service,
+	bounces *suppression.Bounces, mailer email.Sender, track *engagement.Tracker, segs *segment.Service, suppress *suppression.Service,
 ) *campaign.Service {
-	return campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, settings, mailer, track, suppress, cfg.EmailLinks)
+	return campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, bounces, mailer, track, suppress, cfg.EmailLinks)
 }
 
 // --- the suite's answers to the engine's questions ---
