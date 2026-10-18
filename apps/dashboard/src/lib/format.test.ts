@@ -11,6 +11,7 @@ import {
   formatNumber,
   formatShortDay,
   formatTimestamp,
+  localDay,
   timeAgo,
 } from './format'
 
@@ -162,5 +163,17 @@ describe('dayStartISO / dayEndISO', () => {
 
   it('a one-day range spans the whole day', () => {
     expect(new Date(dayEndISO('2026-03-04')).getTime() - new Date(dayStartISO('2026-03-04')).getTime()).toBe(86_399_999)
+  })
+})
+
+describe('localDay', () => {
+  it('is the local calendar day, not the UTC one', () => {
+    // 23:30 local on Mar 4 - already Mar 5 in UTC anywhere west of it
+    expect(localDay(new Date(2026, 2, 4, 23, 30))).toBe('2026-03-04')
+    expect(localDay(new Date(2026, 2, 5, 0, 15))).toBe('2026-03-05')
+  })
+
+  it('round-trips through dayStartISO', () => {
+    expect(localDay(new Date(dayStartISO('2026-12-31')))).toBe('2026-12-31')
   })
 })

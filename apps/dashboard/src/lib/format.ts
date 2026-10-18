@@ -100,6 +100,11 @@ export function dayStartISO(day: string): string {
   return new Date(`${day}T00:00:00`).toISOString()
 }
 
+// The local calendar day as a date input's "2026-03-04" - toISOString().slice(0, 10) is the UTC day, a day off near midnight
+export function localDay(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function dayEndISO(day: string): string {
   return new Date(`${day}T23:59:59.999`).toISOString()
 }
