@@ -275,6 +275,11 @@ The release process, and which version number means what, is in
 
 ### Security
 
+- Lens session recordings and heatmap snapshots were stored under keys built from the session, channel and
+  page, in the media bucket that is usually served publicly, so a snapshot's key could be worked out. Every
+  object key now carries a 128-bit random part, `LENS_S3_BUCKET` moves Lens to a private bucket of its own,
+  and production warns while Lens shares the public one or `PPROF_ENABLED` is on.
+
 - A webhook node could be added to the password-reset and other account flows, and it posted the run's
   context, sign-in and reset links included, to any URL. Account flows now refuse webhook nodes, every
   webhook payload drops the one-time links, and webhooks no longer follow redirects. A flow can only be
