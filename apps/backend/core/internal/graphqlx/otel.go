@@ -10,7 +10,7 @@ func OTelMiddleware() graphql.HandlerExtension {
 	return otelgqlgen.Middleware(
 		otelgqlgen.WithoutVariables(), // variables may carry PII - passwords, refresh tokens
 		otelgqlgen.WithCreateSpanFromFields(func(ctx *graphql.FieldContext) bool {
-			return len(ctx.Path()) <= 2 // top-level only - per-field spans flood Jaeger on deep queries
+			return len(ctx.Path()) <= 2 // top-level only - per-field spans flood the trace backend on deep queries
 		}),
 	)
 }

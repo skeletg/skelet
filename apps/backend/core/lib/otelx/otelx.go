@@ -1,4 +1,4 @@
-// Package otelx wires optional OpenTelemetry tracing and metrics, driven entirely by env vars - with none set, Init returns a no-op shutdown and the global TracerProvider stays the SDK's built-in no-op, so every downstream tracer.Start is free The autoexport selection reads OTEL_* env, so switching from Jaeger to Tempo or Datadog is configuration-only and nothing in app code names a specific exporter Resource attributes come from APP_VERSION and the env arg
+// Package otelx wires optional OpenTelemetry tracing and metrics, driven entirely by env vars - with none set, Init returns a no-op shutdown and the global TracerProvider stays the SDK's built-in no-op, so every downstream tracer.Start is free The autoexport selection reads OTEL_* env, so the collector is chosen by configuration alone and nothing in app code names a specific exporter Resource attributes come from APP_VERSION and the env arg
 package otelx
 
 import (

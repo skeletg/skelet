@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Fire up the dev stack - safe to re-run. --lean skips the sidecars (opensearch, jaeger, the Signals process) - URLs in docs/scripts.md
+# Fire up the dev stack - safe to re-run. --lean skips the sidecars (opensearch, the Signals process) and the dev tools in .skelet-tools - URLs in docs/scripts.md
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
 if [ "${1:-}" = "--lean" ]; then
     shift
-    export SKELET_SIDECARS=""   # only drops sidecars, your apps still start
+    export SKELET_SIDECARS="" SKELET_TOOLS=""   # only drops sidecars and tools, your apps still start
 fi
 
 . bin/_lib
@@ -27,6 +27,7 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 sync_signals_env
+sync_tool_env
 preflight_ports || exit 1
 # --build every time - a cache hit when nothing changed, and without it an image from an older checkout (the
 # project name is pinned, so another clone's counts) runs on after a pull changed its Dockerfile or go.mod

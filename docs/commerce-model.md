@@ -118,7 +118,7 @@ go through `consent.Service.IsOptedIn`** - raw `repo.Get` treats nil as
 **Email**: `LogSender` (dev, no SMTP) / `SMTPSender` (env:
 `SMTP_HOST/PORT/USERNAME/PASSWORD`). `SMTP_USERNAME` empty = skip auth.
 Non-dev with no SMTP → error-sender that fails every Send loudly.
-Mailpit sidecar via `./skelet up`: catches mail at `:1025`, UI at
+The optional `mailpit` dev tool catches mail at `:1025`, UI at
 <http://localhost:8025>. Token stores: `VerificationStore` (24h, prefix
 `verify:customer`) + `PasswordResetStore` (30m, prefix `reset:customer`).
 `resetPassword` calls `RefreshStore.RevokeAll`. `STOREFRONT_URL` env

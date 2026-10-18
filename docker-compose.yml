@@ -501,9 +501,13 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
+  # picked in bin/setup (saved to .skelet-tools) or started ad hoc with `./skelet up <name>`
+
   # SMTP catcher - anything mailed lands in the web UI on :8025
   mailpit:
     image: axllent/mailpit:latest
+    profiles: ["mailpit"]
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # web UI
@@ -523,6 +527,7 @@ services:
   # browse them at http://localhost:8081
   webhook-tester:
     image: tarampampam/webhook-tester:latest
+    profiles: ["webhook-tester"]
     ports:
       - "8081:8080" # Web UI & Webhook listener
     environment:
@@ -588,22 +593,40 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # All-in-one tracing - OTLP receiver on :4318, trace UI on :16686
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    # bin/dev --lean skips it - the app just logs harmless export errors
-    profiles: ["tracing"]
+  # Grafana with Tempo, Prometheus and Loki behind it - takes OTLP traces and metrics on grafana:4318,
+  # UI on :3030 (admin / admin)
+  grafana:
+    image: grafana/otel-lgtm:0.34.0
+    profiles: ["grafana"]
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      - GF_PATHS_DATA=/data/grafana
     ports:
-      - "16686:16686" # web UI
-      - "4318:4318"   # OTLP/HTTP receiver
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3030}:3000"
+    volumes:
+      - grafana-data:/data
+    restart: unless-stopped
+    logging: *logging
+
+  # Every container's stdout into Grafana's Loki, read through the Docker API
+  grafana-alloy:
+    image: grafana/alloy:v1.20.1
+    profiles: ["grafana"]
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    configs:
+      - source: alloy
+        target: /etc/alloy/config.alloy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - grafana-alloy-data:/var/lib/alloy/data
+    depends_on:
+      - grafana
     restart: unless-stopped
     logging: *logging
 
   # Community admin console for Garage - cluster health, bucket browser, keys
   garage-webui:
     image: khairul169/garage-webui:latest
+    profiles: ["garage-webui"]
     depends_on:
       garage:
         condition: service_healthy
@@ -638,6 +661,44 @@ services:
     restart: "no"
     logging: *logging
 
+configs:
+  alloy:
+    content: |
+      discovery.docker "containers" {
+        host = "unix:///var/run/docker.sock"
+        filter {
+          name   = "label"
+          values = ["com.docker.compose.project=skelet"]
+        }
+      }
+
+      discovery.relabel "containers" {
+        targets = discovery.docker.containers.targets
+
+        rule {
+          source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+          target_label  = "service_name"
+        }
+        rule {
+          source_labels = ["__meta_docker_container_name"]
+          regex         = "/(.*)"
+          target_label  = "container"
+        }
+      }
+
+      loki.source.docker "containers" {
+        host          = "unix:///var/run/docker.sock"
+        targets       = discovery.docker.containers.targets
+        relabel_rules = discovery.relabel.containers.rules
+        forward_to    = [loki.write.grafana.receiver]
+      }
+
+      loki.write "grafana" {
+        endpoint {
+          url = "http://grafana:3100/loki/api/v1/push"
+        }
+      }
+
 volumes:
   db-data:
   signals-db-data:
@@ -647,6 +708,8 @@ volumes:
   garage-meta:
   garage-data:
   opensearch-data:
+  grafana-data:
+  grafana-alloy-data:
   dashboard-node-modules:
   dashboard-vite-cache:
   vetrina-demo-node-modules:

@@ -196,7 +196,7 @@ storefront API. `internal/boot` is the suite's composition root, the way `wiring
 is core's.
 
 All three apps run in containers via `./skelet up` (Go + Postgres + Valkey
-+ Garage + Mailpit + Vite + Next.js). The dashboard container's Vite
++ Garage + Vite + Next.js, plus whichever optional dev tools you picked). The dashboard container's Vite
 dev server proxies `/api/*` to the in-network backend
 (`API_PROXY=http://app:8080`); host `apps/dashboard/node_modules` is
 still installed for host-side tooling (`./skelet test`'s tsc, ESLint, the
@@ -235,7 +235,7 @@ stay in sync; the storefront has its own codegen step
 | Async / durable delivery | Transactional outbox (Postgres); optional NATS JetStream queue for beacon ingest |
 | Search | OpenSearch (optional sidecar - the app runs without it) |
 | Object storage | Amazon S3 (managed) or Garage (self-hosted/on-prem); Garage in dev |
-| Email (dev) | Mailpit (SMTP catcher) |
+| Email (dev) | Log output, or the optional Mailpit SMTP catcher |
 | Observability | OpenTelemetry + Sentry, both opt-in; logs are structured JSON on stdout for whatever collector the deployment runs |
 | Hot reload | air (backend), Vite (dashboard) |
 
