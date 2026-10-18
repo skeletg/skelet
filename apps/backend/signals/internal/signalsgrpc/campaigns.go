@@ -4,6 +4,10 @@ package signalsgrpc
 
 import (
 	"context"
+	"errors"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
@@ -48,7 +52,7 @@ func (s *campaignServer) CreateCampaign(ctx context.Context, req *signalsv1.Crea
 	}
 	c, err := s.svc.Create(ctx, in)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	return &signalsv1.CreateCampaignResponse{Campaign: campaignProto(c)}, nil
 }
@@ -65,7 +69,7 @@ func (s *campaignServer) UpdateCampaign(ctx context.Context, req *signalsv1.Upda
 	in.ChannelID = existing.ChannelID
 	c, err := s.svc.Update(ctx, existing.ID, in)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	return &signalsv1.UpdateCampaignResponse{Campaign: campaignProto(c)}, nil
 }
@@ -98,7 +102,7 @@ func (s *campaignServer) ScheduleCampaign(ctx context.Context, req *signalsv1.Sc
 		return nil, err
 	}
 	if err := s.svc.Schedule(ctx, c.ID, timeFromTS(req.GetScheduledFor())); err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	c, err = s.reload(ctx, c)
 	if err != nil {
@@ -113,7 +117,7 @@ func (s *campaignServer) CancelCampaign(ctx context.Context, req *signalsv1.Canc
 		return nil, err
 	}
 	if err := s.svc.Cancel(ctx, c.ID); err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	c, err = s.reload(ctx, c)
 	if err != nil {
@@ -128,7 +132,7 @@ func (s *campaignServer) SendCampaignTest(ctx context.Context, req *signalsv1.Se
 		return nil, err
 	}
 	if err := s.svc.SendTest(ctx, c.ID, req.GetTo()); err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	return &signalsv1.SendCampaignTestResponse{}, nil
 }
@@ -144,7 +148,7 @@ func (s *campaignServer) EstimateCampaignAudience(ctx context.Context, req *sign
 	}
 	total, eligible, err := s.svc.EstimateAudience(ctx, cid, req.GetAudienceKind(), aid)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	return &signalsv1.EstimateCampaignAudienceResponse{Total: int32(total), Eligible: int32(eligible)}, nil
 }
@@ -164,7 +168,7 @@ func (s *campaignServer) RenderCampaignPreview(ctx context.Context, req *signals
 	}
 	subject, html, err := s.svc.Preview(ctx, cid, req.GetSubject(), blocks, styles)
 	if err != nil {
-		return nil, domainErr(err)
+		return nil, campaignErr(err)
 	}
 	return &signalsv1.RenderCampaignPreviewResponse{Subject: subject, Html: html}, nil
 }
@@ -243,4 +247,19 @@ func campaignProto(c campaign.Campaign) *signalsv1.Campaign {
 		AbTestMinutes: int32(c.ABTestMinutes), AbWinner: c.ABWinner, AbTestStartedAt: tsPtr(c.ABTestStartedAt),
 		CreatedAt: ts(c.CreatedAt), UpdatedAt: ts(c.UpdatedAt), DeletedAt: tsPtr(c.DeletedAt),
 	}
+}
+
+// The campaign service's sentinels as the codes core's resolvers render - anything else is the suite's own failure
+func campaignErr(err error) error {
+	switch {
+	case errors.Is(err, campaign.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, campaign.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, campaign.ErrWrongState):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, campaign.ErrSendFailed):
+		return status.Error(codes.Unavailable, err.Error())
+	}
+	return err
 }

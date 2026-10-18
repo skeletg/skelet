@@ -1,7 +1,9 @@
 package campaign
 
 import (
+	"bytes"
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,16 +13,20 @@ type fakeAudience struct {
 	contacts []Contact
 	optedIn  map[uuid.UUID]bool
 	asked    []uuid.UUID
+	pages    int
 }
 
-func (f *fakeAudience) ListForChannel(_ context.Context, channelID uuid.UUID) ([]Contact, error) {
-	out := []Contact{}
+// Pages the way the roster query does - by customer id after the cursor
+func (f *fakeAudience) ListForChannel(_ context.Context, channelID, after uuid.UUID, limit int) ([]Contact, error) {
+	f.pages++
+	mine := []Contact{}
 	for _, c := range f.contacts {
-		if c.ChannelID == channelID {
-			out = append(out, c)
+		if c.ChannelID == channelID && bytes.Compare(c.ID[:], after[:]) > 0 {
+			mine = append(mine, c)
 		}
 	}
-	return out, nil
+	slices.SortFunc(mine, func(a, b Contact) int { return bytes.Compare(a.ID[:], b.ID[:]) })
+	return mine[:min(limit, len(mine))], nil
 }
 
 func (f *fakeAudience) Get(context.Context, uuid.UUID) (Contact, bool, error) {
@@ -30,6 +36,37 @@ func (f *fakeAudience) Get(context.Context, uuid.UUID) (Contact, bool, error) {
 func (f *fakeAudience) OptedInByIDs(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
 	f.asked = append(f.asked, ids...)
 	return f.optedIn, nil
+}
+
+func collectAudience(s *Service, ch uuid.UUID, kind string, id *uuid.UUID) ([]candidate, error) {
+	var out []candidate
+	err := s.eachAudiencePage(context.Background(), ch, kind, id, func(c []candidate) error {
+		out = append(out, c...)
+		return nil
+	})
+	return out, err
+}
+
+// A big roster is read a page at a time, and every page still reaches the audience
+func TestTheRosterIsReadInPages(t *testing.T) {
+	ch := uuid.New()
+	aud := &fakeAudience{optedIn: map[uuid.UUID]bool{}}
+	for range audiencePage*2 + 500 {
+		c := Contact{ID: uuid.New(), ChannelID: ch, Email: "x@test", Active: true}
+		aud.contacts = append(aud.contacts, c)
+		aud.optedIn[c.ID] = true
+	}
+	s := &Service{contacts: aud}
+	total, eligible, err := s.EstimateAudience(context.Background(), ch, AudienceAll, nil)
+	if err != nil || total != len(aud.contacts) || eligible != total {
+		t.Fatalf("estimate = %d/%d, %v - want all %d", total, eligible, err, len(aud.contacts))
+	}
+	if aud.pages != 3 {
+		t.Errorf("read the roster in %d pages, want 3", aud.pages)
+	}
+	if len(aud.asked) != len(aud.contacts) {
+		t.Errorf("consent asked for %d ids, want each member once", len(aud.asked))
+	}
 }
 
 type fakeSegments struct{ members []uuid.UUID }
@@ -51,7 +88,7 @@ func TestAudienceResolutionKeepsOnlyWhoCanBeMailed(t *testing.T) {
 	aud := &fakeAudience{contacts: []Contact{mailable, inactive, noEmail, otherShop, ungrouped}}
 	s := &Service{contacts: aud, segments: fakeSegments{members: []uuid.UUID{mailable.ID}}}
 
-	got, err := s.resolveAudience(context.Background(), ch, AudienceAll, nil)
+	got, err := collectAudience(s, ch, AudienceAll, nil)
 	if err != nil {
 		t.Fatalf("resolve all: %v", err)
 	}
@@ -64,7 +101,7 @@ func TestAudienceResolutionKeepsOnlyWhoCanBeMailed(t *testing.T) {
 		}
 	}
 
-	got, err = s.resolveAudience(context.Background(), ch, AudienceGroup, &group)
+	got, err = collectAudience(s, ch, AudienceGroup, &group)
 	if err != nil {
 		t.Fatalf("resolve group: %v", err)
 	}
@@ -73,7 +110,7 @@ func TestAudienceResolutionKeepsOnlyWhoCanBeMailed(t *testing.T) {
 	}
 
 	seg := uuid.New()
-	got, err = s.resolveAudience(context.Background(), ch, AudienceSegment, &seg)
+	got, err = collectAudience(s, ch, AudienceSegment, &seg)
 	if err != nil {
 		t.Fatalf("resolve segment: %v", err)
 	}
