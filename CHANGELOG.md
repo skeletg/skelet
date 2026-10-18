@@ -631,13 +631,15 @@ The release process, and which version number means what, is in
   scrub is now a local query inside the anonymize transaction instead of a best-effort
   call before it, and the campaign package no longer opens a Signals handle at all.
 
-- **The Go module is now `github.com/skeletg/skelet/apps/backend`.** It was declaring a
-  repo-root path while its `go.mod` sat in a subdirectory, which Go cannot resolve - so
-  nothing could ever `go get` it. Imports gain `apps/backend/`; module tags become
-  `apps/backend/vX.Y.Z`.
-- **SDK 0.2.1.** 0.2.0 was the import-path move: no declaration changed, but every plugin
-  rewrites its imports, which is breaking for anyone installing one, and the surface gate
-  caught it. 0.2.1 adds the seams below.
+- **The backend is three Go modules under `apps/backend/`: `core`, `signals` and `sdk`.**
+  The old single module declared a repo-root path while its `go.mod` sat in a
+  subdirectory, which Go cannot resolve, so nothing could ever `go get` it. Imports now
+  name their module (`github.com/skeletg/skelet/apps/backend/sdk`), and each module is
+  tagged under its own path, such as `apps/backend/sdk/vX.Y.Z`.
+- **The SDK stays at 0.1.0 until it is first published.** The import-path move and the
+  seams below change the surface, but nothing outside this repository builds against it
+  yet, so the version waits for the first `apps/backend/sdk/v0.1.0` tag rather than
+  counting changes nobody has installed.
 - **Company accounts, credit lines, contract pricing and quotes are no longer part of
   core.** The couplings that used to be core code are registered seams now, open to any
   plugin - an `order.tendering` subscriber that can reserve a tender inside the placement
