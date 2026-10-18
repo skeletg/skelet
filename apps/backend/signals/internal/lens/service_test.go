@@ -35,15 +35,15 @@ func TestClampDepth(t *testing.T) {
 	}
 }
 
+// Rollup day keys come from it too, so a missing or far-off tracker clock takes the server's rather than year one or a forged day
 func TestMsToTime(t *testing.T) {
-	if !msToTime(0).IsZero() {
-		t.Error("msToTime(0) should be the zero time (RecordWeb's orNow handles it)")
+	for _, ms := range []int64{0, -1, 1718000000000} {
+		if got := msToTime(ms); time.Since(got) > time.Minute {
+			t.Errorf("msToTime(%d) = %v, want the server clock", ms, got)
+		}
 	}
-	if !msToTime(-1).IsZero() {
-		t.Error("msToTime(negative) should be the zero time")
-	}
-	want := time.UnixMilli(1718000000000)
-	if got := msToTime(1718000000000); !got.Equal(want) {
-		t.Errorf("msToTime = %v, want %v", got, want)
+	recent := time.Now().Add(-time.Hour).Truncate(time.Millisecond)
+	if got := msToTime(recent.UnixMilli()); !got.Equal(recent) {
+		t.Errorf("msToTime(an hour ago) = %v, want %v", got, recent)
 	}
 }
