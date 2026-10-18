@@ -296,6 +296,10 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- The Lens prune job stopped at its first failing step, so a stuck event or rollup prune kept session
+  recordings - the most sensitive Lens data, on the shortest window - past their retention. Every step
+  now runs and the failures are reported together.
+
 - A scripted email block ran with no limits, so a large loop or a self-doubling string could hang or
   exhaust the send loop. Saving one now needs a sample render inside 200 ms and 512 KB, literal loops are
   capped at 1000, `append`/`prepend`/`replace` results are capped, and `capture` is refused. Button,
