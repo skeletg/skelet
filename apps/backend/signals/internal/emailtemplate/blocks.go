@@ -3,6 +3,7 @@ package emailtemplate
 import (
 	"fmt"
 	"html"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -365,7 +366,9 @@ func validateBlock(b Block, allowRef bool) error {
 		return err
 	}
 	switch b.Type {
-	case "heading", "text", "button", "image", "divider", "spacer",
+	case "button", "image":
+		return validateLink(b.URL)
+	case "heading", "text", "divider", "spacer",
 		"order_items", "order_totals", "shipping_address", "tracking", "refund_amount":
 		return nil
 	case "products":
@@ -384,6 +387,11 @@ func validateBlock(b Block, allowRef bool) error {
 		if len(b.Social) == 0 {
 			return fmt.Errorf("social block: add at least one link")
 		}
+		for _, l := range b.Social {
+			if err := validateLink(l.URL); err != nil {
+				return fmt.Errorf("social block: %w", err)
+			}
+		}
 		return nil
 	case "video":
 		if strings.TrimSpace(b.URL) == "" {
@@ -392,7 +400,10 @@ func validateBlock(b Block, allowRef bool) error {
 		if strings.TrimSpace(b.Poster) == "" {
 			return fmt.Errorf("video block: add a thumbnail image")
 		}
-		return nil
+		if err := validateLink(b.URL); err != nil {
+			return fmt.Errorf("video block: %w", err)
+		}
+		return validateLink(b.Poster)
 	case "html", "countdown":
 		return nil
 	case "row":
@@ -404,7 +415,7 @@ func validateBlock(b Block, allowRef bool) error {
 				if cb.Type == "row" || cb.Type == "ref" {
 					return fmt.Errorf("column %d block %d: %q can't go inside a row", ci+1, bi+1, cb.Type)
 				}
-				if err := validateStyle(cb.Style); err != nil {
+				if err := validateBlock(cb, false); err != nil {
 					return fmt.Errorf("column %d block %d: %w", ci+1, bi+1, err)
 				}
 			}
@@ -434,6 +445,22 @@ var (
 var namedColors = map[string]bool{
 	"transparent": true, "black": true, "white": true, "red": true, "green": true, "blue": true,
 	"gray": true, "grey": true, "orange": true, "yellow": true, "purple": true, "pink": true, "teal": true,
+}
+
+// A link an email may carry - web, mail or phone, or a merge tag that resolves to one at send; javascript: and data: never are
+func validateLink(raw string) error {
+	v := strings.TrimSpace(raw)
+	if v == "" || strings.HasPrefix(v, "{{") {
+		return nil
+	}
+	u, err := url.Parse(v)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "http", "https", "mailto", "tel":
+			return nil
+		}
+	}
+	return fmt.Errorf("link %q must start with https://, mailto: or tel:, or be a merge tag", v)
 }
 
 func validateColor(c string) error {
