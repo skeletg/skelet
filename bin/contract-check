@@ -182,7 +182,7 @@ go_csp() {
 }
 nginx_csp() {
     grep -oE 'add_header Content-Security-Policy "[^"]*"' "$NGINX_CONF" \
-        | sed -E 's/.*Content-Security-Policy "//; s/"$//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
+        | sed -E 's/.*Content-Security-Policy "//; s/"$//; s/ \$\{UPLOAD_ORIGINS\}//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
 }
 go_pp() {
     grep -oE 'const PermissionsPolicy = `[^`]*`' "$SECHEADERS" | sed -E 's/.*`(.*)`/\1/' | tr -s '[:space:]' ' '
@@ -193,7 +193,7 @@ nginx_pp() {
 }
 caddy_csp() {
     grep -oE 'Content-Security-Policy "[^"]*"' "$CADDYFILE" \
-        | sed -E 's/.*Content-Security-Policy "//; s/"$//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
+        | sed -E 's/.*Content-Security-Policy "//; s/"$//; s/ \{\$UPLOAD_ORIGINS\}//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
 }
 caddy_pp() {
     grep -oE 'Permissions-Policy ".*"$' "$CADDYFILE" \
