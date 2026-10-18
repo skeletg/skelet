@@ -301,6 +301,12 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- A behavioral segment refresh that couldn't read a segment's current members counted every member as
+  newly entered, and re-enrolled them all into its `segment_entered` flows. That segment now refreshes
+  without starting any flows, entries are keyed per segment, customer and day so a retried sweep never
+  enrolls twice, and refresh and affinity-sync failures fail the job instead of only reaching the log.
+  Definitions are capped at 50 conditions and 4 levels of nesting.
+
 - A failed read of a customer's segments answered "in no segment" instead of an error, which a negated
   segment condition reads as a match. Rule refreshes now diff membership in SQL instead of carrying every
   matching id through the service.
