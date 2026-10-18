@@ -201,4 +201,6 @@ codegen outright.
 
 Run `./skelet check`. If you touched schema, SQL or GraphQL documents, run
 `./skelet gen` and commit the regenerated output with your change. If you touched Go,
-run `./skelet lint` and `./skelet test`. Do not commit or push unless asked.
+run `./skelet lint` and `./skelet test`. A change worth a changelog line gets a fragment
+in `changelog/unreleased/` (see its README), never an edit under `[Unreleased]`. Do not commit or
+push unless asked.

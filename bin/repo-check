@@ -105,6 +105,11 @@ for v in $(grep -ohE '\$\{[A-Z][A-Z0-9_]*:\?' docker-compose.prod.yml docker-com
 done
 [ "$missing" -eq 0 ] && pass "every required interpolation has a template line"
 
+echo "==> the changelog index, release files and fragments agree"
+out="$(bin/changelog check | sed 1d)"
+printf '%s\n' "$out"
+case "$out" in *FAIL*) fail=1 ;; esac
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "==> repo-check OK"

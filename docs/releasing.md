@@ -53,8 +53,12 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 2. **Decide the version.** Look at what changed since the last tag. Breaking
    change in `0.x` means a MINOR bump.
 
-3. **Update the changelog.** Move `Unreleased` entries under the new version with
-   today's date. See [CHANGELOG.md](../CHANGELOG.md).
+3. **Write the changelog.** `./skelet changelog` shows what the release will say,
+   gathered from the fragments in `changelog/unreleased/`. Read it through, fix any
+   entry that needs it in its fragment, and add a `summary` fragment if the release
+   deserves an opening paragraph. Then `./skelet changelog release <version>` writes
+   `changelog/<version>.md` dated today, lists it in [CHANGELOG.md](../CHANGELOG.md)
+   and deletes the fragments. Commit all of it.
 
 4. **Bump the version constants that actually changed.** `sdk.Version` only if
    the SDK surface moved, `contract.Version` only if the wire format did. Do not

@@ -51,6 +51,7 @@ script_for() {
         hooks)    echo install-hooks ;;
         fixperms) echo fixperms ;;
         provider) echo provider-check ;;
+        changelog) echo changelog ;;
         new)      echo new ;;
         rm)       echo remove ;;
         *)        return 1 ;;
@@ -68,6 +69,7 @@ subs_for() {
         pnpm|npm) echo '<app> <pnpm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
         rm)      echo 'channel <name> [-y] [--volumes]' ;;
+        changelog) echo '(preview) | check | release <version> [date]' ;;
         *)       return 1 ;;
     esac
 }
@@ -109,6 +111,7 @@ Codegen
 Quality
   test       go test + frontend typechecks + unit tests   [test e2e: money paths, test storefront: browser]
   lint       gofmt + golangci-lint + eslint
+  changelog  $(subs_for changelog)
 
 Scaffold
   new        $(subs_for new)
