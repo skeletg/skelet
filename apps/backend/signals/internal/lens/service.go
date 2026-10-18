@@ -41,7 +41,7 @@ type BlobStore interface {
 }
 
 // Bounds one /t/rec flush's payload so a runaway recording can't blow up a chunk row - oversized flushes are dropped whole
-const maxReplayChunkBytes = 5 << 20 // 5 MiB
+const MaxReplayChunkBytes = 5 << 20 // 5 MiB
 
 // Heatmap grid resolution in CSS px at a viewport bucket's fixed render width - document coordinates floor into cells of this size
 const cellSize = 10
@@ -156,7 +156,7 @@ type ReplayBatch struct {
 // Gzips the events into an append-only chunk and rolls the session metadata forward - best-effort, since the handler always 204s, so a malformed or oversized flush is dropped whole
 // verifiedCustomer is the customer the request's session token proves, the only identity a recording is attached to - the body's customerId is forgeable
 func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAgent string, b ReplayBatch, verifiedCustomer uuid.UUID) {
-	if len(b.Events) == 0 || len(b.Events) > maxReplayChunkBytes {
+	if len(b.Events) == 0 || len(b.Events) > MaxReplayChunkBytes {
 		return
 	}
 	sid, err := uuid.Parse(b.SessionID)

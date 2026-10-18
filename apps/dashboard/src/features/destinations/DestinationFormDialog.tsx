@@ -12,6 +12,7 @@ import { CreateEventDestinationDocument, UpdateEventDestinationDocument } from '
 import {
   EVENT_SOURCES,
   destinationSchema,
+  secretField,
   toDestinationInput,
   toDestinationValues,
   type ExistingDestination,
@@ -23,9 +24,9 @@ const URL_HINTS: Record<string, string> = {
   webhook:
     'Receives POST batches signed with the secret (X-Destination-Signature over "<ts>.<body>", timestamp in X-Destination-Timestamp).',
   ga4_mp:
-    'The Measurement Protocol collect URL with credentials as query params, e.g. https://www.google-analytics.com/mp/collect?measurement_id=G-XXXX&api_secret=…',
+    'The Measurement Protocol collect URL with your measurement id, e.g. https://www.google-analytics.com/mp/collect?measurement_id=G-XXXX - the API secret goes below, not here.',
   meta_capi:
-    'The pixel events URL with the token as a query param, e.g. https://graph.facebook.com/v21.0/<pixel-id>/events?access_token=…',
+    'The pixel events URL, e.g. https://graph.facebook.com/v21.0/<pixel-id>/events - the access token goes below, not here.',
 }
 
 type Props = {
@@ -110,18 +111,16 @@ function DestinationForm({ channelId, existing, onSaved, onClose }: Omit<Props, 
         {(f) => <f.TextField id="destination-url" label="Target URL" type="url" placeholder="https://…" hint={URL_HINTS[kind]} />}
       </form.AppField>
 
-      {kind === 'webhook' && (
-        <form.AppField name="secret">
-          {(f) => (
-            <f.TextField
-              id="destination-secret"
-              label="Signing secret"
-              placeholder={existing ? 'Leave blank to keep the current secret' : 'HMAC key'}
-              hint="Write-only - it is never shown again after saving."
-            />
-          )}
-        </form.AppField>
-      )}
+      <form.AppField name="secret">
+        {(f) => (
+          <f.TextField
+            id="destination-secret"
+            label={secretField(kind).label}
+            placeholder={existing ? 'Leave blank to keep the current secret' : secretField(kind).placeholder}
+            hint="Write-only - it is never shown again after saving."
+          />
+        )}
+      </form.AppField>
 
       <form.Field name="eventSources">
         {(f) => (

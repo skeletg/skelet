@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -76,11 +77,25 @@ func NewTrafficRollup(q *signalsdb.Queries) *TrafficRollup {
 
 func dayKey(at time.Time) string { return at.UTC().Format("2006-01-02") }
 
+const maxPageKey = 512
+
+// PageKey is a rooted path without query or fragment, capped - false otherwise, which a forged beacon would mint as a fresh rollup row
+func PageKey(raw string) (string, bool) {
+	if i := strings.IndexAny(raw, "?#"); i >= 0 {
+		raw = raw[:i]
+	}
+	if !strings.HasPrefix(raw, "/") || len(raw) > maxPageKey || !utf8.ValidString(raw) {
+		return "", false
+	}
+	return raw, true
+}
+
 func (t *TrafficRollup) AddBot(channelID uuid.UUID, pageKey, botName, botCat string, at time.Time) {
-	if channelID == uuid.Nil {
+	key, ok := PageKey(pageKey)
+	if channelID == uuid.Nil || !ok {
 		return
 	}
-	t.add(rollupKey{channelID: channelID, day: dayKey(at), kind: rollupKindBot, botName: botName, botCat: botCat, pageKey: pageKey}, at)
+	t.add(rollupKey{channelID: channelID, day: dayKey(at), kind: rollupKindBot, botName: botName, botCat: botCat, pageKey: key}, at)
 }
 
 // Feeds three things at once: the per-(channel, day) counter behind the bot-vs-human split, the Lens-hub view breakdowns, and the visitor last-seen for exact uniques - empty device and referrer map to 'unknown' and '(direct)' so they match the backfill
@@ -98,7 +113,9 @@ func (t *TrafficRollup) AddHumanView(channelID uuid.UUID, pageKey, device, refer
 	t.mu.Lock()
 	t.counts[rollupKey{channelID: channelID, day: day, kind: rollupKindHuman}]++
 	t.lensViews[lensKey{channelID, day, "total", ""}]++
-	t.lensViews[lensKey{channelID, day, "page", pageKey}]++
+	if key, ok := PageKey(pageKey); ok {
+		t.lensViews[lensKey{channelID, day, "page", key}]++
+	}
 	t.lensViews[lensKey{channelID, day, "device", device}]++
 	t.lensViews[lensKey{channelID, day, "referrer", referrer}]++
 	if anonID != "" {
