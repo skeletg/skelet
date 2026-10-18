@@ -89,10 +89,22 @@ export function NotificationBell() {
   // body on the popover surface); clicking it behaves like clicking the row:
   // mark read, jump to the action URL
   useSubscription(NotificationAddedDocument, {
-    onData: ({ data: sub }) => {
+    onData: ({ client, data: sub }) => {
       const n = sub.data?.notificationAdded
       if (!n) return
-      refresh()
+      // The push carries the whole row, so it goes straight into the cache - refetching both queries per push turned a
+      // bulk job's 50 notifications into 100 requests. The 5-minute poll still corrects any drift
+      let isNew = true
+      client.cache.updateQuery({ query: NotificationsDocument, variables: { limit: INBOX_PEEK } }, (prev) => {
+        if (!prev) return prev
+        isNew = !prev.notifications.some((x) => x.id === n.id)
+        return { notifications: isNew ? [n, ...prev.notifications].slice(0, INBOX_PEEK) : prev.notifications }
+      })
+      if (isNew && !n.read) {
+        client.cache.updateQuery({ query: NotificationUnreadCountDocument }, (prev) =>
+          prev ? { notificationUnreadCount: prev.notificationUnreadCount + 1 } : prev,
+        )
+      }
       if (!severityAtLeast(n.severity, toastMin)) return // still in the inbox, just not in your face
       toast.custom((t) => (
         <NotificationToast
