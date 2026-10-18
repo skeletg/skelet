@@ -152,7 +152,7 @@ function SegmentForm({ segment, refetch }: { segment: Segment; refetch: () => vo
             <form.AppField name="name">{(f) => <f.TextField id="seg-name" label="Name" />}</form.AppField>
             <form.AppField name="slug">
               {(f) => (
-                <f.TextField id="seg-slug" label="Slug" hint="Referenced by promotions, campaigns and flows - renaming can break them" />
+                <f.TextField id="seg-slug" label="Slug" readOnly hint="Fixed once created - promotions, experiments and flows refer to it" />
               )}
             </form.AppField>
           </div>

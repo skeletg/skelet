@@ -11,6 +11,11 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **A segment's slug is fixed once it exists.** Experiments and promotions target segments by slug, so a
+  rename silently orphaned every one of them; the dashboard shows it read-only. Slugs must be lowercase
+  letters, digits and dashes (up to 64), a duplicate answers "already exists", and an update with an empty
+  name is refused. Rule segments allow at most 50 conditions.
+
 - **GA4 and Meta destination credentials move from the URL into the destination's secret.** The
   forwarder adds the GA4 `api_secret` or the Meta `access_token` to the URL when it sends, and refuses a
   target URL that still carries one, because the URL is shown to admins and a failed delivery used to
@@ -295,6 +300,10 @@ The release process, and which version number means what, is in
   root `.env`, both compose files and `bin/test-e2e` carry it.
 
 ### Fixed
+
+- A failed read of a customer's segments answered "in no segment" instead of an error, which a negated
+  segment condition reads as a match. Rule refreshes now diff membership in SQL instead of carrying every
+  matching id through the service.
 
 - A scripted email block ran with no limits, so a large loop or a self-doubling string could hang or
   exhaust the send loop. Saving one now needs a sample render inside 200 ms and 512 KB, literal loops are
