@@ -424,11 +424,12 @@ SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_o
 FROM customer_roster WHERE customer_id = sqlc.arg(customer_id);
 
 -- name: ChannelRosterContacts :many
--- Everyone a channel could mail, as core last pushed them - the audience a campaign draws from,
+-- Everyone a channel could mail, as core last pushed them, a keyset page at a time - the audience a campaign draws from,
 -- consent included so the send loop filters without a second read
 SELECT customer_id, channel_id, email, first_name, is_active, customer_group_id, marketing_opted_in
-FROM customer_roster WHERE channel_id = sqlc.arg(channel_id)
-ORDER BY synced_at, customer_id;
+FROM customer_roster WHERE channel_id = sqlc.arg(channel_id) AND customer_id > sqlc.arg(after_id)
+ORDER BY customer_id
+LIMIT sqlc.arg(lim);
 
 -- name: RosterMarketingConsent :many
 -- Marketing consent as it stands right now for a page of recipients - re-read at send time, since

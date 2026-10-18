@@ -26,6 +26,29 @@ import (
 // Caps how many nodes one advance() walks before parking, so a mis-wired graph with a cycle can't spin forever
 const maxSteps = 64
 
+// A send that didn't go through keeps its run on the node and comes back on this ladder, failing the run after the last rung
+const maxSendAttempts = 5
+
+var sendBackoff = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour}
+
+// Run-context keys a webhook node never forwards - each is a one-time link that signs its holder in, resets a password or claims an offer
+var linkPayloadKeys = []string{
+	signalsapi.PayloadVerifyLink, signalsapi.PayloadResetLink, signalsapi.PayloadConfirmLink,
+	signalsapi.PayloadSignInLink, signalsapi.PayloadForgotLink, signalsapi.PayloadOfferLink,
+}
+
+// Run-context keys and the merge tags they fill - an absent or empty value leaves the tag alone
+var contextVars = []struct{ key, tag string }{
+	{signalsapi.PayloadProductName, "product.name"}, {signalsapi.PayloadProductImage, "product.image"},
+	{signalsapi.PayloadSegmentSlug, "segment.slug"}, {signalsapi.PayloadFormSlug, "form.slug"},
+	{signalsapi.PayloadOrderNumber, "order.number"}, {signalsapi.PayloadVerifyLink, "verify.link"},
+	{signalsapi.PayloadResetLink, "reset.link"}, {signalsapi.PayloadResetExpiresIn, "reset.expiresIn"},
+	{signalsapi.PayloadConfirmLink, "confirm.link"}, {signalsapi.PayloadConfirmExpires, "confirm.expiresIn"},
+	{signalsapi.PayloadSignInLink, "signin.link"}, {signalsapi.PayloadForgotLink, "forgot.link"},
+	{signalsapi.PayloadOfferLink, "offer.link"}, {signalsapi.PayloadOfferExpires, "offer.expiresAt"},
+	{signalsapi.PayloadFirstName, "customer.firstName"}, // auth triggers pass an explicit name, since the customer may be brand new
+}
+
 // Admin CRUD, event enrollment and the scheduler-driven run engine - every advance holds the run's lease, taken by the claim or by a sync enrollment's create
 type Service struct {
 	repo       Repository
@@ -42,7 +65,15 @@ type Service struct {
 	http       *http.Client
 	allowPriv  bool
 	suppress   suppressionChecker
+	bounces    bounceCapturer
 }
+
+// The deliverability loop a failed send feeds - satisfied by *suppression.Bounces, nil captures nothing
+type bounceCapturer interface {
+	Capture(ctx context.Context, addr string, sendErr error)
+}
+
+func (s *Service) SetBounces(b bounceCapturer) { s.bounces = b }
 
 // The read slice of the suppression list the email node needs - optional, nil means no suppression
 type suppressionChecker interface {
@@ -58,8 +89,12 @@ func NewService(repo Repository, tmpl *emailtemplate.Service, contacts contactRe
 		conditions: NewConditionRegistry(),
 		nodes:      NewNodeRegistry(),
 		track:      links,
-		http:       &http.Client{Transport: urlguard.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second},
-		allowPriv:  allowPrivateWebhook,
+		http: &http.Client{
+			Transport: urlguard.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second,
+			// A redirect would re-post the run's context to wherever the receiver points
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		allowPriv: allowPrivateWebhook,
 	}
 	s.RegisterCondition(consentCondition{contacts: contacts})
 	return s
@@ -83,38 +118,45 @@ type Input struct {
 
 func (s *Service) validate(in Input) error {
 	if strings.TrimSpace(in.Name) == "" {
-		return fmt.Errorf("flow name is required")
+		return fmt.Errorf("%w: name is required", ErrInvalid)
 	}
 	if !validTrigger(in.TriggerType) {
-		return fmt.Errorf("invalid trigger %q", in.TriggerType)
+		return fmt.Errorf("%w: unknown trigger %q", ErrInvalid, in.TriggerType)
 	}
 	for _, n := range in.Graph.Nodes {
 		switch n.Type {
-		case NodeTrigger, NodeWait, NodeAddSegment, NodeWebhook:
+		case NodeTrigger, NodeWait, NodeAddSegment:
+		case NodeWebhook:
+			// An account flow's context carries sign-in and password-reset links, which no outside URL may receive
+			if signalsapi.IsAuthTrigger(in.TriggerType) {
+				return fmt.Errorf("%w: webhook node %q: account flows can't call out", ErrInvalid, n.ID)
+			}
 		case NodeSplit:
 			if n.Data.Condition == nil || !s.validConditionKind(n.Data.Condition.Kind) {
-				return fmt.Errorf("split node %q: choose a valid condition", n.ID)
+				return fmt.Errorf("%w: split node %q: choose a valid condition", ErrInvalid, n.ID)
 			}
 		case NodeSendSMS:
 			if strings.TrimSpace(n.Data.SMSBody) == "" {
-				return fmt.Errorf("sms node %q: body is required", n.ID)
+				return fmt.Errorf("%w: sms node %q: body is required", ErrInvalid, n.ID)
 			}
 		case NodeSendEmail:
 			if err := s.tmpl.ValidateContent(n.Data.Blocks, n.Data.Styles); err != nil {
-				return fmt.Errorf("email node %q: %w", n.ID, err)
+				return fmt.Errorf("%w: email node %q: %w", ErrInvalid, n.ID, err)
 			}
 		default:
-			return fmt.Errorf("unknown node type %q", n.Type)
+			return fmt.Errorf("%w: unknown node type %q", ErrInvalid, n.Type)
 		}
 	}
-	// Validate the optional enrollment filter carried in triggerConfig
 	if len(in.TriggerConfig) > 0 {
 		var tc TriggerConfig
 		if err := json.Unmarshal(in.TriggerConfig, &tc); err != nil {
-			return fmt.Errorf("invalid triggerConfig: %w", err)
+			return fmt.Errorf("%w: trigger config: %w", ErrInvalid, err)
 		}
 		if tc.EnrollmentFilter != nil && !s.validConditionKind(tc.EnrollmentFilter.Kind) {
-			return fmt.Errorf("enrollment filter: choose a valid condition")
+			return fmt.Errorf("%w: enrollment filter: choose a valid condition", ErrInvalid)
+		}
+		if tc.Transactional && !transactionalTrigger(in.TriggerType) {
+			return fmt.Errorf("%w: only order and account flows can be transactional", ErrInvalid)
 		}
 	}
 	return nil
@@ -126,7 +168,7 @@ func (s *Service) validateEmails(ctx context.Context, channelID uuid.UUID, g Gra
 			continue
 		}
 		if _, ok := s.ownEmail(ctx, channelID, n.Data.EmailID); !ok {
-			return fmt.Errorf("email node %q: library email %s not found", n.ID, n.Data.EmailID)
+			return fmt.Errorf("%w: email node %q: library email %s not found", ErrInvalid, n.ID, n.Data.EmailID)
 		}
 	}
 	return nil
@@ -163,7 +205,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Flow, err
 		return Flow{}, err
 	}
 	if !found {
-		return Flow{}, fmt.Errorf("flow not found")
+		return Flow{}, ErrNotFound
 	}
 	if err := s.validateEmails(ctx, existing.ChannelID, in.Graph); err != nil {
 		return Flow{}, err
@@ -173,7 +215,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Flow, err
 		return Flow{}, err
 	}
 	if !ok {
-		return Flow{}, fmt.Errorf("flow not found")
+		return Flow{}, ErrNotFound
 	}
 	f, _, err := s.repo.Get(ctx, id)
 	return f, err
@@ -198,21 +240,22 @@ func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status string) (F
 	switch status {
 	case StatusDraft, StatusActive, StatusPaused, StatusArchived:
 	default:
-		return Flow{}, fmt.Errorf("invalid status %q", status)
+		return Flow{}, fmt.Errorf("%w: unknown status %q", ErrInvalid, status)
 	}
-	if status == StatusActive {
-		f, ok, err := s.repo.Get(ctx, id)
-		if err != nil || !ok {
-			return Flow{}, err
-		}
-		if _, ok := f.Graph.triggerNode(); !ok {
-			return Flow{}, fmt.Errorf("flow needs a trigger node before it can be activated")
-		}
+	f, ok, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Flow{}, err
+	}
+	if !ok {
+		return Flow{}, ErrNotFound
+	}
+	if _, hasTrigger := f.Graph.triggerNode(); status == StatusActive && !hasTrigger {
+		return Flow{}, fmt.Errorf("%w: it needs a trigger node before it can be activated", ErrInvalid)
 	}
 	if _, err := s.repo.SetStatus(ctx, id, status); err != nil {
 		return Flow{}, err
 	}
-	f, _, err := s.repo.Get(ctx, id)
+	f, _, err = s.repo.Get(ctx, id)
 	return f, err
 }
 
@@ -317,10 +360,11 @@ func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, emai
 	// Guests can't be evaluated against customer traits, so a filtered flow never enrolls them
 	if len(f.TriggerConfig) > 0 {
 		var tc TriggerConfig
-		if json.Unmarshal(f.TriggerConfig, &tc) == nil && tc.EnrollmentFilter != nil {
-			if guest || !s.evalConditionFor(ctx, tc.EnrollmentFilter, customerID) {
-				return nil, false, nil
-			}
+		if err := json.Unmarshal(f.TriggerConfig, &tc); err != nil {
+			return nil, false, fmt.Errorf("trigger config: %w", err) // a filter that won't parse enrolls no one, rather than everyone
+		}
+		if tc.EnrollmentFilter != nil && (guest || !s.evalConditionFor(ctx, tc.EnrollmentFilter, customerID)) {
+			return nil, false, nil
 		}
 	}
 	trig, ok := f.Graph.triggerNode()
@@ -361,17 +405,19 @@ const claimBatch = 100
 // How long a claimed run is out of every other claim's reach - longer than any batch takes, and how late a run whose advancer died resumes
 const runLease = 10 * time.Minute
 
+var batchBudget = runLease / 2
+
 // ProcessRuns is one batch of the engine, for callers that tick it by hand
 func (s *Service) ProcessRuns(ctx context.Context) error {
 	_, err := s.processBatch(ctx)
 	return err
 }
 
-// Drain keeps claiming batches until nothing runnable is left or the budget is spent
 func (s *Service) PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error) {
 	return s.repo.PruneFinishedRuns(ctx, before)
 }
 
+// Drain keeps claiming batches until nothing runnable is left or the budget is spent
 func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) {
 	deadline := time.Now().Add(budget)
 	total := 0
@@ -408,8 +454,15 @@ func (s *Service) processBatch(ctx context.Context) (int, error) {
 	}
 	// A run that can't persist its new node is re-claimed and re-executed once its lease lapses, so these failures are how order receipts and auth links
 	// get resent or stall mid-graph - they belong in the job's status, not only in stdout. One bad run still never stops the others
+	// Every run in the batch holds the same lease - past half of it the rest are left to lapse and be claimed again, rather
+	// than run on while another replica's claim takes them and sends a second time
+	started := time.Now()
 	var errs []error
-	for _, run := range runs {
+	for i, run := range runs {
+		if time.Since(started) > batchBudget {
+			log.Printf("[flow] batch ran past half its lease, leaving %d runs to the next claim", len(runs)-i)
+			return i, errors.Join(errs...)
+		}
 		var aerr error
 		if cf, cached := flowCache[run.FlowID]; cached {
 			aerr = s.advanceWithFlow(ctx, run, cf.f, cf.ok)
@@ -472,7 +525,10 @@ func (s *Service) advanceWithFlow(ctx context.Context, run FlowRun, f Flow, ok b
 			run.CurrentNodeID = nxt
 			continue
 		case NodeSendEmail:
-			s.execEmail(ctx, f, node, run)
+			if err := s.execEmail(ctx, f, node, run); err != nil {
+				return s.retrySend(ctx, run, err)
+			}
+			run.SendAttempts = 0
 		case NodeSendSMS:
 			s.execSMS(ctx, f, node, run)
 		case NodeWebhook:
@@ -498,6 +554,27 @@ func (s *Service) completeRun(ctx context.Context, run FlowRun) error {
 	return s.repo.UpdateRun(ctx, run)
 }
 
+// Parks the run on its send node until the next rung of the backoff ladder, or fails it once the ladder runs out
+func (s *Service) retrySend(ctx context.Context, run FlowRun, sendErr error) error {
+	run.SendAttempts++
+	if run.SendAttempts >= maxSendAttempts {
+		return s.failRun(ctx, run, fmt.Sprintf("email not delivered after %d attempts: %v", run.SendAttempts, sendErr))
+	}
+	at := time.Now().Add(sendBackoff[min(run.SendAttempts, len(sendBackoff))-1])
+	run.Status, run.ResumeAt = RunActive, &at
+	log.Printf("[flow] run %s: %v - retrying at %s", run.ID, sendErr, at.Format(time.RFC3339))
+	return s.repo.UpdateRun(ctx, run)
+}
+
+// A permanent rejection is a verdict on the address and never retries, a temporary one always does, and a failure that says
+// nothing either way - a timeout, a reset - retries only mail the customer has to get
+func retryable(transactional bool, sendErr error) bool {
+	if permanent, matched := emailpkg.ClassifyBounce(sendErr); matched {
+		return !permanent
+	}
+	return transactional
+}
+
 func (s *Service) failRun(ctx context.Context, run FlowRun, msg string) error {
 	run.Status, run.ResumeAt, run.Error = RunFailed, nil, msg
 	return s.repo.UpdateRun(ctx, run)
@@ -505,18 +582,20 @@ func (s *Service) failRun(ctx context.Context, run FlowRun, msg string) error {
 
 // --- node executors (best-effort: a failure logs + the flow continues) ---
 
-func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun) {
+// execEmail answers an error only for a delivery worth retrying - everything else, a skipped or unrenderable send included,
+// is logged and the run moves on
+func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun) error {
 	// Guest runs carry their recipient email on the run while customer runs load the account - guests only ever reach transactional order flows, which render from order data and send regardless of consent
 	var cust Contact
 	guest := run.IsGuest()
 	if !guest {
 		c, found, err := s.contacts.Get(ctx, run.CustomerID)
 		if err == nil && !found {
-			return
+			return nil
 		}
 		if err != nil {
 			log.Printf("[flow] email node: load customer %s: %v", run.CustomerID, err)
-			return
+			return nil
 		}
 		cust = c
 	}
@@ -525,25 +604,25 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		recipient = run.Email
 	}
 	if strings.TrimSpace(recipient) == "" {
-		return
+		return nil
 	}
 	// Transactional flows send regardless of marketing consent and suppression - the customer has to receive them
 	transactional := flowTransactional(f)
 	if !transactional {
 		if guest {
-			return // a marketing flow can't send to a consent-less guest
+			return nil // a marketing flow can't send to a consent-less guest
 		}
 		if !cust.EmailOptedIn {
-			return // not opted in to marketing email
+			return nil // not opted in to marketing email
 		}
 		// Deliverability guard - skip addresses on the suppression list from a bounce, complaint or manual block
 		if s.suppress != nil && s.suppress.IsSuppressed(ctx, recipient) {
-			return
+			return nil
 		}
 	}
 	ch, err := s.stores.Get(ctx, f.ChannelID)
 	if err != nil || (!ch.Active && !transactional) {
-		return
+		return nil
 	}
 	vars := s.mergeVars(ctx, ch, cust, run)
 	var subj, html, text string
@@ -555,7 +634,7 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		e, ok := s.ownEmail(ctx, f.ChannelID, node.Data.EmailID)
 		if !ok {
 			log.Printf("[flow] email node %s: library email %q is not one of the flow's channel", node.ID, node.Data.EmailID)
-			return
+			return nil
 		}
 		subj, html, text, err = s.tmpl.RenderLibraryEmail(ctx, e.ID, vars)
 	default:
@@ -563,7 +642,7 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 	}
 	if err != nil {
 		log.Printf("[flow] email node render: %v", err)
-		return
+		return nil
 	}
 	// Track the send on the analytics spine, where opens and clicks resolve via /e/o and /e/c
 	// Transactional sends get open-pixel tracking ONLY, never click-wrapping, so one-time verify and reset links stay un-redirected - a link-prefetcher or a downed tracking endpoint must never sit in front of a password-reset link
@@ -580,10 +659,6 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		orderIDPtr = &id
 	}
 	sendID := engagement.NewSendID()
-	s.recordSent(ctx, sendlog.Spec{
-		ID: sendID, ChannelID: ch.ID, Source: sendlog.SourceFlow, Email: recipient, CustomerID: custIDPtr,
-		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID, OrderID: orderIDPtr,
-	})
 	if transactional {
 		html = s.track.InjectPixel(html, storefrontURL(ch), sendID)
 	} else {
@@ -594,8 +669,21 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		msg.Headers = emailpkg.ListUnsubscribeHeaders(s.unsubscribeLink(ch, cust.ID))
 	}
 	if err := s.sender.Send(ctx, msg); err != nil {
+		if s.bounces != nil {
+			s.bounces.Capture(ctx, recipient, err)
+		}
+		if retryable(transactional, err) {
+			return fmt.Errorf("email node %s send to %s: %w", node.ID, recipient, err)
+		}
 		log.Printf("[flow] email node send to %s: %v", recipient, err)
+		return nil
 	}
+	// Logged once the relay took it, so a retried send leaves one entry - the token in the mail names this id either way
+	s.recordSent(ctx, sendlog.Spec{
+		ID: sendID, ChannelID: ch.ID, Source: sendlog.SourceFlow, Email: recipient, CustomerID: custIDPtr,
+		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID, OrderID: orderIDPtr,
+	})
+	return nil
 }
 
 // Gated on marketing_sms consent and a number on file - best-effort, failures are logged
@@ -635,71 +723,26 @@ func (s *Service) execSMS(ctx context.Context, f Flow, node Node, run FlowRun) {
 func (s *Service) mergeVars(ctx context.Context, ch Store, cust Contact, run FlowRun) map[string]string {
 	vars := s.vars(ctx, ch, cust)
 	vars["cart.recoveryUrl"] = storefrontURL(ch) + "/cart"
-	if len(run.Context) > 0 {
-		var rc map[string]any
-		if json.Unmarshal(run.Context, &rc) == nil {
-			if pk, _ := rc["page_key"].(string); pk != "" {
-				vars["product.url"] = storefrontURL(ch) + pk
-			}
-			// back_in_stock carries a resolved full product URL
-			if u, _ := rc["page_key_url"].(string); u != "" {
-				if strings.HasPrefix(u, "http") {
-					vars["product.url"] = u
-				} else {
-					vars["product.url"] = storefrontURL(ch) + u
-				}
-			}
-			if v, _ := rc["product_name"].(string); v != "" {
-				vars["product.name"] = v
-			}
-			if v, _ := rc["product_image"].(string); v != "" {
-				vars["product.image"] = v
-			}
-			if v, _ := rc["segment_slug"].(string); v != "" {
-				vars["segment.slug"] = v
-			}
-			if v, _ := rc["form_slug"].(string); v != "" {
-				vars["form.slug"] = v
-			}
-			// Order and auth-lifecycle context, from the transactional triggers
-			if v, _ := rc["order_number"].(string); v != "" {
-				vars["order.number"] = v
-			}
-			if v, _ := rc["verify_link"].(string); v != "" {
-				vars["verify.link"] = v
-			}
-			if v, _ := rc["reset_link"].(string); v != "" {
-				vars["reset.link"] = v
-			}
-			if v, _ := rc["reset_expires_in"].(string); v != "" {
-				vars["reset.expiresIn"] = v
-			}
-			if v, _ := rc["confirm_link"].(string); v != "" {
-				vars["confirm.link"] = v
-			}
-			if v, _ := rc["confirm_expires_in"].(string); v != "" {
-				vars["confirm.expiresIn"] = v
-			}
-			if v, _ := rc["signin_link"].(string); v != "" {
-				vars["signin.link"] = v
-			}
-			if v, _ := rc["forgot_link"].(string); v != "" {
-				vars["forgot.link"] = v
-			}
-			if v, _ := rc["offer_link"].(string); v != "" {
-				vars["offer.link"] = v
-			}
-			if v, _ := rc["offer_expires"].(string); v != "" {
-				vars["offer.expiresAt"] = v
-			}
-			if v, ok := rc["offer_message"].(string); ok { // an empty message still replaces its tag
-				vars["offer.message"] = v
-			}
-			// Auth triggers pass an explicit name, since the customer may be brand new
-			if v, _ := rc["first_name"].(string); v != "" {
-				vars["customer.firstName"] = v
-			}
+	var rc map[string]any
+	if len(run.Context) == 0 || json.Unmarshal(run.Context, &rc) != nil {
+		return vars
+	}
+	if pk, _ := rc[signalsapi.PayloadPageKey].(string); pk != "" {
+		vars["product.url"] = storefrontURL(ch) + pk
+	}
+	if u, _ := rc[signalsapi.PayloadProductURL].(string); u != "" { // back_in_stock carries a resolved product URL
+		if !strings.HasPrefix(u, "http") {
+			u = storefrontURL(ch) + u
 		}
+		vars["product.url"] = u
+	}
+	for _, cv := range contextVars {
+		if v, _ := rc[cv.key].(string); v != "" {
+			vars[cv.tag] = v
+		}
+	}
+	if v, ok := rc[signalsapi.PayloadOfferMessage].(string); ok { // an empty message still replaces its tag
+		vars["offer.message"] = v
 	}
 	return vars
 }
@@ -725,7 +768,7 @@ func (s *Service) execWebhook(ctx context.Context, node Node, run FlowRun) {
 	body, _ := json.Marshal(map[string]any{
 		"flowId":     run.FlowID.String(),
 		"customerId": run.CustomerID.String(),
-		"context":    json.RawMessage(run.Context),
+		"context":    webhookContext(run.Context),
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -738,6 +781,22 @@ func (s *Service) execWebhook(ctx context.Context, node Node, run FlowRun) {
 		return
 	}
 	_ = resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		log.Printf("[flow] webhook node POST %s: HTTP %d", url, resp.StatusCode)
+	}
+}
+
+// The run's context minus every one-time link it carries
+func webhookContext(raw json.RawMessage) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil {
+		return json.RawMessage("{}")
+	}
+	for _, k := range linkPayloadKeys {
+		delete(m, k)
+	}
+	out, _ := json.Marshal(m)
+	return out
 }
 
 func (s *Service) evalCondition(ctx context.Context, c *Condition, run FlowRun) bool {
@@ -786,17 +845,11 @@ func (s *Service) vars(ctx context.Context, ch Store, cust Contact) map[string]s
 }
 
 func (s *Service) unsubscribeLink(ch Store, customerID uuid.UUID) string {
-	return storefrontURL(ch) + "/unsubscribe/" + s.track.SignUnsubscribe(customerID)
+	return s.track.UnsubscribeURL(ch.PublicURL, customerID)
 }
 
-// The channel's configured sender identity as core pushed it, with the store's name when no sender
-// name was ever set - an empty From is refused by every relay
 func (s *Service) fromAddress(ch Store) string {
-	name := strings.TrimSpace(ch.FromName)
-	if name == "" {
-		name = ch.Name
-	}
-	return emailpkg.FromHeader(name, ch.FromAddress)
+	return emailpkg.SenderHeader(ch.FromName, ch.Name, ch.FromAddress)
 }
 
 func storefrontURL(ch Store) string {

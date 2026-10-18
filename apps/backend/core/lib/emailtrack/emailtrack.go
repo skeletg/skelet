@@ -127,6 +127,11 @@ func (s *Signer) SignUnsubscribe(customerID uuid.UUID) string {
 	return payload + "." + macWith(s.key, payload)
 }
 
+// UnsubscribeURL is the storefront's one-click unsubscribe link for a customer - it works without a session
+func (s *Signer) UnsubscribeURL(storefront string, customerID uuid.UUID) string {
+	return strings.TrimRight(strings.TrimSpace(storefront), "/") + "/unsubscribe/" + s.SignUnsubscribe(customerID)
+}
+
 // VerifyUnsubscribe answers the customer a valid link names, ErrInvalid for anything else
 func (s *Signer) VerifyUnsubscribe(token string) (uuid.UUID, error) {
 	parts := strings.SplitN(token, ".", 2)

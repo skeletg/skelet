@@ -369,6 +369,7 @@ type FlowRun struct {
 	UpdatedAt     time.Time       `json:"updated_at"`
 	Email         string          `json:"email"`
 	EnrollmentKey string          `json:"enrollment_key"`
+	SendAttempts  int32           `json:"send_attempts"`
 }
 
 type GdprIdentityErasure struct {

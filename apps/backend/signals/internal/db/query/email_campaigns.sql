@@ -34,7 +34,7 @@ WHERE id = sqlc.arg(id) AND status IN ('draft', 'scheduled');
 -- name: CancelEmailCampaign :execrows
 UPDATE email_campaigns
 SET status = 'cancelled', updated_at = NOW()
-WHERE id = sqlc.arg(id) AND status IN ('scheduled', 'sending');
+WHERE id = sqlc.arg(id) AND status IN ('scheduled', 'sending', 'testing');
 
 -- name: SoftDeleteEmailCampaign :execrows
 -- Soft delete: a sent campaign keeps its recipients, opens and clicks
@@ -97,9 +97,11 @@ WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending');
 
 -- name: MarkRecipientSent :execrows
 -- Claimed BEFORE the message is handed to the sender: this row is the only thing that stops a resend, so marking after delivery leaves a window where a failed write re-mails the recipient on every later tick - returns rows affected so the caller can tell "I own this one" from "a concurrent sweep already took it"
-UPDATE email_campaign_recipients
+-- The campaign must still be sending, so a cancel or delete stops the pass already in flight at its next recipient
+UPDATE email_campaign_recipients r
 SET status = 'sent', sent_at = NOW()
-WHERE id = sqlc.arg(id) AND status = 'pending';
+WHERE r.id = sqlc.arg(id) AND r.status = 'pending'
+  AND EXISTS (SELECT 1 FROM email_campaigns c WHERE c.id = r.campaign_id AND c.status = 'sending' AND c.deleted_at IS NULL);
 
 -- name: MarkRecipientSendFailed :exec
 -- Releases a claim when the send itself fails - guarded on 'sent' because only the sweep holding the claim may flip it, and the recipient keeps its failure reason rather than silently reading as delivered
@@ -172,7 +174,7 @@ WHERE id = sqlc.arg(id) AND status = 'sending';
 -- name: ListABTestingDue :many
 -- A/B campaigns whose measurement window has elapsed - ready to pick a winner
 SELECT * FROM email_campaigns
-WHERE status = 'testing' AND ab_test_started_at IS NOT NULL
+WHERE status = 'testing' AND deleted_at IS NULL AND ab_test_started_at IS NOT NULL
   AND ab_test_started_at + make_interval(mins => ab_test_minutes) <= NOW()
 ORDER BY ab_test_started_at;
 

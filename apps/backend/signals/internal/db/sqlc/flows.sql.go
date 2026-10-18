@@ -37,7 +37,7 @@ WHERE id IN (
       AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key
+RETURNING id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key, send_attempts
 `
 
 type ClaimRunnableFlowRunsParams struct {
@@ -68,6 +68,7 @@ func (q *Queries) ClaimRunnableFlowRuns(ctx context.Context, arg ClaimRunnableFl
 			&i.UpdatedAt,
 			&i.Email,
 			&i.EnrollmentKey,
+			&i.SendAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +160,7 @@ const createFlowRun = `-- name: CreateFlowRun :one
 INSERT INTO flow_runs (flow_id, customer_id, email, current_node_id, status, resume_at, context, enrollment_key)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (flow_id, enrollment_key) WHERE enrollment_key <> '' DO NOTHING
-RETURNING id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key
+RETURNING id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key, send_attempts
 `
 
 type CreateFlowRunParams struct {
@@ -199,6 +200,7 @@ func (q *Queries) CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (F
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EnrollmentKey,
+		&i.SendAttempts,
 	)
 	return i, err
 }
@@ -302,7 +304,7 @@ func (q *Queries) ListActiveFlowsByTrigger(ctx context.Context, arg ListActiveFl
 }
 
 const listFlowRunsByFlow = `-- name: ListFlowRunsByFlow :many
-SELECT id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key FROM flow_runs WHERE flow_id = $1 ORDER BY created_at DESC LIMIT $2
+SELECT id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key, send_attempts FROM flow_runs WHERE flow_id = $1 ORDER BY created_at DESC LIMIT $2
 `
 
 type ListFlowRunsByFlowParams struct {
@@ -332,6 +334,7 @@ func (q *Queries) ListFlowRunsByFlow(ctx context.Context, arg ListFlowRunsByFlow
 			&i.UpdatedAt,
 			&i.Email,
 			&i.EnrollmentKey,
+			&i.SendAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -535,8 +538,9 @@ func (q *Queries) UpdateFlow(ctx context.Context, arg UpdateFlowParams) (int64, 
 const updateFlowRun = `-- name: UpdateFlowRun :exec
 UPDATE flow_runs
 SET current_node_id = $1, status = $2,
-    resume_at = $3, context = $4, error = $5, updated_at = NOW()
-WHERE id = $6
+    resume_at = $3, context = $4, error = $5,
+    send_attempts = $6, updated_at = NOW()
+WHERE id = $7
 `
 
 type UpdateFlowRunParams struct {
@@ -545,6 +549,7 @@ type UpdateFlowRunParams struct {
 	ResumeAt      sql.NullTime    `json:"resume_at"`
 	Context       json.RawMessage `json:"context"`
 	Error         string          `json:"error"`
+	SendAttempts  int32           `json:"send_attempts"`
 	ID            uuid.UUID       `json:"id"`
 }
 
@@ -555,6 +560,7 @@ func (q *Queries) UpdateFlowRun(ctx context.Context, arg UpdateFlowRunParams) er
 		arg.ResumeAt,
 		arg.Context,
 		arg.Error,
+		arg.SendAttempts,
 		arg.ID,
 	)
 	return err
