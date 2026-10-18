@@ -23,7 +23,7 @@ func TestClaimForSendIsExactlyOnce(t *testing.T) {
 	channelID := uuid.New()
 	var campaignID, recipientID uuid.UUID
 	if err := conn.QueryRow(
-		`INSERT INTO email_campaigns (channel_id, name) VALUES ($1, 'claim-test') RETURNING id`,
+		`INSERT INTO email_campaigns (channel_id, name, status) VALUES ($1, 'claim-test', 'sending') RETURNING id`,
 		channelID).Scan(&campaignID); err != nil {
 		t.Fatal(err)
 	}
@@ -89,5 +89,88 @@ func TestALostClaimLogsNoSend(t *testing.T) {
 	}
 	if len(rec.sent) != 0 || len(sender.sent) != 0 {
 		t.Errorf("logged %d sends and mailed %d for a recipient another sweep owned - the A/B stats would count a send that never happened", len(rec.sent), len(sender.sent))
+	}
+}
+
+// A cancel or delete lands mid-pass - the claim re-reads the campaign, so the pass stops at its next recipient instead of
+// mailing out its remaining budget
+func TestAStoppedCampaignClaimsNoMoreRecipients(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	r := &repo{q: db.New(conn)}
+	for name, stop := range map[string]string{
+		"cancelled": `UPDATE email_campaigns SET status = 'cancelled' WHERE id = $1`,
+		"deleted":   `UPDATE email_campaigns SET deleted_at = NOW() WHERE id = $1`,
+	} {
+		var campaignID, recipientID uuid.UUID
+		if err := conn.QueryRow(`INSERT INTO email_campaigns (channel_id, name, status) VALUES ($1, 'stop-test', 'sending') RETURNING id`, uuid.New()).Scan(&campaignID); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM email_campaigns WHERE id = $1`, campaignID) })
+		if err := conn.QueryRow(`INSERT INTO email_campaign_recipients (campaign_id, email) VALUES ($1, 'stop@test.invalid') RETURNING id`, campaignID).Scan(&recipientID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.Exec(stop, campaignID); err != nil {
+			t.Fatal(err)
+		}
+		if claimed, err := r.ClaimForSend(ctx, recipientID); err != nil || claimed {
+			t.Errorf("%s campaign: claim = %v, %v - want no send", name, claimed, err)
+		}
+	}
+}
+
+// A campaign in its A/B measurement window must be cancellable, or its held-back audience still gets the winner
+func TestAnABTestCanBeCancelledAndADeletedOneNeverResolves(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	r := &repo{q: db.New(conn)}
+	insert := func(deleted bool) uuid.UUID {
+		var id uuid.UUID
+		if err := conn.QueryRow(`INSERT INTO email_campaigns (channel_id, name, status, ab_enabled, ab_subject_b, ab_test_minutes, ab_test_started_at, deleted_at)
+			VALUES ($1, 'ab', 'testing', TRUE, 'B', 1, NOW() - interval '1 hour', CASE WHEN $2 THEN NOW() END) RETURNING id`, uuid.New(), deleted).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM email_campaigns WHERE id = $1`, id) })
+		return id
+	}
+	live, gone := insert(false), insert(true)
+	due, err := r.ListABTestingDue(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range due {
+		if c.ID == gone {
+			t.Error("a deleted A/B campaign is still due a winner")
+		}
+	}
+	if ok, err := r.Cancel(ctx, live); err != nil || !ok {
+		t.Fatalf("cancel during the test window = %v, %v - want cancelled", ok, err)
+	}
+}
+
+type skipRecordingRepo struct {
+	lostClaimRepo
+	skipped map[uuid.UUID]string
+}
+
+func (r *skipRecordingRepo) MarkSkipped(_ context.Context, id uuid.UUID, msg string) error {
+	r.skipped[id] = msg
+	return nil
+}
+
+// A recipient with no account has no consent record and no unsubscribe link, so a marketing send must pass them by
+func TestARecipientWithoutAnAccountIsNeverMailed(t *testing.T) {
+	guest := Recipient{ID: uuid.New(), Email: "guest@example.test"}
+	repo := &skipRecordingRepo{sendingRepo: sendingRepo{&fakeCampaignRepo{}}, pending: []Recipient{guest}, skipped: map[uuid.UUID]string{}}
+	sender := &capturingSender{}
+	svc := &Service{
+		repo: repo, tmpl: emailtemplate.NewService(nil, nil), stores: anyStore{}, sender: sender, recorder: &fakeRecorder{},
+		contacts: &fakeAudience{optedIn: map[uuid.UUID]bool{}}, track: emailtrack.NewSigner([]byte("k")),
+	}
+	if _, err := svc.send(context.Background(), Campaign{ID: uuid.New(), ChannelID: uuid.New(), Subject: "Spring"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if _, ok := repo.skipped[guest.ID]; !ok || len(sender.sent) != 0 {
+		t.Errorf("guest recipient: skipped=%v, mailed %d - want skipped and never mailed", repo.skipped, len(sender.sent))
 	}
 }

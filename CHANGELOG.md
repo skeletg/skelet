@@ -290,6 +290,12 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- An A/B campaign in its test window couldn't be cancelled, so the winner job still mailed the held-back
+  audience. It can now, a deleted one is never resolved, and a cancel or delete stops a send pass at its
+  next recipient instead of after up to 500 more emails. A recipient without an account is skipped rather
+  than mailed without a consent check or unsubscribe link, and audiences are read from the roster a page
+  at a time.
+
 - GA4 forwarding sent every batch as one JSON array, which the Measurement Protocol accepts with a 2xx
   and then discards, so nothing ever reached GA4. Each visitor now goes as its own request of at most 25
   events.
