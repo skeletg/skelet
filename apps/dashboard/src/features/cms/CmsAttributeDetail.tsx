@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { GripIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { GripIcon, PlusIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -22,6 +22,9 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { added, changed, removed } from '@/shared/saving/diff'
+import { cn } from '@/lib/utils'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   AddCmsAttributeValueDocument,
@@ -319,53 +322,121 @@ function AttributeValuesEditor({
     refetchQueries: [{ query: CmsAttributesDocument }],
   })
 
+  // Staged, never saved directly - renames, adds and deletes wait for the header Save and its confirm dialog,
+  // like the rest of the page. Names are per locale, so a staged name is only for the locale it was typed in
+  const [slugs, setSlugs] = useState<Map<string, string>>(new Map())
+  const [names, setNames] = useState<Map<string, string>>(new Map())
+  const [adds, setAdds] = useState<string[]>([])
+  const [deletes, setDeletes] = useState<Set<string>>(new Set())
+  const nameOf = (v: (typeof values)[number]) => v.allContent.find((c) => c.locale === effectiveLocale)?.name ?? ''
+
+  // Plain render-time computation - the React Compiler memoises it, and useSaveSection only re-registers when it changes
+  const diff: SectionDiffEntry[] = (() => {
+    const out: (SectionDiffEntry | null)[] = adds.map((slug) => added('Option', slug))
+    for (const v of values) {
+      if (deletes.has(v.id)) {
+        out.push(removed('Option', v.slug))
+        continue
+      }
+      out.push(changed(`Option · ${v.slug} · slug`, v.slug, slugs.get(v.id) ?? v.slug))
+      if (names.has(v.id)) out.push(changed(`Option · ${v.slug} · name (${effectiveLocale})`, nameOf(v), names.get(v.id)))
+    }
+    return out.filter((e): e is SectionDiffEntry => e !== null)
+  })()
+
+  useSaveSection({
+    id: 'options',
+    title: 'Options',
+    diff,
+    save: async () => {
+      for (const [i, slug] of adds.entries()) {
+        await addAttrValue({ variables: { attributeId, slug, position: values.length + i } })
+      }
+      for (const v of values) {
+        if (deletes.has(v.id)) continue
+        const slug = slugs.get(v.id)
+        if (slug !== undefined && slug.trim() && slug.trim() !== v.slug) {
+          await updateValue({ variables: { id: v.id, slug: slug.trim(), position: v.position } })
+        }
+        const name = names.get(v.id)?.trim()
+        if (effectiveLocale && name && name !== nameOf(v)) {
+          await upsertValueContent({ variables: { valueId: v.id, locale: effectiveLocale, name } })
+        }
+      }
+      for (const id of deletes) await deleteValue({ variables: { id } })
+      setAdds([])
+      setSlugs(new Map())
+      setNames(new Map())
+      setDeletes(new Set())
+    },
+  })
+
+  const stage = (setter: typeof setSlugs, id: string, value: string) => setter((prev) => new Map(prev).set(id, value))
+  const toggleDelete = (id: string) =>
+    setDeletes((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+
   return (
     <div className="grid gap-2">
-      {values.length === 0 ? (
+      {values.length === 0 && adds.length === 0 ? (
         <p className="text-sm text-muted-foreground">No options yet.</p>
       ) : (
         <ul className="grid gap-1">
-          {values.map((v, i) => (
-            <li
-              key={v.id}
-              className="flex items-center gap-2 rounded-sm border bg-background px-2 py-1"
-            >
-              <GripIcon className="size-3 text-muted-foreground" />
-              <Input
-                disabled={!canManage}
-                onBlur={(e) =>
-                  e.target.value !== v.slug &&
-                  updateValue({ variables: { id: v.id, slug: e.target.value, position: v.position } })
-                }
-                className="h-7 flex-1 px-2 text-xs"
-                defaultValue={v.slug}
-              />
-              {effectiveLocale && (
+          {values.map((v, i) => {
+            const deleting = deletes.has(v.id)
+            return (
+              <li
+                key={v.id}
+                className={cn('flex items-center gap-2 rounded-sm border bg-background px-2 py-1', deleting && 'opacity-50')}
+              >
+                <GripIcon className="size-3 text-muted-foreground" />
                 <Input
-                  key={`${v.id}-${effectiveLocale}`}
-                  disabled={!canManage}
-                  placeholder={`name (${effectiveLocale})`}
-                  defaultValue={v.allContent.find((c) => c.locale === effectiveLocale)?.name ?? ''}
-                  onBlur={(e) => {
-                    const next = e.target.value.trim()
-                    const cur = v.allContent.find((c) => c.locale === effectiveLocale)?.name ?? ''
-                    if (next && next !== cur) {
-                      upsertValueContent({ variables: { valueId: v.id, locale: effectiveLocale, name: next } })
-                    }
-                  }}
-                  className="h-7 flex-1 px-2 text-xs"
+                  aria-label={`Slug of option ${v.slug}`}
+                  disabled={!canManage || deleting}
+                  value={slugs.get(v.id) ?? v.slug}
+                  onChange={(e) => stage(setSlugs, v.id, e.target.value)}
+                  className={cn('h-7 flex-1 px-2 text-xs', deleting && 'line-through')}
                 />
-              )}
-              <span className="text-xs text-muted-foreground">#{i + 1}</span>
-              {canManage && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteValue({ variables: { id: v.id } })}
-                >
-                  <Trash2Icon className="size-3" />
-                </Button>
-              )}
+                {effectiveLocale && (
+                  <Input
+                    aria-label={`Name of option ${v.slug} (${effectiveLocale})`}
+                    disabled={!canManage || deleting}
+                    placeholder={`name (${effectiveLocale})`}
+                    value={names.get(v.id) ?? nameOf(v)}
+                    onChange={(e) => stage(setNames, v.id, e.target.value)}
+                    className="h-7 flex-1 px-2 text-xs"
+                  />
+                )}
+                <span className="text-xs text-muted-foreground">#{i + 1}</span>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={deleting ? `Keep option ${v.slug}` : `Delete option ${v.slug}`}
+                    onClick={() => toggleDelete(v.id)}
+                  >
+                    {deleting ? <Undo2Icon className="size-3" /> : <Trash2Icon className="size-3" />}
+                  </Button>
+                )}
+              </li>
+            )
+          })}
+          {adds.map((slug, i) => (
+            <li key={`new-${i}`} className="flex items-center gap-2 rounded-sm border border-dashed bg-background px-2 py-1">
+              <PlusIcon className="size-3 text-muted-foreground" />
+              <span className="flex-1 px-2 font-mono text-xs">{slug}</span>
+              <span className="text-xs text-muted-foreground">unsaved</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Remove new option ${slug}`}
+                onClick={() => setAdds((prev) => prev.filter((_, j) => j !== i))}
+              >
+                <Trash2Icon className="size-3" />
+              </Button>
             </li>
           ))}
         </ul>
@@ -373,6 +444,7 @@ function AttributeValuesEditor({
       {canManage && (
         <div className="flex gap-2">
           <Input
+            aria-label="New option slug"
             value={addValue.slug}
             onChange={(e) => setAddValue({ slug: e.target.value })}
             placeholder="new-option-slug"
@@ -381,10 +453,8 @@ function AttributeValuesEditor({
           <Button
             size="sm"
             disabled={!addValue.slug.trim()}
-            onClick={async () => {
-              await addAttrValue({
-                variables: { attributeId, slug: addValue.slug.trim(), position: values.length },
-              })
+            onClick={() => {
+              setAdds((prev) => [...prev, addValue.slug.trim()])
               setAddValue({ slug: '' })
             }}
           >
