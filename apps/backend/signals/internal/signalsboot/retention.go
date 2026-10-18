@@ -3,6 +3,7 @@ package signalsboot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -17,7 +18,7 @@ func SpinePruneJob(cfgSvc Settings, rec *analytics.Recorder) func(context.Contex
 	return func(ctx context.Context) (err error) {
 		maintErr := rec.Maintain(ctx) // hygiene first and unconditionally - the GDPR erasure sweep must not die with a keep-forever retention setting
 		defer func() { err = errors.Join(err, maintErr) }()
-		archive, err := archiveAction(ctx, cfgSvc)
+		archive, err := ArchiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err
 		}
@@ -42,11 +43,6 @@ func SpinePruneJob(cfgSvc Settings, rec *analytics.Recorder) func(context.Contex
 		}
 		return nil
 	}
-}
-
-// ArchiveAction reports whether aged data is archived before deletion - the retention_action setting, which every sweep honours
-func ArchiveAction(ctx context.Context, cfgSvc Settings) (bool, error) {
-	return archiveAction(ctx, cfgSvc)
 }
 
 // The slice of the send log the retention sweep drives, narrow so it can be faked
@@ -77,7 +73,7 @@ func SendLogRetentionJob(cfgSvc Settings, m SendLogMaintainer) func(context.Cont
 		if err != nil || !ok {
 			return err
 		}
-		archive, err := archiveAction(ctx, cfgSvc)
+		archive, err := ArchiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err
 		}
@@ -93,38 +89,41 @@ func SendLogRetentionJob(cfgSvc Settings, m SendLogMaintainer) func(context.Cont
 }
 
 // LensPruneJob is the lens-prune body: raw web events + aggregates on the main window, per-day rollups on their own longer window, replay on its shorter one
+// Each runs whatever the others do - replay is the most sensitive data on the shortest window, and a step failing ahead of it must not keep recordings past theirs
 func LensPruneJob(cfgSvc Settings, lensSvc *lens.Service) func(context.Context) error {
 	return func(ctx context.Context) error {
-		archive, err := archiveAction(ctx, cfgSvc)
+		archive, err := ArchiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err
 		}
-		if days, err := cfgSvc.Int(ctx, "signals/lens/retention_days", nil); err != nil {
-			return err
-		} else if days > 0 {
-			if _, err := lensSvc.Prune(ctx, time.Now().AddDate(0, 0, -int(days)), archive); err != nil {
-				return err
+		steps := []struct {
+			setting string
+			prune   func(context.Context, time.Time) (int64, error)
+		}{
+			{"signals/lens/retention_days", func(ctx context.Context, before time.Time) (int64, error) { return lensSvc.Prune(ctx, before, archive) }},
+			{"signals/lens/rollup_retention_days", lensSvc.PruneRollups},
+			{"signals/lens/replay_retention_days", lensSvc.PruneReplay},
+		}
+		var errs []error
+		for _, st := range steps {
+			days, err := cfgSvc.Int(ctx, st.setting, nil)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", st.setting, err))
+				continue
+			}
+			if days <= 0 {
+				continue
+			}
+			if _, err := st.prune(ctx, time.Now().AddDate(0, 0, -int(days))); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", st.setting, err))
 			}
 		}
-		if days, err := cfgSvc.Int(ctx, "signals/lens/rollup_retention_days", nil); err != nil {
-			return err
-		} else if days > 0 {
-			if _, err := lensSvc.PruneRollups(ctx, time.Now().AddDate(0, 0, -int(days))); err != nil {
-				return err
-			}
-		}
-		if days, err := cfgSvc.Int(ctx, "signals/lens/replay_retention_days", nil); err != nil {
-			return err
-		} else if days > 0 {
-			if _, err := lensSvc.PruneReplay(ctx, time.Now().AddDate(0, 0, -int(days))); err != nil {
-				return err
-			}
-		}
-		return nil
+		return errors.Join(errs...)
 	}
 }
 
-func archiveAction(ctx context.Context, cfgSvc Settings) (bool, error) {
+// ArchiveAction reports whether aged data is archived before deletion - the retention_action setting, which every sweep honours
+func ArchiveAction(ctx context.Context, cfgSvc Settings) (bool, error) {
 	action, err := cfgSvc.String(ctx, "signals/analytics/retention_action", nil)
 	if err != nil {
 		return false, err
