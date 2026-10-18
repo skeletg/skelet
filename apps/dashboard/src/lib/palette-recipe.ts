@@ -194,7 +194,7 @@ export const DEFAULT_TUNE: Tune = {
   vividness: 'vivid',
   surfaceTone: 'neutral',
   surfaceTint: 'subtle',
-  darkBase: 'dim',
+  darkBase: 'black',
   railTone: 'dark',
 }
 

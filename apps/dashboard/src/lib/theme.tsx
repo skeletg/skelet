@@ -222,19 +222,19 @@ export type Appearance = Tune & {
 
 const STORAGE_KEY = 'skelet-dash:appearance'
 const SINGLE_ID_KEY = 'skelet-dash:theme' // one id for the whole shell, not the mode + palette pair
-// The shipped look: white content carrying the Skelet accent, against the Skelet dark rail
+// The shipped look, the Skelet Modern preset below - theme-pref.test holds the two together
 // eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_APPEARANCE: Appearance = {
   mode: 'light',
-  palette: 'skelet',
-  radius: 'subtle',
+  palette: 'tuned',
+  radius: 'default',
   scale: 'default',
   typeface: 'geist',
   density: 'default',
-  frame: 'docked',
+  frame: 'inset',
   sidebarSide: 'left',
   reduceMotion: false,
-  sidebarPalette: 'skelet',
+  sidebarPalette: null,
   sidebarMode: 'dark',
   ...DEFAULT_TUNE,
 }
@@ -261,9 +261,15 @@ export function presetLook(preset: ThemePreset): ThemePreset['look'] & Pick<Appe
 // eslint-disable-next-line react-refresh/only-export-components
 export const THEME_PRESETS: ThemePreset[] = [
   {
-    id: 'skelet',
-    label: 'Skelet',
-    description: 'The shipped look - white content against the dark rail',
+    id: 'skelet-modern',
+    label: 'Skelet Modern',
+    description: 'The shipped look - white content as a rounded sheet on the dark rail',
+    look: { mode: 'light', palette: 'tuned', radius: 'default', typeface: 'geist', density: 'default', sidebarPalette: null, sidebarMode: 'dark', accentHue: 25, vividness: 'vivid', surfaceTone: 'neutral', surfaceTint: 'subtle', darkBase: 'black', railTone: 'dark', frame: 'inset' },
+  },
+  {
+    id: 'skelet-sharp',
+    label: 'Skelet Sharp',
+    description: 'White content docked flush against the dark rail, tighter corners',
     look: { mode: 'light', palette: 'skelet', radius: 'subtle', typeface: 'geist', density: 'default', sidebarPalette: 'skelet', sidebarMode: 'dark' },
   },
   {

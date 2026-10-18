@@ -8,7 +8,7 @@ describe('tuned palette recipe', () => {
     expect(tunedVars({ ...DEFAULT_TUNE, surfaceTone: 'warm' }, false)['--background']).not.toBe(base['--background'])
     expect(tunedVars({ ...DEFAULT_TUNE, railTone: 'match' }, false)['--sidebar']).not.toBe(base['--sidebar'])
     const dark = tunedVars(DEFAULT_TUNE, true)
-    expect(tunedVars({ ...DEFAULT_TUNE, darkBase: 'black' }, true)['--background']).not.toBe(dark['--background'])
+    expect(tunedVars({ ...DEFAULT_TUNE, darkBase: 'dim' }, true)['--background']).not.toBe(dark['--background'])
   })
 
   it('a strength only matters once the surfaces are tinted', () => {
