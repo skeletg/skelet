@@ -42,7 +42,8 @@ type pendingIdentity struct {
 }
 
 type Store struct { // ingest is batched by a background flusher, and Close drains it
-	conn driver.Conn
+	conn  driver.Conn
+	write func(ctx context.Context, events []bufEvent) error // writeBatch, swapped only by tests
 
 	mu     sync.Mutex
 	buf    []bufEvent
@@ -60,7 +61,7 @@ type Store struct { // ingest is batched by a background flusher, and Close drai
 	seenNext int
 }
 
-var _ analytics.SpineStore = (*Store)(nil) // compile-time proof this driver is interchangeable with the Postgres one
+var _ analytics.SpineStore = (*Store)(nil)
 
 var errBufferFull = errors.New("spinech: ingest buffer full, event dropped") // shedding is data loss, not deduplication - callers get an error so it can't read as "already recorded"
 
@@ -80,7 +81,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	deadline := time.Now().Add(30 * time.Second) // patient ping mirroring the Postgres pool, for container start ordering - a single attempt crash-loops the app whenever ClickHouse warms up slower
+	deadline := time.Now().Add(30 * time.Second) // patient ping for container start ordering - a single attempt crash-loops the app whenever ClickHouse warms up slower
 	for {
 		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		err = conn.Ping(pctx)
@@ -104,6 +105,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 		seen:     make(map[string]struct{}, chRecentKeys),
 		seenRing: make([]string, chRecentKeys),
 	}
+	s.write = s.writeBatch
 	s.wg.Add(1)
 	go s.flushLoop()
 	return s, nil
@@ -172,7 +174,7 @@ func nz(p *uuid.UUID) uuid.UUID { // zero UUID is the "none" sentinel in the CH 
 	return *p
 }
 
-// Buffers and returns immediately, so the event lives in memory until the flusher writes it (on chFlushBatch or every chFlushEvery) and a crash loses the unflushed tail - the standard throughput-for-durability trade of a batching analytics client The outbox only re-delivers commerce events on a crash or lease expiry BEFORE the row is marked delivered, never after a successful dispatch, so spine appends are best-effort past that point - Close drains on graceful shutdown, and a sustained outage caps the buffer at chMaxBuffer and sheds with a loud log rather than growing unbounded The bool means "genuinely new" and callers turn it into commerce writes - RecordOpen gates the send's first_open_at stamp on it, which COALESCE makes idempotent, so an optimistic answer just repeats harmless work Postgres answers that exactly from a unique index, where this is the last chRecentKeys keys THIS process saw - enough for a repeat tracking pixel in its minute bucket or an outbox replay seconds later, but not for a duplicate landing on another replica or after a restart, which still collapses in storage
+// Buffers and returns immediately, so the event lives in memory until the flusher writes it (on chFlushBatch or every chFlushEvery) and a crash loses the unflushed tail - the standard throughput-for-durability trade of a batching analytics client The outbox only re-delivers commerce events on a crash or lease expiry BEFORE the row is marked delivered, never after a successful dispatch, so spine appends are best-effort past that point - Close drains on graceful shutdown, and a sustained outage caps the buffer at chMaxBuffer and sheds with a loud log rather than growing unbounded The bool means "genuinely new" and callers turn it into commerce writes - RecordOpen gates the send's first_open_at stamp on it, which COALESCE makes idempotent, so an optimistic answer just repeats harmless work It is the last chRecentKeys keys THIS process saw - enough for a repeat tracking pixel in its minute bucket or an outbox replay seconds later, but not for a duplicate landing on another replica or after a restart, which still collapses in storage
 func (s *Store) AppendEvent(_ context.Context, e analytics.SpineEvent) (bool, error) {
 	raw, err := json.Marshal(e.Props)
 	if err != nil {
@@ -259,27 +261,76 @@ func (s *Store) flushEvents(ctx context.Context) error {
 			case <-ctx.Done():
 			}
 		}
-		if err = s.writeBatch(ctx, batch); err == nil {
+		if err = s.write(ctx, batch); err == nil {
 			return nil
 		}
+	}
+	if dropped, isolated := s.isolate(ctx, batch); isolated {
+		s.mu.Lock()
+		s.forget(dropped)
+		s.mu.Unlock()
+		if len(dropped) > 0 {
+			return fmt.Errorf("ClickHouse refused %d of %d events, dropped: %w", len(dropped), len(batch), err)
+		}
+		return nil
 	}
 	s.mu.Lock()
 	dropped := len(s.buf)+len(batch) > chMaxBuffer
 	if !dropped {
 		s.buf = append(batch, s.buf...) // prepend; retry on the next tick
 	} else {
-		// forget the dropped keys, or a legitimate retry of these events would read as "already recorded" and be swallowed
-		for _, e := range batch {
-			if e.e.DedupeKey != "" {
-				delete(s.seen, e.e.DedupeKey)
-			}
-		}
+		s.forget(batch)
 	}
 	s.mu.Unlock()
 	if dropped {
 		return fmt.Errorf("flush %d events failed and buffer is over cap, DROPPED: %w", len(batch), err)
 	}
 	return fmt.Errorf("flush %d events failed, re-buffering: %w", len(batch), err)
+}
+
+// A batch that keeps failing is split in half - when one half writes, ClickHouse is up and refusing what the other carries, so the
+// failing side is split again until the refused events stand alone and are dropped, rather than wedging every event queued behind them
+// Both halves failing reads as an outage, and the caller re-buffers the whole batch as before
+func (s *Store) isolate(ctx context.Context, batch []bufEvent) (dropped []bufEvent, isolated bool) {
+	if len(batch) < 2 {
+		return nil, false
+	}
+	a, b := batch[:len(batch)/2], batch[len(batch)/2:]
+	errA, errB := s.write(ctx, a), s.write(ctx, b)
+	if errA != nil && errB != nil {
+		return nil, false
+	}
+	for _, half := range []struct {
+		events []bufEvent
+		err    error
+	}{{a, errA}, {b, errB}} {
+		if half.err != nil {
+			dropped = append(dropped, s.narrow(ctx, half.events)...)
+		}
+	}
+	return dropped, true
+}
+
+func (s *Store) narrow(ctx context.Context, failed []bufEvent) []bufEvent {
+	if len(failed) == 1 {
+		return failed
+	}
+	var dropped []bufEvent
+	for _, half := range [][]bufEvent{failed[:len(failed)/2], failed[len(failed)/2:]} {
+		if s.write(ctx, half) != nil {
+			dropped = append(dropped, s.narrow(ctx, half)...)
+		}
+	}
+	return dropped
+}
+
+// Forgets dropped events' dedupe keys, or a legitimate retry of them would read as "already recorded" and be swallowed - caller holds mu
+func (s *Store) forget(events []bufEvent) {
+	for _, e := range events {
+		if e.e.DedupeKey != "" {
+			delete(s.seen, e.e.DedupeKey)
+		}
+	}
 }
 
 func (s *Store) writeBatch(ctx context.Context, events []bufEvent) error {
@@ -299,7 +350,7 @@ func (s *Store) writeBatch(ctx context.Context, events []bufEvent) error {
 }
 
 // Drops whole day partitions older than the cutoff, returning the rows removed - near-instant metadata work where the equivalent ALTER DELETE rewrites every part, at the cost of only releasing a partition once all of it is past the cutoff
-// Postgres prunes on received_at and this on occurred_at, the partition key - they differ only for late arrivals, and occurred_at is the more meaningful retention axis anyway
+// Prunes on occurred_at, the partition key
 func (s *Store) PruneEvents(ctx context.Context, before time.Time) (int64, error) {
 	var rows uint64 // physical pre-collapse count (unmerged duplicates inflate it) - only feeds a log line
 	if err := s.conn.QueryRow(ctx, `SELECT sum(rows) FROM system.parts
