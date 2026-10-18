@@ -275,6 +275,12 @@ The release process, and which version number means what, is in
 
 ### Security
 
+- A webhook node could be added to the password-reset and other account flows, and it posted the run's
+  context, sign-in and reset links included, to any URL. Account flows now refuse webhook nodes, every
+  webhook payload drops the one-time links, and webhooks no longer follow redirects. A flow can only be
+  transactional - skipping consent, suppression and the unsubscribe header - on an order or account
+  trigger, whatever its config says.
+
 - **Logging out logs out of the suite too.** The wire contract's interceptor now consults the list of
   killed admin sessions that core publishes on logout, "log out other devices" and session deletion, so
   a service token minted just before is refused for the rest of its two minutes instead of honoured.
@@ -289,6 +295,11 @@ The release process, and which version number means what, is in
   root `.env`, both compose files and `bin/test-e2e` carry it.
 
 ### Fixed
+
+- A flow email that failed to send was dropped and the run moved on, so a passing SMTP error lost an order
+  receipt or a reset email for good. The run now waits on its node and retries on a 1m/5m/15m/1h ladder
+  before failing; permanent bounces don't retry and, like campaign bounces, feed the suppression list.
+  A run batch stops at half its lease instead of running into another replica's claim.
 
 - An A/B campaign in its test window couldn't be cancelled, so the winner job still mailed the held-back
   audience. It can now, a deleted one is never resolved, and a cancel or delete stops a send pass at its

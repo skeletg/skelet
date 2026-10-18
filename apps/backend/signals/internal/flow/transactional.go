@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	emailpkg "github.com/skeletg/skelet/apps/backend/core/lib/email"
+	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
 
@@ -27,8 +28,12 @@ func flowTransactional(f Flow) bool {
 	if json.Unmarshal(f.TriggerConfig, &tc) != nil {
 		return false
 	}
-	return tc.Transactional
+	return tc.Transactional && transactionalTrigger(f.TriggerType)
 }
+
+// The moments whose mail the customer has to receive - only these may skip consent, suppression and the unsubscribe header,
+// whatever a flow's config claims
+func transactionalTrigger(t string) bool { return isOrderTrigger(t) || signalsapi.IsAuthTrigger(t) }
 
 // isOrderTrigger reports whether a trigger carries an order in its run context
 func isOrderTrigger(t string) bool {

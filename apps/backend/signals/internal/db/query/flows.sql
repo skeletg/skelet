@@ -85,7 +85,8 @@ RETURNING *;
 -- name: UpdateFlowRun :exec
 UPDATE flow_runs
 SET current_node_id = sqlc.arg(current_node_id), status = sqlc.arg(status),
-    resume_at = sqlc.narg(resume_at), context = sqlc.arg(context), error = sqlc.arg(error), updated_at = NOW()
+    resume_at = sqlc.narg(resume_at), context = sqlc.arg(context), error = sqlc.arg(error),
+    send_attempts = sqlc.arg(send_attempts), updated_at = NOW()
 WHERE id = sqlc.arg(id);
 
 -- name: PruneFinishedFlowRuns :execrows

@@ -206,6 +206,7 @@ func (r *repo) UpdateRun(ctx context.Context, rn FlowRun) error {
 		ResumeAt:      nullTime(rn.ResumeAt),
 		Context:       ctxBytes,
 		Error:         rn.Error,
+		SendAttempts:  int32(rn.SendAttempts),
 		ID:            rn.ID,
 	})
 }
@@ -286,6 +287,7 @@ func toRun(row db.FlowRun) FlowRun {
 		Context:       json.RawMessage(row.Context),
 		Error:         row.Error,
 		EnrollmentKey: row.EnrollmentKey,
+		SendAttempts:  int(row.SendAttempts),
 	}
 	if row.CustomerID.Valid {
 		r.CustomerID = row.CustomerID.UUID
