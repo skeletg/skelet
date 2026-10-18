@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
+	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
+
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -194,41 +196,29 @@ func TestAsStringUnwrapsWhatTheDriverReturns(t *testing.T) { // sqlc types COALE
 	}
 }
 
-func TestMetaFromComputesTheDuration(t *testing.T) {
+func TestSessionMetaComputesTheDuration(t *testing.T) {
 	id := uuid.New()
 	start := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	end := start.Add(90 * time.Second)
-
-	m := metaFrom(id.String(), "anon-1", uuid.NullUUID{}, start, end, 42, "/", "/checkout", "1440x900", "curl/8")
-	if m.ID != id {
-		t.Errorf("ID = %s, want %s", m.ID, id)
-	}
-	if m.DurationMs != 90_000 {
-		t.Errorf("DurationMs = %d, want 90000", m.DurationMs)
+	m := sessionMeta(signalsdb.LensSession{
+		ID: id, AnonID: "anon-1", StartedAt: start, LastEventAt: start.Add(90 * time.Second), EventCount: 42,
+		EntryPage: "/", ExitPage: "/checkout", RageCount: 2, ErrorCount: 1,
+	})
+	if m.ID != id || m.DurationMs != 90_000 {
+		t.Errorf("meta = %+v, want the id and a 90s duration", m)
 	}
 	if m.CustomerID != nil {
 		t.Errorf("CustomerID = %v for an anonymous session, want nil", m.CustomerID)
 	}
-	if m.AnonID != "anon-1" || m.EntryPage != "/" || m.ExitPage != "/checkout" || m.EventCount != 42 {
-		t.Errorf("meta = %+v, want the passed-through fields intact", m)
+	if m.AnonID != "anon-1" || m.EntryPage != "/" || m.ExitPage != "/checkout" || m.EventCount != 42 || m.RageCount != 2 || m.ErrorCount != 1 {
+		t.Errorf("meta = %+v, want the row's fields intact", m)
 	}
 }
 
-func TestMetaFromResolvesTheCustomer(t *testing.T) { // the player shows who the session belonged to, and a shared pointer or dropped id would mislabel it
+func TestSessionMetaResolvesTheCustomer(t *testing.T) { // the player shows who the session belonged to, and a shared pointer or dropped id would mislabel it
 	cust := uuid.New()
-	m := metaFrom(uuid.NewString(), "anon-1", uuid.NullUUID{UUID: cust, Valid: true}, time.Now(), time.Now(), 1, "/", "/", "", "")
-	if m.CustomerID == nil {
-		t.Fatal("CustomerID = nil for a logged-in session")
-	}
-	if *m.CustomerID != cust {
-		t.Errorf("CustomerID = %s, want %s", *m.CustomerID, cust)
-	}
-}
-
-func TestMetaFromOnAnUnparseableID(t *testing.T) { // the id arrives from a row projection, and a bad one must leave uuid.Nil rather than abort the whole listing
-	m := metaFrom("not-a-uuid", "anon", uuid.NullUUID{}, time.Now(), time.Now(), 0, "", "", "", "")
-	if m.ID != uuid.Nil {
-		t.Errorf("ID = %s, want uuid.Nil", m.ID)
+	m := sessionMeta(signalsdb.LensSession{ID: uuid.New(), CustomerID: uuid.NullUUID{UUID: cust, Valid: true}})
+	if m.CustomerID == nil || *m.CustomerID != cust {
+		t.Fatalf("CustomerID = %v, want %s", m.CustomerID, cust)
 	}
 }
 
