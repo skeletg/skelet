@@ -152,7 +152,7 @@ type Svcs struct {
 	SignalsEnabled SignalsEnabled
 	SignalsClient  *signalsclient.Client
 
-	MediaStorage    *objstore.Storage
+	MediaStorage    objstore.Storage
 	MediaLibrary    *medialibrary.Service
 	RevalidateCli   *revalidate.Client
 	RevalidateQueue *revalidate.Queue

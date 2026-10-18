@@ -135,7 +135,7 @@ func (l catalogSKULookup) ProductIDBySKU(ctx context.Context, sku string) (uuid.
 }
 
 // A nil Storage is survivable: the hub still lists resources and history, and queueing a run says why it can't
-func newDataJobService(q *db.Queries, reg *dataio.Registry, storage *objstore.Storage, cfg *config.Service) *datajob.Service {
+func newDataJobService(q *db.Queries, reg *dataio.Registry, storage objstore.Storage, cfg *config.Service) *datajob.Service {
 	var blobs datajob.Blobs
 	if storage != nil {
 		blobs = storage

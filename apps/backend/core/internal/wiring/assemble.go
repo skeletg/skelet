@@ -268,7 +268,7 @@ func wireMarketing(d marketingDeps) {
 	d.Form.SetConfirmation(d.Customer, ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR", 3), time.Hour))
 }
 
-func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms *objstore.Storage) {
+func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms objstore.Storage) {
 	c.SetEventBus(bus)
 	c.SetFileResolver(NewCartFileAdapter(ml, ms)) // FILE-type options validate + snapshot uploads through the media library and object store
 }
@@ -280,7 +280,7 @@ func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service,
 	pluginhost.SetCartReader(c)
 }
 
-func wireWebForms(wf *webform.Service, bus *events.Bus, ms *objstore.Storage) { // admin-built CMS forms - submissions and their file uploads land through the object store
+func wireWebForms(wf *webform.Service, bus *events.Bus, ms objstore.Storage) { // admin-built CMS forms - submissions and their file uploads land through the object store
 	wf.SetDeps(bus, NewWebformFileStore(ms))
 }
 

@@ -29,7 +29,7 @@ const (
 	cfgReplayMaxMinutes   = "signals/lens/replay_max_minutes"
 )
 
-// Object storage for the large gzip blobs, replay chunks and DOM snapshots - the rows keep only the key - satisfied by *objstore.Storage
+// Object storage for the large gzip blobs, replay chunks and DOM snapshots - the rows keep only the key - satisfied by objstore.Storage
 type BlobStore interface {
 	PutBytes(ctx context.Context, key string, data []byte, contentType string) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)

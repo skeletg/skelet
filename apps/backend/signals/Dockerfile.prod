@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for the retention windows' day math
-RUN apk add --no-cache ca-certificates curl tzdata && adduser -D -u 10001 app
+RUN apk add --no-cache ca-certificates curl tzdata && adduser -D -u 10001 app && mkdir -p /data/media && chown app /data/media
 WORKDIR /app
 COPY --from=build /out/signals /app/signals
 COPY --from=build /out/ingest /app/ingest

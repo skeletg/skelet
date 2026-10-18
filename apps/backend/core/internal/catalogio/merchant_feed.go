@@ -34,7 +34,7 @@ const (
 	availabilityOutOfStock          = "out_of_stock"
 )
 
-// MediaURLer resolves a stored media key to its public URL - Satisfied by *objstore.Storage
+// MediaURLer resolves a stored media key to its public URL - Satisfied by objstore.Storage
 type MediaURLer interface {
 	PublicURL(key string) string
 }

@@ -55,7 +55,7 @@ type InventoryEnsurer interface {
 type core struct {
 	repo          Repository
 	tx            *txrunner.Manager
-	media         *objstore.Storage
+	media         objstore.Storage
 	channelSvc    ChannelLookup
 	locales       LocaleValidator
 	defaultLocale DefaultLocaleProvider
@@ -125,7 +125,7 @@ func (s *Service) LinkLabelsByIDs(ctx context.Context, entityType string, ids []
 type Deps struct {
 	Repo              Repository
 	Tx                *txrunner.Manager
-	Media             *objstore.Storage
+	Media             objstore.Storage
 	Channel           ChannelLookup
 	Locales           LocaleValidator
 	DefaultLocale     DefaultLocaleProvider
