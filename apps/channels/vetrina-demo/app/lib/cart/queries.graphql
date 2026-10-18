@@ -7,8 +7,8 @@ fragment CartFull on Cart {
   note
   savedItems {
     id
-    productSku
-    productName
+    sku
+    name
     imageUrl
     quantity
   }
@@ -24,7 +24,7 @@ fragment CartFull on Cart {
     requiresCode
     freeGifts {
       productId
-      productSku
+      sku
       quantity
       inCart
       href
@@ -32,8 +32,8 @@ fragment CartFull on Cart {
   }
   lines {
     id
-    productName
-    productSku
+    name
+    sku
     imageUrl
     unitPrice
     quantity
@@ -44,8 +44,8 @@ fragment CartFull on Cart {
       id
       optionId
       selectionId
-      productSku
-      productName
+      sku
+      name
       unitPrice
       quantity
       sortOrder
@@ -62,6 +62,15 @@ fragment CartFull on Cart {
       quantity
       fileUrl
     }
+    isCustom
+  }
+  offer {
+    expiresAt
+    message
+    state
+    locks
+    paymentMethods
+    isGuest
   }
 }
 

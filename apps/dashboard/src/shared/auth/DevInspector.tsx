@@ -26,13 +26,8 @@ import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
 // extensions) - Opened from the dev identity switcher in the sidebar
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8080'
-const JAEGER_URL = import.meta.env.VITE_JAEGER_URL ?? 'http://localhost:16686'
 
 const TOOL_LINKS: { label: string; href: string; hint: string }[] = [
-  { label: 'Mailpit', href: 'http://localhost:8025', hint: 'caught emails' },
-  { label: 'Jaeger', href: JAEGER_URL, hint: 'traces' },
-  { label: 'Garage', href: 'http://localhost:9901', hint: 'object storage console' },
-  { label: 'Webhook tester', href: 'http://localhost:8081', hint: 'outbound webhooks' },
   { label: 'Admin playground', href: `${BACKEND_URL}/playground/admin`, hint: 'GraphQL' },
   { label: 'Front playground', href: `${BACKEND_URL}/playground/front`, hint: 'GraphQL' },
 ]
@@ -70,7 +65,7 @@ export function DevInspector({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-base">
             Dev inspector
-            <Badge variant="outline" className="border-amber-500/60 font-mono text-[10px] uppercase text-amber-500">
+            <Badge variant="outline" className="border-warning/60 font-mono text-[10px] uppercase text-warning">
               dev
             </Badge>
           </SheetTitle>
@@ -191,14 +186,9 @@ export function DevInspector({
                         </td>
                         <td className="px-2 py-1">
                           {r.traceId ? (
-                            <a
-                              href={`${JAEGER_URL}/trace/${r.traceId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-0.5 text-primary hover:underline"
-                            >
-                              open <ExternalLinkIcon className="size-2.5" />
-                            </a>
+                            <span className="block max-w-24 truncate font-mono" title={r.traceId}>
+                              {r.traceId}
+                            </span>
                           ) : (
                             '-'
                           )}
@@ -251,7 +241,7 @@ export function DevInspector({
           {/* ---- Tools ---- */}
           <section className="grid gap-1.5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Local tools
+              Playgrounds
             </h3>
             <div className="grid grid-cols-2 gap-1.5">
               {TOOL_LINKS.map((t) => (

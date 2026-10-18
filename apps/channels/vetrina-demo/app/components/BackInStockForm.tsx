@@ -1,98 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 
+import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
+import { notifyBackInStockAction } from "@/app/lib/beacons/actions";
+import { backInStockSchema } from "@/app/lib/beacons/schemas";
 import { useCustomerIdentity } from "@/app/lib/customer/client";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
+export function BackInStockForm({ productId, defaultEmail = "" }: { productId: string; defaultEmail?: string }) {
+  const t = useTranslations("product.backInStock");
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
+    notifyBackInStockAction,
+    backInStockSchema,
+    { defaultValue: { productId, email: defaultEmail } },
+  );
+  // The page is cached HTML so the server render has no session - identity lands after hydration and fills the email,
+  // unless the shopper already typed one of their own
+  const identityEmail = useCustomerIdentity().identity?.email;
+  const emailBox = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (identityEmail && !emailBox.current?.value) form.update({ name: fields.email.name, value: identityEmail });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identityEmail]);
 
-export function BackInStockForm({
-  productId,
-  sku,
-  name,
-  image,
-  defaultEmail = "",
-}: {
-  productId: string;
-  sku: string;
-  name: string;
-  image: string;
-  defaultEmail?: string;
-}) {
-  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
-  // The page is cached HTML so the server render has no session - identity lands after
-  // hydration and prefills the field, until the visitor types something of their own
-  const { identity } = useCustomerIdentity();
-  const [typed, setTyped] = useState<string | null>(null);
-  const email = typed ?? identity?.email ?? defaultEmail;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || state === "sending") return;
-    setState("sending");
-    try {
-      // Channel id is stamped on <html data-channel-id> by the layout (the /t proxy
-      // can't inject it), same source the Lens tracker reads
-      const channelId = document.documentElement.dataset.channelId ?? "";
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-Channel-Id": channelId,
-      };
-      const aid = readCookie("lens_aid");
-      if (aid) headers["X-Anon-Id"] = aid;
-      const res = await fetch("/t/back-in-stock", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          productId,
-          sku,
-          email: email.trim(),
-          name,
-          image,
-          url: window.location.pathname,
-        }),
-      });
-      setState(res.ok ? "done" : "error");
-    } catch {
-      setState("error");
-    }
-  };
-
-  if (state === "done") {
+  if (lastResult?.status === "success") {
     return (
-      <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-        You&apos;re on the list - we&apos;ll email you the moment it&apos;s back.
+      <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+        {t("done")}
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 rounded-xl border border-border p-4">
-      <p className="text-sm font-medium">Out of stock - get notified when it returns</p>
+    <form id={form.id} action={formAction} onSubmit={onSubmit} noValidate className="mt-6 rounded-xl border border-border p-4">
+      <input type="hidden" name={fields.productId.name} value={productId} />
+      <label htmlFor={fields.email.id} className="text-sm font-medium">{t("title")}</label>
       <div className="mt-3 flex gap-2">
         <input
+          ref={emailBox}
+          id={fields.email.id}
+          key={fields.email.key}
+          name={fields.email.name}
           type="email"
           required
-          value={email}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder="you@example.com"
+          autoComplete="email"
+          defaultValue={String(fields.email.initialValue ?? "")}
+          placeholder={t("placeholder")}
+          aria-invalid={fields.email.errors ? true : undefined}
+          aria-describedby={fields.email.errors ? fields.email.errorId : undefined}
           className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
         />
         <button
           type="submit"
-          disabled={state === "sending"}
+          disabled={pending}
           className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
-          {state === "sending" ? "…" : "Notify me"}
+          {pending ? "…" : t("submit")}
         </button>
       </div>
-      {state === "error" && (
-        <p className="mt-2 text-xs text-rose-600">Something went wrong - please try again.</p>
-      )}
+      {fields.email.errors ? <FieldErrors id={fields.email.errorId} errors={fields.email.errors} /> : null}
+      <div className="mt-2"><FormErrors errors={form.errors} /></div>
     </form>
   );
 }

@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { dividers, dragTabToEdge, navigate, newTab, paneCount, startClean } from './helpers'
+import { expect } from '@playwright/test'
+import { dividers, dragTabToEdge, navigate, newTab, paneCount, startClean, test } from './helpers'
 
 // Motion here is CSS, so what can silently break is the wiring: a renamed data-slot leaves the
 // rules matching nothing and everything simply snaps, with no test failing anywhere else

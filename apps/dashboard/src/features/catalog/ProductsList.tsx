@@ -327,7 +327,7 @@ export function ProductsList() {
   const [deleteProduct, { loading: deleting }] = useMutation(DeleteProductDocument, {
     // By operation name, so the active instance refetches with the page and filters
     // the user is actually looking at rather than a bare first page
-    refetchQueries: ['ProductsPaged'],
+    refetchQueries: [ProductsPagedDocument],
   })
 
   async function onConfirmDelete() {

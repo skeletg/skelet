@@ -1,0 +1,208 @@
+package ordermail
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/lib/email"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+)
+
+// Register attaches the four order-lifecycle events that produce customer mail
+// A failed send returns its error so the outbox delivers again - the send log only records mail that left, so the retry can't duplicate it
+func (s *Service) Register(bus *events.Bus) {
+	// All four load the order: a flow has to be handed the snapshot it will render from, since by the
+	// time the engine advances the run the order is not readable from where it runs
+	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
+		evt, ok := e.(*order.OrderPlaced)
+		if !ok {
+			return nil
+		}
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
+		// Guests enroll keyed by the order email, so they get a receipt too
+		return s.deliver(ctx, evt.OrderID, kindConfirmation, "", func(d FlowDispatcher) int {
+			return d.OnOrderPlaced(ctx, evt.ChannelID, customerIDOrNil(evt.CustomerID), evt.Email, evt.OrderID, Snapshot(o))
+		}, func() error { return s.sendConfirmation(ctx, o, ch) })
+	})
+
+	bus.Subscribe(order.EventFulfillmentCreated, func(ctx context.Context, e events.Event) error {
+		evt, ok := e.(*order.OrderFulfillmentCreated)
+		if !ok {
+			return nil
+		}
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
+		return s.deliver(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func(d FlowDispatcher) int {
+			ful, ferr := s.orders.GetFulfillment(ctx, evt.FulfillmentID)
+			if ferr != nil {
+				return 0 // no fulfillment, no tracking to show - the direct send loads it again and reports properly
+			}
+			return d.OnOrderShipped(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, evt.FulfillmentID, ShipmentSnapshot(o, ful))
+		}, func() error { return s.sendShipment(ctx, o, ch, evt.FulfillmentID) })
+	})
+
+	bus.Subscribe(order.EventStatusChanged, func(ctx context.Context, e events.Event) error {
+		evt, ok := e.(*order.OrderStatusChanged)
+		if !ok || evt.ToStatus != order.OrderStatusCancelled {
+			return nil
+		}
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
+		return s.deliver(ctx, evt.OrderID, kindCancellation, "", func(d FlowDispatcher) int {
+			return d.OnOrderCancelled(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, Snapshot(o))
+		}, func() error { return s.sendCancellation(ctx, o, ch) })
+	})
+
+	// One email per refund, keyed on its credit memo - keyed on the order's payment reference, which every refund shares, a second partial refund never mailed
+	bus.Subscribe(order.EventRefunded, func(ctx context.Context, e events.Event) error {
+		evt, ok := e.(*order.OrderRefunded)
+		if !ok || evt.CreditMemoID == uuid.Nil {
+			return nil
+		}
+		ref := evt.CreditMemoID.String()
+		o, ch, err := s.context(ctx, evt.OrderID)
+		if err != nil {
+			return dropSkip(err)
+		}
+		return s.deliver(ctx, evt.OrderID, kindRefund, ref, func(d FlowDispatcher) int {
+			snap := Snapshot(o)
+			snap.RefundedAmount = RefundedAmount(ctx, s.orders, o.ID)
+			return d.OnPaymentRefunded(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, ref, snap)
+		}, func() error { return s.sendRefund(ctx, o, ch) })
+	})
+}
+
+// The outbox redelivers an event whose handler finished but whose delivery was never marked done, and a second receipt reads to a customer as a second order
+// Core's own log is read before any flow is asked, so a replay of mail core already sent can't hand it to a flow as a second copy
+func (s *Service) deliver(ctx context.Context, orderID uuid.UUID, kind, ref string, enroll func(FlowDispatcher) int, send func() error) error {
+	if s.alreadySent(ctx, orderID, kind, ref) {
+		return nil
+	}
+	if s.flowTook(enroll) {
+		return nil
+	}
+	return s.sendAndRecord(ctx, orderID, kind, ref, send)
+}
+
+func (s *Service) alreadySent(ctx context.Context, orderID uuid.UUID, kind, ref string) bool {
+	if s.sendLog == nil {
+		return false
+	}
+	sent, err := s.sendLog.AlreadySent(ctx, orderID, kind, ref)
+	if err != nil {
+		log.Printf("[ordermail] send log read: %v", err) // sends anyway - a missing receipt costs more than a duplicate
+	}
+	return sent
+}
+
+// Recorded after the send, since a row written for mail that never left would suppress the real one
+// A send that can never succeed - no address on the order - is logged and dropped; anything else returns so the event is delivered again
+func (s *Service) sendAndRecord(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) error {
+	if err := send(); err != nil {
+		log.Printf("[ordermail] %v", err)
+		if errors.Is(err, errNoAddress) {
+			return nil
+		}
+		return err
+	}
+	if s.sendLog == nil {
+		return nil
+	}
+	if err := s.sendLog.RecordSent(ctx, orderID, kind, ref); err != nil {
+		log.Printf("[ordermail] send log write: %v", err)
+	}
+	return nil
+}
+
+// No dispatcher wired means nothing else can be sending, so every order email is ours
+func (s *Service) flowTook(enroll func(FlowDispatcher) int) bool {
+	return s.flows != nil && enroll(s.flows) > 0
+}
+
+// Guests have no customer id - enrollment keys on the order email instead, so the zero UUID is a
+// valid input downstream rather than an error
+func customerIDOrNil(id *uuid.UUID) uuid.UUID {
+	if id == nil {
+		return uuid.Nil
+	}
+	return *id
+}
+
+func (s *Service) sendConfirmation(ctx context.Context, o order.Order, ch channel.Channel) error {
+	subject, htmlBody, textBody, err := s.render.RenderOrderConfirmation(ctx, ch.ID, email.OrderConfirmationData{
+		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o), Currency: o.CurrencyCode,
+		Lines: Lines(o), Subtotal: o.SubtotalAmount, Discount: o.DiscountAmount,
+		Shipping: o.ShippingAmount, Tax: o.TaxAmount, Total: o.TotalAmount,
+		ShipTo: AddressLines(o.ShippingAddress), StorefrontURL: StorefrontURL(ch),
+	})
+	if err != nil {
+		return fmt.Errorf("render %s for order %s: %w", email.KeyOrderConfirmation, o.Number, err)
+	}
+	return s.send(ctx, ch, o, email.KeyOrderConfirmation, subject, htmlBody, textBody)
+}
+
+func (s *Service) sendShipment(ctx context.Context, o order.Order, ch channel.Channel, fulfillmentID uuid.UUID) error {
+	ful, err := s.orders.GetFulfillment(ctx, fulfillmentID)
+	if err != nil {
+		return fmt.Errorf("load fulfillment %s for order %s: %w", fulfillmentID, o.Number, err)
+	}
+	subject, htmlBody, textBody, err := s.render.RenderOrderShipment(ctx, ch.ID, email.OrderShipmentData{
+		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o),
+		Carrier: ful.Carrier, TrackingNumber: ful.TrackingNumber,
+		Lines: ShipmentLines(o, ful), Currency: o.CurrencyCode, StorefrontURL: StorefrontURL(ch),
+	})
+	if err != nil {
+		return fmt.Errorf("render %s for order %s: %w", email.KeyOrderShipment, o.Number, err)
+	}
+	return s.send(ctx, ch, o, email.KeyOrderShipment, subject, htmlBody, textBody)
+}
+
+func (s *Service) sendCancellation(ctx context.Context, o order.Order, ch channel.Channel) error {
+	subject, htmlBody, textBody, err := s.render.RenderOrderCancellation(ctx, ch.ID, email.OrderCancellationData{
+		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o), StorefrontURL: StorefrontURL(ch),
+	})
+	if err != nil {
+		return fmt.Errorf("render %s for order %s: %w", email.KeyOrderCancellation, o.Number, err)
+	}
+	return s.send(ctx, ch, o, email.KeyOrderCancellation, subject, htmlBody, textBody)
+}
+
+func (s *Service) sendRefund(ctx context.Context, o order.Order, ch channel.Channel) error {
+	subject, htmlBody, textBody, err := s.render.RenderOrderRefund(ctx, ch.ID, email.OrderRefundData{
+		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o),
+		Currency: o.CurrencyCode, RefundedAmount: RefundedAmount(ctx, s.orders, o.ID), StorefrontURL: StorefrontURL(ch),
+	})
+	if err != nil {
+		return fmt.Errorf("render %s for order %s: %w", email.KeyOrderRefund, o.Number, err)
+	}
+	return s.send(ctx, ch, o, email.KeyOrderRefund, subject, htmlBody, textBody)
+}
+
+// RefundedAmount totals what actually left the merchant's account - a pending or failed refund doesn't count
+func RefundedAmount(ctx context.Context, orders PaymentLedgerReader, orderID uuid.UUID) int64 {
+	var refunded int64
+	txns, err := orders.PaymentLedger(ctx, orderID)
+	if err != nil {
+		return 0
+	}
+	for _, t := range txns {
+		if t.Kind == "refund" && t.Status == "succeeded" {
+			refunded += t.AmountCents
+		}
+	}
+	return refunded
+}

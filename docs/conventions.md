@@ -11,16 +11,16 @@ convention is the one most code comments point at.
   regeneration.
 - Resolver field for the admin service is `AdminSvc` (not `Admin`) to
   avoid shadowing the generated `Admin(id)` query resolver method.
-- Front model autobinds to `apps/backend/graph/admin/model` for shared
+- Front model autobinds to `apps/backend/core/graph/admin/model` for shared
   types (Customer, Product, Order, …); cart-only types live in
-  `apps/backend/graph/front/model`.
-- Migrations in `apps/backend/internal/db/migrations/` - numbered
-  sequentially. Each `<n>_<name>.up.sql` paired with
-  `<n>_<name>.down.sql`.
+  `apps/backend/core/graph/front/model`.
+- Migrations in `apps/backend/core/internal/db/migrations/` - one dbmate file
+  each, `<timestamp>_<name>.sql` from `./skelet db migrate new <name>`, holding its
+  `-- migrate:up` and `-- migrate:down` halves.
 - Both streams apply themselves on `docker compose up`: the `migrate` and
   `signals-migrate` one-shots run `up` and gate app/worker/media/signals/ingest
   on completing successfully, so nothing boots against a stale schema. Adding a
-  migration means restarting the stack, not remembering to run `bin/migrate`.
+  migration means restarting the stack, not remembering to run `./skelet db migrate`.
 
 ## Dashboard hygiene
 
@@ -37,6 +37,31 @@ convention is the one most code comments point at.
   App.tsx.
 - **Cross-cutting code lives in `src/shared/`** (auth, errors, saving) -
   `features/` is for actual product domains only.
+- **State colours are tokens, never raw Tailwind hues.** `index.css`
+  defines `success`, `warning`, `info` and `destructive` outside the
+  palettes and registers each in `@theme`, so they are plain utilities
+  that flip with the mode on their own - no `dark:` twin at the call
+  site. Each state has three roles:
+
+  | Utility | Use |
+  |---|---|
+  | `text-success`, `bg-success`, `border-success`, `ring-success` | the colour itself: text, icons, dots, bars, strong lines |
+  | `text-success-foreground` | text on a solid `bg-success` fill |
+  | `bg-success-soft` | tinted badge or banner background |
+
+  A tinted badge is `bg-warning-soft text-warning border-warning/30`,
+  or `<Badge variant="warning">`; `Alert` has the same variants. Opacity
+  modifiers (`border-info/40`) cover one-offs. Never use `primary` /
+  `accent` for state - admins recolour them. Categories with no state
+  (a kind badge, an order status like Processing) map to the nearest
+  state or to `muted`, not to a raw hue like `bg-violet-500`. A new
+  colour goes in as a CSS variable plus a `--color-*` entry in `@theme`.
+  Chart series and legend dots that only tell categories apart use
+  `series-1…8` and `series-other` (`bg-series-3` in markup;
+  `SERIES` / `SERIES_OTHER` / `CHART_ACCENT` from `src/lib/chart-colors.ts`
+  in recharts props) - never a hex.
+  The auth screens' fixed white-card chrome is the one deliberate
+  exception.
 - **Staged save is THE rule, not a pattern to opt into.** On any detail
   page, field edits must be staged locally and applied through the
   single page-header Save button, which opens `SaveConfirmDialog`
@@ -85,7 +110,7 @@ convention is the one most code comments point at.
   section) - so a section that round-trips its form state can never
   light the Save button. If you see that warning, fix the section's
   diff computation rather than relying on the central filter.
-- **Every page declares its unsaved work, in one of four ways.** A page
+- **Every page declares its unsaved work, in one of five ways.** A page
   that holds edits the admin could lose has to say so, or closing the
   tab, refreshing, switching channel/locale, closing a workspace tab and
   clicking a link all discard them silently. Everything lives in
@@ -123,8 +148,49 @@ convention is the one most code comments point at.
      `MenuDetail.tsx`, which re-syncs from the query and so diffs against
      the loaded menu). A mount snapshot would read as dirty forever
      there.
-  Pages that navigate after committing - every create form, and any
-  delete that returns to a list - must wrap that navigation in
+  5. **Record forms** (`useRecordForm` + `RecordFormPage`, both in
+     `src/shared/saving/`) are the default for create and edit pages, for new
+     ones and for existing ones when they're next touched. The page passes a
+     zod schema, a memoised `baseline`, a `diff`, a `persist` key and its
+     mutations. The hook wires the rest: the save registry, a TanStack form
+     (`useAppForm`, `src/components/form/form.ts`), the stored draft, the
+     section the header Save reviews, and the confirm dialog. `RecordFormPage`
+     renders the header with the one Save button, the stored-draft banner,
+     the create-failure alert and `SaveConfirmDialog`, so the page file is only
+     its sections. Bind fields with
+     `<form.AppField name="x">{(f) => <f.TextField … />}</form.AppField>`;
+     `TextField`, `SwitchField`, `CheckboxField` and `MetadataField` are
+     registered. A save rejects when validation fails or `submit` throws, so
+     the dialog stays open with the reason, and `fieldErrorsFrom` can route a
+     server message to the field it's about.
+     - **Schemas** live in `features/<domain>/schemas/<entity>.ts`: the zod
+       schema, its `Values` type, `to<Entity>Values(record)`,
+       `to<Entity>Input(values)`, the field labels and the diff, with a
+       `<entity>.test.ts` beside it. One schema serves both create and edit.
+       Key/value metadata uses `src/shared/schemas/metadata.ts`, so it's
+       always diffed, one entry per key.
+     - **Drafts** (`persist`, `src/lib/form-drafts.ts`) keep the admin's work
+       in localStorage, keyed admin → workspace tab → page, with a 7-day TTL.
+       After a refresh or a closed browser the draft is offered, never applied
+       on its own: the banner says one was found, Review lists what it would
+       change (the Save dialog's rows, plus any field someone else changed
+       since), and Restore puts it back into the form, which still needs Save.
+       Editing instead of deciding drops the offer. Refresh, close and scope
+       switches stop prompting; closing the workspace tab still does, and
+       deletes the draft. Dialogs pass `persist: false`. List secrets in
+       `exclude`, because they must never reach storage. Other staged
+       sections on the same page (a values table, the registry's config
+       fields) keep no draft, so while one of them is dirty the refresh
+       prompt comes back - the registry skips it only when every dirty
+       section is persisted.
+     - **Every migrated page gets a page test** (`<Page>.test.tsx`, Apollo
+       `MockedProvider`): edit, check that Save enables, check what the
+       dialog lists, confirm, and assert the mutation's variables. A section
+       registered in the same component as `useSaveRegistry()` needs the
+       registry passed explicitly (`useSaveSection(reg, registry)`), because
+       context can't reach the component that renders the Provider. Several
+       pages lost their Save button that way.
+     Reference: `features/inventory/InventoryLocationForm.tsx`.
   `duringCommit()` (`src/lib/nav-guard.ts`), or the work they just saved
   gets a "discard changes?" prompt on the way out. `ConfirmDialog` and
   `useSaveRegistry().saveAll()` already do this for you.

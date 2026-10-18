@@ -3,9 +3,10 @@
 // selections layer on top and each checkbox is a Link, so the URL drives re-renders
 // Page-specific chrome goes in the header/prefix slots, not in here
 
+import { getSiteUrl } from "@/app/lib/channel/site";
 import type { ReactNode } from "react";
 import { permanentRedirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { ViewTransition } from "react";
 
@@ -50,6 +51,16 @@ function describeFilters(
       return `${label}: ${vals.join(", ")}`;
     })
     .join(" · ");
+}
+
+// The searchParams object back as a query string, repeated keys kept - what the facet links carry
+function toQueryString(sp: RawSearchParams): string {
+  const qs = new URLSearchParams();
+  for (const [k, raw] of Object.entries(sp)) {
+    if (raw === undefined) continue;
+    for (const v of Array.isArray(raw) ? raw : [raw]) qs.append(k, v);
+  }
+  return qs.toString();
 }
 
 // Query params that are NOT attribute filters
@@ -105,8 +116,9 @@ export async function ProductListShell({
   pathPage,
   basePath,
   limit,
-  emptyText = "No products match the current filters.",
+  emptyText,
 }: Props) {
+  const t = await getTranslations("listing");
   // Page size: caller override wins; otherwise the admin-configured value
   const pageSize = limit ?? (await getBrowsePageSize());
   // Path-based callers feed pathFilters directly; query-based callers (/products today, the [...slug] catch-all when no
@@ -214,12 +226,12 @@ export async function ProductListShell({
 
   // Every PLP (category, collection, search, /products) gets the ItemList through this one
   // shell - each entry pointing at the locale-canonical PDP URL, positions running across pages
-  const canonical = await canonicalPathMapper();
+  const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
 
   return (
     <main className="mx-auto w-full max-w-8xl px-6 md:px-10 pt-6 pb-14">
       {data.items.length > 0 && (
-        <JsonLd data={itemListJsonLd(data.items, (p) => canonical(productHref(p)), offset)} />
+        <JsonLd data={itemListJsonLd(data.items, (p) => canonical(productHref(p)), offset, base)} />
       )}
       {filterLabel && (
         <LensTrack
@@ -253,6 +265,7 @@ export async function ProductListShell({
           basePath={basePath}
           pathFilters={pathFilters}
           pathSort={sortSlug}
+          currentQuery={toQueryString(searchParams)}
           facetRules={await (async () => {
             const seo = await getSeoConfig();
             return { combinations: seo.facetCombinations, minResults: seo.minFacetResults };
@@ -262,7 +275,7 @@ export async function ProductListShell({
         <section className="min-w-0">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Products
+              {t("products")}
             </h2>
             <div className="flex items-center gap-4">
               <SortSelect
@@ -277,7 +290,7 @@ export async function ProductListShell({
             </div>
           </div>
           {data.items.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">{emptyText}</p>
+            <p className="mt-3 text-sm text-muted-foreground">{emptyText ?? t("empty")}</p>
           ) : (
             <>
               {/* Re-filtering, re-sorting or paging swaps the grid's contents while everything around

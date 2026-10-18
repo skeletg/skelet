@@ -58,6 +58,7 @@ import { RunHistorySheet } from './RunHistorySheet'
 import { useSchedulerPaused } from './scheduler-config'
 import { SchedulerSettings } from './SchedulerSettings'
 import { HeadersEditor, RetryAlertFields, SchedulePicker, type Header } from './SchedulerWidgets'
+import { formatTimestamp } from '@/lib/format'
 
 type Job = ScheduledJobsQuery['scheduledJobs'][number]
 
@@ -71,13 +72,8 @@ type ScheduleEdit = {
   timeoutSeconds: number
 }
 
-function fmtTime(s?: string | null): string {
-  if (!s) return '-'
-  return new Date(s).toLocaleString()
-}
-
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'success') return <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">success</Badge>
+  if (status === 'success') return <Badge className="bg-success-soft text-success">success</Badge>
   if (status === 'error') return <Badge variant="destructive">error</Badge>
   return <span className="text-muted-foreground">-</span>
 }
@@ -143,7 +139,7 @@ export function ScheduledJobsList() {
               {job.description && <div className="text-xs text-muted-foreground">{job.description}</div>}
               {job.webhook && (
                 <code className="block max-w-md truncate font-mono text-xs text-muted-foreground">
-                  {job.webhook.method} {job.webhook.url}
+                  {job.webhook.method} {job.webhook.host}
                 </code>
               )}
             </>
@@ -193,7 +189,7 @@ export function ScheduledJobsList() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Next run" />,
         size: 176,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">{row.original.enabled ? fmtTime(row.original.nextRunAt) : '-'}</span>
+          <span className="text-xs text-muted-foreground">{row.original.enabled ? formatTimestamp(row.original.nextRunAt) : '-'}</span>
         ),
       },
       {
@@ -206,10 +202,10 @@ export function ScheduledJobsList() {
             <div className="text-xs">
               <div className="flex items-center gap-2">
                 <StatusBadge status={job.lastStatus} />
-                {job.lastRunAt && <span className="text-muted-foreground">{fmtTime(job.lastRunAt)}</span>}
+                {job.lastRunAt && <span className="text-muted-foreground">{formatTimestamp(job.lastRunAt)}</span>}
               </div>
               {job.currentAttempt > 0 && (
-                <div className="mt-0.5 text-amber-600 dark:text-amber-500">retrying - attempt {job.currentAttempt + 1}</div>
+                <div className="mt-0.5 text-warning">retrying - attempt {job.currentAttempt + 1}</div>
               )}
               {job.lastStatus === 'error' && job.lastError && (
                 <button
@@ -383,7 +379,7 @@ export function ScheduledJobsList() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Last error - {errorView?.name}</DialogTitle>
-            <DialogDescription>{fmtTime(errorView?.lastRunAt)}</DialogDescription>
+            <DialogDescription>{formatTimestamp(errorView?.lastRunAt)}</DialogDescription>
           </DialogHeader>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-destructive/10 p-3 font-mono text-xs text-destructive">
             {errorView?.lastError}

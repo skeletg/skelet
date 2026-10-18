@@ -31,10 +31,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
+import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   CountriesAdminListDocument,
   DeleteCountryDocument,
 } from './Countries.gql'
+import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
 
 type CountryRow = {
   code: string
@@ -46,13 +48,6 @@ type CountryRow = {
   isActive: boolean
   sortOrder: number
   updatedAt: string
-}
-
-function parseReferenceCount(message: string): number | null {
-  const match = message.match(/(\d+)\s+references?/i)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
 }
 
 function friendlyDeleteError(message: string): string {
@@ -69,6 +64,8 @@ export function CountriesList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { isGlobal } = useConfigScope()
+  // Creating and deleting need countries.manage - a viewer's buttons only led to an access-restricted page or a refused delete
+  const canManage = usePermissions().has('countries.manage')
 
   const { data, loading, error } = useQuery(CountriesAdminListDocument)
   const rows = useMemo(() => (data?.countries ?? []) as CountryRow[], [data])
@@ -191,7 +188,7 @@ export function CountriesList() {
               <DropdownMenuItem asChild>
                 <Link to={`/countries/${row.original.code}`}>Edit</Link>
               </DropdownMenuItem>
-              {isGlobal && (
+              {isGlobal && canManage && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -211,7 +208,7 @@ export function CountriesList() {
         ),
       },
     ],
-    [isGlobal],
+    [isGlobal, canManage],
   )
 
   return (
@@ -237,7 +234,8 @@ export function CountriesList() {
           },
         ]}
         toolbarRightSlot={
-          isGlobal ? (
+          canManage &&
+          (isGlobal ? (
             <Button size="sm" asChild>
               <Link to="/countries/new">
                 <PlusIcon className="size-4" />
@@ -249,7 +247,7 @@ export function CountriesList() {
               <PlusIcon className="size-4" />
               New country
             </Button>
-          )
+          ))
         }
       />
 

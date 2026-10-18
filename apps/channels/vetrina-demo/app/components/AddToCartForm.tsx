@@ -1,14 +1,14 @@
 "use client";
 
 import { Fragment, useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addSimpleToCart } from "@/app/lib/cart/actions";
-import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
-import { AddToCartButton } from "@/app/[locale]/products/[id]/AddToCartButton";
-import { StickyBuyRow } from "@/app/[locale]/products/[id]/StickyBuyRow";
-import { AddToCartFeedback } from "@/app/[locale]/products/[id]/AddToCartFeedback";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { deriveQtyBounds } from "./qty";
 import { QtySelector } from "./QtySelector";
 
@@ -46,6 +46,9 @@ export function AddToCartForm({
   const disabled = !product.inStock && !backorder;
   const { min, max, step, decimals, defaultValue } = deriveQtyBounds(product);
   const [state, formAction] = useActionState(addSimpleToCart, null);
+  const t = useTranslations("product");
+  const tcard = useTranslations("product.card");
+  const tc = useTranslations("common");
 
   // A SIMPLE with required options can't quick-add - present it like the non-simple
   // kinds do instead of echoing the server rejection
@@ -57,7 +60,7 @@ export function AddToCartForm({
         href={productHref(product)}
         className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary/85 ${linkSize}`}
       >
-        Choose options
+        {tcard("chooseOptions")}
       </Link>
     );
   }
@@ -71,12 +74,6 @@ export function AddToCartForm({
       className="flex w-full items-center gap-2"
     >
       <input type="hidden" name="productSku" value={product.sku} />
-      <input
-        type="hidden"
-        name="productName"
-        value={displayName(product.name, product.sku)}
-      />
-      <input type="hidden" name="unitPrice" value={product.defaultPrice} />
       {hideQty ? (
         <input type="hidden" name="quantity" value={defaultValue} />
       ) : (
@@ -93,10 +90,10 @@ export function AddToCartForm({
       )}
       <AddToCartButton disabled={disabled} size={size} stickyPrice={stickyPrice} className="flex-1">
         {product.inStock
-          ? "Add to cart"
+          ? t("addToCart")
           : backorder
-            ? "Add to cart (backorder)"
-            : "Out of stock"}
+            ? t("addToCartBackorder")
+            : tc("outOfStock")}
       </AddToCartButton>
     </form>
     </Row>

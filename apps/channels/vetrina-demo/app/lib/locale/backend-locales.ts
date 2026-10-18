@@ -1,6 +1,8 @@
+import { print } from "graphql";
+
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
-import { requireChannelId } from "@/app/lib/channel";
-// The pinned channel's locale set, straight from the backend. Single source for the whole app -
+import { ChannelLocalesDocument, type ChannelLocalesQuery } from "@/app/lib/locale/operations.gql";
+// A channel's locale set, straight from the backend. Single source for the whole app -
 // the proxy, the next-intl request config, and render-time callers all read this
 //
 // A PLAIN fetch, deliberately not gqlFetch: gqlFetch asks next-intl for the current locale, and
@@ -8,16 +10,14 @@ import { requireChannelId } from "@/app/lib/channel";
 // would be a cycle. This also means it works in the proxy, which has no request scope at all
 //
 // Module-level TTL cache rather than react cache() for the same reason - it has to work outside a
-// render. One request a minute per process
+// render. One request a minute per channel per process
 
 const FRONT_API_PATH = process.env.FRONT_API_SLUG
   ? `/api/front/${process.env.FRONT_API_SLUG}/graphql`
   : "/api/front/graphql";
-const CHANNEL_ID = requireChannelId();
 
-// The channel's own list, NOT the top-level `locales` query - that one returns every globally
-// active locale, which would have this storefront routing languages its channel doesn't serve
-const QUERY = "query{ currentChannel{ defaultLocale locales{ code hreflangValue } } }";
+// Printed once - the proxy calls this on every request
+const QUERY = print(ChannelLocalesDocument);
 const TTL_MS = 60_000;
 
 export type ChannelLocales = {
@@ -29,13 +29,14 @@ export type ChannelLocales = {
 };
 
 const EMPTY: ChannelLocales = { codes: [], defaultLocale: "", hreflang: {} };
-let cached: { at: number; value: ChannelLocales } | null = null;
+const cache = new Map<string, { at: number; value: ChannelLocales }>();
 
-export async function getChannelLocales(): Promise<ChannelLocales> {
+export async function getChannelLocales(channelId: string): Promise<ChannelLocales> {
+  if (!channelId) return EMPTY; // without a channel the backend would answer for its default one
+  const cached = cache.get(channelId);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (CHANNEL_ID) headers["X-Channel-Id"] = CHANNEL_ID;
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Channel-Id": channelId };
     const r = await fetch(`${BACKEND_INTERNAL_URL}${FRONT_API_PATH}`, {
       method: "POST",
       headers,
@@ -44,14 +45,7 @@ export async function getChannelLocales(): Promise<ChannelLocales> {
       cache: "no-store",
     });
     if (!r.ok) throw new Error(String(r.status));
-    const body = (await r.json()) as {
-      data?: {
-        currentChannel?: {
-          defaultLocale?: string;
-          locales?: { code: string; hreflangValue?: string }[];
-        };
-      };
-    };
+    const body = (await r.json()) as { data?: ChannelLocalesQuery };
     const list = body.data?.currentChannel?.locales ?? [];
     const codes = list.map((l) => l.code);
     const hreflang: Record<string, string> = {};
@@ -61,7 +55,7 @@ export async function getChannelLocales(): Promise<ChannelLocales> {
       defaultLocale: body.data?.currentChannel?.defaultLocale ?? codes[0] ?? "",
       hreflang,
     };
-    cached = { at: Date.now(), value };
+    cache.set(channelId, { at: Date.now(), value });
     return value;
   } catch {
     // Keep serving the last good answer. With none, an empty set means callers fall back to doing

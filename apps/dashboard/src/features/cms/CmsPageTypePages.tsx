@@ -8,14 +8,10 @@ import { Button } from '@/components/ui/button'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
 import { CmsPagesDocument, type CmsPageRowFragment } from './Cms.gql'
+import { formatDate } from '@/lib/format'
 
 function pageTitle(p: CmsPageRowFragment) {
   return p.content?.title?.trim() || p.allContent[0]?.title?.trim() || p.slug
-}
-
-function fmtWhen(v: unknown): string {
-  const d = new Date(v as string)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
 // PageTypePagesPanel lists every page of one page type in an advanced table
@@ -106,7 +102,7 @@ export function PageTypePagesPanel({
           !value?.length || value.includes(row.original.isPublished ? 'published' : 'draft'),
         cell: ({ row }) =>
           row.original.isPublished ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success">
               <CheckCircle2Icon className="size-3.5" /> Published
             </span>
           ) : (
@@ -120,7 +116,7 @@ export function PageTypePagesPanel({
         header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-sm text-muted-foreground">
-            {fmtWhen(row.original.updatedAt)}
+            {formatDate(row.original.updatedAt)}
           </span>
         ),
       },

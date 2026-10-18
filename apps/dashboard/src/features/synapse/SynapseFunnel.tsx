@@ -13,9 +13,9 @@ import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseFunnelDocument, SynapseOverviewDocument } from './Synapse.gql'
+import { formatNumber } from '@/lib/format'
 
 const DEFAULT_STEPS = ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed']
-const nfmt = (n: number) => n.toLocaleString()
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0)
 
 export function SynapseFunnel() {
@@ -139,7 +139,7 @@ export function SynapseFunnel() {
                             {eventLabel(s.eventName)}
                           </span>
                           <span className="tabular-nums">
-                            {nfmt(s.count)}
+                            {formatNumber(s.count)}
                             <span className="ml-2 text-xs text-muted-foreground">{overall}%</span>
                           </span>
                         </div>
@@ -147,7 +147,7 @@ export function SynapseFunnel() {
                           <div className="h-full rounded-full bg-primary" style={{ width: `${overall}%` }} />
                         </div>
                         {i > 0 && (
-                          <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-amber-600' : 'text-muted-foreground')}>
+                          <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
                             {fromPrev}% from previous step · {100 - fromPrev}% drop-off
                           </div>
                         )}

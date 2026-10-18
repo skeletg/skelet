@@ -9,7 +9,8 @@ import { CancelDataJobDocument, DataJobsDocument } from './Data.gql'
 import { downloadJobArtifact } from './api'
 import { JobErrorsSheet } from './JobErrorsSheet'
 import { JobCounts, JobProgress, JobStatusBadge } from './JobStatus'
-import { formatWhen, isRunning, type DataJob } from './jobs'
+import { formatTimestamp } from '@/lib/format'
+import { isRunning, type DataJob } from './jobs'
 
 // While anything is in flight the list re-reads every second - a finished board stops polling entirely,
 // so an idle hub costs nothing
@@ -84,13 +85,13 @@ export function JobHistory({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span>{formatWhen(job.createdAt)}</span>
+                <span>{formatTimestamp(job.createdAt)}</span>
                 <JobCounts job={job} />
                 {job.filename ? <span className="truncate font-mono">{job.filename}</span> : null}
               </div>
               <JobProgress job={job} className="max-w-sm" />
               {job.warnings.map((w) => (
-                <p key={w} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                <p key={w} className="flex items-start gap-1.5 text-xs text-warning">
                   <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" />
                   {w}
                 </p>

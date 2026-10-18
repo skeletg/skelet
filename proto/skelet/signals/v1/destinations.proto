@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
+// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service DestinationService {
+  rpc ListDestinations(ListDestinationsRequest) returns (ListDestinationsResponse);
+  rpc CreateDestination(CreateDestinationRequest) returns (CreateDestinationResponse);
+  rpc UpdateDestination(UpdateDestinationRequest) returns (UpdateDestinationResponse);
+  rpc GetDestination(GetDestinationRequest) returns (GetDestinationResponse);
+  rpc DeleteDestination(DeleteDestinationRequest) returns (DeleteDestinationResponse);
+  rpc SyncAudience(SyncAudienceRequest) returns (SyncAudienceResponse);
+}
+
+message EventDestination {
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  // webhook (generic signed JSON batch) | ga4_mp (Measurement Protocol) | meta_capi (Conversions API)
+  string kind = 4;
+  string target_url = 5;
+  // Filters, empty meaning all - sources match the spine's source column, names match event names
+  repeated string event_sources = 6;
+  repeated string event_names = 7;
+  bool is_active = 8;
+  string last_error = 9;
+  google.protobuf.Timestamp last_forwarded_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// The secret never comes back out, so this is the write shape and EventDestination is the read one
+message DestinationInput {
+  string channel_id = 1;
+  string name = 2;
+  string kind = 3;
+  string target_url = 4;
+  // webhook: the HMAC signing key. ga4_mp: the api_secret, meta_capi: the access_token, joined to target_url only at send time
+  // Absent leaves the stored secret alone, which is how an edit that does not rotate it looks
+  optional string secret = 5;
+  repeated string event_sources = 6;
+  repeated string event_names = 7;
+  optional bool is_active = 8;
+}
+
+message ListDestinationsRequest {
+  string channel_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListDestinationsResponse {
+  repeated EventDestination destinations = 1;
+  string next_page_token = 2;
+}
+
+message CreateDestinationRequest {
+  DestinationInput destination = 1;
+}
+
+message CreateDestinationResponse {
+  EventDestination destination = 1;
+}
+
+message UpdateDestinationRequest {
+  string id = 1;
+  DestinationInput destination = 2;
+}
+
+message UpdateDestinationResponse {
+  EventDestination destination = 1;
+}
+
+message GetDestinationRequest {
+  string id = 1;
+}
+
+message GetDestinationResponse {
+  EventDestination destination = 1;
+}
+
+message DeleteDestinationRequest {
+  string id = 1;
+}
+
+message DeleteDestinationResponse {
+  bool deleted = 1;
+}
+
+// Pushes a segment's membership as SHA-256 hashed emails, the format Customer Match uploads take - raw addresses never leave the store
+// The caller hashes them, being where the addresses are, and the suite forwards them without ever holding an email of its own
+message SyncAudienceRequest {
+  string segment_id = 1;
+  string destination_id = 2;
+  // SHA-256 of the trimmed, lowercased email, the recipe Meta and Google Customer Match specify
+  repeated string identifiers = 3;
+}
+
+message SyncAudienceResponse {
+  int32 identifiers_sent = 1;
+}

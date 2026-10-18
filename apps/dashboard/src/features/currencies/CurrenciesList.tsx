@@ -31,10 +31,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
+import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   CurrenciesAdminListDocument,
   DeleteCurrencyDocument,
 } from './Currencies.gql'
+import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
 
 type CurrencyRow = {
   code: string
@@ -45,13 +47,6 @@ type CurrencyRow = {
   isActive: boolean
   sortOrder: number
   updatedAt: string
-}
-
-function parseReferenceCount(message: string): number | null {
-  const match = message.match(/(\d+)\s+references?/i)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
 }
 
 function friendlyDeleteError(message: string): string {
@@ -68,6 +63,8 @@ export function CurrenciesList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { isGlobal } = useConfigScope()
+  // Creating and deleting need currencies.manage - a viewer's buttons only led to an access-restricted page or a refused delete
+  const canManage = usePermissions().has('currencies.manage')
 
   const { data, loading, error } = useQuery(CurrenciesAdminListDocument)
   const rows = useMemo(() => (data?.currencies ?? []) as CurrencyRow[], [data])
@@ -174,7 +171,7 @@ export function CurrenciesList() {
               <DropdownMenuItem asChild>
                 <Link to={`/currencies/${row.original.code}`}>Edit</Link>
               </DropdownMenuItem>
-              {isGlobal && (
+              {isGlobal && canManage && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -194,7 +191,7 @@ export function CurrenciesList() {
         ),
       },
     ],
-    [isGlobal],
+    [isGlobal, canManage],
   )
 
   return (
@@ -220,7 +217,8 @@ export function CurrenciesList() {
           },
         ]}
         toolbarRightSlot={
-          isGlobal ? (
+          canManage &&
+          (isGlobal ? (
             <Button size="sm" asChild>
               <Link to="/currencies/new">
                 <PlusIcon className="size-4" />
@@ -232,7 +230,7 @@ export function CurrenciesList() {
               <PlusIcon className="size-4" />
               New currency
             </Button>
-          )
+          ))
         }
       />
 

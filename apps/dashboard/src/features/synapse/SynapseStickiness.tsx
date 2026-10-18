@@ -11,8 +11,8 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
+import { formatNumber } from '@/lib/format'
 
-const nfmt = (n: number) => n.toLocaleString()
 function fmtDay(v: string): string {
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -120,7 +120,7 @@ export function SynapseStickiness() {
                     <div className="text-5xl font-semibold leading-none tabular-nums text-primary">{returnPct}%</div>
                     <div className="mt-2 text-sm font-medium">came back</div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {nfmt(returning)} of {nfmt(s.priorActive)} people active in the prior {window} days returned in the last {window}.
+                      {formatNumber(returning)} of {formatNumber(s.priorActive)} people active in the prior {window} days returned in the last {window}.
                     </div>
                   </div>
 
@@ -128,26 +128,26 @@ export function SynapseStickiness() {
                   <div className="rounded-lg border p-4">
                     <div className="mb-2 flex items-baseline justify-between">
                       <span className="text-sm font-medium">Active in the last {window} days</span>
-                      <span className="text-lg font-semibold tabular-nums">{nfmt(activeNow)}</span>
+                      <span className="text-lg font-semibold tabular-nums">{formatNumber(activeNow)}</span>
                     </div>
                     <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${retShare}% returning, ${100 - retShare}% new or reactivated`}>
                       <span className="bg-primary" style={{ width: `${retShare}%` }} />
-                      <span className="bg-sky-400" style={{ width: `${100 - retShare}%` }} />
+                      <span className="bg-info" style={{ width: `${100 - retShare}%` }} />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="size-2.5 rounded-full bg-primary" />
                         <span className="text-muted-foreground">Returning</span>
-                        <span className="ml-auto tabular-nums font-medium">{nfmt(returning)}</span>
+                        <span className="ml-auto tabular-nums font-medium">{formatNumber(returning)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="size-2.5 rounded-full bg-sky-400" />
+                        <span className="size-2.5 rounded-full bg-info" />
                         <span className="text-muted-foreground">New or reactivated</span>
-                        <span className="ml-auto tabular-nums font-medium">{nfmt(fresh)}</span>
+                        <span className="ml-auto tabular-nums font-medium">{formatNumber(fresh)}</span>
                       </div>
                     </div>
                     <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-                      For reference: {nfmt(s.wau)} active in the last 7 days · {nfmt(s.mau)} in the last 30.
+                      For reference: {formatNumber(s.wau)} active in the last 7 days · {formatNumber(s.mau)} in the last 30.
                     </p>
                   </div>
                 </div>
@@ -161,7 +161,7 @@ export function SynapseStickiness() {
                     {s.days.map((d) => (
                       <div
                         key={d.day}
-                        title={`${fmtDay(d.day)}: ${nfmt(d.count)}`}
+                        title={`${fmtDay(d.day)}: ${formatNumber(d.count)}`}
                         className="flex-1 rounded-t bg-primary/70 hover:bg-primary"
                         style={{ height: `${Math.max(2, Math.round((d.count / max) * 100))}%` }}
                       />

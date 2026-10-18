@@ -32,6 +32,8 @@ import {
 import { ACCENT, formatCents } from './promoFormat'
 import { PromotionSimulatorDialog } from './PromotionSimulatorDialog'
 import { RedemptionsTrend } from './analyticsShared'
+import { usePermissions } from '@/shared/auth/usePermissions'
+import { Panel, Tile } from '@/components/layout/panels'
 
 type HubRow = {
   id: string
@@ -53,6 +55,8 @@ type HubRow = {
 export function PromotionsHome() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
+  // Creating and deleting promotions need promotions.manage - a viewer's buttons only led to an access-restricted page or a refused delete
+  const canManage = usePermissions().has('promotions.manage')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const variables = useMemo(
@@ -124,7 +128,8 @@ export function PromotionsHome() {
 
   const columns = useMemo<ColumnDef<HubRow>[]>(
     () => [
-      selectColumn<HubRow>(),
+      // Selection only feeds the bulk delete
+      ...(canManage ? [selectColumn<HubRow>()] : []),
       {
         id: 'name',
         accessorFn: (r) => `${r.name} ${r.slug}`,
@@ -176,26 +181,30 @@ export function PromotionsHome() {
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
             <span className="tabular-nums">{row.original.priority}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              title="Higher priority (runs earlier)"
-              onClick={() => void moveRule(row.original.id, -1)}
-            >
-              <ArrowUpIcon className="size-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              title="Lower priority (runs later)"
-              onClick={() => void moveRule(row.original.id, 1)}
-            >
-              <ArrowDownIcon className="size-3" />
-            </Button>
+            {canManage && (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  title="Higher priority (runs earlier)"
+                  onClick={() => void moveRule(row.original.id, -1)}
+                >
+                  <ArrowUpIcon className="size-3" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  title="Lower priority (runs later)"
+                  onClick={() => void moveRule(row.original.id, 1)}
+                >
+                  <ArrowDownIcon className="size-3" />
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
@@ -235,7 +244,7 @@ export function PromotionsHome() {
         ),
       },
     ],
-    [moveRule],
+    [moveRule, canManage],
   )
 
   return (
@@ -257,12 +266,14 @@ export function PromotionsHome() {
                 </Button>
               }
             />
-            <Button asChild size="sm">
-              <Link to="/promotions/new">
-                <PlusIcon className="size-4" />
-                New promotion
-              </Link>
-            </Button>
+            {canManage && (
+              <Button asChild size="sm">
+                <Link to="/promotions/new">
+                  <PlusIcon className="size-4" />
+                  New promotion
+                </Link>
+              </Button>
+            )}
           </div>
         }
       />
@@ -372,7 +383,7 @@ export function PromotionsHome() {
             searchPlaceholder="Search name or slug…"
             initialSorting={[{ id: 'discountTotalCents', desc: true }]}
             enableRowSelection
-            bulkActions={[
+            bulkActions={!canManage ? undefined : [
               {
                 label: 'Delete',
                 icon: Trash2Icon,
@@ -414,27 +425,6 @@ export function PromotionsHome() {
         </DetailPageSection>
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
-  )
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
   )
 }
 

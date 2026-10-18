@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LoadingState } from '@/components/ui/loading-state'
+import { CHART_ACCENT, CHART_SUCCESS, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import {
   DetailPageBody,
@@ -28,16 +29,9 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import {
-  CreateExperimentDocument,
-  DeleteExperimentDocument,
-  ExperimentDocument,
-  ExperimentGoalEventsDocument,
-  ExperimentResultsDocument,
-  PrismSegmentsDocument,
-  UpdateExperimentDocument,
-} from './Prism.gql'
+import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, PrismSegmentsDocument, UpdateExperimentDocument } from './Prism.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { Panel } from '@/components/layout/panels'
 
 type Variation = { key: string; name: string; weight: number; value: string }
 type Draft = {
@@ -114,6 +108,8 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
   const { key, name, status, coverage, goalEvent, segmentSlug, variations } = draft.values
   const { setKey, setName, setStatus, setCoverage, setGoalEvent, setSegmentSlug, setVariations } = draft.setters
   const [expId, setExpId] = useState<string | null>(initial.id)
+  // Once started, what buckets a visitor is fixed server-side - changing it would re-bucket them under results that no longer apply
+  const locked = !!expId && initial.status !== 'draft'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -236,12 +232,12 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="ecov">Coverage %</Label>
-                <Input id="ecov" type="number" min={0} max={100} value={coverage} onChange={(ev) => setCoverage(Number(ev.target.value))} className="w-28" />
+                <Input id="ecov" type="number" min={0} max={100} value={coverage} onChange={(ev) => setCoverage(Number(ev.target.value))} className="w-28" disabled={locked} />
               </div>
             </div>
             <div className="grid gap-1.5">
               <Label>Goal event</Label>
-              <GoalEventPicker value={goalEvent} onChange={setGoalEvent} events={goalEvents} />
+              <GoalEventPicker value={goalEvent} onChange={setGoalEvent} events={goalEvents} disabled={locked} />
               <p className="text-xs text-muted-foreground">
                 Search a tracked event or type a new name. The conversion is counted when the storefront calls{' '}
                 <code className="text-[11px]">window.lens.track(&apos;{goalEvent || 'purchase'}&apos;)</code> after
@@ -250,7 +246,7 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
             </div>
             <div className="grid gap-1.5">
               <Label>Target audience</Label>
-              <Select value={segmentSlug || '__all__'} onValueChange={(v) => setSegmentSlug(v === '__all__' ? '' : v)}>
+              <Select value={segmentSlug || '__all__'} onValueChange={(v) => setSegmentSlug(v === '__all__' ? '' : v)} disabled={locked}>
                 <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All visitors</SelectItem>
@@ -274,15 +270,19 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
 
         <DetailPageSection
           title="Variations"
-          description="The first is the control. Weights set the split. value is the payload the storefront renders (useExperiment returns it)."
-          trailing={<Button variant="outline" size="sm" onClick={addVar}>Add variation</Button>}
+          description={
+            locked
+              ? 'Fixed once the experiment has started, along with coverage, goal and audience - stop it and start a new one to change them. Names can still change.'
+              : 'The first is the control. Weights set the split. value is the payload the storefront renders (useExperiment returns it).'
+          }
+          trailing={<Button variant="outline" size="sm" onClick={addVar} disabled={locked}>Add variation</Button>}
         >
           <div className="grid gap-2">
             {variations.map((v, i) => (
               <div key={i} className="flex flex-wrap items-end gap-2 rounded border p-3">
                 <div className="grid gap-1">
                   <Label className="text-xs">Key</Label>
-                  <Input value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" />
+                  <Input value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" disabled={locked} />
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-xs">Name</Label>
@@ -290,13 +290,13 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-xs">Weight</Label>
-                  <Input type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" />
+                  <Input type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" disabled={locked} />
                 </div>
                 <div className="grid flex-1 gap-1">
                   <Label className="text-xs">Value{i === 0 ? ' (control)' : ''}</Label>
-                  <Input value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" />
+                  <Input value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" disabled={locked} />
                 </div>
-                {variations.length > 2 && (
+                {variations.length > 2 && !locked && (
                   <Button variant="ghost" size="sm" onClick={() => removeVar(i)}>✕</Button>
                 )}
               </div>
@@ -383,7 +383,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
           <div
             className={cn(
               'mb-4 rounded border px-3 py-2 text-sm',
-              winnerName ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600' : 'text-muted-foreground',
+              winnerName ? 'border-success/40 bg-success-soft text-success' : 'text-muted-foreground',
             )}
           >
             {winnerName ? (
@@ -406,9 +406,9 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                     <Tooltip content={<RateTooltip />} cursor={{ fill: 'transparent' }} />
                     <Bar dataKey="ratePct" radius={[4, 4, 0, 0]} maxBarSize={72}>
                       {chartData.map((d, i) => (
-                        <Cell key={i} fill={d.isWinner ? '#10b981' : d.isControl ? '#94a3b8' : '#6366f1'} />
+                        <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : d.isControl ? SERIES_OTHER : CHART_ACCENT} />
                       ))}
-                      <ErrorBar dataKey="ci" width={4} strokeWidth={1.5} stroke="#64748b" direction="y" />
+                      <ErrorBar dataKey="ci" width={4} strokeWidth={1.5} stroke="var(--color-muted-foreground)" direction="y" />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -473,7 +473,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                         {r.isControl || r.exposed === 0 ? (
                           '-'
                         ) : (
-                          <span className={r.uplift > 0 ? 'text-emerald-600' : r.uplift < 0 ? 'text-red-600' : ''}>
+                          <span className={r.uplift > 0 ? 'text-success' : r.uplift < 0 ? 'text-destructive' : ''}>
                             {r.uplift > 0 ? '+' : ''}
                             {pct(r.uplift)}
                           </span>
@@ -483,7 +483,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                         {r.isControl || r.exposed === 0 ? (
                           '-'
                         ) : (
-                          <span className={strong ? 'font-medium text-emerald-600' : weak ? 'text-red-600' : 'text-muted-foreground'}>
+                          <span className={strong ? 'font-medium text-success' : weak ? 'text-destructive' : 'text-muted-foreground'}>
                             {pct(r.chanceToWin)}
                           </span>
                         )}
@@ -497,17 +497,6 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
         </>
       )}
     </DetailPageSection>
-  )
-}
-
-// A bordered panel with a header strip - matches the flat skelet style used by
-// the Lens / Prism hubs
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
   )
 }
 
@@ -536,14 +525,14 @@ function ChanceBar({ name, chance, exposed }: { name: string; chance: number; ex
     <div className="grid gap-1">
       <div className="flex items-center justify-between text-xs">
         <span className="truncate">{name}</span>
-        <span className={cn('tabular-nums', win ? 'font-medium text-emerald-600' : lose ? 'text-red-600' : 'text-muted-foreground')}>
+        <span className={cn('tabular-nums', win ? 'font-medium text-success' : lose ? 'text-destructive' : 'text-muted-foreground')}>
           {exposed === 0 ? '-' : `${(chance * 100).toFixed(1)}%`}
         </span>
       </div>
       <div className="relative h-2 overflow-hidden rounded-full bg-muted">
         {exposed > 0 && (
           <span
-            className={cn('block h-full rounded-full', win ? 'bg-emerald-500' : lose ? 'bg-red-400' : 'bg-primary')}
+            className={cn('block h-full rounded-full', win ? 'bg-success' : lose ? 'bg-destructive' : 'bg-primary')}
             style={{ width: `${w}%` }}
           />
         )}
@@ -555,7 +544,7 @@ function ChanceBar({ name, chance, exposed }: { name: string; chance: number; ex
 
 // GoalEventPicker is a searchable combobox over the channel's tracked events
 // that also lets you commit a brand-new name (a goal that hasn't fired yet)
-function GoalEventPicker({ value, onChange, events }: { value: string; onChange: (v: string) => void; events: string[] }) {
+function GoalEventPicker({ value, onChange, events, disabled }: { value: string; onChange: (v: string) => void; events: string[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const q = search.trim()
@@ -568,7 +557,7 @@ function GoalEventPicker({ value, onChange, events }: { value: string; onChange:
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal" disabled={disabled}>
           <span className={cn('min-w-0 truncate', !value && 'text-muted-foreground')}>
             {value || 'Select or type a goal event…'}
           </span>

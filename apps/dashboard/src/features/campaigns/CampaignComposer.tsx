@@ -41,20 +41,9 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
 import type { EmailBlock, EmailStyles } from '@/features/email/blocks'
 import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/Emails.gql'
-import {
-  CampaignAudienceEstimateDocument,
-  CampaignGroupsDocument,
-  CampaignSegmentsDocument,
-  CampaignVariantStatsDocument,
-  CancelEmailCampaignDocument,
-  CreateEmailCampaignDocument,
-  EmailCampaignDocument,
-  RenderCampaignPreviewDocument,
-  ScheduleEmailCampaignDocument,
-  SendCampaignTestDocument,
-  UpdateEmailCampaignDocument,
-} from './Campaigns.gql'
+import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 type Draft = {
   id: string | null
@@ -142,6 +131,8 @@ export function CampaignComposer() {
 }
 
 function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id: string) => void }) {
+  // A new email needs emails.manage - editing a campaign or flow doesn't bring it
+  const canCreateEmail = usePermissions().has('emails.manage')
   const editable = initial.status === 'draft'
   const [name, setName] = useState(initial.name)
   const [emailId, setEmailId] = useState<string | null>(initial.emailId)
@@ -378,9 +369,11 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
                   Edit this email
                 </Link>
               )}
-              <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
-                New email
-              </Link>
+              {canCreateEmail && (
+                <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
+                  New email
+                </Link>
+              )}
             </div>
             {initial.emailId == null && initial.blocks.length > 0 && (
               <p className="text-xs text-muted-foreground">

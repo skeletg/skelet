@@ -19,19 +19,16 @@ your endpoint in PCI scope. Gateways are first-party plugins instead.
 ```bash
 # 1. Register the provider in the admin (Settings -> Remote providers) and copy the
 #    rpsec_... secret - it is shown exactly once.
-# 2. Run the reference implementation.
-cd examples/remote-providers/tax-provider-go
-SKELET_PROVIDER_SECRET=rpsec_... go run .
-
-# 3. Check it against the contract before wiring it to anything real.
-bin/provider-check --url http://localhost:9095/tax --secret rpsec_... --kind tax_provider
+# 2. Stand up one POST endpoint that verifies the signature below and answers with the
+#    kind's response shape, then check it against the contract before wiring it to
+#    anything real.
+./skelet provider --url http://localhost:9095/tax --secret rpsec_... --kind tax_provider
 ```
 
-`bin/provider-check` posts the generated example payload for the kind, then tries the
+`./skelet provider` posts the generated example payload for the kind, then tries the
 failure cases - forged signature, no signature, wrong key, an hour-old timestamp - and
-tells you whether your endpoint handled each correctly. Copy
-`examples/remote-providers/tax-provider-go`, replace its `calculate()`, and you have a
-provider.
+tells you whether your endpoint handled each correctly. The request, the signature and
+every kind's payload and response are specified in the rest of this page.
 
 ## The request
 
@@ -187,7 +184,7 @@ The contract is pre-1.0 and versioned accordingly:
 
 - a **minor** bump (`0.1.x` -> `0.2.0`) means something broke: a field was removed or
   renamed, a type changed, a kind was removed, or core started requiring something new in
-  responses. Re-run `bin/provider-check` against your endpoint before upgrading core.
+  responses. Re-run `./skelet provider` against your endpoint before upgrading core.
 - a **patch** bump means additive only: a new kind, or a new optional field. Nothing you
   already handle changed shape.
 
@@ -200,13 +197,14 @@ version bump.
 ## The kinds
 
 Machine-readable schemas and a ready-to-post example for every operation live in
-[`apps/backend/internal/remoteprovider/contract/`](../apps/backend/internal/remoteprovider/contract/)
+[`apps/backend/core/internal/remoteprovider/contract/`](../apps/backend/core/internal/remoteprovider/contract/)
 as `<name>.schema.json` and `<name>.request.json`. They are generated from core's own
-structs by `bin/codegen`, so they cannot drift from what core actually sends.
+structs by `./skelet gen`, so they cannot drift from what core actually sends.
 
 | Kind | What you decide |
 |---|---|
 | `shipping_carrier` | Rate a basket to a destination; the options the shopper picks from |
+| `delivery_points` | Search and resolve PO boxes and lockers for a PO box delivery option; see [checkout.md](checkout.md) |
 | `shipping_tracking` | Carrier tracking status for a shipment |
 | `tax_provider` | Tax owed on an order |
 | `address_validator` | Whether an address is valid, plus a normalized form |
@@ -221,7 +219,6 @@ structs by `bin/codegen`, so they cannot drift from what core actually sends.
 | `reviews` | Review aggregates from an external platform |
 | `search` | Free-text search **and** faceted browse - two operations, one kind |
 | `customer_segments` | Segment slugs a customer belongs to |
-| `flow_action` | Run one node of a marketing flow |
 
 Three notes that cost debugging time:
 
@@ -244,7 +241,7 @@ issues a new one and invalidates the old.
 Then, before you point production at it:
 
 ```bash
-bin/provider-check --url https://your-provider.example.com/hook \
+./skelet provider --url https://your-provider.example.com/hook \
   --secret rpsec_... --kind tax_provider --timeout-ms 5000
 ```
 

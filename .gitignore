@@ -1,5 +1,6 @@
-# Per-clone app selection written by bin/setup (dashboard/storefront profiles).
+# Per-clone app and dev-tool selection written by bin/setup (compose profiles).
 .skelet-apps
+.skelet-tools
 .skelet-profile
 # Per-clone compose additions (custom storefront services) - see README
 docker-compose.override.yml
@@ -20,22 +21,25 @@ env/*.env
 # directory it ran from, and air produces `server` inside the container. One line
 # per cmd/ entry rather than a wildcard, so a new command is a deliberate addition
 # here rather than a binary that silently goes untracked. Add a line when you add one.
-apps/backend/cli
-apps/backend/docsref
-apps/backend/ingest
-apps/backend/media
-apps/backend/plugingen
-apps/backend/plugingraph
-apps/backend/providercheck
-apps/backend/providerschema
-apps/backend/secheadgen
-apps/backend/server
-apps/backend/signals
-# Commands that no longer exist, whose binaries can still be sitting in a checkout
+apps/backend/core/cli
+apps/backend/core/docsref
+apps/backend/core/media
+apps/backend/core/plugingen
+apps/backend/core/plugingraph
+apps/backend/core/providercheck
+apps/backend/core/providerschema
+apps/backend/core/secheadgen
+apps/backend/core/server
+# Commands that do not exist, whose binaries can still be sitting at the old module root
 apps/backend/plugin-graphql-bridge
-apps/backend/tmp/
-apps/backend/bin/
-apps/backend/vendor/
+apps/backend/ingest
+apps/backend/core/tmp/
+apps/backend/core/bin/
+apps/backend/core/vendor/
+# The Signals module's commands, the same rule
+apps/backend/signals/ingest
+apps/backend/signals/signals
+apps/backend/signals/tmp/
 
 # Dashboard build/runtime artifacts. The dashboard's own .gitignore covers
 # node_modules + dist; these are belt-and-suspenders so a future reorg
@@ -68,7 +72,6 @@ node_modules/
 
 # Compiled example providers - `go build` in one of these dirs drops a binary
 # named after the module right next to its source, so each example needs a line.
-/examples/remote-providers/tax-provider-go/tax-provider
 
 # Playwright, when run from the repo root rather than apps/dashboard
 test-results/

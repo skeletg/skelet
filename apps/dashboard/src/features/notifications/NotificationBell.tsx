@@ -19,26 +19,15 @@ import {
   type NotificationsQuery,
 } from './Notifications.gql'
 import { INBOX_PEEK, severityAtLeast, useToastMinSeverity } from './preferences'
+import { timeAgo } from '@/lib/format'
 
 type Row = NotificationsQuery['notifications'][number]
 type PushRow = NotificationAddedSubscription['notificationAdded']
 
 const SEVERITY_DOT: Record<string, string> = {
-  critical: 'bg-red-500',
-  warning: 'bg-amber-500',
-  info: 'bg-sky-500',
-}
-
-function timeAgo(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (Number.isNaN(t)) return ''
-  const s = Math.max(0, Math.round((Date.now() - t) / 1000))
-  if (s < 60) return 'just now'
-  const m = Math.round(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.round(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.round(h / 24)}d ago`
+  critical: 'bg-destructive',
+  warning: 'bg-warning',
+  info: 'bg-info',
 }
 
 // NotificationToast is the live-push popup: the SAME row design as the bell dropdown (severity dot + title + time + two-line body) lifted
@@ -143,7 +132,7 @@ export function NotificationBell() {
         <Button data-tour="bell" variant="ghost" size="icon" aria-label="Notifications" className="relative">
           <BellIcon className="size-4" />
           {unread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
               {unread > 9 ? '9+' : unread}
             </span>
           )}

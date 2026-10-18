@@ -5,7 +5,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { gql } from '@apollo/client'
 import {
   ExternalLinkIcon,
   MonitorIcon,
@@ -16,6 +15,7 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
+import { MintBlogPostPreviewTokenDocument } from './Blog.gql'
 
 // The iframe renders at this CSS-pixel width then scales to fit - 1024 is Tailwind's `lg:`
 // inflection, wide enough that desktop-only styles fire but still legible panel-side
@@ -24,16 +24,6 @@ const VIEWPORT_WIDTH: Record<Viewport, number> = {
   mobile: 375,
   desktop: 1024,
 }
-
-// Inlined to dodge a codegen dependency - swap to MintBlogPostPreviewTokenDocument after the next `bin/codegen`
-const MINT_PREVIEW_TOKEN = gql`
-  mutation MintBlogPostPreviewToken($input: MintBlogPostPreviewTokenInput!) {
-    mintBlogPostPreviewToken(input: $input) {
-      token
-      expiresAt
-    }
-  }
-`
 
 const MESSAGE_TYPE = 'skelet:blog-preview:update'
 
@@ -97,10 +87,7 @@ export function BlogPreviewPanel({ onClose, postId, locale, state }: Props) {
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
-  const [mintMutation, { loading: minting }] = useMutation<
-    { mintBlogPostPreviewToken: { token: string; expiresAt: string } },
-    { input: { postId: string; locale?: string | null } }
-  >(MINT_PREVIEW_TOKEN)
+  const [mintMutation, { loading: minting }] = useMutation(MintBlogPostPreviewTokenDocument)
 
   // Never sets state synchronously, only in the promise callbacks, so it's safe to call
   // from the mount effect - retrying callers clear mintError themselves first

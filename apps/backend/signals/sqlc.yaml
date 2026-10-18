@@ -1,0 +1,14 @@
+version: "2"
+sql:
+  # Every query against the signals database - the spine, Lens, identities, segments, experiments, destinations, the rosters, the settings, the send log and Pulse
+  # Core runs none of them, and the migration stream sits beside these queries the way core's does
+  - engine: "postgresql"
+    schema: "internal/db/migrations"
+    queries: "internal/db/query"
+    gen:
+      go:
+        package: "signalsdb"
+        out: "internal/db/sqlc"
+        emit_json_tags: true
+        emit_interface: false
+        emit_empty_slices: true

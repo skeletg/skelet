@@ -1,0 +1,13 @@
+[build]
+  cmd = "CGO_ENABLED=1 go build -tags vips -o ./tmp/server ./cmd/server"
+  bin = "./tmp/server"
+  # mod and sum too - a dependency bump with no .go edit alongside would otherwise leave the old build running
+  include_ext = ["go", "mod", "sum"]
+  exclude_dir = ["tmp", "vendor"]
+  delay = 500
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

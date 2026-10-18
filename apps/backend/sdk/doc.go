@@ -9,8 +9,8 @@
 //   - RegisterPlugin from a package-level init(), then everything identity-bearing through
 //     the *Plugin handle it returns - the handle carries the slug, so nothing is inferred
 //     from init() order, which Go leaves undefined across sibling blank-imports
-//   - No importing internal/* - the one exception is SubscribeSync, which needs the emitting
-//     domain's event type to type-assert against
+//   - No importing internal/*, which Go refuses across modules anyway - a sync handler type-asserts
+//     its event to the SDK interface for it (CartLineAdding, OrderPlacing, Tendering...)
 //   - Manifest.SDKRange gates the plugin against Version and the host refuses to boot a mismatch -
 //     the surface is unfrozen so Version sits on 0.x, where a breaking change bumps the MINOR and
 //     caret pins it: ^0.1.0 admits 0.1.9 but not 0.2.0 - the apidiff gate enforces the bump, so the

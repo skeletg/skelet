@@ -10,6 +10,7 @@ export function FlatModeDormancyBanner() {
     <Alert>
       <AlertTitle>Flat inventory mode is on</AlertTitle>
       <AlertDescription>
+        Public stores can still appear in the store directory, but per-store stock checking is unavailable.
         Locations and channel bindings are saved but dormant - storefront salability and order
         placement read the single quantity column on each product. Switch back to multi-location
         mode under Settings → Inventory to re-activate this surface.

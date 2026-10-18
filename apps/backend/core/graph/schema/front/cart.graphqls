@@ -1,0 +1,542 @@
+type Cart {
+  id:       ID!
+  # Shopper's note-to-merchant (gift message / delivery instructions),
+  # carried to the order at checkout. Empty when unset.
+  note:     String!
+  lines:    [CartLine!]!
+  # Items parked via save-for-later: kept out of totals/checkout, movable
+  # back into the cart. v1 holds simple products only.
+  savedItems: [SavedItem!]!
+  subtotal: Int!
+  # Codes the customer has applied to the cart. The v2 engine supports multiple stackable codes - one per matching rule. Each entry carries its computed contribution against the live subtotal at read time, so the storefront's totals view always matches what PlaceOrder will charge.
+  appliedCodes:  [AppliedPromotionCode!]!
+  # Aggregate discount across every applied code (subtotal-level).
+  totalDiscount: Int!
+  # What the shopper has chosen at checkout so far, saved step by step. Resolved on demand - it prices shipping and tax, so select it on the checkout page rather than in every cart fragment.
+  checkout: CartCheckout!
+  # Set when the cart is an offer the store built and sent to the shopper - its terms and the parts they can't change. Null on the shopper's own cart. An offer is opened through its link (openCartOffer), and every call for it carries the link's token in the X-Cart-Offer header.
+  offer: CartOffer
+}
+
+# An offer's terms as the shopper sees them
+type CartOffer {
+  expiresAt: Time!
+  # The store's note to the shopper, empty when none
+  message:   String!
+  state:     CartOfferState!
+  # The parts the store fixed - the storefront shows them read-only, and the server refuses a change to any of them
+  locks:     [CartOfferLock!]!
+  # Made out to an email rather than an account - it checks out as a guest order for that email, whoever is signed in
+  isGuest:   Boolean!
+  # The payment methods the shopper may choose from, by provider slug - empty leaves every method the store offers
+  paymentMethods: [String!]!
+}
+
+enum CartOfferLock {
+  LINES
+  BILLING
+  SHIPPING
+  DELIVERY
+  COUPONS
+}
+
+enum CartOfferState {
+  DRAFT
+  SENT
+  OPENED
+  COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+# Where a followed offer link leads
+type CartOfferOpening {
+  cartId:        ID!
+  # COMPLETED, EXPIRED and REVOKED offers still answer, so the storefront can say why the offer can't be opened
+  state:         CartOfferState!
+  # The offer was made out to an account and nobody is signed in - send the shopper to sign in, then follow the link again
+  requiresLogin: Boolean!
+}
+
+type CartCheckout {
+  email: String!
+  # Where the order is headed - saved by the first step from a postcode, then kept in step with the shipping address. Null until the first step is saved.
+  destination: CheckoutDestination
+  # The chosen method of a cart delivered as one, priced for this cart at the destination. Null when none is chosen, when the chosen one is no longer offered, or when the cart is split into several deliveries - read deliveryGroups then.
+  shippingMethod: ShippingQuote
+  # True when the cart is delivered as one and its delivery is a store pickup.
+  isPickup: Boolean!
+  # What the order has to deliver - NONE for a digital-only cart, which asks no delivery and no shipping address.
+  fulfillment: FulfillmentNeed!
+  # The cart lines delivered digitally (download, licence, gift card email) - no delivery is chosen for them.
+  digitalLineIds: [ID!]!
+  # The shopper asked to choose a delivery per group although one option could cover everything.
+  splitDelivery: Boolean!
+  # More than one group of lines allows different deliveries and one option could still cover all - offer "deliver everything together" vs "choose per item group".
+  canSplit: Boolean!
+  # The groups of lines that each take one delivery choice, in the order to ask them. One group unless the lines allow different delivery kinds and the shopper split.
+  deliveryGroups: [DeliveryGroup!]!
+  # Everything the checkout still asks, from the store's delivery options and settings - render the checkout from this, and placeOrder refuses while any is MISSING or INVALID.
+  requirements: [CheckoutRequirement!]!
+  # Every requirement is met - placeOrder will accept the cart.
+  ready: Boolean!
+  phone: String!
+  purchaseType: PurchaseType!
+  company: String!
+  # The company identifiers given, by the country's field key.
+  businessIds: [BusinessIdValue!]!
+  poNumber: String!
+  shippingAddress: CartAddress
+  billingSameAsShipping: Boolean!
+  # The billing address placement will use - the shipping address when billingSameAsShipping.
+  billingAddress: CartAddress
+  pickupContact: PickupContact
+  # The chosen payment method. Null when none is chosen, or when it doesn't accept the destination country.
+  paymentProviderSlug: String
+  giftCards: [CartGiftCard!]!
+  useStoreCredit: Boolean!
+  totals: CheckoutTotals!
+}
+
+enum FulfillmentNeed {
+  NONE
+  PHYSICAL
+  MIXED
+}
+
+enum DeliveryShipTo {
+  # The shopper's own address - asked once and shared by every group that ships to them.
+  CUSTOMER
+  # The address of the point the shopper picks - a store, a locker, a parcel shop or a PO box.
+  POINT
+}
+
+# Lines that travel together and take one delivery choice.
+type DeliveryGroup {
+  key: String!
+  lineIds: [ID!]!
+  # The delivery kinds every line in the group allows and the store offers.
+  kinds: [String!]!
+  # What the shopper can choose - one per delivery option and carrier method, priced across the group's shipments.
+  choices: [DeliveryChoice!]!
+  # The shopper's choice. Null until chosen, or when the chosen option or method is no longer offered.
+  selection: DeliverySelection
+  # The packages the group leaves as - one per origin (warehouse, store, seller), each quoted on its own.
+  shipments: [DeliveryShipment!]!
+}
+
+type DeliveryChoice {
+  optionId: ID!
+  optionName: String!
+  description: String!
+  kind: String!
+  kindLabel: String!
+  shipTo: DeliveryShipTo!
+  # What a point is called for this kind - "Store", "Pickup point". Null when the kind asks for none.
+  pointLabel: String
+  carrierSlug: String!
+  carrierName: String!
+  methodCode: String!
+  methodName: String!
+  # Summed over the group's shipments.
+  priceCents: Int!
+  # The slowest shipment's estimate.
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+type DeliverySelection {
+  optionId: ID!
+  optionName: String!
+  kind: String!
+  shipTo: DeliveryShipTo!
+  pointLabel: String
+  carrierSlug: String!
+  methodCode: String!
+  methodName: String!
+  priceCents: Int!
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+  point: DeliveryPoint
+}
+
+type DeliveryPoint {
+  id: String!
+  name: String!
+  street1: String!
+  street2: String
+  city: String!
+  region: String
+  postalCode: String!
+  countryCode: String!
+  lat: Float
+  lng: Float
+  distanceKm: Float
+  hours: String
+  instructions: String
+  phone: String
+}
+
+type DeliveryShipment {
+  # Where the package leaves from - null when the store keeps no locations.
+  originName: String
+  originCity: String
+  lineIds: [ID!]!
+  # This package's share of the selection's price. Null until a choice is made.
+  priceCents: Int
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+enum RequirementMode {
+  REQUIRED
+  OPTIONAL
+}
+
+enum RequirementStatus {
+  SATISFIED
+  MISSING
+  INVALID
+  # Asked, not required, and not given.
+  OPTIONAL
+}
+
+# One thing the checkout asks. scope is "order" or the key of the delivery group it belongs to; type is email, phone, shipping_address, billing_address, delivery_option, point, collector or payment.
+type CheckoutRequirement {
+  scope: String!
+  type: String!
+  label: String!
+  mode: RequirementMode!
+  status: RequirementStatus!
+  # The error placeOrder refuses with while this is missing.
+  code: String!
+  message: String!
+}
+
+type CheckoutDestination {
+  countryCode: String!
+  regionCode:  String
+  postalCode:  String!
+}
+
+type BusinessIdValue {
+  key:   String!
+  value: String!
+}
+
+input BusinessIdValueInput {
+  key:   String!
+  value: String!
+}
+
+enum PurchaseType {
+  PERSONAL
+  BUSINESS
+}
+
+# Who collects a pickup order. someoneElse is false when the shopper collects it themselves.
+type PickupContact {
+  firstName:   String!
+  lastName:    String!
+  someoneElse: Boolean!
+}
+
+input PickupContactInput {
+  firstName:   String!
+  lastName:    String!
+  someoneElse: Boolean!
+}
+
+# The details step, saved as one write. The shape follows the chosen method: a delivery needs a shipping address (exactly one of shippingAddressId or shippingAddress), a pickup needs pickupContact. Which of phone, company, poNumber and the pickup billing address are asked for or required follows the store's sales/checkout settings, and the company identifiers follow the company's country.
+input CheckoutDetailsInput {
+  # Required unless the shopper is signed in - their account email is used then.
+  email:                 String
+  phone:                 String
+  purchaseType:          PurchaseType! = PERSONAL
+  company:               String
+  # The company identifiers for the company's country - its billing country, else the destination. Keys it doesn't ask for are dropped.
+  businessIds:           [BusinessIdValueInput!]
+  poNumber:              String
+  shippingAddressId:     ID
+  shippingAddress:       AddressInput
+  pickupContact:         PickupContactInput
+  # A delivery's billing address may mirror its shipping address. Otherwise exactly one of billingAddressId or billingAddress - a pickup has no shipping address to mirror.
+  billingSameAsShipping: Boolean!
+  billingAddressId:      ID
+  billingAddress:        AddressInput
+}
+
+# An address snapshot on the cart. sourceAddressId is the saved address it was copied from, null when it was typed in.
+type CartAddress {
+  firstName:       String!
+  lastName:        String!
+  company:         String
+  street1:         String!
+  street2:         String
+  city:            String!
+  state:           String
+  postalCode:      String!
+  countryCode:     String!
+  phone:           String
+  sourceAddressId: ID
+}
+
+type CartGiftCard {
+  code: String!
+  # What this card covers of the current total, in the order they were added.
+  appliedCents: Int!
+  balanceCents: Int!
+}
+
+# Priced the way placeOrder will charge. Before a shipping address is saved, shipping and tax are 0 and total is the discounted subtotal.
+type CheckoutTotals {
+  subtotalCents:    Int!
+  discountCents:    Int!
+  shippingCents:    Int!
+  # Included in total unless the store prices tax-inclusive.
+  taxCents:         Int!
+  totalCents:       Int!
+  giftCardCents:    Int!
+  storeCreditCents: Int!
+  # What the payment method is charged: total less gift cards and store credit.
+  amountDueCents:   Int!
+}
+
+type AppliedPromotionCode {
+  code:              String!
+  ruleName:          String!
+  publicLabel:   String!
+  subtotalDiscount:  Int!
+  freeShipping:      Boolean!
+  # When the code was applied earlier but is no longer valid for this cart (e.g. max_uses reached after another customer used the last available redemption). UI shows this without failing the rest of the cart.
+  invalidatedReason: String!
+  # False for auto-applied rules (no code entered). The storefront hides the "Remove" affordance for these - auto rules can't be removed from the cart, only invalidated by changing the cart.
+  requiresCode:      Boolean!
+  # Free-gift offers attached to this rule's add_free_gift actions. Each entry tells the storefront which SKU is on offer and whether the customer's cart already contains it; the UI renders the offer as an informational nudge (with a link) when inCart is false, and as an "applied" tile when true.
+  freeGifts:         [PromotionFreeGift!]!
+}
+
+type PromotionFreeGift {
+  # Resolved product id. Null when the SKU doesn't map to any product on the current store - the storefront then shows the offer text but no link.
+  productId:   ID
+  sku:         String!
+  name:        String!
+  quantity:    Float!
+  # True when the customer's cart already contains the gift SKU.
+  inCart:      Boolean!
+  # Storefront link to the gift product (resolved via the catalog URL rewriter). Null when no listing exists for the product on the current store - UI falls back to no link.
+  href:        String
+}
+
+# Pre-checkout landed-cost estimate for a cart at a destination.
+type CartEstimate {
+  # Post-discount subtotal the estimate is built on.
+  subtotalCents: Int!
+  shippingOptions: [ShippingQuote!]!
+  # Cheapest shipping option's price (0 when none available).
+  cheapestShippingCents: Int!
+  # Estimated tax on the post-discount subtotal at the destination.
+  taxCents: Int!
+  # subtotal + cheapest shipping + tax (tax already included when the store
+  # prices tax-inclusive). A pre-checkout estimate, not the final charge.
+  estimatedTotalCents: Int!
+}
+
+# One shipping option across all enabled carriers. A selection is identified by (carrierSlug, code) - echo both back to placeOrder. carrierName is the display label for grouping options by carrier in the UI. One collect-in-store point. The pickup carrier already returns a $0 shipping option per location, but only as a flattened label - this carries the address and instructions the shopper actually needs, keyed by the same slug the quote's code embeds ("loc-<slug>").
+type PickupLocation {
+  slug:         String!
+  name:         String!
+  line1:        String!
+  city:         String!
+  postalCode:   String!
+  countryCode:  String!
+  instructions: String!
+}
+
+type ShippingQuote {
+  carrierSlug: String!
+  carrierName: String!
+  code:        String!
+  name:        String!
+  priceCents:  Int!
+  # Delivery days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
+  estimatedDays: Int
+  # The day it arrives as ISO YYYY-MM-DD, counted from today in the store's timezone and skipping weekends unless the carrier delivers on them. Null when there is no estimate.
+  estimatedArrival: String
+}
+
+# A save-for-later item parked off the cart. imageUrl is hydrated like a line.
+type SavedItem {
+  id:          ID!
+  sku:         String!
+  name:        String!
+  imageUrl:    String
+  quantity:    Float!
+}
+
+type CartLine {
+  id:          ID!
+  name:        String!
+  sku:         String!
+  # Small (w160) thumbnail URL for the line, resolved from the product's thumbnail role (falling back to main role, then first ready image) and served through the /media/t transform ladder. Null when the product has no image. Hydrated alongside the localized name.
+  imageUrl:    String
+  unitPrice:   Int!
+  quantity:    Float!
+  totalPrice:  Int!
+  # Current salable quantity for this line's product (null = untracked or backorderable, i.e. no low-stock warning applies). The storefront warns when this is below the line quantity.
+  availableQuantity: Float
+  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set only for simple lines; bundle/configured lines are snapshot-locked. Lets the cart flag price drift.
+  currentUnitPrice:  Int
+  # Empty for simple-product lines. For bundle lines, one row per picked component - bundle options, quantities, and prices are all snapshotted at the moment of add-to-cart.
+  components:  [CartLineComponent!]!
+  # The customer's product custom-option picks, snapshotted at add time.
+  # Empty for plain and bundle lines.
+  options:     [CartLineOption!]!
+  # A charge the store added to an offer by hand - no product page behind it, and nothing to deliver
+  isCustom:    Boolean!
+}
+
+# Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).
+type CartLineOption {
+  id:              ID!
+  productOptionId: ID!
+  optionValueId:   ID
+  inputType:       String!
+  optionTitle:     String!
+  valueLabel:      String!
+  textValue:       String!
+  priceDelta:      Int!
+  quantity:        Float!
+  sortOrder:       Int!
+  # Public URL of the uploaded file for FILE-type options (empty otherwise).
+  # The original filename is carried in textValue.
+  fileUrl:         String!
+}
+
+# One option's picks in an addConfiguredToCart call. valueIds carries the chosen value IDs for select-family options; textValue carries the free text / ISO date for text/date options. For FILE options, fileAssetId references an asset previously uploaded via requestProductOptionFileUpload.
+input ProductOptionSelectionInput {
+  optionId:    ID!
+  valueIds:    [ID!]
+  textValue:   String
+  fileAssetId: ID
+}
+
+input AddConfiguredToCartInput {
+  cartId:     ID!
+  sku:        String!
+  quantity:   Float!
+  options:    [ProductOptionSelectionInput!]!
+}
+
+# Snapshotted component under a bundle cart line. Bundle option and selection IDs reference the bundle's structure at the time of the add; the catalog is free to evolve afterwards without breaking this line.
+type CartLineComponent {
+  id:          ID!
+  optionId:    ID!
+  selectionId: ID!
+  sku:         String!
+  name:        String!
+  unitPrice:   Int!
+  # Pre-multiplied by the parent line's quantity - this is the final
+  # number of units that will be reserved against inventory.
+  quantity:    Float!
+  sortOrder:   Int!
+}
+
+# One option's picks in an AddBundleToCart call. selectionIds carries at most one ID for radio/dropdown options, zero-or-more for checkbox/ multiselect. Distinct from the admin's AddBundleSelectionInput (which is the admin-side "add a selection to a bundle option" payload) to avoid a model-binding collision in the gqlgen front generator.
+input AddBundleToCartSelectionInput {
+  optionId:     ID!
+  selectionIds: [ID!]!
+}
+
+input AddBundleToCartInput {
+  cartId:     ID!
+  sku:        String!
+  quantity:   Float!
+  selections: [AddBundleToCartSelectionInput!]!
+}
+
+extend type Query {
+  myCart:        Cart!
+  cart(id: ID!): Cart
+  # The offers the signed-in customer can open from their account - only the ones the store chose to show there, still open. Empty for guests.
+  myCartOffers:  [Cart!]!
+  # Active shipping methods priced for a cart at a destination, the way placement will price them - post-discount subtotal, product weights, region and postal code. cartId names a guest cart; without it a signed-in customer's own cart is used, and no cart at all quotes an empty one. Empty list when nothing covers the destination (storefront UI shows "delivery not available").
+  shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
+  # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
+  pickupLocations: [PickupLocation!]!
+  # Points for the delivery chosen for a group - stores, lockers, parcel shops, PO boxes - near the cart's destination, optionally filtered by a search string.
+  deliveryPoints(cartId: ID!, groupKey: String!, search: String): [DeliveryPoint!]!
+  # Pre-checkout estimate for a cart at a destination: shipping options + the tax placement would charge with the cheapest option (goods and shipping, tax classes, customer group and exemption) + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
+  cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
+  # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
+  freeShippingThreshold(countryCode: String): Int!
+  # Cross-sell rail for the cart page: CROSSSELL links of the cart's products (also-bought fallback), deduped, excluding items already in the cart. Rendered with channel pricing.
+  cartRecommendations(cartId: ID!): [Product!]!
+}
+
+# Presigned upload envelope for a FILE-type product option. Same shape as the review media upload: client PUTs bytes to uploadUrl, then references the returned assetId via ProductOptionSelectionInput.fileAssetId.
+type ProductOptionFileUpload {
+  assetId:   ID!
+  uploadUrl: String!
+  expiresAt: Time!
+}
+
+extend type Mutation {
+  # Follows an offer link and says where the offer stands - it records no open, since mail scanners follow links too (markCartOfferOpened does). The storefront then keeps the token and sends it as X-Cart-Offer on every call for the offer cart. Refused with CART_OFFER_LINK_INVALID for a link that was never valid or was replaced, and CART_OFFER_OTHER_ACCOUNT when another account is signed in.
+  openCartOffer(token: String!): CartOfferOpening!
+  # Records the recipient's first look at an offer, for the console and the cart.offer.opened webhook. The storefront calls it from the browser once the offer page shows, so a mail scanner fetching the link or rendering the page doesn't count. Refused like any cart call when the caller may not open the cart, false on a shopper cart, and a repeat is a no-op.
+  markCartOfferOpened(cartId: ID!): Boolean!
+  createGuestCart:                                                                                    Cart!
+  # Names and prices the line from the catalog by SKU
+  addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!
+  # Bundle equivalent - the server resolves the bundle by SKU, validates the selections against the bundle's option structure, computes the line price from picked components, and stores the cart line + per-component snapshots. Re-adding the same bundle REPLACES the prior selection set.
+  addBundleToCart(input: AddBundleToCartInput!):                                                      Cart!
+  # Add a simple product carrying product custom-option picks. The server resolves the product's options by SKU, validates the picks, prices them server-side (folding deltas into the line unit price), and snapshots them onto the line. Re-adding the same SKU REPLACES the prior config.
+  addConfiguredToCart(input: AddConfiguredToCartInput!):                                               Cart!
+  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. sku + optionId scope the upload directory (product-options/<productId>/...).
+  requestProductOptionFileUpload(
+    sku:        String!
+    optionId:   ID!
+    filename:   String!
+    mimeType:   String!
+    sizeBytes:  Int!
+  ): ProductOptionFileUpload!
+  updateCartLine(cartId: ID!, lineId: ID!, quantity: Float!):                                           Cart!
+  removeFromCart(cartId: ID!, lineId: ID!):                                                           Cart!
+  # Record the email a shopper enters at checkout entry, so an abandoned cart (including a guest cart with no account) can be recovered by the abandoned-cart flow. Idempotent; validates a plausible email.
+  setCartEmail(cartId: ID!, email: String!):                                                         Cart!
+  # Save the shopper's note-to-merchant on the cart. Empty string clears it.
+  setCartNote(cartId: ID!, note: String!):                                                            Cart!
+  # Save-for-later. saveForLater parks a simple line off the cart; moveSavedToCart re-adds it (re-priced, stock-checked) and clears the saved row; removeSavedItem drops it. All return the updated cart.
+  saveForLater(cartId: ID!, lineId: ID!):                                                            Cart!
+  moveSavedToCart(cartId: ID!, savedItemId: ID!):                                                    Cart!
+  removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
+  clearCart(cartId: ID!):                                                                             Cart!
+  mergeGuestCart(guestCartId: ID!):                                                                   Cart!
+  # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
+  applyCoupon(cartId: ID!, code: String!): Cart!
+  # Remove a specific code from the cart.
+  removeCoupon(cartId: ID!, code: String!): Cart!
+  # Checkout steps. Each saves one choice to the cart, validated against the store, and returns the whole cart so a reload resumes where the shopper was. placeOrder reads all of it from the cart.
+  # Step 1 - where the order is headed. Delivery and pickup are quoted from this alone, so no address is needed yet. A saved shipping address in another country or postcode is cleared, and a shipping or payment method the new destination doesn't support is dropped.
+  setCartDestination(cartId: ID!, countryCode: String!, regionCode: String, postalCode: String!): Cart!
+  # One of the shippingQuotes offered for the destination, for a cart delivered as one - the shorthand for setCartDelivery on its single group, taking the first delivery option of the method's kind. Needs a destination first.
+  setCartShippingMethod(cartId: ID!, carrierSlug: String!, code: String!): Cart!
+  # Deliver everything together (false) or choose per group of lines (true) - only meaningful while canSplit. Selections of groups that no longer exist are kept, so toggling back restores them.
+  setCartSplitDelivery(cartId: ID!, split: Boolean!): Cart!
+  # One of a group's choices. Changing the option clears its point.
+  setCartDelivery(cartId: ID!, groupKey: String!, optionId: ID!, carrierSlug: String!, methodCode: String!): Cart!
+  # One of deliveryPoints for the group - re-read from its source, so a point that closed is refused.
+  setCartDeliveryPoint(cartId: ID!, groupKey: String!, pointId: String!): Cart!
+  # Step 2 - contact, business details and the addresses or pickup contact, in one write. A shipping address in another country or postcode moves the destination, which can drop the chosen method - the shopper then picks again.
+  setCartDetails(cartId: ID!, input: CheckoutDetailsInput!): Cart!
+  # One of the paymentMethods offered for the destination country. Needs a destination first.
+  setCartPaymentMethod(cartId: ID!, providerSlug: String!): Cart!
+  applyGiftCard(cartId: ID!, code: String!): Cart!
+  removeGiftCard(cartId: ID!, code: String!): Cart!
+  # Signed-in only - spends the customer's balance against what gift cards leave.
+  setCartStoreCredit(cartId: ID!, use: Boolean!): Cart!
+}

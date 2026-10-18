@@ -8,15 +8,17 @@ cd "$(dirname "$(dirname "$0")")"
 TAG="${1:-$(git rev-parse --short HEAD)}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 
-build() { # <service> <context with Dockerfile.prod>
-  local svc="$1" ctx="$2" ref="$REGISTRY/skelet-$1:$TAG"
+build() { # <service> <context> [dockerfile relative to the context, default Dockerfile.prod]
+  local svc="$1" ctx="$2" df="${3:-Dockerfile.prod}" ref="$REGISTRY/skelet-$1:$TAG"
   echo "==> build $ref  ($PLATFORM)"
-  docker build --platform "$PLATFORM" -f "$ctx/Dockerfile.prod" -t "$ref" "$ctx"
+  docker build --platform "$PLATFORM" -f "$ctx/$df" -t "$ref" "$ctx"
   echo "==> push  $ref"
   docker push "$ref"
 }
 
-build app        apps/backend
+# Both Go images build from apps/backend as a whole - the modules replace each other by relative path
+build app        apps/backend core/Dockerfile.prod
+build signals    apps/backend signals/Dockerfile.prod
 build dashboard  apps/dashboard
 
 # Storefronts are discovered, so a fork ships its own shop without editing this -
@@ -35,6 +37,7 @@ cat <<EOF
 Pushed tag: $TAG
 Deploy with (docker-compose.prod.yml reads these):
   export APP_IMAGE=$REGISTRY/skelet-app:$TAG
+  export SIGNALS_IMAGE=$REGISTRY/skelet-signals:$TAG
   export DASHBOARD_IMAGE=$REGISTRY/skelet-dashboard:$TAG
 ${exports}  docker compose -f docker-compose.prod.yml up -d
 EOF

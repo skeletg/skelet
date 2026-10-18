@@ -9,13 +9,13 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 
 | Doc | What's in it |
 |---|---|
-| [concepts.md](concepts.md) | The vocabulary: channel, scope, listing, locale, the Signals surfaces. Read first |
+| [concepts.md](concepts.md) | The vocabulary: channel, scope, listing, locale, the Signals suites. Read first |
 | [layout.md](layout.md) | What every directory at the root is for, dotfiles included |
-| [architecture.md](architecture.md) | Where the code lives, the two GraphQL surfaces, the shape every domain package follows |
+| [architecture.md](architecture.md) | Where the code lives, the GraphQL surfaces and the Signals wire contract, the shape every domain package follows |
 | [workflow.md](workflow.md) | Daily commands, the Docker setup, what to regenerate after a schema change, which apps run |
 | [conventions.md](conventions.md) | House rules per app - the dashboard's staged-save convention most of all |
 | [commerce-model.md](commerce-model.md) | Per-domain engineering notes and footguns |
-| [scripts.md](scripts.md) | Every script in `bin/`, what it does and when to reach for it |
+| [scripts.md](scripts.md) | Every command, what it does and when to reach for it |
 | [plugins.md](plugins.md) | Extending the backend: Go plugins compiled in, or remote providers over HTTP |
 | [env.md](env.md) | Every environment variable, which file it belongs in, and the tradeoffs behind the optional ones |
 | [database.md](database.md) | The three migration streams, what the generated baselines are, and how to add to or regenerate one |
@@ -26,6 +26,9 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 
 | Doc | What's in it |
 |---|---|
+| [checkout.md](checkout.md) | Delivery options at checkout - ship to address, store pickup, PO boxes - and how product types limit and price them |
+| [store-availability.md](store-availability.md) | Public stores, per-store product stock, and development demo fixtures |
+| [cart-offers.md](cart-offers.md) | Carts an admin builds and sends as a link - offer prices, custom lines, locks, expiry and the recipient's checkout |
 | [channels.md](channels.md) | What's global vs per-channel, the scope ladder, how locale and currency resolve |
 | [deploying.md](deploying.md) | The two deployment shapes, putting an edge in front, health, backups, logs |
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |
@@ -33,4 +36,4 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |
-| [backups.md](backups.md) | What the nightly dumps contain and the restore runbook |
+| [backups.md](backups.md) | What needs backing up, and the tools to do it with |

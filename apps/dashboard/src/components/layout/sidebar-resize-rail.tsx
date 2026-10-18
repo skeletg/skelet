@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/lib/theme'
 import { useSidebar } from '@/components/ui/sidebar'
 import {
   SIDEBAR_WIDTH_MAX,
@@ -20,6 +21,9 @@ const STEP = 16
 const COARSE_STEP = 48
 
 export function SidebarResizeRail({ className }: { className?: string }) {
+  const { appearance } = useTheme()
+  // a right-hand rail grows leftwards
+  const dir = appearance.sidebarSide === 'right' ? -1 : 1
   const { state, toggleSidebar } = useSidebar()
   const { width, setWidth, resetWidth } = useSidebarWidthPref()
   const drag = useRef<{ x: number; w: number; moved: boolean } | null>(null)
@@ -52,7 +56,7 @@ export function SidebarResizeRail({ className }: { className?: string }) {
       // its duration - see the [data-sidebar-resizing] rule in index.css
       document.body.dataset.sidebarResizing = 'true'
     }
-    paint(clampSidebarWidth(d.w + dx))
+    paint(clampSidebarWidth(d.w + dir * dx))
   }
 
   function endDrag(e: ReactPointerEvent<HTMLDivElement>) {
@@ -65,14 +69,14 @@ export function SidebarResizeRail({ className }: { className?: string }) {
       toggleSidebar() // a press that never moved is the old rail's click
       return
     }
-    setWidth(clampSidebarWidth(d.w + (e.clientX - d.x)))
+    setWidth(clampSidebarWidth(d.w + dir * (e.clientX - d.x)))
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (collapsed) return
     const step = e.shiftKey ? COARSE_STEP : STEP
-    if (e.key === 'ArrowLeft') setWidth(width - step)
-    else if (e.key === 'ArrowRight') setWidth(width + step)
+    if (e.key === 'ArrowLeft') setWidth(width - dir * step)
+    else if (e.key === 'ArrowRight') setWidth(width + dir * step)
     else if (e.key === 'Home') setWidth(SIDEBAR_WIDTH_MIN)
     else if (e.key === 'End') setWidth(SIDEBAR_WIDTH_MAX)
     else return
@@ -99,10 +103,10 @@ export function SidebarResizeRail({ className }: { className?: string }) {
       onDoubleClick={() => !collapsed && resetWidth()}
       onClick={() => collapsed && toggleSidebar()}
       className={cn(
-        'absolute inset-y-0 z-20 hidden w-4 group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex',
+        'absolute inset-y-0 z-20 hidden w-4 group-data-[side=left]:-right-4 group-data-[side=right]:-left-4 sm:flex',
         'after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] after:transition-colors hover:after:bg-sidebar-border',
         'focus-visible:outline-none focus-visible:after:bg-primary',
-        collapsed ? 'cursor-e-resize' : 'cursor-col-resize',
+        collapsed ? (dir < 0 ? 'cursor-w-resize' : 'cursor-e-resize') : 'cursor-col-resize',
         className,
       )}
     />

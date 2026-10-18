@@ -4,8 +4,8 @@ export type CartLineComponent = {
   id: string;
   optionId: string;
   selectionId: string;
-  productSku: string;
-  productName: string;
+  sku: string;
+  name: string;
   unitPrice: number;
   quantity: number;
   sortOrder: number;
@@ -28,8 +28,8 @@ export type CartLineOption = {
 
 export type CartLine = {
   id: string;
-  productName: string;
-  productSku: string;
+  name: string;
+  sku: string;
   imageUrl?: string | null;
   unitPrice: number;
   quantity: number;
@@ -38,6 +38,8 @@ export type CartLine = {
   currentUnitPrice?: number | null;
   components: CartLineComponent[];
   options: CartLineOption[];
+  // A charge the store added to an offer by hand - no product page, nothing to deliver
+  isCustom?: boolean;
 };
 
 export type AppliedPromotionCode = {
@@ -56,7 +58,7 @@ export type AppliedPromotionCode = {
 export type PromotionFreeGift = {
   // Null when the SKU doesn't resolve to a product on the current store
   productId: string | null;
-  productSku: string;
+  sku: string;
   quantity: number;
   inCart: boolean;
   href: string | null;
@@ -64,8 +66,8 @@ export type PromotionFreeGift = {
 
 export type SavedItem = {
   id: string;
-  productSku: string;
-  productName: string;
+  sku: string;
+  name: string;
   imageUrl?: string | null;
   quantity: number;
 };
@@ -78,7 +80,25 @@ export type Cart = {
   appliedCodes: AppliedPromotionCode[];
   lines: CartLine[];
   savedItems: SavedItem[];
+  // Set on an offer the store built and sent - null on the shopper's own cart
+  offer?: CartOffer | null;
 };
+
+export type CartOfferLock = "LINES" | "BILLING" | "SHIPPING" | "DELIVERY" | "COUPONS";
+export type CartOfferState = "DRAFT" | "SENT" | "OPENED" | "COMPLETED" | "EXPIRED" | "REVOKED";
+
+export type CartOffer = {
+  expiresAt: string;
+  message: string;
+  state: CartOfferState;
+  locks: CartOfferLock[];
+  paymentMethods: string[];
+  isGuest: boolean;
+};
+
+export function offerLocks(cart: Pick<Cart, "offer"> | null | undefined, lock: CartOfferLock): boolean {
+  return !!cart?.offer?.locks.includes(lock);
+}
 
 export function cartLineCount(cart: Cart | null): number {
   if (!cart) return 0;

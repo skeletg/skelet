@@ -1,27 +1,5 @@
-# Small profile - the minimum deployable Skelet tenant
-#
-# One app container runs every backend role (API, WS, /media/t/*, scheduler,
-# webhook delivery, outbox relay, Signals retention/forwarding/trait-compute)
-# One Postgres holds both schemas as two databases - no Valkey, no NATS, no
-# ClickHouse, no OpenSearch, no Vector, no split-out tiers
-#
-# Same images as docker-compose.prod.yml - the difference is env, not a build
-# Scaling up is this file's env changing: set VALKEY_URL for multi-replica, then
-# JOBS_EXTERNAL / SIGNALS_JOBS_EXTERNAL to split the tiers back out
-#
-#   cp env/small.env.example env/small.env
-#   cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-#   cp .env.example .env   # JWT_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD
-#   docker compose -f docker-compose.small.yml up -d
-#
-# Add --profile edge for TLS and automatic certs via deploy/caddy/Caddyfile (needs
-# env/prod-caddy.env too) - without it nothing terminates https and cards can't be taken
-#
-# Ports are offset (18080/18081/13000/15432) so this runs beside the dev stack
-#
-# The single-node degrade paths this leans on are deliberate - see
-# wiring/graphql.go (per-process rate limiting) and notification/hub.go (local
-# WS fanout) - both are correct for exactly one replica and no more
+# Small profile - the minimum deployable tenant: one app container runs every backend role, one Postgres, and the ports are offset to run beside the dev stack
+# Commerce only - the Signals suite is the prod stack's. Same images there, so scaling up is a compose file and its env, not a rebuild - see docs/deploying.md for the env files to copy and for --profile edge
 name: skelet-small
 
 x-logging: &logging
@@ -33,15 +11,18 @@ x-logging: &logging
 # Same split as prod: secrets in the root .env (the only file compose
 # interpolates), everything else in env/small.env - see .env.example and docs/env.md
 x-secrets: &secrets
-  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+  ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
+  REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+  STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:-}
 
-# Both DSNs derive from the one password the db container below uses, so they
-# can't drift - set either URL outright to point at a managed Postgres instead
+# The DSN derives from the one password the db container below uses, so they
+# can't drift - set the URL outright to point at a managed Postgres instead
 x-db-urls: &db-urls
   DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet_signals?sslmode=disable}
 
 services:
   app:
@@ -56,7 +37,6 @@ services:
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
-      signals-migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 15s
@@ -68,24 +48,13 @@ services:
     stop_grace_period: 40s
     logging: *logging
 
-  # Both one-shots run against the same cluster, different databases
   migrate:
     image: ${APP_IMAGE:-skelet-app:prod}
     env_file: [env/small.env]
     environment: *db-urls
     depends_on:
       db: { condition: service_healthy }
-    command: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up && skelet data-patch up"]
-    restart: "no"
-    logging: *logging
-
-  signals-migrate:
-    image: ${APP_IMAGE:-skelet-app:prod}
-    env_file: [env/small.env]
-    environment: *db-urls
-    depends_on:
-      db: { condition: service_healthy }
-    command: ["sh", "-c", "migrate -path /app/signals-migrations -database \"$$SIGNALS_DB_URL\" up"]
+    command: ["sh", "-c", "dbmate --no-dump-schema --wait --migrations-dir /app/migrations up && skelet plugin migrate up && skelet data-patch up"]
     restart: "no"
     logging: *logging
 
@@ -115,7 +84,7 @@ services:
       BACKEND_INTERNAL_URL: http://app:8080
       # The two it shares with the backend, from the same root .env - it gets
       # neither the encryption key nor a DB password
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+      REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }
@@ -128,8 +97,6 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # One cluster, two databases - init-signals-db.sql adds the Signals one beside
-  # the POSTGRES_DB commerce one, on first init only
   db:
     image: postgres:18-alpine
     environment:
@@ -140,7 +107,6 @@ services:
       POSTGRES_DB: skelet
     volumes:
       - db-data:/var/lib/postgresql
-      - ./deploy/postgres/init-signals-db.sql:/docker-entrypoint-initdb.d/10-signals.sql:ro
     ports: ["127.0.0.1:15432:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -150,11 +116,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one
-  # box, no proxy in front, and card payments can't happen over plain http
-  #
-  # Shares deploy/caddy/Caddyfile and env/prod-caddy.env with the prod stack - same three
-  # vhosts, same upstream ports, so moving up is env changing rather than a rewrite
+  # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one box, no proxy in front, and card payments can't happen over plain http
   caddy:
     profiles: ["edge"]
     image: caddy:2-alpine

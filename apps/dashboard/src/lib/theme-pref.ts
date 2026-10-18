@@ -2,14 +2,48 @@ import { useCallback, useEffect, useRef } from 'react'
 import { usePreference, usePrefsLoaded } from '@/lib/admin-prefs'
 import {
   DEFAULT_APPEARANCE,
+  DENSITIES,
+  FRAMES,
+  PALETTES,
   SIDEBAR_TOKENS,
+  TYPEFACES,
   THEME_TOKENS,
   appearanceFromLegacyId,
   defaultCustomTheme,
+  presetLook,
   useTheme,
   type Appearance,
   type CustomTheme,
+  type ThemePreset,
 } from '@/lib/theme'
+import { TUNE_KEYS, readTune, type Tune } from '@/lib/palette-recipe'
+
+// Every axis, in the order the signature and comparisons walk them - one list, so adding an axis
+// can't leave a writer or the sync comparing a stale subset
+const AXES = ['mode', 'palette', 'radius', 'scale', 'typeface', 'density', 'frame', 'sidebarSide', 'reduceMotion', 'sidebarPalette', 'sidebarMode', ...TUNE_KEYS] as const
+
+function sameAppearance(a: Appearance, b: Appearance): boolean {
+  return AXES.every((k) => a[k] === b[k])
+}
+
+// The split shape a row is written in - never the single-id form
+function prefOf(a: Appearance, custom: CustomTheme | undefined): ThemePref {
+  return {
+    mode: a.mode,
+    palette: a.palette,
+    radius: a.radius,
+    scale: a.scale,
+    typeface: a.typeface,
+    density: a.density,
+    frame: a.frame,
+    sidebarSide: a.sidebarSide,
+    reduceMotion: a.reduceMotion,
+    sidebarPalette: a.sidebarPalette,
+    sidebarMode: a.sidebarMode,
+    ...Object.fromEntries(TUNE_KEYS.map((k) => [k, a[k]])),
+    custom,
+  }
+}
 
 // Bridges appearance (device-local state, applied to the DOM before auth exists) to the roaming
 // per-admin preference store, so it follows the admin across devices
@@ -22,11 +56,15 @@ export const THEME_PREF_KEY = 'ui:theme'
 
 // One key rather than two: independent debounces could land palette 'custom' before its colours, flashing the default
 // custom palette `theme` is the single-id form, still read so a row in that shape keeps working
-export type ThemePref = {
+export type ThemePref = Partial<Tune> & {
   mode?: Appearance['mode']
   palette?: Appearance['palette']
   radius?: Appearance['radius']
   scale?: Appearance['scale']
+  typeface?: Appearance['typeface']
+  density?: Appearance['density']
+  frame?: Appearance['frame']
+  sidebarSide?: Appearance['sidebarSide']
   reduceMotion?: boolean
   theme?: string
   custom?: CustomTheme
@@ -45,17 +83,24 @@ function customSig(c: CustomTheme): string {
 }
 
 function appearanceOf(pref: ThemePref): Appearance {
-  if (pref.mode || pref.palette || pref.radius || pref.scale || pref.reduceMotion) {
+  if (pref.mode || pref.palette || pref.radius || pref.scale || pref.typeface || pref.density || pref.frame || pref.sidebarSide || pref.reduceMotion) {
     return {
       mode: pref.mode ?? DEFAULT_APPEARANCE.mode,
-      palette: pref.palette ?? '',
+      palette: PALETTES.some((p) => p.id === pref.palette) ? pref.palette! : '',
       radius: pref.radius ?? DEFAULT_APPEARANCE.radius,
       scale: pref.scale ?? DEFAULT_APPEARANCE.scale,
+      // a row from before these axes existed, or naming one this build doesn't know, reads as the default
+      typeface: TYPEFACES.some((t) => t.id === pref.typeface) ? pref.typeface! : DEFAULT_APPEARANCE.typeface,
+      density: DENSITIES.some((d) => d.id === pref.density) ? pref.density! : DEFAULT_APPEARANCE.density,
+      frame: FRAMES.some((f) => f.id === pref.frame) ? pref.frame! : DEFAULT_APPEARANCE.frame,
+      sidebarSide: pref.sidebarSide === 'right' ? 'right' : 'left',
       reduceMotion: !!pref.reduceMotion,
       // absent means the row names no rail, so it follows rather than adopting the split default
       // and repainting half a screen the admin never touched
-      sidebarPalette: pref.sidebarPalette === undefined ? null : pref.sidebarPalette,
+      sidebarPalette:
+        pref.sidebarPalette === undefined || !PALETTES.some((p) => p.id === pref.sidebarPalette) ? null : pref.sidebarPalette!,
       sidebarMode: pref.sidebarMode === 'light' ? 'light' : 'dark',
+      ...readTune(pref),
     }
   }
   if (pref.theme) return appearanceFromLegacyId(pref.theme, pref.custom?.dark ?? false)
@@ -64,7 +109,7 @@ function appearanceOf(pref: ThemePref): Appearance {
 
 function prefSig(pref: ThemePref): string {
   const a = appearanceOf(pref)
-  return `${a.mode}|${a.palette}|${a.radius}|${a.scale}|${a.reduceMotion ? 'still' : 'motion'}|${a.sidebarPalette ?? 'follow'}|${a.sidebarMode}|${pref.custom ? customSig(pref.custom) : ''}`
+  return `${AXES.map((k) => String(a[k] ?? 'follow')).join('|')}|${pref.custom ? customSig(pref.custom) : ''}`
 }
 
 function isCustomised(c: CustomTheme): boolean {
@@ -80,17 +125,7 @@ export function useThemePref() {
   const write = useCallback(
     (next: Appearance) => {
       apply(next)
-      // writes only the split shape, so a row never carries both
-      setPref((prev) => ({
-        mode: next.mode,
-        palette: next.palette,
-        radius: next.radius,
-        scale: next.scale,
-        reduceMotion: next.reduceMotion,
-        sidebarPalette: next.sidebarPalette,
-        sidebarMode: next.sidebarMode,
-        custom: prev?.custom,
-      }))
+      setPref((prev) => prefOf(next, prev?.custom))
     },
     [apply, setPref],
   )
@@ -111,6 +146,33 @@ export function useThemePref() {
     (scale: Appearance['scale']) => write({ ...appearance, scale }),
     [appearance, write],
   )
+  const setTypeface = useCallback(
+    (typeface: Appearance['typeface']) => write({ ...appearance, typeface }),
+    [appearance, write],
+  )
+  const setDensity = useCallback(
+    (density: Appearance['density']) => write({ ...appearance, density }),
+    [appearance, write],
+  )
+  // Every axis the theme names in one write, so the other devices never see half a theme; text size
+  // and motion are the admin's own and survive the switch
+  const applyPreset = useCallback(
+    (preset: ThemePreset) => write({ ...appearance, ...presetLook(preset) }),
+    [appearance, write],
+  )
+  const setFrame = useCallback(
+    (frame: Appearance['frame']) => write({ ...appearance, frame }),
+    [appearance, write],
+  )
+  const setSidebarSide = useCallback(
+    (sidebarSide: Appearance['sidebarSide']) => write({ ...appearance, sidebarSide }),
+    [appearance, write],
+  )
+  // Turning any dial means you're tuning, so it selects Tuned and hands the rail to the rail dial
+  const setTune = useCallback(
+    (patch: Partial<Tune>) => write({ ...appearance, ...patch, palette: 'tuned', sidebarPalette: null }),
+    [appearance, write],
+  )
   const setReduceMotion = useCallback(
     (reduceMotion: boolean) => write({ ...appearance, reduceMotion }),
     [appearance, write],
@@ -128,7 +190,7 @@ export function useThemePref() {
   const resetAppearance = useCallback(() => {
     applyCustom(defaultCustomTheme(false))
     apply(DEFAULT_APPEARANCE)
-    setPref({ ...DEFAULT_APPEARANCE, custom: undefined })
+    setPref(prefOf(DEFAULT_APPEARANCE, undefined))
   }, [apply, applyCustom, setPref])
 
   // Both halves in one write - two setters back to back would debounce into two pref rows and the
@@ -151,16 +213,7 @@ export function useThemePref() {
         palette: 'custom',
       }
       apply(nextAppearance)
-      setPref((prev) => ({
-        mode: nextAppearance.mode,
-        palette: 'custom',
-        radius: prev?.radius ?? appearance.radius,
-        scale: prev?.scale ?? appearance.scale,
-        reduceMotion: prev?.reduceMotion ?? appearance.reduceMotion,
-        sidebarPalette: nextAppearance.sidebarPalette,
-        sidebarMode: nextAppearance.sidebarMode,
-        custom: next,
-      }))
+      setPref(prefOf(nextAppearance, next))
     },
     [appearance, apply, applyCustom, setPref],
   )
@@ -172,6 +225,12 @@ export function useThemePref() {
     setPalette,
     setRadius,
     setScale,
+    setTypeface,
+    setDensity,
+    applyPreset,
+    setFrame,
+    setSidebarSide,
+    setTune,
     setReduceMotion,
     setSidebarPalette,
     setSidebarMode,
@@ -184,16 +243,7 @@ export function useThemePref() {
 // Whether anything about the look has been moved off the shipped default, so the reset can hide
 // itself when there's nothing to undo
 export function isDefaultAppearance(appearance: Appearance, custom: CustomTheme): boolean {
-  return (
-    appearance.mode === DEFAULT_APPEARANCE.mode &&
-    appearance.palette === DEFAULT_APPEARANCE.palette &&
-    appearance.radius === DEFAULT_APPEARANCE.radius &&
-    appearance.scale === DEFAULT_APPEARANCE.scale &&
-    appearance.reduceMotion === DEFAULT_APPEARANCE.reduceMotion &&
-    appearance.sidebarPalette === DEFAULT_APPEARANCE.sidebarPalette &&
-    appearance.sidebarMode === DEFAULT_APPEARANCE.sidebarMode &&
-    !isCustomised(custom)
-  )
+  return sameAppearance(appearance, DEFAULT_APPEARANCE) && !isCustomised(custom)
 }
 
 export function useThemePrefSync() {
@@ -209,17 +259,7 @@ export function useThemePrefSync() {
     applied.current = sig
     if (pref.custom && customSig(pref.custom) !== customSig(custom)) setCustom(pref.custom)
     const next = appearanceOf(pref)
-    if (
-      next.mode !== appearance.mode ||
-      next.palette !== appearance.palette ||
-      next.radius !== appearance.radius ||
-      next.scale !== appearance.scale ||
-      next.reduceMotion !== appearance.reduceMotion ||
-      next.sidebarPalette !== appearance.sidebarPalette ||
-      next.sidebarMode !== appearance.sidebarMode
-    ) {
-      setAppearance(next)
-    }
+    if (!sameAppearance(next, appearance)) setAppearance(next)
   }, [pref, appearance, custom, setAppearance, setCustom])
 
   // Accounts that predate roaming adopt this device's choice once - gated on the hydrate so it can't mark the key dirty
@@ -228,15 +268,6 @@ export function useThemePrefSync() {
     if (!loaded || pref) return
     // same predicate the reset button hides itself on - two copies would drift the day an axis lands
     if (isDefaultAppearance(appearance, custom)) return
-    setPref({
-      mode: appearance.mode,
-      palette: appearance.palette,
-      radius: appearance.radius,
-      scale: appearance.scale,
-      reduceMotion: appearance.reduceMotion,
-      sidebarPalette: appearance.sidebarPalette,
-      sidebarMode: appearance.sidebarMode,
-      custom: isCustomised(custom) ? custom : undefined,
-    })
+    setPref(prefOf(appearance, isCustomised(custom) ? custom : undefined))
   }, [loaded, pref, appearance, custom, setPref])
 }

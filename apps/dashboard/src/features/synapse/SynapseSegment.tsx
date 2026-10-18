@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT, SERIES } from '@/lib/chart-colors'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/data-table/DataTable'
@@ -15,55 +16,38 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import {
+  type SynapseSegmentQuery,
   SynapseSegmentDocument,
   SynapseSaveSegmentDocument,
   SynapseOverviewDocument,
   SynapseTrackedAttributesDocument,
 } from './Synapse.gql'
+import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
+import { Tile } from '@/components/layout/panels'
+import { formatCents, formatDate, formatShortDay } from '@/lib/format'
 
-const ACCENT = 'hsl(var(--primary))'
-// Money values on the segment detail are in the segment channel's currency
-const money = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-const fmtDay = (v: string) => {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-const fmtDate = (v?: string | null) => {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-
-type Member = {
-  customerId: string
-  name: string
-  email: string
-  lifecycle: string
-  recencyDays: number
-  orders: number
-  spendCents: number
-  lastOrderAt?: string | null
-}
+// Derived from the query, so a schema change breaks the build instead of reading undefined at runtime
+type Member = NonNullable<SynapseSegmentQuery['synapseSegment']>['members'][number]
 
 const LIFECYCLE_STYLE: Record<string, string> = {
-  new: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
-  active: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-  at_risk: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  lapsed: 'bg-red-500/10 text-red-600 border-red-500/30',
+  new: 'bg-info-soft text-info border-info/30',
+  active: 'bg-success-soft text-success border-success/30',
+  at_risk: 'bg-warning-soft text-warning border-warning/30',
+  lapsed: 'bg-destructive-soft text-destructive border-destructive/30',
   prospect: 'bg-muted text-muted-foreground border-border',
 }
 // Solid fills for the lifecycle stacked bar (keyed by stage; '' = uncomputed)
 const LIFECYCLE_BAR: Record<string, string> = {
-  new: 'bg-sky-500',
-  active: 'bg-emerald-500',
-  at_risk: 'bg-amber-500',
-  lapsed: 'bg-red-500',
+  new: 'bg-info',
+  active: 'bg-success',
+  at_risk: 'bg-warning',
+  lapsed: 'bg-destructive',
   prospect: 'bg-muted-foreground/40',
   '': 'bg-muted-foreground/20',
 }
-const RFM_COLORS: Record<string, string> = { recency: '#0ea5e9', frequency: '#10b981', monetary: '#f59e0b' }
+const RFM_COLORS: Record<string, string> = { recency: SERIES[1], frequency: SERIES[2], monetary: SERIES[4] }
 const stageLabel = (s: string) => (s === '' ? 'uncomputed' : s.replace('_', ' '))
 
 export function SynapseSegment() {
@@ -101,7 +85,7 @@ export function SynapseSegment() {
     }
   }
 
-  const growth = (d?.growth ?? []).map((g) => ({ day: fmtDay(g.day as string), count: g.count }))
+  const growth = (d?.growth ?? []).map((g) => ({ day: formatShortDay(g.day as string), count: g.count }))
   const mix = d?.lifecycleMix ?? []
   const mixTotal = mix.reduce((s, m) => s + m.count, 0) || 1
   // Pivot the RFM distribution to one row per score (0–5) with R/F/M columns
@@ -114,18 +98,21 @@ export function SynapseSegment() {
     return rows
   }, [d?.rfmDistribution])
   const affMax = Math.max(1, ...(d?.topAffinities ?? []).map((a) => a.members))
+  const memberIDs = useMemo(() => (d?.members ?? []).map((m) => m.customerId), [d])
+  const nameById = useCustomerNames(memberIDs)
 
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       {
-        accessorKey: 'name',
+        id: 'customer',
+        accessorFn: (m) => customerLabel(nameById.get(m.customerId), m.customerId),
         header: ({ column }) => <DataTableColumnHeader column={column} title="Customer" />,
         cell: ({ row }) => (
           <div className="min-w-0">
             <Link to={`/synapse/customers/${row.original.customerId}`} className="block truncate font-medium hover:underline" title="Open behavioural profile">
-              {row.original.name}
+              {customerLabel(nameById.get(row.original.customerId), row.original.customerId)}
             </Link>
-            <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+            <div className="truncate text-xs text-muted-foreground">{nameById.get(row.original.customerId)?.email ?? ''}</div>
           </div>
         ),
       },
@@ -149,15 +136,15 @@ export function SynapseSegment() {
       {
         accessorKey: 'spendCents',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Spend" />,
-        cell: ({ row }) => <span className="tabular-nums">{row.original.spendCents ? money(row.original.spendCents, currency) : '-'}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{row.original.spendCents ? formatCents(row.original.spendCents, currency) : '-'}</span>,
       },
       {
         accessorKey: 'lastOrderAt',
         header: 'Last order',
-        cell: ({ row }) => <span className="text-xs text-muted-foreground">{fmtDate(row.original.lastOrderAt)}</span>,
+        cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatDate(row.original.lastOrderAt)}</span>,
       },
     ],
-    [currency],
+    [currency, nameById],
   )
 
   return (
@@ -225,8 +212,8 @@ export function SynapseSegment() {
             <DetailPageSection title="Overview">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Tile label="Members" value={seg!.memberCount.toLocaleString()} />
-                <Tile label="Member revenue" value={money(d.revenueCents, currency)} sub={`${d.orders.toLocaleString()} orders`} />
-                <Tile label="Avg order value" value={d.orders > 0 ? money(d.aovCents, currency) : '-'} />
+                <Tile label="Member revenue" value={formatCents(d.revenueCents, currency)} sub={`${d.orders.toLocaleString()} orders`} />
+                <Tile label="Avg order value" value={d.orders > 0 ? formatCents(d.aovCents, currency) : '-'} />
                 <Tile label="Lifecycle windows" value={seg!.lifecycleWindows ? `${seg!.lifecycleWindows.newDays}/${seg!.lifecycleWindows.activeDays}/${seg!.lifecycleWindows.atRiskDays}d` : 'Channel default'} />
               </div>
             </DetailPageSection>
@@ -315,15 +302,15 @@ export function SynapseSegment() {
                     <AreaChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
                       <defs>
                         <linearGradient id="seg-growth" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={ACCENT} stopOpacity={0.3} />
-                          <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                          <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis dataKey="day" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={40} />
                       <Tooltip content={<ChartTooltipContent />} />
-                      <Area type="monotone" dataKey="count" name="Members" stroke={ACCENT} strokeWidth={2} fill="url(#seg-growth)" />
+                      <Area type="monotone" dataKey="count" name="Members" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#seg-growth)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -336,7 +323,7 @@ export function SynapseSegment() {
             >
               <DataTable
                 columns={columns}
-                data={d.members as Member[]}
+                data={d.members}
                 loading={loading}
                 getRowId={(m) => m.customerId}
                 searchPlaceholder="Search members…"
@@ -347,15 +334,5 @@ export function SynapseSegment() {
         )}
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
   )
 }

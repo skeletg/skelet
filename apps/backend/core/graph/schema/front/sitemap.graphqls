@@ -1,0 +1,27 @@
+# Catalog sitemap feeds for the storefront's chunked sitemap files. The backend owns which URLs are advertisable (published on the active channel, not seo_noindex, canonical path with channel overrides applied); the storefront only formats XML. Counts drive how many 45k-URL chunks each entity type needs.
+
+enum SitemapEntityType {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+}
+
+type SitemapEntry {
+  # Canonical storefront path without leading slash (e.g. "shoes/air-max").
+  path: String!
+  # Fresher of the rewrite/entity update times - feeds <lastmod>.
+  updatedAt: Time!
+}
+
+type SitemapCounts {
+  products: Int!
+  categories: Int!
+  collections: Int!
+}
+
+extend type Query {
+  # Per-entity-type URL totals for the active channel.
+  sitemapCounts: SitemapCounts!
+  # One page of sitemap URLs for the active channel. limit is capped at 50000.
+  sitemapEntries(entityType: SitemapEntityType!, limit: Int!, offset: Int!): [SitemapEntry!]!
+}

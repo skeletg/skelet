@@ -48,8 +48,8 @@ the entity entirely. The Go domain is symmetric across these:
 | CMS page | `db.CmsPageChannelListing` | `internal/cms/repository.go` |
 
 The tables are `product_channel_listings`, `category_channel_listings`,
-`blog_post_channel_listings` and `cms_page_channel_listings`, all created in
-`000001_schema`.
+`blog_post_channel_listings` and `cms_page_channel_listings`, all created in the
+schema baseline.
 
 Admin: edit listings via the entity's detail page (single-row in CHANNEL,
 multi-channel grid in GLOBAL). The save-confirm modal lists every staged change
@@ -65,13 +65,14 @@ permissions to `administrator`, so adding a permission needs no migration.
 
 - **Admins**: permissions via roles; `is_superuser = true` bypasses checks.
 - **Integrations**: permissions directly via `integration_permissions`.
-- **Guards** (`internal/auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
+- **Guards** (`auth/guard.go`, `auth/actor.go`): `RequireActor` (an admin or a token),
+  `RequireAdmin` (a person only), `RequireCustomerAuth`,
   `RequirePermission(ctx, checker, slug)`, `RequireTokenPermission(ctx, slug)`,
   `RequireChannelPermission(ctx, checker, slug, channelID, locale)` - the last one
   keeps a pre-rename name, but the argument is a channel id.
 
 Seeded roles: `administrator` (all), `store_manager` (catalog/orders/customers),
-`support_agent` (read-only), seeded in `000002_reference_data`.
+`support_agent` (read-only), seeded in the reference-data baseline.
 
 **The slug catalogue is generated, not listed here** - see
 [permissions.md](permissions.md) for the current reference and
@@ -117,7 +118,7 @@ go through `consent.Service.IsOptedIn`** - raw `repo.Get` treats nil as
 **Email**: `LogSender` (dev, no SMTP) / `SMTPSender` (env:
 `SMTP_HOST/PORT/USERNAME/PASSWORD`). `SMTP_USERNAME` empty = skip auth.
 Non-dev with no SMTP → error-sender that fails every Send loudly.
-Mailpit sidecar via `bin/dev`: catches mail at `:1025`, UI at
+The optional `mailpit` dev tool catches mail at `:1025`, UI at
 <http://localhost:8025>. Token stores: `VerificationStore` (24h, prefix
 `verify:customer`) + `PasswordResetStore` (30m, prefix `reset:customer`).
 `resetPassword` calls `RefreshStore.RevokeAll`. `STOREFRONT_URL` env
@@ -128,6 +129,54 @@ JWT required. `mergeGuestCart` adopts guest cart if no active customer
 cart (no copy). `ConvertCart` is the concurrent placement serialization
 point - concurrent callers get `ErrCartAlreadyConverted`. Statuses:
 `active → converted` (placeOrder) or `merged` (mergeGuestCart).
+
+**Checkout** lives on the cart, in three steps: how the order arrives,
+who it is for, then payment. `setCartDestination` saves a country and
+postcode, which is all delivery and pickup need to be quoted, so no
+address is typed until the second step. `setCartShippingMethod` picks
+one of the quotes, delivery or pickup. `setCartDetails` saves contact,
+the business details, and either the delivery address with its billing
+address or, for pickup, who collects it, in one write. A pickup order
+needs no shipping address: placement ships it to the pickup location,
+addressed to the collector. Then `setCartPaymentMethod`,
+`applyGiftCard` and `setCartStoreCredit`, plus `setCartEmail` and
+`setCartNote`. Each is validated in the resolver and saved on the cart,
+so a reload resumes where the shopper was. A step is computed from the
+cart as loaded, with no transaction open, since its quotes and checks
+may wait on a carrier or a remote validator; the write is a short
+transaction that takes the row lock and saves only if
+`carts.checkout_version` hasn't moved, recomputing the step otherwise
+(`CHECKOUT_CONFLICT` after three tries). The steps and `Cart.checkout`
+share a per-IP budget, `CHECKOUT_RATE_LIMIT_PER_MIN`. What the
+details step asks for and requires follows the `sales/checkout/*`
+settings (phone, business purchase, PO number, someone else
+collecting, a billing address on pickup orders), and placement
+re-checks them. The company identifiers a business purchase asks for
+are defined per country (`countries.business_id_fields`: label, key,
+required, an RE2 pattern, a hint) and follow the company's country - its
+billing address, else the destination - with one generic tax ID, per
+`sales/checkout/tax_id_field`, where a country defines none. The order
+keeps them with their labels (`orders.business_ids`) for the invoice. Addresses are snapshots with the saved address they
+came from. Moving the destination, or saving an address in another
+postcode, drops a shipping or payment method it no longer supports, and
+`Cart.checkout` re-checks both on read, so a line change that alters the
+quotes shows up as an unchosen method. A carrier that fails to answer
+isn't one that stopped offering the method: the choice is kept, and
+choosing or placing answers `SHIPPING_QUOTE_FAILED`. Purchase order is
+offered only on a business purchase whose details step asks for the PO
+number (`sales/checkout/po_number_field`), and payment eligibility is
+checked for the destination's country at every step and at placement,
+pickup included. A pickup with no billing address is billed to the
+collector by name, never to the store's address. `Cart.checkout.totals` is priced
+by `order.Service.QuoteCheckout`, the placement pricing path without the
+transaction, which quotes from the destination alone until there is an
+address. `placeOrder(cartId, paymentToken, savedPaymentMethodId,
+acceptTerms)` reads everything else from the cart and refuses an
+incomplete checkout with a `CHECKOUT_*_REQUIRED` code, a chosen method
+the carriers no longer offer with `SHIPPING_METHOD_UNAVAILABLE` rather
+than the cheapest one, and an unticked terms box with
+`TERMS_NOT_ACCEPTED` when `sales/checkout/terms_consent` is `checkbox`. On merge the guest cart's selections and
+email win.
 
 **Orders**: prices in **cents** (BIGINT). Address denormalized on
 `orders` (snapshot at placement, never changes). `order_events`
@@ -164,7 +213,10 @@ row, the category is hidden on that storefront. Storefront resolvers
 channel: with one in scope, only listed-and-published categories are
 returned. Admin's `rootCategories(channelId)` and
 `categoryChildren(parentId, channelId)` accept the same filter so the
-admin tree mirrors what the storefront serves. Creating a category in
+admin tree mirrors what the storefront serves. The dashboard's category
+pickers read `categoryOptions(channelId)` instead - every category flat,
+with `parentId` and a direct product count, which the client builds into a
+tree at any depth (the nested tree queries stop at a fixed depth). Creating a category in
 CHANNEL mode auto-fires `setCategoryListing` on the active channel so
 new categories show up where the user is working.
 
@@ -207,8 +259,8 @@ events. 16 kinds, `AllKinds` in `domain.go` is the list (no payment kind, on
 purpose - PCI scope; gateways are Tier 1 plugins). Integrator-facing contract
 is `docs/remote-providers.md`; per-kind JSON Schemas + example payloads are
 GENERATED from the adapter structs into `internal/remoteprovider/contract/` by
-`cmd/providerschema` (runs in `bin/codegen`, so a renamed payload type fails
-the run rather than leaving a stale published schema). `bin/provider-check`
+`cmd/providerschema` (runs in `./skelet gen`, so a renamed payload type fails
+the run rather than leaving a stale published schema). `./skelet provider`
 conformance-tests an endpoint. The `remote_providers` table carries
 kind+slug identity, config JSON, timeout, cache TTL, failure policy,
 channel scope and an `rpsec_` secret. The `Invoker` signs a
@@ -217,9 +269,9 @@ enforces per-invoke timeout + payload-keyed response cache + circuit breaker.
 Consumers wire adapters in main.go: shipping `SetRemoteRateSource`, order
 `SetRemoteTax`, `address.RegisterRemoteValidator`,
 `promotion.RegisterRemoteProviderTypes` (remote.condition/remote.action rule
-types), flow `SetRemoteActions` (the `remote_action` node). Admin CRUD gated
+types). Admin CRUD gated
 by `remote_providers.view/manage`; `remoteprovider.MemRepo` for consumer
-tests. SSRF guard shared via `internal/urlguard` - its own package so webhook and
+tests. SSRF guard shared via `urlguard` - its own package so webhook and
 remote providers can both use it without importing each other.
 
 **Admin Actions**: handlers are closures - register after services

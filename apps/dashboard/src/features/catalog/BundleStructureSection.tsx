@@ -1,12 +1,10 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { useMutation, useQuery } from '@apollo/client/react'
+import { useMutation } from '@apollo/client/react'
 import {
-  AlertCircleIcon,
   CheckCircle2Icon,
   PackagePlusIcon,
   PencilIcon,
   PlusIcon,
-  SearchIcon,
   Trash2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -23,7 +21,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -41,14 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -66,7 +55,6 @@ import {
   DeleteBundleOptionDocument,
   DeleteBundleSelectionDocument,
   ProductDocument,
-  ProductsDocument,
   UpdateBundleOptionDocument,
   UpdateBundleSelectionDocument,
   DeleteBundleOptionContentDocument,
@@ -86,6 +74,8 @@ import {
   type SelectionProduct,
 } from './bundleStaging'
 import { useProductSaveSection } from './productSaveRegistry'
+import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
+import { defaultColumn, quantityColumn } from './product-picker-columns'
 import { TranslationLocales } from '@/components/TranslationLocales'
 
 type Bundle = {
@@ -425,7 +415,7 @@ function OptionCard({
               <Badge variant="outline" className="font-normal text-muted-foreground">Optional</Badge>
             )}
             {pending && (
-              <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">Unsaved</Badge>
+              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
             )}
           </div>
           {option.content.length > 1 && (
@@ -467,10 +457,10 @@ function OptionCard({
               {sortedSelections.map((sel) => {
                 const selPending = isTemp(sel.id)
                 return (
-                  <TableRow key={sel.id} className={selPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                  <TableRow key={sel.id} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
-                      {selPending && <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">· unsaved</span>}
+                      {selPending && <span className="ml-2 text-xs text-warning">· unsaved</span>}
                     </TableCell>
                     <TableCell>
                       {sel.product.sku ? (
@@ -687,7 +677,7 @@ function EditOptionDialog({
             <div className="grid gap-2">
               <Label htmlFor="opt-input-edit">Selection style</Label>
               <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
-                <SelectTrigger id="opt-input-edit">
+                <SelectTrigger className="w-full" id="opt-input-edit">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -862,204 +852,54 @@ function SelectionPickerSheet({
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
-  const { data, loading } = useQuery(ProductsDocument)
-
-  const [search, setSearch] = useState('')
-  const [picked, setPicked] = useState<Map<string, { quantity: number; isDefault: boolean }>>(new Map())
-  const [globalError, setGlobalError] = useState<string | null>(null)
-
-  const linkedIds = useMemo(
-    () => new Set(option.selections.map((s) => s.product.id)),
-    [option.selections],
+  const takenIds = useMemo(() => new Set(option.selections.map((s) => s.product.id)), [option.selections])
+  const selfId = useMemo(() => new Set([productId]), [productId])
+  const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean }>>(
+    () => ({ initial: () => ({ quantity: 1, isDefault: false }), columns: [quantityColumn(), defaultColumn()] }),
+    [],
   )
-
-  const candidates = useMemo(() => {
-    const all = (data?.products ?? []) as Array<SelectionProduct>
-    return all
-      .filter((p) => p.kind === 'SIMPLE' && p.id !== productId && !linkedIds.has(p.id))
-      .sort((a, b) => (a.name ?? a.sku ?? '').localeCompare(b.name ?? b.sku ?? ''))
-  }, [data, productId, linkedIds])
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return candidates
-    return candidates.filter((p) => {
-      const haystack = [p.name ?? '', p.sku ?? ''].join(' ').toLowerCase()
-      return haystack.includes(q)
-    })
-  }, [candidates, search])
-
-  function togglePicked(id: string) {
-    setPicked((prev) => {
-      const next = new Map(prev)
-      if (next.has(id)) next.delete(id)
-      else next.set(id, { quantity: 1, isDefault: false })
-      return next
-    })
-  }
-
-  function patchRow(id: string, patch: Partial<{ quantity: number; isDefault: boolean }>) {
-    setPicked((prev) => {
-      const next = new Map(prev)
-      const current = next.get(id)
-      if (!current) return prev
-      next.set(id, { ...current, ...patch })
-      return next
-    })
-  }
-
-  function onSubmit() {
-    setGlobalError(null)
-    const entries = Array.from(picked.entries())
-    if (entries.length === 0) return
-
-    // Single-select default sanity check before staging any ops
-    if (isSingleSelect(option.inputType)) {
-      const existingDefaults = option.selections.filter((s) => s.isDefault).length
-      const newDefaults = entries.filter(([, v]) => v.isDefault).length
-      if (existingDefaults + newDefaults > 1) {
-        setGlobalError(`${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default.`)
-        return
-      }
-    }
-
-    let nextSort = option.selections.length
-    for (const [pid, params] of entries) {
-      const product = candidates.find((c) => c.id === pid)
-      if (!product) continue
-      onStage({
-        kind: 'add-selection',
-        tempId: newTempId(),
-        optionRef: option.id,
-        product,
-        quantity: params.quantity,
-        isDefault: params.isDefault,
-        sortOrder: nextSort,
-      })
-      nextSort++
-    }
-    setPicked(new Map())
-    onOpenChange(false)
-  }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="flex w-[96vw] flex-col gap-0 p-0 sm:!max-w-[min(96vw,1200px)]"
-        side="right"
-      >
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>Add selections to "{option.title}"</SheetTitle>
-          <SheetDescription>
-            Pick one or more simple products. Per row, set how many of that product the bundle includes and
-            whether it's the default. Stages until the page-level save.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="grid gap-2 border-b px-4 py-3">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, slug, or SKU…"
-              className="h-9 pl-8"
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{loading ? 'Loading…' : `Showing ${filtered.length} of ${candidates.length}`}</span>
-            <span>{picked.size > 0 ? `${picked.size} selected` : ''}</span>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {filtered.length === 0 && !loading ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              {candidates.length === 0
-                ? 'No eligible simple products - create some first, or remove existing selections.'
-                : 'No candidates match the current search.'}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-popover">
-                <TableRow>
-                  <TableHead className="w-10" />
-                  <TableHead>Name</TableHead>
-                  <TableHead className="w-24">SKU</TableHead>
-                  <TableHead className="w-24">Price</TableHead>
-                  <TableHead className="w-24">Quantity</TableHead>
-                  <TableHead className="w-20">Default</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((p) => {
-                  const isPicked = picked.has(p.id)
-                  const params = picked.get(p.id)
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell>
-                        <Checkbox
-                          checked={isPicked}
-                          onCheckedChange={() => togglePicked(p.id)}
-                          aria-label={`Pick ${p.name ?? p.sku ?? ''}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium">{p.name ?? p.sku ?? ''}</span>
-                      </TableCell>
-                      <TableCell>
-                        {p.sku ? (
-                          <code className="font-mono text-xs">{p.sku}</code>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {formatCents(p.defaultPrice, p.defaultCurrencyCode)}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={1}
-                          className="h-7 w-20 font-mono text-xs"
-                          value={params?.quantity ?? 1}
-                          disabled={!isPicked}
-                          onChange={(e) => patchRow(p.id, { quantity: Math.max(1, Number(e.target.value) || 1) })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Checkbox
-                          checked={params?.isDefault ?? false}
-                          disabled={!isPicked}
-                          onCheckedChange={(v) => patchRow(p.id, { isDefault: v === true })}
-                          aria-label="Default selection"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {globalError && (
-          <Alert variant="destructive" className="m-4">
-            <AlertCircleIcon className="size-4" />
-            <AlertTitle>Can't stage</AlertTitle>
-            <AlertDescription>{globalError}</AlertDescription>
-          </Alert>
-        )}
-
-        <SheetFooter className="border-t px-4 py-3">
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={onSubmit} disabled={picked.size === 0}>
-              {`Stage ${picked.size || ''} selection${picked.size === 1 ? '' : 's'}`.trim()}
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <ProductPickerDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Add selections to "${option.title}"`}
+      description="Pick one or more simple products. Per row, set how many of that product the bundle includes and whether it's the default. Stages until the page-level save."
+      kinds={['SIMPLE']}
+      takenIds={takenIds}
+      takenLabel="In this option"
+      excludeIds={selfId}
+      showPrice
+      extra={extra}
+      confirmLabel={(n) => `Stage ${n || ''} selection${n === 1 ? '' : 's'}`.replace('  ', ' ')}
+      validate={(picks) => {
+        // Single-select default sanity check before staging any ops
+        if (!isSingleSelect(option.inputType)) return null
+        const existingDefaults = option.selections.filter((s) => s.isDefault).length
+        const newDefaults = picks.filter((p) => p.extra.isDefault).length
+        return existingDefaults + newDefaults > 1
+          ? `${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default.`
+          : null
+      }}
+      onConfirm={(picks) => {
+        let nextSort = option.selections.length
+        for (const { product, extra: params } of picks) {
+          onStage({
+            kind: 'add-selection',
+            tempId: newTempId(),
+            optionRef: option.id,
+            product: toSelectionProduct(product),
+            quantity: params.quantity,
+            isDefault: params.isDefault,
+            sortOrder: nextSort,
+          })
+          nextSort++
+        }
+      }}
+    />
   )
+}
+
+function toSelectionProduct(p: PickerProduct): SelectionProduct {
+  return { id: p.id, sku: p.sku, name: p.name, kind: p.kind, defaultPrice: p.defaultPrice, defaultCurrencyCode: p.defaultCurrencyCode }
 }

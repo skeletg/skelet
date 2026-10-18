@@ -8,12 +8,12 @@ query SegmentsPage($limit: Int, $offset: Int) {
       isActive
       memberCount
       rules
+      rulesProblem
       updatedAt
     }
     totalCount
   }
 }
-
 query SegmentDetail($id: ID!) {
   customerSegment(id: $id) {
     id
@@ -23,52 +23,42 @@ query SegmentDetail($id: ID!) {
     isActive
     memberCount
     rules
+    rulesProblem
     createdAt
     updatedAt
     members(limit: 100) {
       id
-      email
-      firstName
-      lastName
       joinedAt
     }
   }
 }
-
 mutation CreateSegment($input: CreateCustomerSegmentInput!) {
   createCustomerSegment(input: $input) {
     id
   }
 }
-
 mutation UpdateSegment($input: UpdateCustomerSegmentInput!) {
   updateCustomerSegment(input: $input) {
     id
   }
 }
-
 mutation DeleteSegment($id: ID!) {
   deleteCustomerSegment(id: $id)
 }
-
 mutation SetSegmentRules($segmentId: ID!, $rules: JSON) {
   setSegmentRules(segmentId: $segmentId, rules: $rules) {
     id
   }
 }
-
 mutation RefreshSegmentMembership($segmentId: ID!) {
   refreshSegment(segmentId: $segmentId)
 }
-
 mutation AssignCustomersToSegment($segmentId: ID!, $customerIds: [ID!]!) {
   assignCustomersToSegment(segmentId: $segmentId, customerIds: $customerIds)
 }
-
 mutation RemoveCustomerFromSegment($segmentId: ID!, $customerId: ID!) {
   removeCustomerFromSegment(segmentId: $segmentId, customerId: $customerId)
 }
-
 mutation ClearSegmentMembership($segmentId: ID!) {
   clearSegmentMembership(segmentId: $segmentId)
 }

@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'r
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ChartContainer } from '@/components/ui/chart'
+import { CHART_DESTRUCTIVE, CHART_SUCCESS, CHART_WARNING, SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,21 +12,20 @@ import { DetailPageBody, DetailPageSection } from '@/components/layout/detail-pa
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { ReviewInsightsDocument } from './Reviews.gql'
+import { formatNumber } from '@/lib/format'
 
 type Bucket = 'day' | 'week' | 'month'
 
-const COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6', '#ec4899', '#6366f1']
-const UNCATEGORIZED_COLOR = '#94a3b8'
+const COLORS = SERIES
+const UNCATEGORIZED_COLOR = SERIES_OTHER
 const MAX_TREND_SERIES = 8
 
 // Status display: order + color for the share bars + legend
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  APPROVED: { label: 'Approved', color: '#10b981' },
-  PENDING: { label: 'Pending', color: '#f59e0b' },
-  REJECTED: { label: 'Rejected', color: '#ef4444' },
+  APPROVED: { label: 'Approved', color: CHART_SUCCESS },
+  PENDING: { label: 'Pending', color: CHART_WARNING },
+  REJECTED: { label: 'Rejected', color: CHART_DESTRUCTIVE },
 }
-
-const nfmt = (n: number) => n.toLocaleString()
 
 function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -242,12 +242,12 @@ export function ReviewInsightsContent() {
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Total reviews</p>
                 <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold tabular-nums">{nfmt(total)}</span>
+                  <span className="text-2xl font-semibold tabular-nums">{formatNumber(total)}</span>
                   {totalDelta !== null ? (
                     <span
                       className={cn(
                         'text-xs font-medium tabular-nums',
-                        totalDelta > 0 ? 'text-emerald-600' : totalDelta < 0 ? 'text-red-600' : 'text-muted-foreground',
+                        totalDelta > 0 ? 'text-success' : totalDelta < 0 ? 'text-destructive' : 'text-muted-foreground',
                       )}
                     >
                       {totalDelta > 0 ? '▲' : totalDelta < 0 ? '▼' : ''} {Math.abs(totalDelta)}%
@@ -255,27 +255,27 @@ export function ReviewInsightsContent() {
                   ) : null}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {totalDelta !== null ? `vs ${nfmt(prevTotal)} prior period` : 'no prior-period data'}
+                  {totalDelta !== null ? `vs ${formatNumber(prevTotal)} prior period` : 'no prior-period data'}
                 </p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Avg per {bucket}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{nfmt(avgPerBucket)}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(avgPerBucket)}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">across {volumeData.length} {bucket}s</p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Top category</p>
                 <p className="mt-1 truncate text-2xl font-semibold">{breakdown[0] ? (breakdown[0].slug ? breakdown[0].name : 'Uncategorized') : '-'}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{breakdown[0] ? `${nfmt(breakdown[0].count)} reviews` : ''}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{breakdown[0] ? `${formatNumber(breakdown[0].count)} reviews` : ''}</p>
               </div>
               <div className="rounded border p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Biggest mover</p>
                 <p className="mt-1 truncate text-2xl font-semibold">{mover ? mover.name : '-'}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {mover ? (
-                    <span className={mover.change > 0 ? 'text-emerald-600' : 'text-red-600'}>
+                    <span className={mover.change > 0 ? 'text-success' : 'text-destructive'}>
                       {mover.change > 0 ? '▲ +' : '▼ '}
-                      {nfmt(Math.abs(mover.change))} vs prior
+                      {formatNumber(Math.abs(mover.change))} vs prior
                     </span>
                   ) : (
                     'no change'
@@ -341,7 +341,7 @@ export function ReviewInsightsContent() {
                         <span className="inline-block size-2 rounded-full" style={{ background: meta.color }} />
                         {meta.label}
                       </span>
-                      <span className="tabular-nums text-muted-foreground">{nfmt(s.count)} · {share}%</span>
+                      <span className="tabular-nums text-muted-foreground">{formatNumber(s.count)} · {share}%</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full" style={{ width: `${share}%`, background: meta.color }} />
@@ -435,7 +435,7 @@ function ShareTable({
                   <span className="mr-2 inline-block size-2 rounded-full align-middle" style={{ background: r.color }} />
                   {r.muted ? <span className="text-muted-foreground">{r.label}</span> : r.label}
                 </td>
-                <td className="px-3 py-1.5 text-right tabular-nums">{nfmt(r.count)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{formatNumber(r.count)}</td>
                 <td className="px-3 py-1.5">
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -449,8 +449,8 @@ function ShareTable({
                     {r.change === 0 ? (
                       <span className="text-muted-foreground">-</span>
                     ) : (
-                      <span className={r.change > 0 ? 'text-emerald-600' : 'text-red-600'}>
-                        {r.change > 0 ? `+${nfmt(r.change)}` : nfmt(r.change)}
+                      <span className={r.change > 0 ? 'text-success' : 'text-destructive'}>
+                        {r.change > 0 ? `+${formatNumber(r.change)}` : formatNumber(r.change)}
                       </span>
                     )}
                   </td>
@@ -479,7 +479,7 @@ function SimpleTooltip({
   return (
     <div className="rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="font-medium">{String(label ?? '')}</div>
-      <div className="mt-1 text-muted-foreground tabular-nums">{nfmt(payload[0].value ?? 0)} reviews</div>
+      <div className="mt-1 text-muted-foreground tabular-nums">{formatNumber(payload[0].value ?? 0)} reviews</div>
     </div>
   )
 }

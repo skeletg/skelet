@@ -64,7 +64,7 @@ function statusBadge(status: BlogPostRowFragment['status']) {
       )
     case 'ARCHIVED':
       return (
-        <Badge variant="outline" className="gap-1 text-rose-500">
+        <Badge variant="outline" className="gap-1 text-destructive">
           <ArchiveIcon className="size-3" /> Archived
         </Badge>
       )

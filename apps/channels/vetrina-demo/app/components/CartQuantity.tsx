@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { useCartStore } from "@/app/lib/cart/store";
 
@@ -17,6 +18,7 @@ export function CartQuantity({
   size?: "sm" | "md";
 }) {
   const { setLineQuantity } = useCartStore();
+  const t = useTranslations("common");
   // display is what the shopper sees; seeded from the store quantity and re-synced to
   // it whenever the store value changes and we're not mid-edit
   const [display, setDisplay] = useState(quantity);
@@ -66,7 +68,7 @@ export function CartQuantity({
     <div className="flex items-center gap-1">
       <button
         type="button"
-        aria-label="Decrease quantity"
+        aria-label={t("decreaseQty")}
         onClick={() => step(-1)}
         className={`${btn} rounded-lg border border-border transition-colors hover:bg-muted disabled:opacity-40`}
       >
@@ -77,7 +79,7 @@ export function CartQuantity({
         min={0}
         step="any"
         inputMode="decimal"
-        aria-label="Quantity"
+        aria-label={t("quantity")}
         value={display}
         onChange={(e) => onType(e.target.value)}
         onBlur={() => {
@@ -88,7 +90,7 @@ export function CartQuantity({
       />
       <button
         type="button"
-        aria-label="Increase quantity"
+        aria-label={t("increaseQty")}
         onClick={() => step(1)}
         className={`${btn} rounded-lg border border-border transition-colors hover:bg-muted`}
       >

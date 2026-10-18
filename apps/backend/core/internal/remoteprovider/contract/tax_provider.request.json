@@ -1,0 +1,25 @@
+{
+  "address": {
+    "city": "New York",
+    "countryCode": "US",
+    "postalCode": "10001",
+    "region": "example",
+    "street1": "1 Example St",
+    "street2": "example"
+  },
+  "channelId": "00000000-0000-0000-0000-000000000000",
+  "currency": "USD",
+  "customerGroup": "example",
+  "discountCents": 1000,
+  "lines": [
+    {
+      "quantity": 1,
+      "sku": "EXAMPLE-SKU",
+      "unitPriceCents": 1000
+    }
+  ],
+  "shippingCents": 1000,
+  "subtotalCents": 1000,
+  "taxExempt": false,
+  "taxInclusive": false
+}

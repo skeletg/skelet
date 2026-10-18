@@ -286,9 +286,9 @@ Wrote:
 
 Next:
   1. Create the channel in admin > channels, and put its uuid in
-     STOREFRONT_CHANNEL_ID - a storefront serves exactly one channel and
-     refuses to start without it. The dev block inherited $src's default
-     uuid, so change it there too.
+     STOREFRONT_CHANNEL_ID (or map hosts to channels in
+     STOREFRONT_CHANNEL_HOSTS to serve several from one deployment). The dev
+     block inherited $src's default uuid, so change it there too.
   2. bin/setup --apps \$(tr -d '\\n' < .skelet-apps 2>/dev/null),$name
   3. bin/dev, then http://localhost:$dev_port
 

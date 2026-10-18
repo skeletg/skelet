@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+// The marketing-email engagement rollup, read off the analytics event spine and the send log. The
+// mail itself is core's - this is the analytics over it
+package skelet.signals.v1;
+
+import "skelet/signals/v1/common.proto";
+
+service PulseService {
+  rpc GetEngagement(GetEngagementRequest) returns (GetEngagementResponse);
+  // One customer's email tallies for the admin profile - core keeps no record of a marketing send,
+  // so the spine is the only place that knows
+  rpc GetCustomerEngagement(GetCustomerEngagementRequest) returns (GetCustomerEngagementResponse);
+  // Per-variant sent / opened / clicked off the send log, human hits only - the A/B results view and
+  // the winner decision core makes read it
+  rpc GetCampaignVariantStats(GetCampaignVariantStatsRequest) returns (GetCampaignVariantStatsResponse);
+}
+
+message GetCampaignVariantStatsRequest {
+  string campaign_id = 1;
+}
+
+message VariantStat {
+  string variant = 1;
+  int32 sent = 2;
+  int32 opened = 3;
+  int32 clicked = 4;
+}
+
+message GetCampaignVariantStatsResponse {
+  repeated VariantStat variants = 1;
+}
+
+message GetCustomerEngagementRequest {
+  string customer_id = 1;
+}
+
+message GetCustomerEngagementResponse {
+  int32 sent = 1;
+  // Machine opens excluded - an image proxy is not the customer reading anything
+  int32 opened = 2;
+  int32 clicked = 3;
+  // Absent when the customer has never been sent to, or never opened
+  optional string last_sent_at = 4;
+  optional string last_open_at = 5;
+}
+
+// One link in a marketing email and how often it was clicked
+message LinkClicks {
+  string url = 1;
+  int32 clicks = 2;
+}
+
+message GetEngagementRequest {
+  string channel_id = 1;
+  // Window in days, 0 for the server default
+  int32 since_days = 2;
+}
+
+message GetEngagementResponse {
+  // Every logged open, machine and proxy prefetch included
+  int32 opens_raw = 1;
+  // Machine-flagged opens excluded
+  int32 opens_human = 2;
+  int32 clicks = 3;
+  // Orders attributed to recent email engagement
+  int32 conversions = 4;
+  repeated AttributedRevenue revenue = 5;
+  repeated LinkClicks top_links = 6;
+}

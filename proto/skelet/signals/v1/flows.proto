@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+// Marketing automation flows: a trigger plus a node graph the engine walks, and the runs it produced
+// The composer is a dashboard surface, so these are the admin reads and writes core relays to it
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service FlowService {
+  rpc ListFlows(ListFlowsRequest) returns (ListFlowsResponse);
+  // GetFlowByID rather than GetFlow, which SynapseService already took for its path report
+  rpc GetFlowByID(GetFlowByIDRequest) returns (GetFlowByIDResponse);
+  rpc CreateFlow(CreateFlowRequest) returns (CreateFlowResponse);
+  rpc UpdateFlow(UpdateFlowRequest) returns (UpdateFlowResponse);
+  // Soft - the flow and its runs survive, but it enrolls nobody
+  rpc DeleteFlow(DeleteFlowRequest) returns (DeleteFlowResponse);
+  rpc RestoreFlow(RestoreFlowRequest) returns (RestoreFlowResponse);
+  rpc SetFlowStatus(SetFlowStatusRequest) returns (SetFlowStatusResponse);
+  // Split conditions this install can actually answer - a suite contributes its own, so the composer
+  // never offers one whose data is not there
+  rpc ListFlowConditionKinds(ListFlowConditionKindsRequest) returns (ListFlowConditionKindsResponse);
+  // Pulse's starter content for one channel - the blocks, an email per transactional slot and an active flow that sends it
+  // Idempotent, and only on request - an active order_placed flow moves the receipt out of core's templates
+  rpc SeedStarterContent(SeedStarterContentRequest) returns (SeedStarterContentResponse);
+  rpc ListFlowRuns(ListFlowRunsRequest) returns (ListFlowRunsResponse);
+  // Every flow one customer has been through, for the admin profile
+  rpc ListCustomerFlowRuns(ListCustomerFlowRunsRequest) returns (ListCustomerFlowRunsResponse);
+  // One moment in core worth enrolling on, called before core sends a transactional mail itself
+  // A flow that took the moment is the only thing that mails - a duplicate receipt reads to a customer as a duplicate order
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+}
+
+message Flow {
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  string trigger_type = 4;
+  // The trigger's own settings, shaped by trigger_type
+  string trigger_config_json = 5;
+  // The @xyflow node/edge document the composer draws and the engine walks
+  string graph_json = 6;
+  // draft | active | paused | archived
+  string status = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  // Set when soft-deleted - distinct from status "archived", which an operator chose
+  optional google.protobuf.Timestamp deleted_at = 10;
+}
+
+message FlowInput {
+  // Ignored on update, since a flow does not move between channels
+  string channel_id = 1;
+  string name = 2;
+  string trigger_type = 3;
+  string trigger_config_json = 4;
+  string graph_json = 5;
+}
+
+// One enrollment - a customer or a guest walking one flow
+message FlowRun {
+  string id = 1;
+  string flow_id = 2;
+  // Empty for a guest run, which is keyed by email instead
+  string customer_id = 3;
+  string email = 4;
+  string current_node_id = 5;
+  string status = 6;
+  // When a waiting run wakes up
+  optional google.protobuf.Timestamp resume_at = 7;
+  string context_json = 8;
+  string error = 9;
+}
+
+// A run carrying enough of its flow to list without a second lookup
+message CustomerFlowRun {
+  string run_id = 1;
+  string flow_id = 2;
+  string flow_name = 3;
+  string trigger_type = 4;
+  string status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ListFlowsRequest {
+  string channel_id = 1;
+  // Soft-deleted flows are hidden unless this is set
+  bool include_deleted = 2;
+}
+
+message ListFlowsResponse {
+  repeated Flow flows = 1;
+}
+
+message GetFlowByIDRequest {
+  string id = 1;
+}
+
+message GetFlowByIDResponse {
+  Flow flow = 1;
+}
+
+message CreateFlowRequest {
+  FlowInput flow = 1;
+}
+
+message CreateFlowResponse {
+  Flow flow = 1;
+}
+
+message UpdateFlowRequest {
+  string id = 1;
+  FlowInput flow = 2;
+}
+
+message UpdateFlowResponse {
+  Flow flow = 1;
+}
+
+message DeleteFlowRequest {
+  string id = 1;
+}
+
+message DeleteFlowResponse {}
+
+message RestoreFlowRequest {
+  string id = 1;
+}
+
+message RestoreFlowResponse {}
+
+message SetFlowStatusRequest {
+  string id = 1;
+  string status = 2;
+}
+
+message SetFlowStatusResponse {
+  Flow flow = 1;
+}
+
+message ListFlowConditionKindsRequest {}
+
+message ListFlowConditionKindsResponse {
+  repeated string kinds = 1;
+}
+
+message ListFlowRunsRequest {
+  string flow_id = 1;
+  int32 limit = 2;
+}
+
+message ListFlowRunsResponse {
+  repeated FlowRun runs = 1;
+}
+
+message ListCustomerFlowRunsRequest {
+  string customer_id = 1;
+}
+
+message ListCustomerFlowRunsResponse {
+  repeated CustomerFlowRun runs = 1;
+}
+
+message SeedStarterContentRequest {
+  string channel_id = 1;
+}
+
+message SeedStarterContentResponse {
+  // What this call created - zeros mean the channel had it all already
+  int32 blocks = 1;
+  int32 emails = 2;
+  int32 flows = 3;
+}
+
+message EnrollRequest {
+  // One of the wired trigger types - the server dispatches on it and reads payload_json accordingly
+  string trigger_type = 1;
+  string channel_id = 2;
+  // Empty for a guest, who is reached by the address instead
+  string customer_id = 3;
+  string email = 4;
+  // What the moment carries, shaped by trigger_type: the order snapshot, the reset link, the SKU
+  // that came back in stock
+  string payload_json = 5;
+  // Names the moment itself (the order, the one-time link, the cart's episode) so a repeat starts one run per flow and answers the same count
+  // Empty leaves only the already-in-flow guard
+  string idempotency_key = 6;
+}
+
+message EnrollResponse {
+  // Active flows on the trigger, whether or not each started a run for this moment - zero means core's own mail still has to go out
+  int32 enrolled = 1;
+  // Some flow could not be asked - the flows counted in enrolled took the moment, the rest may take it on a repeat
+  bool incomplete = 2;
+}

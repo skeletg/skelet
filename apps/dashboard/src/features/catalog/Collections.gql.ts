@@ -1,587 +1,183 @@
-import { gql } from '@apollo/client'
-import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core'
-import type { ProductMediaStatus } from '@/graphql/schema.types'
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../../graphql/schema.types';
 
-export type MetadataEntry = { __typename?: 'MetadataItem'; key: string; value: string }
-
-export type CollectionCover = {
-  __typename?: 'CollectionCover'
-  url: string
-  altText: string
-  width: number
-  height: number
-  mimeType: string
-  status: ProductMediaStatus
-}
-
-export type CollectionContent = {
-  __typename?: 'CollectionContent'
-  locale: string
-  name: string
-  description?: unknown | null
-  metaTitle?: string | null
-  metaDescription?: string | null
-  metaKeywords?: string | null
-  updatedAt: string
-}
-
-export type CollectionProduct = {
-  __typename?: 'Product'
-  id: string
-  name?: string | null
-  sku?: string | null
-  defaultPrice: number
-  defaultCurrencyCode: string
-  thumbnail?: {
-    __typename?: 'ProductMedia'
-    id: string
-    url: string
-    altText: string
-    status: ProductMediaStatus
-  } | null
-}
-
-export type CollectionSummary = {
-  __typename?: 'Collection'
-  id: string
-  slug: string
-  isPublished: boolean
-  seoNoindex: boolean
-  name?: string | null
-  content: Array<Pick<CollectionContent, '__typename' | 'locale' | 'name'>>
-  coverImage?: Pick<CollectionCover, '__typename' | 'url' | 'altText' | 'status'> | null
-  products: Array<Pick<CollectionProduct, '__typename' | 'id'>>
-  createdAt: string
-  updatedAt: string
-}
-
-export type CollectionDetail = {
-  __typename?: 'Collection'
-  id: string
-  slug: string
-  isPublished: boolean
-  seoNoindex: boolean
-  name?: string | null
-  description?: unknown | null
-  metaTitle?: string | null
-  metaDescription?: string | null
-  metaKeywords?: string | null
-  contentLocale?: string | null
-  content: CollectionContent[]
-  coverImage?: CollectionCover | null
-  products: CollectionProduct[]
-  metadata: MetadataEntry[]
-  privateMetadata: MetadataEntry[]
-  facetOverrides: Array<{
-    attributeId: string
-    attributeSlug: string
-    sortOrder: number
-    hidden: boolean
-  }>
-  createdAt: string
-  updatedAt: string
-}
-
-export type CollectionsQueryVariables = Record<string, never>
-export type CollectionsQuery = { __typename?: 'Query'; collections: CollectionSummary[] }
-
-export type CollectionQueryVariables = { id: string }
-export type CollectionQuery = { __typename?: 'Query'; collection: CollectionDetail }
-
+import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
 export type CreateCollectionInput = {
-  slug: string
-  isPublished?: boolean
-  seoNoindex?: boolean
-  metadata?: Array<{ key: string; value: string }>
-  privateMetadata?: Array<{ key: string; value: string }>
-  locale: string
-  name: string
-  description?: unknown
-  metaTitle?: string
-  metaDescription?: string
-  metaKeywords?: string
-}
+  description?: unknown;
+  isPublished?: boolean | null | undefined;
+  locale: string;
+  metaDescription?: string | null | undefined;
+  metaKeywords?: string | null | undefined;
+  metaTitle?: string | null | undefined;
+  metadata?: Array<MetadataInput> | null | undefined;
+  name: string;
+  privateMetadata?: Array<MetadataInput> | null | undefined;
+  seoNoindex?: boolean | null | undefined;
+  slug: string;
+};
 
-export type UpdateCollectionInput = {
-  id: string
-  slug?: string
-  isPublished?: boolean
-  seoNoindex?: boolean
-  metadata?: Array<{ key: string; value: string }>
-  privateMetadata?: Array<{ key: string; value: string }>
-}
+export type FacetOverrideInput = {
+  attributeId: string | number;
+  hidden?: boolean;
+};
 
-export type UpsertCollectionContentInput = {
-  name: string
-  description?: unknown
-  metaTitle?: string
-  metaDescription?: string
-  metaKeywords?: string
-}
+export type MetadataInput = {
+  key: string;
+  value: string;
+};
+
+export type ProductMediaStatus =
+  | 'PENDING'
+  | 'READY';
 
 export type RequestCollectionCoverUploadInput = {
-  collectionId: string
-  filename: string
-  mimeType: string
-  sizeBytes: number
-  altText?: string
-}
+  altText?: string | null | undefined;
+  collectionId: string | number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+};
 
-export type CreateCollectionMutationVariables = { input: CreateCollectionInput }
-export type CreateCollectionMutation = {
-  __typename?: 'Mutation'
-  createCollection: { __typename?: 'Collection'; id: string; slug: string; name?: string | null }
-}
+export type UpdateCollectionInput = {
+  id: string | number;
+  isPublished?: boolean | null | undefined;
+  metadata?: Array<MetadataInput> | null | undefined;
+  privateMetadata?: Array<MetadataInput> | null | undefined;
+  seoNoindex?: boolean | null | undefined;
+  slug?: string | null | undefined;
+};
 
-export type UpdateCollectionMutationVariables = { input: UpdateCollectionInput }
-export type UpdateCollectionMutation = {
-  __typename?: 'Mutation'
-  updateCollection: {
-    __typename?: 'Collection'
-    id: string
-    slug: string
-    isPublished: boolean
-    seoNoindex: boolean
-    updatedAt: string
-    metadata: MetadataEntry[]
-    privateMetadata: MetadataEntry[]
-  }
-}
+export type UpsertCollectionContentInput = {
+  description?: unknown;
+  metaDescription?: string | null | undefined;
+  metaKeywords?: string | null | undefined;
+  metaTitle?: string | null | undefined;
+  name: string;
+};
 
-export type DeleteCollectionMutationVariables = { id: string }
-export type DeleteCollectionMutation = { __typename?: 'Mutation'; deleteCollection: boolean }
+export type CollectionsQueryVariables = Exact<{ [key: string]: never; }>;
 
-export type UpsertCollectionContentMutationVariables = {
-  collectionId: string
-  locale: string
-  input: UpsertCollectionContentInput
-}
-export type UpsertCollectionContentMutation = {
-  __typename?: 'Mutation'
-  upsertCollectionContent: {
-    __typename?: 'Collection'
-    id: string
-    name?: string | null
-    description?: unknown | null
-    metaTitle?: string | null
-    metaDescription?: string | null
-    metaKeywords?: string | null
-    updatedAt: string
-    content: CollectionContent[]
-  }
-}
 
-export type DeleteCollectionContentMutationVariables = { collectionId: string; locale: string }
-export type DeleteCollectionContentMutation = {
-  __typename?: 'Mutation'
-  deleteCollectionContent: boolean
-}
+export type CollectionsQuery = { collections: Array<{ id: string, slug: string, isPublished: boolean, seoNoindex: boolean, name: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string }>, coverImage: { url: string, altText: string, status: Types.ProductMediaStatus } | null, products: Array<{ id: string }> }> };
 
-export type AddProductToCollectionMutationVariables = {
-  collectionId: string
-  productId: string
-  sortOrder?: number
-}
-export type RemoveProductFromCollectionMutationVariables = {
-  collectionId: string
-  productId: string
-}
-export type ReorderCollectionProductsMutationVariables = {
-  collectionId: string
-  productIds: string[]
-}
+export type CollectionQueryVariables = Exact<{
+  id: string | number;
+}>;
 
-type CollectionProductsMutationPayload = {
-  __typename?: 'Mutation'
-  addProductToCollection?: {
-    __typename?: 'Collection'
-    id: string
-    updatedAt: string
-    products: CollectionProduct[]
-  }
-  removeProductFromCollection?: {
-    __typename?: 'Collection'
-    id: string
-    updatedAt: string
-    products: CollectionProduct[]
-  }
-  reorderCollectionProducts?: {
-    __typename?: 'Collection'
-    id: string
-    updatedAt: string
-    products: CollectionProduct[]
-  }
-}
 
-export type AddProductToCollectionMutation = Required<
-  Pick<CollectionProductsMutationPayload, '__typename' | 'addProductToCollection'>
->
-export type RemoveProductFromCollectionMutation = Required<
-  Pick<CollectionProductsMutationPayload, '__typename' | 'removeProductFromCollection'>
->
-export type ReorderCollectionProductsMutation = Required<
-  Pick<CollectionProductsMutationPayload, '__typename' | 'reorderCollectionProducts'>
->
+export type CollectionQuery = { collection: { id: string, slug: string, isPublished: boolean, seoNoindex: boolean, name: string | null, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, products: Array<{ id: string, name: string | null, sku: string, defaultPrice: number, defaultCurrencyCode: string, thumbnail: { id: string, url: string, altText: string, status: Types.ProductMediaStatus } | null }>, metadata: Array<{ key: string, value: string }>, privateMetadata: Array<{ key: string, value: string }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
 
-export type RequestCollectionCoverUploadMutationVariables = {
-  input: RequestCollectionCoverUploadInput
-}
-export type RequestCollectionCoverUploadMutation = {
-  __typename?: 'Mutation'
-  requestCollectionCoverUpload: {
-    __typename?: 'RequestCoverUploadPayload'
-    uploadUrl: string
-    expiresAt: string
-    collection: { __typename?: 'Collection'; id: string; slug: string }
-  }
-}
+export type SetCollectionFacetOverridesMutationVariables = Exact<{
+  collectionId: string | number;
+  overrides: Array<Types.FacetOverrideInput> | Types.FacetOverrideInput;
+}>;
 
-export type ConfirmCollectionCoverUploadMutationVariables = {
-  collectionId: string
-  width: number
-  height: number
-}
-export type ConfirmCollectionCoverUploadMutation = {
-  __typename?: 'Mutation'
-  confirmCollectionCoverUpload: {
-    __typename?: 'Collection'
-    id: string
-    updatedAt: string
-    coverImage?: CollectionCover | null
-  }
-}
 
-export type ClearCollectionCoverMutationVariables = { collectionId: string }
-export type ClearCollectionCoverMutation = {
-  __typename?: 'Mutation'
-  clearCollectionCover: {
-    __typename?: 'Collection'
-    id: string
-    updatedAt: string
-    coverImage?: CollectionCover | null
-  }
-}
+export type SetCollectionFacetOverridesMutation = { setCollectionFacetOverrides: { id: string, updatedAt: string } };
 
-// Flat product list for the "add product" picker on the collection page.
-// Keyed by id because addProductToCollection takes a productId, not a SKU.
-export type CollectionProductPickerQueryVariables = Record<string, never>
-export type CollectionProductPickerQuery = {
-  __typename?: 'Query'
-  products: Array<{
-    __typename?: 'Product'
-    id: string
-    sku?: string | null
-    name?: string | null
-  }>
-}
+export type CreateCollectionMutationVariables = Exact<{
+  input: Types.CreateCollectionInput;
+}>;
 
-export const CollectionProductPickerDocument = gql`
-  query CollectionProductPicker {
-    products {
-      id
-      sku
-      name
-    }
-  }
-` as unknown as DocumentNode<
-  CollectionProductPickerQuery,
-  CollectionProductPickerQueryVariables
->
 
-export const CollectionsDocument = gql`
-  query Collections {
-    collections {
-      id
-      slug
-      isPublished
-      seoNoindex
-      name
-      content {
-        locale
-        name
-      }
-      coverImage {
-        url
-        altText
-        status
-      }
-      products {
-        id
-      }
-      createdAt
-      updatedAt
-    }
-  }
-` as unknown as DocumentNode<CollectionsQuery, CollectionsQueryVariables>
+export type CreateCollectionMutation = { createCollection: { id: string, slug: string, name: string | null } };
 
-export const CollectionDocument = gql`
-  query Collection($id: ID!) {
-    collection(id: $id) {
-      id
-      slug
-      isPublished
-      seoNoindex
-      name
-      description
-      metaTitle
-      metaDescription
-      metaKeywords
-      contentLocale
-      content {
-        locale
-        name
-        description
-        metaTitle
-        metaDescription
-        metaKeywords
-        updatedAt
-      }
-      coverImage {
-        url
-        altText
-        width
-        height
-        mimeType
-        status
-      }
-      products {
-        id
-        name
-        sku
-        defaultPrice
-        defaultCurrencyCode
-        thumbnail {
-          id
-          url
-          altText
-          status
-        }
-      }
-      metadata {
-        key
-        value
-      }
-      privateMetadata {
-        key
-        value
-      }
-      facetOverrides {
-        attributeId
-        attributeSlug
-        sortOrder
-        hidden
-      }
-      createdAt
-      updatedAt
-    }
-  }
-` as unknown as DocumentNode<CollectionQuery, CollectionQueryVariables>
+export type UpdateCollectionMutationVariables = Exact<{
+  input: Types.UpdateCollectionInput;
+}>;
 
-export type SetCollectionFacetOverridesMutationVariables = {
-  collectionId: string
-  overrides: Array<{ attributeId: string; hidden?: boolean }>
-}
-export type SetCollectionFacetOverridesMutation = {
-  __typename?: 'Mutation'
-  setCollectionFacetOverrides: { id: string; updatedAt: string }
-}
 
-// List order IS the storefront order; an empty list resets the collection to defaults
-export const SetCollectionFacetOverridesDocument = gql`
-  mutation SetCollectionFacetOverrides($collectionId: ID!, $overrides: [FacetOverrideInput!]!) {
-    setCollectionFacetOverrides(collectionId: $collectionId, overrides: $overrides) {
-      id
-      updatedAt
-    }
-  }
-` as unknown as DocumentNode<
-  SetCollectionFacetOverridesMutation,
-  SetCollectionFacetOverridesMutationVariables
->
+export type UpdateCollectionMutation = { updateCollection: { id: string, slug: string, isPublished: boolean, seoNoindex: boolean, updatedAt: string, metadata: Array<{ key: string, value: string }>, privateMetadata: Array<{ key: string, value: string }> } };
 
-export const CreateCollectionDocument = gql`
-  mutation CreateCollection($input: CreateCollectionInput!) {
-    createCollection(input: $input) {
-      id
-      slug
-      name
-    }
-  }
-` as unknown as DocumentNode<CreateCollectionMutation, CreateCollectionMutationVariables>
+export type DeleteCollectionMutationVariables = Exact<{
+  id: string | number;
+}>;
 
-export const UpdateCollectionDocument = gql`
-  mutation UpdateCollection($input: UpdateCollectionInput!) {
-    updateCollection(input: $input) {
-      id
-      slug
-      isPublished
-      seoNoindex
-      updatedAt
-      metadata {
-        key
-        value
-      }
-      privateMetadata {
-        key
-        value
-      }
-    }
-  }
-` as unknown as DocumentNode<UpdateCollectionMutation, UpdateCollectionMutationVariables>
 
-export const DeleteCollectionDocument = gql`
-  mutation DeleteCollection($id: ID!) {
-    deleteCollection(id: $id)
-  }
-` as unknown as DocumentNode<DeleteCollectionMutation, DeleteCollectionMutationVariables>
+export type DeleteCollectionMutation = { deleteCollection: boolean };
 
-export const UpsertCollectionContentDocument = gql`
-  mutation UpsertCollectionContent(
-    $collectionId: ID!
-    $locale: String!
-    $input: UpsertCollectionContentInput!
-  ) {
-    upsertCollectionContent(collectionId: $collectionId, locale: $locale, input: $input) {
-      id
-      name
-      description
-      metaTitle
-      metaDescription
-      metaKeywords
-      updatedAt
-      content {
-        locale
-        name
-        description
-        metaTitle
-        metaDescription
-        metaKeywords
-        updatedAt
-      }
-    }
-  }
-` as unknown as DocumentNode<
-  UpsertCollectionContentMutation,
-  UpsertCollectionContentMutationVariables
->
+export type UpsertCollectionContentMutationVariables = Exact<{
+  collectionId: string | number;
+  locale: string;
+  input: Types.UpsertCollectionContentInput;
+}>;
 
-export const DeleteCollectionContentDocument = gql`
-  mutation DeleteCollectionContent($collectionId: ID!, $locale: String!) {
-    deleteCollectionContent(collectionId: $collectionId, locale: $locale)
-  }
-` as unknown as DocumentNode<
-  DeleteCollectionContentMutation,
-  DeleteCollectionContentMutationVariables
->
 
-const collectionProductsSelection = gql`
-  fragment CollectionProductsSelection on Collection {
-    id
-    updatedAt
-    products {
-      id
-      name
-      sku
-      defaultPrice
-      defaultCurrencyCode
-      thumbnail {
-        id
-        url
-        altText
-        status
-      }
-    }
-  }
-`
+export type UpsertCollectionContentMutation = { upsertCollectionContent: { id: string, name: string | null, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string, content: Array<{ locale: string, name: string, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }> } };
 
-export const AddProductToCollectionDocument = gql`
-  mutation AddProductToCollection($collectionId: ID!, $productId: ID!, $sortOrder: Int) {
-    addProductToCollection(collectionId: $collectionId, productId: $productId, sortOrder: $sortOrder) {
-      ...CollectionProductsSelection
-    }
-  }
-  ${collectionProductsSelection}
-` as unknown as DocumentNode<
-  AddProductToCollectionMutation,
-  AddProductToCollectionMutationVariables
->
+export type DeleteCollectionContentMutationVariables = Exact<{
+  collectionId: string | number;
+  locale: string;
+}>;
 
-export const RemoveProductFromCollectionDocument = gql`
-  mutation RemoveProductFromCollection($collectionId: ID!, $productId: ID!) {
-    removeProductFromCollection(collectionId: $collectionId, productId: $productId) {
-      ...CollectionProductsSelection
-    }
-  }
-  ${collectionProductsSelection}
-` as unknown as DocumentNode<
-  RemoveProductFromCollectionMutation,
-  RemoveProductFromCollectionMutationVariables
->
 
-export const ReorderCollectionProductsDocument = gql`
-  mutation ReorderCollectionProducts($collectionId: ID!, $productIds: [ID!]!) {
-    reorderCollectionProducts(collectionId: $collectionId, productIds: $productIds) {
-      ...CollectionProductsSelection
-    }
-  }
-  ${collectionProductsSelection}
-` as unknown as DocumentNode<
-  ReorderCollectionProductsMutation,
-  ReorderCollectionProductsMutationVariables
->
+export type DeleteCollectionContentMutation = { deleteCollectionContent: boolean };
 
-export const RequestCollectionCoverUploadDocument = gql`
-  mutation RequestCollectionCoverUpload($input: RequestCollectionCoverUploadInput!) {
-    requestCollectionCoverUpload(input: $input) {
-      uploadUrl
-      expiresAt
-      collection {
-        id
-        slug
-      }
-    }
-  }
-` as unknown as DocumentNode<
-  RequestCollectionCoverUploadMutation,
-  RequestCollectionCoverUploadMutationVariables
->
+export type CollectionProductsSelectionFragment = { id: string, updatedAt: string, products: Array<{ id: string, name: string | null, sku: string, defaultPrice: number, defaultCurrencyCode: string, thumbnail: { id: string, url: string, altText: string, status: Types.ProductMediaStatus } | null }> };
 
-export const ConfirmCollectionCoverUploadDocument = gql`
-  mutation ConfirmCollectionCoverUpload($collectionId: ID!, $width: Int!, $height: Int!) {
-    confirmCollectionCoverUpload(collectionId: $collectionId, width: $width, height: $height) {
-      id
-      updatedAt
-      coverImage {
-        url
-        altText
-        width
-        height
-        mimeType
-        status
-      }
-    }
-  }
-` as unknown as DocumentNode<
-  ConfirmCollectionCoverUploadMutation,
-  ConfirmCollectionCoverUploadMutationVariables
->
+export type AddProductToCollectionMutationVariables = Exact<{
+  collectionId: string | number;
+  productId: string | number;
+  sortOrder?: number | null | undefined;
+}>;
 
-export const ClearCollectionCoverDocument = gql`
-  mutation ClearCollectionCover($collectionId: ID!) {
-    clearCollectionCover(collectionId: $collectionId) {
-      id
-      updatedAt
-      coverImage {
-        url
-        altText
-        width
-        height
-        mimeType
-        status
-      }
-    }
-  }
-` as unknown as DocumentNode<
-  ClearCollectionCoverMutation,
-  ClearCollectionCoverMutationVariables
->
+
+export type AddProductToCollectionMutation = { addProductToCollection: { id: string, updatedAt: string, products: Array<{ id: string, name: string | null, sku: string, defaultPrice: number, defaultCurrencyCode: string, thumbnail: { id: string, url: string, altText: string, status: Types.ProductMediaStatus } | null }> } };
+
+export type RemoveProductFromCollectionMutationVariables = Exact<{
+  collectionId: string | number;
+  productId: string | number;
+}>;
+
+
+export type RemoveProductFromCollectionMutation = { removeProductFromCollection: { id: string, updatedAt: string, products: Array<{ id: string, name: string | null, sku: string, defaultPrice: number, defaultCurrencyCode: string, thumbnail: { id: string, url: string, altText: string, status: Types.ProductMediaStatus } | null }> } };
+
+export type ReorderCollectionProductsMutationVariables = Exact<{
+  collectionId: string | number;
+  productIds: Array<string | number> | string | number;
+}>;
+
+
+export type ReorderCollectionProductsMutation = { reorderCollectionProducts: { id: string, updatedAt: string, products: Array<{ id: string, name: string | null, sku: string, defaultPrice: number, defaultCurrencyCode: string, thumbnail: { id: string, url: string, altText: string, status: Types.ProductMediaStatus } | null }> } };
+
+export type RequestCollectionCoverUploadMutationVariables = Exact<{
+  input: Types.RequestCollectionCoverUploadInput;
+}>;
+
+
+export type RequestCollectionCoverUploadMutation = { requestCollectionCoverUpload: { uploadUrl: string, expiresAt: string, collection: { id: string, slug: string } } };
+
+export type ConfirmCollectionCoverUploadMutationVariables = Exact<{
+  collectionId: string | number;
+  width: number;
+  height: number;
+}>;
+
+
+export type ConfirmCollectionCoverUploadMutation = { confirmCollectionCoverUpload: { id: string, updatedAt: string, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null } };
+
+export type ClearCollectionCoverMutationVariables = Exact<{
+  collectionId: string | number;
+}>;
+
+
+export type ClearCollectionCoverMutation = { clearCollectionCover: { id: string, updatedAt: string, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null } };
+
+export const CollectionProductsSelectionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CollectionProductsSelection"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Collection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"defaultPrice"}},{"kind":"Field","name":{"kind":"Name","value":"defaultCurrencyCode"}},{"kind":"Field","name":{"kind":"Name","value":"thumbnail"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<CollectionProductsSelectionFragment, unknown>;
+export const CollectionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Collections"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"collections"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]}}]} as unknown as DocumentNode<CollectionsQuery, CollectionsQueryVariables>;
+export const CollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Collection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"collection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"defaultPrice"}},{"kind":"Field","name":{"kind":"Name","value":"defaultCurrencyCode"}},{"kind":"Field","name":{"kind":"Name","value":"thumbnail"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"metadata"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"privateMetadata"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]}}]} as unknown as DocumentNode<CollectionQuery, CollectionQueryVariables>;
+export const SetCollectionFacetOverridesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SetCollectionFacetOverrides"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"overrides"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"FacetOverrideInput"}}}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"setCollectionFacetOverrides"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"overrides"},"value":{"kind":"Variable","name":{"kind":"Name","value":"overrides"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]}}]} as unknown as DocumentNode<SetCollectionFacetOverridesMutation, SetCollectionFacetOverridesMutationVariables>;
+export const CreateCollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateCollection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateCollectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createCollection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<CreateCollectionMutation, CreateCollectionMutationVariables>;
+export const UpdateCollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateCollection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateCollectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateCollection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"privateMetadata"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}}]}}]}}]} as unknown as DocumentNode<UpdateCollectionMutation, UpdateCollectionMutationVariables>;
+export const DeleteCollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteCollection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteCollection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteCollectionMutation, DeleteCollectionMutationVariables>;
+export const UpsertCollectionContentDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpsertCollectionContent"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"locale"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpsertCollectionContentInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"upsertCollectionContent"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"locale"},"value":{"kind":"Variable","name":{"kind":"Name","value":"locale"}}},{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]}}]}}]} as unknown as DocumentNode<UpsertCollectionContentMutation, UpsertCollectionContentMutationVariables>;
+export const DeleteCollectionContentDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteCollectionContent"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"locale"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteCollectionContent"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"locale"},"value":{"kind":"Variable","name":{"kind":"Name","value":"locale"}}}]}]}}]} as unknown as DocumentNode<DeleteCollectionContentMutation, DeleteCollectionContentMutationVariables>;
+export const AddProductToCollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"AddProductToCollection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"productId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sortOrder"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"addProductToCollection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"productId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"productId"}}},{"kind":"Argument","name":{"kind":"Name","value":"sortOrder"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sortOrder"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CollectionProductsSelection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CollectionProductsSelection"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Collection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"defaultPrice"}},{"kind":"Field","name":{"kind":"Name","value":"defaultCurrencyCode"}},{"kind":"Field","name":{"kind":"Name","value":"thumbnail"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<AddProductToCollectionMutation, AddProductToCollectionMutationVariables>;
+export const RemoveProductFromCollectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RemoveProductFromCollection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"productId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeProductFromCollection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"productId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"productId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CollectionProductsSelection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CollectionProductsSelection"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Collection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"defaultPrice"}},{"kind":"Field","name":{"kind":"Name","value":"defaultCurrencyCode"}},{"kind":"Field","name":{"kind":"Name","value":"thumbnail"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<RemoveProductFromCollectionMutation, RemoveProductFromCollectionMutationVariables>;
+export const ReorderCollectionProductsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ReorderCollectionProducts"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"productIds"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"reorderCollectionProducts"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"productIds"},"value":{"kind":"Variable","name":{"kind":"Name","value":"productIds"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CollectionProductsSelection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CollectionProductsSelection"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Collection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"defaultPrice"}},{"kind":"Field","name":{"kind":"Name","value":"defaultCurrencyCode"}},{"kind":"Field","name":{"kind":"Name","value":"thumbnail"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<ReorderCollectionProductsMutation, ReorderCollectionProductsMutationVariables>;
+export const RequestCollectionCoverUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RequestCollectionCoverUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RequestCollectionCoverUploadInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"requestCollectionCoverUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uploadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"collection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}}]}}]}}]}}]} as unknown as DocumentNode<RequestCollectionCoverUploadMutation, RequestCollectionCoverUploadMutationVariables>;
+export const ConfirmCollectionCoverUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ConfirmCollectionCoverUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"width"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"height"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"confirmCollectionCoverUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"width"},"value":{"kind":"Variable","name":{"kind":"Name","value":"width"}}},{"kind":"Argument","name":{"kind":"Name","value":"height"},"value":{"kind":"Variable","name":{"kind":"Name","value":"height"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<ConfirmCollectionCoverUploadMutation, ConfirmCollectionCoverUploadMutationVariables>;
+export const ClearCollectionCoverDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ClearCollectionCover"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"clearCollectionCover"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"collectionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"collectionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<ClearCollectionCoverMutation, ClearCollectionCoverMutationVariables>;

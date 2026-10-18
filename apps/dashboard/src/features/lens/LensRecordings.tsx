@@ -14,6 +14,8 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensSessionsQuery, LensSessionsDocument } from './Lens.gql'
+import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
+import { formatDateTime } from '@/lib/format'
 
 type Row = LensSessionsQuery['lensSessions'][number]
 
@@ -21,11 +23,6 @@ function fmtDur(ms: number): string {
   const s = Math.round(ms / 1000)
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
 }
-function fmtWhen(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
 // LensRecordings is the channel-wide session-replay browser - a catalog-style data table (search / sort / paginate)
 // with a faceted filter to split logged-in customers from anonymous visitors - A row opens the rrweb player
 export function LensRecordings() {
@@ -36,7 +33,13 @@ export function LensRecordings() {
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
   })
-  const sessions = data?.lensSessions ?? []
+  const sessions = useMemo(() => data?.lensSessions ?? [], [data])
+
+  const customerIds = useMemo(
+    () => [...new Set(sessions.flatMap((s) => (s.customerId ? [s.customerId] : [])))],
+    [sessions],
+  )
+  const nameById = useCustomerNames(customerIds)
 
   const columns = useMemo<ColumnDef<Row>[]>(
     () => [
@@ -53,7 +56,7 @@ export function LensRecordings() {
           const cust = !!s.customerId
           // Tie through to the visitor's Synapse profile (customer or anon)
           const to = cust ? `/synapse/customers/${s.customerId}` : `/synapse/visitors/${s.anonId}`
-          const label = cust ? s.customerName || s.customerEmail || s.customerId!.slice(0, 8) : `${s.anonId.slice(0, 8)}…`
+          const label = cust ? customerLabel(nameById.get(s.customerId!), s.customerId!) : `${s.anonId.slice(0, 8)}…`
           return (
             <div className="flex min-w-0 items-center gap-2">
               <Badge variant={cust ? 'default' : 'secondary'} className="shrink-0 text-[10px]">
@@ -69,7 +72,7 @@ export function LensRecordings() {
       {
         accessorKey: 'startedAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Started" />,
-        cell: ({ row }) => <span className="whitespace-nowrap text-sm">{fmtWhen(row.original.startedAt)}</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap text-sm">{formatDateTime(row.original.startedAt)}</span>,
       },
       {
         id: 'duration',
@@ -126,12 +129,12 @@ export function LensRecordings() {
           return (
             <div className="flex items-center gap-1.5">
               {r.rageCount > 0 ? (
-                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" title="rage clicks">
+                <span className="rounded-full bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning" title="rage clicks">
                   😡 {r.rageCount}
                 </span>
               ) : null}
               {r.errorCount > 0 ? (
-                <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:text-red-400" title="JS errors">
+                <span className="rounded-full bg-destructive-soft px-1.5 py-0.5 text-[11px] font-medium text-destructive" title="JS errors">
                   ⚠ {r.errorCount}
                 </span>
               ) : null}
@@ -150,7 +153,7 @@ export function LensRecordings() {
         ),
       },
     ],
-    [],
+    [nameById],
   )
 
   return (

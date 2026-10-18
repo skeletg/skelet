@@ -31,8 +31,7 @@ import { DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-p
 import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope } from '@/lib/config-scope'
 import { LibraryEmailsDocument } from '@/features/emails/Emails.gql'
-import { TriggerNode, EmailNode, SMSNode, WaitNode, SplitNode, SegmentNode, WebhookNode, RemoteActionNode } from './FlowNodes'
-import { RemoteProvidersDocument } from '@/features/remote-providers/RemoteProviders.gql'
+import { TriggerNode, EmailNode, SMSNode, WaitNode, SplitNode, SegmentNode, WebhookNode } from './FlowNodes'
 import { ConditionEditor } from './ConditionEditor'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -45,14 +44,8 @@ import {
   type FlowCondition,
   type FlowNodeData,
 } from './flowTypes'
-import {
-  CreateFlowDocument,
-  FlowDocument,
-  FlowSegmentsDocument,
-  FlowTriggerTypesDocument,
-  SetFlowStatusDocument,
-  UpdateFlowDocument,
-} from './Flows.gql'
+import { CreateFlowDocument, FlowDocument, FlowSegmentsDocument, FlowTriggerTypesDocument, SetFlowStatusDocument, UpdateFlowDocument } from './Flows.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -151,7 +144,7 @@ function Builder({ initial, onCreated }: { initial: LoadedFlow; onCreated: (id: 
   const [saving, setSaving] = useState(false)
 
   const nodeTypes = useMemo(
-    () => ({ trigger: TriggerNode, send_email: EmailNode, send_sms: SMSNode, wait: WaitNode, split: SplitNode, add_segment: SegmentNode, webhook: WebhookNode, remote_action: RemoteActionNode }),
+    () => ({ trigger: TriggerNode, send_email: EmailNode, send_sms: SMSNode, wait: WaitNode, split: SplitNode, add_segment: SegmentNode, webhook: WebhookNode }),
     [],
   )
 
@@ -386,12 +379,8 @@ function ConfigPanel({
   transactional: boolean
   onTransactional: (v: boolean) => void
 }) {
-  // Remote flow_action providers for the remote_action node picker
-  const { data: rpData } = useQuery(RemoteProvidersDocument)
-  const flowActionProviders = (rpData?.remoteProviders ?? []).filter(
-    (p) => p.kind === 'FLOW_ACTION' && p.isActive,
-  )
-
+  // A new email needs emails.manage - editing a campaign or flow doesn't bring it
+  const canCreateEmail = usePermissions().has('emails.manage')
   if (!selected) {
     return (
       <div className="grid gap-4">
@@ -485,9 +474,11 @@ function ConfigPanel({
                 Edit this email
               </Link>
             )}
-            <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
-              New email
-            </Link>
+            {canCreateEmail && (
+              <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
+                New email
+              </Link>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">Build emails in Marketing → Emails, then pick one here.</p>
         </div>
@@ -558,33 +549,6 @@ function ConfigPanel({
           <Label className="text-xs">POST URL</Label>
           <Input value={d.url ?? ''} onChange={(e) => patch({ url: e.target.value })} placeholder="https://example.com/hook" />
           <p className="text-xs text-muted-foreground">Fire-and-forget. Receives {`{ flowId, customerId, context }`}. Private hosts are blocked.</p>
-        </div>
-      )}
-
-      {selected.type === 'remote_action' && (
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Remote provider</Label>
-          <Select value={d.provider ?? ''} onValueChange={(v) => patch({ provider: v })}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a flow_action provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {flowActionProviders.map((p) => (
-                <SelectItem key={p.id} value={p.slug}>
-                  {p.name} ({p.slug})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {flowActionProviders.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              No flow_action providers yet. Register one under Developer → Remote providers.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Waits for the response and merges its <code>context</code> into the run; an optional{' '}
-            <code>branch</code> steers a labeled edge.
-          </p>
         </div>
       )}
 

@@ -34,17 +34,15 @@ diff but breaks every plugin implementing it, and apidiff says so. `sdk/sdktest`
 ships a fake host so a plugin can be tested without booting the app, and it is
 covered by the same gates.
 
-`apps/backend/plugins/example` exercises every registration verb - start there.
-`apps/backend/plugins/plugins.json` decides which plugin directories compile in.
+`apps/backend/core/plugins/example` exercises every registration verb - start there.
+`apps/backend/core/plugins/plugins.json` decides which plugin directories compile in.
 
-The six first-party payment gateways - Stripe, Braintree, PayPal, Klarna, Mollie
-and Affirm - each live in their own repository, named after the plugin slug
-(`payment-stripe`, `payment-braintree`, ...). Naming the repo after the slug is
-what makes the install need no flags. A deployment that takes card payment
-installs the ones it needs:
+Payment gateways are plugins too, each in its own repository named after its slug - naming the
+repo after the slug is what makes the install need no flags. A deployment that takes card
+payment installs the gateway it needs:
 
 ```
-bin/cli plugin add github.com/skeletg/payment-stripe@<version>
+./skelet cli plugin add github.com/acme/payment-gateway@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
@@ -60,8 +58,8 @@ to reach for.
 **`plugin add` - a Go module dependency.** Nothing is copied into this repo:
 
 ```
-bin/cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+./skelet cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+./skelet cli plugin add github.com/acme/skelet-plugin-fraud        # latest
 ```
 
 `go get` fetches it, `plugins/plugins.json` records the module path, and
@@ -69,7 +67,7 @@ bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
 `go.sum`, one copy instead of two, and `go get -u` as the upgrade path.
 
 A module plugin's GraphQL SDL lives read-only in the module cache at a path that carries
-its version and differs per machine, so `bin/codegen` copies it into `plugins/.modules/`
+its version and differs per machine, so `./skelet gen` copies it into `plugins/.modules/`
 first (git-ignored, rebuilt every run) and points gqlgen there. That directory is derived
 output - delete it whenever.
 
@@ -81,8 +79,8 @@ module cache or in-tree, never behind a `replace` pointing at a checkout elsewhe
 no `go.mod`, or no repo you can fetch from.
 
 ```
-bin/cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin install ../my-plugin --slug my-plugin
+./skelet cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
+./skelet cli plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
@@ -105,8 +103,27 @@ platform needs (quoting tax, rating a shipment) rather than observing an event.
 No Go, no rebuild, any language.
 
 Full contract, the signed envelope and the per-kind schemas:
-[remote-providers.md](remote-providers.md). `bin/provider-check` conformance-tests
+[remote-providers.md](remote-providers.md). `./skelet provider` conformance-tests
 an endpoint against it.
+
+## Configure payment plugins in the dashboard
+
+**Settings → Payment providers** lists installed gateway plugins, their versions and
+runtime status. Select a provider to edit its registered credentials and test/live
+settings using the page-header Save. Secret values stay masked and are not stored in
+browser drafts. The page shows the backend webhook path; with a channel selected it
+includes the channel routing parameter. Plugin runtime enablement follows its registered
+scope, so the built-in plugin switch is edited at Global scope.
+
+**Settings → Checkout → Payment** controls which registered methods a channel offers,
+their country rules, checkout labels, display order and manual-payment instructions.
+A disabled plugin is excluded from eligible methods and cannot be enabled for checkout.
+Restarting the backend preserves merchant labels and ordering.
+
+Installing still requires adding a compatible plugin module and rebuilding the backend;
+the dashboard does not install code. Backend installation does not install card-entry
+or authentication UI in a storefront. Each gateway needs its matching storefront integration.
+Runtime status reports whether the plugin can run; it is not a credential or connectivity test.
 
 ## What the SDK gives a gateway author
 
@@ -123,7 +140,7 @@ an endpoint against it.
   exact footprint and a second plugin claiming the same key fails at boot naming both.
 - **`Manifest.SecurityOrigins`** - the browser-side origins your integration needs
   (script/connect/frame/form-action/payment). `cmd/secheadgen` composes them into the
-  CSP and Permissions-Policy during `bin/codegen`, so installing a gateway never means
+  CSP and Permissions-Policy during `./skelet gen`, so installing a gateway never means
   editing core's security headers.
 - **Channel-scoped webhooks** - register the gateway push URL with `?channel=<uuid>`
   and `WebhookRequest.ChannelID` carries it; config reads and the kill switch then
@@ -132,8 +149,8 @@ an endpoint against it.
 ## What the SDK gives a plugin that owns a domain
 
 A gateway is the small case. A plugin that owns tables, a graph surface and a place in the
-money path needs more, and the `b2b` plugin is the reference for all of it - company accounts,
-credit lines, quotes and on-account payment, all out of tree.
+money path needs more - say company accounts with credit lines and their own checkout tender,
+all out of tree. This is what the SDK gives it.
 
 - **`sdk.Database()`** - the application pool, for a plugin whose own migrations created
   tables to read on the request path. The same pool core uses, not a sandbox: scope your SQL
@@ -178,8 +195,8 @@ a zone like `cart:summary` or `cart:actions`.
 
 Everything in the storefront registry is client-safe on purpose. The host components are all
 `"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
-data calls its own `"use server"` action from the slot, which is how `b2b` shows a credit
-hint without core ever fetching a company on its behalf.
+data calls its own `"use server"` action from the slot, which is how a plugin shows its own
+data at checkout without core fetching it on the plugin's behalf.
 
 `loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
 `plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,
@@ -203,7 +220,7 @@ own directory and drives it the way core's own scenarios do:
 ```go
 package myplugin_test
 
-import "github.com/skeletg/skelet/apps/backend/internal/e2ekit"
+import "github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
 
 // Embedded, so the plugin's own helpers can hang off it
 type harness struct{ *e2ekit.Harness }
@@ -218,12 +235,13 @@ func TestCreditIsReservedInThePlacementTx(t *testing.T) {
 }
 ```
 
-`bin/test-e2e` runs `./plugins/...` alongside `./internal/e2e/...`, so these go green with
+`./skelet test e2e` runs `./plugins/...` alongside `./internal/e2e/...`, so these go green with
 core's suite and need no copying into it. The depguard rule that bars `plugins/**` from
 importing `internal/` carries `"!$test"`, which is what makes the import above legal.
 
-The `b2b` plugin is the worked example: credit reserved inside the placement transaction,
-released on cancel, prorated to the unshipped share, idempotent under outbox redelivery.
+A credit-line tender is the case this was built for: credit reserved inside the placement
+transaction, released on cancel, prorated to the unshipped share, idempotent under outbox
+redelivery.
 
 ## Known limitations
 

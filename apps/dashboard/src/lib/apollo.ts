@@ -17,6 +17,9 @@ import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
 import { devMonitorLink } from '@/lib/dev-monitor'
 import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { typePolicies } from '@/lib/apollo-type-policies'
+import { setSignalsDown } from '@/shared/signals/health'
+import { signalsHealthLink } from '@/shared/signals/health-link'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
 
@@ -124,8 +127,17 @@ function isUnauthError(error: unknown): boolean {
   return maybeHttp.statusCode === 401 || maybeHttp.status === 401
 }
 
+// Core relays an unreachable suite under one code, so the banner no longer has to guess from a transport failure
+function isSignalsUnavailable(error: unknown): boolean {
+  return (
+    error instanceof CombinedGraphQLErrors &&
+    error.errors.some((e) => e.extensions?.code === 'SIGNALS_UNAVAILABLE')
+  )
+}
+
 const errorLink = new ErrorLink(({ error, operation, forward }) => {
   const opName = operation.operationName
+  if (isSignalsUnavailable(error)) setSignalsDown(true)
   if (opName === 'AdminLogin' || opName === 'RefreshToken') return
   if (!isUnauthError(error)) return
 
@@ -185,12 +197,12 @@ const transportLink = ApolloLink.split(
     return def.kind === 'OperationDefinition' && def.operation === 'subscription'
   },
   wsLink,
-  terminalLink,
+  signalsHealthLink.concat(terminalLink),
 )
 
 export const apolloClient = new ApolloClient({
   link: errorLink.concat(authLink).concat(localeLink).concat(channelLink).concat(transportLink),
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({ typePolicies }),
   // Admin panel - both useQuery and client.query() skip cached reads and always hit the
   // network, while the cache still fills so refetchQueries and post-mutation writes work
   defaultOptions: {

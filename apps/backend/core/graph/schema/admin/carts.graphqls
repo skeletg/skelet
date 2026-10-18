@@ -1,0 +1,303 @@
+# Admin "Order Manager" cart console: search/list carts, view + edit a live cart (the shopper shares it), create carts (guest / existing / new customer), duplicate, and finish a cart into an order (via createDraftOrder sourceCartId).
+# Read gated on orders.view, mutations on orders.update - both channel-scoped to the cart's channel.
+
+type AdminCart {
+  id:            ID!
+  customerId:    ID
+  customerEmail: String       # null for guest carts
+  customerName:  String       # null for guest carts
+  channelId:     ID!
+  currencyCode:  String!      # the channel's currency
+  status:        String!      # active | converted | merged
+  kind:          CartKind!
+  email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
+  # Set on an offer only
+  offer:         AdminCartOffer
+  lines:         [AdminCartLine!]!
+  subtotal:      Int!         # Σ line totals (estimate - no tax/shipping)
+  itemCount:     Int!
+  createdAt:     Time!
+  updatedAt:     Time!
+}
+
+type AdminCartLine {
+  id:          ID!
+  name:        String!
+  sku:         String!
+  unitPrice:   Int!
+  quantity:    Float!
+  totalPrice:  Int!
+  # False for bundle/configured lines - admins can view + remove those but not
+  # add new ones (v1 add is simple products only).
+  isSimple:    Boolean!
+  components:  [AdminCartLineComponent!]!
+  options:     [AdminCartLineOption!]!
+  # The admin set the price on an offer - it holds through checkout's repricing
+  priceOverride: Boolean!
+  # A free-form line added to an offer, with no catalog product behind it
+  isCustom:    Boolean!
+  taxClass:    String!
+}
+
+enum CartKind {
+  SHOPPER    # the cart a shopper builds - one active per customer and store
+  OFFER      # built by an admin for one recipient and sent as a link - never the customer's active cart
+}
+
+enum CartOfferState {
+  DRAFT      # not sent yet
+  SENT
+  OPENED     # the recipient followed the link
+  COMPLETED  # placed - orderId says which order
+  EXPIRED
+  REVOKED
+}
+
+enum CartOfferLock {
+  LINES      # items and quantities
+  BILLING    # billing address
+  SHIPPING   # shipping address
+  DELIVERY   # the delivery option and pickup point per group
+  COUPONS    # promotion codes, gift cards, store credit
+}
+
+type AdminCartOffer {
+  state:         CartOfferState!
+  expiresAt:     Time!
+  message:       String!
+  showInAccount: Boolean!
+  locks:         [CartOfferLock!]!
+  # The payment methods the recipient may choose from, by provider slug - empty leaves every method the store offers
+  paymentMethods: [String!]!
+  # The link the email carries - the same until the link is regenerated, so it can be copied and shared by hand. Empty when the channel has no public URL
+  link:          String!
+  # The link's path on the storefront (/offer/<token>) - there even when the channel has no public URL to put in front of it
+  linkPath:      String!
+  # Whether the cart has anything to deliver - SHIPPING and DELIVERY can only be locked when it does
+  needsShipping: Boolean!
+  sentAt:        Time
+  sendCount:     Int!
+  openedAt:      Time
+  revokedAt:     Time
+  orderId:       ID
+  # What the recipient will check out with - the admin fills these in, and the locks keep them
+  checkout:      AdminCartOfferCheckout!
+}
+
+type AdminCartOfferPaymentMethod {
+  slug:        String!
+  displayName: String!
+}
+
+type AdminCartOfferEmailPreview {
+  to:      String!
+  subject: String!
+  html:    String!
+  text:    String!
+  # The link the email carries
+  link:    String!
+  # False when the channel has no public URL - link is then the path alone, and the offer can't be sent
+  linkComplete: Boolean!
+}
+
+type AdminCartOfferCheckout {
+  shippingAddress:       AdminCartAddress
+  billingSameAsShipping: Boolean!
+  billingAddress:        AdminCartAddress
+  paymentProviderSlug:   String!
+  deliveries:            [AdminCartDeliverySelection!]!
+}
+
+type AdminCartAddress {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type AdminCartDeliverySelection {
+  groupKey:    String!
+  optionId:    ID!
+  carrierSlug: String!
+  methodCode:  String!
+  pointId:     String
+  pointName:   String
+}
+
+# The delivery choices for one group of an offer's lines, quoted for the offer's shipping address
+type AdminCartDeliveryGroup {
+  key:     String!
+  lines:   [String!]!     # line names, for the console to label the group
+  choices: [AdminCartDeliveryChoice!]!
+}
+
+type AdminCartDeliveryChoice {
+  optionId:    ID!
+  optionName:  String!
+  kind:        String!
+  carrierSlug: String!
+  methodCode:  String!
+  methodName:  String!
+  price:       Int!
+  needsPoint:  Boolean!    # the kind delivers to a point - pick one from adminCartDeliveryPoints
+}
+
+type AdminCartDeliveryPoint {
+  id:      String!
+  name:    String!
+  address: String!
+}
+
+type AdminCartLineComponent {
+  id:          ID!
+  sku:         String!
+  name:        String!
+  unitPrice:   Int!
+  quantity:    Float!
+}
+
+type AdminCartLineOption {
+  id:          ID!
+  optionTitle: String!
+  valueLabel:  String!
+  textValue:   String!
+  priceDelta:  Int!
+  fileUrl:     String!
+}
+
+# Cart summary row for the console list.
+type CartListItem {
+  id:            ID!
+  customerId:    ID
+  customerEmail: String
+  customerName:  String
+  channelId:     ID!
+  currencyCode:  String!
+  status:        String!
+  kind:          CartKind!
+  email:         String!
+  offerState:    CartOfferState  # set on offers
+  offerExpiresAt: Time
+  orderId:       ID
+  itemCount:     Int!
+  subtotal:      Int!
+  updatedAt:     Time!
+}
+
+type CartList {
+  items:      [CartListItem!]!
+  totalCount: Int!
+}
+
+extend type Query {
+  # Channel-scoped cart search. abandoned=true narrows to active carts untouched for a while (server threshold). customerId / search (email or name) / status are optional filters. Paged.
+  carts(
+    channelId: ID!
+    customerId: ID
+    status: String
+    kind: CartKind
+    abandoned: Boolean
+    search: String
+    limit: Int = 50
+    offset: Int = 0
+  ): CartList!
+  cart(id: ID!): AdminCart!
+  # The delivery choices of an offer's groups, quoted for the offer's shipping address - empty until one is set, and for a cart with nothing to deliver
+  adminCartDeliveryGroups(cartId: ID!): [AdminCartDeliveryGroup!]!
+  # The channel's enabled payment methods an offer can be narrowed to
+  adminCartOfferPaymentMethods(cartId: ID!): [AdminCartOfferPaymentMethod!]!
+  # The offer email as core's template renders it right now - what Send mails, unless an active Pulse flow on cart_offer sends its own design
+  adminCartOfferEmailPreview(cartId: ID!): AdminCartOfferEmailPreview!
+  # Points for a group's delivery option near the offer's shipping address
+  adminCartDeliveryPoints(cartId: ID!, groupKey: String!, optionId: ID!, search: String): [AdminCartDeliveryPoint!]!
+}
+
+input AdminCreateCartOfferInput {
+  channelId:  ID!
+  customerId: ID          # an account to make it out to - or
+  email:      String      # a guest email
+  expiresAt:  Time        # defaults from sales/cart/offer_expiry_days
+}
+
+input AdminCartAddressInput {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+input AdminCartDeliveryInput {
+  groupKey:    String!
+  optionId:    ID!
+  carrierSlug: String!
+  methodCode:  String!
+  pointId:     String     # for a kind that delivers to a point - one of adminCartDeliveryPoints
+}
+
+# Everything an admin edits on an offer in one save - the settings, and the checkout the recipient starts from
+input AdminUpdateCartOfferInput {
+  expiresAt:             Time!
+  message:               String!
+  showInAccount:         Boolean!
+  locks:                 [CartOfferLock!]!
+  shippingAddress:       AdminCartAddressInput
+  billingSameAsShipping: Boolean!
+  billingAddress:        AdminCartAddressInput
+  # The methods the recipient may pay with - one fixes it, none leaves every method the store offers
+  paymentMethods:        [String!]!
+  deliveries:            [AdminCartDeliveryInput!]!
+}
+
+input AdminCustomCartLineInput {
+  name:      String!
+  unitPrice: Int!
+  quantity:  Float!
+  taxClass:  String     # the tax class the line is taxed by - empty for the store's default
+}
+
+# Option picks for an admin-entered configured line - mirrors the storefront's ProductOptionSelectionInput (server-side pricing and validation; nothing here is trusted for price).
+input AdminCartLineOptionInput {
+  optionId:    ID!
+  valueIds:    [ID!]
+  textValue:   String
+  fileAssetId: ID
+}
+
+extend type Mutation {
+  # Create/return a cart to build: guest (no customerId) → fresh cart; existing
+  # customer → their one active cart on the channel.
+  adminCreateCart(channelId: ID!, customerId: ID): AdminCart!
+  # Live cart line editing (simple products; bundle lines view+remove only). Price resolves server-side from the catalog. Passing options adds a CONFIGURED line - same validation/pricing/snapshot contract as the storefront's addConfiguredToCart, so phone orders can carry required options.
+  adminAddCartLine(cartId: ID!, sku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
+  adminUpdateCartLine(cartId: ID!, lineId: ID!, quantity: Float!): AdminCart!
+  adminRemoveCartLine(cartId: ID!, lineId: ID!): AdminCart!
+  adminClearCart(cartId: ID!): AdminCart!
+  # Clone a cart's simple lines into a fresh cart for the target (guest or
+  # existing customer) on the source's channel.
+  adminDuplicateCart(cartId: ID!, targetCustomerId: ID): AdminCart!
+
+  # Offers - a cart built for one recipient and sent as a link. Always a fresh cart, never the customer's active one
+  adminCreateCartOffer(input: AdminCreateCartOfferInput!): AdminCart!
+  adminUpdateCartOffer(cartId: ID!, input: AdminUpdateCartOfferInput!): AdminCart!
+  # Sets a line's price on an offer - it holds through checkout. null puts a catalog line back on its catalog price
+  adminSetCartLinePrice(cartId: ID!, lineId: ID!, unitPrice: Int): AdminCart!
+  adminAddCustomCartLine(cartId: ID!, input: AdminCustomCartLineInput!): AdminCart!
+  # Emails the offer's link to its recipient - again on every call
+  adminSendCartOffer(cartId: ID!): AdminCart!
+  # Replaces the link - every link handed out so far stops working
+  adminRegenerateCartOfferLink(cartId: ID!): AdminCart!
+  # Withdraws the offer for good
+  adminRevokeCartOffer(cartId: ID!): AdminCart!
+}

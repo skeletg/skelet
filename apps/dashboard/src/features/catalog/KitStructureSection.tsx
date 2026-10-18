@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { useMutation, useQuery } from '@apollo/client/react'
-import { useDebounced } from '@/shared/hooks/useDebounced'
-import { PackagePlusIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
+import { useMutation } from '@apollo/client/react'
+import { PackagePlusIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   AlertDialog,
@@ -15,7 +14,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -26,14 +24,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -46,7 +36,6 @@ import { formatCents } from '@/lib/format'
 import {
   AddKitComponentDocument,
   ProductDocument,
-  ProductPickerDocument,
   RemoveKitComponentDocument,
   UpdateKitComponentDocument,
 } from './Catalog.gql'
@@ -65,6 +54,8 @@ import {
   type PendingOp,
 } from './groupedStaging'
 import { useProductSaveSection } from './productSaveRegistry'
+import { ProductPickerDialog, type PickExtra } from './ProductPickerDialog'
+import { quantityColumn } from './product-picker-columns'
 
 type KitComponentRow = {
   id: string
@@ -189,13 +180,13 @@ export function KitStructureSection({ product, canManage }: { product: Kit; canM
               {sorted.map((m) => {
                 const pending = isTemp(m.id)
                 return (
-                  <TableRow key={m.id} className={pending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                  <TableRow key={m.id} className={pending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <PackagePlusIcon className="size-4 text-muted-foreground" />
                         {m.member.name ?? m.member.sku ?? ''}
                         {pending && (
-                          <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">
+                          <Badge variant="outline" className="font-normal text-warning">
                             Unsaved
                           </Badge>
                         )}
@@ -337,7 +328,7 @@ function EditComponentDialog({
         </DialogHeader>
 
         <form id="edit-kit-component" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="kc-qty-edit">Quantity per kit</Label>
               <Input
@@ -389,157 +380,46 @@ function ComponentPickerSheet({
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
-  const [search, setSearch] = useState('')
-  const debounced = useDebounced(search.trim(), 250)
-  const { data, loading } = useQuery(ProductPickerDocument, {
-    variables: { search: debounced || null, kinds: ['SIMPLE'], limit: 25 },
-  })
-  // The product rides along with the pick - under server search a picked row can scroll out
-  // of the current page, and onSubmit must still be able to stage it
-  const [picked, setPicked] = useState<Map<string, { quantity: number; product: MemberProduct }>>(new Map())
-
-  const linkedIds = useMemo(() => new Set(existing.map((m) => m.member.id)), [existing])
-
-  // The server filters kind and searches - excluding the parent and already-linked members stays local
-  const filtered = useMemo(() => {
-    const all = (data?.productsPaged.items ?? []) as Array<MemberProduct>
-    return all.filter((p) => p.id !== parentId && !linkedIds.has(p.id))
-  }, [data, parentId, linkedIds])
-
-  function togglePicked(product: MemberProduct) {
-    setPicked((prev) => {
-      const next = new Map(prev)
-      if (next.has(product.id)) next.delete(product.id)
-      else next.set(product.id, { quantity: 1, product })
-      return next
-    })
-  }
-
-  function onSubmit() {
-    const entries = Array.from(picked.entries())
-    if (entries.length === 0) return
-    let nextSort = existing.length
-    for (const [, params] of entries) {
-      onStage({
-        kind: 'add-member',
-        tempId: newTempId(),
-        product: params.product,
-        defaultQuantity: params.quantity,
-        sortOrder: nextSort,
-      })
-      nextSort++
-    }
-    setPicked(new Map())
-    onOpenChange(false)
-  }
+  const takenIds = useMemo(() => new Set(existing.map((m) => m.member.id)), [existing])
+  const selfId = useMemo(() => new Set([parentId]), [parentId])
+  const extra = useMemo<PickExtra<{ quantity: number }>>(
+    () => ({ initial: () => ({ quantity: 1 }), columns: [quantityColumn('Units per kit')] }),
+    [],
+  )
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-[96vw] flex-col gap-0 p-0 sm:!max-w-[min(96vw,1200px)]" side="right">
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>Add components to this kit</SheetTitle>
-          <SheetDescription>
-            Pick one or more simple products and set how many units one kit consumes. Stages until the
-            page-level save.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="grid gap-2 border-b px-4 py-3">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, slug, or SKU…"
-              className="h-9 pl-8"
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{loading ? 'Loading…' : `Showing ${filtered.length} match${filtered.length === 1 ? '' : 'es'}`}</span>
-            <span>{picked.size > 0 ? `${picked.size} selected` : ''}</span>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {filtered.length === 0 && !loading ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No eligible simple products match - try another search, or create some first.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-popover">
-                <TableRow>
-                  <TableHead className="w-10" />
-                  <TableHead>Name</TableHead>
-                  <TableHead className="w-24">SKU</TableHead>
-                  <TableHead className="w-24">Price</TableHead>
-                  <TableHead className="w-28">Qty per kit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((p) => {
-                  const isPicked = picked.has(p.id)
-                  const params = picked.get(p.id)
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell>
-                        <Checkbox
-                          checked={isPicked}
-                          onCheckedChange={() => togglePicked(p)}
-                          aria-label={`Pick ${p.name ?? p.sku ?? ''}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium">{p.name ?? p.sku ?? ''}</span>
-                      </TableCell>
-                      <TableCell>
-                        {p.sku ? (
-                          <code className="font-mono text-xs">{p.sku}</code>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {formatCents(p.defaultPrice, p.defaultCurrencyCode)}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={0.0001}
-                          step="any"
-                          className="h-7 w-24 font-mono text-xs"
-                          value={params?.quantity ?? 1}
-                          disabled={!isPicked}
-                          onChange={(e) =>
-                            setPicked((prev) => {
-                              const next = new Map(prev)
-                              const cur = next.get(p.id)
-                              if (!cur) return prev
-                              next.set(p.id, { ...cur, quantity: Math.max(0.0001, Number(e.target.value) || 1) })
-                              return next
-                            })
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        <SheetFooter className="border-t px-4 py-3">
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={onSubmit} disabled={picked.size === 0}>
-              {`Stage ${picked.size || ''} component${picked.size === 1 ? '' : 's'}`.trim()}
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <ProductPickerDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add components to this kit"
+      description="Pick one or more simple products and set how many units one kit consumes. Stages until the page-level save."
+      kinds={['SIMPLE']}
+      takenIds={takenIds}
+      takenLabel="In this kit"
+      excludeIds={selfId}
+      showPrice
+      extra={extra}
+      confirmLabel={(n) => `Stage ${n || ''} component${n === 1 ? '' : 's'}`.replace('  ', ' ')}
+      onConfirm={(picks) => {
+        let nextSort = existing.length
+        for (const { product, extra: params } of picks) {
+          onStage({
+            kind: 'add-member',
+            tempId: newTempId(),
+            product: {
+              id: product.id,
+              sku: product.sku,
+              name: product.name,
+              kind: product.kind,
+              defaultPrice: product.defaultPrice,
+              defaultCurrencyCode: product.defaultCurrencyCode,
+            },
+            defaultQuantity: params.quantity,
+            sortOrder: nextSort,
+          })
+          nextSort++
+        }
+      }}
+    />
   )
 }

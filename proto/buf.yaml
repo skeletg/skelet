@@ -1,0 +1,10 @@
+# The core-to-Signals wire contract. Signals is never called by anything but core, so this is an internal contract rather than a published one - but it crosses a process boundary and will cross a module boundary, so it is versioned and gated like one
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

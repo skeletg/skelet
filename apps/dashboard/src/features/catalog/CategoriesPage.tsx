@@ -5,19 +5,20 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type FormEvent,
 } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
-import { duringCommit } from '@/lib/nav-guard'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { toast } from 'sonner'
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
@@ -47,27 +48,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { FieldError } from '@/components/form/fields'
+import { fieldErrorText } from '@/components/form/field-errors'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { useConfigScope } from '@/lib/config-scope'
+import { useConfigScope, type ChannelScopeOption } from '@/lib/config-scope'
 import { cn } from '@/lib/utils'
 import { useScrollHideHeader } from '@/lib/use-scroll-hide-header'
-import {
-  AddProductToCategoryDocument,
-  ProductsDocument,
-  RemoveProductFromCategoryDocument,
-} from './Catalog.gql'
-import { LexicalRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
+import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import {
   CategoryDocument,
@@ -82,22 +74,36 @@ import {
   SetCategoryListingDocument,
   UpdateCategoryDocument,
   UpsertCategoryContentDocument,
-  type CategoryDetail,
-  type CategorySummary,
+  type CategoryDetailFieldsFragment,
 } from './Categories.gql'
-import { SetCategoryFacetOverridesDocument, type CategoryFacetOverride } from './Categories.gql'
+import { SetCategoryFacetOverridesDocument } from './Categories.gql'
+import { dropZone, isDescendant, type CategorySummary, type DropZone } from './category-tree'
+import { CategoryOptionsDocument } from './category-picker/CategoryOptions.gql'
+import { formatPath, subtreeOf, useCategoryIndex } from './category-picker/category-options'
+import { CategorySelect } from './category-picker/CategorySelect'
+import { CategoryProductsSection } from './CategoryProductsSection'
+import { Section } from './CategorySection'
 import { AttributesDocument } from './Catalog.gql'
 import { FacetOverridesEditor } from './FacetOverridesEditor'
 import { sortFacetCandidates, useFacetOverridesDraft } from './facet-overrides-draft'
-import { readImageDimensions } from './product-detail/media-utils'
-import {
-  CategorySaveContext,
-  useCategorySaveSection,
-  type CategorySaveContextValue,
-  type SectionDiffEntry,
-  type SectionRegistration,
-} from './categorySaveRegistry'
+import { readImageDimensions } from '@/lib/image'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { SaveRegistryContext, useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { useStore } from '@tanstack/react-form'
+import {
+  CATEGORY_LABELS,
+  categoryChanges,
+  categoryDiff,
+  categorySchema,
+  emptyCategory,
+  toCategoryCreateInput,
+  toCategoryValues,
+} from './schemas/category'
+
+type CategoryDetail = CategoryDetailFieldsFragment
+type CategoryFacetOverride = CategoryDetail['facetOverrides'][number]
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -110,33 +116,10 @@ function slugify(name: string) {
     .replace(/-+/g, '-')
 }
 
-// formatScalar renders a value for the save-confirm modal's diff rows - The modal compares strings, so
-// booleans/numbers/null all need a stable human-readable form
-function formatScalar(v: unknown): string {
-  if (v == null || v === '') return '-'
-  if (v === true) return 'yes'
-  if (v === false) return 'no'
-  if (typeof v === 'number') return String(v)
-  return String(v)
-}
-
-// summarizeRichText collapses a Lexical JSON value to a short signature for diff comparison - Two equal trees produce equal strings;
-// different content produces different strings (any mismatch flips the diff) - A length cap keeps the modal readable
-function summarizeRichText(v: unknown): string {
-  if (v == null) return '-'
-  try {
-    const json = JSON.stringify(v)
-    if (json.length === 0 || json === '"null"') return '-'
-    return json.length > 60 ? `${json.slice(0, 57)}…` : json
-  } catch {
-    return '(rich text)'
-  }
-}
-
 function countCategories(cats: CategorySummary[]): number {
   let n = 0
   for (const c of cats) {
-    n += 1 + countCategories(c.children)
+    n += 1 + countCategories(c.children ?? [])
   }
   return n
 }
@@ -148,7 +131,7 @@ function findCategoryAncestors(
 ): string[] | null {
   for (const c of cats) {
     if (c.id === target) return path
-    const found = findCategoryAncestors(c.children, target, [...path, c.id])
+    const found = findCategoryAncestors(c.children ?? [], target, [...path, c.id])
     if (found) return found
   }
   return null
@@ -193,11 +176,11 @@ function flattenTree(
       depth,
       parentId,
       position: cat.position,
-      hasChildren: cat.children.length > 0,
+      hasChildren: !!cat.children?.length,
       expanded,
     })
-    if (expanded && cat.children.length > 0) {
-      result.push(...flattenTree(cat.children, expandedIds, depth + 1, cat.id))
+    if (expanded && cat.children?.length) {
+      result.push(...flattenTree(cat.children ?? [], expandedIds, depth + 1, cat.id))
     }
   }
   return result
@@ -211,15 +194,15 @@ export function CategoriesPage() {
   const { has } = usePermissions()
   const canManage = has('catalog.manage')
   // Header drives the tree filter: CHANNEL shows only categories listed on the active store, GLOBAL the full
-  // tree - structural edits (slug, parent, position) stay global-only, the tree just hides what the store lacks
-  const { isGlobal } = useConfigScope()
-  const canEditScope = canManage && isGlobal
+  // tree - creating from CHANNEL also lists the new category on that store, so both scopes can create
+  const { isGlobal, selectedChannel } = useConfigScope()
+  const storeName = selectedChannel?.name ?? 'this store'
   // Keep the tree query locale-agnostic: Apollo normalises Category by id, so passing different locales for one
   // id would overwrite the cached `name` across views - the server falls back through locales anyway, so the
   // tree always shows a real name when one exists in any translation
   // Channel scope rides the `X-Channel-Id` header (see lib/apollo.ts), not a
-  // query var: CHANNEL scope returns that store's published tree, GLOBAL the
-  // full tree
+  // query var: CHANNEL scope returns every category listed on that store,
+  // published or not, GLOBAL the full tree
   const { data, loading, refetch } = useQuery(RootCategoriesDocument)
   const roots = useMemo(() => data?.rootCategories ?? [], [data])
   const totalCount = useMemo(() => countCategories(roots), [roots])
@@ -249,7 +232,7 @@ export function CategoriesPage() {
   // When the catalog is a single top-level category with children, start it expanded on load - a lone collapsed root
   // just hides the whole tree behind one click - One-shot (guarded) so it doesn't undo a manual collapse
   const [didAutoExpandRoot, setDidAutoExpandRoot] = useState(false)
-  if (!didAutoExpandRoot && roots.length === 1 && roots[0].children.length > 0) {
+  if (!didAutoExpandRoot && roots.length === 1 && roots[0].children?.length) {
     setDidAutoExpandRoot(true)
     setExpandedIds((prev) => new Set([...prev, roots[0].id]))
   }
@@ -265,7 +248,7 @@ export function CategoriesPage() {
         const self =
           resolveCategoryDisplayName(c).toLowerCase().includes(q) ||
           c.slug.toLowerCase().includes(q)
-        const child = walk(c.children, [...path, c.id])
+        const child = walk(c.children ?? [], [...path, c.id])
         if (self || child) {
           for (const p of path) ids.add(p)
           any = true
@@ -296,22 +279,35 @@ export function CategoriesPage() {
   }, [flat, search])
 
   const [updateCategory] = useMutation(UpdateCategoryDocument, {
-    refetchQueries: [{ query: RootCategoriesDocument }],
+    refetchQueries: [{ query: RootCategoriesDocument }, { query: CategoryOptionsDocument }],
   })
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   // ── drag state ──
-  const [dropTarget, setDropTarget] = useState<{ id: string; zone: 'before' | 'on' | 'after' } | null>(null)
+  // Structure is global-only, and a filtered tree hides the siblings a drop would reorder against
+  const canDrag = canManage && isGlobal && !search.trim()
+  const [dropTarget, setDropTarget] = useState<{ id: string; zone: DropZone } | null>(null)
 
   function onDragStart({ active }: DragStartEvent) {
     setDragActiveId(active.id as string)
   }
 
+  function onDragMove({ active, over, activatorEvent, delta }: DragMoveEvent) {
+    // Nothing droppable under the pointer, or a drop that would nest a category inside itself
+    if (!over || isDescendant(roots, String(active.id), String(over.id))) {
+      if (dropTarget) setDropTarget(null)
+      return
+    }
+    const startY = activatorEvent instanceof PointerEvent || activatorEvent instanceof MouseEvent ? activatorEvent.clientY : 0
+    const zone = dropZone(startY + delta.y, over.rect.top, over.rect.height)
+    if (dropTarget?.id !== over.id || dropTarget.zone !== zone) setDropTarget({ id: String(over.id), zone })
+  }
+
   async function onDragEnd({ active, over }: DragEndEvent) {
     setDragActiveId(null)
     setDropTarget(null)
-    if (!over || active.id === over.id || !dropTarget) return
+    if (!over || !dropTarget || isDescendant(roots, String(active.id), dropTarget.id)) return
 
     const draggedNode = flat.find((n) => n.id === active.id)
     const targetNode = flat.find((n) => n.id === dropTarget.id)
@@ -322,6 +318,8 @@ export function CategoriesPage() {
         await updateCategory({
           variables: { input: { id: draggedNode.id, parentId: targetNode.id } },
         })
+        // Open the new parent so the moved category is visible where it landed
+        setExpandedIds((prev) => new Set([...prev, targetNode.id]))
       } else {
         const newPosition = dropTarget.zone === 'before' ? targetNode.position : targetNode.position + 1
         await updateCategory({
@@ -336,8 +334,11 @@ export function CategoriesPage() {
         })
       }
       void refetch()
-    } catch {
-      // ignore - tree will stay unchanged
+    } catch (err) {
+      // The tree stays as it was - say so, rather than leaving the admin wondering why nothing moved
+      toast.error(`Could not move ${draggedNode.name}`, {
+        description: err instanceof Error ? err.message : undefined,
+      })
     }
   }
 
@@ -368,8 +369,6 @@ export function CategoriesPage() {
                 variant="outline"
                 className="h-7 gap-1 px-2 text-xs"
                 onClick={() => navigate('/categories/new')}
-                disabled={!canEditScope}
-                title={canEditScope ? undefined : 'Switch the header to GLOBAL to add a category.'}
               >
                 <PlusIcon className="size-3.5" />
                 New
@@ -385,6 +384,12 @@ export function CategoriesPage() {
               className="h-8 pl-8 text-xs"
             />
           </div>
+          {!isGlobal ? (
+            <p className="text-xs text-muted-foreground">
+              Showing categories added to {storeName}. Switch the header to Global default to see every
+              category.
+            </p>
+          ) : null}
         </div>
 
         {loading ? (
@@ -392,10 +397,17 @@ export function CategoriesPage() {
         ) : roots.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
             <FolderIcon className="size-6 text-muted-foreground/60" />
-            <p className="text-sm font-medium">No categories yet</p>
+            <p className="text-sm font-medium">
+              {isGlobal ? 'No categories yet' : `No categories on ${storeName}`}
+            </p>
+            {!isGlobal ? (
+              <p className="text-xs text-muted-foreground">
+                Categories that exist but aren&rsquo;t added to this store only show under Global default.
+              </p>
+            ) : null}
             {canManage ? (
               <Button size="sm" variant="outline" onClick={() => navigate('/categories/new')}>
-                <PlusIcon className="size-3.5" /> Create your first
+                <PlusIcon className="size-3.5" /> {isGlobal ? 'Create your first' : 'New category'}
               </Button>
             ) : null}
           </div>
@@ -403,6 +415,7 @@ export function CategoriesPage() {
           <DndContext
             sensors={sensors}
             onDragStart={onDragStart}
+            onDragMove={onDragMove}
             onDragEnd={onDragEnd}
             onDragCancel={() => { setDragActiveId(null); setDropTarget(null) }}
           >
@@ -420,8 +433,7 @@ export function CategoriesPage() {
                     dropTarget={dropTarget}
                     onSelect={() => navigate(`/categories/${node.id}`)}
                     onToggle={() => toggleExpand(node.id)}
-                    onDropTargetChange={setDropTarget}
-                    canManage={canManage}
+                    canDrag={canDrag}
                   />
                 ))
               )}
@@ -443,7 +455,6 @@ export function CategoriesPage() {
         <CategoryForm
           key="new"
           isNew
-          roots={roots}
           canManage={canManage}
           onCreated={(id) => navigate(`/categories/${id}`)}
         />
@@ -451,7 +462,6 @@ export function CategoriesPage() {
         <CategoryForm
           key={selectedId}
           categoryId={selectedId}
-          roots={roots}
           canManage={canManage}
           onDeleted={() => navigate('/categories')}
         />
@@ -485,60 +495,6 @@ function EmptyState({ canManage, onNew }: { canManage: boolean; onNew: () => voi
   )
 }
 
-// ─── section helpers ─────────────────────────────────────────────────────────
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="grid gap-4 px-6 py-6">
-      <div>
-        <h3 className="text-lg font-semibold tracking-tight">
-          <span className="mr-1.5 text-primary">#</span>{title}
-        </h3>
-        {description ? (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      <div className="grid gap-4">{children}</div>
-    </section>
-  )
-}
-
-function ToggleRow({
-  id,
-  label,
-  description,
-  checked,
-  onCheckedChange,
-  disabled,
-}: {
-  id: string
-  label: string
-  description?: string
-  checked: boolean
-  onCheckedChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div>
-        <Label htmlFor={id} className="text-sm">{label}</Label>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-    </div>
-  )
-}
-
 // ─── tree node ───────────────────────────────────────────────────────────────
 
 function TreeNode({
@@ -547,18 +503,18 @@ function TreeNode({
   dropTarget,
   onSelect,
   onToggle,
-  onDropTargetChange,
-  canManage,
+  canDrag,
 }: {
   node: FlatNode
   isSelected: boolean
-  dropTarget: { id: string; zone: 'before' | 'on' | 'after' } | null
+  dropTarget: { id: string; zone: DropZone } | null
   onSelect: () => void
   onToggle: () => void
-  onDropTargetChange: (t: { id: string; zone: 'before' | 'on' | 'after' } | null) => void
-  canManage: boolean
+  canDrag: boolean
 }) {
-  const rowRef = useRef<HTMLDivElement>(null)
+  // The handle drags, the whole row is the drop target - the zone within it comes from the page's onDragMove
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: node.id, disabled: !canDrag })
+  const { setNodeRef: setDropRef } = useDroppable({ id: node.id, disabled: !canDrag })
 
   const isDropBefore = dropTarget?.id === node.id && dropTarget.zone === 'before'
   const isDropOn = dropTarget?.id === node.id && dropTarget.zone === 'on'
@@ -570,7 +526,7 @@ function TreeNode({
         <div className="pointer-events-none absolute left-2 right-2 top-0 h-0.5 -translate-y-1/2 rounded-full bg-primary" />
       ) : null}
       <div
-        ref={rowRef}
+        ref={setDropRef}
         data-node-id={node.id}
         style={{ paddingLeft: `${node.depth * 1.125 + 0.5}rem` }}
         className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors
@@ -579,18 +535,9 @@ function TreeNode({
             : 'text-foreground/90 hover:bg-muted/60'
           }
           ${isDropOn ? 'ring-2 ring-inset ring-primary' : ''}
+          ${isDragging ? 'opacity-40' : ''}
         `}
         onClick={onSelect}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (!rowRef.current) return
-          const rect = rowRef.current.getBoundingClientRect()
-          const y = e.clientY - rect.top
-          const pct = y / rect.height
-          const zone = pct < 0.25 ? 'before' : pct > 0.75 ? 'after' : 'on'
-          onDropTargetChange({ id: node.id, zone })
-        }}
-        onDragLeave={() => onDropTargetChange(null)}
       >
         {/* indent guides */}
         {node.depth > 0
@@ -604,13 +551,15 @@ function TreeNode({
             ))
           : null}
 
-        {canManage ? (
+        {canDrag ? (
           <span
-            className="cursor-grab text-muted-foreground/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-            draggable
-            onDragStart={(e) => e.dataTransfer.setData('text/plain', node.id)}
+            ref={setDragRef}
+            {...attributes}
+            {...listeners}
+            className="cursor-grab touch-none text-muted-foreground/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
-            title="Drag to reorder"
+            title="Drag to move"
+            aria-label={`Move ${node.name}`}
           >
             <GripVerticalIcon className="size-3.5 opacity-0 group-hover:opacity-100" />
           </span>
@@ -637,9 +586,9 @@ function TreeNode({
         <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`}>{node.name}</span>
         <span
           className={`size-1.5 shrink-0 rounded-full ${
-            node.isPublished ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+            node.isPublished ? 'bg-success' : 'bg-muted-foreground/40'
           }`}
-          title={node.isPublished ? 'Published' : 'Draft'}
+          title={node.isPublished ? 'Published' : 'Draft - hidden on every store'}
         />
       </div>
       {isDropAfter ? (
@@ -654,28 +603,20 @@ function TreeNode({
 function CategoryForm({
   categoryId,
   isNew = false,
-  roots,
   canManage,
   onCreated,
   onDeleted,
 }: {
   categoryId?: string
   isNew?: boolean
-  roots: CategorySummary[]
   canManage: boolean
   onCreated?: (id: string) => void
   onDeleted?: () => void
 }) {
-  // Header drives the per-store auto-list on create - When the user is
-  // working in CHANNEL=US and creates a category, the new category is
-  // immediately listed on US (isPublished=true) so the user sees it where
-  // they expect - In GLOBAL mode no listing is added - the operator can
-  // pick stores explicitly afterwards
-  const { isGlobal, effectiveChannelId, effectiveLocale, globalDefaultLocale, selectedChannel } = useConfigScope()
-  // Locale this form edits - Falls back to the system-wide default when the
-  // scope hasn't resolved one (GLOBAL with no scope.locale set) - Apollo's
-  // `localeLink` attaches the same value as the `Locale` request header,
-  // so the server resolves the same translation we render against
+  const { effectiveLocale, globalDefaultLocale } = useConfigScope()
+  // Locale this form edits - falls back to the system-wide default when the scope hasn't resolved
+  // one (GLOBAL with no scope.locale set). Apollo's `localeLink` attaches the same value as the
+  // `Locale` request header, so the server resolves the same translation we render against
   const locale = effectiveLocale || globalDefaultLocale
   const { data, loading } = useQuery(CategoryDocument, {
     variables: { id: categoryId! },
@@ -683,215 +624,126 @@ function CategoryForm({
   })
   const category = data?.category
 
-  const [name, setName] = useState('')
-  const [slugManual, setSlugManual] = useState(false)
-  const [slug, setSlug] = useState('')
-  const [parentId, setParentId] = useState<string | null>(null)
-  const [position, setPosition] = useState(0)
-  const [isPublished, setIsPublished] = useState(false)
-  const [seoNoindex, setSeoNoindex] = useState(false)
-  const [shortDescription, setShortDescription] = useState<RichTextValue>(null)
-  const [description, setDescription] = useState<RichTextValue>(null)
-  const [metaTitle, setMetaTitle] = useState('')
-  const [metaDescription, setMetaDescription] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  if (!isNew && loading && !category) return <LoadingState label="Loading category…" />
+  if (!isNew && !category) return <p className="px-6 py-6 text-sm text-muted-foreground">Category not found.</p>
+  // Keyed on the locale - the name, descriptions and SEO fields are that locale's copy
+  return (
+    <CategoryRecordForm
+      key={locale}
+      category={category}
+      locale={locale}
+      canManage={canManage}
+      onCreated={onCreated}
+      onDeleted={onDeleted}
+    />
+  )
+}
+
+// Create and edit in one: a new category writes straight through, an existing one reviews the
+// general fields together with the banner, availability and filter sections staged beside them
+function CategoryRecordForm({
+  category,
+  locale,
+  canManage,
+  onCreated,
+  onDeleted,
+}: {
+  category?: CategoryDetail
+  locale: string
+  canManage: boolean
+  onCreated?: (id: string) => void
+  onDeleted?: () => void
+}) {
+  const isNew = !category
+  const categoryId = category?.id
+  const { isGlobal, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Stores a new category is listed on at create - null until the admin ticks a box, so the default follows the header
+  // (the active store in CHANNEL, every active store in GLOBAL) and still fills in when the channels query lands late
+  const [pickedStores, setPickedStores] = useState<Set<string> | null>(null)
+  const storeIds = useMemo(
+    () =>
+      pickedStores ??
+      new Set(isGlobal ? channels.filter((c) => c.isActive).map((c) => c.id) : effectiveChannelId ? [effectiveChannelId] : []),
+    [pickedStores, isGlobal, channels, effectiveChannelId],
+  )
+  const { ref: headerRef, hidden: headerHidden } = useScrollHideHeader<HTMLDivElement>()
+
+  // The tree query takes no channel var - scope rides the request header - so refetching it re-reads
+  // under the current scope automatically
+  // The pickers' flat list is cached separately, so it's refreshed alongside the tree
+  const refetchQueries = [{ query: RootCategoriesDocument }, { query: CategoryOptionsDocument }]
+  const detailRefetch = categoryId ? [{ query: CategoryDocument, variables: { id: categoryId } }] : []
+  const [createCategory] = useMutation(CreateCategoryDocument, { refetchQueries })
+  const [setCategoryListing] = useMutation(SetCategoryListingDocument, { refetchQueries })
+  const [updateCategory] = useMutation(UpdateCategoryDocument, { refetchQueries: [...refetchQueries, ...detailRefetch] })
+  const [upsertContent] = useMutation(UpsertCategoryContentDocument, { refetchQueries: [...refetchQueries, ...detailRefetch] })
+  const [deleteCategory] = useMutation(DeleteCategoryDocument, { refetchQueries })
+  // Answers with a Boolean, so the detail is fetched again - the category is normalised, so the tree
+  // loses the removed locale too
+  const [deleteContent] = useMutation(DeleteCategoryContentDocument, { refetchQueries: detailRefetch, awaitRefetchQueries: true })
+
   const [deleting, setDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [ready, setReady] = useState(isNew)
-  const { ref: headerRef, hidden: headerHidden } = useScrollHideHeader<HTMLDivElement>()
+  // UI state, not the admin's work - an existing slug is never re-derived from the name
+  const [slugTouched, setSlugTouched] = useState(!isNew)
+  const createdId = useRef('')
 
-  // Hydrate the form when the category loads/refetches or the edited locale
-  // changes (state adjusted during render, keyed on both)
-  const [prevHydration, setPrevHydration] = useState<{
-    category: typeof category
-    locale: typeof locale
-  } | null>(null)
-  if (
-    prevHydration === null ||
-    prevHydration.category !== category ||
-    prevHydration.locale !== locale
-  ) {
-    setPrevHydration({ category, locale })
-    if (category) {
-      // Resolve the content row for the locale this form edits, not whichever entry the server returned first in `content[0]` - Falling
-      // back to `content[0]` keeps existing-category forms usable when no translation exists yet for `locale`
-      const c =
-        category.content.find((entry) => entry.locale === locale) ?? category.content[0]
-      setName(c?.name ?? category.name ?? '')
-      setSlug(category.slug)
-      setSlugManual(true)
-      setParentId(category.parent?.id ?? null)
-      setPosition(category.position)
-      setIsPublished(category.isPublished)
-      setSeoNoindex(category.seoNoindex)
-      // No row at all (last translation removed) - blank the fields rather
-      // than leave the deleted copy on screen
-      setShortDescription((c?.shortDescription as RichTextValue) ?? null)
-      setDescription((c?.description as RichTextValue) ?? null)
-      setMetaTitle(c?.metaTitle ?? '')
-      setMetaDescription(c?.metaDescription ?? '')
-      setReady(true)
-    }
-  }
-
-  function handleNameChange(value: string) {
-    setName(value)
-    if (!slugManual) setSlug(slugify(value))
-  }
-
-  // The tree query takes no channel var - scope rides the request header -
-  // so refetching it re-reads under the current scope automatically
-  const refetchQueries = [{ query: RootCategoriesDocument }]
-  const [createCategory] = useMutation(CreateCategoryDocument, { refetchQueries })
-  const [setCategoryListing] = useMutation(SetCategoryListingDocument, { refetchQueries })
-  const [updateCategory] = useMutation(UpdateCategoryDocument, { refetchQueries })
-  const [upsertContent] = useMutation(UpsertCategoryContentDocument, {
-    refetchQueries: categoryId
-      ? [...refetchQueries, { query: CategoryDocument, variables: { id: categoryId } }]
-      : refetchQueries,
-  })
-  const [deleteCategory] = useMutation(DeleteCategoryDocument, { refetchQueries })
-  // Detail query only - rootCategories returns content: [], so pulling the
-  // tree in here would blank the locale pills
-  const [deleteContent] = useMutation(DeleteCategoryContentDocument, {
-    refetchQueries: categoryId ? [{ query: CategoryDocument, variables: { id: categoryId } }] : [],
-    awaitRefetchQueries: true,
-  })
-  const [addToCategory] = useMutation(AddProductToCategoryDocument, {
-    refetchQueries: categoryId
-      ? [{ query: CategoryDocument, variables: { id: categoryId } }]
-      : [],
-  })
-  const [removeFromCategory] = useMutation(RemoveProductFromCategoryDocument, {
-    refetchQueries: categoryId
-      ? [{ query: CategoryDocument, variables: { id: categoryId } }]
-      : [],
-  })
-
-  // ────────────────────────────────────────────────────────────────────
-  // Save registry: each section registers its (diff, save) pair so the
-  // global Save button reflects every pending change in one count, the
-  // confirm modal lists them, and confirming runs them sequentially
-  //
-  // The "general" section below covers everything inside the main form
-  // (name, slug, parent, position, visibility, descriptions, SEO meta)
-  // Per-channel availability is a separate section registered from inside
-  // CategoryAvailabilitySection
-  // ────────────────────────────────────────────────────────────────────
-  const [sections, setSections] = useState<Record<string, SectionRegistration>>({})
-  const registerSection = useCallback((reg: SectionRegistration) => {
-    setSections((prev) => ({ ...prev, [reg.id]: reg }))
-  }, [])
-  const unregisterSection = useCallback((id: string) => {
-    setSections((prev) => {
-      if (!(id in prev)) return prev
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }, [])
-  const saveContextValue = useMemo<CategorySaveContextValue>(
-    () => ({ register: registerSection, unregister: unregisterSection }),
-    [registerSection, unregisterSection],
+  // The parent picker never offers this category or anything beneath it - either would make the
+  // category its own ancestor
+  const { index: categoryIndex } = useCategoryIndex()
+  const notParents = useMemo(() => (categoryId ? subtreeOf(categoryIndex, categoryId) : undefined), [categoryIndex, categoryId])
+  // The saved parent's name, for while the list loads or when it sits outside the admin's scope
+  const savedParentName = category?.parent ? (category.parent.name ?? category.parent.slug) : undefined
+  const parentLabel = useCallback(
+    (id: string) => formatPath(categoryIndex, id, id === category?.parent?.id ? savedParentName : undefined),
+    [categoryIndex, category?.parent?.id, savedParentName],
   )
-  // dirtySections is computed below after generalDiff + generalSave have been declared (they depend on form state,
-  // which is initialised after this block) - See "General section diff" further down
-  const registeredDirty = useMemo(
-    () => Object.values(sections).filter((s) => s.diff.length > 0),
-    [sections],
-  )
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveAllError, setSaveAllError] = useState<string | null>(null)
 
-  const onSave = useCallback(
-    async (e?: FormEvent) => {
-      e?.preventDefault()
-      if (!canManage) return
-      setError(null)
-      setSaving(true)
-      try {
-        if (isNew) {
-          const result = await createCategory({
-            variables: {
-              input: {
-                parentId,
-                slug,
-                position,
-                isPublished,
-                seoNoindex,
-                locale,
-                name,
-                shortDescription: shortDescription ?? null,
-                description: description ?? null,
-                metaTitle: metaTitle || null,
-                metaDescription: metaDescription || null,
-              },
-            },
-          })
-          const created = result.data?.createCategory
-          // CHANNEL: immediately list the new category on the active store so the user sees it where they're working - Without this step
-          // the category exists globally but is invisible to every channel until the operator manually adds a listing
-          if (created && effectiveChannelId) {
-            try {
-              await setCategoryListing({
-                variables: {
-                  input: {
-                    categoryId: created.id,
-                    channelId: effectiveChannelId,
-                    isPublished: true,
-                    sortOrderOverride: null,
-                  },
-                },
-              })
-            } catch {
-              // Non-fatal - the category was created - Operator can list manually
-            }
+  const baseline = useMemo(() => (category ? toCategoryValues(category, locale) : emptyCategory), [category, locale])
+  const diff = useMemo(() => categoryDiff(parentLabel), [parentLabel])
+
+  const record = useRecordForm({
+    id: 'general',
+    title: 'General',
+    label: isNew ? 'New category' : `Category · ${category.name ?? category.slug}`,
+    isEdit: !isNew,
+    baseline,
+    schema: categorySchema,
+    diff,
+    persist: { routeKey: `category:${categoryId ?? 'new'}:${locale}` },
+    submit: async (v) => {
+      if (!category) {
+        const result = await createCategory({ variables: { input: toCategoryCreateInput(v, locale) } })
+        const created = result.data?.createCategory
+        if (!created) throw new Error('Create succeeded but no category id was returned.')
+        createdId.current = created.id
+        // Non-fatal per store - the category exists, so a failed listing is reported and added by hand afterwards
+        const failed: string[] = []
+        for (const channelId of storeIds) {
+          try {
+            await setCategoryListing({
+              variables: { input: { categoryId: created.id, channelId, isPublished: true, sortOrderOverride: null } },
+            })
+          } catch {
+            failed.push(channels.find((c) => c.id === channelId)?.name ?? channelId)
           }
-          if (created) onCreated?.(created.id)
-        } else {
-          await updateCategory({
-            variables: {
-              input: {
-                id: categoryId!,
-                parentId: parentId ?? undefined,
-                clearParent: parentId === null,
-                slug,
-                position,
-                isPublished,
-                seoNoindex,
-              },
-            },
-          })
-          await upsertContent({
-            variables: {
-              categoryId: categoryId!,
-              input: {
-                locale,
-                name,
-                shortDescription: shortDescription ?? null,
-                description: description ?? null,
-                metaTitle: metaTitle || null,
-                metaDescription: metaDescription || null,
-              },
-            },
-          })
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Save failed.')
-      } finally {
-        setSaving(false)
+        if (failed.length > 0) {
+          toast.error(`Category created, but it couldn't be added to ${failed.join(', ')}. Add it under Per-channel availability.`)
+        }
+        return
       }
+      const changes = categoryChanges(baseline, v)
+      if (changes.update) await updateCategory({ variables: { input: { id: category.id, ...changes.update } } })
+      if (changes.content) await upsertContent({ variables: { categoryId: category.id, input: { locale, ...changes.content } } })
     },
-    [
-      canManage, isNew, parentId, slug, position, isPublished, seoNoindex, locale, name,
-      shortDescription, description, metaTitle, metaDescription, categoryId,
-      effectiveChannelId,
-      createCategory, setCategoryListing, updateCategory, upsertContent, onCreated,
-    ],
-  )
+    onSaved: isNew ? () => onCreated?.(createdId.current) : undefined,
+  })
+  const { form, registry, confirm, draft, submitError } = record
+  const values = useStore(form.store, (s) => s.values)
+  const submitting = useStore(form.store, (s) => s.isSubmitting)
+  const totalChanges = registry.dirtySections.reduce((n, s) => n + s.diff.length, 0)
 
   async function onDelete() {
     if (!categoryId) return
@@ -908,575 +760,299 @@ function CategoryForm({
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────
-  // General section diff against the loaded category - empty when nothing changed, so the "Save changes (N)"
-  // pill counts only real edits, and only for an existing category since create goes through the form's onSave
-  // ────────────────────────────────────────────────────────────────────
-  // Matches the locale-resolved content row that seeded the form state - comparing against `content[0]` flags a
-  // fake Name change whenever the first entry's locale differs from the form's `locale`
-  const originalContent = useMemo(
-    () =>
-      category?.content.find((entry) => entry.locale === locale) ??
-      category?.content[0],
-    [category, locale],
-  )
-  const generalDiff = useMemo<SectionDiffEntry[]>(() => {
-    if (isNew || !category) return []
-    const entries: SectionDiffEntry[] = []
-    const push = (label: string, before: unknown, after: unknown) => {
-      const b = formatScalar(before)
-      const a = formatScalar(after)
-      if (b !== a) entries.push({ label, before: b, after: a })
-    }
-    push('Name', originalContent?.name ?? category.name ?? '', name)
-    push('Slug', category.slug, slug)
-    push('Parent', category.parent?.id ?? null, parentId)
-    push('Position', category.position, position)
-    push('Published', category.isPublished, isPublished)
-    push('Noindex', category.seoNoindex, seoNoindex)
-    push('Short description', summarizeRichText(originalContent?.shortDescription ?? null), summarizeRichText(shortDescription))
-    push('Description', summarizeRichText(originalContent?.description ?? null), summarizeRichText(description))
-    push('Meta title', originalContent?.metaTitle ?? '', metaTitle)
-    push('Meta description', originalContent?.metaDescription ?? '', metaDescription)
-    return entries
-  }, [
-    isNew, category, originalContent,
-    name, slug, parentId, position, isPublished, seoNoindex,
-    shortDescription, description, metaTitle, metaDescription,
-  ])
-
-  // Save fn for the general section: writes all the structural + content fields together - Reuses the same mutations
-  // the form's old onSave used, just without the create branch (the registry only fires on edit)
-  const generalSave = useCallback(async () => {
-    if (!categoryId) return
-    await updateCategory({
-      variables: {
-        input: {
-          id: categoryId,
-          parentId: parentId ?? undefined,
-          clearParent: parentId === null,
-          slug,
-          position,
-          isPublished,
-          seoNoindex,
-        },
-      },
-    })
-    await upsertContent({
-      variables: {
-        categoryId,
-        input: {
-          locale,
-          name,
-          shortDescription: shortDescription ?? null,
-          description: description ?? null,
-          metaTitle: metaTitle || null,
-          metaDescription: metaDescription || null,
-        },
-      },
-    })
-  }, [
-    categoryId, parentId, slug, position, isPublished, seoNoindex,
-    locale, name, shortDescription, description, metaTitle, metaDescription,
-    updateCategory, upsertContent,
-  ])
-
-  // The general section is owned by this component (not registered via the hook), so we splice it onto dirtySections from registered child
-  // sections - Calling useCategorySaveSection here would no-op - the provider is in JSX below, so the host can't consume its own context
-  const generalSection = useMemo<SectionRegistration | null>(
-    () =>
-      generalDiff.length
-        ? { id: 'general', title: 'General', diff: generalDiff, save: generalSave }
-        : null,
-    [generalDiff, generalSave],
-  )
-
-  const dirtySections = useMemo(
-    () => (generalSection ? [generalSection, ...registeredDirty] : registeredDirty),
-    [generalSection, registeredDirty],
-  )
-  const isDirty = dirtySections.length > 0
-  const totalChanges = dirtySections.reduce((n, s) => n + s.diff.length, 0)
-  // Registered here rather than inside useSaveRegistry - this page's dirty set includes the general
-  // section it owns itself, which the hook can't see
-  useUnsavedChangesGuard(isDirty)
-
-  // Confirm-modal commit - Runs each dirty section's save sequentially so
-  // a later failure doesn't hide an earlier success
-  async function onConfirmSave() {
-    setSaveAllError(null)
-    setSavingAll(true)
-    try {
-      await duringCommit(async () => {
-        for (const section of dirtySections) {
-          await section.save()
-        }
-      })
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveAllError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-
-  // Flatten all categories (excluding current) for parent dropdown
-  const flatAll: Array<{ id: string; label: string; depth: number }> = []
-  function flatten(cats: CategorySummary[], depth = 0) {
-    for (const c of cats) {
-      if (c.id === categoryId) continue
-      flatAll.push({ id: c.id, label: resolveCategoryDisplayName(c), depth })
-      flatten(c.children, depth + 1)
-    }
-  }
-  flatten(roots)
-
-  // Fallback: if the category's actual parent isn't in the tree (e.g. deeper than the rootCategories fragment fetches,
-  // or roots is still loading), include it explicitly so the Select can render the current selection
-  if (category?.parent && !flatAll.some((c) => c.id === category.parent!.id)) {
-    flatAll.unshift({
-      id: category.parent.id,
-      label: category.parent.name ?? category.parent.slug,
-      depth: 0,
-    })
-  }
-
-  if (!isNew && (loading || !ready)) {
-    return <LoadingState label="Loading category…" />
-  }
-
-  const headerTitle = isNew ? 'New category' : (name || category?.slug || 'Category')
-  const headerUrl = !isNew ? (category?.urlPath ?? slug) : null
-  // Create flow: uses the "submit the whole form" path because
-  // there's nothing to diff against yet - every field is conceptually new
-  // Edit flow: button opens the confirm-changes modal, which on confirm
-  // runs every dirty section's save() in turn (general + per-store
-  // availability + anything else registered)
-  const canSubmit = canManage && !!name && !!slug && !saving && !savingAll
-  const editSaveLabel = savingAll
-    ? 'Saving…'
-    : isDirty
-      ? `Save changes${totalChanges > 0 ? ` (${totalChanges})` : ''}`
-      : 'No changes'
-
-  // Save context for child sections (e.g - CategoryAvailabilitySection) Surface scope mode, the active store name (when
-  // in CHANNEL), and the locale that the write will land on so admins can sanity-check before confirming the save
+  const headerTitle = isNew ? 'New category' : values.name || category.slug || 'Category'
+  const headerUrl = !isNew ? (category.urlPath ?? values.slug) : null
+  // Surfaces the scope and the locale the write lands on, so the admin can sanity-check before confirming
   const scopeLabel = isGlobal
     ? `Global · ${locale || '(default locale)'}`
     : `${selectedChannel?.name ?? 'Selected store'} · ${locale || '(store default locale)'}`
 
   return (
-    <CategorySaveContext.Provider value={saveContextValue}>
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (isNew) {
-          // Direct submit - no diff to confirm against on create
-          onSave(e)
-        } else if (isDirty) {
-          setSaveAllError(null)
-          setConfirmingSave(true)
-        }
-      }}
-      className="flex flex-col"
-    >
-      {/* ── Sticky action header ────────────────────────────── */}
-      <div
-        ref={headerRef}
-        className={cn(
-          'sticky top-0 z-10 border-b bg-background/95 backdrop-blur transition-transform duration-200 supports-[backdrop-filter]:bg-background/80',
-          headerHidden && '-translate-y-full',
-        )}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{headerTitle}</h1>
-            {headerUrl ? (
-              <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                /{headerUrl}
-              </p>
+    <SaveRegistryContext.Provider value={registry.contextValue}>
+      <div className="flex flex-col">
+        {/* ── Sticky action header ────────────────────────────── */}
+        <div
+          ref={headerRef}
+          className={cn(
+            'sticky top-0 z-10 border-b bg-background/95 backdrop-blur transition-transform duration-200 supports-[backdrop-filter]:bg-background/80',
+            headerHidden && '-translate-y-full',
+          )}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-semibold tracking-tight">{headerTitle}</h1>
+              {headerUrl ? <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">/{headerUrl}</p> : null}
+            </div>
+            {canManage ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <form.Field name="isPublished">
+                  {(f) => (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label htmlFor="cat-published-header" className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-sm">
+                          <Switch id="cat-published-header" checked={f.state.value} onCheckedChange={f.handleChange} />
+                          <span className={f.state.value ? 'font-medium' : 'text-muted-foreground'}>
+                            {f.state.value ? 'Published globally' : 'Draft (all stores)'}
+                          </span>
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        A store shows this category only when it is published globally AND listed and published on that
+                        store - see Per-channel availability.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </form.Field>
+                {!isNew ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      setDeleteError(null)
+                      setConfirmingDelete(true)
+                    }}
+                    disabled={deleting}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </Button>
+                ) : null}
+                <Button type="button" size="sm" disabled={submitting || (!isNew && !registry.isDirty)} onClick={record.save}>
+                  {submitting
+                    ? 'Saving…'
+                    : isNew
+                      ? 'Create'
+                      : registry.isDirty
+                        ? `Save changes${totalChanges > 0 ? ` (${totalChanges})` : ''}`
+                        : 'No changes'}
+                </Button>
+              </div>
             ) : null}
           </div>
-          {canManage ? (
-            <div className="flex shrink-0 items-center gap-2">
-              <label
-                htmlFor="cat-published-header"
-                className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-sm"
-              >
-                <Switch
-                  id="cat-published-header"
-                  checked={isPublished}
-                  onCheckedChange={setIsPublished}
-                />
-                <span className={isPublished ? 'font-medium' : 'text-muted-foreground'}>
-                  {isPublished ? 'Published' : 'Draft'}
-                </span>
-              </label>
-              {!isNew ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => { setDeleteError(null); setConfirmingDelete(true) }}
-                  disabled={deleting}
-                >
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </Button>
-              ) : null}
-              {isNew ? (
-                <Button type="submit" size="sm" disabled={!canSubmit}>
-                  {saving ? 'Saving…' : 'Create'}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!canSubmit || !isDirty}
-                  onClick={() => { setSaveAllError(null); setConfirmingSave(true) }}
-                >
-                  {editSaveLabel}
-                </Button>
-              )}
-            </div>
-          ) : null}
         </div>
-      </div>
 
-      {/* ── Body ────────────────────────────────────────────── */}
-      <div className="divide-y pb-16">
-        {error ? (
-          <div className="px-6 py-4">
-            <Alert variant="destructive">
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        ) : null}
-
-        {/* ── General ── */}
-        <Section title="General" description="Basic info, hierarchy, and visibility.">
-          <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="cat-name">Name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="cat-name"
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  disabled={!canManage}
-                  required
-                  placeholder="Women's Shoes"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cat-slug">Slug <span className="text-destructive">*</span></Label>
-                <Input
-                  id="cat-slug"
-                  value={slug}
-                  onChange={(e) => { setSlugManual(true); setSlug(e.target.value) }}
-                  disabled={!canManage}
-                  required
-                  placeholder="womens-shoes"
-                  className="font-mono"
-                />
-              </div>
+        {/* ── Body ────────────────────────────────────────────── */}
+        <div className="divide-y pb-16">
+          {draft.offer !== null && (
+            <div className="px-6 py-4">
+              <RestoredDraftBanner draft={draft} labels={CATEGORY_LABELS} />
             </div>
-
-            <div className="grid gap-4 md:grid-cols-[1fr_8rem]">
-              <div className="grid gap-2">
-                <Label htmlFor="cat-parent">Parent category</Label>
-                <Select
-                  value={parentId ?? '__root__'}
-                  onValueChange={(v) => setParentId(v === '__root__' ? null : v)}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger id="cat-parent">
-                    <SelectValue placeholder="None (root)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__root__">None (root)</SelectItem>
-                    {flatAll.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {'  '.repeat(c.depth)}{c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cat-position">Position</Label>
-                <Input
-                  id="cat-position"
-                  type="number"
-                  value={position}
-                  onChange={(e) => setPosition(Number(e.target.value))}
-                  disabled={!canManage}
-                />
-              </div>
+          )}
+          {submitError ? (
+            <div className="px-6 py-4">
+              <Alert variant="destructive">
+                <AlertTitle>Create failed</AlertTitle>
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
             </div>
-
-            {/* Name, descriptions and SEO above are all per-locale - this is
-                where a locale's copy gets dropped again - Immediate action,
-                like the Delete button in the header */}
-            {!isNew && category ? (
-              <TranslationLocales
-                locale={locale}
-                locales={category.content.map((entry) => entry.locale)}
-                entityLabel="category"
-                canManage={canManage}
-                defaultLocaleLocked
-                onRemove={async () => {
-                  await deleteContent({ variables: { categoryId: category.id, locale } })
-                }}
-              />
-            ) : null}
-
-        </Section>
-
-        {/* ── Short description ── */}
-        <Section title="Short description" description="Brief summary shown in listings.">
-          <div className="overflow-hidden rounded-md border">
-            <LexicalRichTextEditor
-              key={`short-${categoryId ?? 'new'}-${locale}-${originalContent?.updatedAt ?? 'none'}`}
-              value={shortDescription}
-              fallbackText=""
-              disabled={!canManage}
-              placeholder="Brief category summary shown in listings…"
-              onChange={(val) => setShortDescription(val)}
-            />
-          </div>
-        </Section>
-
-        {/* ── Description ── */}
-        <Section title="Description" description="Full description rendered on the category page.">
-          <div className="overflow-hidden rounded-md border">
-            <LexicalRichTextEditor
-              key={`desc-${categoryId ?? 'new'}-${locale}-${originalContent?.updatedAt ?? 'none'}`}
-              value={description}
-              fallbackText=""
-              disabled={!canManage}
-              placeholder="Full category description…"
-              onChange={(val) => setDescription(val)}
-            />
-          </div>
-        </Section>
-
-        {/* ── Banner image ── */}
-        {!isNew && category ? (
-          <CategoryCoverSection category={category} canManage={canManage} />
-        ) : null}
-
-        {/* ── SEO ── */}
-        <Section title="SEO" description="Search metadata and indexing controls.">
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="cat-meta-title">Meta title</Label>
-              <span className={`text-xs tabular-nums ${metaTitle.length > 60 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {metaTitle.length}/60
-              </span>
-            </div>
-            <Input
-              id="cat-meta-title"
-              value={metaTitle}
-              onChange={(e) => setMetaTitle(e.target.value)}
-              disabled={!canManage}
-              placeholder={name || 'Category name'}
-            />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="cat-meta-desc">Meta description</Label>
-              <span className={`text-xs tabular-nums ${metaDescription.length > 160 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {metaDescription.length}/160
-              </span>
-            </div>
-            <Textarea
-              id="cat-meta-desc"
-              value={metaDescription}
-              onChange={(e) => setMetaDescription(e.target.value)}
-              disabled={!canManage}
-              rows={3}
-              placeholder="Search result description…"
-            />
-          </div>
-          <ToggleRow
-            id="cat-noindex"
-            label="Noindex"
-            description="Ask search engines not to index this category."
-            checked={seoNoindex}
-            onCheckedChange={setSeoNoindex}
-            disabled={!canManage}
-          />
-        </Section>
-
-        {/* ── Per-channel availability ── */}
-        {!isNew && category ? (
-          <CategoryAvailabilitySection category={category} canManage={canManage} />
-        ) : null}
-
-        {/* ── Storefront filters ── */}
-        {!isNew && category ? (
-          <CategoryFacetOverridesSection category={category} canManage={canManage} />
-        ) : null}
-
-        {/* ── Assigned products ── */}
-        {!isNew && category ? (
-          <AssignedProductsCard
-            categoryId={category.id}
-            products={category.products ?? []}
-            canManage={canManage}
-            onAdd={(productId) => addToCategory({ variables: { productId, categoryId: category.id } })}
-            onRemove={(productId) => removeFromCategory({ variables: { productId, categoryId: category.id } })}
-          />
-        ) : null}
-      </div>
-
-      {/* ── Delete confirmation ─────────────────────────────── */}
-      <AlertDialog
-        open={confirmingDelete}
-        onOpenChange={(v) => { if (!v) { setConfirmingDelete(false); setDeleteError(null) } }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {name || category?.slug || 'this category'}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the category. Child categories will be detached from it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
           ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); onDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete category'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={scopeLabel}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveAllError}
-        onCancel={() => { setConfirmingSave(false); setSaveAllError(null) }}
-        onConfirm={onConfirmSave}
-      />
-    </form>
-    </CategorySaveContext.Provider>
+          {isNew ? (
+            <NewCategoryStores
+              channels={channels}
+              selected={storeIds}
+              currentChannelId={effectiveChannelId}
+              isPublished={values.isPublished}
+              disabled={!canManage}
+              onChange={setPickedStores}
+            />
+          ) : null}
+
+          <fieldset disabled={!canManage} className="contents">
+            {/* ── General ── */}
+            <Section title="General" description="Basic info, hierarchy, and visibility.">
+              <div className="grid items-start gap-4 md:grid-cols-2">
+                <form.AppField
+                  name="name"
+                  listeners={{
+                    onChange: ({ value }) => {
+                      if (!slugTouched) form.setFieldValue('slug', slugify(value))
+                    },
+                  }}
+                >
+                  {(f) => <f.TextField id="cat-name" label="Name" placeholder="Women's Shoes" />}
+                </form.AppField>
+                <form.AppField name="slug">
+                  {(f) => (
+                    <f.TextField id="cat-slug" label="Slug" placeholder="womens-shoes" className="font-mono" onValueChange={() => setSlugTouched(true)} />
+                  )}
+                </form.AppField>
+              </div>
+
+              <div className="grid items-start gap-4 md:grid-cols-[1fr_8rem]">
+                <form.AppField name="parentId">
+                  {(f) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="cat-parent">Parent category</Label>
+                      <CategorySelect
+                        id="cat-parent"
+                        value={f.state.value}
+                        onChange={(id) => {
+                          f.handleChange(id)
+                          f.handleBlur()
+                        }}
+                        noneLabel="None (root)"
+                        fallbackLabel={f.state.value === category?.parent?.id ? savedParentName : undefined}
+                        excludeIds={notParents}
+                        invalid={!!fieldErrorText(f)}
+                      />
+                      <FieldError field={f} />
+                    </div>
+                  )}
+                </form.AppField>
+                <form.AppField name="position">{(f) => <f.NumberField id="cat-position" label="Position" />}</form.AppField>
+              </div>
+
+              {/* Name, descriptions and SEO are all per-locale - this is where a locale's copy gets
+                  dropped again. An immediate action, like the Delete button in the header */}
+              {category ? (
+                <TranslationLocales
+                  locale={locale}
+                  locales={category.content.map((entry) => entry.locale)}
+                  entityLabel="category"
+                  canManage={canManage}
+                  defaultLocaleLocked
+                  onRemove={async () => {
+                    await deleteContent({ variables: { categoryId: category.id, locale } })
+                  }}
+                />
+              ) : null}
+            </Section>
+          </fieldset>
+
+          {/* ── Products ── the section admins work in most, so it sits right under General */}
+          {category ? <CategoryProductsSection category={category} canManage={canManage} /> : null}
+
+          <fieldset disabled={!canManage} className="contents">
+            {/* ── Short description ── */}
+            <Section title="Short description" description="Brief summary shown in listings.">
+              <div className="overflow-hidden rounded-md border">
+                <form.Field name="shortDescription">
+                  {(f) => (
+                    <FormRichTextEditor
+                      value={f.state.value as RichTextValue}
+                      fallbackText=""
+                      disabled={!canManage}
+                      placeholder="Brief category summary shown in listings…"
+                      onChange={(next) => f.handleChange(next)}
+                    />
+                  )}
+                </form.Field>
+              </div>
+            </Section>
+
+            {/* ── Description ── */}
+            <Section title="Description" description="Full description rendered on the category page.">
+              <div className="overflow-hidden rounded-md border">
+                <form.Field name="description">
+                  {(f) => (
+                    <FormRichTextEditor
+                      value={f.state.value as RichTextValue}
+                      fallbackText=""
+                      disabled={!canManage}
+                      placeholder="Full category description…"
+                      onChange={(next) => f.handleChange(next)}
+                    />
+                  )}
+                </form.Field>
+              </div>
+            </Section>
+          </fieldset>
+
+          {/* ── Banner image ── */}
+          {category ? <CategoryCoverSection category={category} canManage={canManage} /> : null}
+
+          {/* ── SEO ── */}
+          <fieldset disabled={!canManage} className="contents">
+            <Section title="SEO" description="Search metadata and indexing controls.">
+              <form.AppField name="metaTitle">
+                {(f) => (
+                  <f.TextField
+                    id="cat-meta-title"
+                    label="Meta title"
+                    placeholder={values.name || 'Category name'}
+                    note={<LengthHint length={values.metaTitle.length} max={60} />}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="metaDescription">
+                {(f) => (
+                  <f.TextareaField
+                    id="cat-meta-desc"
+                    label="Meta description"
+                    rows={3}
+                    placeholder="Search result description…"
+                    note={<LengthHint length={values.metaDescription.length} max={160} />}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="seoNoindex">
+                {(f) => <f.SwitchField id="cat-noindex" label="Noindex" description="Ask search engines not to index this category." bordered={false} />}
+              </form.AppField>
+            </Section>
+          </fieldset>
+
+          {/* ── Per-channel availability ── */}
+          {category ? (
+            <CategoryAvailabilitySection category={category} canManage={canManage} globalPublished={values.isPublished} />
+          ) : null}
+
+          {/* ── Storefront filters ── */}
+          {category ? <CategoryFacetOverridesSection category={category} canManage={canManage} /> : null}
+
+        </div>
+
+        {/* ── Delete confirmation ─────────────────────────────── */}
+        <AlertDialog
+          open={confirmingDelete}
+          onOpenChange={(v) => {
+            if (!v) {
+              setConfirmingDelete(false)
+              setDeleteError(null)
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {values.name || category?.slug || 'this category'}?</AlertDialogTitle>
+              <AlertDialogDescription>This permanently removes the category. Child categories will be detached from it.</AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Delete failed</AlertTitle>
+                <AlertDescription>{deleteError}</AlertDescription>
+              </Alert>
+            ) : null}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(e) => {
+                  e.preventDefault()
+                  void onDelete()
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? 'Deleting…' : 'Delete category'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={scopeLabel} sections={registry.dirtySections} />
+      </div>
+    </SaveRegistryContext.Provider>
   )
 }
 
-// ─── assigned products card ───────────────────────────────────────────────────
-
-type ProductItem = { id: string; name?: string | null; sku?: string | null }
-
-function AssignedProductsCard({
-  products,
-  canManage,
-  onAdd,
-  onRemove,
-}: {
-  categoryId: string
-  products: ProductItem[]
-  canManage: boolean
-  onAdd: (productId: string) => Promise<unknown>
-  onRemove: (productId: string) => Promise<unknown>
-}) {
-  const { data: productsData } = useQuery(ProductsDocument, { variables: {} })
-  const allProducts = productsData?.products ?? []
-  const assignedIds = new Set(products.map((p) => p.id))
-  const available = allProducts.filter((p) => !assignedIds.has(p.id))
-
-  const [search, setSearch] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [selectedProductId, setSelectedProductId] = useState('')
-
-  const filtered = available.filter((p) => {
-    const q = search.toLowerCase()
-    return (p.name ?? '').toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
-  })
-
-  async function handleAdd() {
-    if (!selectedProductId) return
-    setAdding(true)
-    try {
-      await onAdd(selectedProductId)
-      setSelectedProductId('')
-      setSearch('')
-    } finally {
-      setAdding(false)
-    }
-  }
-
+// Search engines truncate past these lengths - a count beside the field, red once over
+function LengthHint({ length, max }: { length: number; max: number }) {
   return (
-    <Section title={`Products (${products.length})`} description="Products assigned to this category.">
-      {products.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No products assigned to this category.</p>
-      ) : (
-        <ul className="divide-y rounded-md border">
-          {products.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{p.name ?? p.sku ?? p.id}</p>
-                {p.sku ? <p className="text-xs text-muted-foreground">{p.sku}</p> : null}
-              </div>
-              {canManage ? (
-                <button
-                  type="button"
-                  className="ml-2 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => onRemove(p.id)}
-                >
-                  <XIcon className="size-4" />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-      {canManage ? (
-        <div className="grid gap-2">
-          <Label className="text-xs">Add product</Label>
-          <Input
-            placeholder="Search products…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-xs"
-          />
-          {search && filtered.length > 0 ? (
-            <ul className="scrollbar-accent max-h-40 overflow-y-auto rounded-md border text-xs">
-              {filtered.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={`flex w-full items-center justify-between px-3 py-2 hover:bg-muted ${selectedProductId === p.id ? 'bg-muted font-medium' : ''}`}
-                    onClick={() => setSelectedProductId(p.id)}
-                  >
-                    <span>{p.name ?? p.sku ?? ''}</span>
-                    {p.sku ? <span className="text-muted-foreground">{p.sku}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {selectedProductId ? (
-            <Button type="button" size="sm" disabled={adding} onClick={handleAdd}>
-              {adding ? 'Adding…' : 'Add selected product'}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </Section>
+    <span className={`text-xs tabular-nums ${length > max ? 'text-destructive' : 'text-muted-foreground'}`}>
+      {length}/{max}
+    </span>
   )
 }
 
@@ -1557,7 +1133,7 @@ function CategoryCoverSection({
     setPendingFile(null)
   }, [pendingClear, pendingFile, altText, category.id, clearCover, requestUpload, confirmUpload])
 
-  useCategorySaveSection({ id: 'cover', title: 'Banner image', diff, save })
+  useSaveSection({ id: 'cover', title: 'Banner image', diff, save })
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
@@ -1712,7 +1288,7 @@ function CategoryFacetOverridesSection({
     })
   }, [setOverrides, category.id, draft.payload])
 
-  useCategorySaveSection({
+  useSaveSection({
     id: 'category-facet-overrides',
     title: 'Storefront filters',
     diff: draft.sectionDiff,
@@ -1749,6 +1325,121 @@ function CategoryFacetOverridesSection({
   )
 }
 
+// Past this many stores the picker grows a search box, bulk select and a scroll cap
+const STORE_PICKER_COMPACT_MAX = 8
+
+// Create-only store picker - categories are global rows, so this is where the admin sees (and changes) which stores
+// the new one is listed on, instead of the header scope deciding silently
+function NewCategoryStores({
+  channels,
+  selected,
+  currentChannelId,
+  isPublished,
+  disabled,
+  onChange,
+}: {
+  channels: ChannelScopeOption[]
+  selected: Set<string>
+  currentChannelId: string | undefined
+  isPublished: boolean
+  disabled: boolean
+  onChange: (next: Set<string>) => void
+}) {
+  const [query, setQuery] = useState('')
+  const large = channels.length > STORE_PICKER_COMPACT_MAX
+  // The store the admin is working in leads, so it stays in view however long the list gets
+  const ordered = useMemo(
+    () => [...channels].sort((a, b) => Number(b.id === currentChannelId) - Number(a.id === currentChannelId)),
+    [channels, currentChannelId],
+  )
+  const q = query.trim().toLowerCase()
+  const shown = q ? ordered.filter((c) => c.name.toLowerCase().includes(q)) : ordered
+
+  function toggle(id: string, on: boolean) {
+    const next = new Set(selected)
+    if (on) next.add(id)
+    else next.delete(id)
+    onChange(next)
+  }
+  // Bulk actions act on what the search shows, so "select all" under a filter means "all of these"
+  function setShown(on: boolean) {
+    const next = new Set(selected)
+    for (const c of shown) {
+      if (on) next.add(c.id)
+      else next.delete(c.id)
+    }
+    onChange(next)
+  }
+
+  const picked = channels.filter((c) => selected.has(c.id))
+  const where = picked.length <= 3 ? picked.map((c) => c.name).join(', ') : `${picked.length} stores`
+  const summary =
+    picked.length === 0
+      ? 'Not added to any store - it will only show under Global default.'
+      : isPublished
+        ? `Will be live on ${where}.`
+        : `Will be added to ${where}, but hidden until you switch it to Published.`
+
+  return (
+    <Section title="Stores" description="Categories are shared by every store. Pick the stores this one appears on.">
+      {channels.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No stores are configured yet.</p>
+      ) : (
+        <div className="grid gap-2">
+          {large ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-48 flex-1">
+                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search stores…"
+                  aria-label="Search stores"
+                  className="h-8 pl-8 text-sm"
+                />
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setShown(true)} disabled={disabled || shown.length === 0}>
+                {q ? 'Select shown' : 'Select all'}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setShown(false)} disabled={disabled || shown.length === 0}>
+                {q ? 'Clear shown' : 'Select none'}
+              </Button>
+              <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                {picked.length} of {channels.length} selected
+              </span>
+            </div>
+          ) : null}
+          <div className={cn('divide-y rounded-md border', large && 'scrollbar-accent max-h-64 overflow-y-auto')}>
+            {shown.length === 0 ? (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">No stores match &ldquo;{query}&rdquo;</p>
+            ) : (
+              shown.map((c) => (
+                <label key={c.id} htmlFor={`cat-store-${c.id}`} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm">
+                  <Checkbox
+                    id={`cat-store-${c.id}`}
+                    checked={selected.has(c.id)}
+                    onCheckedChange={(v) => toggle(c.id, v === true)}
+                    disabled={disabled}
+                  />
+                  <span className="flex-1 truncate font-medium">{c.name}</span>
+                  {c.id === currentChannelId ? <Badge variant="secondary">You&rsquo;re working here</Badge> : null}
+                  {!c.isActive ? <Badge variant="outline">Inactive</Badge> : null}
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {currentChannelId && !selected.has(currentChannelId) ? (
+        <p className="text-xs text-amber-600">
+          It won&rsquo;t appear in this store&rsquo;s category list - you&rsquo;ll find it under Global default.
+        </p>
+      ) : null}
+      <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{summary}</p>
+    </Section>
+  )
+}
+
 /**
  * CategoryAvailabilitySection lets the operator attach/detach a category
  * from channels
@@ -1763,9 +1454,12 @@ function CategoryFacetOverridesSection({
 function CategoryAvailabilitySection({
   category,
   canManage,
+  globalPublished,
 }: {
   category: {
     id: string
+    // The global flag - a store listing only puts the category on that storefront while this is on too
+    isPublished: boolean
     listings: {
       channelId: string
       channel: { id: string; name: string }
@@ -1774,8 +1468,20 @@ function CategoryAvailabilitySection({
     }[]
   }
   canManage: boolean
+  // The header's staged Published/Draft switch - a Draft hides the category on every store whatever its listings say
+  globalPublished: boolean
 }) {
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Follows the staged header switch, so the warning appears the moment the save would take the category off every store
+  const draftNotice = globalPublished ? null : (
+    <Alert variant="warning">
+      <AlertTitle>Draft</AlertTitle>
+      <AlertDescription>
+        This category is a Draft, so it is hidden on every storefront even where it is published below. Switch it to
+        Published in the header to make it live.
+      </AlertDescription>
+    </Alert>
+  )
   const refetch = [{ query: CategoryDocument, variables: { id: category.id } }]
   const [setListing] = useMutation(SetCategoryListingDocument, { refetchQueries: refetch })
   const [clearListing] = useMutation(ClearCategoryListingDocument, { refetchQueries: refetch })
@@ -1838,6 +1544,16 @@ function CategoryAvailabilitySection({
     const sortChanged = (parsed ?? null) !== (d.serverListing.sortOrderOverride ?? null)
     if (d.isPublished !== d.serverListing.isPublished || sortChanged) return 'update'
     return null
+  }
+
+  // What a shopper on that store would see once the staged changes are saved - the global flag and
+  // the store's own listing both gate it, and this is the one place the two are read together
+  function storefrontStatus(d: AvailDraft): { label: string; className: string } {
+    const listed = d.pendingRemove ? false : d.serverListing != null || dirtyOp(d) === 'create'
+    if (!listed) return { label: 'Not listed', className: 'text-muted-foreground' }
+    if (!globalPublished) return { label: 'Hidden: global draft', className: 'text-warning' }
+    if (!d.isPublished) return { label: 'Hidden: unpublished here', className: 'text-muted-foreground' }
+    return { label: 'Live', className: 'text-success' }
   }
 
   const dirtyCount = drafts.filter((d) => dirtyOp(d) != null).length
@@ -1908,7 +1624,7 @@ function CategoryAvailabilitySection({
     return out
   }, [drafts])
 
-  useCategorySaveSection({
+  useSaveSection({
     id: 'category-availability',
     title: 'Per-channel availability',
     diff: sectionDiff,
@@ -1933,6 +1649,7 @@ function CategoryAvailabilitySection({
         title={`Availability on ${selectedChannel?.name ?? 'this store'}`}
         description="Switch the header store to manage another. Use the global tree (header → Global default) for cross-store assignment."
       >
+        {draftNotice}
         <div className="grid gap-3 rounded-md border p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -1948,6 +1665,10 @@ function CategoryAvailabilitySection({
               disabled={!canManage || draft.pendingRemove}
             />
           </div>
+          <p className="text-xs">
+            <span className="text-muted-foreground">On storefront: </span>
+            <span className={cn('font-medium', storefrontStatus(draft).className)}>{storefrontStatus(draft).label}</span>
+          </p>
           <div className="grid gap-1.5">
             <Label htmlFor="cat-sort-override">Sort override</Label>
             <Input
@@ -1974,7 +1695,7 @@ function CategoryAvailabilitySection({
                 {draft.pendingRemove ? 'Undo remove' : 'Remove listing'}
               </Button>
               {op != null ? (
-                <span className="text-xs text-amber-600">
+                <span className="text-xs text-warning">
                   Pending: {op === 'create' ? 'add' : op === 'remove' ? 'remove' : 'update'}.
                   Save with the header button.
                 </span>
@@ -1992,6 +1713,7 @@ function CategoryAvailabilitySection({
       title="Per-channel availability"
       description="Toggle which channels carry this category. A category is hidden on a store with no listing row."
     >
+      {draftNotice}
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -1999,12 +1721,14 @@ function CategoryAvailabilitySection({
               <th className="px-3 py-2 font-medium">Channel</th>
               <th className="px-3 py-2 font-medium">Published</th>
               <th className="px-3 py-2 font-medium">Sort override</th>
-              <th className="px-3 py-2 font-medium text-right">Status</th>
+              <th className="px-3 py-2 font-medium">On storefront</th>
+              <th className="px-3 py-2 font-medium text-right">Change</th>
             </tr>
           </thead>
           <tbody>
             {drafts.map((d) => {
               const op = dirtyOp(d)
+              const status = storefrontStatus(d)
               return (
                 <tr key={d.channelId} className="border-t">
                   <td className="px-3 py-2">
@@ -2031,11 +1755,12 @@ function CategoryAvailabilitySection({
                       disabled={!canManage || d.pendingRemove}
                     />
                   </td>
+                  <td className={cn('px-3 py-2 text-xs font-medium', status.className)}>{status.label}</td>
                   <td className="px-3 py-2 text-right">
                     {op === 'create' ? (
-                      <span className="text-xs text-amber-600">will create</span>
+                      <span className="text-xs text-warning">will create</span>
                     ) : op === 'update' ? (
-                      <span className="text-xs text-amber-600">modified</span>
+                      <span className="text-xs text-warning">modified</span>
                     ) : op === 'remove' ? (
                       <span className="text-xs text-destructive">will remove</span>
                     ) : (
@@ -2061,7 +1786,7 @@ function CategoryAvailabilitySection({
         </table>
       </div>
       {dirtyCount > 0 ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           {dirtyCount} pending change{dirtyCount === 1 ? '' : 's'}. Save with the
           header button - the confirm modal lists every channel change before it
           commits.

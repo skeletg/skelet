@@ -47,6 +47,7 @@ import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import type { OrderStatus } from '@/graphql/schema.types'
+import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrderPaymentsSection } from './OrderPaymentsSection'
@@ -67,11 +68,12 @@ import {
   GenerateShippingLabelDocument,
   MarkOrderProcessingDocument,
   OrderDocument,
-  OrdersDocument,
   PlaceDraftOrderDocument,
   OrderDocumentPdfDocument,
+  OrdersPagedDocument,
 } from './Orders.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { formatPhone } from '@/lib/phone'
 
 // Shipping is gated on the status machine, so the note names the transition that unblocks it
 function shipmentBlockedReason(status: string): string {
@@ -119,7 +121,7 @@ export function OrderDetail() {
 
   const refetch = [
     { query: OrderDocument, variables: { id } },
-    { query: OrdersDocument },
+    OrdersPagedDocument,
   ]
   const [confirmOrder,     confirmState]    = useMutation(ConfirmOrderDocument,       { refetchQueries: refetch })
   const [markProcessing,   processingState] = useMutation(MarkOrderProcessingDocument,{ refetchQueries: refetch })
@@ -187,7 +189,9 @@ export function OrderDetail() {
     }
   }
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading order…</p>
+  // First load only - a refetch (every mutation here triggers one) swapped the page out and back,
+  // which re-opened any open dialog as a fresh form and threw away what the admin had typed
+  if (loading && !order) return <p className="text-sm text-muted-foreground">Loading order…</p>
   if (error) {
     // Channel-scoped roles get `forbidden` when the order belongs to a channel outside their scopes - show the
     // permissions page, not a retryable error
@@ -237,6 +241,14 @@ export function OrderDetail() {
     isDraft || order.status === 'PENDING' || order.status === 'CONFIRMED' || order.status === 'PROCESSING'
   // Per-line shipments make sense once processing and until fully shipped
   const canShip = order.status === 'PROCESSING' || order.status === 'PARTIALLY_FULFILLED'
+
+  const resendProps = {
+    orderId: id,
+    disabled: anyRunning,
+    hasFulfillments: order.fulfillments.length > 0,
+    isCancelled: order.status === 'CANCELLED',
+    isRefunded: order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY_REFUNDED',
+  }
 
   // What has actually moved per line, from data the page already holds - the columns only
   // appear once something has, so a pending order keeps the narrow table
@@ -333,10 +345,14 @@ export function OrderDetail() {
               </Button>
             </div>
           ) : isTerminal ? (
-            <DocumentButtons orderId={id} />
+            <>
+              <DocumentButtons orderId={id} />
+              {canUpdate && <ResendEmailMenu {...resendProps} />}
+            </>
           ) : (
             <>
             <DocumentButtons orderId={id} />
+            {canUpdate && <ResendEmailMenu {...resendProps} />}
             <TransitionButtons
               status={order.status}
               disabled={anyRunning}
@@ -413,7 +429,7 @@ export function OrderDetail() {
                 {order.lines.map((l) => (
                   <TableRow key={l.id}>
                     <TableCell className="font-medium">
-                      {l.productName}
+                      {l.name}
                       {l.isGift && (
                         <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wider">
                           Gift
@@ -423,8 +439,8 @@ export function OrderDetail() {
                         <ul className="mt-1 space-y-0.5 text-xs font-normal text-muted-foreground">
                           {l.components.map((c) => (
                             <li key={c.id}>
-                              {c.quantity} x <span className="text-foreground">{c.productName}</span>{' '}
-                              <code className="font-mono">{c.productSku}</code>
+                              {c.quantity} x <span className="text-foreground">{c.name}</span>{' '}
+                              <code className="font-mono">{c.sku}</code>
                             </li>
                           ))}
                         </ul>
@@ -454,7 +470,7 @@ export function OrderDetail() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <code className="font-mono text-xs text-muted-foreground">{l.productSku}</code>
+                      <code className="font-mono text-xs text-muted-foreground">{l.sku}</code>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
                     {showMovement && (
@@ -507,6 +523,9 @@ export function OrderDetail() {
           <div className="grid gap-4 md:grid-cols-2">
             <AddressBlock title="Billing address" address={order.billingAddress} />
             <AddressBlock title="Shipping address" address={order.shippingAddress} />
+            {(order.businessIds.length > 0 || order.poNumber) && (
+              <BusinessBlock ids={order.businessIds} poNumber={order.poNumber ?? null} />
+            )}
           </div>
         </DetailPageSection>
 
@@ -573,7 +592,7 @@ export function OrderDetail() {
                 .sort((a, b) => a.sequence - b.sequence)
                 .map((f) => {
                   const nameOf = (lineId: string) =>
-                    order.lines.find((l) => l.id === lineId)?.productName ?? lineId
+                    order.lines.find((l) => l.id === lineId)?.name ?? lineId
                   return (
                     <div key={f.id} className="rounded-md border p-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -604,17 +623,17 @@ export function OrderDetail() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={labelState.loading}
+                          disabled={labelState.loading || f.status === 'cancelled'}
                           onClick={async () => {
                             setActionError(null)
                             try {
-                              await generateLabel({ variables: { fulfillmentId: f.id } })
+                              await generateLabel({ variables: { fulfillmentId: f.id, force: f.labels.length > 0 } })
                             } catch (e) {
                               setActionError(e instanceof Error ? e.message : 'Label generation failed.')
                             }
                           }}
                         >
-                          {labelState.loading ? 'Generating…' : 'Generate label'}
+                          {labelState.loading ? 'Generating…' : f.labels.length > 0 ? 'Buy another label' : 'Generate label'}
                         </Button>
                         {f.labels.map((lbl) => (
                           <a
@@ -845,6 +864,36 @@ function TransitionButtons({
   return <>{buttons}</>
 }
 
+// The company identifiers the buyer gave at checkout, with the labels they saw (PIB, Matični broj, VAT number) - the
+// company name itself is on the billing address
+function BusinessBlock({
+  ids,
+  poNumber,
+}: {
+  ids: { key: string; label: string; value: string }[]
+  poNumber: string | null
+}) {
+  return (
+    <div className="rounded-md border p-4 text-sm md:col-span-2">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Business purchase</div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        {ids.map((id) => (
+          <div key={id.key} className="contents">
+            <dt className="text-muted-foreground">{id.label}</dt>
+            <dd className="font-mono">{id.value}</dd>
+          </div>
+        ))}
+        {poNumber && (
+          <>
+            <dt className="text-muted-foreground">PO number</dt>
+            <dd className="font-mono">{poNumber}</dd>
+          </>
+        )}
+      </dl>
+    </div>
+  )
+}
+
 function AddressBlock({ title, address }: { title: string; address: Address }) {
   return (
     <div className="rounded-md border p-4 text-sm">
@@ -862,7 +911,7 @@ function AddressBlock({ title, address }: { title: string; address: Address }) {
         {address.state ? `, ${address.state}` : ''} {address.postalCode}
       </div>
       <div className="text-muted-foreground">{address.countryCode}</div>
-      {address.phone && <div className="text-muted-foreground">{address.phone}</div>}
+      {address.phone && <div className="text-muted-foreground">{formatPhone(address.phone)}</div>}
     </div>
   )
 }

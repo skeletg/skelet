@@ -1,16 +1,21 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useChannel } from "./ChannelProvider";
 import { usePresentment } from "./PresentmentProvider";
 
 export function ChargeCurrencyNote() {
   const { selected } = usePresentment();
   const channel = useChannel();
+  const t = useTranslations("currency");
   if (!selected) return null;
   return (
     <p className="mt-2 text-xs text-muted-foreground">
-      {selected.code} amounts are estimates at today&rsquo;s rate. Your
-      order is charged in {channel?.currencyCode ?? "the store currency"}.
+      {t("estimateNote", {
+        code: selected.code,
+        base: channel?.currencyCode ?? t("storeCurrency"),
+      })}
     </p>
   );
 }

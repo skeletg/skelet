@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import { formatPrice, type CurrencyInfo } from "@/app/lib/format";
 
 export function FreeShippingBar({
@@ -11,6 +13,7 @@ export function FreeShippingBar({
   currency: string | CurrencyInfo;
   className?: string;
 }) {
+  const t = useTranslations("cart");
   if (!thresholdCents || thresholdCents <= 0) return null;
 
   const remaining = thresholdCents - subtotal;
@@ -22,25 +25,26 @@ export function FreeShippingBar({
       <p className="text-xs text-muted-foreground">
         {qualified ? (
           <span className="font-medium text-emerald-700">
-            You&rsquo;ve unlocked free shipping.
+            {t("freeShippingUnlocked")}
           </span>
         ) : (
-          <>
-            Add{" "}
-            <span className="font-medium text-foreground">
-              {formatPrice(remaining, currency)}
-            </span>{" "}
-            more for free shipping.
-          </>
+          t.rich("freeShippingRemaining", {
+            amount: () => (
+              <span className="font-medium text-foreground">
+                {formatPrice(remaining, currency)}
+              </span>
+            ),
+          })
         )}
       </p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("freeShippingExclusions")}</p>
       <div
         className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border"
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Progress toward free shipping"
+        aria-label={t("freeShippingProgress")}
       >
         <div
           className={`h-full rounded-full transition-all ${qualified ? "bg-emerald-500" : "bg-signal"}`}

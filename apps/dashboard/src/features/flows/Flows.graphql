@@ -27,17 +27,12 @@ query FlowTriggerTypes {
   flowTriggerTypes
 }
 
-query FlowMergeTags {
-  flowMergeTags
+query FlowConditionKinds {
+  flowConditionKinds
 }
 
-query FlowSegments {
-  customerSegments {
-    items {
-      id
-      name
-    }
-  }
+query FlowMergeTags {
+  flowMergeTags
 }
 
 mutation CreateFlow($input: SaveFlowInput!) {
@@ -64,4 +59,13 @@ mutation SetFlowStatus($id: ID!, $status: String!) {
 
 mutation RestoreFlow($id: ID!) {
   restoreFlow(id: $id)
+}
+
+query FlowSegments {
+  customerSegments {
+    items {
+      id
+      name
+    }
+  }
 }

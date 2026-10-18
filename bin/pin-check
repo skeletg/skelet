@@ -6,9 +6,7 @@ cd "$(dirname "$(dirname "$0")")"
 
 fail=0
 
-# Storefront paths are globbed, not listed, so a forked storefront is covered the
-# day it lands rather than the day someone remembers this file
-# read into an array by hand rather than with mapfile, which bash 3.2 has no idea about
+# Storefront paths are globbed, not listed, so a forked storefront is covered the day it lands rather than the day someone remembers this file read into an array by hand rather than with mapfile, which bash 3.2 has no idea about
 DOCKERFILES=()
 while IFS= read -r f; do DOCKERFILES+=("$f"); done \
     < <(find apps -maxdepth 3 -name 'Dockerfile*' -not -path '*/node_modules/*' | sort)
@@ -47,15 +45,16 @@ pin() { # pin <label> <ere> <file>...
 echo "==> version pins agree across files"
 pin postgres   'postgres:[0-9][0-9.]*(-alpine)?'                "${COMPOSE[@]}" "${WORKFLOWS[@]}"
 pin clickhouse 'clickhouse/clickhouse-server:[0-9][0-9.]*'      "${COMPOSE[@]}" "${WORKFLOWS[@]}"
-pin migrate    '(golang-migrate/migrate/v4/cmd/migrate@v|migrate/migrate:v)[0-9][0-9.]*' \
+pin dbmate     'amacneil/dbmate/v2@v[0-9][0-9.]*' \
                                                                 "${COMPOSE[@]}" "${WORKFLOWS[@]}" "${DOCKERFILES[@]}"
 pin golangci   'golangci-lint@v[0-9][0-9.]*'                    "${WORKFLOWS[@]}" bin/lint
 pin node       '(node:[0-9][0-9.]*(-alpine)?|node-version:[[:space:]]*[0-9][0-9.]*)' \
                                                                 "${WORKFLOWS[@]}" "${DOCKERFILES[@]}"
-pin alpine     'alpine3?[:.][0-9][0-9.]*'                       apps/backend/Dockerfile.prod
+pin alpine     'alpine3?[:.][0-9][0-9.]*'                       apps/backend/core/Dockerfile.prod
 pin caddy      'caddy:[0-9][0-9.]*'                             "${COMPOSE[@]}"
-# Corepack's field - every app has to agree, or two lockfiles get written by two npms
-pin npm        'npm@[0-9][0-9.]*'                          "${PACKAGE_JSONS[@]}"
+# packageManager plus the images' `npm install -g` - an image on another pnpm than the host
+# resolves under other defaults and writes a lockfile the host then rewrites
+pin pnpm       'pnpm@[0-9][0-9.]*'                         "${PACKAGE_JSONS[@]}" "${DOCKERFILES[@]}"
 
 # .nvmrc carries no prefix to match on, so it's compared rather than scanned. The workflows
 # read it directly (node-version-file), so what this guards is the Dockerfiles agreeing with it
@@ -72,7 +71,7 @@ fi
 # The toolchain that builds the images has to be the one go.mod declares, and CI
 # reads go.mod directly - so a Dockerfile bump is the half that gets forgotten
 echo "==> golang images match go.mod"
-gomod=$(grep -oE '^go [0-9][0-9.]*' apps/backend/go.mod | cut -d' ' -f2)
+gomod=$(grep -oE '^go [0-9][0-9.]*' apps/backend/core/go.mod | cut -d' ' -f2)
 images=$(grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}" | sed -E 's/.*://' | sort -u)
 n=$(printf '%s\n' "$images" | grep -c . || true)
 if [ "$n" -eq 1 ] && [ "$images" = "$gomod" ]; then

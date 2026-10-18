@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# buf inside the app container - runs from the Go module (that is where `go tool` resolves) and is
+# pointed at the proto tree, so buf.gen.yaml's output paths are module-relative
+# The codegen plugins are go tool deps too, built into a cache dir on PATH so their versions stay pinned by go.mod
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+run() {
+    if docker compose ps --status running | grep -q "skelet-app"; then
+        docker compose exec "${USER_FLAG[@]}" app sh -c "$1"
+    else
+        docker compose run --rm --no-deps "${USER_FLAG[@]}" app sh -c "$1"
+    fi
+}
+
+# No arguments means what bin/codegen does with it: lint the contract, then generate into the backend
+if [ $# -eq 0 ]; then
+    "$0" lint /var/www/proto
+    exec "$0" generate --template /var/www/proto/buf.gen.yaml /var/www/proto
+fi
+
+run 'set -e
+     mkdir -p /tmp/protoc-plugins
+     for p in google.golang.org/protobuf/cmd/protoc-gen-go google.golang.org/grpc/cmd/protoc-gen-go-grpc; do
+         out=/tmp/protoc-plugins/$(basename "$p")
+         [ -x "$out" ] || go build -o "$out" "$p"
+     done
+     PATH=/tmp/protoc-plugins:$PATH go tool github.com/bufbuild/buf/cmd/buf '"$*"

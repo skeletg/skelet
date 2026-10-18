@@ -84,7 +84,7 @@ export function StoreCreditSection({ customerId }: { customerId: string }) {
                 </Badge>
               )}
               <span
-                className={`tabular-nums ${e.amountCents < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}
+                className={`tabular-nums ${e.amountCents < 0 ? 'text-destructive' : 'text-success'}`}
               >
                 {e.amountCents > 0 ? '+' : ''}
                 {formatCents(e.amountCents, e.currencyCode)}

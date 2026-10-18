@@ -35,31 +35,34 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const [scopeOpen, setScopeOpen] = useState(false)
   const isMobile = useIsMobile()
   // null whenever the rail follows the content, which leaves the markup exactly as it was
-  const { appearance, custom } = useTheme()
-  const railTheme = sidebarThemeAttrs(appearance, custom)
+  const { appearance, custom, resolvedDark } = useTheme()
+  const railTheme = sidebarThemeAttrs(appearance, custom, resolvedDark)
   return (
     <Sidebar
       collapsible="icon"
+      variant={appearance.frame === 'docked' ? 'sidebar' : appearance.frame}
+      side={appearance.sidebarSide}
       themeAttr={railTheme?.attr}
       themeDark={railTheme?.dark}
       themeStyle={railTheme?.style}
       {...props}
     >
-      <SidebarHeader>
+      <SidebarHeader className="gap-0 p-0">
         <SidebarMenu>
           <SidebarMenuItem>
             {/* The brand block IS the scope switcher - clicking it unfolds the scope/channel/
-                locale pickers INLINE inside this card, pushing the nav down, rather than
-                floating a popup - the card chrome drops away in the icon-collapsed rail
-                Outlined rather than filled: a tinted header read as a separate surface stuck to
-                the top of the sidebar rather than part of it */}
+                locale pickers INLINE below it, pushing the nav down, rather than floating a popup
+                The row is the content header's height with only a bottom border, so the two
+                dividers read as one line across the page */}
             <Collapsible open={scopeOpen} onOpenChange={setScopeOpen}>
-              <div
-                data-tour="scope"
-                className="rounded-lg border group-data-[collapsible=icon]:border-0"
-              >
+              <div data-tour="scope">
+              <div className="flex h-14 items-center border-b group-data-[variant=floating]:h-12 border-sidebar-border px-2">
               <CollapsibleTrigger asChild>
-                <SidebarMenuButton size="lg" className="group-data-[collapsible=icon]:justify-center">
+                <SidebarMenuButton
+                  size="lg"
+                  // the header reads as part of the bar, not a nav item - no fill on hover, press or while open
+                  className="group-data-[collapsible=icon]:justify-center hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent active:text-sidebar-foreground data-open:hover:bg-transparent data-open:hover:text-sidebar-foreground"
+                >
                   {/* The favicon doubles as the brand mark - one file to swap when rebranding, and no bg tile since the logo brings its own colors */}
                   {/* Sized down to the nav icons in the collapsed rail: the button's [&_svg]:size-4
                       never reaches an img, so the mark stayed 24px above a column of 16px icons */}
@@ -91,9 +94,10 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
                   />
                 </SidebarMenuButton>
               </CollapsibleTrigger>
+              </div>
               <CollapsibleContent>
                 {/* icon-collapsed sidebars have no room for the pickers - expand the rail first */}
-                <div className="px-3 pt-1 pb-3 group-data-[collapsible=icon]:hidden">
+                <div className="border-b border-sidebar-border px-3 pt-3 pb-3 group-data-[collapsible=icon]:hidden">
                   <ConfigScopeFields stacked idSuffix="-sb" />
                   <StoreClock />
                 </div>

@@ -1,17 +1,16 @@
 "use client";
 
-import { snapshot } from "rrweb-snapshot";
+import type { snapshot } from "rrweb-snapshot";
 import { usePathname } from "next/navigation";
-import { onCLS, onINP, onLCP, onTTFB } from "web-vitals";
 
 import { useEffect, useRef } from "react";
 
 import { redactPath } from "@/app/lib/analytics/redact";
+import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
+import { beaconFetch } from "@/app/lib/beacons/client";
+import { BEACON } from "@/app/lib/beacons/paths";
 
-const AID_COOKIE = "lens_aid";
-const ENDPOINT = "/t/collect";
-const CONFIG_ENDPOINT = "/t/config";
 const FLUSH_MS = 5000;
 const MOVE_THROTTLE_MS = 50;
 
@@ -81,6 +80,8 @@ type State = {
   flushTimer: ReturnType<typeof setTimeout> | null;
   flush?: (keepalive: boolean) => void;
   schedule?: () => void;
+  // Loaded only once this visitor is sampled in - rrweb-snapshot is too heavy to put on every page
+  snapshot?: typeof snapshot;
 };
 
 const OVERLAY_SEL =
@@ -106,41 +107,6 @@ function detectState(): string {
   return chosen ? stateKeyOf(chosen) : "default";
 }
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-function ensureAnonId(): string {
-  let id = readCookie(AID_COOKIE);
-  if (!id) {
-    id = randomId();
-    document.cookie = `${AID_COOKIE}=${id}; max-age=${60 * 60 * 24 * 365}; path=/; samesite=lax`;
-  }
-  return id;
-}
-
-function viewportBucket(): string {
-  const w = window.innerWidth;
-  if (w < 768) return "mobile";
-  if (w < 1024) return "tablet";
-  return "desktop";
-}
-
-function fnv1a(s: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
-
-function sampleBucket(id: string): number {
-  return parseInt(fnv1a(id), 16) % 100;
-}
-
 function selectorFor(el: Element | null): string {
   if (!el) return "";
   const parts: string[] = [];
@@ -164,11 +130,11 @@ function selectorFor(el: Element | null): string {
 
 function recordSnapshot(st: State, state: string) {
   const layoutKey = `${st.curPageKey}|${st.curViewport}|${state}`;
-  if (st.seenLayouts.has(layoutKey)) return;
+  if (st.seenLayouts.has(layoutKey) || !st.snapshot) return;
   try {
     // Same masking contract as LensReplay - without it the snapshot captures what the
     // recorder is told to skip (hidden token fields, .lens-block regions)
-    const node = snapshot(document, {
+    const node = st.snapshot(document, {
       maskAllInputs: true,
       maskTextClass: "lens-mask",
       blockClass: "lens-block",
@@ -183,7 +149,7 @@ function recordSnapshot(st: State, state: string) {
         pageKey: st.curPageKey,
         viewport: st.curViewport,
         state,
-        layoutHash: fnv1a(html),
+        layoutHash: fnv1a(html).toString(16),
         html,
         width: document.documentElement.scrollWidth,
         height: document.documentElement.scrollHeight,
@@ -332,12 +298,10 @@ export function LensTracker({
       };
       // Best-effort beacon: a network failure rejects the fetch promise asynchronously (it is not a synchronous throw), so .catch swallows
       // it - a bare `void fetch(...)` leaks an unhandled rejection when the page is unloading or the backend is briefly unreachable
-      void fetch(ENDPOINT, {
+      void beaconFetch(BEACON.collect, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Channel-Id": st.channelId,
-        },
+        channelId: st.channelId,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(batch),
         keepalive,
       }).catch(() => {});
@@ -538,9 +502,7 @@ export function LensTracker({
       let on = true;
       let moves = true;
       try {
-        const r = await fetch(CONFIG_ENDPOINT, {
-          headers: { "X-Channel-Id": channelId },
-        });
+        const r = await beaconFetch(BEACON.config, { channelId });
         if (r.ok) {
           const c = (await r.json()) as {
             enabled?: boolean;
@@ -555,9 +517,17 @@ export function LensTracker({
         /* keep permissive defaults on a config miss */
       }
       if (cancelled) return;
+      const sampled = on && sampleBucket(st.anonId) < rate;
+      // Consented and sampled in, so now worth the download - a failed chunk load still leaves page
+      // views and heat flowing, just without layout snapshots and vitals
+      const [snap, vitals] = sampled
+        ? await Promise.all([import("rrweb-snapshot").catch(() => null), import("web-vitals").catch(() => null)])
+        : [null, null];
+      if (cancelled) return;
+      st.snapshot = snap?.snapshot;
       st.captureMoves = moves;
       st.ready = true;
-      st.active = on && sampleBucket(st.anonId) < rate;
+      st.active = sampled;
       if (st.active) {
         recordPage(st, pathname);
         if (customerId) enqueueIdentify(st, customerId);
@@ -568,10 +538,12 @@ export function LensTracker({
           if (m.navigationType === "back-forward-cache" || m.navigationType === "prerender" || m.navigationType === "restore") return;
           enqueueCustom("$web_vitals", { metric, value: Math.round(m.value * 1000) / 1000, sessionId: sigSessionId() });
         };
-        onLCP(reportVital("LCP"));
-        onCLS(reportVital("CLS"));
-        onINP(reportVital("INP"));
-        onTTFB(reportVital("TTFB"));
+        if (vitals) {
+          vitals.onLCP(reportVital("LCP"));
+          vitals.onCLS(reportVital("CLS"));
+          vitals.onINP(reportVital("INP"));
+          vitals.onTTFB(reportVital("TTFB"));
+        }
       }
     })();
 

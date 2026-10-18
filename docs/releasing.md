@@ -11,7 +11,7 @@ could be running in production.
 **`develop` is where work integrates.** Feature branches cut from it and merge
 back into it. It is not expected to be released, and CI does not gate it - the
 suite runs on pull requests into `main`, so a develop→main PR is where a
-regression surfaces. Run `bin/check` and `bin/test-e2e` locally before merging
+regression surfaces. Run `./skelet check` and `./skelet test e2e` locally before merging
 anything sizeable, or the release PR is the first time anyone finds out.
 
 Nothing else is long-lived. Feature branches are short and get deleted after they
@@ -53,15 +53,19 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 2. **Decide the version.** Look at what changed since the last tag. Breaking
    change in `0.x` means a MINOR bump.
 
-3. **Update the changelog.** Move `Unreleased` entries under the new version with
-   today's date. See [CHANGELOG.md](../CHANGELOG.md).
+3. **Write the changelog.** `./skelet changelog` shows what the release will say,
+   gathered from the fragments in `changelog/unreleased/`. Read it through, fix any
+   entry that needs it in its fragment, and add a `summary` fragment if the release
+   deserves an opening paragraph. Then `./skelet changelog release <version>` writes
+   `changelog/<version>.md` dated today, lists it in [CHANGELOG.md](../CHANGELOG.md)
+   and deletes the fragments. Commit all of it.
 
 4. **Bump the version constants that actually changed.** `sdk.Version` only if
    the SDK surface moved, `contract.Version` only if the wire format did. Do not
    bump them in sympathy with the product version.
 
-5. **Run the gates.** `bin/check`, `bin/lint`, `bin/test-e2e`, and
-   `bin/codegen --check`. All of them, not the fast ones.
+5. **Run the gates.** `./skelet check`, `./skelet lint`, `./skelet test e2e`, and
+   `./skelet gen --check`. All of them, not the fast ones.
 
 6. **Merge `develop` into `main`.** No squash - `main`'s history should show what
    went into the release.
@@ -79,7 +83,7 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 8. **Publish images**, if you are shipping them:
 
    ```
-   REGISTRY=registry.example.com bin/push-images v0.1.0
+   REGISTRY=registry.example.com ./skelet release v0.1.0
    ```
 
 9. **Merge `main` back into `develop`** so the changelog and any release-time

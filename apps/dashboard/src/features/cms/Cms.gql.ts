@@ -107,7 +107,6 @@ export type CreateCmsPageInput = {
   body?: unknown;
   contentData?: unknown;
   data?: unknown;
-  isPublished?: boolean | null | undefined;
   locale: string;
   metaDescription?: string | null | undefined;
   metaKeywords?: string | null | undefined;
@@ -117,7 +116,6 @@ export type CreateCmsPageInput = {
   parentId?: string | number | null | undefined;
   position?: number | null | undefined;
   privateMetadata?: Array<MetadataInput> | null | undefined;
-  publishedAt?: string | null | undefined;
   relationships?: Array<CmsPageRelationshipInput> | null | undefined;
   selections?: Array<CmsPageSelectionInput> | null | undefined;
   seoNoindex?: boolean | null | undefined;
@@ -128,7 +126,6 @@ export type CreateCmsPageInput = {
 export type CreateCmsPageTypeInput = {
   description?: string | null | undefined;
   icon?: string | null | undefined;
-  isSystem?: boolean | null | undefined;
   locale: string;
   name: string;
   position?: number | null | undefined;
@@ -144,6 +141,11 @@ export type CreateCmsSnippetInput = {
 export type MetadataInput = {
   key: string;
   value: string;
+};
+
+export type MintCmsPagePreviewTokenInput = {
+  locale?: string | null | undefined;
+  pageId: string | number;
 };
 
 export type SetCmsPageChannelListingInput = {
@@ -175,15 +177,12 @@ export type UpdateCmsBlockTypeInput = {
 
 export type UpdateCmsPageInput = {
   clearParent?: boolean | null | undefined;
-  clearPublished?: boolean | null | undefined;
   data?: unknown;
   id: string | number;
-  isPublished?: boolean | null | undefined;
   metadata?: Array<MetadataInput> | null | undefined;
   parentId?: string | number | null | undefined;
   position?: number | null | undefined;
   privateMetadata?: Array<MetadataInput> | null | undefined;
-  publishedAt?: string | null | undefined;
   seoNoindex?: boolean | null | undefined;
   slug?: string | null | undefined;
   tags?: Array<string> | null | undefined;
@@ -812,6 +811,13 @@ export type DeleteCmsBlockTypeMutationVariables = Exact<{
 
 export type DeleteCmsBlockTypeMutation = { deleteCMSBlockType: boolean };
 
+export type MintCmsPagePreviewTokenMutationVariables = Exact<{
+  input: Types.MintCmsPagePreviewTokenInput;
+}>;
+
+
+export type MintCmsPagePreviewTokenMutation = { mintCMSPagePreviewToken: { token: string, expiresAt: string } };
+
 export const CmsAttributeGroupRowFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CmsAttributeGroupRow"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CMSAttributeGroup"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CmsAttributeGroupRowFragment, unknown>;
 export const CmsAttributeValueRowFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CmsAttributeValueRow"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CMSAttributeValue"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"allContent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]} as unknown as DocumentNode<CmsAttributeValueRowFragment, unknown>;
 export const CmsAttributeRowFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CmsAttributeRow"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CMSAttribute"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"inputType"}},{"kind":"Field","name":{"kind":"Name","value":"isTranslatable"}},{"kind":"Field","name":{"kind":"Name","value":"isRequiredDefault"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"validation"}},{"kind":"Field","name":{"kind":"Name","value":"defaultValue"}},{"kind":"Field","name":{"kind":"Name","value":"relationshipTarget"}},{"kind":"Field","name":{"kind":"Name","value":"values"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CmsAttributeValueRow"}}]}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"helperText"}},{"kind":"Field","name":{"kind":"Name","value":"placeholder"}}]}},{"kind":"Field","name":{"kind":"Name","value":"allContent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"helperText"}},{"kind":"Field","name":{"kind":"Name","value":"placeholder"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CmsAttributeValueRow"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CMSAttributeValue"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"allContent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]} as unknown as DocumentNode<CmsAttributeRowFragment, unknown>;
@@ -895,3 +901,4 @@ export const CmsBlockTypeDocument = {"kind":"Document","definitions":[{"kind":"O
 export const CreateCmsBlockTypeDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateCmsBlockType"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateCMSBlockTypeInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createCMSBlockType"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<CreateCmsBlockTypeMutation, CreateCmsBlockTypeMutationVariables>;
 export const UpdateCmsBlockTypeDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateCmsBlockType"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateCMSBlockTypeInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateCMSBlockType"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<UpdateCmsBlockTypeMutation, UpdateCmsBlockTypeMutationVariables>;
 export const DeleteCmsBlockTypeDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteCmsBlockType"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteCMSBlockType"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteCmsBlockTypeMutation, DeleteCmsBlockTypeMutationVariables>;
+export const MintCmsPagePreviewTokenDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"MintCmsPagePreviewToken"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"MintCMSPagePreviewTokenInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mintCMSPagePreviewToken"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"token"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}}]}}]}}]} as unknown as DocumentNode<MintCmsPagePreviewTokenMutation, MintCmsPagePreviewTokenMutationVariables>;

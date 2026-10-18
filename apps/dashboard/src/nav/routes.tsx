@@ -57,7 +57,7 @@ registerNavNode({
   children: [
     { title: 'All customers', path: '/customers', element: lazyPage(() => import('@/features/customers/CustomersList'), 'CustomersList'), permission: 'customers.view' },
     { title: 'Groups', path: '/customers/groups', element: lazyPage(() => import('@/features/customers/CustomerGroupsList'), 'CustomerGroupsList'), permission: 'customers.view' },
-    { title: 'Segments', path: '/segments', element: lazyPage(() => import('@/features/segments/SegmentsListPage'), 'SegmentsListPage'), permission: 'promotions.view' },
+    { title: 'Segments', path: '/segments', element: lazyPage(() => import('@/features/segments/SegmentsListPage'), 'SegmentsListPage'), permission: 'promotions.view', feature: 'signals' },
   ],
 })
 
@@ -70,6 +70,7 @@ registerNavNode({
     // orders list's Status column filter (in the table toolbar)
     { title: 'All orders', path: '/orders', element: lazyPage(() => import('@/features/orders/OrdersList'), 'OrdersList'), permission: 'orders.view' },
     { title: 'Carts', path: '/carts', element: lazyPage(() => import('@/features/carts/CartsList'), 'CartsList'), permission: 'orders.view' },
+    { title: 'Offers', path: '/offers', element: lazyPage(() => import('@/features/carts/CartsList'), 'OffersList'), permission: 'orders.view' },
   ],
 })
 
@@ -184,15 +185,6 @@ registerNavNode({
           element: lazyPage(() => import('@/features/destinations/DestinationsPage'), 'DestinationsPage'),
           permission: 'settings.manage',
           feature: 'signals',
-        },
-        // Fallback entry point to the Emails hub when the Signals suite (and with it the Pulse hub) is switched off - transactional
-        // templates, the library, and blocks stay editable - With Signals on the hub is reached via Pulse, so this entry hides itself
-        {
-          title: 'Email templates',
-          path: '/emails',
-          element: lazyPage(() => import('@/features/emails/EmailsHub'), 'EmailsHub'),
-          permission: 'emails.view',
-          feature: '!signals',
         },
       ],
     },
@@ -420,6 +412,18 @@ registerNavNode({
       permission: 'settings.view',
     },
     {
+      title: 'Checkout',
+      path: '/checkout-settings',
+      element: lazyPage(() => import('@/features/checkout/CheckoutPage'), 'CheckoutPage'),
+      permission: 'checkout.view',
+    },
+    {
+      title: 'Payment providers',
+      path: '/payment-providers',
+      element: lazyPage(() => import('@/features/payments/PaymentProvidersPage'), 'PaymentProvidersPage'),
+      permission: 'payments.view',
+    },
+    {
       title: 'Shipping zones',
       path: '/shipping',
       element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'),
@@ -474,6 +478,7 @@ const detailLeaves = [
   { title: 'New order', path: '/orders/new', element: lazyPage(() => import('@/features/orders/DraftOrderCreate'), 'DraftOrderCreate'), permission: 'orders.update' },
   { title: 'Order detail', path: '/orders/:id', element: lazyPage(() => import('@/features/orders/OrderDetail'), 'OrderDetail') },
   { title: 'Cart detail', path: '/carts/:id', element: lazyPage(() => import('@/features/carts/CartDetail'), 'CartDetail'), permission: 'orders.view' },
+  { title: 'Offer detail', path: '/offers/:id', element: lazyPage(() => import('@/features/carts/CartDetail'), 'CartDetail'), permission: 'orders.view' },
   { title: 'New product', path: '/products/new', element: lazyPage(() => import('@/features/catalog/ProductCreate'), 'ProductCreate') },
   { title: 'Product detail', path: '/products/:id', element: lazyPage(() => import('@/features/catalog/ProductDetail'), 'ProductDetail') },
   { title: 'Channel detail', path: '/channels/:id', element: lazyPage(() => import('@/features/channels/ChannelDetail'), 'ChannelDetail') },
@@ -493,7 +498,7 @@ const detailLeaves = [
   { title: 'Edit tax rule', path: '/tax/:id', element: lazyPage(() => import('@/features/tax/TaxRuleForm'), 'TaxRuleEditPage'), permission: 'settings.manage' },
   { title: 'New shipping zone', path: '/shipping/new', element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'), permission: 'settings.manage' },
   { title: 'Edit shipping zone', path: '/shipping/:id', element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'), permission: 'settings.manage' },
-  { title: 'Segment detail', path: '/segments/:id', element: lazyPage(() => import('@/features/segments/SegmentDetailPage'), 'SegmentDetailPage'), permission: 'promotions.view' },
+  { title: 'Segment detail', path: '/segments/:id', element: lazyPage(() => import('@/features/segments/SegmentDetailPage'), 'SegmentDetailPage'), permission: 'promotions.view', feature: 'signals' },
   {
     title: 'Promotion analytics redirect',
     path: '/promotions/analytics',
@@ -524,31 +529,28 @@ const detailLeaves = [
   },
   // Pulse list pages - reached from the /pulse overview (and in-app links), not
   // the sidebar, so they live here as route-only entries rather than nav items
-  // The unified Emails hub carries three tabs (?tab=emails|templates|blocks)
-  // Registered as a Marketing nav leaf (feature '!signals') instead of a
-  // detail route: normally reached via the Pulse hub, but with Signals off
-  // the sidebar entry keeps transactional email templates editable
-  { title: 'Email blocks', path: '/emails/blocks', element: <Navigate to="/emails?tab=blocks" replace /> },
-  { title: 'Campaigns', path: '/campaigns', element: lazyPage(() => import('@/features/campaigns/CampaignsList'), 'CampaignsList'), permission: 'campaigns.view' },
-  { title: 'Flows', path: '/flows', element: lazyPage(() => import('@/features/flows/FlowsList'), 'FlowsList'), permission: 'flows.view' },
+  { title: 'Email templates', path: '/emails', element: lazyPage(() => import('@/features/emails/EmailsHub'), 'EmailsHub'), permission: 'emails.view', feature: 'signals' },
+  { title: 'Flows', path: '/flows', element: lazyPage(() => import('@/features/flows/FlowsList'), 'FlowsList'), permission: 'flows.view', feature: 'signals' },
+  { title: 'Email blocks', path: '/emails/blocks', element: <Navigate to="/emails?tab=blocks" replace />, feature: 'signals' },
+  { title: 'Campaigns', path: '/campaigns', element: lazyPage(() => import('@/features/campaigns/CampaignsList'), 'CampaignsList'), permission: 'campaigns.view', feature: 'signals' },
   { title: 'Signup forms', path: '/forms', element: lazyPage(() => import('@/features/forms/FormsList'), 'FormsList'), permission: 'forms.view' },
   { title: 'New form', path: '/forms/new', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.manage' },
   { title: 'Edit form', path: '/forms/:id', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.view' },
-  { title: 'Suppression list', path: '/emails/suppressions', element: lazyPage(() => import('@/features/deliverability/SuppressionList'), 'SuppressionList'), permission: 'emails.view' },
+  { title: 'Suppression list', path: '/emails/suppressions', element: lazyPage(() => import('@/features/deliverability/SuppressionList'), 'SuppressionList'), permission: 'emails.view', feature: 'signals' },
   // Lens heatmap viewer - reached from the /lens overview's top-pages list
   // (page + viewport carried in the query string, since page keys contain '/')
-  { title: 'Heatmap', path: '/lens/heatmap', element: lazyPage(() => import('@/features/lens/LensPageDetail'), 'LensPageDetail'), permission: 'lens.view' },
+  { title: 'Heatmap', path: '/lens/heatmap', element: lazyPage(() => import('@/features/lens/LensPageDetail'), 'LensPageDetail'), permission: 'lens.view', feature: 'signals' },
   // Lens bot / crawler analytics - reached from the /lens overview header
-  { title: 'Bot traffic', path: '/lens/bots', element: lazyPage(() => import('@/features/lens/LensBots'), 'LensBots'), permission: 'lens.view' },
+  { title: 'Bot traffic', path: '/lens/bots', element: lazyPage(() => import('@/features/lens/LensBots'), 'LensBots'), permission: 'lens.view', feature: 'signals' },
   // Lens session replay (rrweb): the channel recordings browser + the player (reached from /lens, the recordings list,
   // and the Synapse profiles) - Static /lens/sessions outranks the /:id param in React Router ranking
-  { title: 'Recordings', path: '/lens/sessions', element: lazyPage(() => import('@/features/lens/LensRecordings'), 'LensRecordings'), permission: 'lens.view' },
-  { title: 'Session replay', path: '/lens/sessions/:id', element: lazyPage(() => import('@/features/lens/LensSession'), 'LensSession'), permission: 'lens.view' },
+  { title: 'Recordings', path: '/lens/sessions', element: lazyPage(() => import('@/features/lens/LensRecordings'), 'LensRecordings'), permission: 'lens.view', feature: 'signals' },
+  { title: 'Session replay', path: '/lens/sessions/:id', element: lazyPage(() => import('@/features/lens/LensSession'), 'LensSession'), permission: 'lens.view', feature: 'signals' },
   // Lens UX signals - JS errors + Core Web Vitals + on-site search (reached from
   // the /lens "Explore" cards)
-  { title: 'JS errors', path: '/lens/errors', element: lazyPage(() => import('@/features/lens/LensErrors'), 'LensErrors'), permission: 'lens.view' },
-  { title: 'Performance', path: '/lens/performance', element: lazyPage(() => import('@/features/lens/LensPerformance'), 'LensPerformance'), permission: 'lens.view' },
-  { title: 'Search analytics', path: '/lens/search', element: lazyPage(() => import('@/features/lens/LensSearch'), 'LensSearch'), permission: 'lens.view' },
+  { title: 'JS errors', path: '/lens/errors', element: lazyPage(() => import('@/features/lens/LensErrors'), 'LensErrors'), permission: 'lens.view', feature: 'signals' },
+  { title: 'Performance', path: '/lens/performance', element: lazyPage(() => import('@/features/lens/LensPerformance'), 'LensPerformance'), permission: 'lens.view', feature: 'signals' },
+  { title: 'Search analytics', path: '/lens/search', element: lazyPage(() => import('@/features/lens/LensSearch'), 'LensSearch'), permission: 'lens.view', feature: 'signals' },
   // Admin inbox - reached from the header bell's "View all"
   { title: 'Inbox', path: '/inbox', element: lazyPage(() => import('@/features/notifications/InboxPage'), 'InboxPage'), permission: 'notifications.view' },
   // CMS list pages - route-only; reached from the /cms hub cards
@@ -579,29 +581,29 @@ const detailLeaves = [
   { title: 'Author detail', path: '/blog/authors/:id', element: lazyPage(() => import('@/features/blog/BlogAuthorEditor'), 'BlogAuthorEditor'), permission: 'blog.view' },
   // Prism experiments list + editor - reached from the /prism overview hub
   // (route-only) - Static paths outrank the /:id param in React Router ranking
-  { title: 'Experiments', path: '/prism/experiments', element: lazyPage(() => import('@/features/prism/PrismList'), 'PrismList'), permission: 'experiments.view' },
-  { title: 'New experiment', path: '/prism/new', element: lazyPage(() => import('@/features/prism/PrismEditor'), 'PrismEditor'), permission: 'experiments.manage' },
-  { title: 'Experiment', path: '/prism/:id', element: lazyPage(() => import('@/features/prism/PrismEditor'), 'PrismEditor'), permission: 'experiments.view' },
+  { title: 'Experiments', path: '/prism/experiments', element: lazyPage(() => import('@/features/prism/PrismList'), 'PrismList'), permission: 'experiments.view', feature: 'signals' },
+  { title: 'New experiment', path: '/prism/new', element: lazyPage(() => import('@/features/prism/PrismEditor'), 'PrismEditor'), permission: 'experiments.manage', feature: 'signals' },
+  { title: 'Experiment', path: '/prism/:id', element: lazyPage(() => import('@/features/prism/PrismEditor'), 'PrismEditor'), permission: 'experiments.view', feature: 'signals' },
   // Synapse per-customer behavioural profile - reached from the /synapse overview's "most active customers" list (and
   // in-app links), not the sidebar Lives under Synapse, not the operational customer record
-  { title: 'Customer profile', path: '/synapse/customers/:id', element: lazyPage(() => import('@/features/synapse/SynapseCustomer'), 'SynapseCustomer'), permission: 'customers.view' },
-  { title: 'Visitor profile', path: '/synapse/visitors/:anonId', element: lazyPage(() => import('@/features/synapse/SynapseVisitor'), 'SynapseVisitor'), permission: 'customers.view' },
-  { title: 'Funnel', path: '/synapse/funnels', element: lazyPage(() => import('@/features/synapse/SynapseFunnel'), 'SynapseFunnel'), permission: 'customers.view' },
-  { title: 'Retention', path: '/synapse/retention', element: lazyPage(() => import('@/features/synapse/SynapseRetention'), 'SynapseRetention'), permission: 'customers.view' },
-  { title: 'Segments', path: '/synapse/segments', element: lazyPage(() => import('@/features/synapse/SynapseSegments'), 'SynapseSegments'), permission: 'customers.view' },
-  { title: 'Segment', path: '/synapse/segments/:id', element: lazyPage(() => import('@/features/synapse/SynapseSegment'), 'SynapseSegment'), permission: 'customers.view' },
-  { title: 'Flow', path: '/synapse/flows', element: lazyPage(() => import('@/features/synapse/SynapseFlow'), 'SynapseFlow'), permission: 'customers.view' },
-  { title: 'Engagement', path: '/synapse/stickiness', element: lazyPage(() => import('@/features/synapse/SynapseStickiness'), 'SynapseStickiness'), permission: 'customers.view' },
-  { title: 'Insights', path: '/synapse/insights', element: lazyPage(() => import('@/features/synapse/SynapseInsights'), 'SynapseInsights'), permission: 'customers.view' },
-  { title: 'New block', path: '/emails/blocks/new', element: lazyPage(() => import('@/features/blocks/BlockLibraryDetail'), 'BlockLibraryDetail'), permission: 'emails.manage' },
-  { title: 'Block detail', path: '/emails/blocks/:slug', element: lazyPage(() => import('@/features/blocks/BlockLibraryDetail'), 'BlockLibraryDetail'), permission: 'emails.view' },
-  { title: 'New campaign', path: '/campaigns/new', element: lazyPage(() => import('@/features/campaigns/CampaignComposer'), 'CampaignComposer'), permission: 'campaigns.manage' },
-  { title: 'Campaign detail', path: '/campaigns/:id', element: lazyPage(() => import('@/features/campaigns/CampaignComposer'), 'CampaignComposer'), permission: 'campaigns.view' },
-  { title: 'New flow', path: '/flows/new', element: lazyPage(() => import('@/features/flows/FlowBuilder'), 'FlowBuilder'), permission: 'flows.manage' },
-  { title: 'Flow detail', path: '/flows/:id', element: lazyPage(() => import('@/features/flows/FlowBuilder'), 'FlowBuilder'), permission: 'flows.view' },
-  { title: 'New email', path: '/emails/new', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.manage' },
-  { title: 'Email detail', path: '/emails/:id', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.view' },
-  { title: 'New menu', path: '/menus/new', element: lazyPage(() => import('@/features/menus/MenusList'), 'MenuCreatePane') },
+  { title: 'Customer profile', path: '/synapse/customers/:id', element: lazyPage(() => import('@/features/synapse/SynapseCustomer'), 'SynapseCustomer'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Visitor profile', path: '/synapse/visitors/:anonId', element: lazyPage(() => import('@/features/synapse/SynapseVisitor'), 'SynapseVisitor'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Funnel', path: '/synapse/funnels', element: lazyPage(() => import('@/features/synapse/SynapseFunnel'), 'SynapseFunnel'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Retention', path: '/synapse/retention', element: lazyPage(() => import('@/features/synapse/SynapseRetention'), 'SynapseRetention'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Segments', path: '/synapse/segments', element: lazyPage(() => import('@/features/synapse/SynapseSegments'), 'SynapseSegments'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Segment', path: '/synapse/segments/:id', element: lazyPage(() => import('@/features/synapse/SynapseSegment'), 'SynapseSegment'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Flow', path: '/synapse/flows', element: lazyPage(() => import('@/features/synapse/SynapseFlow'), 'SynapseFlow'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Engagement', path: '/synapse/stickiness', element: lazyPage(() => import('@/features/synapse/SynapseStickiness'), 'SynapseStickiness'), permission: 'customers.view', feature: 'signals' },
+  { title: 'Insights', path: '/synapse/insights', element: lazyPage(() => import('@/features/synapse/SynapseInsights'), 'SynapseInsights'), permission: 'customers.view', feature: 'signals' },
+  { title: 'New block', path: '/emails/blocks/new', element: lazyPage(() => import('@/features/blocks/BlockLibraryDetail'), 'BlockLibraryDetail'), permission: 'emails.manage', feature: 'signals' },
+  { title: 'Block detail', path: '/emails/blocks/:slug', element: lazyPage(() => import('@/features/blocks/BlockLibraryDetail'), 'BlockLibraryDetail'), permission: 'emails.view', feature: 'signals' },
+  { title: 'New campaign', path: '/campaigns/new', element: lazyPage(() => import('@/features/campaigns/CampaignComposer'), 'CampaignComposer'), permission: 'campaigns.manage', feature: 'signals' },
+  { title: 'Campaign detail', path: '/campaigns/:id', element: lazyPage(() => import('@/features/campaigns/CampaignComposer'), 'CampaignComposer'), permission: 'campaigns.view', feature: 'signals' },
+  { title: 'New flow', path: '/flows/new', element: lazyPage(() => import('@/features/flows/FlowBuilder'), 'FlowBuilder'), permission: 'flows.manage', feature: 'signals' },
+  { title: 'Flow detail', path: '/flows/:id', element: lazyPage(() => import('@/features/flows/FlowBuilder'), 'FlowBuilder'), permission: 'flows.view', feature: 'signals' },
+  { title: 'New email', path: '/emails/new', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.manage', feature: 'signals' },
+  { title: 'Email detail', path: '/emails/:id', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.view', feature: 'signals' },
+  { title: 'New menu', path: '/menus/new', element: lazyPage(() => import('@/features/menus/MenuCreate'), 'MenuCreate') },
   { title: 'Menu detail', path: '/menus/:id', element: lazyPage(() => import('@/features/menus/MenuDetail'), 'MenuDetail') },
   {
     title: 'URL rewrites redirect',

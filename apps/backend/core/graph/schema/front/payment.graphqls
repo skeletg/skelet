@@ -1,0 +1,16 @@
+# A payment method offered at checkout for the request's channel,
+# already filtered to those enabled AND allowed for the given country.
+type PaymentMethodOption {
+  providerSlug: String!
+  displayName:  String!
+  sortOrder:    Int!
+  # Customer-facing payment instructions (offline methods only - e.g. bank
+  # transfer details, "pay the courier on delivery"). Empty for gateway methods.
+  instructions: String!
+}
+
+extend type Query {
+  # Enabled payment methods for the request channel, filtered to those accepted for countryCode (a method in "specific" mode is omitted unless countryCode is in its allow-list). Re-fetch when the shipping country changes, like shippingQuotes.
+  # With cartId, only what setCartPaymentMethod would accept for that cart's checkout - purchase order needs a business purchase on a store that asks for the PO number.
+  paymentMethods(countryCode: String!, cartId: ID): [PaymentMethodOption!]!
+}

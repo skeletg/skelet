@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import type { ColumnDef } from '@/components/data-table/tanstack'
 import { useQuery } from '@apollo/client/react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -12,34 +12,26 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { DataTable } from '@/components/data-table'
+import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { useConfigScope } from '@/lib/config-scope'
 import { BotTrafficDocument } from './Lens.gql'
-
-const nfmt = (n: number) => n.toLocaleString()
-const fmtShort = (v: string) => {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-const fmtWhen = (v?: string | null) => {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { Empty, Panel, Tile } from '@/components/layout/panels'
+import { formatDateTime, formatNumber, formatShortDay } from '@/lib/format'
 
 // Category → friendly label + colour, used for the per-agent badges and the category roll-up. "ai" is first because
 // it's the headline use case (which LLMs crawl me)
 const CAT: Record<string, { label: string; color: string }> = {
-  ai: { label: 'AI / LLM', color: '#8b5cf6' },
-  search: { label: 'Search', color: '#0ea5e9' },
-  social: { label: 'Social', color: '#ec4899' },
-  seo: { label: 'SEO tool', color: '#f59e0b' },
-  monitoring: { label: 'Monitoring', color: '#10b981' },
-  scraper: { label: 'Scraper', color: '#ef4444' },
-  other: { label: 'Other', color: '#64748b' },
+  ai: { label: 'AI / LLM', color: SERIES[3] },
+  search: { label: 'Search', color: SERIES[1] },
+  social: { label: 'Social', color: SERIES[7] },
+  seo: { label: 'SEO tool', color: SERIES[4] },
+  monitoring: { label: 'Monitoring', color: SERIES[2] },
+  scraper: { label: 'Scraper', color: SERIES[5] },
+  other: { label: 'Other', color: SERIES_OTHER },
 }
 const catOf = (c: string) => CAT[c] ?? CAT.other
-const HUMAN = '#10b981'
-const BOT = '#8b5cf6'
+const HUMAN = SERIES[2]
+const BOT = SERIES[3]
 
 export function LensBots() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -70,19 +62,19 @@ export function LensBots() {
         </span>
       ),
     },
-    { accessorKey: 'hits', header: () => <div className="text-right">Requests</div>, cell: ({ row }) => <div className="text-right tabular-nums">{nfmt(row.original.hits)}</div> },
-    { accessorKey: 'pages', header: () => <div className="text-right">Pages</div>, cell: ({ row }) => <div className="text-right tabular-nums">{nfmt(row.original.pages)}</div> },
-    { accessorKey: 'lastSeen', header: () => <div className="text-right">Last seen</div>, cell: ({ row }) => <div className="text-right text-muted-foreground">{fmtWhen(row.original.lastSeen)}</div> },
+    { accessorKey: 'hits', header: () => <div className="text-right">Requests</div>, cell: ({ row }) => <div className="text-right tabular-nums">{formatNumber(row.original.hits)}</div> },
+    { accessorKey: 'pages', header: () => <div className="text-right">Pages</div>, cell: ({ row }) => <div className="text-right tabular-nums">{formatNumber(row.original.pages)}</div> },
+    { accessorKey: 'lastSeen', header: () => <div className="text-right">Last seen</div>, cell: ({ row }) => <div className="text-right text-muted-foreground">{formatDateTime(row.original.lastSeen)}</div> },
   ]
 
   const pageColumns: ColumnDef<PageRow>[] = [
     { accessorKey: 'pageKey', header: 'Page', cell: ({ row }) => <span className="block max-w-[420px] truncate font-mono">{row.original.pageKey || '/'}</span> },
-    { accessorKey: 'hits', header: () => <div className="text-right">Crawls</div>, cell: ({ row }) => <div className="text-right tabular-nums">{nfmt(row.original.hits)}</div> },
+    { accessorKey: 'hits', header: () => <div className="text-right">Crawls</div>, cell: ({ row }) => <div className="text-right tabular-nums">{formatNumber(row.original.hits)}</div> },
     // The bot column is meaningless once the list is filtered to one agent
-    ...(bot ? [] : [{ accessorKey: 'bots', header: () => <div className="text-right">Bots</div>, cell: ({ row }) => <div className="text-right tabular-nums">{nfmt(row.original.bots)}</div> } as ColumnDef<PageRow>]),
+    ...(bot ? [] : [{ accessorKey: 'bots', header: () => <div className="text-right">Bots</div>, cell: ({ row }) => <div className="text-right tabular-nums">{formatNumber(row.original.bots)}</div> } as ColumnDef<PageRow>]),
   ]
   const botShare = total > 0 ? Math.round((bt!.botHits / total) * 100) : 0
-  const series = (bt?.daily ?? []).map((d) => ({ day: fmtShort(d.day), Humans: d.humanViews, Bots: d.botHits }))
+  const series = (bt?.daily ?? []).map((d) => ({ day: formatShortDay(d.day), Humans: d.humanViews, Bots: d.botHits }))
 
   // Category roll-up from the per-agent rows
   const byCat = new Map<string, number>()
@@ -117,10 +109,10 @@ export function LensBots() {
           <>
             <DetailPageSection title="At a glance">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Tile label="Bot requests" value={nfmt(bt.botHits)} sub="server-observed crawls" />
-                <Tile label="Human page views" value={nfmt(bt.humanViews)} sub="bots excluded" />
-                <Tile label="Distinct bots" value={nfmt(bt.botCount)} sub="named agents seen" />
-                <Tile label="Pages crawled" value={nfmt(bt.pageCount)} sub="distinct URLs" />
+                <Tile label="Bot requests" value={formatNumber(bt.botHits)} sub="server-observed crawls" />
+                <Tile label="Human page views" value={formatNumber(bt.humanViews)} sub="bots excluded" />
+                <Tile label="Distinct bots" value={formatNumber(bt.botCount)} sub="named agents seen" />
+                <Tile label="Pages crawled" value={formatNumber(bt.pageCount)} sub="distinct URLs" />
               </div>
               {total > 0 && (
                 <div className="mt-3 rounded border p-3">
@@ -129,8 +121,8 @@ export function LensBots() {
                     <span>{botShare}% bot</span>
                   </div>
                   <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
-                    <div style={{ width: `${100 - botShare}%`, background: HUMAN }} title={`Human: ${nfmt(bt.humanViews)}`} />
-                    <div style={{ width: `${botShare}%`, background: BOT }} title={`Bot: ${nfmt(bt.botHits)}`} />
+                    <div style={{ width: `${100 - botShare}%`, background: HUMAN }} title={`Human: ${formatNumber(bt.humanViews)}`} />
+                    <div style={{ width: `${botShare}%`, background: BOT }} title={`Bot: ${formatNumber(bt.botHits)}`} />
                   </div>
                   <div className="mt-1.5 flex gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: HUMAN }} /> Human</span>
@@ -178,7 +170,7 @@ export function LensBots() {
                     <div key={c} className="flex items-center gap-3 rounded border p-3">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: catOf(c).color }} />
                       <span className="flex-1 text-sm">{catOf(c).label}</span>
-                      <span className="text-sm font-semibold tabular-nums">{nfmt(hits)}</span>
+                      <span className="text-sm font-semibold tabular-nums">{formatNumber(hits)}</span>
                     </div>
                   ))}
                 </div>
@@ -227,27 +219,4 @@ export function LensBots() {
       </DetailPageBody>
     </DetailPageLayout>
   )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }

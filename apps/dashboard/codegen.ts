@@ -8,14 +8,10 @@ const config: CodegenConfig = {
   overwrite: true,
   schema: ENDPOINT,
   documents: ['src/**/*.graphql'],
+  // Int64 (money in cents) marshals as a JSON number, Time is gqlgen's RFC3339 string, and JSON stays unknown so consumers narrow instead of opting out of type checking
   config: {
     useTypeImports: true,
     enumsAsTypes: true,
-    // Int64 (aggregate money in cents) marshals as a JSON number; JS handles
-    // values well under 2^53, so number is safe and keeps arithmetic clean.
-    // Time is gqlgen's RFC3339 string on the wire. JSON stays schemaless
-    // (rich-text bodies, block documents) - unknown forces consumers to
-    // narrow instead of silently opting out of type checking.
     scalars: {
       Int64: 'number',
       Time: 'string',

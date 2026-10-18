@@ -1,5 +1,5 @@
 import { useQuery } from '@apollo/client/react'
-import { formatCents } from '@/lib/format'
+import { formatCents, formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/admin-prefs'
 import { EMPTY_LAYOUT, applyLayout, isHiddenInLayout, type OrderedLayout } from '@/lib/layout-pref'
 import { useConfigScope } from '@/lib/config-scope'
@@ -11,8 +11,6 @@ import { CustomersPagedDocument } from '@/features/customers/Customers.gql'
 import { OrderQueueCountsDocument } from '@/features/orders/Orders.gql'
 import { SALES_DAYS, useSalesReport } from './sales'
 import { Tile, WidgetSection } from './primitives'
-
-const nfmt = (n: number) => n.toLocaleString()
 
 // The at-a-glance row. Money comes from the server-side sales report rather than a client-side
 // reduce over every order, so the figures come from one aggregate and the page doesn't pull the order table
@@ -46,21 +44,21 @@ export function StatsWidget() {
 
   const values: Record<string, { value: string; sub: string }> = {
     revenue: { value: money(summary?.grossRevenue), sub: window },
-    orders: { value: nfmt(summary?.orderCount ?? 0), sub: `placed in the ${window}` },
-    aov: { value: money(summary?.averageOrderValue), sub: `${nfmt(summary?.orderCount ?? 0)} orders` },
+    orders: { value: formatNumber(summary?.orderCount ?? 0), sub: `placed in the ${window}` },
+    aov: { value: money(summary?.averageOrderValue), sub: `${formatNumber(summary?.orderCount ?? 0)} orders` },
     margin: { value: money(summary?.marginTotal), sub: `cost ${money(summary?.costTotal)}` },
-    refunds: { value: money(summary?.refundedAmount), sub: `${nfmt(summary?.refundCount ?? 0)} refunded` },
-    'ordering-customers': { value: nfmt(summary?.uniqueCustomers ?? 0), sub: `ordered in the ${window}` },
+    refunds: { value: money(summary?.refundedAmount), sub: `${formatNumber(summary?.refundCount ?? 0)} refunded` },
+    'ordering-customers': { value: formatNumber(summary?.uniqueCustomers ?? 0), sub: `ordered in the ${window}` },
     pending: {
-      value: nfmt(queuesQuery.data?.pending.totalCount ?? 0),
+      value: formatNumber(queuesQuery.data?.pending.totalCount ?? 0),
       sub: 'awaiting confirmation',
     },
     customers: {
-      value: nfmt(customerCountQuery.data?.customersPaged.totalCount ?? 0),
+      value: formatNumber(customerCountQuery.data?.customersPaged.totalCount ?? 0),
       sub: 'registered accounts',
     },
-    products: { value: nfmt(productCountQuery.data?.productsPaged.totalCount ?? 0), sub: 'in the catalog' },
-    collections: { value: nfmt(collectionsQuery.data?.collections.length ?? 0), sub: 'curated groupings' },
+    products: { value: formatNumber(productCountQuery.data?.productsPaged.totalCount ?? 0), sub: 'in the catalog' },
+    collections: { value: formatNumber(collectionsQuery.data?.collections.length ?? 0), sub: 'curated groupings' },
   }
 
   const [layout] = usePreference<OrderedLayout>(TILES_PREF_KEY, EMPTY_LAYOUT)

@@ -1,0 +1,21 @@
+# pnpm settings for this app alone - no packages: key, so this is a single project, not a
+# workspace. pnpm 11+ reads nothing but auth from .npmrc and ignores package.json's pnpm field,
+# so the Dockerfiles copy this file next to the lockfile or a frozen install refuses to run
+
+# Dependency install scripts run only when listed true - none of these needs to: esbuild and
+# fsevents resolve their prebuilt platform binary at runtime, and tsparticles' script only warns
+# about incompatible sibling packages
+allowBuilds:
+  "@tsparticles/engine": false
+  esbuild: false
+  fsevents: false
+
+# Carried over from package.json's npm overrides - parent>child scopes the pin to these two
+overrides:
+  "@graphql-codegen/visitor-plugin-common>auto-bind": "4.0.0"
+  "@graphql-codegen/near-operation-file-preset>auto-bind": "4.0.0"
+
+# Bring node_modules back in line with the lockfile before any `pnpm run` - a host tree kept beside a
+# Docker app's volume (for the IDE and the gates bin/channel and bin/dash run there) never sees the
+# container's reinstalls, and would otherwise typecheck and lint against yesterday's dependencies
+verifyDepsBeforeRun: install

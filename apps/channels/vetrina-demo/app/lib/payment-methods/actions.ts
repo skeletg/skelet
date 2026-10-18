@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
 
 import { gqlFetch } from "@/app/lib/graphql";
@@ -45,6 +45,6 @@ export async function deletePaymentMethodAction(
     console.error("payment method delete failed:", err);
     ok = false;
   }
-  revalidatePath(PAYMENT_METHODS_PAGE);
+  revalidateAccount();
   redirect(ok ? PAYMENT_METHODS_PAGE : `${PAYMENT_METHODS_PAGE}?error=delete`);
 }

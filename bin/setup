@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guided first-run, safe to re-run - answers become env files, secrets and a plugin set
-# Flags: --all | --backend-only | --apps LIST|none | --docker-apps LIST|none | --keep-code | --yes | --profile FILE
+# Flags: --all | --backend-only | --apps LIST|none | --docker-apps LIST|none | --tools LIST|none | --keep-code | --yes | --profile FILE
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
@@ -26,16 +26,25 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     done < <(git ls-tree -d --name-only HEAD apps/channels/ 2>/dev/null)
 fi
 
-# The payment gateways this tree actually carries. plugins.json naming a slug with no
-# plugins/<slug> directory fails cmd/plugingen outright, so the picker only ever offers what
-# can compile - and one installed from its own repo shows up here without editing this script
+# The payment gateways this tree actually carries. plugins.json naming a slug with no plugins/<slug> directory fails cmd/plugingen outright, so the picker only ever offers what can compile - and one installed from its own repo shows up here without editing this script
 gateways=()
-for d in apps/backend/plugins/payment-*/; do
+for d in apps/backend/core/plugins/payment-*/; do
     [ -d "$d" ] && gateways+=("$(basename "$d")")
 done
 
 all_apps="dashboard"
 for n in "${storefronts[@]}"; do all_apps="$all_apps,$n"; done
+
+# Optional dev tools, each a compose profile of its own name - none of them is needed to run the stack
+all_tools="mailpit,webhook-tester,grafana,garage-webui"
+tool_hint() {
+    case "$1" in
+        mailpit)        echo "Mailpit - catches outgoing email, UI on :8025 (without it, mail prints to the app log)" ;;
+        webhook-tester) echo "Webhook tester - catches outbound webhooks, UI on :8081" ;;
+        grafana)        echo "Grafana - traces, metrics and container logs, UI on :3030" ;;
+        garage-webui)   echo "Garage web UI - object storage console on :9901" ;;
+    esac
+}
 
 valid_app() {
     [ "$1" = "dashboard" ] && return 0
@@ -45,11 +54,12 @@ valid_app() {
 
 apps=""
 apps_set=0
-# Which of the selected apps run in a container. Empty means all of them run on the host, which
-# is the default: there the dev server and the gates share one node_modules, so `bin/dash run
-# lint` checks the tree vite is actually serving. In Docker those are two trees that drift apart
+# Which of the selected apps run in a container. Empty means all of them run on the host, which is the default
+# There the dev server and the gates share one node_modules, so the linter checks the tree vite is actually serving; in Docker those are two trees that drift apart
 docker_apps=""
 docker_apps_set=0
+tools=""
+tools_set=0
 keep_code=0
 assume_yes=0
 while [ $# -gt 0 ]; do
@@ -72,6 +82,14 @@ while [ $# -gt 0 ]; do
                 valid_app "$a" || { echo "Unknown app \"$a\" (valid: ${all_apps//,/, }, none)"; exit 2; }
             done
             docker_apps_set=1 ;;
+        --tools)
+            shift
+            [ -n "${1:-}" ] || { echo "--tools needs a value (e.g. ${all_tools} or none)"; exit 2; }
+            tools="$1"; [ "$tools" = "none" ] && tools=""
+            for t in ${tools//,/ }; do
+                case ",$all_tools," in *,"$t",*) ;; *) echo "Unknown tool \"$t\" (valid: ${all_tools//,/, }, none)"; exit 2 ;; esac
+            done
+            tools_set=1 ;;
         --keep-code) keep_code=1 ;;
         --yes|-y)    assume_yes=1 ;;
         --profile)
@@ -79,14 +97,14 @@ while [ $# -gt 0 ]; do
             [ -n "${1:-}" ] || { echo "--profile needs a file"; exit 2; }
             [ -f "$1" ] || { echo "No such profile: $1"; exit 2; }
             PROFILE="$1"; assume_yes=1 ;;
-        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --docker-apps LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
+        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
     esac
     shift
 done
 
 # Last run's answers become this run's defaults, so re-running is not an interrogation
 SKELET_TARGET=dev SKELET_SIGNALS=true SKELET_AI=true
-SKELET_SEARCH=opensearch SKELET_SPINE=postgres SKELET_ADMIN_SLUG=0
+SKELET_SEARCH=opensearch SKELET_ADMIN_SLUG=0
 SKELET_GATEWAYS="$(IFS=,; printf '%s' "${gateways[*]-}")"
 # shellcheck disable=SC1090
 [ -f "$PROFILE" ] && . "$PROFILE"
@@ -124,8 +142,15 @@ gen_key_b64() {
     openssl rand -base64 32 2>/dev/null | tr -d '\n' || head -c 32 /dev/urandom | base64 | tr -d '\n'
 }
 
+# The customer session pair - Ed25519, so the Signals tiers can check a session with the public half and mint nothing
+# The seed is plain random bytes; openssl derives the public key from it wrapped in a PKCS#8 header (OpenSSL 1.1.1+, which LibreSSL on stock macOS is not - brew install openssl)
+customer_public_key() {
+    { printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; printf '%s' "$1" | base64 -d; } \
+        | openssl pkey -inform DER -pubout -outform DER 2>/dev/null | tail -c 32 | base64 | tr -d '\n'
+}
+
 placeholder() { # a value we are allowed to overwrite - anything else is the operator's
-    case "$1" in ''|change-me|changeme|CHANGE_ME|change-me-in-prod) return 0 ;; *) return 1 ;; esac
+    case "$1" in ''|change-me|change-me-too|changeme|CHANGE_ME|change-me-in-prod) return 0 ;; *) return 1 ;; esac
 }
 
 # GNU sed's -i takes no argument and BSD's demands one, so neither spelling is portable - write a
@@ -198,6 +223,38 @@ for a in ${docker_apps//,/ }; do
 done
 docker_apps="$kept"
 
+# A host app needs pnpm at the version its packageManager pins, so refuse before anything is
+# written - finding out at the install step leaves a half-set-up clone and a frontend that won't start
+host_dirs=()
+for a in ${apps//,/ }; do
+    case ",$docker_apps," in *,"$a",*) continue ;; esac
+    if [ "$a" = dashboard ]; then host_dirs+=(apps/dashboard); else host_dirs+=("apps/channels/$a"); fi
+done
+pnpm_problem=""
+if [ ${#host_dirs[@]} -gt 0 ]; then
+    # A deselected app comes back from sparse-checkout only further down, so read the pin from HEAD when it isn't on disk
+    pin_dir="${host_dirs[0]}"
+    want_pnpm="$( { cat "$pin_dir/package.json" 2>/dev/null || git show "HEAD:$pin_dir/package.json" 2>/dev/null; } \
+        | grep -oE '"packageManager": *"pnpm@[0-9.]+' | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        pnpm_problem="no pnpm on PATH - corepack enable, or npm install -g pnpm@${want_pnpm:-<version>}"
+    elif [ -n "$want_pnpm" ] && [ -f "$pin_dir/package.json" ]; then
+        # Asked from inside the app, where pnpm switches itself to the pinned version - that switch is what breaks
+        have="$(cd "$pin_dir" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')" || true
+        [ "$have" = "$want_pnpm" ] \
+            || pnpm_problem="pnpm in $pin_dir answers ${have:-nothing}, the apps pin $want_pnpm - pnpm self-update $want_pnpm"
+    fi
+fi
+if [ -n "$pnpm_problem" ]; then
+    echo "==> The frontends on the host need pnpm: $pnpm_problem" >&2
+    if [ "$interactive" = 1 ] && ask_yn "    Run them in Docker instead, which needs no pnpm on the host?" y; then
+        docker_apps="$apps"
+    else
+        echo "    Install it and re-run, or re-run with --docker-apps ${apps}" >&2
+        exit 1
+    fi
+fi
+
 printf '%s\n' "$docker_apps" > .skelet-apps
 echo "==> Apps: ${apps:-backend only}"
 echo "    in Docker: ${docker_apps:-none - they run on the host with \`./skelet serve <app>\`}  (saved to .skelet-apps)"
@@ -248,9 +305,6 @@ if [ "$interactive" = 1 ]; then
 
     echo "==> Engines"
     SKELET_SEARCH=$(ask_choice s "Product search" "$SKELET_SEARCH" opensearch postgres)
-    if [ "$SKELET_SIGNALS" = true ]; then
-        SKELET_SPINE=$(ask_choice e "Analytics spine (postgres is fine until you outgrow it)" "$SKELET_SPINE" postgres clickhouse)
-    fi
 
     if [ ${#gateways[@]} -eq 0 ]; then
         echo "==> Payment gateways - none in this tree (add one with \`skelet cli plugin install\`)"
@@ -274,29 +328,45 @@ if [ "$interactive" = 1 ]; then
     fi
 fi
 
+# ---------------------------------------------------------------- dev tools
+# Off unless picked - a re-run defaults to the last answers, a first non-interactive run to none
+if [ "$tools_set" = 0 ]; then
+    tools="${SKELET_TOOLS_SELECTED-}"
+    if [ "$interactive" = 1 ] && [ "$SKELET_TARGET" = dev ]; then
+        echo "==> Optional dev tools - the stack runs without any of them"
+        picks=()
+        for t in ${all_tools//,/ }; do
+            case ",$tools," in *,"$t",*) d=y ;; *) d=n ;; esac
+            ask_yn "    $(tool_hint "$t")?" "$d" && picks+=("$t")
+        done
+        tools=$(IFS=,; echo "${picks[*]-}")
+    fi
+fi
+printf '%s\n' "$tools" > .skelet-tools
+echo "==> Dev tools: ${tools:-none}  (saved to .skelet-tools; start one ad hoc with ./skelet up <name>)"
+
 cat > "$PROFILE" <<EOF
 # Written by bin/setup - your answers, so a re-run defaults to them
 SKELET_TARGET=$SKELET_TARGET
 SKELET_SIGNALS=$SKELET_SIGNALS
 SKELET_AI=$SKELET_AI
 SKELET_SEARCH=$SKELET_SEARCH
-SKELET_SPINE=$SKELET_SPINE
 SKELET_GATEWAYS=$SKELET_GATEWAYS
 SKELET_ADMIN_SLUG=$SKELET_ADMIN_SLUG
 SKELET_APPS_SELECTED=$apps
 SKELET_DOCKER_APPS=$docker_apps
+SKELET_TOOLS_SELECTED=$tools
 EOF
 echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS ai=$SKELET_AI, search=$SKELET_SEARCH  (saved to $PROFILE)"
 
 # ---------------------------------------------------------------- env files
 case "$SKELET_TARGET" in
-    dev)   backend_env=env/go.env;    want=(env/go.env env/db.env) ;;
+    dev)   backend_env=env/go.env;    want=(env/go.env env/db.env env/signals.env) ;;
     small) backend_env=env/small.env; want=(env/small.env) ;;
     prod)  backend_env=env/prod.env;  want=(env/prod.env) ;;
 esac
-# Every other env file that target's compose file names, rather than a list kept here: a shop
-# added by bin/new gets set up like the one it was forked from instead of being skipped, and
-# what compose demands and what this writes cannot drift apart
+# Every other env file that target's compose file names, rather than a list kept here
+# A shop added by bin/new gets set up like the one it was forked from, and what compose demands cannot drift from what this writes
 if [ "$SKELET_TARGET" != dev ]; then
     while IFS= read -r f; do
         case " ${want[*]} " in *" $f "*) continue ;; esac
@@ -319,7 +389,7 @@ set_env "$backend_env" SIGNALS_ENABLED "$SKELET_SIGNALS"
 set_env "$backend_env" AI_ENABLED "$SKELET_AI"
 
 echo "==> Secrets"
-for key in JWT_SECRET CONFIG_ENCRYPTION_KEY REVIEW_VOTER_TOKEN_SECRET STOREFRONT_REVALIDATE_SECRET EMAIL_WEBHOOK_TOKEN; do
+for key in ADMIN_JWT_SECRET EMAIL_LINK_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET REVIEW_VOTER_TOKEN_SECRET STOREFRONT_REVALIDATE_SECRET EMAIL_WEBHOOK_TOKEN; do
     cur="$(get_env "$backend_env" "$key")"
     if placeholder "$cur"; then
         if [ "$key" = CONFIG_ENCRYPTION_KEY ]; then val="$(gen_key_b64)"; else val="$(gen_secret)"; fi
@@ -329,6 +399,32 @@ for key in JWT_SECRET CONFIG_ENCRYPTION_KEY REVIEW_VOTER_TOKEN_SECRET STOREFRONT
         echo "    $key already set, left alone"
     fi
 done
+if placeholder "$(get_env "$backend_env" CUSTOMER_JWT_PRIVATE_KEY)"; then
+    set_env "$backend_env" CUSTOMER_JWT_PRIVATE_KEY "$(gen_key_b64)"
+    echo "    CUSTOMER_JWT_PRIVATE_KEY generated"
+else
+    echo "    CUSTOMER_JWT_PRIVATE_KEY already set, left alone"
+fi
+# The public half is always re-derived, so it can never drift from the private key it pairs with
+pub="$(customer_public_key "$(get_env "$backend_env" CUSTOMER_JWT_PRIVATE_KEY)")"
+if [ "$(printf '%s' "$pub" | base64 -d 2>/dev/null | wc -c)" -ne 32 ]; then
+    echo "    could not derive CUSTOMER_JWT_PUBLIC_KEY - needs OpenSSL 1.1.1+ (macOS: brew install openssl), or set it from './skelet cli keys customer-public <private key>'" >&2
+    exit 1
+fi
+set_env "$backend_env" CUSTOMER_JWT_PUBLIC_KEY "$pub"
+# JWT_SECRET signed both session types and is refused at boot now - its replacements are generated above
+if [ -n "$(get_env "$backend_env" JWT_SECRET)" ]; then
+    del_env "$backend_env" JWT_SECRET
+    echo "    JWT_SECRET removed - ADMIN_JWT_SECRET, CUSTOMER_JWT_PRIVATE_KEY and EMAIL_LINK_SECRET replace it"
+fi
+# The Signals processes' own file carries what they share with core, which has to match go.env's - the public key, never the private one
+if [ "$SKELET_TARGET" = dev ]; then
+    for key in CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET SIGNALS_SERVICE_SECRET; do
+        val="$(get_env env/go.env "$key")"
+        [ -z "$val" ] || set_env env/signals.env "$key" "$val"
+    done
+    del_env env/signals.env JWT_SECRET
+fi
 if [ "$SKELET_TARGET" != dev ]; then
     cur="$(get_env "$backend_env" BACKUP_ENCRYPTION_PASSPHRASE)"
     if placeholder "$cur"; then
@@ -336,20 +432,19 @@ if [ "$SKELET_TARGET" != dev ]; then
         echo "    BACKUP_ENCRYPTION_PASSPHRASE generated - store it somewhere you can restore from"
     fi
 
-    # The root .env is the ONLY file compose interpolates, and the small/prod files build their
-    # datastore URLs out of these - a secret that only reaches the container through env_file is
-    # invisible to ${VAR:?} and the stack refuses to start. Datastore passwords are generated here
-    # too, since nothing else writes them and an empty one silently becomes a blank password
+    # The root .env is the ONLY file compose interpolates, and the small and prod files build their datastore URLs out of these
+    # A secret reaching the container only through env_file is invisible to ${VAR:?}, and datastore passwords are generated here since an empty one silently becomes a blank password
     touch .env
-    for key in JWT_SECRET CONFIG_ENCRYPTION_KEY DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD; do
+    del_env .env JWT_SECRET
+    for key in ADMIN_JWT_SECRET CUSTOMER_JWT_PRIVATE_KEY CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET REVIEW_VOTER_TOKEN_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET STORAGE_SIGNING_KEY DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD CLICKHOUSE_PASSWORD; do
         cur="$(get_env .env "$key")"
         placeholder "$cur" || { echo "    .env $key already set, left alone"; continue; }
-        # the two the backend also reads must MATCH there, not be generated twice
+        # the ones the backend also reads must MATCH there, not be generated twice
         case "$key" in
-            JWT_SECRET|CONFIG_ENCRYPTION_KEY) val="$(get_env "$backend_env" "$key")" ;;
+            ADMIN_JWT_SECRET|CUSTOMER_JWT_PRIVATE_KEY|CUSTOMER_JWT_PUBLIC_KEY|EMAIL_LINK_SECRET|REVIEW_VOTER_TOKEN_SECRET|CONFIG_ENCRYPTION_KEY|SIGNALS_SERVICE_SECRET) val="$(get_env "$backend_env" "$key")" ;;
             *) val="" ;;
         esac
-        [ -n "$val" ] || { if [ "$key" = CONFIG_ENCRYPTION_KEY ]; then val="$(gen_key_b64)"; else val="$(gen_secret)"; fi; }
+        [ -n "$val" ] || { case "$key" in CONFIG_ENCRYPTION_KEY|SIGNALS_ENCRYPTION_KEY) val="$(gen_key_b64)" ;; *) val="$(gen_secret)" ;; esac; }
         set_env .env "$key" "$val"
         echo "    .env $key set"
     done
@@ -358,9 +453,11 @@ fi
 # ---------------------------------------------------------------- root .env
 touch .env
 echo "==> Compose knobs (.env)"
-# Both knobs are written on EVERY run, not just when they leave the default. A one-way write
-# means re-running and changing your answer back silently does nothing, and re-running with
-# different answers is the whole point of the profile defaults above
+# The dev storefront mints review-vote tokens core verifies, so it reads the same value - from here, the only file compose interpolates
+if [ "$SKELET_TARGET" = dev ]; then
+    set_env .env REVIEW_VOTER_TOKEN_SECRET "$(get_env env/go.env REVIEW_VOTER_TOKEN_SECRET)"
+fi
+# Both knobs are written on EVERY run, not just when they leave the default. A one-way write means re-running and changing your answer back silently does nothing, and re-running with different answers is the whole point of the profile defaults above
 if [ "$SKELET_SEARCH" = postgres ]; then
     set_env .env OPENSEARCH_URL ""
     echo "    search pinned to the Postgres tier"
@@ -369,13 +466,6 @@ else
     # the bundled cluster while set-but-empty is what pins search to Postgres
     del_env .env OPENSEARCH_URL
     echo "    search on the bundled OpenSearch"
-fi
-if [ "$SKELET_SIGNALS" = true ] && [ "$SKELET_SPINE" = clickhouse ]; then
-    set_env .env SIGNALS_ENGINE clickhouse
-    echo "    analytics spine on ClickHouse"
-else
-    set_env .env SIGNALS_ENGINE postgres
-    echo "    analytics spine on Postgres"
 fi
 if [ "$SKELET_ADMIN_SLUG" = 1 ]; then
     slug="$(grep -E '^ADMIN_API_SLUG=.+' .env 2>/dev/null | cut -d= -f2- || true)"
@@ -397,13 +487,11 @@ else
 fi
 
 # ---------------------------------------------------------------- plugins
-plugins_json=apps/backend/plugins/plugins.json
+plugins_json=apps/backend/core/plugins/plugins.json
 before="$(cat "$plugins_json" 2>/dev/null || true)"
 
-# MERGED, never rewritten from a list held here. plugins.json is the decision file that
-# `skelet cli plugin enable|disable` and `plugin install` write too, so a slug this script
-# knows nothing about - a language pack, a gateway living in its own repo - has to survive a
-# re-run untouched. Only the gateways just picked change value
+# MERGED, never rewritten from a list held here - plugins.json is the decision file that `plugin enable|disable` and `plugin install` write too
+# So a slug this script knows nothing about survives a re-run untouched, and only the gateways just picked change value
 pairs=()
 has_pair() { case " ${pairs[*]-} " in *" $1:"*) return 0 ;; esac; return 1; }
 
@@ -421,7 +509,7 @@ done < <(sed -n 's/^[[:space:]]*"\([^"]*\)"[[:space:]]*:[[:space:]]*\([01]\).*/\
 
 # Then any plugin directory the file doesn't name yet - plugingen refuses to run while one
 # has no decision recorded, so leave none behind. Off unless it was just picked
-for d in apps/backend/plugins/*/; do
+for d in apps/backend/core/plugins/*/; do
     [ -d "$d" ] || continue
     slug="$(basename "$d")"
     [ "$slug" = firstparty ] && continue
@@ -470,10 +558,9 @@ docker compose exec db sh -c 'until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
 echo "==> Running migrations..."
 bin/migrate up
 
-# The clickhouse profile came up with the stack (bin/_lib derives it from SIGNALS_ENGINE), but
-# no backend role can depend_on its one-shot - a depends_on across a profile boundary makes the
-# whole project invalid when that profile is off - so confirm the schema landed here instead
-if [ "$SKELET_SIGNALS" = true ] && [ "$SKELET_SPINE" = clickhouse ]; then
+# ClickHouse came up inside the signals profile and the Signals process waits on its one-shot, so
+# this only confirms the spine schema landed before the first beacon
+if [ "$SKELET_SIGNALS" = true ]; then
     echo "==> Waiting for the ClickHouse spine schema..."
     ch_ready=0
     tries=0
@@ -498,30 +585,32 @@ if [ "$regen_plugins" = 1 ]; then
     bin/codegen || echo "    codegen failed - run bin/codegen once the stack is warm"
 fi
 
-# POPULATED, not merely present - the containers started above mount a named volume at
-# node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the
-# host. Testing -d here would see the directory this script just caused and skip its own install
+# POPULATED, not merely present - the containers started above mount a named volume at node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the host. Testing -d here would see the directory this script just caused and skip its own install
 needs_install() { [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; }
+# Populated without pnpm's .modules.yaml is an npm tree from before the switch - skipping it leaves
+# the old tree in place, and pnpm won't take it over without a TTY to confirm the wipe
+npm_tree() { ! needs_install "$1" && [ ! -f "$1/node_modules/.modules.yaml" ]; }
 
-# Into whichever tree the app will actually run from - a host app installed into the container's
-# volume, or the reverse, looks like the install did nothing at all
+# Host apps only. A Docker app's dev image runs pnpm install on every start, into the node_modules
+# volume the host can't see - judging it by the host tree skipped a stale volume whenever the host
+# happened to hold an install of its own
 install_app() { # install_app DIR NAME
     local dir="$1" name="$2"
+    case ",$docker_apps," in
+        *,"$name",*)
+            echo "==> $name runs in Docker and installs its own dependencies on start - follow it with ./skelet logs $name"
+            return ;;
+    esac
     echo "==> Installing $name dependencies..."
-    if ! needs_install "$dir"; then
+    if npm_tree "$dir"; then
+        echo "    $dir/node_modules is an npm install from before the switch to pnpm - replacing it"
+        rm -rf "$dir/node_modules"
+    elif ! needs_install "$dir"; then
         echo "    $dir/node_modules is populated, skipping"
         return
     fi
-    case ",$docker_apps," in
-        *,"$name",*)
-            if [ "$name" = dashboard ]; then bin/dash install; else bin/channel "$name" install; fi ;;
-        *)
-            if command -v npm >/dev/null 2>&1; then
-                (cd "$dir" && npm ci)
-            else
-                echo "    no npm on PATH - install Node, or re-run with --docker-apps $name" >&2
-            fi ;;
-    esac
+    # pnpm was checked before anything was written, so a host app always has one here
+    (cd "$dir" && pnpm install --frozen-lockfile)
 }
 
 case ",$apps," in *,dashboard,*) install_app apps/dashboard dashboard ;; esac
@@ -531,12 +620,28 @@ for sf in apps/channels/*/package.json; do
     case ",$apps," in *,"$name",*) install_app "apps/channels/$name" "$name" ;; esac
 done
 
+# The first login, while the person is still at the prompt - the CLI only needs the migrated database, not a
+# warm server. Defaults to no once a superuser exists, so a re-run doesn't push a second one
+if [ "$interactive" = 1 ]; then
+    supers="$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM admin_users WHERE is_superuser"' 2>/dev/null | tr -d '[:space:]')"
+    if [ "${supers:-0}" = 0 ]; then
+        q="Create your first admin login now?"; d=y
+    else
+        q="A superuser already exists - create another?"; d=n
+    fi
+    if ask_yn "==> $q" "$d"; then
+        bin/cli admin create-superuser \
+            || echo "    create-superuser failed - run it again with ./skelet cli admin create-superuser" >&2
+    fi
+fi
+
 echo "==> Setup complete."
 echo
 echo "Next steps:"
 echo "  bin/dev                 # dev stack with hot reload + sidecars"
 echo "  bin/doctor              # check the shape you just picked"
 echo "  bin/install-hooks       # opt-in: pre-commit keeps generated code fresh"
+echo "  bin/cli admin create-superuser   # an admin login, if you skipped it above"
 echo
 echo "Once bin/dev is up:"
 if [ "$SKELET_ADMIN_SLUG" = 1 ]; then
@@ -562,7 +667,14 @@ if [ -n "$host_apps" ]; then
     echo "These run on the host, so bin/dev does not start them:"
     for a in $host_apps; do echo "  ./skelet serve $a"; done
 fi
-echo "  Mailpit (caught email)  http://localhost:8025"
+for t in ${tools//,/ }; do
+    case "$t" in
+        mailpit)        echo "  Mailpit (caught email)  http://localhost:8025" ;;
+        webhook-tester) echo "  Webhook tester          http://localhost:8081" ;;
+        grafana)        echo "  Grafana                 http://localhost:3030  (admin / admin)" ;;
+        garage-webui)   echo "  Garage web UI           http://localhost:9901" ;;
+    esac
+done
 if [ -z "$apps" ]; then
     echo
     echo "Backend-only clone: point your own frontend at the GraphQL APIs above."

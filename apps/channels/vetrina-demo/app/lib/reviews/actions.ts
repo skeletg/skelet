@@ -3,12 +3,16 @@
 // Review submission + presigned media uploads
 // Media bytes go browser -> object storage directly, never proxied through Next
 
-import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePublicPath } from "@/app/lib/revalidate";
 
+import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
+import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { replyError } from "@/app/lib/forms/reply";
+import { reviewSchema } from "@/app/lib/reviews/schemas";
+import { signVoterToken } from "@/app/lib/reviews/voter-token";
 import { productHref } from "@/app/lib/entity-href";
 import type { ReviewAnswerInput } from "@/app/graphql/schema.types";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
@@ -24,34 +28,6 @@ const REVIEW_VOTER_COOKIE = "rvid";
 const REVIEW_VOTER_MAX_AGE = 60 * 60 * 24 * 365;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function voterTokenSecret(): Buffer {
-  const explicit = process.env.REVIEW_VOTER_TOKEN_SECRET;
-  if (explicit && explicit.length > 0) return Buffer.from(explicit, "utf8");
-  const jwt = process.env.JWT_SECRET;
-  if (jwt && jwt.length > 0) return Buffer.from(`vote:${jwt}`, "utf8");
-  throw new Error(
-    "Voter token secret missing: set REVIEW_VOTER_TOKEN_SECRET or JWT_SECRET",
-  );
-}
-
-function uuidToBytes(id: string): Buffer {
-  // Parse "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" → 16 raw bytes,
-  // matching how the Go side feeds id[:] into the HMAC
-  return Buffer.from(id.replace(/-/g, ""), "hex");
-}
-
-function signVoterToken(id: string): string {
-  const mac = createHmac("sha256", voterTokenSecret());
-  mac.update(uuidToBytes(id));
-  // base64url with no padding - matches Go's base64.RawURLEncoding
-  const sig = mac
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return `${id}.${sig}`;
-}
 
 function looksLikeSignedVoterToken(raw: string | undefined): boolean {
   if (!raw) return false;
@@ -77,9 +53,6 @@ async function ensureVoterToken(): Promise<string> {
 }
 
 
-export type ReviewResult =
-  | { ok: true; reviewId: string }
-  | { ok: false; error: string };
 export async function requestReviewMediaUploadAction(input: {
   productId: string;
   filename: string;
@@ -138,49 +111,36 @@ export async function voteReviewAction(formData: FormData): Promise<void> {
     // The PDP lives only at its pretty URL now (served via the catch-all), so
     // revalidate that path rather than the removed /products/<id> route
     const { product } = await getProduct(productId);
-    if (product) revalidatePath(productHref(product));
+    if (product) await revalidatePublicPath(productHref(product));
   }
 }
 
 // Expects productId, title, body, comma-separated mediaAssetIds, and per-question
 // answer.<id>.{rating,bool,text,inputType} - inputType picks the canonical leaf
 export async function submitReviewAction(
-  _prev: ReviewResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<ReviewResult> {
-  const productId = String(formData.get("productId") ?? "");
-  if (!productId) return { ok: false, error: "Missing product." };
-  const title = String(formData.get("title") ?? "");
-  const body = String(formData.get("body") ?? "");
-  const guestName = String(formData.get("guestName") ?? "").trim();
-  const guestEmail = String(formData.get("guestEmail") ?? "").trim();
-  const mediaCSV = String(formData.get("mediaAssetIds") ?? "");
-  const mediaAssetIds = mediaCSV
+): Promise<FormResult> {
+  const guest = !(await getAccessToken());
+  const submission = parseForm(formData, reviewSchema({ guest }));
+  if (submission.status !== "success") return submission.reply();
+  const { productId, title, body, guestName, guestEmail } = submission.value;
+  const mediaAssetIds = (submission.value.mediaAssetIds ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const seenQuestions = new Set<string>();
   const answers: ReviewAnswerInput[] = [];
-  for (const [key] of formData.entries()) {
-    const match = key.match(/^answer\.([^.]+)\.inputType$/);
-    if (!match) continue;
-    const qid = match[1];
-    if (seenQuestions.has(qid)) continue;
-    seenQuestions.add(qid);
-    const inputType = String(formData.get(`answer.${qid}.inputType`) ?? "");
-    const ratingRaw = formData.get(`answer.${qid}.rating`);
-    const boolRaw = formData.get(`answer.${qid}.bool`);
-    const textRaw = String(formData.get(`answer.${qid}.text`) ?? "");
-    const a: ReviewAnswerInput = { questionId: qid };
-    if (inputType === "RATING_1_5" && ratingRaw) {
-      const n = Number(ratingRaw);
+  for (const [questionId, raw] of Object.entries(submission.value.answer ?? {})) {
+    const a: ReviewAnswerInput = { questionId };
+    if (raw.inputType === "RATING_1_5" && raw.rating) {
+      const n = Number(raw.rating);
       if (Number.isFinite(n) && n >= 1 && n <= 5) a.rating = Math.round(n);
     }
-    if (inputType === "YES_NO" && boolRaw) {
-      a.boolValue = boolRaw === "true";
+    if (raw.inputType === "YES_NO" && raw.bool) {
+      a.boolValue = raw.bool === "true";
     }
-    if (textRaw) a.text = textRaw;
+    if (raw.text) a.text = raw.text;
     // Skip entirely empty answers - required questions are enforced server-side, so
     // this just avoids posting noise for skipped optional questions
     if (a.rating === undefined && a.boolValue === undefined && !a.text) {
@@ -190,35 +150,24 @@ export async function submitReviewAction(
   }
 
   try {
-    const res = await gqlFetch(SubmitProductReviewDocument, {
+    await gqlFetch(SubmitProductReviewDocument, {
       input: {
         productId,
-        title: title || null,
-        body: body || null,
+        title,
+        body,
         answers,
         mediaAssetIds: mediaAssetIds.length > 0 ? mediaAssetIds : null,
-        guestName: guestName || null,
-        guestEmail: guestEmail || null,
+        guestName,
+        guestEmail: guestEmail ?? null,
       },
     });
-    // Redirect + revalidate the product's pretty URL - the catch-all renders it; the
-    // /products/<id> route was removed
-    const { product } = await getProduct(productId);
-    const dest = product ? productHref(product) : "/";
-    revalidatePath(dest);
-    const reviewId = res.data.submitProductReview.id;
-    redirect(`${dest}?reviewSubmitted=1`);
-    // Unreachable - redirect throws - but keeps the type checker happy
-    return { ok: true, reviewId };
   } catch (err) {
-    if (err instanceof GraphQLRequestError) {
-      return { ok: false, error: err.errors[0]?.message ?? err.message };
-    }
-    // redirect() throws an internal Next error that's intentionally unhandled here -
-    // rethrow so the browser performs the navigation
-    if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) {
-      throw err;
-    }
-    return { ok: false, error: err instanceof Error ? err.message : "Submit failed" };
+    return replyError(submission, err, "reviewFailed");
   }
+  // Redirect + revalidate the product's pretty URL - the catch-all renders it; the
+  // /products/<id> route was removed
+  const { product } = await getProduct(productId);
+  const dest = product ? productHref(product) : "/";
+  await revalidatePublicPath(dest);
+  redirect(`${dest}?reviewSubmitted=1`);
 }

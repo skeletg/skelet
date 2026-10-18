@@ -1,6 +1,8 @@
 "use client";
 
+import { AccountBadge } from "./AccountBadge";
 import { Link, usePathname } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
 import { getAccountNavItems, type AccountNavItem } from "@/app/plugins/registry";
 
@@ -14,57 +16,81 @@ import {
   PackageIcon,
   RefreshCwIcon,
   ShieldIcon,
+  TagIcon,
   UserIcon,
 } from "lucide-react";
 
 // Icon is structural rather than lucide's own type: core's entries are all lucide, but a plugin
 // contributing a nav item should not be forced to depend on the same icon library
 type NavIcon = ComponentType<{ className?: string }>;
-type Item = { href: string; label: string; Icon: NavIcon };
+type Item = { href: string; label: string; Icon: NavIcon; badge?: number; badgeLabel?: string; newLabel?: string };
+// Built-in entries name an account.nav message; plugin entries bring their own label
+type NavKey =
+  | "overview"
+  | "orders"
+  | "wishlist"
+  | "downloads"
+  | "offers"
+  | "subscriptions"
+  | "profile"
+  | "addresses"
+  | "paymentMethods"
+  | "password"
+  | "privacy";
+type BuiltIn = { href: string; key: NavKey; Icon: NavIcon };
 
-const SHOPPING: Item[] = [
-  { href: "/account/orders", label: "Orders", Icon: PackageIcon },
-  { href: "/account/wishlist", label: "Wishlist", Icon: HeartIcon },
-  { href: "/account/downloads", label: "Downloads", Icon: DownloadIcon },
-  {
-    href: "/account/subscriptions",
-    label: "Subscriptions",
-    Icon: RefreshCwIcon,
-  },
+const SHOPPING: BuiltIn[] = [
+  { href: "/account/orders", key: "orders", Icon: PackageIcon },
+  { href: "/account/wishlist", key: "wishlist", Icon: HeartIcon },
+  { href: "/account/downloads", key: "downloads", Icon: DownloadIcon },
+  { href: "/account/offers", key: "offers", Icon: TagIcon },
+  { href: "/account/subscriptions", key: "subscriptions", Icon: RefreshCwIcon },
 ];
 
-const DETAILS: Item[] = [
-  { href: "/account/profile", label: "Profile", Icon: UserIcon },
-  { href: "/account/addresses", label: "Addresses", Icon: MapPinIcon },
-  {
-    href: "/account/payment-methods",
-    label: "Payment methods",
-    Icon: CreditCardIcon,
-  },
-  { href: "/account/password", label: "Password", Icon: LockIcon },
-  { href: "/account/privacy", label: "Data & privacy", Icon: ShieldIcon },
+const DETAILS: BuiltIn[] = [
+  { href: "/account/profile", key: "profile", Icon: UserIcon },
+  { href: "/account/addresses", key: "addresses", Icon: MapPinIcon },
+  { href: "/account/payment-methods", key: "paymentMethods", Icon: CreditCardIcon },
+  { href: "/account/password", key: "password", Icon: LockIcon },
+  { href: "/account/privacy", key: "privacy", Icon: ShieldIcon },
 ];
 
-const OVERVIEW: Item = {
+const OVERVIEW_ITEM: BuiltIn = {
   href: "/account",
-  label: "Overview",
+  key: "overview",
   Icon: LayoutGridIcon,
 };
 
 export function AccountNav({
   variant = "sidebar",
+  counts = { wishlist: 0, offers: 0, newOffers: 0 },
 }: {
   variant?: "sidebar" | "strip";
+  counts?: { wishlist: number; offers: number; newOffers: number };
 }) {
   const pathname = usePathname();
-  const shopping = SHOPPING;
+  const t = useTranslations("account.nav");
+  const label = ({ href, key, Icon }: BuiltIn): Item => ({
+    href, label: t(key), Icon,
+    ...(key === "offers" ? {
+      badge: counts.offers,
+      badgeLabel: t("offerCount", { count: counts.offers }),
+      newLabel: counts.newOffers > 0 ? t("newOffers", { count: counts.newOffers }) : undefined,
+    } : key === "wishlist" ? {
+      badge: counts.wishlist,
+      badgeLabel: t("wishlistCount", { count: counts.wishlist }),
+    } : {}),
+  });
+  const OVERVIEW = label(OVERVIEW_ITEM);
+  const shopping = SHOPPING.map(label);
+  const details = DETAILS.map(label);
   // Plugin-contributed links sit after the built-in shopping ones - see app/plugins/registry.ts
   const pluginItems = getAccountNavItems();
 
   if (variant === "strip") {
     return (
       <nav
-        aria-label="Account"
+        aria-label={t("label")}
         className="-mx-6 overflow-x-auto px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <ul className="flex w-max gap-2 text-sm">
@@ -86,7 +112,7 @@ export function AccountNav({
               className="whitespace-nowrap border border-border"
             />
           ))}
-          {DETAILS.map((it) => (
+          {details.map((it) => (
             <li key={it.href}>
               <NavLink
                 {...it}
@@ -101,10 +127,10 @@ export function AccountNav({
   }
 
   return (
-    <nav aria-label="Account" className="text-sm">
+    <nav aria-label={t("label")} className="text-sm">
       <NavLink {...OVERVIEW} pathname={pathname} exact />
-      <Group title="Shopping" items={shopping} pathname={pathname} extra={pluginItems} />
-      <Group title="Your details" items={DETAILS} pathname={pathname} />
+      <Group title={t("shopping")} items={shopping} pathname={pathname} extra={pluginItems} />
+      <Group title={t("yourDetails")} items={details} pathname={pathname} />
     </nav>
   );
 }
@@ -169,6 +195,9 @@ function NavLink({
   href,
   label,
   Icon,
+  badge,
+  badgeLabel,
+  newLabel,
   pathname,
   exact = false,
   className = "",
@@ -186,6 +215,7 @@ function NavLink({
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
       {label}
+      {badge && badgeLabel ? <AccountBadge count={badge} label={badgeLabel} newLabel={newLabel} /> : null}
     </Link>
   );
 }

@@ -22,6 +22,36 @@ export type ChangeSection = {
   diff: SectionDiffEntry[]
 }
 
+/** One section's before → after rows - the Save dialog's list, also used to review a stored draft */
+export function DiffRows({ entries }: { entries: SectionDiffEntry[] }) {
+  return (
+    <ul className="grid gap-1">
+      {entries.map((d, i) => (
+        <li key={i} className="grid grid-cols-[7rem_1fr] gap-2 text-xs">
+          <span className="text-muted-foreground">{d.label}</span>
+          {d.kind === 'add' ? (
+            <span className="min-w-0 break-all">
+              <span className="mr-1.5 font-semibold text-success">+</span>
+              <span className="font-medium">{d.after || '(new)'}</span>
+            </span>
+          ) : d.kind === 'remove' ? (
+            <span className="min-w-0 break-all">
+              <span className="mr-1.5 font-semibold text-destructive">−</span>
+              <span className="text-muted-foreground line-through">{d.before || d.label}</span>
+            </span>
+          ) : (
+            <span className="min-w-0">
+              <span className="break-all text-muted-foreground line-through">{d.before || '-'}</span>
+              <span className="mx-1.5 text-muted-foreground">→</span>
+              <span className="break-all font-medium">{d.after || '-'}</span>
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** Generic "review pending changes before saving" modal - The caller computes
  *  one or more `ChangeSection`s, each grouping a few diff rows (label / old /
  *  new), and the dialog renders them in a divided list - The active scope is
@@ -69,30 +99,7 @@ export function SaveConfirmDialog({
                 {sections.map((section) => (
                   <li key={section.id} className="px-3 py-2.5">
                     <p className="mb-1.5 text-xs font-semibold tracking-tight">{section.title}</p>
-                    <ul className="grid gap-1">
-                      {section.diff.map((d, i) => (
-                        <li key={i} className="grid grid-cols-[7rem_1fr] gap-2 text-xs">
-                          <span className="text-muted-foreground">{d.label}</span>
-                          {d.kind === 'add' ? (
-                            <span className="min-w-0 break-all">
-                              <span className="mr-1.5 font-semibold text-emerald-600 dark:text-emerald-400">+</span>
-                              <span className="font-medium">{d.after || '(new)'}</span>
-                            </span>
-                          ) : d.kind === 'remove' ? (
-                            <span className="min-w-0 break-all">
-                              <span className="mr-1.5 font-semibold text-destructive">−</span>
-                              <span className="text-muted-foreground line-through">{d.before || d.label}</span>
-                            </span>
-                          ) : (
-                            <span className="min-w-0">
-                              <span className="break-all text-muted-foreground line-through">{d.before || '-'}</span>
-                              <span className="mx-1.5 text-muted-foreground">→</span>
-                              <span className="break-all font-medium">{d.after || '-'}</span>
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                    <DiffRows entries={section.diff} />
                   </li>
                 ))}
               </ul>

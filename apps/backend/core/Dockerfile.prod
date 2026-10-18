@@ -1,0 +1,49 @@
+# Prod backend image - server, media, the skelet CLI, dbmate and the migrations on alpine; server and media link libvips, the rest are static CGO-off builds
+# Build from apps/backend, not core/, since core replaces the SDK by relative path: docker build -f apps/backend/core/Dockerfile.prod -t skelet-app:prod apps/backend
+
+# alpine3.24 pinned explicitly - the runtime stage installs the vips these binaries link against, so the two alpines must stay in lockstep
+# The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
+FROM golang:1.27.0-alpine3.24 AS build
+WORKDIR /src
+# build-base/pkgconf/vips-dev - cgo headers for the -tags vips binaries
+RUN apk add --no-cache git build-base pkgconf vips-dev
+# Module downloads keyed on the lockfiles - the SDK's go.mod has to be in place for core's replace
+COPY sdk/go.mod sdk/go.sum ./sdk/
+COPY core/go.mod core/go.sum ./core/
+RUN cd core && go mod download
+COPY sdk/ ./sdk/
+COPY core/ ./core/
+WORKDIR /src/core
+# server and media render images, so they take the cgo hit for libvips webp output
+# Everything else keeps CGO off, for a static and reproducible build
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -tags vips -ldflags="-s -w" -o /out/server ./cmd/server
+# The image-transform tier - decode/resample off the commerce process
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -tags vips -ldflags="-s -w" -o /out/media ./cmd/media
+# The skelet ops CLI
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/skelet ./cmd/cli
+# The migrations runner, dbmate
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
+
+# 3.24 to match the build stage's alpine - vips here must be the same version
+# as the vips-dev the server/media binaries were compiled against
+FROM alpine:3.24
+# ca-certificates for outbound TLS, curl for the healthcheck, tzdata for scheduler time math
+# vips for the two binaries built with -tags vips
+# /data/media is owned by app so a volume mounted there for STORAGE_DRIVER=filesystem starts out writable
+RUN apk add --no-cache ca-certificates curl tzdata vips && adduser -D -u 10001 app && mkdir -p /data/media && chown app /data/media
+WORKDIR /app
+COPY --from=build /out/server /app/server
+COPY --from=build /out/media /app/media
+COPY --from=build /out/skelet /usr/local/bin/skelet
+COPY --from=build /go/bin/dbmate /usr/local/bin/dbmate
+COPY --from=build /src/core/internal/db/migrations /app/migrations
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl -fsS http://localhost:8080/health || exit 1
+# CMD (not ENTRYPOINT) so overriding with migrate/skelet just works
+CMD ["/app/server"]

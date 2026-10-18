@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Override a line's unit price. Null or negative means no override - keep the catalog price.",
+  "properties": {
+    "request": {
+      "properties": {
+        "basePriceCents": {
+          "type": "integer"
+        },
+        "channelId": {
+          "type": "string"
+        },
+        "customerId": {
+          "type": "string"
+        },
+        "sku": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "basePriceCents",
+        "channelId",
+        "sku"
+      ],
+      "title": "remotePricingRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "unitPriceCents": {
+          "type": "integer",
+          "x-nullable": true
+        }
+      },
+      "title": "remotePricingResponse",
+      "type": "object"
+    }
+  },
+  "title": "pricing",
+  "x-kind": "pricing",
+  "x-source": "internal/wiring.remotePricingRequest -\u003e internal/wiring.remotePricingResponse"
+}

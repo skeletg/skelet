@@ -1,4 +1,6 @@
 import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
+import { ChannelsDocument } from '@/features/channels/Channels.gql'
+import { ALL_STORES, currencyForChoice, issueChannelId } from './issue'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -236,6 +238,8 @@ function IssueGiftCardDialog({
 }) {
   const [currencyCode, setCurrencyCode] = useState('')
   const currencyOptions = useQuery(CurrenciesPickerDocument).data?.currencies ?? []
+  const channels = useQuery(ChannelsDocument).data?.channels ?? []
+  const [channelId, setChannelId] = useState(ALL_STORES)
   const [amount, setAmount] = useState('')
   const [recipientEmail, setRecipientEmail] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
@@ -247,6 +251,7 @@ function IssueGiftCardDialog({
 
   function reset() {
     setCurrencyCode('')
+    setChannelId(ALL_STORES)
     setAmount('')
     setRecipientEmail('')
     setExpiresAt('')
@@ -268,6 +273,7 @@ function IssueGiftCardDialog({
           amount: cents,
           recipientEmail: recipientEmail.trim() || null,
           expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+          channelId: issueChannelId(channelId),
         },
       })
       reset()
@@ -298,7 +304,7 @@ function IssueGiftCardDialog({
             <div className="grid gap-2">
               <Label htmlFor="gc-currency">Currency</Label>
               <Select value={currencyCode} onValueChange={setCurrencyCode}>
-                <SelectTrigger id="gc-currency">
+                <SelectTrigger className="w-full" id="gc-currency">
                   <SelectValue placeholder="Pick a currency" />
                 </SelectTrigger>
                 <SelectContent>
@@ -323,6 +329,28 @@ function IssueGiftCardDialog({
                 onChange={(e) => setAmount(e.target.value)}
               />
             </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="gc-store">Spends on</Label>
+            <Select
+              value={channelId}
+              onValueChange={(v) => {
+                setChannelId(v)
+                setCurrencyCode(currencyForChoice(channels, v, currencyCode))
+              }}
+            >
+              <SelectTrigger id="gc-store">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_STORES}>Every store in its currency</SelectItem>
+                {channels.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} ({c.currencyCode})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="gc-email">Recipient email (optional)</Label>
@@ -543,6 +571,8 @@ function GiftCardDetailDialog({
     skip: !code,
   })
   const card = data?.giftCard
+  const channels = useQuery(ChannelsDocument, { skip: !code }).data?.channels ?? []
+  const store = card?.channelId ? (channels.find((c) => c.id === card.channelId)?.name ?? 'One store') : 'Every store'
 
   return (
     <Dialog open={!!code} onOpenChange={(v) => !v && onClose()}>
@@ -568,6 +598,10 @@ function GiftCardDetailDialog({
                 <p className="text-lg font-semibold tabular-nums">
                   {formatCents(card.balance, card.currencyCode)}
                 </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Spends on</p>
+                <p>{store}</p>
               </div>
               <Badge variant={statusVariant(card.status)}>{card.status}</Badge>
               {card.recipientEmail && (

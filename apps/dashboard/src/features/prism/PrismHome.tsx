@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -14,10 +14,13 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import { CHART_ACCENT, CHART_SUCCESS, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import { ExperimentsOverviewDocument } from './Prism.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
+import { Panel, Tile } from '@/components/layout/panels'
+import { formatNumber } from '@/lib/format'
 
-const nfmt = (n: number) => n.toLocaleString()
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
 
 type SummaryRow = {
@@ -38,6 +41,8 @@ type SummaryRow = {
 }
 
 export function PrismHome() {
+  // Creating an experiment needs experiments.manage - without it the button only led to an access-restricted page or a refused save
+  const canCreate = usePermissions().has('experiments.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -82,12 +87,12 @@ export function PrismHome() {
       {
         accessorKey: 'totalExposed',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Exposed" />,
-        cell: ({ row }) => <span className="tabular-nums">{nfmt(row.original.totalExposed)}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.totalExposed)}</span>,
       },
       {
         accessorKey: 'conversions',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Conversions" />,
-        cell: ({ row }) => <span className="tabular-nums">{nfmt(row.original.conversions)}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.conversions)}</span>,
       },
       {
         id: 'leader',
@@ -107,7 +112,7 @@ export function PrismHome() {
               <span className="tabular-nums text-xs text-muted-foreground">
                 {pct(r.leaderRate)}
                 {!r.leaderIsControl && r.leaderUplift !== 0 ? (
-                  <span className={r.leaderUplift > 0 ? 'text-emerald-600' : 'text-red-600'}>
+                  <span className={r.leaderUplift > 0 ? 'text-success' : 'text-destructive'}>
                     {' '}
                     ({r.leaderUplift > 0 ? '+' : ''}
                     {pct(r.leaderUplift)})
@@ -127,7 +132,7 @@ export function PrismHome() {
           if (r.leaderIsControl || r.totalExposed === 0) return <span className="text-muted-foreground">-</span>
           const strong = r.leaderChanceToWin >= 0.975
           return (
-            <span className={cn('tabular-nums', strong ? 'font-medium text-emerald-600' : 'text-muted-foreground')}>
+            <span className={cn('tabular-nums', strong ? 'font-medium text-success' : 'text-muted-foreground')}>
               {pct(r.leaderChanceToWin)}
             </span>
           )
@@ -140,7 +145,7 @@ export function PrismHome() {
         cell: ({ row }) => {
           const r = row.original
           if (r.sampleRatioMismatch) return <Badge variant="destructive">Check setup</Badge>
-          if (r.winner) return <span className="font-medium text-emerald-600">🏆 {r.winner}</span>
+          if (r.winner) return <span className="font-medium text-success">🏆 {r.winner}</span>
           if (r.totalExposed === 0) return <span className="text-muted-foreground">No data</span>
           return <span className="text-muted-foreground">No winner yet</span>
         },
@@ -187,10 +192,10 @@ export function PrismHome() {
           <>
             <DetailPageSection title="At a glance">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Tile label="Running" value={nfmt(ov?.running ?? 0)} sub="live experiments" />
-                <Tile label="Visitors exposed" value={nfmt(ov?.totalExposed ?? 0)} sub="across running, 30d" />
-                <Tile label="Significant winners" value={nfmt(ov?.decided ?? 0)} sub="ready to ship" />
-                <Tile label="Drafts" value={nfmt(ov?.draft ?? 0)} sub="not yet live" />
+                <Tile label="Running" value={formatNumber(ov?.running ?? 0)} sub="live experiments" />
+                <Tile label="Visitors exposed" value={formatNumber(ov?.totalExposed ?? 0)} sub="across running, 30d" />
+                <Tile label="Significant winners" value={formatNumber(ov?.decided ?? 0)} sub="ready to ship" />
+                <Tile label="Drafts" value={formatNumber(ov?.draft ?? 0)} sub="not yet live" />
               </div>
             </DetailPageSection>
 
@@ -206,11 +211,11 @@ export function PrismHome() {
                         <BarChart data={chartRows} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
                           <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={truncate} />
-                          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => nfmt(v as number)} />
+                          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => formatNumber(v as number)} />
                           <Tooltip content={<ExposedTooltip />} cursor={{ fill: 'transparent' }} />
                           <Bar dataKey="exposed" radius={[4, 4, 0, 0]} maxBarSize={64}>
                             {chartRows.map((d, i) => (
-                              <Cell key={i} fill={d.isWinner ? '#10b981' : '#6366f1'} />
+                              <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : CHART_ACCENT} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -227,7 +232,7 @@ export function PrismHome() {
                           <Tooltip content={<UpliftTooltip />} cursor={{ fill: 'transparent' }} />
                           <Bar dataKey="upliftPct" radius={[4, 4, 0, 0]} maxBarSize={64}>
                             {chartRows.map((d, i) => (
-                              <Cell key={i} fill={d.isWinner ? '#10b981' : '#94a3b8'} />
+                              <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : SERIES_OTHER} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -242,9 +247,11 @@ export function PrismHome() {
               title="Running experiments"
               description="Verdicts use the same stats as the detail page - a winner is only called at ≥97.5% chance to beat the control."
               trailing={
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/prism/new">New experiment</Link>
-                </Button>
+                canCreate && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/prism/new">New experiment</Link>
+                  </Button>
+                )
               }
             >
               <DataTable
@@ -257,14 +264,19 @@ export function PrismHome() {
                 initialSorting={[{ id: 'totalExposed', desc: true }]}
                 emptyState={
                   <span>
-                    No running experiments.{' '}
-                    <Link
-                      to={(ov?.draft ?? 0) > 0 ? '/prism/experiments' : '/prism/new'}
-                      className="text-primary hover:underline"
-                    >
-                      {(ov?.draft ?? 0) > 0 ? 'Manage drafts' : 'Create one'}
-                    </Link>
-                    .
+                    No running experiments.
+                    {((ov?.draft ?? 0) > 0 || canCreate) && (
+                      <>
+                        {' '}
+                        <Link
+                          to={(ov?.draft ?? 0) > 0 ? '/prism/experiments' : '/prism/new'}
+                          className="text-primary hover:underline"
+                        >
+                          {(ov?.draft ?? 0) > 0 ? 'Manage drafts' : 'Create one'}
+                        </Link>
+                        .
+                      </>
+                    )}
                   </span>
                 }
               />
@@ -273,25 +285,6 @@ export function PrismHome() {
         )}
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
   )
 }
 
@@ -305,8 +298,8 @@ function ExposedTooltip({ active, payload }: { active?: boolean; payload?: Array
   return (
     <div className="rounded border bg-background px-2.5 py-1.5 text-xs shadow-sm">
       <div className="font-medium">{d.name}</div>
-      <div className="tabular-nums">{nfmt(d.exposed)} exposed</div>
-      <div className="tabular-nums text-muted-foreground">{nfmt(d.conversions)} conversions</div>
+      <div className="tabular-nums">{formatNumber(d.exposed)} exposed</div>
+      <div className="tabular-nums text-muted-foreground">{formatNumber(d.conversions)} conversions</div>
     </div>
   )
 }

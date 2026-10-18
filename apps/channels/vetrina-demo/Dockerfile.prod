@@ -1,22 +1,20 @@
 # Prod storefront image - Next.js standalone output on a small node base
 # Build: docker build -f Dockerfile.prod -t skelet-vetrina-demo:prod apps/channels/vetrina-demo
-# Runtime config: BACKEND_INTERNAL_URL (default http://app:8080)
+# Runtime config: BACKEND_INTERNAL_URL (default http://app:8080), STOREFRONT_CHANNEL_HOSTS and/or STOREFRONT_CHANNEL_ID
 
 FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.6.0
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+# The workspace file carries the build policy the lockfile was resolved under
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY . .
 
 ARG NEXT_PUBLIC_DASHBOARD_ORIGIN
 ENV NEXT_PUBLIC_DASHBOARD_ORIGIN=$NEXT_PUBLIC_DASHBOARD_ORIGIN
 
-ARG BACKEND_BUILD_URL
-ENV BACKEND_INTERNAL_URL=$BACKEND_BUILD_URL
-
-ARG STOREFRONT_CHANNEL_ID
-ENV STOREFRONT_CHANNEL_ID=$STOREFRONT_CHANNEL_ID
-RUN npm run build
+# No channel and no backend at build time: the host picks the channel per request, and pages render on first visit
+RUN pnpm run build
 
 FROM node:24-alpine AS run
 WORKDIR /app
@@ -25,9 +23,11 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app
 # server.js doesn't serve public/ or .next/static itself - copy them in
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
-COPY --from=build /app/public ./public
+COPY --from=build --chown=app:app /app/.next/standalone ./
+COPY --from=build --chown=app:app /app/.next/static ./.next/static
+COPY --from=build --chown=app:app /app/public ./public
+# The ISR cache writes here at runtime, as the unprivileged user
+RUN mkdir -p .next/cache && chown app:app .next/cache
 USER app
 EXPOSE 3000
 CMD ["node", "server.js"]

@@ -1,0 +1,362 @@
+enum BlogPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+# ==================== Author ====================
+
+type BlogAuthor {
+  id:           ID!
+  slug:         String!
+  displayName:  String!
+  email:        String
+  # Whether the storefront may show the email - off unless the author opted in
+  emailPublic:  Boolean!
+  avatarAsset:  MediaAsset
+  linkedAdmin:  AdminUser
+  metadata:     [MetadataItem!]!
+  # Resolved for the requested locale (or default-locale fallback). Null when no
+  # translation exists at all.
+  content:      BlogAuthorContent
+  # All translations - admin only.
+  allContent:   [BlogAuthorContent!]!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type BlogAuthorContent {
+  locale:    String!
+  name:      String!
+  bio:       JSON
+  updatedAt: Time!
+}
+
+input CreateBlogAuthorInput {
+  slug:          String!
+  displayName:   String!
+  email:         String
+  emailPublic:   Boolean
+  avatarAssetId: ID
+  linkedAdminId: ID
+  metadata:      [MetadataInput!]
+  # Optional initial content.
+  locale: String
+  name:   String
+  bio:    JSON
+}
+
+input UpdateBlogAuthorInput {
+  id:               ID!
+  slug:             String
+  displayName:      String
+  email:            String
+  clearEmail:       Boolean
+  emailPublic:      Boolean
+  avatarAssetId:    ID
+  clearAvatar:      Boolean
+  linkedAdminId:    ID
+  clearLinkedAdmin: Boolean
+  metadata:         [MetadataInput!]
+}
+
+input UpsertBlogAuthorContentInput {
+  authorId: ID!
+  locale:   String!
+  name:     String!
+  bio:      JSON
+}
+
+# ==================== Category ====================
+
+type BlogCategory {
+  id:          ID!
+  parent:      BlogCategory
+  slug:        String!
+  urlPath:     String!
+  position:    Int!
+  isPublished: Boolean!
+  seoNoindex:  Boolean!
+  content:     BlogCategoryContent
+  allContent:  [BlogCategoryContent!]!
+  children:    [BlogCategory!]!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+type BlogCategoryContent {
+  locale:           String!
+  name:             String!
+  description:      JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+  updatedAt:        Time!
+}
+
+input CreateBlogCategoryInput {
+  parentId:    ID
+  slug:        String!
+  position:    Int
+  isPublished: Boolean
+  seoNoindex:  Boolean
+  # Required initial content.
+  locale:           String!
+  name:             String!
+  description:      JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+}
+
+input UpdateBlogCategoryInput {
+  id:          ID!
+  parentId:    ID
+  clearParent: Boolean
+  slug:        String
+  position:    Int
+  isPublished: Boolean
+  seoNoindex:  Boolean
+}
+
+input UpsertBlogCategoryContentInput {
+  categoryId:      ID!
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+# ==================== Tag ====================
+
+type BlogTag {
+  id:          ID!
+  slug:        String!
+  isPublished: Boolean!
+  content:     BlogTagContent
+  allContent:  [BlogTagContent!]!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+type BlogTagContent {
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  updatedAt:       Time!
+}
+
+input CreateBlogTagInput {
+  slug:        String!
+  isPublished: Boolean
+  # Optional initial content.
+  locale:          String
+  name:            String
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+input UpdateBlogTagInput {
+  id:          ID!
+  slug:        String
+  isPublished: Boolean
+}
+
+input UpsertBlogTagContentInput {
+  tagId:           ID!
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+# ==================== Post ====================
+
+type BlogPost {
+  id:                 ID!
+  slug:               String!
+  status:             BlogPostStatus!
+  publishedAt:        Time
+  seoNoindex:         Boolean!
+  readingTimeMinutes: Int
+  author:             BlogAuthor
+  coverAsset:         MediaAsset
+  metadata:           [MetadataItem!]!
+  privateMetadata:    [MetadataItem!]!
+  content:            BlogPostContent
+  allContent:         [BlogPostContent!]!
+  categories:         [BlogCategory!]!
+  tags:               [BlogTag!]!
+  channelListings:      [BlogPostChannelListing!]!
+  createdAt:          Time!
+  updatedAt:          Time!
+}
+
+type BlogPostChannelListing {
+  channelId: ID!
+  isPublished: Boolean!
+  seoNoindex:  Boolean!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+input SetBlogPostChannelListingInput {
+  postId:      ID!
+  channelId: ID!
+  isPublished: Boolean!
+  seoNoindex:  Boolean
+}
+
+type BlogPostContent {
+  locale:           String!
+  title:            String!
+  excerpt:          JSON
+  body:             JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+  updatedAt:        Time!
+}
+
+type BlogPostList {
+  items:      [BlogPost!]!
+  totalCount: Int
+}
+
+input CreateBlogPostInput {
+  slug:               String!
+  authorId:           ID
+  coverAssetId:       ID
+  status:             BlogPostStatus
+  publishedAt:        Time
+  seoNoindex:         Boolean
+  readingTimeMinutes: Int
+  metadata:           [MetadataInput!]
+  privateMetadata:    [MetadataInput!]
+  # Required initial content.
+  locale:           String!
+  title:            String!
+  excerpt:          JSON
+  body:             JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+  # Optional attachments.
+  categoryIds: [ID!]
+  tagIds:      [ID!]
+}
+
+input UpdateBlogPostInput {
+  id:                 ID!
+  slug:               String
+  authorId:           ID
+  clearAuthor:        Boolean
+  coverAssetId:       ID
+  clearCover:         Boolean
+  seoNoindex:         Boolean
+  readingTimeMinutes: Int
+  metadata:           [MetadataInput!]
+  privateMetadata:    [MetadataInput!]
+}
+
+input UpsertBlogPostContentInput {
+  postId:           ID!
+  locale:           String!
+  title:            String!
+  excerpt:          JSON
+  body:             JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+}
+
+input BlogPostFilter {
+  categorySlug:       String
+  tagSlug:            String
+  authorSlug:         String
+  status:             BlogPostStatus
+  # Admin-only: include drafts/scheduled/archived in results. Ignored by public callers.
+  includeUnpublished: Boolean
+  # When set, posts must have an active store listing on this channel. Public storefront resolvers default this to the request's channel ctx when the client doesn't pass it.
+  channelId:        ID
+}
+
+# ==================== Queries ====================
+
+extend type Query {
+  # Locale comes from the `Locale` request header (internal/locale.Middleware).
+  blogPost(slug: String, id: ID, includeUnpublished: Boolean): BlogPost
+  blogPosts(filter: BlogPostFilter, limit: Int, offset: Int): BlogPostList!
+
+  blogCategory(slug: String, id: ID): BlogCategory
+  blogCategories(parentId: ID): [BlogCategory!]!
+
+  blogTag(slug: String, id: ID): BlogTag
+  blogTags: [BlogTag!]!
+
+  blogAuthor(slug: String, id: ID): BlogAuthor
+  blogAuthors: [BlogAuthor!]!
+}
+
+# ==================== Mutations ====================
+
+extend type Mutation {
+  # Authors
+  createBlogAuthor(input: CreateBlogAuthorInput!): BlogAuthor!
+  updateBlogAuthor(input: UpdateBlogAuthorInput!): BlogAuthor!
+  deleteBlogAuthor(id: ID!): Boolean!
+  upsertBlogAuthorContent(input: UpsertBlogAuthorContentInput!): BlogAuthor!
+  deleteBlogAuthorContent(authorId: ID!, locale: String!): Boolean!
+
+  # Categories
+  createBlogCategory(input: CreateBlogCategoryInput!): BlogCategory!
+  updateBlogCategory(input: UpdateBlogCategoryInput!): BlogCategory!
+  deleteBlogCategory(id: ID!): Boolean!
+  upsertBlogCategoryContent(input: UpsertBlogCategoryContentInput!): BlogCategory!
+  deleteBlogCategoryContent(categoryId: ID!, locale: String!): Boolean!
+
+  # Tags
+  createBlogTag(input: CreateBlogTagInput!): BlogTag!
+  updateBlogTag(input: UpdateBlogTagInput!): BlogTag!
+  deleteBlogTag(id: ID!): Boolean!
+  upsertBlogTagContent(input: UpsertBlogTagContentInput!): BlogTag!
+  deleteBlogTagContent(tagId: ID!, locale: String!): Boolean!
+
+  # Posts
+  createBlogPost(input: CreateBlogPostInput!): BlogPost!
+  updateBlogPost(input: UpdateBlogPostInput!): BlogPost!
+  deleteBlogPost(id: ID!): Boolean!
+  upsertBlogPostContent(input: UpsertBlogPostContentInput!): BlogPost!
+  deleteBlogPostContent(postId: ID!, locale: String!): Boolean!
+  publishBlogPost(id: ID!): BlogPost!
+  scheduleBlogPost(id: ID!, publishedAt: Time!): BlogPost!
+  unpublishBlogPost(id: ID!): BlogPost!
+  archiveBlogPost(id: ID!): BlogPost!
+  setBlogPostCategories(postId: ID!, categoryIds: [ID!]!): BlogPost!
+  setBlogPostTags(postId: ID!, tagIds: [ID!]!): BlogPost!
+  setBlogPostChannelListing(input: SetBlogPostChannelListingInput!): BlogPost!
+  deleteBlogPostChannelListing(postId: ID!, channelId: ID!): BlogPost!
+
+  # Mint a short-lived preview token for a blog post. The token authorises the storefront /blog/preview/<id>?token=... route to render the post in its current draft state (regardless of publish status). Server-side TTL defaults to 15 minutes.
+  mintBlogPostPreviewToken(input: MintBlogPostPreviewTokenInput!): BlogPostPreviewToken!
+}
+
+input MintBlogPostPreviewTokenInput {
+  postId: ID!
+  locale: String
+}
+
+type BlogPostPreviewToken {
+  token:     String!
+  expiresAt: Time!
+}

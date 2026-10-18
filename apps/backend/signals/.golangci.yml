@@ -1,0 +1,42 @@
+# golangci-lint configuration (v2 schema) for the Signals module - the same floor core runs on, minus
+# the plugin boundary rule, since plugins compile in core's module and nothing else lives here
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    # Suggests modern language and library features - promoted out of gopls, so the
+    # findings track the toolchain rather than one project's taste
+    - modernize
+    # Resource leaks that only show up as connection exhaustion in production, which is
+    # the worst way to find them
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    # apperr classifies errors by unwrapping to a registered sentinel, so a %v instead of
+    # %w silently drops the class - and an == comparison stops matching once anything wraps
+    - errorlint
+  settings:
+    modernize:
+      # newexpr rewrites ptr(x) helpers onto Go 1.26's new(expr), which then makes govet's
+      # inline check want every call site rewritten too - a cascade of churn for no behaviour
+      disable:
+        - newexpr
+  exclusions:
+    # Analyze generated files (sqlc, protobuf) for the usage graph, but don't report findings in them
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      # t.Fatal ends the goroutine, so the deref after a nil-guard in a test is unreachable - SA5011
+      # does not model that
+      - linters:
+          - staticcheck
+        text: SA5011
+        path: _test\.go
+      - linters:
+          - staticcheck
+        text: QF1001

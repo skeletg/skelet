@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+// Writes core makes into the event spine - server-side commerce and account actions, and the marketing-email engagement core's own pixel and redirect observe The one part of the contract a system token authorizes, the event bus raising these with no admin to act for
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service IngestService {
+  rpc RecordActivity(RecordActivityRequest) returns (RecordActivityResponse);
+  // Credits an order to the customer's recent marketing engagement, last touch
+  rpc RecordConversion(RecordConversionRequest) returns (RecordConversionResponse);
+  rpc RecordEmailSent(RecordEmailSentRequest) returns (RecordEmailSentResponse);
+  rpc RecordEmailOpen(RecordEmailOpenRequest) returns (RecordEmailOpenResponse);
+  rpc RecordEmailClick(RecordEmailClickRequest) returns (RecordEmailClickResponse);
+  // Core streams its customers across; the suite keeps the copy its trait and membership
+  // cleanup joins against, a foreign key being unable to span the two databases
+  rpc SyncCustomerRoster(stream SyncCustomerRosterRequest) returns (SyncCustomerRosterResponse);
+  // One customer, on a change core just committed - the stream above is the reconcile, this is what
+  // keeps an audience from mailing someone who unsubscribed since the last one
+  rpc UpsertRosterEntry(UpsertRosterEntryRequest) returns (UpsertRosterEntryResponse);
+  // A customer core no longer has - the stream's sweep would catch it eventually, which is too late
+  // to stop a campaign that sends first
+  rpc DeleteRosterEntry(DeleteRosterEntryRequest) returns (DeleteRosterEntryResponse);
+  // Whether the suite's roster schema has grown past what the last full sync filled - core answers by running the sweep now rather than on the clock
+  rpc RosterStatus(RosterStatusRequest) returns (RosterStatusResponse);
+  // GDPR erasure: core anonymizes or deletes a customer, and the spine identity mappings that would re-link them go with it
+  // A failure is surfaced, never swallowed - core reports the erasure as incomplete
+  rpc EraseCustomerIdentities(EraseCustomerIdentitiesRequest) returns (EraseCustomerIdentitiesResponse);
+  // Core's active channels, replacing the copy the beacon surface resolves against - a handful of
+  // rows that change rarely, so the whole set goes in one call rather than a stream
+  rpc SyncChannels(SyncChannelsRequest) returns (SyncChannelsResponse);
+}
+
+message ChannelEntry {
+  string channel_id = 1;
+  // The one a beacon carrying no channel header falls back to
+  bool is_default = 2;
+  // The identity a message sent for this channel goes out under. These resolve from core's config
+  // registry, which is a commerce read the suite cannot make, so the answer is pushed rather than looked up
+  string name = 3;
+  string public_url = 4;
+  string from_address = 5;
+  string from_name = 6;
+  string logo_url = 7;
+  // A deactivated channel is still sent, so its Pulse content survives - absent reads as active
+  optional bool is_active = 8;
+}
+
+// Every channel core has - one absent from the set is one core deleted
+message SyncChannelsRequest {
+  repeated ChannelEntry channels = 1;
+}
+
+message SyncChannelsResponse {
+  int32 synced = 1;
+  int32 pruned = 2;
+}
+
+message RosterEntry {
+  string customer_id = 1;
+  string channel_id = 2;
+  // What a marketing send needs to address this customer - empty where core has nothing on file
+  string email = 3;
+  string first_name = 4;
+  // A deactivated account gets transactional mail only, and never counts toward an audience estimate
+  bool is_active = 5;
+  // Empty unless the customer is in a group, which is what a group-audience campaign filters on
+  string customer_group_id = 6;
+  // The marketing_email consent as core resolves it, registry default included - the suite never
+  // second-guesses this, since consent is core's to answer for
+  bool marketing_opted_in = 7;
+  // What an SMS node needs, for the same reason the email fields are here
+  string phone = 8;
+  bool sms_opted_in = 9;
+  // The group's slug beside its id - segment rules are authored against slugs, and the suite has no
+  // groups table to resolve one through
+  string customer_group_slug = 10;
+  // Every consent core holds for the customer, by kind - the two booleans above are the marketing pair
+  // of these, kept so a send path reads one column; a rule can ask about any kind
+  repeated Consent consents = 11;
+  // When core read the row, on its own clock - an entry older than the one already held is not applied
+  google.protobuf.Timestamp read_at = 12;
+  // Lifetime orders from core's own table, drafts and cancellations excluded - the suite's event log only keeps a year
+  int32 order_count = 13;
+  int64 monetary_cents = 14;
+  google.protobuf.Timestamp first_order_at = 15;
+  google.protobuf.Timestamp last_order_at = 16;
+}
+
+message Consent {
+  string kind = 1;
+  bool opted_in = 2;
+}
+
+// One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
+message SyncCustomerRosterRequest {
+  repeated RosterEntry customers = 1;
+}
+
+message UpsertRosterEntryRequest {
+  RosterEntry customer = 1;
+}
+
+message UpsertRosterEntryResponse {
+  int32 roster_version = 1;
+  bool needs_full_sync = 2;
+}
+
+message RosterStatusRequest {}
+
+message RosterStatusResponse {
+  int32 roster_version = 1;
+  int32 filled_version = 2;
+  bool needs_full_sync = 3;
+  google.protobuf.Timestamp filled_at = 4;
+}
+
+message DeleteRosterEntryRequest {
+  string customer_id = 1;
+}
+
+message DeleteRosterEntryResponse {}
+
+message SyncCustomerRosterResponse {
+  int32 synced = 1;
+  // Customers the stream did not carry, whose traits and memberships went with them
+  int32 pruned = 2;
+  int32 roster_version = 3;
+}
+
+// One email send, reported once and whole: a campaign or flow send is kept in the suite's send log under core's id, a transactional one reaches the spine alone
+// The origin travels with the send rather than being looked up later, so attribution never reaches into core's tables
+message EmailSendRef {
+  string send_id = 1;
+  string channel_id = 2;
+  optional string customer_id = 3;
+  // campaign | flow | transactional
+  string source = 4;
+  // Set for a campaign send
+  optional string campaign_id = 5;
+  // Set for a flow send
+  optional string flow_id = 6;
+  // What the send log keeps beyond attribution - the address it went to, the campaign recipient and
+  // A/B arm, the flow run and node, the transactional message key, the order a receipt is for
+  string email = 7;
+  optional string recipient_id = 8;
+  string variant = 9;
+  optional string flow_run_id = 10;
+  string flow_node_id = 11;
+  string message_key = 12;
+  optional string order_id = 13;
+  // Set on the answers only: when the send went out, from the log
+  google.protobuf.Timestamp sent_at = 14;
+}
+
+// One pixel load or link follow, already classified by the caller
+message EmailHit {
+  string user_agent = 1;
+  // A likely proxy or scanner open, flagged rather than dropped
+  bool machine = 2;
+  string device = 3;
+  string client = 4;
+  google.protobuf.Timestamp at = 5;
+}
+
+message RecordActivityRequest {
+  string event_name = 1;
+  // commerce | account
+  string source = 2;
+  string channel_id = 3;
+  // One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
+  optional string customer_id = 4;
+  string anon_id = 5;
+  google.protobuf.Timestamp at = 6;
+  // The event's properties as a JSON object, opaque to the wire
+  string props_json = 7;
+  // Keeps the write idempotent against an at-least-once bus - an outbox replay collapses on it
+  string dedupe_key = 8;
+}
+
+// recorded is false when the dedupe key had already been seen, which is a success
+message RecordActivityResponse {
+  bool recorded = 1;
+}
+
+message RecordConversionRequest {
+  string customer_id = 1;
+  string channel_id = 2;
+  string order_id = 3;
+  int64 revenue_cents = 4;
+  string currency = 5;
+  google.protobuf.Timestamp at = 6;
+}
+
+message RecordConversionResponse {
+  bool recorded = 1;
+}
+
+// The whole record - source decides whether the send log keeps a row (campaign, flow) or the spine
+// alone hears of it (transactional, which carries no pixel and is never asked about again)
+message RecordEmailSentRequest {
+  EmailSendRef send = 1;
+}
+
+message RecordEmailSentResponse {
+  bool recorded = 1;
+}
+
+// send_id is enough - the suite resolves the rest from its log and classifies the hit against when
+// the send went out, since a pixel loaded seconds after delivery is a proxy prefetch, not a reader
+message RecordEmailOpenRequest {
+  EmailSendRef send = 1;
+  EmailHit hit = 2;
+}
+
+// recorded is false for a send the log does not hold - too old, or never a logged send - and core
+// then has nothing to react to. machine is the hit as classified here, which the first-open stamp ignores
+message RecordEmailOpenResponse {
+  bool recorded = 1;
+  EmailSendRef send = 2;
+  bool machine = 3;
+}
+
+message RecordEmailClickRequest {
+  EmailSendRef send = 1;
+  EmailHit hit = 2;
+  string url = 3;
+  // Which link in the mail, so repeat follows of the same one collapse
+  int32 link_index = 4;
+}
+
+message RecordEmailClickResponse {
+  bool recorded = 1;
+  EmailSendRef send = 2;
+  bool machine = 3;
+}
+
+message EraseCustomerIdentitiesRequest {
+  string customer_id = 1;
+  // The address as it stood before core redacted it, so sends from before the customer had an
+  // account are erased too - they are the same person, and only this address says so
+  string email = 2;
+  // When core erased, on core's clock like read_at - absent uses the suite's clock
+  google.protobuf.Timestamp erased_at = 3;
+}
+
+message EraseCustomerIdentitiesResponse {}

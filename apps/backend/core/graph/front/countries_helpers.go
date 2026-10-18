@@ -1,0 +1,77 @@
+package front
+
+import (
+	"context"
+	"sort"
+
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	frontmodel "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/country"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+)
+
+func countryScope(ctx context.Context) config.Scope { // channel scope when a channel is bound to the context, else the default scope
+	if id := channelIDFromContext(ctx); id != nil {
+		return config.Scope{Kind: config.ScopeChannel, ChannelID: id}
+	}
+	return config.DefaultScope
+}
+
+func sortedSet(set map[string]bool) []string { // deterministic order - GraphQL lists should be stable across requests
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// The DefaultCurrency lookup is best-effort - a missing or disabled currency surfaces as a null relation, since the FK is ON DELETE SET NULL
+func (r *Resolver) toCountryModel(ctx context.Context, c country.Country) *model.Country {
+	m := &model.Country{
+		Code:                c.Code,
+		Name:                c.Name,
+		NativeName:          c.NativeName,
+		EmojiFlag:           c.EmojiFlag,
+		PhoneCode:           c.PhoneCode,
+		DefaultCurrencyCode: c.DefaultCurrencyCode,
+		IsActive:            c.IsActive,
+		SortOrder:           int32(c.SortOrder),
+		Metadata:            toStringMapItems(c.Metadata),
+		BusinessIDFields:    toBusinessIDFieldModels(c.BusinessIDFields),
+		CreatedAt:           c.CreatedAt,
+		UpdatedAt:           c.UpdatedAt,
+	}
+	if c.DefaultCurrencyCode != "" {
+		if cur, err := r.CurrencySvc.GetByCode(ctx, c.DefaultCurrencyCode); err == nil { // a missing or transient lookup leaves DefaultCurrency unset rather than failing the render
+			m.DefaultCurrency = toCurrencyModel(cur)
+		}
+	}
+	return m
+}
+
+func toBusinessIDFieldModels(fields []country.BusinessIDField) []*model.BusinessIDField {
+	out := make([]*model.BusinessIDField, len(fields))
+	for i, f := range fields {
+		out[i] = &model.BusinessIDField{Key: f.Key, Label: f.Label, Required: f.Required, Pattern: f.Pattern, Hint: f.Hint}
+	}
+	return out
+}
+
+func toPhoneSettingsModel(s country.PhoneSettings) *frontmodel.PhoneSettings {
+	out := &frontmodel.PhoneSettings{
+		RestrictedToStoreCountries: s.Rules.Allowed != nil,
+		DefaultCountryCode:         s.Rules.Default,
+		Formats:                    make([]*frontmodel.PhoneCountryFormat, len(s.Formats)),
+	}
+	if s.Locked != "" {
+		out.LockedCountryCode = &s.Locked
+	}
+	for i, f := range s.Formats {
+		out.Formats[i] = &frontmodel.PhoneCountryFormat{
+			CountryCode: f.Country, CallingCode: f.CallingCode, Example: f.Example,
+			NationalExample: f.NationalExample, Template: f.Template,
+		}
+	}
+	return out
+}

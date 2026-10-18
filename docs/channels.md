@@ -31,8 +31,14 @@ guess, because guessing means quietly rendering someone else's market.
 **On the front API**, the backend resolves one channel per request, in this order:
 
 1. The `X-Channel-Id` header, a channel UUID. This is what a storefront app always sends.
-2. Otherwise the request's host, matched against the channel's configured storefront host.
-3. Otherwise the channel flagged as default - at most one may be, and it's opt-in.
+2. Otherwise the request's host, matched against the host of the channel's public URL.
+   Case doesn't matter and the default ports (80, 443) are dropped, but any other port is
+   part of the host - `http://localhost:3000` and `http://localhost:5174` are two different
+   channels. Each host belongs to at most one channel, and only an admin with global
+   `channels.manage` can change a channel's public URL.
+3. Otherwise the channel flagged as default - at most one may be, and it's opt-in. Only an
+   active channel can take the flag, the default can't be deactivated, and moving it takes
+   global `channels.manage`.
 
 Steps 2 and 3 exist for the other callers of the front API - a mobile client, a curl, an
 integration - not for storefronts, which are pinned and never rely on them.
@@ -77,15 +83,16 @@ and `url`. So the same product can be live in the US at one price, unpublished i
 and on sale in the UK, with one catalog row underneath. Categories, CMS pages, blog posts,
 menus and inventory locations use the same shape.
 
-**3. Belongs to exactly one channel.** Carts, orders, **customers**, reviews, companies and
-B2B quotes, tax rules, shipping zones, carriers and boxes, payment methods, experiments,
+**3. Belongs to exactly one channel.** Carts, orders, **customers**, reviews, tax rules, shipping zones, carriers and boxes, payment methods, experiments,
 flows, email campaigns and templates library, signup and web forms, search boosts, pins and
 redirects.
 
 **4. Global by default, overridable per channel.** These carry a nullable channel id where
 null means "applies everywhere": promotion rules, URL rewrites, webhooks, config values,
 email templates, search synonyms, customer-group prices, per-product attribute slugs,
-remote providers, subscriptions.
+remote providers, subscriptions, gift cards. A gift card bought or refunded on a channel
+belongs to it and spends only there. One issued from the dashboard spends on the store picked
+when it's issued (that store's admins can issue it), or on every store if none is picked (that needs a global grant).
 
 Three of these surprise people:
 

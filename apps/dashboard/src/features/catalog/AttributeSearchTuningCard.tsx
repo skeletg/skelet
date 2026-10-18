@@ -242,7 +242,7 @@ export function AttributeSearchTuningCard({
         <div className="grid gap-1.5">
           <Label htmlFor="search-match-type" className="text-xs">Match type</Label>
           <Select value={matchType} onValueChange={setMatchType}>
-            <SelectTrigger id="search-match-type">
+            <SelectTrigger className="w-full" id="search-match-type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -264,7 +264,7 @@ export function AttributeSearchTuningCard({
             onValueChange={(v) => setFuzziness(v === FUZZ_OFF ? '' : v)}
             disabled={fuzzDisabled}
           >
-            <SelectTrigger id="search-fuzziness">
+            <SelectTrigger className="w-full" id="search-fuzziness">
               <SelectValue placeholder="-" />
             </SelectTrigger>
             <SelectContent>

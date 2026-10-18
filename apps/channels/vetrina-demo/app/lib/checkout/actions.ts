@@ -1,171 +1,398 @@
 "use server";
 
+import type { Submission } from "@conform-to/zod/v4";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { redirect, RedirectType } from "next/navigation";
+import { refresh, revalidatePath } from "next/cache";
 
+import { AccountAddAddressDocument } from "@/app/lib/auth/operations.gql";
+import { ACCESS_TOKEN_COOKIE } from "@/app/lib/auth/session";
+import { ApplyCouponDocument, SetCartNoteDocument } from "@/app/lib/cart/mutations.gql";
+import { CART_COOKIE } from "@/app/lib/cart/read";
+import { getCheckoutCart } from "@/app/lib/cart/offer";
+import { decodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE } from "@/app/lib/cart/offer-cookie";
 import {
-  AddAddressDocument,
+  ApplyCheckoutGiftCardDocument,
   FinalizeOrderPaymentDocument,
   PlaceOrderDocument,
-  ValidateAddressDocument,
+  RemoveCheckoutGiftCardDocument,
+  SetCheckoutDeliveryDocument,
+  SetCheckoutDeliveryPointDocument,
+  SetCheckoutDestinationDocument,
+  SetCheckoutDetailsDocument,
+  SetCheckoutPaymentMethodDocument,
+  SetCheckoutSplitDeliveryDocument,
+  SetCheckoutStoreCreditDocument,
+  type AddressInput,
 } from "@/app/lib/checkout/operations.gql";
-import { ACCESS_TOKEN_COOKIE } from "@/app/lib/auth/session";
-import { CART_COOKIE } from "@/app/lib/cart/read";
+import type { CheckoutDetailsInput } from "@/app/graphql/schema.types";
+import { getCheckoutState } from "@/app/lib/checkout/read";
+import { detailsAsks } from "@/app/lib/checkout/asks";
+import {
+  deliveryPointSchema,
+  groupDeliverySchema,
+  destinationSchema,
+  splitDeliverySchema,
+  detailsStepSchema,
+  billingIsShown,
+  type DetailsMode,
+  giftCardSchema,
+  paymentStepSchema,
+  splitSelection,
+  type DetailsValues,
+} from "@/app/lib/checkout/schemas";
+import { getCheckoutSettings } from "@/app/lib/config/read";
+import { getCountries } from "@/app/lib/countries/read";
+import { getCustomerOrNull } from "@/app/lib/customer/read";
+import { errorMessage } from "@/app/lib/forms/reply";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { formatCouponError } from "@/app/lib/cart/coupon-errors";
+import { couponSchema } from "@/app/lib/cart/schemas";
+import { checkoutHref } from "./path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 
-// CheckoutResult mirrors the auth-actions / coupon-actions shape so the form-state hook on the checkout page can render
-// an inline error without a route-segment error boundary
-export type CheckoutResult =
-  | { ok: true; addressId?: string }
-  | {
-      ok: true;
-      requiresAction: { clientSecret: string; orderId: string; redirectTo: string };
-    }
-  | { ok: false; error: string };
+// Delivery saves return to the delivery step for review; Continue opens details. Other step saves refresh
+// from the cart, which remains the source of checkout values and requirements.
 
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof GraphQLRequestError && err.errors[0]?.message) {
-    return err.errors[0].message;
-  }
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
+type AnySubmission = Submission<unknown, string[], unknown>;
+
+// Backend codes whose message is better said by the storefront, in the shopper's language
+const CODE_KEYS: Record<string, string> = {
+  CHECKOUT_DESTINATION_REQUIRED: "checkoutDestinationRequired",
+  CHECKOUT_POSTAL_CODE_REQUIRED: "postalCodeRequired",
+  CHECKOUT_EMAIL_REQUIRED: "checkoutEmailRequired",
+  CHECKOUT_PHONE_REQUIRED: "phoneRequired",
+  CHECKOUT_COMPANY_REQUIRED: "companyRequired",
+  CHECKOUT_BUSINESS_ID_REQUIRED: "checkoutBusinessIdRequired",
+  CHECKOUT_BUSINESS_ID_INVALID: "businessIdInvalid",
+  CHECKOUT_PICKUP_CONTACT_REQUIRED: "checkoutPickupContactRequired",
+  CHECKOUT_SHIPPING_ADDRESS_REQUIRED: "checkoutAddressRequired",
+  CHECKOUT_BILLING_ADDRESS_REQUIRED: "checkoutBillingRequired",
+  CHECKOUT_SHIPPING_METHOD_REQUIRED: "shippingMethodRequired",
+  CHECKOUT_DELIVERY_POINT_REQUIRED: "deliveryPointRequired",
+  CHECKOUT_DELIVERY_GROUP_UNKNOWN: "deliveryGroupChanged",
+  DELIVERY_POINT_NOT_FOUND: "deliveryPointUnavailable",
+  DELIVERY_SOURCE_UNAVAILABLE: "deliverySourceUnavailable",
+  CART_EMAIL_INVALID: "email",
+  SHIPPING_METHOD_UNAVAILABLE: "shippingMethodUnavailable",
+  // Unavailable-class like the address validator's, so the code is all that survives here too
+  SHIPPING_QUOTE_FAILED: "shippingQuoteFailed",
+  CHECKOUT_CONFLICT: "checkoutConflict",
+  CHECKOUT_FIELD_TOO_LONG: "checkoutFieldTooLong",
+  TERMS_NOT_ACCEPTED: "tosRequired",
+  PAYMENT_METHOD_UNAVAILABLE: "paymentMethodUnavailable",
+  PAYMENT_REQUIRED: "paymentMethodRequired",
+  GIFT_CARD_INVALID: "giftCardInvalid",
+  PHONE_INVALID: "phoneInvalid",
+  PHONE_COUNTRY_NOT_ALLOWED: "phoneCountryNotAllowed",
+  ADDRESS_INVALID: "addressInvalid",
+  INSUFFICIENT_STOCK: "insufficientStock",
+  ORDER_MINIMUM_NOT_MET: "orderMinimumNotMet",
+  GUEST_CHECKOUT_DISABLED: "guestCheckoutDisabled",
+  CART_OFFER_PAYMENT_NOT_ALLOWED: "offerPaymentNotAllowed",
+  CART_OFFER_LOCKED: "offerLocked",
+  CART_OFFER_EXPIRED: "offerExpired",
+  CART_OFFER_REVOKED: "offerRevoked",
+  // The front API scrubs an unavailable-class message, so the code is all that survives
+  ADDRESS_VALIDATION_UNAVAILABLE: "addressValidationUnavailable",
+};
+
+function checkoutError(submission: AnySubmission, err: unknown, fallbackKey: string): FormResult {
+  const code = err instanceof GraphQLRequestError ? err.errors[0]?.extensions?.code : undefined;
+  const key = typeof code === "string" ? CODE_KEYS[code] : undefined;
+  return submission.reply({ formErrors: [key ?? errorMessage(err, fallbackKey)] });
 }
 
-export async function placeOrderAction(
-  _prev: CheckoutResult | null,
+// The offer while the shopper is completing one, else their own cart
+async function submittedCart(formData: FormData) {
+  const id = String(formData.get("cartId") ?? "");
+  return id ? getCheckoutCart(id) : null;
+}
+
+async function runStep(
   formData: FormData,
-): Promise<CheckoutResult> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!email) {
-    return { ok: false, error: "Email is required." };
-  }
-
-  const billingAddressId = String(formData.get("billingAddressId") ?? "").trim();
-  const shippingAddressId = String(
-    formData.get("shippingAddressId") ?? "",
-  ).trim();
-  const customerNote = String(formData.get("customerNote") ?? "").trim();
-  const shippingCarrierSlug = String(
-    formData.get("shippingCarrierSlug") ?? "",
-  ).trim();
-  const shippingMethodCode = String(
-    formData.get("shippingMethodCode") ?? "",
-  ).trim();
-  const paymentProviderSlug = String(
-    formData.get("paymentProviderSlug") ?? "",
-  ).trim();
-  const paymentToken = String(formData.get("paymentToken") ?? "").trim();
-  const giftCardCodes = String(formData.get("giftCardCodes") ?? "")
-    .split(/[\n,]+/)
-    .map((c) => c.trim())
-    .filter((c) => c !== "");
-  const useStoreCredit = String(formData.get("useStoreCredit") ?? "") === "1";
-  // Saved payment method id (when the checkout UI offers stored cards); the backend
-  // resolves it to the vaulted provider token
-  const savedPaymentMethodId =
-    String(formData.get("savedPaymentMethodId") ?? "").trim() || null;
-
-// Inline addresses, namespaced billing.*/shipping.* to stay distinct from address-book ids. "Billing same as shipping"
-// omits the billing fields, so mirror them here or the backend's per-slot validation fails
-  const shippingInline = readInlineAddress(formData, "shipping");
-  const billingSameAsShipping =
-    String(formData.get("billingSameAsShipping") ?? "") === "1";
-  const billingInline =
-    billingSameAsShipping && shippingInline
-      ? shippingInline
-      : readInlineAddress(formData, "billing");
-  // For logged-in customers with "same as shipping", mirror the ID too
-  const effectiveBillingId =
-    billingSameAsShipping && !billingInline
-      ? shippingAddressId
-      : billingAddressId;
-
-  // At least one address source must be set per slot
-  const hasBilling = !!effectiveBillingId || !!billingInline;
-  const hasShipping = !!shippingAddressId || !!shippingInline;
-  if (!hasBilling || !hasShipping) {
-    return {
-      ok: false,
-      error: "Provide a billing and shipping address.",
-    };
-  }
-
-  if (shippingInline) {
-    try {
-      const check = await gqlFetch(ValidateAddressDocument, {
-        street1: shippingInline.street1,
-        street2: shippingInline.street2 ?? null,
-        city: shippingInline.city,
-        state: shippingInline.state ?? null,
-        postalCode: shippingInline.postalCode,
-        countryCode: shippingInline.countryCode,
-      });
-      const v = check.data.validateAddress;
-      if (!v.valid && v.strict) {
-        return {
-          ok: false,
-          error: `Please check the shipping address: ${v.messages.join("; ")}.`,
-        };
-      }
-      if (v.normalized) {
-        shippingInline.street1 = v.normalized.street1;
-        shippingInline.street2 = v.normalized.street2 || shippingInline.street2;
-        shippingInline.city = v.normalized.city;
-        shippingInline.state = v.normalized.state || shippingInline.state;
-        shippingInline.postalCode = v.normalized.postalCode;
-        shippingInline.countryCode = v.normalized.countryCode;
-      }
-    } catch {
-      // Validator unavailable - never block checkout on it
-    }
-  }
-
-  // Cart cookie: required for guests; logged-in customers can let the backend derive their active cart, but if a cookie
-  // is set we still pass it (matches the cart the storefront has been showing)
-  const cookieStore = await cookies();
-  const cartId = cookieStore.get(CART_COOKIE)?.value ?? null;
-
-  let orderID: string;
-  let paymentClientSecret: string | null = null;
+  submission: AnySubmission,
+  fallbackKey: string,
+  save: (cartId: string) => Promise<unknown>,
+  stayOnDelivery = false,
+): Promise<FormResult> {
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  if (!cartId) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   try {
-    const res = await gqlFetch(PlaceOrderDocument, {
-      email,
-      cartId: cartId || null,
-      customerNote: customerNote || null,
-      shippingCarrierSlug: shippingCarrierSlug || null,
-      shippingMethodCode: shippingMethodCode || null,
-      paymentProviderSlug: paymentProviderSlug || null,
-      paymentToken: paymentToken || null,
-      billingAddressId: effectiveBillingId || null,
-      shippingAddressId: shippingAddressId || null,
-      billingAddress: billingInline,
-      shippingAddress: shippingInline,
-      giftCardCodes: giftCardCodes.length > 0 ? giftCardCodes : null,
-      useStoreCredit,
-      savedPaymentMethodId,
-    });
-    orderID = res.data.placeOrder.id;
-    paymentClientSecret = res.data.placeOrder.paymentClientSecret ?? null;
+    await save(cartId);
   } catch (err) {
-    return { ok: false, error: errorMessage(err, "Could not place order.") };
+    return checkoutError(submission, err, fallbackKey);
+  }
+  if (stayOnDelivery) redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { step: "delivery" }), await getCurrentLocale()), RedirectType.replace);
+  refresh();
+  return submission.reply();
+}
+
+// Step 1a - the postcode the options are quoted for. Saving it re-renders the step with what that postcode is offered
+export async function saveDestinationStep(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, destinationSchema);
+  if (submission.status !== "success") return submission.reply();
+  const { countryCode, postalCode } = submission.value;
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
+    gqlFetch(SetCheckoutDestinationDocument, { cartId, countryCode, postalCode }),
+    true,
+  );
+}
+
+// Step 1b - deliver everything together, or choose for each group of lines that allow different deliveries
+export async function saveSplitDeliveryAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, splitDeliverySchema);
+  if (submission.status !== "success") return submission.reply();
+  const split = submission.value.split === "split";
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) => gqlFetch(SetCheckoutSplitDeliveryDocument, { cartId, split }), true);
+}
+
+// Step 1c - one group's delivery, one of the option and carrier-method choices quoted for it
+export async function saveGroupDeliveryAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, groupDeliverySchema);
+  if (submission.status !== "success") return submission.reply();
+  const { optionId, carrierSlug, methodCode } = splitSelection(submission.value.selection);
+  const groupKey = submission.value.groupKey;
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
+    gqlFetch(SetCheckoutDeliveryDocument, { cartId, groupKey, optionId, carrierSlug, methodCode }),
+    true,
+  );
+}
+
+// The store or PO box a group's delivery goes to - re-read from its source by the backend
+export async function saveDeliveryPointAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, deliveryPointSchema);
+  if (submission.status !== "success") return submission.reply();
+  const { groupKey, pointId } = submission.value;
+  return runStep(formData, submission, "checkoutSaveFailed", (cartId) =>
+    gqlFetch(SetCheckoutDeliveryPointDocument, { cartId, groupKey, pointId }),
+    true,
+  );
+}
+
+type LooseAddress = NonNullable<DetailsValues["shipping"]>;
+
+// The refinement guarantees every required field when the choice is "new"
+function addressInput(v: LooseAddress | undefined, phone: string | null): AddressInput {
+  return {
+    firstName: v?.firstName ?? "",
+    lastName: v?.lastName ?? "",
+    company: v?.company ?? null,
+    street1: v?.street1 ?? "",
+    street2: v?.street2 ?? null,
+    city: v?.city ?? "",
+    state: v?.state ?? null,
+    postalCode: v?.postalCode ?? "",
+    countryCode: v?.countryCode ?? "",
+    phone,
+  };
+}
+
+// Step 2 - one write for contact, business details and the addresses or pickup contact. The schema is rebuilt from the
+// same settings and cart the form was, so the action refuses exactly what the form did
+export async function saveDetailsStep(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  const [settings, checkout, countries, customer] = await Promise.all([
+    getCheckoutSettings(),
+    cartId ? getCheckoutState(cartId) : null,
+    getCountries(),
+    getCustomerOrNull(),
+  ]);
+  const asks = detailsAsks(checkout?.requirements ?? []);
+  const mode: DetailsMode = {
+    asks,
+    signedIn: customer !== null,
+    countries,
+    savedCountries: Object.fromEntries((customer?.addresses ?? []).map((a) => [a.id, a.countryCode])),
+    destinationCountry: checkout?.destination?.countryCode ?? "",
+  };
+  const { signedIn } = mode;
+  const submission = parseForm(formData, detailsStepSchema(settings, mode));
+  if (submission.status !== "success") return submission.reply();
+  if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
+  const v = submission.value;
+  const business = settings.business && v.purchaseType === "business";
+
+  const input: CheckoutDetailsInput = {
+    email: v.email,
+    phone: v.phone,
+    purchaseType: business ? "BUSINESS" : "PERSONAL",
+    company: business ? v.company : null,
+    businessIds: business
+      ? Object.entries(v.businessIds ?? {}).flatMap(([key, value]) => (value ? [{ key, value }] : []))
+      : null,
+    poNumber: business ? v.poNumber : null,
+    billingSameAsShipping: false,
+  };
+  const someoneElse = asks.collector && settings.pickupSomeoneElse && v.pickupWho === "someoneElse";
+  if (billingIsShown(asks, someoneElse, v)) {
+    if (v.billingChoice === "new") input.billingAddress = addressInput(v.billing, null);
+    else if (v.billingChoice) input.billingAddressId = v.billingChoice;
   }
 
-  cookieStore.delete(CART_COOKIE);
+  const chosenBefore = new Set(checkout.deliveryGroups.filter((g) => g.selection).map((g) => g.key));
+  let deliveryDropped = false;
+  try {
+    if (asks.collector) {
+      input.pickupContact = { firstName: v.pickupFirstName ?? "", lastName: v.pickupLastName ?? "", someoneElse };
+    }
+    if (asks.shipping) {
+      input.billingSameAsShipping = !!v.billingSame;
+      if (v.shippingChoice !== "new") {
+        input.shippingAddressId = v.shippingChoice;
+      } else if (signedIn && v.saveToBook) {
+        // Saved first so the cart records where the snapshot came from
+        const saved = await gqlFetch(AccountAddAddressDocument, { input: addressInput(v.shipping, v.phone) });
+        input.shippingAddressId = saved.data.addAddress.id;
+      } else {
+        input.shippingAddress = addressInput(v.shipping, null);
+      }
+    }
+    const res = await gqlFetch(SetCheckoutDetailsDocument, { cartId, input });
+    deliveryDropped = res.data.setCartDetails.checkout.deliveryGroups.some((g) => chosenBefore.has(g.key) && !g.selection);
+  } catch (err) {
+    return checkoutError(submission, err, "checkoutSaveFailed");
+  }
+  if (deliveryDropped) {
+    // The address moved the order somewhere a chosen delivery doesn't reach - back to step 1, saying why
+    redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { notice: "delivery-changed" }), String(formData.get("locale") ?? "")));
+  }
+  refresh();
+  return submission.reply();
+}
+
+export async function applyGiftCardAction(
+  _prev: FormResult | undefined,
+  formData: FormData,
+): Promise<FormResult> {
+  const submission = parseForm(formData, giftCardSchema);
+  if (submission.status !== "success") return submission.reply();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  if (!cartId) return submission.reply({ formErrors: ["checkoutCartMissing"] });
+  try {
+    await gqlFetch(ApplyCheckoutGiftCardDocument, { cartId, code: submission.value.code });
+  } catch (err) {
+    return checkoutError(submission, err, "giftCardInvalid");
+  }
+  refresh();
+  return replyReset(submission);
+}
+
+// Removing a card and toggling store credit have no input to get wrong - plain form actions, and a failure just
+// leaves the page showing what the cart still holds
+export async function removeGiftCardAction(formData: FormData): Promise<void> {
+  const code = String(formData.get("code") ?? "").trim();
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  if (!code || !cartId) return;
+  try {
+    await gqlFetch(RemoveCheckoutGiftCardDocument, { cartId, code });
+  } catch {
+    return;
+  }
+  refresh();
+}
+
+export async function setStoreCreditAction(formData: FormData): Promise<void> {
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  if (!cartId) return;
+  try {
+    await gqlFetch(SetCheckoutStoreCreditDocument, { cartId, use: formData.get("use") === "1" });
+  } catch {
+    return;
+  }
+  refresh();
+}
+
+export type PlaceOrderResult = FormResult & {
+  // The order exists but the gateway wants a client-side challenge before it settles
+  requiresAction?: { orderId: string; redirectTo: string };
+};
+
+export async function placeOrderAction(
+  _prev: PlaceOrderResult | undefined,
+  formData: FormData,
+): Promise<PlaceOrderResult> {
+  const cart = await submittedCart(formData);
+  const cartId = cart?.id ?? null;
+  const offer = cart?.offer ?? null;
+  const [settings, checkout] = await Promise.all([
+    getCheckoutSettings(),
+    cartId ? getCheckoutState(cartId) : null,
+  ]);
+  // Nothing owed once gift cards and store credit cover the total, so no method is asked for
+  const requireMethod = (checkout?.totals.amountDueCents ?? 1) > 0;
+  const submission = parseForm(formData, paymentStepSchema({ requireMethod, consent: settings.termsConsent }));
+  if (submission.status !== "success") return submission.reply();
+  const v = submission.value;
+  const locale = String(formData.get("locale") ?? "");
+  if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
+
+  let orderId: string;
+  let needsAction: boolean;
+  try {
+    // The payment step's own choices land on the cart first, so a refused placement keeps them for the retry
+    if (v.providerSlug) {
+      await gqlFetch(SetCheckoutPaymentMethodDocument, { cartId, providerSlug: v.providerSlug });
+    }
+    await gqlFetch(SetCartNoteDocument, { cartId, note: v.note ?? "" });
+    const res = await gqlFetch(PlaceOrderDocument, {
+      cartId,
+      savedPaymentMethodId: v.savedPaymentMethodId,
+      // The backend holds a checkbox store to the same tick the form asked for
+      acceptTerms: v.tos === true,
+    });
+    orderId = res.data.placeOrder.id;
+    needsAction = !!res.data.placeOrder.paymentClientSecret;
+  } catch (err) {
+    refresh(); // a step the backend says is missing reopens once the page re-reads the cart
+    return checkoutError(submission, err, "placeOrderFailed");
+  }
+
+  const cookieStore = await cookies();
+  if (offer) {
+    // The offer is history - the shopper's own cart is untouched and takes over again
+    if (decodeOfferSession(cookieStore.get(OFFER_COOKIE)?.value)?.cartId === cartId) {
+      cookieStore.delete(OFFER_COOKIE);
+      cookieStore.delete(OFFER_CHECKOUT_COOKIE);
+    }
+  } else {
+    if (cookieStore.get(CART_COOKIE)?.value === cartId) cookieStore.delete(CART_COOKIE);
+  }
   revalidatePath("/", "layout");
 
-  const isAuthed = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined;
-  const redirectTo = isAuthed
-    ? `/account/orders/${orderID}?just_placed=1`
-    : `/orders/${orderID}?email=${encodeURIComponent(email)}&just_placed=1`;
-
-  if (paymentClientSecret) {
-    return {
-      ok: true,
-      requiresAction: { clientSecret: paymentClientSecret, orderId: orderID, redirectTo },
-    };
+  // A guest offer places a guest order for its recipient, whoever is signed in on this browser
+  const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
+  const redirectTo = await withLocalePrefix(
+    signedIn
+      ? `/account/orders/${orderId}?just_placed=1`
+      : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&just_placed=1`,
+    locale,
+  );
+  if (needsAction) {
+    return { ...submission.reply(), requiresAction: { orderId, redirectTo } };
   }
-
   redirect(redirectTo);
 }
 
@@ -177,84 +404,18 @@ export async function finalizeOrderPaymentAction(orderId: string): Promise<boole
     return false;
   }
 }
-function readInlineAddress(
-  formData: FormData,
-  slot: "billing" | "shipping",
-): {
-  firstName: string;
-  lastName: string;
-  company: string | null;
-  street1: string;
-  street2: string | null;
-  city: string;
-  state: string | null;
-  postalCode: string;
-  countryCode: string;
-  phone: string | null;
-} | null {
-  const street1 = String(formData.get(`${slot}.street1`) ?? "").trim();
-  if (!street1) return null;
-  return {
-    firstName: String(formData.get(`${slot}.firstName`) ?? "").trim(),
-    lastName: String(formData.get(`${slot}.lastName`) ?? "").trim(),
-    company: optionalString(formData.get(`${slot}.company`)),
-    street1,
-    street2: optionalString(formData.get(`${slot}.street2`)),
-    city: String(formData.get(`${slot}.city`) ?? "").trim(),
-    state: optionalString(formData.get(`${slot}.state`)),
-    postalCode: String(formData.get(`${slot}.postalCode`) ?? "").trim(),
-    countryCode: String(formData.get(`${slot}.countryCode`) ?? "")
-      .trim()
-      .toUpperCase(),
-    phone: optionalString(formData.get(`${slot}.phone`)),
-  };
-}
-export async function addAddressAction(
-  _prev: CheckoutResult | null,
-  formData: FormData,
-): Promise<CheckoutResult> {
-  const input = {
-    firstName: String(formData.get("firstName") ?? "").trim(),
-    lastName: String(formData.get("lastName") ?? "").trim(),
-    company: optionalString(formData.get("company")),
-    street1: String(formData.get("street1") ?? "").trim(),
-    street2: optionalString(formData.get("street2")),
-    city: String(formData.get("city") ?? "").trim(),
-    state: optionalString(formData.get("state")),
-    postalCode: String(formData.get("postalCode") ?? "").trim(),
-    countryCode: String(formData.get("countryCode") ?? "").trim().toUpperCase(),
-    phone: optionalString(formData.get("phone")),
-  };
 
-  if (
-    !input.firstName ||
-    !input.lastName ||
-    !input.street1 ||
-    !input.city ||
-    !input.postalCode ||
-    !input.countryCode
-  ) {
-    return { ok: false, error: "Fill in name, street, city, postal, and country." };
-  }
-  if (input.countryCode.length !== 2) {
-    return { ok: false, error: "Country code must be the 2-letter ISO form (US, DE, …)." };
-  }
 
-  let newID: string
+export async function applyCheckoutCouponAction(_prev: FormResult | undefined, formData: FormData): Promise<FormResult> {
+  const submission = parseForm(formData, couponSchema);
+  if (submission.status !== "success") return submission.reply();
+  const cart = await submittedCart(formData);
+  if (!cart) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   try {
-    const res = await gqlFetch(AddAddressDocument, { input });
-    newID = res.data.addAddress.id;
+    await gqlFetch(ApplyCouponDocument, { cartId: cart.id, code: submission.value.code });
   } catch (err) {
-    return { ok: false, error: errorMessage(err, "Could not save address.") };
+    return submission.reply({ fieldErrors: { code: [formatCouponError(err)] } });
   }
-  // The checkout page reads MyProfile (server component); revalidate so the newly-added
-  // address shows up in the picker
-  revalidatePath("/checkout");
-  return { ok: true, addressId: newID };
-}
-
-function optionalString(v: FormDataEntryValue | null): string | null {
-  if (typeof v !== "string") return null;
-  const trimmed = v.trim();
-  return trimmed === "" ? null : trimmed;
+  refresh();
+  return replyReset(submission);
 }

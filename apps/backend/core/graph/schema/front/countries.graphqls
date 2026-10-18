@@ -1,0 +1,77 @@
+type Country {
+  code:                String!
+  name:                String!
+  nativeName:          String!
+  emojiFlag:           String!
+  phoneCode:           String!
+  defaultCurrencyCode: String!
+  defaultCurrency:     Currency
+  isActive:            Boolean!
+  sortOrder:           Int!
+  # The company identifiers a business purchase from this country asks for. Empty means one generic tax ID, per sales/checkout/tax_id_field.
+  businessIdFields:    [BusinessIdField!]!
+}
+
+type BusinessIdField {
+  key:      String!
+  label:    String!
+  required: Boolean!
+  # An RE2 regular expression the whole value must match. Empty accepts any value.
+  pattern:  String!
+  hint:     String!
+}
+
+# ISO 3166-2 subdivision (state/province). `code` is the subdivision
+# part only; the full ISO code is the country code + "-" + code.
+type Region {
+  code:      String!
+  name:      String!
+  isActive:  Boolean!
+  sortOrder: Int!
+}
+
+# Per-channel country options the storefront needs to drive address forms: which country to preselect, whether/which countries require a region, etc. Resolved at the request's channel scope.
+type CountrySettings {
+  defaultCountryCode:         String!
+  allowOptionalState:         Boolean!
+  requiredRegionCountryCodes: [String!]!
+  topDestinationCountryCodes: [String!]!
+  euCountryCodes:             [String!]!
+}
+
+# How one country's phone numbers look - a form's fixed prefix, its placeholder and its input mask
+type PhoneCountryFormat {
+  countryCode:     String!
+  # "+381"
+  callingCode:     String!
+  # An example mobile, international - "+381 60 1234567"
+  example:         String!
+  # The same example as typed at home - "060 1234567"
+  nationalExample: String!
+  # nationalExample with every digit an x - "xxx xxxxxxx"
+  template:        String!
+}
+
+# The store's phone policy (general/country/phone_countries) with the formats of the countries a form can offer - its allowed countries, else every active one
+type PhoneSettings {
+  # A phone must be from one of the store's allowed countries
+  restrictedToStoreCountries: Boolean!
+  # Set when every phone must be from this one country - the form fixes the prefix and shows no country choice
+  lockedCountryCode:          String
+  # The country a phone typed without its + is read in, when the form has no address country of its own
+  defaultCountryCode:         String!
+  formats:                    [PhoneCountryFormat!]!
+}
+
+extend type Query {
+  # Honors the channel's "allowed countries" setting (all active when
+  # unset) and pins "top destinations" first.
+  countries(activeOnly: Boolean): [Country!]!
+  country(code: String!):         Country!
+  # Subdivisions for one country (empty → free-text region).
+  regions(countryCode: String!): [Region!]!
+  # Channel-scoped country option flags for the address forms.
+  countrySettings: CountrySettings!
+  # The phone policy and formats for the store's phone fields.
+  phoneSettings: PhoneSettings!
+}

@@ -1,0 +1,980 @@
+package front
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"slices"
+	"sort"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
+	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
+	"github.com/skeletg/skelet/apps/backend/core/internal/search"
+)
+
+func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("category")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
+func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("collection")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
+func (r *productResolver) ProductType(ctx context.Context, obj *model.Product) (*model.ProductType, error) {
+	return r.productTypeOf(ctx, obj)
+}
+
+func (r *productResolver) URL(ctx context.Context, obj *model.Product) (string, error) {
+	return r.productURL(ctx, obj)
+}
+
+// Sellable means salable > 0 OR backorderable - the second branch unblocks "tracked, threshold set, no physical stock yet, backorderable=true" from sitting at inStock=false forever, which would disable Add to cart and keep the customer from ever reaching checkout, where Reserve does allow the backorder
+func (r *productResolver) InStock(ctx context.Context, obj *model.Product, channelID *string) (bool, error) {
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return false, err
+	}
+	svID, err := r.resolveSalableChannel(ctx, channelID)
+	if err != nil {
+		return false, err
+	}
+	if svID == uuid.Nil || r.InventorySvc == nil {
+		return true, nil
+	}
+	// Wrappers own no inventory_items row, so stock has to aggregate from children - reading the wrapper's own salable returns the "always in stock" sentinel and reports every configurable/bundle/grouped product in stock even when nothing behind it is buyable
+	switch obj.Kind {
+	case model.ProductKindConfigurable, model.ProductKindGrouped, model.ProductKindBundle, model.ProductKindKit:
+		return r.wrapperInStock(ctx, obj.Kind, pid, svID)
+	}
+	salable, err := r.salableFor(ctx, pid, svID)
+	if err != nil {
+		return false, err
+	}
+	if salable < 0 {
+		return true, nil // unbounded "always in stock" sentinel
+	}
+	if salable > 0 {
+		return true, nil
+	}
+	// Only zero-stock tracked items reach here, and on list surfaces primeBackorderable has already pinned the answer, so no per-card lookup
+	if v, ok := r.cachedBackorderable(ctx, pid); ok {
+		return v, nil
+	}
+	item, err := r.InventorySvc.GetItemByProduct(ctx, pid)
+	if err != nil {
+		// A missing item row should be impossible (salable=0 implies tracked), but the unexpected case reads as out of stock rather than crashing the storefront
+		return false, nil
+	}
+	return item.Backorderable, nil
+}
+
+// nil for unbounded "always in stock" products
+func (r *productResolver) SalableQuantity(ctx context.Context, obj *model.Product, channelID *string) (*float64, error) {
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	svID, err := r.resolveSalableChannel(ctx, channelID)
+	if err != nil || svID == uuid.Nil {
+		return nil, err
+	}
+	if r.InventorySvc == nil {
+		return nil, nil
+	}
+	salable, err := r.salableFor(ctx, pid, svID)
+	if err != nil {
+		return nil, err
+	}
+	if salable < 0 {
+		return nil, nil
+	}
+	v := salable
+	return &v, nil
+}
+
+func (r *productResolver) Price(ctx context.Context, obj *model.Product) (int32, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
+	return int32(res.Price), nil
+}
+
+func (r *productResolver) CompareAtPrice(ctx context.Context, obj *model.Product) (*int32, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil || res.CompareAt == nil {
+		return nil, err
+	}
+	v := int32(*res.CompareAt)
+	return &v, nil
+}
+
+func (r *productResolver) OnSale(ctx context.Context, obj *model.Product) (bool, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil {
+		return false, err
+	}
+	return res.OnSale, nil
+}
+
+func (r *productResolver) TierPrices(ctx context.Context, obj *model.Product) ([]*model1.TierPrice, error) {
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return []*model1.TierPrice{}, nil
+	}
+	return r.renderTierPrices(ctx, pid), nil
+}
+
+func (r *productResolver) LinkedProducts(ctx context.Context, obj *model.Product, kind model.ProductLinkKind) ([]*model.Product, error) {
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return []*model.Product{}, nil
+	}
+	ids, err := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))))
+	if err != nil {
+		return nil, err
+	}
+	return r.renderProductsByIDs(ctx, ids), nil
+}
+
+func (r *productResolver) AlsoBought(ctx context.Context, obj *model.Product, limit *int32) ([]*model.Product, error) {
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return []*model.Product{}, nil
+	}
+	lim := recommend.ClampAlsoBoughtLimit(limit) // clamped so a deep nested query can't amplify each node's fan-out
+	ids, err := r.RecommendSvc.ListAlsoBought(ctx, pid, lim*recommend.AlsoBoughtOverfetch)
+	if err != nil {
+		return nil, err
+	}
+	out := r.renderProductsByIDs(ctx, ids)
+	return out[:min(len(out), int(lim))], nil
+}
+
+func (r *productResolver) AttributeValues(ctx context.Context, obj *model.Product) ([]*model.ProductAttributeValue, error) {
+	return r.productAttributeValues(ctx, obj)
+}
+
+func (r *productResolver) Backorderable(ctx context.Context, obj *model.Product) (bool, error) {
+	pid, err := uuid.Parse(obj.ID) // a missing item row (untracked product) is simply not backorderable, and never errors the product query
+	if err != nil {
+		return false, nil
+	}
+	// List surfaces prime this so cards don't each fire an inventory lookup
+	if v, ok := r.cachedBackorderable(ctx, pid); ok {
+		return v, nil
+	}
+	if r.primeGroupOnce(ctx, "backorderable", pid, func(ids []uuid.UUID) error { return r.primeBackorderable(ctx, ids) }) {
+		if v, ok := r.cachedBackorderable(ctx, pid); ok {
+			return v, nil
+		}
+	}
+	item, err := r.InventorySvc.GetItemByProduct(ctx, pid)
+	if err != nil {
+		return false, nil
+	}
+	return item.Backorderable, nil
+}
+
+func (r *productResolver) Children(ctx context.Context, obj *model.Product) ([]*model.Product, error) {
+	return r.productChildren(ctx, obj)
+}
+
+func (r *productResolver) ConfigurableOptions(ctx context.Context, obj *model.Product) ([]*model.Attribute, error) {
+	return r.productConfigurableOptions(ctx, obj)
+}
+
+func (r *productResolver) BundleOptions(ctx context.Context, obj *model.Product) ([]*model.BundleOption, error) {
+	return r.productBundleOptions(ctx, obj)
+}
+
+func (r *productResolver) GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error) {
+	return r.productGroupedMembers(ctx, obj)
+}
+
+func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error) {
+	if r.CatalogSvc == nil || obj == nil {
+		return []*model1.ProductCustomOption{}, nil
+	}
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	opts, err := r.loadProductOptions(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	// A variant carries its configurable parent's product-wide options too - the cart resolution merges and ENFORCES them (adapters.ResolveProductOptions), so a variant-own URL that didn't render them could never satisfy a required parent option - fail-open, a hiccup here degrades to the variant-only set rather than killing the PDP
+	if obj.Kind == model.ProductKindSimple {
+		if link, perr := r.loadConfigurableParentLink(ctx, pid); perr == nil && link.ParentID != uuid.Nil {
+			if parentOpts, poerr := r.loadProductOptions(ctx, link.ParentID); poerr == nil {
+				opts = append(slices.Clone(opts), parentOpts...) // the loader's slice is shared across the request
+				sort.SliceStable(opts, func(i, j int) bool { return opts[i].SortOrder < opts[j].SortOrder })
+			}
+		}
+	}
+	visibleSources, err := r.visibleOptionSources(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	// The same per-channel surcharge the cart charges - a choice the cart would refuse here isn't offered
+	chID, chCur, perChannel := optionPricingChannel(ctx)
+	out := make([]*model1.ProductCustomOption, 0, len(opts))
+	for _, o := range opts {
+		priceValue := o.PriceValue
+		if perChannel {
+			pv, ok := o.ChannelPriceValue(chID, chCur)
+			if !ok {
+				continue
+			}
+			priceValue = pv
+		}
+		mo := &model1.ProductCustomOption{
+			ID:         o.ID.String(),
+			InputType:  string(o.InputType),
+			IsRequired: o.IsRequired,
+			SortOrder:  o.SortOrder,
+			Title:      o.Title,
+			HelpText:   o.HelpText,
+			MaxChars:   o.MaxChars,
+			PriceValue: priceValue,
+		}
+		if o.MaxFileBytes != nil {
+			v := int32(*o.MaxFileBytes)
+			mo.MaxFileBytes = &v
+		}
+		if o.FileExtensions != "" {
+			s := o.FileExtensions
+			mo.FileExtensions = &s
+		}
+		if o.PriceType != nil {
+			mo.PriceType = string(*o.PriceType)
+		}
+		if o.VisibleIf != nil {
+			mo.VisibleIf = visibleIfToAny(o.VisibleIf)
+		}
+		for _, v := range o.Values {
+			vp := v.PriceValue
+			if perChannel {
+				p, ok := v.ChannelPriceValue(chID, chCur, o.Currency)
+				if !ok {
+					continue
+				}
+				vp = p
+			}
+			mv := &model1.ProductCustomOptionValue{
+				ID:         v.ID.String(),
+				Title:      v.Title,
+				PriceValue: vp,
+				PriceType:  string(v.PriceType),
+				Quantity:   v.Quantity,
+				IsDefault:  v.IsDefault,
+			}
+			if v.ForcedLineQty != nil {
+				q := *v.ForcedLineQty
+				mv.ForcedLineQty = &q
+			}
+			// Slim stand-in built from what GetProductOptions already hydrated - no extra fetch, mirroring the admin toProductOptionValueModel mapping
+			if v.SourceProductID != nil && hasKey(visibleSources, *v.SourceProductID) {
+				prod := &model.Product{
+					ID:                  v.SourceProductID.String(),
+					URL:                 v.SourceProductURL,
+					Sku:                 v.SourceProductSKU,
+					Kind:                model.ProductKindSimple,
+					DefaultPrice:        int32(v.SourceProductDefaultPrice),
+					Price:               int32(v.SourceProductDefaultPrice),
+					DefaultCurrencyCode: v.SourceProductCurrency,
+				}
+				if v.SourceProductName != "" {
+					name := v.SourceProductName
+					prod.Name = &name
+				}
+				mv.SourceProduct = prod
+			}
+			mo.Values = append(mo.Values, mv)
+		}
+		out = append(out, mo)
+	}
+	return out, nil
+}
+
+// null for non-SUBSCRIPTION kinds and for subscriptions with no terms configured
+func (r *productResolver) SubscriptionTerms(ctx context.Context, obj *model.Product) (*model.SubscriptionTerms, error) {
+	if r.CatalogSvc == nil || obj == nil {
+		return nil, nil
+	}
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	terms, err := r.CatalogSvc.GetSubscriptionTerms(ctx, pid)
+	if err != nil {
+		if errors.Is(err, catalog.ErrSubscriptionTermsNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toFrontSubscriptionTermsModel(terms), nil
+}
+
+func (r *productResolver) Media(ctx context.Context, obj *model.Product) ([]*model.ProductMedia, error) {
+	return r.productMediaModels(ctx, obj)
+}
+
+func (r *productResolver) MainImage(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleMain)
+}
+
+func (r *productResolver) Thumbnail(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleThumbnail)
+}
+
+func (r *productResolver) OgImage(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleOGImage)
+}
+
+func (r *productResolver) Categories(ctx context.Context, obj *model.Product) ([]*model.Category, error) {
+	return r.productCategories(ctx, obj)
+}
+
+func (r *productResolver) PrimaryCategory(ctx context.Context, obj *model.Product) (*model.Category, error) {
+	return r.productPrimaryCategory(ctx, obj)
+}
+
+func (r *productResolver) Collections(ctx context.Context, obj *model.Product) ([]*model.Collection, error) {
+	return r.productCollections(ctx, obj)
+}
+
+// Walks active rules whose PRODUCT-level conditions could match, sorted by priority asc - cart-level conditions are ignored on purpose, see promotion.MatchesProduct - and the locale-resolved label falls back to the rule's English-default `public_label` when promotion_rule_contents has no per-locale row
+func (r *productResolver) PromotionalDisplays(ctx context.Context, obj *model.Product) ([]*model1.PromotionalDisplay, error) {
+	if r.PromotionSvc == nil || obj == nil {
+		return nil, nil
+	}
+	candidate, err := productCandidateFromModel(obj)
+	if err != nil {
+		return nil, nil
+	}
+	// The model's values are isPublic-filtered, so match on the pre-filter KVs renderProduct stashed - a rule conditioned on a private attribute still badges
+	if pid, perr := uuid.Parse(obj.ID); perr == nil {
+		if kvs, ok := r.promotionAttrKVs(ctx, obj, pid); ok {
+			candidate.AttributeKVs = kvs
+		}
+	}
+	if info, cerr := r.productCategoryInfo(ctx, obj); cerr == nil {
+		candidate.CategoryIDs = make([]uuid.UUID, 0, len(info.Categories))
+		for _, c := range info.Categories {
+			candidate.CategoryIDs = append(candidate.CategoryIDs, c.ID)
+		}
+	}
+	store, _ := channel.FromContext(ctx)
+	var storeID *uuid.UUID
+	if store != nil {
+		storeID = &store.ID
+	}
+	// With loaders mounted, a PLP with N cards collapses every per-rule lookup into one roundtrip each for conditions, content and asset
+	if loaders := dataloaders.For(ctx); loaders != nil {
+		return r.promotionalDisplaysViaLoaders(ctx, loaders, storeID, candidate)
+	}
+	rules, err := r.PromotionSvc.DisplaysForProduct(ctx, storeID, candidate)
+	if err != nil {
+		return nil, nil
+	}
+	locale := r.activeLocale(ctx)
+	out := make([]*model1.PromotionalDisplay, 0, len(rules))
+	for _, rule := range rules {
+		label := rule.PublicLabel
+		if locale != "" {
+			label = r.PromotionSvc.ResolvePublicLabel(ctx, rule.ID, locale, rule.PublicLabel)
+		}
+		out = append(out, &model1.PromotionalDisplay{
+			RuleID:        rule.ID.String(),
+			RuleSlug:      rule.Slug,
+			PublicLabel:   label,
+			LabelMedia:    r.loadPromotionMedia(ctx, rule.LabelMediaID),
+			BannerMedia:   r.loadPromotionMedia(ctx, rule.BannerMediaID),
+			PillText:      rule.PillText,
+			PillTextColor: rule.PillTextColor,
+			PillBgColor:   rule.PillBgColor,
+		})
+	}
+	return out, nil
+}
+
+func (r *productMediaResolver) TransformURL(ctx context.Context, obj *model.ProductMedia, width int32, height *int32) (*string, error) {
+	if obj == nil || r.MediaPublicBase == "" || !strings.HasPrefix(obj.MimeType, "image/") {
+		return nil, nil
+	}
+	key, ok := strings.CutPrefix(obj.URL, r.MediaPublicBase)
+	if !ok || key == "" {
+		return nil, nil // externally-hosted URL, outside our media base - no derivative
+	}
+	w := media.SnapWidth(int(width))
+	spec := fmt.Sprintf("w%d", w)
+	if height != nil && *height > 0 {
+		spec = fmt.Sprintf("w%dh%d", w, media.SnapWidth(int(*height)))
+	}
+	u := "/media/t/" + spec + "/" + key
+	return &u, nil
+}
+
+func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*model.Product, error) {
+	if len(ids) > 24 {
+		ids = ids[:24]
+	}
+	parsed := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		if id, err := uuid.Parse(raw); err == nil {
+			parsed = append(parsed, id)
+		}
+	}
+	return r.renderProductsByIDs(ctx, parsed), nil
+}
+
+func (r *queryResolver) ProductsBySkus(ctx context.Context, skus []string) ([]*model.Product, error) {
+	if len(skus) > 24 {
+		skus = skus[:24]
+	}
+	bySKU, err := r.CatalogSvc.GetProductsBySKUs(ctx, skus)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(skus))
+	for _, sku := range skus {
+		if p, ok := bySKU[sku]; ok {
+			ids = append(ids, p.ID)
+		}
+	}
+	return r.renderProductsByIDs(ctx, ids), nil
+}
+
+// Display names come back in the active locale where a translation exists - private attributes stay off this storefront surface entirely
+func (r *queryResolver) Attributes(ctx context.Context) ([]*model.Attribute, error) {
+	attrs, err := r.CatalogSvc.ListAttributes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Attribute, 0, len(attrs))
+	for _, a := range attrs {
+		if !a.IsPublic {
+			continue
+		}
+		out = append(out, toAttributeModel(a))
+	}
+	r.localizeAttributeModels(ctx, out)
+	return out, nil
+}
+
+func (r *queryResolver) Attribute(ctx context.Context, id string) (*model.Attribute, error) {
+	attrID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, invalidID("attribute")
+	}
+	attr, err := r.CatalogSvc.GetAttribute(ctx, attrID)
+	if err != nil {
+		return nil, err
+	}
+	if !attr.IsPublic {
+		// The same answer an unknown id gets, so the response doesn't confirm the attribute exists
+		return nil, catalog.ErrAttributeNotFound
+	}
+	out := toAttributeModel(attr)
+	r.localizeAttributeModels(ctx, []*model.Attribute{out})
+	return out, nil
+}
+
+// Same store-scoping rule as Products - the row is ErrProductNotFound when no published listing exists here, and with no resolved store every direct fetch is not-found, which is what defends against ID enumeration on a misconfigured deployment
+func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product, error) {
+	if err := r.checkCatalogRate(ctx); err != nil {
+		return nil, err
+	}
+	pid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, invalidID("product")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrProductNotFound
+	}
+	p, err := r.CatalogSvc.GetProductHeaderForChannel(ctx, pid, *storeID, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return r.renderProduct(ctx, p)
+}
+
+func (r *queryResolver) Collections(ctx context.Context) ([]*model.Collection, error) {
+	if channelIDFromContext(ctx) == nil {
+		return []*model.Collection{}, nil
+	}
+	collections, err := r.CatalogSvc.ListCollections(ctx, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	collections = publishedCollections(collections)
+	out := make([]*model.Collection, len(collections))
+	for i, c := range collections {
+		out[i] = toCollectionModel(c)
+	}
+	return out, nil
+}
+
+// Linked products are rendered with the main-image role so the storefront draws cards without a follow-up round-trip
+func (r *queryResolver) Collection(ctx context.Context, id string) (*model.Collection, error) {
+	cid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, invalidID("collection")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrCollectionNotFound
+	}
+	locale := r.activeLocale(ctx)
+	c, err := r.CatalogSvc.GetCollection(ctx, cid, locale)
+	if err != nil {
+		return nil, err
+	}
+	if !c.IsPublished {
+		return nil, catalog.ErrCollectionNotFound
+	}
+	return toCollectionModel(c), nil
+}
+
+func (r *queryResolver) RootCategories(ctx context.Context) ([]*model.Category, error) {
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.Category{}, nil
+	}
+	cats, err := r.CatalogSvc.ListPublishedRootCategoriesForChannel(ctx, *storeID, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Category, len(cats))
+	for i, c := range cats {
+		out[i] = toCategoryModel(c)
+	}
+	return out, nil
+}
+
+// Strict ancestor rule with a store in scope: the parent's own row AND every link in its chain to root must be listed-and-published here before any child is exposed
+// Otherwise an unpublished parentId enumerates children that are individually published on this store but whose breadcrumb is broken
+func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string) ([]*model.Category, error) {
+	pid, err := uuid.Parse(parentID)
+	if err != nil {
+		return nil, invalidID("category")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.Category{}, nil
+	}
+	visible, err := r.CatalogSvc.FilterFullyVisibleCategoryIDsForChannel(ctx, []uuid.UUID{pid}, *storeID)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := visible[pid]; !ok {
+		return []*model.Category{}, nil
+	}
+	cats, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	parent, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	pm := toCategoryModel(parent)
+	out := make([]*model.Category, len(cats))
+	for i, c := range cats {
+		out[i] = toCategoryModel(c)
+		out[i].Parent = pm
+	}
+	return out, nil
+}
+
+// Gated on the (category, store) listing when a channel is in scope - a non-listed category returns ErrCategoryNotFound so its existence stays private
+// Strict ancestor rule: the whole chain to root must be listed-and-published here too, so a broken link reads as not-visible and a category page never renders with ancestors gapped out of the trail
+func (r *queryResolver) Category(ctx context.Context, id string) (*model.Category, error) {
+	cid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, invalidID("category")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrCategoryNotFound
+	}
+	c, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	ancestors, err := r.CatalogSvc.GetCategoryAncestors(ctx, cid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	// {cid} alone would do - the CTE re-walks parent_id from cid itself - but ancestors ride along in case the ancestor service ever back-fills a synthetic chain, and the query already deduplicates by origin
+	{
+		chainIDs := make([]uuid.UUID, 0, 1+len(ancestors))
+		chainIDs = append(chainIDs, cid)
+		for _, a := range ancestors {
+			chainIDs = append(chainIDs, a.ID)
+		}
+		visible, err := r.CatalogSvc.FilterFullyVisibleCategoryIDsForChannel(ctx, chainIDs, *storeID)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := visible[cid]; !ok {
+			return nil, catalog.ErrCategoryNotFound
+		}
+	}
+	children, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	c.Ancestors = ancestors
+	c.Children = children
+	return toCategoryModel(c), nil
+}
+
+// Empty result whenever the index isn't available - search is a soft dependency by design, so a downed OpenSearch never takes the storefront with it
+func (r *queryResolver) SearchProducts(ctx context.Context, query string, limit *int32, offset *int32) (*model1.ProductSearchResult, error) {
+	if err := r.checkCatalogRate(ctx); err != nil {
+		return nil, err
+	}
+	empty := &model1.ProductSearchResult{Items: []*model1.ProductSearchHit{}, TotalCount: 0}
+	if r.ProductSearch == nil {
+		return empty, nil
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return empty, nil
+	}
+	lim, off := 0, 0 // limit 0 means unspecified, so the service applies search/general/result_limit_default and clamps - a default here would shadow the admin setting
+	if limit != nil {
+		lim = int(*limit)
+	}
+	if offset != nil {
+		off = int(*offset)
+	}
+	// Merchandising: a configured redirect short-circuits results, synonym groups expand the query, pins reorder the returned page
+	originalQuery := query
+	if r.SearchMerchSvc != nil {
+		if target, ok := r.SearchMerchSvc.RedirectFor(ctx, *storeID, query); ok {
+			return &model1.ProductSearchResult{Items: []*model1.ProductSearchHit{}, TotalCount: 0, RedirectURL: &target}, nil
+		}
+		query = r.SearchMerchSvc.ExpandQuery(ctx, *storeID, query)
+	}
+	var merchBoosts map[uuid.UUID]float64
+	if r.SearchMerchSvc != nil {
+		merchBoosts = r.SearchMerchSvc.BoostsFor(ctx, *storeID, originalQuery)
+	}
+	hits, total, err := r.ProductSearch.SearchProducts(ctx, query, *storeID, r.activeLocale(ctx), lim, off, merchBoosts)
+	if err != nil {
+		// Every tier failed - an empty result is indistinguishable from "no matches", so say so loudly
+		log.Printf("[search:error] product search failed on every tier for store %s: %v", *storeID, err)
+		graphqlx.MarkUncacheable(ctx)
+		return empty, nil
+	}
+	if r.SearchMerchSvc != nil && off == 0 {
+		if pinned := r.SearchMerchSvc.PinsFor(ctx, *storeID, originalQuery); len(pinned) > 0 { // pins key on the ORIGINAL query, not the synonym-expanded one
+			rank := make(map[string]int, len(pinned))
+			for i, id := range pinned {
+				rank[id.String()] = i + 1
+			}
+			sortHitsByPin(hits, rank)
+		}
+	}
+	items := make([]*model1.ProductSearchHit, len(hits))
+	for i, h := range hits {
+		var name *string
+		if h.Name != "" {
+			n := h.Name
+			name = &n
+		}
+		items[i] = &model1.ProductSearchHit{
+			ID:   h.ProductID.String(),
+			URL:  h.URL,
+			Sku:  h.SKU,
+			Name: name,
+		}
+	}
+	return &model1.ProductSearchResult{Items: items, TotalCount: int32(total)}, nil
+}
+
+// Same degradation contract as searchProducts - no resolved store or an unavailable index gives an empty result, never an error response
+func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filter *model1.BrowseProductsFilter, sort *string, limit *int32, offset *int32) (*model1.BrowseProductsResult, error) {
+	if err := r.checkCatalogRate(ctx); err != nil {
+		return nil, err
+	}
+	empty := &model1.BrowseProductsResult{
+		Items:      []*model.Product{},
+		TotalCount: 0,
+		Facets:     []*model1.BrowseFacet{},
+	}
+	// No early return on a nil index - browse is the only listing path, so it falls through to the Postgres fallback below rather than blanking the storefront
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return empty, nil
+	}
+	locale := r.activeLocale(ctx)
+
+	lim, off := 0, 0 // limit 0 means unspecified, so the service applies search/browse/page_size_default and clamps - a default here would shadow the admin setting
+	if limit != nil {
+		lim = int(*limit)
+	}
+	if offset != nil {
+		off = int(*offset)
+	}
+
+	indexerFilter := search.BrowseFilter{}
+	if filter != nil {
+		if filter.CategoryID != nil {
+			if id, err := uuid.Parse(*filter.CategoryID); err == nil {
+				indexerFilter.CategoryID = &id
+			}
+		}
+		if filter.CollectionID != nil {
+			if id, err := uuid.Parse(*filter.CollectionID); err == nil {
+				indexerFilter.CollectionID = &id
+			}
+		}
+		if filter.PriceMinCents != nil {
+			v := int64(*filter.PriceMinCents)
+			indexerFilter.PriceMinCents = &v
+		}
+		if filter.PriceMaxCents != nil {
+			v := int64(*filter.PriceMaxCents)
+			indexerFilter.PriceMaxCents = &v
+		}
+		for _, a := range filter.Attributes {
+			if a == nil || a.Slug == "" || len(a.Values) == 0 {
+				continue
+			}
+			indexerFilter.AttributeIn = append(indexerFilter.AttributeIn, search.AttributeIn{
+				Slug:   a.Slug,
+				Values: a.Values,
+			})
+		}
+		// Private attributes aren't probeable through filters - the native engines gate this themselves, but an external engine tier answers before their gate, so enforce at the seam
+		if len(indexerFilter.AttributeIn) > 0 {
+			private, known := r.privateAttributeSlugs(ctx)
+			kept := indexerFilter.AttributeIn[:0]
+			for _, af := range indexerFilter.AttributeIn {
+				if known && !private[af.Slug] {
+					kept = append(kept, af)
+				}
+			}
+			indexerFilter.AttributeIn = kept
+		}
+		// Incoming value slugs may be this channel's own URL vocabulary, so translate back to global slugs before the search layer resolves them to display names
+		if len(indexerFilter.AttributeIn) > 0 {
+			indexerFilter.AttributeIn = r.resolveChannelFilterSlugs(ctx, *storeID, indexerFilter.AttributeIn)
+		}
+		if len(filter.Kinds) > 0 {
+			kinds := make([]string, len(filter.Kinds))
+			for i, k := range filter.Kinds {
+				kinds[i] = string(k)
+			}
+			indexerFilter.Kinds = kinds
+		}
+	}
+
+	sortSlug := ""
+	if sort != nil {
+		sortSlug = *sort
+	}
+
+	queryStr := ""
+	if query != nil {
+		queryStr = *query
+	}
+
+	// Same merchandising the search box applies (synonym expansion widens the query, boosts reorder) - without it the /search page ranked differently from the typeahead the shopper just clicked out of
+	var browseBoosts map[uuid.UUID]float64
+	if r.SearchMerchSvc != nil && queryStr != "" {
+		browseBoosts = r.SearchMerchSvc.BoostsFor(ctx, *storeID, queryStr)
+		queryStr = r.SearchMerchSvc.ExpandQuery(ctx, *storeID, queryStr)
+	}
+	// The tier handles primary-then-backup and reports degradation itself, so an error here means BOTH engines failed
+	res, err := r.ProductSearch.BrowseProducts(ctx, *storeID, locale, queryStr, indexerFilter, sortSlug, lim, off, browseBoosts)
+	if err != nil {
+		log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
+		return empty, nil
+	}
+	// Same seam rule as the filter input above - a facet on a private attribute never renders, whichever tier built it
+	if private, known := r.privateAttributeSlugs(ctx); !known || len(private) > 0 {
+		kept := res.Facets[:0]
+		for _, fg := range res.Facets {
+			if known && !private[fg.Slug] {
+				kept = append(kept, fg)
+			}
+		}
+		res.Facets = kept
+	}
+	// Category/collection pages honor that page's filter presentation (admin-pinned order, hidden facets) - applied here so every engine tier gets the same treatment. Soft-fail: a lookup error leaves the default facet order rather than blanking the page
+	var facetOverrides []catalog.FacetOverride
+	if indexerFilter.CategoryID != nil {
+		facetOverrides, _ = r.CatalogSvc.ListCategoryFacetOverrides(ctx, *indexerFilter.CategoryID)
+	} else if indexerFilter.CollectionID != nil {
+		facetOverrides, _ = r.CatalogSvc.ListCollectionFacetOverrides(ctx, *indexerFilter.CollectionID)
+	}
+	if len(facetOverrides) > 0 {
+		order := make(map[string]int32, len(facetOverrides))
+		hidden := make(map[string]bool, len(facetOverrides))
+		for _, o := range facetOverrides {
+			order[o.AttributeSlug] = o.SortOrder
+			if o.Hidden {
+				hidden[o.AttributeSlug] = true
+			}
+		}
+		res.Facets = search.ApplyFacetOverrides(res.Facets, order, hidden)
+	}
+
+	// Hydrated through the standard storefront loader so the response carries the same Product shape as Products / Product(id), dropping any ID the channel filter rejects - the index can briefly lag a depublish
+	// Every per-product association is batched up-front so the per-card loop is a lookup, but the store-scoped publication gate stays per-id because that is what drops the stale index entries
+	hydratedIDs := res.IDs
+	dataloaders.For(ctx).RegisterGroup(hydratedIDs)
+	if len(hydratedIDs) > 0 {
+		if err := r.primeListings(ctx, hydratedIDs); err != nil {
+			return empty, nil
+		}
+		if err := r.primeSalable(ctx, hydratedIDs, *storeID); err != nil {
+			return empty, nil
+		}
+		_ = r.primeBackorderable(ctx, hydratedIDs)
+		if err := r.primeReviewAggregates(ctx, hydratedIDs); err != nil {
+			return empty, nil
+		}
+		r.primeProductAttributeLocaleValues(ctx, hydratedIDs)
+	}
+
+	products, err := r.CatalogSvc.ListProductHeadersForChannelByIDs(ctx, res.IDs, *storeID, locale)
+	if err != nil {
+		return empty, nil
+	}
+	if err := r.primeChildVisibility(ctx, products); err != nil {
+		return empty, nil
+	}
+	items := make([]*model.Product, 0, len(products))
+	for _, p := range products {
+		m, err := r.renderProduct(ctx, p)
+		if err != nil {
+			continue
+		}
+		items = append(items, m)
+	}
+
+	// Three bulk queries for facet/bucket names, descriptions and this channel's slug vocabulary, so browse stays O(facets) regardless of bucket count
+	descs := r.loadFacetDescriptions(ctx, locale, storeID, res.Facets)
+
+	facets := make([]*model1.BrowseFacet, 0, len(res.Facets))
+	for _, fg := range res.Facets {
+		buckets := make([]*model1.BrowseFacetBucket, 0, len(fg.Buckets))
+		for _, b := range fg.Buckets {
+			desc := ""
+			if m, ok := descs.valueDescByAttrAndDisplay[fg.Slug]; ok {
+				desc = m[b.Value]
+			}
+			display := b.Value
+			if m, ok := descs.valueNameByAttrAndDisplay[fg.Slug]; ok {
+				if n := m[b.Value]; n != "" {
+					display = n
+				}
+			}
+			slug := b.Slug
+			if m, ok := descs.valueSlugByAttrAndDisplay[fg.Slug]; ok {
+				if s := m[b.Value]; s != "" {
+					slug = s
+				}
+			}
+			buckets = append(buckets, &model1.BrowseFacetBucket{
+				Value:       display,
+				Slug:        slug,
+				IsIndexable: b.IsIndexable,
+				Description: desc,
+				Count:       int32(b.Count),
+			})
+		}
+		name := fg.Name
+		if n := descs.attrNameBySlug[fg.Slug]; n != "" {
+			name = n
+		}
+		facets = append(facets, &model1.BrowseFacet{
+			Slug:             fg.Slug,
+			Name:             name,
+			DefaultCollapsed: fg.DefaultCollapsed,
+			SortOrder:        fg.SortOrder,
+			H1Position:       facetH1PositionToGQL(fg.H1Position),
+			Description:      descs.attrDescBySlug[fg.Slug],
+			Buckets:          buckets,
+		})
+	}
+
+	return &model1.BrowseProductsResult{
+		Items:      items,
+		TotalCount: int32(res.Total),
+		Facets:     facets,
+	}, nil
+}
+
+// The returned order is the dropdown order and the first entry is the default - falls back to hardcoded defaults when the search service isn't wired, like the other search resolvers
+func (r *queryResolver) ProductSortOptions(ctx context.Context) ([]*model1.ProductSortOption, error) {
+	if r.ProductSearch == nil {
+		return []*model1.ProductSortOption{}, nil
+	}
+	opts := r.ProductSearch.ListSortOptions(ctx)
+	out := make([]*model1.ProductSortOption, len(opts))
+	for i, o := range opts {
+		out[i] = &model1.ProductSortOption{
+			Slug:        o.Slug,
+			Label:       o.Label,
+			IsIndexable: o.IsIndexable,
+		}
+	}
+	return out, nil
+}
+
+func (r *Resolver) Category() CategoryResolver { return &categoryResolver{r} }
+
+func (r *Resolver) Collection() CollectionResolver { return &collectionResolver{r} }
+
+func (r *Resolver) Product() ProductResolver { return &productResolver{r} }
+
+func (r *Resolver) ProductMedia() ProductMediaResolver { return &productMediaResolver{r} }
+
+type (
+	categoryResolver     struct{ *Resolver }
+	collectionResolver   struct{ *Resolver }
+	productResolver      struct{ *Resolver }
+	productMediaResolver struct{ *Resolver }
+)

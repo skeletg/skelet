@@ -9,16 +9,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { ScheduledJobRunsDocument } from './Scheduler.gql'
-
-function fmtTime(s?: string | null): string {
-  if (!s) return '-'
-  return new Date(s).toLocaleString()
-}
+import { formatTimestamp } from '@/lib/format'
 
 function RunStatusBadge({ status }: { status: string }) {
   if (status === 'success')
     return (
-      <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
+      <Badge className="bg-success-soft text-success">
         success
       </Badge>
     )
@@ -69,7 +65,7 @@ export function RunHistorySheet({
                   <span className="text-xs text-muted-foreground">{r.durationMs} ms</span>
                 </div>
                 <div className="mt-1.5 text-xs text-muted-foreground">
-                  {fmtTime(r.startedAt)} → {fmtTime(r.finishedAt)}
+                  {formatTimestamp(r.startedAt)} → {formatTimestamp(r.finishedAt)}
                 </div>
                 {r.status === 'error' && r.error && (
                   <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-destructive/10 p-2 font-mono text-xs text-destructive">

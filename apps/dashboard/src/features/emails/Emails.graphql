@@ -45,11 +45,13 @@ query EmailsAiStatus {
 # Customers for the "preview with a real customer's data" picker. Loaded only
 # when the preview dialog opens.
 query PreviewCustomers($channelId: ID) {
-  customers(channelId: $channelId) {
-    id
-    email
-    firstName
-    lastName
+  customersPaged(channelId: $channelId, limit: 50) {
+    items {
+      id
+      email
+      firstName
+      lastName
+    }
   }
 }
 
@@ -152,4 +154,12 @@ mutation SuggestEmailSubjects($context: String!, $count: Int) {
 
 mutation RewriteEmailText($text: String!, $instruction: String) {
   rewriteEmailText(text: $text, instruction: $instruction)
+}
+
+mutation SeedPulseStarterContent($channelId: ID!) {
+  seedPulseStarterContent(channelId: $channelId) {
+    blocks
+    emails
+    flows
+  }
 }

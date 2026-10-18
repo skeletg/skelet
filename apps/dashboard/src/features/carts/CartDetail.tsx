@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { CopyIcon, FileTextIcon, Trash2Icon } from 'lucide-react'
+import { CopyIcon, FileTextIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -31,15 +31,35 @@ import {
   AdminClearCartDocument,
   AdminDuplicateCartDocument,
   AdminRemoveCartLineDocument,
+  AdminSetCartLinePriceDocument,
   AdminUpdateCartLineDocument,
   CartAddProductOptionsDocument,
   CartDocument,
 } from './Carts.gql'
 import { visibleOptionIds } from './optionVisibility'
 import { ProductSearch } from './pickers'
+import { CustomLineDialog } from './offer/CustomLineDialog'
+import { LinePrice } from './offer/LinePrice'
+import { OfferActions } from './offer/OfferActions'
+import { OfferEditor } from './offer/OfferEditor'
+import { OfferStateBadge } from './offer/OfferStateBadge'
 import { PluginSections } from '@/plugins/detail-sections'
+import { usePermissions } from '@/shared/auth/usePermissions'
+import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
+import { SaveRegistryContext, useSaveRegistry } from '@/shared/saving/saveRegistry'
 
+// A shopper's cart is edited live - its lines apply as inline CRUD rows. An offer adds staged
+// settings (expiry, locks, the prefilled checkout) behind the header Save, and lifecycle actions
+// (send, replace link, withdraw) that apply on their own
 export function CartDetail() {
+  const permissions = usePermissions()
+  // Turning a cart into an order needs orders.update - without it the button only led to an access-restricted page or a refused save
+  const canCreateOrder = permissions.has('orders.update')
+  const registry = useSaveRegistry('Cart')
+  const [confirmSave, setConfirmSave] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [customOpen, setCustomOpen] = useState(false)
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { data, loading, error, refetch } = useQuery(CartDocument, { variables: { id }, skip: !id })
@@ -50,6 +70,7 @@ export function CartDetail() {
   const [removeLine] = useMutation(AdminRemoveCartLineDocument)
   const [clearCart, clearState] = useMutation(AdminClearCartDocument)
   const [duplicateCart, dupState] = useMutation(AdminDuplicateCartDocument)
+  const [setLinePrice] = useMutation(AdminSetCartLinePriceDocument)
   const [actionError, setActionError] = useState<string | null>(null)
   // A picked product waits here while the admin fills its options - products without options add straight through
   const [pending, setPending] = useState<PickedProduct | null>(null)
@@ -72,192 +93,304 @@ export function CartDetail() {
   if (!cart) return <p className="text-sm text-muted-foreground">Cart not found.</p>
 
   const currency = cart.currencyCode
-  const isActive = cart.status === 'active'
-  const owner = cart.customerName ?? cart.customerEmail ?? 'Guest'
+  const offer = cart.offer ?? null
+  // A withdrawn offer is history like a converted cart - an expired one can still be extended and edited
+  const isActive = cart.status === 'active' && offer?.state !== 'REVOKED'
+  const canEditOffer = !!offer && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId)
+  const owner = cart.customerName ?? cart.customerEmail ?? (cart.email || 'Guest')
 
   return (
-    <DetailPageLayout>
-      <DetailPageHeader
-        backTo="/carts"
-        backLabel="Back to carts"
-        title={<span>{owner}</span>}
-        badges={
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-            {cart.status}
-          </Badge>
-        }
-        meta={
-          <>
-            <span className="font-medium text-foreground tabular-nums">{formatCents(cart.subtotal, currency)}</span>
-            <span>·</span>
-            <span>{cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}</span>
-            {cart.customerId && (
+    <SaveRegistryContext.Provider value={registry.contextValue}>
+      <DetailPageLayout>
+        <DetailPageHeader
+          backTo={offer ? '/offers' : '/carts'}
+          backLabel={offer ? 'Back to offers' : 'Back to carts'}
+          title={<span>{owner}</span>}
+          badges={
+            offer ? (
               <>
-                <span>·</span>
-                <Link to={`/customers/${cart.customerId}`} className="underline-offset-2 hover:underline">
-                  Customer
-                </Link>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                  Offer
+                </Badge>
+                <OfferStateBadge state={offer.state} />
               </>
-            )}
-          </>
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              disabled={!isActive || cart.lines.length === 0}
-              onClick={() => navigate(`/orders/new?cartId=${cart.id}`)}
-            >
-              <FileTextIcon className="size-4" />
-              Create order
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={dupState.loading || cart.lines.length === 0}
-              onClick={() =>
-                run(async () => {
-                  const res = await duplicateCart({ variables: { cartId: cart.id } })
-                  const newId = res.data?.adminDuplicateCart.id
-                  if (newId) navigate(`/carts/${newId}`)
-                })
-              }
-            >
-              <CopyIcon className="size-4" />
-              {dupState.loading ? 'Duplicating…' : 'Duplicate'}
-            </Button>
-          </div>
-        }
-      />
-      <DetailPageBody>
-        {actionError && (
-          <div className="px-6 pt-6">
-            <Alert variant="destructive">
-              <AlertTitle>Action failed</AlertTitle>
-              <AlertDescription>{actionError}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        <DetailPageSection
-          title="Line items"
-          description={isActive ? 'Edit this cart live - the shopper shares it.' : 'This cart is no longer active and can’t be edited.'}
-          trailing={
-            isActive && cart.lines.length > 0 ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={clearState.loading}
-                onClick={() => run(() => clearCart({ variables: { cartId: cart.id } }))}
-              >
-                {clearState.loading ? 'Clearing…' : 'Clear cart'}
-              </Button>
-            ) : undefined
+            ) : (
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                {cart.status}
+              </Badge>
+            )
           }
-        >
-          {isActive && (
-            <div className="mb-4 max-w-md">
-              <ProductSearch onAdd={setPending} />
-              {pending && (
-                <ConfigureLine
-                  product={pending}
-                  busy={addState.loading}
-                  onCancel={() => setPending(null)}
-                  onSubmit={(quantity, options) =>
-                    void run(async () => {
-                      const res = await addLine({
-                        variables: {
-                          cartId: cart.id,
-                          productSku: pending.sku,
-                          quantity,
-                          options: options.length > 0 ? options : undefined,
-                        },
-                      })
-                      setPending(null)
-                      return res
-                    })
-                  }
+          meta={
+            <>
+              <span className="font-medium text-foreground tabular-nums">{formatCents(cart.subtotal, currency)}</span>
+              <span>·</span>
+              <span>{cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}</span>
+              {cart.customerId && (
+                <>
+                  <span>·</span>
+                  <Link to={`/customers/${cart.customerId}`} className="underline-offset-2 hover:underline">
+                    Customer
+                  </Link>
+                </>
+              )}
+            </>
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              {offer && (
+                <OfferActions
+                  cartId={cart.id}
+                  offer={offer}
+                  canEdit={permissions.canAccessChannelScope('orders.update', cart.channelId)}
+                  hasLines={cart.lines.length > 0}
+                  isDirty={registry.isDirty}
                 />
               )}
-              {addState.loading && <p className="mt-1 text-xs text-muted-foreground">Adding…</p>}
+              {canEditOffer && (
+                <Button size="sm" disabled={!registry.isDirty || saving} onClick={() => setConfirmSave(true)}>
+                  Save
+                </Button>
+              )}
+              {canCreateOrder && !offer && (
+                <Button
+                  size="sm"
+                  disabled={!isActive || cart.lines.length === 0}
+                  onClick={() => navigate(`/orders/new?cartId=${cart.id}`)}
+                >
+                  <FileTextIcon className="size-4" />
+                  Create order
+                </Button>
+              )}
+              {!offer && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={dupState.loading || cart.lines.length === 0}
+                  onClick={() =>
+                    run(async () => {
+                      const res = await duplicateCart({ variables: { cartId: cart.id } })
+                      const newId = res.data?.adminDuplicateCart.id
+                      if (newId) navigate(`/carts/${newId}`)
+                    })
+                  }
+                >
+                  <CopyIcon className="size-4" />
+                  {dupState.loading ? 'Duplicating…' : 'Duplicate'}
+                </Button>
+              )}
+            </div>
+          }
+        />
+        <DetailPageBody>
+          {actionError && (
+            <div className="px-6 pt-6">
+              <Alert variant="destructive">
+                <AlertTitle>Action failed</AlertTitle>
+                <AlertDescription>{actionError}</AlertDescription>
+              </Alert>
             </div>
           )}
 
-          {cart.lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Cart is empty.</p>
-          ) : (
-            <div className="grid gap-2">
-              {cart.lines.map((l) => (
-                <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {l.productName}
-                      {!l.isSimple && (
-                        <Badge variant="secondary" className="ml-2 text-[9px] uppercase">
-                          {l.components.length > 0 ? 'bundle' : 'configured'}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="font-mono text-[10px] text-muted-foreground">
-                      {l.productSku} · {formatCents(l.unitPrice, currency)} each
-                    </div>
-                    {l.options.length > 0 && (
-                      <ul className="mt-1 space-y-0.5">
-                        {l.options.map((o) => (
-                          <li key={o.id} className="text-[11px] text-muted-foreground">
-                            <span className="font-medium text-foreground/80">{o.optionTitle}:</span>{' '}
-                            {o.fileUrl ? (
-                              <a href={o.fileUrl} target="_blank" rel="noreferrer" className="underline">
-                                {o.textValue || 'uploaded file'}
-                              </a>
-                            ) : (
-                              o.valueLabel || o.textValue
-                            )}
-                            {o.priceDelta !== 0 && (
-                              <span className="ml-1 tabular-nums">
-                                ({o.priceDelta > 0 ? '+' : '-'}
-                                {formatCents(Math.abs(o.priceDelta), currency)})
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {isActive && l.isSimple ? (
-                    <QtyInput
-                      key={`${l.id}:${l.quantity}`}
-                      initial={l.quantity}
-                      onCommit={(q) => run(() => updateLine({ variables: { cartId: cart.id, lineId: l.id, quantity: q } }))}
-                    />
-                  ) : (
-                    <span className="w-20 text-right text-sm tabular-nums">{l.quantity}</span>
+          {offer?.link && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId) && (
+            <div className="px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                Link: <span className="break-all font-mono text-foreground/80">{offer.link}</span>
+              </p>
+            </div>
+          )}
+          {offer && !offer.link && isActive && permissions.canAccessChannelScope('orders.update', cart.channelId) && (
+            <div className="p-6">
+              <Alert>
+                <AlertTitle>No link yet</AlertTitle>
+                <AlertDescription>
+                  <p>The channel has no public URL, so there is nothing to link the offer to. Set one on the channel first.</p>
+                  {permissions.has('settings.manage') && (
+                    <Button size="sm" variant="outline" className="mt-2" asChild>
+                      <Link to={`/settings/identity?channelId=${cart.channelId}`}>Set the channel’s public URL</Link>
+                    </Button>
                   )}
-                  <div className="w-24 text-right text-sm tabular-nums">{formatCents(l.totalPrice, currency)}</div>
-                  {isActive && (
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <DetailPageSection
+            title="Line items"
+            description={
+              !isActive
+                ? 'This cart is no longer active and can’t be edited.'
+                : offer
+                  ? 'Changes apply right away - the recipient sees them the next time they open the offer. A price you set holds through checkout.'
+                  : 'Edit this cart live - the shopper shares it.'
+            }
+            trailing={
+              isActive ? (
+                <div className="flex items-center gap-2">
+                  {offer && (
+                    <Button size="sm" variant="outline" onClick={() => setCustomOpen(true)}>
+                      <PlusIcon className="size-4" />
+                      Custom line
+                    </Button>
+                  )}
+                  {cart.lines.length > 0 && (
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => run(() => removeLine({ variables: { cartId: cart.id, lineId: l.id } }))}
-                      aria-label="Remove line"
+                      size="sm"
+                      variant="outline"
+                      disabled={clearState.loading}
+                      onClick={() => run(() => clearCart({ variables: { cartId: cart.id } }))}
                     >
-                      <Trash2Icon className="size-4 text-destructive" />
+                      {clearState.loading ? 'Clearing…' : 'Clear cart'}
                     </Button>
                   )}
                 </div>
-              ))}
-              <div className="ml-auto flex w-64 items-center justify-between border-t pt-2 text-sm">
-                <span className="font-medium">Subtotal</span>
-                <span className="font-medium tabular-nums">{formatCents(cart.subtotal, currency)}</span>
+              ) : undefined
+            }
+          >
+            {isActive && (
+              <div className="mb-4 max-w-md">
+                <ProductSearch onAdd={setPending} />
+                {pending && (
+                  <ConfigureLine
+                    product={pending}
+                    busy={addState.loading}
+                    onCancel={() => setPending(null)}
+                    onSubmit={(quantity, options) =>
+                      void run(async () => {
+                        const res = await addLine({
+                          variables: {
+                            cartId: cart.id,
+                            sku: pending.sku,
+                            quantity,
+                            options: options.length > 0 ? options : undefined,
+                          },
+                        })
+                        setPending(null)
+                        return res
+                      })
+                    }
+                  />
+                )}
+                {addState.loading && <p className="mt-1 text-xs text-muted-foreground">Adding…</p>}
               </div>
-              <p className="ml-auto w-64 text-[10px] text-muted-foreground">Tax + shipping are added when you create the order.</p>
-            </div>
+            )}
+
+            {cart.lines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Cart is empty.</p>
+            ) : (
+              <div className="grid gap-2">
+                {cart.lines.map((l) => (
+                  <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">
+                        {l.name}
+                        {!l.isSimple && (
+                          <Badge variant="secondary" className="ml-2 text-[9px] uppercase">
+                            {l.isCustom ? 'custom' : l.components.length > 0 ? 'bundle' : 'configured'}
+                          </Badge>
+                        )}
+                        {l.priceOverride && !l.isCustom && (
+                          <Badge variant="info" className="ml-2 text-[9px] uppercase">
+                            offer price
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        {l.isCustom ? `tax class ${l.taxClass || '-'}` : l.sku} · {formatCents(l.unitPrice, currency)} each
+                      </div>
+                      {l.options.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {l.options.map((o) => (
+                            <li key={o.id} className="text-[11px] text-muted-foreground">
+                              <span className="font-medium text-foreground/80">{o.optionTitle}:</span>{' '}
+                              {o.fileUrl ? (
+                                <a href={o.fileUrl} target="_blank" rel="noreferrer" className="underline">
+                                  {o.textValue || 'uploaded file'}
+                                </a>
+                              ) : (
+                                o.valueLabel || o.textValue
+                              )}
+                              {o.priceDelta !== 0 && (
+                                <span className="ml-1 tabular-nums">
+                                  ({o.priceDelta > 0 ? '+' : '-'}
+                                  {formatCents(Math.abs(o.priceDelta), currency)})
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {offer && isActive && (
+                      <LinePrice
+                        key={`${l.id}:${l.unitPrice}`}
+                        unitPrice={l.unitPrice}
+                        override={l.priceOverride}
+                        canReset={!l.isCustom && l.components.length === 0}
+                        onCommit={(cents) => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: cents } }))}
+                        onReset={() => run(() => setLinePrice({ variables: { cartId: cart.id, lineId: l.id, unitPrice: null } }))}
+                      />
+                    )}
+                    {isActive && (l.isSimple || l.isCustom) ? (
+                      <QtyInput
+                        key={`${l.id}:${l.quantity}`}
+                        initial={l.quantity}
+                        onCommit={(q) => run(() => updateLine({ variables: { cartId: cart.id, lineId: l.id, quantity: q } }))}
+                      />
+                    ) : (
+                      <span className="w-20 text-right text-sm tabular-nums">{l.quantity}</span>
+                    )}
+                    <div className="w-24 text-right text-sm tabular-nums">{formatCents(l.totalPrice, currency)}</div>
+                    {isActive && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => run(() => removeLine({ variables: { cartId: cart.id, lineId: l.id } }))}
+                        aria-label="Remove line"
+                      >
+                        <Trash2Icon className="size-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <div className="ml-auto flex w-64 items-center justify-between border-t pt-2 text-sm">
+                  <span className="font-medium">Subtotal</span>
+                  <span className="font-medium tabular-nums">{formatCents(cart.subtotal, currency)}</span>
+                </div>
+                <p className="ml-auto w-64 text-[10px] text-muted-foreground">
+                  {offer ? 'Tax + shipping are added at the recipient’s checkout.' : 'Tax + shipping are added when you create the order.'}
+                </p>
+              </div>
+            )}
+          </DetailPageSection>
+          {offer && (
+            <OfferEditor key={cart.id} cart={cart} offer={offer} canEdit={canEditOffer} registry={registry.contextValue} />
           )}
-        </DetailPageSection>
-        <PluginSections target="cart" entity={cart ?? null} mode="edit" />
-      </DetailPageBody>
-    </DetailPageLayout>
+          <PluginSections target="cart" entity={cart ?? null} mode="edit" />
+        </DetailPageBody>
+      </DetailPageLayout>
+      {offer && <CustomLineDialog open={customOpen} onOpenChange={setCustomOpen} cartId={cart.id} />}
+      <SaveConfirmDialog
+        open={confirmSave}
+        scopeLabel="This offer"
+        sections={registry.dirtySections}
+        saving={saving}
+        error={saveError}
+        onCancel={() => setConfirmSave(false)}
+        onConfirm={async () => {
+          setSaving(true)
+          setSaveError(null)
+          try {
+            await registry.saveAll()
+            setConfirmSave(false)
+          } catch (e) {
+            setSaveError(e instanceof Error ? e.message : 'Could not save the offer')
+          } finally {
+            setSaving(false)
+          }
+        }}
+      />
+    </SaveRegistryContext.Provider>
   )
 }
 

@@ -31,7 +31,7 @@ fi
 case "${SKELET_TARGET:-dev}" in
     small) want_env=(env/small.env) ;;
     prod)  want_env=(env/prod.env) ;;
-    *)     want_env=(env/go.env env/db.env) ;;
+    *)     want_env=(env/go.env env/db.env env/signals.env) ;;
 esac
 # The rest come from the compose file that names them, so a shop added by bin/new is checked
 # like the one it was forked from rather than going unnoticed until deploy
@@ -42,10 +42,14 @@ case "${SKELET_TARGET:-dev}" in
             want_env+=("$f")
         done < <(grep -hoE 'env/[a-z0-9.-]+\.env' "docker-compose.$SKELET_TARGET.yml" 2>/dev/null | sort -u) ;;
 esac
+# env_file entries marked `required: false` - compose runs without them, so a missing one only warns
+optional_env=" $(awk '/path: env\/[a-z0-9.-]+\.env/ { p = $NF; next } p && /required: false/ { print p } { p = "" }' "docker-compose.${SKELET_TARGET:-dev}.yml" docker-compose.yml 2>/dev/null | sort -u | tr '\n' ' ') "
 
 echo "==> env files (${SKELET_TARGET:-dev} target)"
 for f in "${want_env[@]}"; do
-    if [ -f "$f" ]; then pass "$f"; else bad "$f missing - run bin/setup"; fi
+    if [ -f "$f" ]; then pass "$f"
+    elif [[ "$optional_env" == *" $f "* ]]; then note "$f missing - optional, compose runs without it"
+    else bad "$f missing - run bin/setup"; fi
 done
 
 echo "==> app selection"
@@ -56,9 +60,44 @@ else
     pass "apps: none in Docker - frontends run on the host (list them in .skelet-apps to containerize)"
 fi
 
+echo "==> host frontends"
+host_apps=()
+for d in apps/dashboard apps/channels/*/; do
+    d="${d%/}"
+    [ -f "$d/package.json" ] || continue
+    case ",${sel:-}," in *,"$(basename "$d")",*) continue ;; esac
+    host_apps+=("$d")
+done
+if [ ${#host_apps[@]} -eq 0 ]; then
+    pass "none - every frontend runs in Docker"
+else
+    want_pnpm="$(grep -oE '"packageManager": *"pnpm@[0-9.]+' "${host_apps[0]}/package.json" | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        bad "no pnpm on PATH - corepack enable, or npm install -g pnpm@$want_pnpm"
+    else
+        # Asked from inside an app, where pnpm switches itself to packageManager's version - the
+        # switch is what breaks, so asking from the root would pass on a pnpm the apps can't run
+        have="$(cd "${host_apps[0]}" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')"
+        if [ "$have" = "$want_pnpm" ]; then
+            pass "pnpm $have"
+        else
+            bad "pnpm in ${host_apps[0]} answers ${have:-nothing}, the apps pin $want_pnpm - pnpm self-update $want_pnpm"
+        fi
+    fi
+    for d in "${host_apps[@]}"; do
+        if [ -z "$(ls -A "$d/node_modules" 2>/dev/null)" ]; then
+            note "$d not installed - bin/setup, or: cd $d && pnpm install"
+        elif [ -f "$d/node_modules/.modules.yaml" ]; then
+            pass "$d installed with pnpm"
+        else
+            bad "$d/node_modules is an npm install from before the switch to pnpm - rm -rf it, then pnpm install"
+        fi
+    done
+fi
+
 echo "==> shape"
 if [ -f .skelet-profile ]; then
-    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH spine=$SKELET_SPINE"
+    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH"
     pass "gateways: ${SKELET_GATEWAYS:-none}"
     # The env file is the truth the backend reads - a profile that disagrees with it is the
     # confusing state, since the dashboard shows one shape and the API serves another
@@ -100,9 +139,8 @@ else
     note "nothing running - start with bin/dev"
 fi
 
-# The ClickHouse spine is the one engine choice needing a container the default stack doesn't
-# run - a config saying clickhouse with nothing listening writes analytics into a hole
-if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' .env 2>/dev/null; then
+# The spine lives in ClickHouse - with the suite on, a missing server or schema means the beacons write into a hole
+if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' env/go.env 2>/dev/null; then
     # Exact element match - `grep -w clickhouse` also accepts clickhouse-migrate, since a
     # hyphen counts as a word boundary, and that one-shot exits while the server may not exist
     case " $running " in
@@ -114,12 +152,32 @@ if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' .e
             else
                 bad "clickhouse is up but signals.analytics_events is missing - see bin/logs clickhouse-migrate"
             fi ;;
-        *)  bad "SIGNALS_ENGINE=clickhouse but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
+        *)  bad "SIGNALS_ENABLED is on but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
+    esac
+fi
+
+# The suite is its own process, and core dials it whenever the switch is on - a stack without it
+# answers every Pulse, Lens, Synapse and Prism screen with "out of reach"
+if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' env/go.env 2>/dev/null; then
+    case " $running " in
+        *" signals "*) pass "signals process up" ;;
+        *) bad "SIGNALS_ENABLED is on but no signals container - core has nowhere to dial (bin/dev starts it)" ;;
     esac
 fi
 
 echo "==> ports (only meaningful when the stack should be up)"
-specs=(8080:backend 5173:dashboard 5432:postgres 9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
+# bin/dev may have moved Postgres off 5432 through .env when something else held it
+db_port="$(grep -E '^DB_HOST_PORT=[0-9]+$' .env 2>/dev/null | tail -1 | cut -d= -f2)"
+specs=(8080:backend 5173:dashboard "${db_port:-5432}:postgres" 9900:garage-s3 9902:garage-web)
+# The dev tools are opt-in, so only the ones .skelet-tools picks are expected to answer
+for _t in ${SKELET_TOOLS//,/ }; do
+    case "$_t" in
+        mailpit)        specs+=(8025:mailpit) ;;
+        webhook-tester) specs+=(8081:webhook-tester) ;;
+        grafana)        specs+=(3030:grafana) ;;
+        garage-webui)   specs+=(9901:garage-webui) ;;
+    esac
+done
 # A storefront's published port is its own business, so ask compose instead of
 # assuming the demo's 3000 - a fork with two shops gets both listed
 for d in apps/channels/*/; do
@@ -130,15 +188,13 @@ for d in apps/channels/*/; do
         specs+=("$port:$name")
     else
         if [ -z "$SKELET_APPS" ]; then
-            pass "$name not in Docker - run it on the host (cd apps/channels/$name && npm run dev)"
+            pass "$name not in Docker - run it on the host (./skelet serve $name)"
         else
             note "$name has no published port (not running, or not enabled in .skelet-apps)"
         fi
     fi
 done
-# Ports this project actually publishes. Probing localhost alone can't tell our stack from a
-# second checkout of the same repo - and reporting another install's services as healthy is worse
-# than reporting nothing, since it hides that this one never came up
+# Ports this project actually publishes. Probing localhost alone can't tell our stack from a second checkout of the same repo - and reporting another install's services as healthy is worse than reporting nothing, since it hides that this one never came up
 ours="$(docker compose ps --format '{{.Publishers}}' 2>/dev/null | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')"
 for spec in "${specs[@]}"; do
     port="${spec%%:*}"; name="${spec#*:}"

@@ -8,7 +8,7 @@ const AUTH_FILE = 'e2e/.auth/admin.json'
 // are all pointer gestures and cross-device state, none of which jsdom can speak to
 //
 // Needs the dev stack up (`./skelet up`): the dashboard on 5173 and the admin API on 8080, seeded
-// with the dev admin. Deliberately NOT part of `npm test`, which CI runs without a backend
+// with the dev admin. Deliberately NOT part of `pnpm test`, which CI runs without a backend
 export default defineConfig({
   testDir: './e2e',
   // the suite drives one shared admin account, and workspaces roam per admin - parallel files
@@ -23,6 +23,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_DASHBOARD_URL ?? 'http://localhost:5173',
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     video: 'off',
   },
   projects: [

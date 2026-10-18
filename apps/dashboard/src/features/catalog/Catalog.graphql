@@ -31,6 +31,7 @@ query ProductType($id: ID!) {
     isShippingRequired
     urlTemplate
     tracksInventory
+    deliveryKinds
 
     attributes {
       sortOrder
@@ -507,6 +508,41 @@ query ProductPicker($search: String, $kinds: [ProductKind!], $limit: Int) {
       kind
       defaultPrice
       defaultCurrencyCode
+    }
+  }
+}
+
+# Source for the shared ProductPickerDialog - server-paged, so a picker never hydrates the whole
+# catalogue. attributeValues rides along only for callers that show or filter by option values
+query ProductPickerPaged(
+  $search: String
+  $kinds: [ProductKind!]
+  $productTypeSlugs: [String!]
+  $published: Boolean
+  $attributeValueIds: [ID!]
+  $limit: Int
+  $offset: Int
+  $withAttributes: Boolean! = false
+) {
+  productsPaged(
+    search: $search
+    kinds: $kinds
+    productTypeSlugs: $productTypeSlugs
+    published: $published
+    attributeValueIds: $attributeValueIds
+    limit: $limit
+    offset: $offset
+  ) {
+    totalCount
+    items {
+      id name sku kind defaultPrice defaultCurrencyCode
+      productType { id slug name }
+      thumbnail { id url altText status }
+      displayImage { id url altText status }
+      attributeValues @include(if: $withAttributes) {
+        attribute { id slug name }
+        selectedValues { id slug name value }
+      }
     }
   }
 }
@@ -1593,6 +1629,10 @@ fragment ProductOptionValueFields on ProductOptionValue {
     defaultPrice
     defaultCurrencyCode
   }
+  channelPrices {
+    channelId
+    priceValue
+  }
   createdAt
   updatedAt
 }
@@ -1615,6 +1655,10 @@ fragment ProductOptionFields on ProductOption {
   maxFileBytes
   fileExtensions
   visibleIf
+  channelPrices {
+    channelId
+    priceValue
+  }
   values {
     ...ProductOptionValueFields
   }
@@ -1694,6 +1738,20 @@ mutation DeleteProductOptionValueContent($valueId: ID!, $locale: String!) {
 
 mutation DeleteProductOptionValue($id: ID!) {
   deleteProductOptionValue(id: $id) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation SetProductOptionChannelPrice($optionId: ID!, $channelId: ID!, $priceValue: Int) {
+  setProductOptionChannelPrice(optionId: $optionId, channelId: $channelId, priceValue: $priceValue) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation SetProductOptionValueChannelPrice($valueId: ID!, $channelId: ID!, $priceValue: Int) {
+  setProductOptionValueChannelPrice(valueId: $valueId, channelId: $channelId, priceValue: $priceValue) {
     id
     productOptions { ...ProductOptionFields }
   }
@@ -1854,13 +1912,39 @@ query ProductSidebarStats($id: ID!, $sku: String!, $days: Int, $channelId: ID) {
   }
 }
 
-# Storefront traffic for one product page - Lens keys pages by URL path, so the product's own
-# url is the key - Separate query so it can be skipped entirely when Signals is off
+
+# Storefront traffic for one product page, served by the Signals API - Lens keys pages by URL path, so the product's own url is the key
 query ProductTraffic($channelId: ID!, $pageKey: String!) {
   lensPageStats(channelId: $channelId, pageKey: $pageKey) {
     views
     visitors
     clicks
     avgScroll
+  }
+}
+
+mutation SetProductTypeDeliveryKinds($productTypeId: ID!, $kinds: [String!]) {
+  setProductTypeDeliveryKinds(productTypeId: $productTypeId, kinds: $kinds) {
+    id
+    deliveryKinds
+  }
+}
+
+# Recommendation metadata stays separate from the staged, ordered link IDs.
+query RecommendationProducts($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    id name sku
+    thumbnail { id url altText status }
+    displayImage { id url altText status }
+  }
+}
+
+query RecommendationSearch($search: String, $limit: Int) {
+  productsPaged(search: $search, limit: $limit) {
+    items {
+      id name sku
+      thumbnail { id url altText status }
+      displayImage { id url altText status }
+    }
   }
 }

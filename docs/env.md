@@ -1,6 +1,6 @@
 # Environment variables
 
-**You should not need to read this to get started.** `bin/setup` asks what you
+**You should not need to read this to get started.** `./skelet setup` asks what you
 want and writes these files for you, secrets included - see
 [docs/workflow.md](workflow.md#first-run). Come here when you want to
 change something afterwards, or to understand a variable the wizard did not ask
@@ -16,9 +16,11 @@ most a one-line hint. Everything that needs a paragraph lives here.
 | File | Copy to | Read by |
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
-| `go.env.example` | `go.env` | the backend in dev (`app` service) |
+| `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
+| `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
 | `prod-vetrina-demo.env.example` | `prod-vetrina-demo.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
 | `small-vetrina-demo.env.example` | `small-vetrina-demo.env` | its storefront container |
@@ -59,13 +61,45 @@ instead, so it fires only when the profile is actually on.
 
 The storefront still keeps its own file. That's a security boundary, not
 duplication: the most internet-exposed container holds no DB password, S3
-key or SMTP credential. The two values it shares with the backend
-(`JWT_SECRET`, `STOREFRONT_REVALIDATE_SECRET`) come from the root `.env`
-via compose, so they aren't written twice either.
+key or SMTP credential, and no session key either. The two values it shares
+with the backend (`REVIEW_VOTER_TOKEN_SECRET`, `STOREFRONT_REVALIDATE_SECRET`)
+come from the root `.env` via compose, so they aren't written twice either.
 
 One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
+
+### Dev host ports
+
+The dev stack publishes its datastores on `127.0.0.1` only, and nothing on
+the host dials them - `./skelet psql` goes through `docker compose exec`. So
+each one can move when something else already holds its port, most often a
+local Postgres on 5432:
+
+| Var | Default | Service |
+|---|---|---|
+| `DB_HOST_PORT` | 5432 | commerce Postgres |
+| `SIGNALS_DB_HOST_PORT` | 5433 | Signals Postgres |
+| `VALKEY_HOST_PORT` | 6379 | Valkey |
+| `CLICKHOUSE_HOST_PORT` / `CLICKHOUSE_HTTP_HOST_PORT` | 9000 / 8123 | ClickHouse native / HTTP |
+| `OPENSEARCH_HOST_PORT` | 9200 | OpenSearch |
+| `NATS_HOST_PORT` | 4222 | NATS |
+| `SIGNALS_HOST_PORT` | 8090 | Signals health |
+| `GARAGE_ADMIN_HOST_PORT` | 9903 | Garage admin API |
+
+`./skelet up` (and so `./skelet setup`) probes every port it's about to
+publish before it starts anything. On a terminal it asks, port by port,
+whether you've stopped the other thing - it checks again, and asks again if
+you haven't - or offers to move a datastore to a free port and writes the
+var above into the root `.env`. Without a terminal it lists the clashes and
+exits. The app-facing ports (8080, 5173, 3000, 9900, 9902) stay
+fixed, because they're part of the origins and CSP the apps are built
+around, so for those the only answer is to free them.
+
+`./skelet up` also builds on every run (`docker compose up --build`). When
+nothing changed that's a cache hit, and it's what keeps an image from an
+older checkout from running on after a pull changed its Dockerfile or
+`go.mod` - the project name is pinned, so another clone's image counts.
 
 `prod.env` is shared by every backend role, which is why role-specific
 settings belong in the compose service and not in here - the app has to
@@ -79,15 +113,72 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend and the storefront, so it's written once. The default value is rejected in production. |
+| `ADMIN_JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs admin sessions, and only core holds it. See [Session and link keys](#session-and-link-keys). |
+| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in the root `.env` - `./skelet setup` generates it, or `./skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
+| `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
+| `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
+| `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
+| `SIGNALS_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`, and different from `CONFIG_ENCRYPTION_KEY`. The `signals` process seals the destination secrets with it (webhook signing keys, the GA4 API secret, the Meta access token). Keep it stable for the same reason. Dev without it stores them in plaintext. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
-| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Required even with Signals switched off - see below. |
+| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
+
+Production refuses any of these empty, short, a dev default, or equal to
+another one. `JWT_SECRET` is retired: every process refuses to boot while it is
+still set, since it used to sign both session types and a leftover value would
+read as if it still meant something.
 
 Media storage config (`S3_BUCKET_NAME`, `AWS_REGION`) is also checked at
 boot. The bucket doesn't have to be reachable for the app to start, but
 media breaks the moment anyone uploads or views an image.
+
+## Session and link keys
+
+Each key signs one thing and lives only where that thing is checked, so a
+compromised tier can forge only what it already holds:
+
+| Key | Signs | Core | Signals (`signals`) | Beacon tier (`ingest`) | Storefront |
+|---|---|---|---|---|---|
+| `ADMIN_JWT_SECRET` | admin sessions | signs, verifies | - | - | - |
+| `CUSTOMER_JWT_PRIVATE_KEY` | customer sessions | signs | - | - | - |
+| `CUSTOMER_JWT_PUBLIC_KEY` | - | checks it pairs | verifies | verifies | - |
+| `EMAIL_LINK_SECRET` | email links | verifies unsubscribe | signs, verifies | - | - |
+| `REVIEW_VOTER_TOKEN_SECRET` | review votes | verifies | - | - | signs |
+| `SIGNALS_SERVICE_SECRET` | contract calls | signs | verifies | - | - |
+
+Admin and customer tokens also carry different audiences and algorithms
+(HS256 and EdDSA), so neither can stand in for the other even if a deploy got
+the keys wrong.
+
+Rotating a key doesn't have to sign anyone out. Every token names the key it
+was signed with, and each key has a `_PREVIOUS` variable - a comma-separated
+list that keeps verifying while its tokens run out:
+
+1. Put the current value in the `_PREVIOUS` variable and a fresh one in the key
+   itself. For the customer pair that means the old *public* key goes into
+   `CUSTOMER_JWT_PUBLIC_KEY_PREVIOUS`, which core and both Signals tiers read.
+2. Restart. New sessions and links use the new key, old ones still verify.
+3. Once the old tokens have expired, clear `_PREVIOUS`. Sessions last 15
+   minutes and refresh, so a day is plenty; email links live in inboxes, so give
+   `EMAIL_LINK_SECRET_PREVIOUS` as long as an unsubscribe link should work.
+
+`SIGNALS_SERVICE_SECRET` rotates the same way, with
+`SIGNALS_SERVICE_SECRET_PREVIOUS` on both core and the Signals processes, so the
+two can restart one at a time instead of in lockstep. Its tokens last two
+minutes, so the previous value can go once both sides run the new one.
+
+### The Signals connection
+
+Core calls the suite over gRPC in plaintext. Every call carries a short-lived
+bearer token and customer data, so keep the link on a network nothing else can
+see: one compose network on one host is that by default. When core and Signals
+run on different machines, encrypt the network underneath - a WireGuard or
+Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
+than leaving the traffic on a shared or public network.
+
+`SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
+resolves it and spreads calls across every address it answers with.
 
 ## Datastores
 
@@ -108,22 +199,38 @@ Pool sizes: `DB_MAX_CONNS` (25) and `ANALYTICS_DB_MAX_CONNS` (8).
 
 ### Signals Postgres
 
-`SIGNALS_DB_URL` holds the event spine, Lens, identities and the email
-send log. The commerce schema carries none of those tables, so there is no
-falling back to `DATABASE_URL`.
-
-**It's required even with `SIGNALS_ENABLED=false`.** `email_sends` lives
-here, and transactional mail keeps recording sends when the suite is off,
-so verification and password-reset mail have nowhere to write without it.
-Turning Signals off saves the ingest and job load, not the database.
+`SIGNALS_DB_URL` holds the event spine, Lens, identities and Pulse - campaigns,
+flows and the email builder. It is the Signals processes' database: `signals`
+and `ingest` open it, and `app` and `worker` never do - they reach everything in
+it over the wire contract.
 
 It does not need a separate server. A second database on the commerce
 Postgres instance works exactly the same, which is the usual answer for
 small deployments - a `CREATE DATABASE`, not another container.
 
-`SIGNALS_REPLICA_URL` is the Signals read pool, bulkheaded off the ingest
+`SIGNALS_GRPC_ADDR` is where `cmd/signals` serves the wire contract core calls
+(`signals:8092` in compose). It is core's only address for Signals, and leaving
+it unset means core makes no calls at all - the admin chat then drops its
+Signals tools rather than offering ones that answer "unreachable". With it set,
+`SIGNALS_SERVICE_SECRET` has to be too, or core refuses to boot rather than
+sign calls the suite would reject.
+
+Every call core makes carries a deadline - ten seconds unless the caller set a
+shorter one, thirty minutes for the maintenance calls (a dump, a restore, a
+roster reconcile) - so a hung suite cannot hang the request that asked, a
+password reset most of all. When OpenTelemetry is on (`OTEL_*`), the trace
+started at core's HTTP edge continues into the suite's handler.
+
+`SIGNALS_REPLICA_URL` is the suite's read pool, bulkheaded off the ingest
 writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`
 - that's the commerce replica and doesn't hold spine tables.
+
+`CORE_FRONT_API_URL` is where the suite reads core's public storefront API -
+`http://app:8080/api/front/graphql` in compose, set in `signals.env` (dev) or
+`prod-signals.env` (prod). The email builder's products
+block prices and links products the way the storefront does, and this is the
+one call the suite makes into core. Unset, the block renders nothing and every
+other email renders as before.
 
 ### Connection pooler
 
@@ -143,13 +250,9 @@ more than it works.
 `POOL_MODE=transaction` is what makes any of that true, and it has three
 consequences worth knowing:
 
-- **Migrations bypass it.** golang-migrate holds a session-level advisory
-  lock for the whole run, so `migrate` and `signals-migrate` keep the
+- **Migrations bypass it.** DDL and a long backfill want a real session,
+  not a transaction-pooled one, so `migrate` and `signals-migrate` keep the
   direct DSNs.
-- **Backups bypass it.** `pg_dump` needs a session its snapshot and `SET`s
-  can outlive. The app reads `DATABASE_DIRECT_URL` /
-  `SIGNALS_DIRECT_URL` for that, and falls back to the pooled URL when
-  they're unset - which is correct when there's no pooler at all.
 - **Server-side prepared statements are off.** The pooled DSNs carry
   `default_query_exec_mode=exec`, because a `PREPARE` lands on whichever
   server connection is free and the next `EXECUTE` may not find it.
@@ -161,10 +264,9 @@ it, which is how you point at a managed datastore - the pooler then has
 nothing to do and you can drop its two services.
 
 Pool sizes: `SIGNALS_DB_MAX_CONNS` (8) and `SIGNALS_READ_DB_MAX_CONNS` (8)
-in the app and worker; the ingest tier has its own pair,
-`INGEST_SIGNALS_MAX_CONNS` (16) and `INGEST_PRIMARY_MAX_CONNS` (4),
-because beacons write to the spine inside the request handler and it
-holds a connection per concurrent write.
+in the signals process; the ingest tier has its own,
+`INGEST_SIGNALS_MAX_CONNS` (16), because beacons write inside the request
+handler and it holds a connection per concurrent write.
 
 Budget them against the server, not appetite. Stock Postgres allows 100
 connections; app and worker hold 16 each, the signals worker another 16,
@@ -198,35 +300,41 @@ In prod, set `VALKEY_PASSWORD` in the root `.env` and `VALKEY_URL` derives
 from it. To run Postgres-only, set `VALKEY_URL=` explicitly - that wins
 over the derived value.
 
-`VALKEY_CACHE_URL` is OPTIONAL and points the catalog/CMS read caches at a
-different instance from the one doing rate limits and pub/sub. Leave it empty
-and they share `VALKEY_URL`. Worth splitting when cache eviction pressure
-starts costing you rate-limit counters.
+`VALKEY_CACHE_URL` is OPTIONAL and points the catalog/CMS read caches and the
+storefront response cache at a different instance from the auth primary. Leave
+it empty and they share `VALKEY_URL`. The response cache is keyed per channel
+and locale, so its footprint grows with the channel count: the bundled
+`valkey-cache` takes `VALKEY_CACHE_MAXMEMORY` (default `512mb`) under a
+`VALKEY_CACHE_MEMORY_LIMIT` container cap (default `640m`), and a many-channel
+install should raise both.
 
-### ClickHouse (optional spine engine)
+`VALKEY_LIMITS_URL` is OPTIONAL and holds the rate-limit counters and login
+lockouts. The prod stack points it at a small bundled `valkey-limits`
+(`volatile-ttl`), so a flood on the evictable cache can't evict the counters
+and quietly lift every limit. Leave it empty and the counters share the cache
+instance; set it to `VALKEY_URL` and they share the primary. The Signals process reads its caches
+off the same variable, and reads the killed-session list core publishes off
+`VALKEY_URL`, so a logout refuses a still-valid service token on the contract
+too. Without a `VALKEY_URL` that check is skipped, as it is on core's own surface.
 
-Unset (or `postgres`) keeps the spine on the Signals Postgres. Set
-`SIGNALS_ENGINE=clickhouse` and point `SIGNALS_CH_URL` at a server for the
-columnar engine on high-volume deployments.
+### ClickHouse (the spine)
 
-In dev you don't pass `--profile clickhouse` yourself: `bin/_lib` turns that
-profile on whenever the root `.env` sets `SIGNALS_ENGINE=clickhouse`, so the
-server and its schema come up with `bin/dev` and survive `--lean` (the spine
-needs them, they aren't sidecars). `bin/doctor` fails if the engine is set to
-clickhouse and either the container or `signals.analytics_events` is missing.
-`analytics_events` and
-`analytics_identities` move there and the Lens heatmap grid derives from
-raw events, while sessions, snapshots, rollups and the send log stay on
-Postgres - so it's additive, not a replacement.
+The event spine, `analytics_events` and `analytics_identities`, lives in
+ClickHouse, and the Lens heatmap grid derives from those raw events. The
+Signals processes refuse to boot without `SIGNALS_CH_URL`. Sessions, replay
+snapshots, rollups and everything Pulse owns stay in the Signals Postgres.
 
-Existing Postgres spine history migrates with `bin/signals-ch-backfill`,
-which is safe to re-run.
+In dev the server and its schema come up inside the `signals` compose profile,
+so `./skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `./skelet doctor`
+fails if the suite is on and either the container or `signals.analytics_events`
+is missing.
 
-There are two URLs because the app driver and golang-migrate disagree on
-DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`.
+The spine and its migrations share one URL, `SIGNALS_CH_URL` - dbmate reads the
+same `clickhouse://user:password@host:port/db` the app does.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
-both ClickHouse URLs derive from it.
+the ClickHouse URL derive from it. Backing the spine up is
+`BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
 
 The server is generic infrastructure, so each consumer gets its own
 database. The compose file creates `signals` at first boot because the
@@ -274,8 +382,11 @@ private CA needs `OPENSEARCH_CA_CERT_FILE`.
 
 ## Object storage
 
-S3-compatible, and required for media to work. There's no filesystem
-driver.
+Required for media to work. `STORAGE_DRIVER` picks where files live: `s3`
+(the default when it's empty) for S3 or anything that speaks it, or
+`filesystem` for a directory on the box.
+
+### S3
 
 Two shapes:
 
@@ -284,9 +395,60 @@ Two shapes:
   at the web-endpoint vhost, `S3_USE_PATH_STYLE=true`.
 
 `S3_PRESIGN_ENDPOINT_URL` is the browser-facing presign endpoint and falls
-back to `S3_ENDPOINT_URL`. `S3_MAX_UPLOAD_BYTES` defaults to 10 MB.
+back to `S3_ENDPOINT_URL`. `STORAGE_MAX_UPLOAD_BYTES` defaults to 10 MB, on
+either driver.
 
-In dev, `bin/dev` points all of it at the Garage sidecar, so leave it
+### Filesystem
+
+Every key is a file under `STORAGE_DIR`, and core serves them itself at
+`/files/<key>`. A browser upload is a PUT to that same path with a signed
+`?t=` token, just like a presigned S3 URL. That
+makes it the simplest thing for a single server, and the wrong thing for
+more than one, since every process that touches files has to see the same
+directory.
+
+- `STORAGE_DIR` - the directory. Created on boot if it's missing.
+- `STORAGE_UPLOAD_URL` - core's public origin, e.g. `https://api.shop.com`.
+  Browsers upload to it, and media URLs default to `<it>/files/<key>`.
+  Without it browsers can't upload, and image links only work on the API's
+  own host.
+- `STORAGE_PUBLIC_URL` - OPTIONAL. The base media URLs are built from, when
+  something other than core serves the directory: nginx, Caddy or a CDN in
+  front of it, e.g. `https://cdn.shop.com` for `https://cdn.shop.com/<key>`.
+  Uploads still go to core. Whatever serves it should send the same headers
+  core does (below).
+- `STORAGE_SIGNING_KEY` - signs the upload URLs the way S3 signs a presigned
+  PUT: one key, one content type, one exact size, fifteen minutes. It lives
+  in the root `.env`, `./skelet setup` generates it, and production refuses
+  to boot without a strong one. Dev falls back to a fixed key.
+
+Every process that touches files reads the directory, so in the prod shape
+mount the same volume at `/data/media` on `app`, `worker` and `media`, plus
+`signals` and `ingest` for Lens recordings (the images create it owned by the
+app user):
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:    { volumes: ["media-files:/data/media"] }
+  worker: { volumes: ["media-files:/data/media"] }
+  media:  { volumes: ["media-files:/data/media"] }
+  signals: { volumes: ["media-files:/data/media"] }
+  ingest:  { volumes: ["media-files:/data/media"] }
+volumes:
+  media-files:
+```
+
+Files are served with `nosniff` and a sandboxing CSP, and anything that isn't
+an image, video, audio or PDF downloads rather than rendering - they share the
+API's origin, so nothing uploaded may run there.
+
+Signals reads the same variables. Its Lens recordings go in core's directory
+unless `LENS_STORAGE_DIR` gives them their own, which keeps them off the
+public `/files/` route - the filesystem twin of `LENS_S3_BUCKET`. The database
+backup archive stays S3-only.
+
+In dev, `./skelet up` points all of it at the Garage sidecar, so leave it
 blank in `go.env`.
 
 Self-hosting object storage on the same box is fine for small single-server
@@ -295,10 +457,13 @@ a disk loss takes every product image with it.
 
 `MEDIA_LIBRARY_ROOT_PREFIX` is OPTIONAL and scopes the media tier's library
 lookups to one key prefix, for a bucket shared with something else. Empty
-means the whole bucket.
+means the whole bucket, minus the prefixes the platform writes itself
+(`catalog/`, `webforms/`, `data/`, `derived/`) - the library won't list,
+upload into, rename or delete those, and won't delete its own root.
 
-Moving a store between buckets, `skelet media-migrate` reads the S3 vars
-above as the source and takes the destination from its own flags, falling back
+Moving between stores, `skelet media-migrate` reads the storage vars above as
+the source and takes the destination from its own flags - `--dest-dir` for a
+directory, `--dest-bucket` and friends for S3 - falling back
 to `DEST_AWS_ACCESS_KEY_ID` / `DEST_AWS_SECRET_ACCESS_KEY` when the flags are
 omitted. Neither is needed in normal operation.
 
@@ -310,60 +475,44 @@ they control, past every permission scope. So there is no admin config for
 this - only `BACKUP_*` env vars, readable solely by whoever controls the
 deployment.
 
-- `BACKUP_S3_BUCKET` - setting it enables the nightly `db-backup` job (and
-  `skelet db backup` / `db backups` / `db restore <key> --yes`). Use a
-  DEDICATED bucket and credential, not the media ones.
+They go in `prod-signals.env`, which only the `signals` service loads, so the
+archive credential never reaches the commerce containers.
+
+- `BACKUP_S3_BUCKET` - the analytics retention archive's destination, not a
+  database backup. skelet takes no backups; see [backups.md](backups.md) for
+  how to set those up at the infrastructure level. Use a DEDICATED bucket and
+  credential, not the media ones.
 - `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_REGION`, `BACKUP_S3_PATH_STYLE`,
-  `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` - same shape
-  rules as the media store above.
-- `BACKUP_ENCRYPTION_PASSPHRASE` - encrypts every dump with age before it
-  leaves the process. Strongly recommended: dumps carry all customer PII.
-  Keep the passphrase somewhere durable OFF the host - losing it makes
-  every backup unreadable. Prod boots warn when backups run unencrypted.
-- `BACKUP_S3_PREFIX` (default `db/`) and `BACKUP_KEEP` (default 30, per
-  database - commerce and signals dumps are pruned as separate families).
-- `BACKUP_HEARTBEAT_URL` - pinged (GET, 10s timeout) only after a fully
-  successful run, dumps uploaded and retention pruned. Point it at
-  healthchecks.io or any dead-man's-switch monitor. This is not redundant
-  with the scheduler's failure alerting: that fires when the job *fails*,
-  so the one thing it cannot report is the job never running - the app
-  being down, or nothing ever claiming it. A monitor that alerts when
-  pings stop covers exactly that hole. A failed ping is logged as a
-  warning and never fails the backup, since the dump is already uploaded
-  by then. Restore procedure and the post-restore checklist:
-  [docs/backups.md](backups.md).
+  `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_PREFIX`
+  (default `db/`) - same shape rules as the media store above.
 
-This destination doubles as the analytics retention archive: with the
-`pulse/analytics/retention_action` setting on `archive`, the daily retention
+What lands there: with the
+`signals/analytics/retention_action` setting on `archive`, the daily retention
 jobs export aged spine events and send-log months as identity-stripped
-`.jsonl.gz` files under `<prefix>archive/` before deleting the rows (the
-dump pruner never touches them, and with no `BACKUP_S3_BUCKET` the sweep
-fails closed - it deletes nothing rather than archiving nowhere). Set the
-`BACKUP_*` vars on the cmd/signals worker too when it owns retention via
-`SIGNALS_JOBS_EXTERNAL`.
+`.jsonl.gz` files under `<prefix>archive/` before deleting the rows. With no
+`BACKUP_S3_BUCKET` the sweep fails closed - it deletes nothing rather than
+archiving nowhere.
 
-The app credential can delete objects (retention pruning), so it cannot
-protect backups from a compromised host - pair it with bucket versioning
-or object lock if you need that.
-
-At 100GB-class sizes: raise the db-backup job timeout in the scheduler UI
-(a big dump outgrows the 30m default), restore with `--jobs N` for parallel
-pg_restore, and set `TMPDIR` to a mounted volume - restore spools the dump
-to a temp file first. Past that scale, run physical/PITR backups
-(pgBackRest, WAL-G, or managed snapshots) as the primary and treat these
-dumps as the portable weekly export.
+Lens session recordings and heatmap page snapshots go to the media bucket by
+default, and that bucket is usually served publicly. Their object keys are
+random, so nobody can guess one, but `LENS_S3_BUCKET` moves them to a private
+bucket of their own on the same endpoint and credentials, which keeps them off
+the public endpoint entirely. Set it on both the `signals` and `ingest`
+services; production logs a warning while Lens shares the public bucket.
 
 ## Email and SMS
 
-`SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev,
-`bin/dev` points these at Mailpit; an unset `SMTP_HOST` prints emails to
-stdout instead.
+`SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev an unset
+`SMTP_HOST` prints emails to stdout; with the optional `mailpit` dev tool picked,
+`./skelet up` points these at it. Two processes send through them: `app` its own transactional
+mail, and `signals` every campaign and flow mail - both read the same file, so
+one relay serves the install.
 
 `EMAIL_WEBHOOK_TOKEN` is the bearer token for the ESP bounce webhook at
 `POST /webhooks/email/events`. Unset means that route 404s.
 
 Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`) backs the
-Pulse `send_sms` node. From is E.164.
+Pulse `send_sms` node, read by the `signals` process. From is E.164.
 
 ## AI assistant keys
 
@@ -384,16 +533,38 @@ All three are OPTIONAL. With no key from any source the assistant stays off.
 `STOREFRONT_URL` is where customer email links land, `DASHBOARD_URL` where
 admin password-reset links land. Include the scheme.
 
-`STOREFRONT_REVALIDATE_URL` + `STOREFRONT_REVALIDATE_SECRET` wire CMS
-publish to a storefront cache bust. The secret matches the storefront's
-own file.
+Cache purges (CMS publish, product and catalog edits, the cache screen) are
+signed with `STOREFRONT_REVALIDATE_SECRET`, which matches the storefront's
+own file. With `STOREFRONT_REVALIDATE_URL` set, that one storefront serves
+every channel and gets a single request naming all the active ones - the
+usual setup, with the in-network URL. Leave it empty and each active channel
+is purged at its own public URL plus `/api/revalidate`, for channels served
+by separate deployments; a channel with no public URL, or one on localhost,
+is then not purged at all.
 
-On the storefront side: `STOREFRONT_BASE_URL` drives canonical URLs,
-sitemap and JSON-LD. `STOREFRONT_CHANNEL_ID` is the channel uuid this
-deployment serves (admin > channels shows it); leave it empty to resolve
-by Host against the channel's public URL, or fall back to the backend's
-default channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and
-voting 500s without it.
+On the storefront side, one deployment serves as many channels as you point
+at it. `STOREFRONT_CHANNEL_HOSTS` maps hosts to channel uuids
+(`shop.example.com=<uuid>,de.shop.example.com=<uuid>`, admin > channels
+shows the ids), and `STOREFRONT_CHANNEL_ID` is the channel for any host the
+map doesn't name. Set only the id and every host serves that one channel. A
+page request on a host neither covers is a 404, and so are the sitemaps and
+robots.txt. Absolute URLs (canonicals, sitemap, JSON-LD) use the channel's
+public URL, with `STOREFRONT_BASE_URL` as the fallback for a channel without
+one. Neither is needed at build time: the image is the same for every
+channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and voting
+500s without it - it comes from the root `.env`, matching core's.
+
+`BACKEND_INTERNAL_URL` is where the storefront reaches the backend, and it's
+read at runtime too, so compose sets it on the container rather than the
+build. Besides GraphQL it carries the backend links the browser loads from the
+shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
+the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
+falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
+host.
+
+A purge reaches one storefront process, since the page cache lives in it. Run
+a single replica unless you've configured a shared cache handler; see
+[deploying.md](deploying.md#putting-an-edge-in-front).
 
 ## Tiers you can split out
 
@@ -403,25 +574,37 @@ in one process; splitting buys isolation.
 | Tier | Switch | What it does |
 |---|---|---|
 | `worker` | `JOBS_EXTERNAL=true` | App stops claiming scheduler jobs, webhook deliveries and outbox rows, leaving them to the worker. |
-| `signals` | `SIGNALS_JOBS_EXTERNAL=true` | App defers Signals retention, spine forwarding and trait compute. |
-| `ingest` | route `/t/*` | Serves the public tracker surface on `127.0.0.1:8091`. |
+| `signals` | `SIGNALS_ENABLED=true`, prod shape only | Serves the suite's own admin API on `:8090` and its wire contract on `:8092`, and performs the retention, forwarding and trait-compute work core's scheduler asks for. |
+| `ingest` | route `/t/*` and `/e/*` | Serves the public surfaces - the beacons and the mail tracking routes - on `127.0.0.1:8091`. |
 | `media` | route `/media/t/*` | Image resize + focal crop, so decode CPU doesn't land next to checkout. |
 
-Both `JOBS_EXTERNAL` and `SIGNALS_JOBS_EXTERNAL` are read by the app AND
-the worker, so one setting configures both - the worker ignores the flag
-and always runs its layer. It's all DB-claim based, so leaving the flag
-false while a worker runs is safe (both claim, work is partitioned), it
-just doesn't isolate anything. Setting it true with NO worker running
-stops that background work entirely.
+`JOBS_EXTERNAL` is read by the app AND the worker, so one setting
+configures both - the worker ignores the flag and always runs its layer.
+It's all DB-claim based, so leaving the flag false while a worker runs is
+safe (both claim, work is partitioned), it just doesn't isolate anything.
+Setting it true with NO worker running stops that background work entirely.
 
-For the signals worker specifically: set it whenever the worker is
-deployed. The forwarding cursor is guarded against co-running, but two
-sweeps still each post the same batch once.
+The Signals tier needs no such switch: core's scheduler owns the cadence
+of every Signals job and the suite performs the work over the contract, so
+one owner schedules and there is nothing to double-run.
 
 `INGEST_FALLBACK_URL` points the ingest tier back at the app for the two
 routes it can't serve alone - form submissions and back-in-stock signups,
 which need the app's subscriber graph. Leave it unset and those two paths 404,
 which the browser SDKs fail soft on; everything else on `/t/*` is unaffected.
+
+`SIGNALS_INGEST_URL` is where `app` proxies `/t/*`, the beacon surface being the
+suite's to serve - `http://signals:8090` by default. Unset, beacons answer as
+they do with the suite switched off: a silent 204 on the POSTs and a 404 on the
+SDK reads. The commerce beacons (`/t/forms*`, `/t/back-in-stock`) are `app`'s own
+and are unaffected either way.
+
+`SIGNALS_URL` is where `app` proxies `/e/*` - the open pixel and the click
+redirect in every marketing mail, recorded against the send log they name.
+`http://signals:8090` by default. The `ingest` tier serves the same routes, so
+once `/t` points at a scaled-out ingest, `/e` can follow it: the two variables
+are separate only so they need not move together. Unset, opens go unrecorded
+and links in already-sent mail 404.
 
 Two parity notes when `/t` routes to the ingest tier:
 
@@ -433,8 +616,7 @@ Two parity notes when `/t` routes to the ingest tier:
   proxied forms and back-in-stock paths, and its per-IP rate limits
   collapse into one bucket.
 
-The app keeps serving `/t/*` and `/media/t/*` regardless, so both are a
-routing choice rather than a migration.
+`/media/t/*` is served by `app` regardless, so routing it is a scaling choice.
 
 Media tier knobs: `MEDIA_PORT` (8083), `MEDIA_MAX_SOURCE_PIXELS` (~40 MP -
 uploads go straight to object storage via presigned PUT so nothing else
@@ -467,6 +649,12 @@ every request so a storefront behind basic auth, a staging password or a
 maintenance gate still answers it. Empty means the crawler gets whatever an
 anonymous visitor gets.
 
+`SEO_CRAWL_ALLOWED_ORIGINS` is OPTIONAL, a comma-separated list of extra
+origins the link-map crawl may start at, like `http://vetrina:3000` when the
+storefront is reached on its compose address. Without it a crawl only starts
+at the channel's public URL or `STOREFRONT_URL` - the crawl reads whatever
+answers and carries the bypass token, so it can't be pointed anywhere else.
+
 `PORT` overrides the port a process listens on. Each service has its own
 default (8080 for the app), so you only need this when running one outside
 compose.
@@ -474,14 +662,15 @@ compose.
 ## Observability and logs
 
 `SENTRY_DSN` and the OTel vars are optional - blank means logs to stdout.
-The dev Jaeger takes OTLP at `http://jaeger:4318`. `APP_VERSION` is the
+With the optional `grafana` dev tool picked, `./skelet up` points them at
+`http://grafana:4318`. `APP_VERSION` is the
 release tag for Sentry and OTel; CI should inject the git sha.
 
 Application logs go to stdout as JSON (text when `APP_ENV != production`),
 and the compose files cap them at 10 MB x 3 files per service so they
 can't fill the disk. That cap is also the retention: rotated-out lines are
-GONE. If you need searchable history, point a collector (Vector, Promtail,
-Fluent Bit) at the container log files or swap the logging driver.
+GONE. If you need searchable history, point a collector (Vector, Fluent Bit,
+Grafana Alloy) at the container log files or swap the logging driver.
 
 OTLP carries traces and metrics only. It does NOT ship logs.
 
@@ -519,9 +708,12 @@ Once it's on, each surface has its own per-minute budget:
 | `GENERAL_RATE_LIMIT_PER_MIN` | 30 | admin + storefront resolver-level checks |
 | `AUTH_RATE_LIMIT_PER_MIN` | 10 | login / register / password reset |
 | `FRONT_RATE_LIMIT_PER_MIN` | 600 | the whole storefront GraphQL endpoint |
+| `CHECKOUT_RATE_LIMIT_PER_MIN` | 120 | checkout step saves and checkout reads, each its own budget |
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
-| `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, email open/click |
+| `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
+| `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
+| `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
 Setting one of these does NOT turn the layer on - `RATE_LIMIT_ENABLED`
 gates all of them, so a knob left over in an old env file can't quietly
@@ -548,7 +740,7 @@ All default to true.
 
 | Var | Off means |
 |---|---|
-| `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending, and still needs `SIGNALS_DB_URL` to record it. |
+| `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web
@@ -560,7 +752,7 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 `APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_DEMO_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
-env. `bin/push-images` prints the values after a push.
+env. `./skelet release` prints the values after a push.
 
 ---
 

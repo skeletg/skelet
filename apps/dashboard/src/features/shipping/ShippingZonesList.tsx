@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { gql } from '@apollo/client'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
@@ -34,62 +33,10 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { ShippingZoneCreatePage, ShippingZoneEditPage } from './ShippingZoneForm'
+import { usePermissions } from '@/shared/auth/usePermissions'
+import { DeleteShippingZoneDocument, ShippingZonesDocument, type ShippingZonesQuery } from './Shipping.gql'
 
-const SHIPPING_ZONES_QUERY = gql`
-  query ShippingZones($channelId: ID!) {
-    shippingZones(channelId: $channelId) {
-      id
-      channelId
-      code
-      name
-      sortOrder
-      isActive
-      countries
-      methods {
-        id
-        code
-        name
-        calcType
-        flatCents
-        freeAboveCents
-        sortOrder
-        isActive
-      }
-    }
-  }
-`
-
-const DELETE_ZONE = gql`
-  mutation DeleteShippingZone($id: ID!) {
-    deleteShippingZone(id: $id)
-  }
-`
-
-export type CalcType = 'FLAT' | 'FREE' | 'FREE_ABOVE'
-
-export type ShippingMethod = {
-  id: string
-  code: string
-  name: string
-  calcType: CalcType
-  flatCents: number
-  freeAboveCents: number
-  sortOrder: number
-  isActive: boolean
-  countryMode?: string
-  allowedCountries?: string[]
-}
-
-export type ShippingZone = {
-  id: string
-  channelId: string
-  code: string
-  name: string
-  sortOrder: number
-  isActive: boolean
-  countries: string[]
-  methods: ShippingMethod[]
-}
+type ShippingZone = ShippingZonesQuery['shippingZones'][number]
 
 // Long country lists would blow out the column, so show the first few and count the rest
 function countriesPreview(countries: string[]): string {
@@ -101,20 +48,20 @@ function countriesPreview(countries: string[]): string {
 // ShippingZonesList is the shell for /shipping, /shipping/new and /shipping/:id - Zones are channel-scoped, so GLOBAL
 // scope gets a "pick a channel" page instead of the table
 export function ShippingZonesList() {
+  // Creating and deleting zones need settings.manage - without it the buttons only led to an access-restricted page or a refused save
+  const canManage = usePermissions().has('settings.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const navigate = useNavigate()
   const params = useParams<{ id?: string }>()
   const rawId = params.id ?? null
-  const isCreate = rawId === 'new'
+  // /shipping/new is a literal route with no :id, so match the path rather than the param
+  const isCreate = useMatch('/shipping/new') !== null || rawId === 'new'
   const activeID = !isCreate && rawId ? rawId : null
 
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
 
-  const { data, loading, error } = useQuery<
-    { shippingZones: ShippingZone[] },
-    { channelId: string }
-  >(SHIPPING_ZONES_QUERY, {
+  const { data, loading, error } = useQuery(ShippingZonesDocument, {
     variables: { channelId: effectiveChannelId ?? '' },
     skip: !effectiveChannelId,
   })
@@ -131,12 +78,9 @@ export function ShippingZonesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const refetchQueries = effectiveChannelId
-    ? [{ query: SHIPPING_ZONES_QUERY, variables: { channelId: effectiveChannelId } }]
+    ? [{ query: ShippingZonesDocument, variables: { channelId: effectiveChannelId } }]
     : []
-  const [deleteZone, { loading: deleting }] = useMutation<
-    { deleteShippingZone: boolean },
-    { id: string }
-  >(DELETE_ZONE, { refetchQueries })
+  const [deleteZone, { loading: deleting }] = useMutation(DeleteShippingZoneDocument, { refetchQueries })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
@@ -229,22 +173,26 @@ export function ShippingZonesList() {
               <DropdownMenuItem asChild>
                 <Link to={`/shipping/${row.original.id}`}>View</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(row.original)
-                }}
-              >
-                Delete
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(null)
+                      setConfirmingDelete(row.original)
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [],
+    [canManage],
   )
 
   // Create + edit render full-width (reached from the table) - these come before
@@ -282,10 +230,12 @@ export function ShippingZonesList() {
             searchPlaceholder="Search code, name or country…"
             initialSorting={[{ id: 'sortOrder', desc: false }]}
             toolbarRightSlot={
-              <Button size="sm" onClick={() => navigate(newHref)}>
-                <PlusIcon className="size-4" />
-                New zone
-              </Button>
+              canManage && (
+                <Button size="sm" onClick={() => navigate(newHref)}>
+                  <PlusIcon className="size-4" />
+                  New zone
+                </Button>
+              )
             }
           />
         </DetailPageSection>

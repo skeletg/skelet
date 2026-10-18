@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { CheckCircle2Icon, CircleOffIcon, PlusIcon, ShapesIcon } from 'lucide-react'
@@ -10,7 +10,9 @@ import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { CollectionDetail } from './CollectionDetail'
 import { CollectionCreate } from './CollectionCreate'
-import { CollectionsDocument, type CollectionSummary } from './Collections.gql'
+import { CollectionsDocument, type CollectionsQuery } from './Collections.gql'
+
+type CollectionSummary = CollectionsQuery['collections'][number]
 
 function resolveCollectionName(collection: CollectionSummary) {
   const translatedName = collection.content.find((entry) => entry.name.trim())?.name.trim()
@@ -22,6 +24,8 @@ export function CollectionsPage() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { id: routeId } = useParams<{ id: string }>()
+  // /collections/new is a literal route with no :id, so match the path rather than the param
+  const isCreate = useMatch('/collections/new') !== null || routeId === 'new'
   const navigate = useNavigate()
   const { has } = usePermissions()
   const { isGlobal } = useConfigScope()
@@ -77,7 +81,7 @@ export function CollectionsPage() {
         cell: ({ row }) =>
           row.original.isPublished ? (
             <Badge variant="secondary" className="gap-1 text-[10px]">
-              <CheckCircle2Icon className="size-3 text-emerald-500" /> Published
+              <CheckCircle2Icon className="size-3 text-success" /> Published
             </Badge>
           ) : (
             <Badge variant="outline" className="gap-1 text-[10px]">
@@ -91,7 +95,7 @@ export function CollectionsPage() {
 
   // Create / detail render full-width (reached from the table) - The list itself
   // is the table
-  if (routeId === 'new') return <CollectionCreate />
+  if (isCreate) return <CollectionCreate />
   if (routeId) return <CollectionDetail key={routeId} />
 
   return (

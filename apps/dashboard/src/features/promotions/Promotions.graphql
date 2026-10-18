@@ -74,7 +74,13 @@ query PromotionRules($limit: Int, $offset: Int) {
 query PromotionRule($id: ID!) {
   promotionRule(id: $id) {
     ...PromotionRuleFields
-    codes(limit: 100) {
+    contents {
+      locale
+      label
+      terms
+      updatedAt
+    }
+    codes(limit: 1000) {
       items {
         ...PromotionCodeFields
       }
@@ -197,41 +203,6 @@ query SimulatePromotion($input: PromotionSimulationInput!) {
   }
 }
 
-query CustomerSegmentsList($limit: Int, $offset: Int) {
-  customerSegments(limit: $limit, offset: $offset) {
-    items {
-      id
-      slug
-      name
-      description
-      isActive
-      memberCount
-    }
-    totalCount
-  }
-}
-
-mutation CreateCustomerSegment($input: CreateCustomerSegmentInput!) {
-  createCustomerSegment(input: $input) {
-    id
-    slug
-    name
-  }
-}
-
-mutation UpdateCustomerSegment($input: UpdateCustomerSegmentInput!) {
-  updateCustomerSegment(input: $input) {
-    id
-    slug
-    name
-    isActive
-  }
-}
-
-mutation DeleteCustomerSegment($id: ID!) {
-  deleteCustomerSegment(id: $id)
-}
-
 mutation UpsertPromotionRuleContent($input: UpsertPromotionRuleContentInput!) {
   upsertPromotionRuleContent(input: $input) {
     locale
@@ -279,5 +250,19 @@ query PromotionTotals($start: Time, $end: Time) {
     redemptionCount
     discountTotalCents
     uniqueCustomers
+  }
+}
+
+query CustomerSegmentsList($limit: Int, $offset: Int) {
+  customerSegments(limit: $limit, offset: $offset) {
+    items {
+      id
+      slug
+      name
+      description
+      isActive
+      memberCount
+    }
+    totalCount
   }
 }

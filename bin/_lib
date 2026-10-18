@@ -6,27 +6,32 @@ export LC_ALL=C.UTF-8 LANG=C.UTF-8
 # docker-compose.override.yml, where your own git-ignored services live
 _skelet_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Which apps run IN DOCKER - .skelet-apps if there is one, else NONE
-# The frontends default to the host, where the dev server and the gates share one node_modules -
-# two installs from one lockfile drift silently, and the container adds nothing Node needs
+# Which apps run IN DOCKER - .skelet-apps if there is one, else NONE The frontends default to the host, where the dev server and the gates share one node_modules - two installs from one lockfile drift silently, and the container adds nothing Node needs
 if [ -f "$_skelet_root/.skelet-apps" ]; then
     SKELET_APPS="$(tr -d '[:space:]' < "$_skelet_root/.skelet-apps")"
 else
     SKELET_APPS=""
 fi
 
+# Optional dev tools (mailpit, webhook-tester, grafana, garage-webui) - .skelet-tools if there is one, else none
+# Each is a compose profile of its own name, and bin/dev --lean empties SKELET_TOOLS along with the sidecars
+_skelet_tools_picked="$(tr -d '[:space:]' < "$_skelet_root/.skelet-tools" 2>/dev/null || true)"
+SKELET_TOOLS="${SKELET_TOOLS-$_skelet_tools_picked}"
+
 # Sidecar profiles - bin/dev --lean empties SKELET_SIDECARS
-_skelet_sidecars="${SKELET_SIDECARS-search,tracing}"
+_skelet_sidecars="${SKELET_SIDECARS-search}"
 _skelet_profiles="$_skelet_sidecars"
 if [ -n "$SKELET_APPS" ]; then
     _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_APPS"
 fi
+if [ -n "$SKELET_TOOLS" ]; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_TOOLS"
+fi
 
-# On the ClickHouse spine the server is a datastore, not a sidecar - so it follows
-# SIGNALS_ENGINE (the var the backend itself reads, per spinech/select.go) rather than the
-# sidecar list, and --lean can't strip the thing the spine writes to
-if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' "$_skelet_root/.env" 2>/dev/null; then
-    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}clickhouse"
+# The Signals process follows core's switch - SIGNALS_ENABLED lives in the backend env and unset
+# means on, as the backend reads it. A sidecar, so --lean drops it with the others
+if [ -n "$_skelet_sidecars" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' "$_skelet_root/env/go.env" 2>/dev/null; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}signals"
 fi
 
 export COMPOSE_PROFILES="${COMPOSE_PROFILES-$_skelet_profiles}"
@@ -48,3 +53,231 @@ if [ -z "${SKELET_UID:-}" ]; then
         export SKELET_UID="$(id -u)" SKELET_GID="$(id -g)"
     fi
 fi
+
+# What a frontend's node_modules on the HOST holds: none, pnpm, or npm - the last a tree from
+# before the switch to pnpm, which pnpm refuses to take over without a TTY to confirm the wipe
+#
+# An EMPTY directory is none: the container mounts its named volume at node_modules, and because
+# the parent is a bind mount that leaves an empty directory on the host - testing -d alone would
+# send every later install to a host tree the dev server never reads
+host_tree() { # host_tree <app dir>
+    if [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; then
+        echo none
+    elif [ -f "$1/node_modules/.modules.yaml" ]; then
+        echo pnpm
+    else
+        echo npm
+    fi
+}
+
+# Why pnpm can't run this app, or nothing when it can. Asked from inside the app, where pnpm
+# switches itself to packageManager's version - the switch is what breaks, so asking from the
+# root would pass on a pnpm the app can't run
+pnpm_problem() { # pnpm_problem <app dir>
+    local want have
+    want="$(grep -oE '"packageManager": *"pnpm@[0-9.]+' "$1/package.json" 2>/dev/null | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "no pnpm on PATH - corepack enable, or npm install -g pnpm@${want:-<version>}"
+        return
+    fi
+    [ -n "$want" ] || return 0
+    have="$(cd "$1" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')" || true
+    [ "$have" = "$want" ] \
+        || echo "pnpm in $1 answers ${have:-nothing}, the app pins $want - pnpm self-update $want"
+}
+
+npm_tree_hint() { # npm_tree_hint <app dir>
+    echo "$1/node_modules is an npm install from before the switch to pnpm - replace it:" >&2
+    echo "    rm -rf $1/node_modules && (cd $1 && pnpm install)" >&2
+}
+
+# env/signals.env from its template, with what it must share with core copied from env/go.env - the customer PUBLIC key, never the private one
+sync_signals_env() {
+    local go="$_skelet_root/env/go.env" sig="$_skelet_root/env/signals.env" key val tmp
+    [ -f "$go" ] || return 0
+    if [ ! -f "$sig" ]; then
+        cp "$_skelet_root/env/signals.env.example" "$sig"
+        echo "==> wrote env/signals.env from its template"
+    fi
+    # JWT_SECRET is retired, and the suite refuses to boot while it is set
+    tmp="$sig.tmp.$$"
+    grep -v '^JWT_SECRET=' "$sig" > "$tmp" || true
+    cat "$tmp" > "$sig"
+    rm -f "$tmp"
+    # The suite's own key, generated rather than copied - core never holds it
+    if ! grep -qE '^SIGNALS_ENCRYPTION_KEY=.+' "$sig"; then
+        env_set "$sig" SIGNALS_ENCRYPTION_KEY "$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '\n')"
+        echo "==> generated SIGNALS_ENCRYPTION_KEY in env/signals.env"
+    fi
+    for key in CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET SIGNALS_SERVICE_SECRET; do
+        val="$(grep -E "^${key}=" "$go" | head -1 | cut -d= -f2-)"
+        [ -n "$val" ] || continue
+        tmp="$sig.tmp.$$"
+        _k="$key" _v="$val" awk 'BEGIN { k = ENVIRON["_k"]; v = ENVIRON["_v"] }
+            index($0, k "=") == 1 { print k "=" v; done = 1; next } { print }
+            END { if (!done) print k "=" v }' "$sig" > "$tmp" && cat "$tmp" > "$sig"
+        rm -f "$tmp"
+    done
+}
+
+# Points the backend env files at the dev tools .skelet-tools picks and away from the ones it doesn't - the
+# picked list, not SKELET_TOOLS, so a --lean run doesn't unwire them. Only values a tool owns are touched,
+# so an SMTP relay or OTLP collector of your own is left alone
+sync_tool_env() {
+    local f val
+    for f in "$_skelet_root/env/go.env" "$_skelet_root/env/signals.env"; do
+        [ -f "$f" ] || continue
+        val="$(grep -E '^SMTP_HOST=' "$f" | head -1 | cut -d= -f2-)"
+        case ",$_skelet_tools_picked," in
+            *,mailpit,*) case "$val" in ''|mailpit) env_set "$f" SMTP_HOST mailpit; env_set "$f" SMTP_PORT 1025 ;; esac ;;
+            *)           [ "$val" = mailpit ] && env_set "$f" SMTP_HOST "" ;;
+        esac
+        val="$(grep -E '^OTEL_EXPORTER_OTLP_ENDPOINT=' "$f" | head -1 | cut -d= -f2-)"
+        case "$val" in ''|http://grafana:4318) ;; *) continue ;; esac
+        case ",$_skelet_tools_picked," in
+            *,grafana,*)
+                env_set "$f" OTEL_EXPORTER_OTLP_ENDPOINT http://grafana:4318
+                env_set "$f" OTEL_TRACES_EXPORTER otlp
+                env_set "$f" OTEL_METRICS_EXPORTER otlp ;;
+            *)
+                env_set "$f" OTEL_EXPORTER_OTLP_ENDPOINT ""
+                env_set "$f" OTEL_TRACES_EXPORTER ""
+                env_set "$f" OTEL_METRICS_EXPORTER "" ;;
+        esac
+    done
+}
+
+# env_set FILE KEY VALUE - replace the KEY= line, or append one, keeping the file's mode
+env_set() {
+    local tmp="$1.tmp.$$"
+    touch "$1"
+    _k="$2" _v="$3" awk 'BEGIN { k = ENVIRON["_k"]; v = ENVIRON["_v"] }
+        index($0, k "=") == 1 { print k "=" v; done = 1; next } { print }
+        END { if (!done) print k "=" v }' "$1" > "$tmp" && cat "$tmp" > "$1"
+    rm -f "$tmp"
+}
+
+# The .env knob that moves a published host port, for the loopback-only datastores - nothing on the
+# host dials those, so any port works. The rest are baked into origins and CSP and stay where they are
+host_port_var() { # host_port_var <service> <container port>
+    case "$1:$2" in
+        db:5432)         echo DB_HOST_PORT ;;
+        signals-db:5432) echo SIGNALS_DB_HOST_PORT ;;
+        valkey:6379)     echo VALKEY_HOST_PORT ;;
+        clickhouse:8123) echo CLICKHOUSE_HTTP_HOST_PORT ;;
+        clickhouse:9000) echo CLICKHOUSE_HOST_PORT ;;
+        opensearch:9200) echo OPENSEARCH_HOST_PORT ;;
+        nats:4222)       echo NATS_HOST_PORT ;;
+        signals:8090)    echo SIGNALS_HOST_PORT ;;
+        garage:3903)     echo GARAGE_ADMIN_HOST_PORT ;;
+        grafana:3000)    echo GRAFANA_HOST_PORT ;;
+    esac
+}
+
+# "<service> <container port> <host port>" for everything the next `up` would publish - compose
+# resolves the profiles and the .env overrides, so this is what will actually try to bind
+published_ports() {
+    docker compose config 2>/dev/null | awk '
+        function flush() { if (p != "") print svc, t, p; p = ""; t = "" }
+        /^services:/ { in_s = 1; next }
+        /^[^ ]/ { flush(); in_s = 0 }
+        in_s && /^  [^ ].*:$/ { flush(); svc = $1; sub(/:$/, "", svc); next }
+        in_s && /^ +- / { flush() }
+        in_s && /^ +target:/ { t = $NF }
+        in_s && /^ +published:/ { p = $NF; gsub(/"/, "", p) }
+        END { flush() }'
+}
+
+port_in_use() { # port_in_use <port> - something on the host answers there
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+# Who holds a port, as far as we can tell - another container by name, else a pointer at the OS tool
+port_holder() { # port_holder <port>
+    local c
+    c="$(docker ps --filter "publish=$1" --format '{{.Names}}' 2>/dev/null | head -1)"
+    if [ -n "$c" ]; then
+        echo "container $c (docker stop $c)"
+        return
+    fi
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) echo "a program on this machine (find it: netstat -ano | findstr :$1)" ;;
+        *)                    echo "a program on this machine (find it: lsof -nP -iTCP:$1 -sTCP:LISTEN)" ;;
+    esac
+}
+
+# Refuse to start into a port something else already holds - compose only finds out halfway through
+# bringing the stack up, and a local Postgres on 5432 is the usual one. On a terminal it asks until
+# every port is free (stop the other thing, or move ours through .env); otherwise it lists them and fails
+preflight_ports() {
+    local ours busy entry svc target port var reply next taken
+    while :; do
+        # Ports this project's own running containers hold are ours, so re-running on a live stack passes
+        ours=" $(docker compose ps --format '{{.Ports}}' 2>/dev/null | grep -oE ':[0-9]+->' | sed 's/[^0-9]//g' | tr '\n' ' ') "
+        busy=()
+        taken=" "
+        while read -r svc target port; do
+            [ -n "$port" ] || continue
+            taken="$taken$port "
+            case "$ours" in *" $port "*) continue ;; esac
+            port_in_use "$port" && busy+=("$svc $target $port")
+        done < <(published_ports)
+        [ ${#busy[@]} -eq 0 ] && return 0
+
+        echo "==> Ports the stack needs are already taken:" >&2
+        for entry in "${busy[@]}"; do
+            read -r svc target port <<< "$entry"
+            printf '    %-6s %-14s held by %s\n' "$port" "$svc" "$(port_holder "$port")" >&2
+        done
+
+        if [ ! -t 0 ]; then
+            for entry in "${busy[@]}"; do
+                read -r svc target port <<< "$entry"
+                var="$(host_port_var "$svc" "$target")"
+                if [ -n "$var" ]; then
+                    echo "    free :$port, or move $svc with $var=<port> in .env" >&2
+                else
+                    echo "    free :$port - $svc has to have it" >&2
+                fi
+            done
+            return 1
+        fi
+
+        for entry in "${busy[@]}"; do
+            read -r svc target port <<< "$entry"
+            var="$(host_port_var "$svc" "$target")"
+            port_in_use "$port" || continue
+            echo
+            echo "    :$port ($svc) is in use."
+            echo "      1) I stopped it - check again"
+            if [ -n "$var" ]; then
+                echo "      2) Use a different port for $svc"
+                echo "      3) Quit"
+            else
+                echo "      2) Quit   ($svc can't move - its port is part of the app's URLs)"
+            fi
+            read -r -p "    pick: " reply
+            if [ -n "$var" ]; then
+                case "$reply" in 2) ;; 3) return 1 ;; *) continue ;; esac
+            else
+                case "$reply" in 2) return 1 ;; *) continue ;; esac
+            fi
+            # A suggestion that is free now and that nothing else in the stack publishes
+            next=$((port + 10))
+            while port_in_use "$next" || [[ "$taken" == *" $next "* ]]; do next=$((next + 1)); done
+            while :; do
+                read -r -p "    port for $svc [$next]: " reply
+                reply="${reply:-$next}"
+                case "$reply" in ''|*[!0-9]*) echo "    a number, please"; continue ;; esac
+                if [ "$reply" -lt 1024 ] || [ "$reply" -gt 65535 ]; then echo "    pick one between 1024 and 65535"; continue; fi
+                if port_in_use "$reply" || [[ "$taken" == *" $reply "* ]]; then echo "    :$reply is taken too"; continue; fi
+                break
+            done
+            env_set "$_skelet_root/.env" "$var" "$reply"
+            # The shell wins over .env in compose, so a stale export would undo the write
+            export "$var=$reply"
+            echo "    $var=$reply written to .env - $svc will publish on 127.0.0.1:$reply"
+        done
+        # Round again - everything is re-probed, so "I stopped it" when nothing stopped asks again
+    done
+}

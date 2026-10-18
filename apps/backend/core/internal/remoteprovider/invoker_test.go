@@ -1,0 +1,307 @@
+package remoteprovider
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/internal/circuit"
+)
+
+type fakeRepo struct {
+	providers map[uuid.UUID]Provider
+	secrets   map[uuid.UUID]string
+}
+
+func newFakeRepo(providers ...Provider) *fakeRepo {
+	r := &fakeRepo{providers: map[uuid.UUID]Provider{}, secrets: map[uuid.UUID]string{}}
+	for _, p := range providers {
+		r.providers[p.ID] = p
+		r.secrets[p.ID] = "rpsec_test"
+	}
+	return r
+}
+
+func (r *fakeRepo) Create(_ context.Context, input CreateInput, secret string) (Provider, error) {
+	p := Provider{ID: uuid.New(), Kind: input.Kind, Slug: input.Slug, Name: input.Name,
+		TargetURL: input.TargetURL, Config: input.Config, TimeoutMs: input.TimeoutMs,
+		CacheTTLs: input.CacheTTLs, FailurePolicy: input.FailurePolicy, ChannelID: input.ChannelID, IsActive: true}
+	r.providers[p.ID] = p
+	r.secrets[p.ID] = secret
+	return p, nil
+}
+func (r *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (Provider, error) {
+	p, ok := r.providers[id]
+	if !ok {
+		return Provider{}, ErrNotFound
+	}
+	return p, nil
+}
+func (r *fakeRepo) GetBySlug(_ context.Context, kind Kind, slug string, _ *uuid.UUID) (Provider, error) {
+	for _, p := range r.providers {
+		if p.Kind == kind && p.Slug == slug {
+			return p, nil
+		}
+	}
+	return Provider{}, ErrNotFound
+}
+func (r *fakeRepo) List(context.Context) ([]Provider, error) { return nil, nil }
+func (r *fakeRepo) ListActiveByKind(_ context.Context, kind Kind, _ *uuid.UUID) ([]Provider, error) {
+	var out []Provider
+	for _, p := range r.providers {
+		if p.Kind == kind && p.IsActive {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+func (r *fakeRepo) ListActiveForChannel(ctx context.Context, ch *uuid.UUID) ([]Provider, error) {
+	var out []Provider
+	for _, k := range AllKinds {
+		ps, _ := r.ListActiveByKind(ctx, k, ch)
+		out = append(out, ps...)
+	}
+	return out, nil
+}
+func (r *fakeRepo) Update(context.Context, UpdateInput) (Provider, error) {
+	return Provider{}, ErrNotFound
+}
+func (r *fakeRepo) SetActive(context.Context, uuid.UUID, bool) (Provider, error) {
+	return Provider{}, ErrNotFound
+}
+func (r *fakeRepo) UpdateSecret(context.Context, uuid.UUID, string) (Provider, error) {
+	return Provider{}, ErrNotFound
+}
+func (r *fakeRepo) GetSecret(_ context.Context, id uuid.UUID) (string, error) {
+	return r.secrets[id], nil
+}
+func (r *fakeRepo) Delete(context.Context, uuid.UUID) error    { return nil }
+func (r *fakeRepo) SealPlaintext(context.Context) (int, error) { return 0, nil }
+
+func resetBreaker() {
+	breaker = circuit.New(circuit.DefaultThreshold, circuit.DefaultCooldown)
+	invocationCache = &responseCache{m: map[string]cacheEntry{}}
+}
+
+func testProvider(url string, cacheTTLs int32) Provider {
+	return Provider{
+		ID: uuid.New(), Kind: KindTaxProvider, Slug: "avatax-ish", Name: "Test",
+		TargetURL: url, Config: []byte(`{"apiKey":"k"}`), CacheTTLs: cacheTTLs,
+		FailurePolicy: FailOpen, IsActive: true,
+	}
+}
+
+func TestInvokeSignsAndDecodes(t *testing.T) {
+	resetBreaker()
+	var gotSig, gotKind string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSig = r.Header.Get("X-Provider-Signature-256")
+		gotKind = r.Header.Get("X-Provider-Kind")
+		gotBody = make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(gotBody)
+		_, _ = w.Write([]byte(`{"taxCents": 825}`))
+	}))
+	defer srv.Close()
+
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+
+	var out struct {
+		TaxCents int64 `json:"taxCents"`
+	}
+	if err := inv.Invoke(context.Background(), p, map[string]any{"subtotal": 10000}, &out); err != nil {
+		t.Fatalf("invoke: %v", err)
+	}
+	if out.TaxCents != 825 {
+		t.Fatalf("response not decoded: %+v", out)
+	}
+	if gotSig == "" || gotKind != "tax_provider" {
+		t.Fatalf("signing headers missing: sig=%q kind=%q", gotSig, gotKind)
+	}
+	for _, want := range []string{`"apiKey":"k"`, `"subtotal":10000`, `"provider":"avatax-ish"`} {
+		if !strings.Contains(string(gotBody), want) {
+			t.Fatalf("envelope missing %s: %s", want, gotBody)
+		}
+	}
+}
+
+func TestInvokeCachesByPayload(t *testing.T) {
+	resetBreaker()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer srv.Close()
+
+	p := testProvider(srv.URL, 60)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	var out map[string]any
+	for range 3 {
+		if err := inv.Invoke(context.Background(), p, map[string]any{"q": "same"}, &out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("expected 1 upstream hit with caching, got %d", hits.Load())
+	}
+	// different payload = different cache key
+	if err := inv.Invoke(context.Background(), p, map[string]any{"q": "other"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("expected 2 upstream hits, got %d", hits.Load())
+	}
+}
+
+func TestInvokeBreakerTrips(t *testing.T) {
+	resetBreaker()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	for i := range circuit.DefaultThreshold {
+		if err := inv.Invoke(context.Background(), p, map[string]any{"i": i}, nil); err == nil {
+			t.Fatal("expected error from 502")
+		}
+	}
+	err := inv.Invoke(context.Background(), p, map[string]any{"i": 99}, nil)
+	if err == nil || !errors.Is(err, ErrCircuitOpen) {
+		t.Fatalf("expected circuit-open error, got %v", err)
+	}
+	if hits.Load() != circuit.DefaultThreshold {
+		t.Fatalf("open circuit still hit upstream: %d", hits.Load())
+	}
+}
+
+// A probe whose caller walks away must hand its slot back - it used to leave the provider blocked until someone edited it or the process restarted
+func TestAnAbandonedProbeDoesNotStrandTheProvider(t *testing.T) {
+	resetBreaker()
+	var healthy atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !healthy.Load() {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	now := time.Now()
+	breaker.SetNow(func() time.Time { return now })
+
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	for i := range circuit.DefaultThreshold {
+		_ = inv.Invoke(context.Background(), p, map[string]any{"i": i}, nil)
+	}
+	now = now.Add(circuit.DefaultCooldown + time.Second)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = inv.Invoke(gone, p, map[string]any{"i": "probe"}, nil)
+
+	healthy.Store(true)
+	if err := inv.Invoke(context.Background(), p, map[string]any{"i": "next"}, nil); err != nil {
+		t.Fatalf("the call after an abandoned probe failed with %v, want it to probe and succeed", err)
+	}
+}
+
+func TestInvokeTimeout(t *testing.T) {
+	resetBreaker()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+	}))
+	defer srv.Close()
+
+	p := testProvider(srv.URL, 0)
+	p.TimeoutMs = 50
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	start := time.Now()
+	if err := inv.Invoke(context.Background(), p, map[string]any{}, nil); err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if time.Since(start) > 400*time.Millisecond {
+		t.Fatal("timeout_ms not honored")
+	}
+}
+
+// A 307 re-sends the signed body - config API keys included - to wherever Location points, so the invoker never follows one
+func TestInvokeRefusesToFollowARedirect(t *testing.T) {
+	resetBreaker()
+	var leaked atomic.Bool
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		leaked.Store(true)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer elsewhere.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	err := NewInvoker(NewService(newFakeRepo(p)), nil).Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	if err == nil {
+		t.Error("a redirect answered as success")
+	}
+	if leaked.Load() {
+		t.Error("the signed body followed the redirect")
+	}
+}
+
+// A 200 of garbage is a failing provider - recording it as a success meant it could never trip the breaker
+func TestAnUndecodableResponseCountsAgainstTheBreaker(t *testing.T) {
+	resetBreaker()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html>maintenance</html>`))
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	for range circuit.DefaultThreshold {
+		_ = inv.Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	}
+	if err := inv.Invoke(context.Background(), p, map[string]any{}, &struct{}{}); !errors.Is(err, ErrCircuitOpen) {
+		t.Errorf("after %d garbage answers: %v, want the circuit open", circuit.DefaultThreshold, err)
+	}
+}
+
+func TestAnOversizedResponseSaysSo(t *testing.T) {
+	resetBreaker()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"pad":"` + strings.Repeat("x", maxResponseBodyBytes) + `"}`))
+	}))
+	defer srv.Close()
+	p := testProvider(srv.URL, 0)
+	err := NewInvoker(NewService(newFakeRepo(p)), nil).Invoke(context.Background(), p, map[string]any{}, &struct{}{})
+	if err == nil || !strings.Contains(err.Error(), "bytes") {
+		t.Errorf("err = %v, want the size named", err)
+	}
+}
+
+// Live entries used to be kept however many there were - an hour-long TTL fed random search queries grew the process without bound
+func TestTheResponseCacheIsBounded(t *testing.T) {
+	c := &responseCache{m: map[string]cacheEntry{}}
+	id := uuid.New()
+	c.put("first", id, []byte("x"), time.Second) // expires soonest, so it makes way
+	for i := range maxCachedResponses + 50 {
+		c.put(fmt.Sprintf("k%d", i), id, []byte("x"), time.Hour)
+	}
+	if len(c.m) > maxCachedResponses {
+		t.Errorf("cache holds %d entries, cap %d", len(c.m), maxCachedResponses)
+	}
+	if _, ok := c.m["first"]; ok {
+		t.Error("the entry closest to expiring survived while the cache was full")
+	}
+}

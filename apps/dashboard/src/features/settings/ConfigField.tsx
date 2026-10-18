@@ -21,6 +21,7 @@ import { SortOptionsEditor } from './SortOptionsEditor'
 import { WorkingHoursEditor } from './WorkingHoursEditor'
 import { ConfigImageField } from './ConfigImageField'
 import { ConfigColorField } from './ConfigColorField'
+import { isValidJson } from './useConfigDrafts'
 
 export type ConfigFieldData = {
   path: string
@@ -103,7 +104,7 @@ export function ConfigField({
   const { text, hint } = splitLabel(field.label, field.description)
 
   const provenance = isDirty
-    ? { rail: RAIL.dirty, note: 'Unsaved', tone: 'text-amber-600 dark:text-amber-500', onHover: false }
+    ? { rail: RAIL.dirty, note: 'Unsaved', tone: 'text-warning', onHover: false }
     : inherited === undefined
       ? { rail: RAIL.quiet, note: '', tone: '', onHover: true }
       : inherited
@@ -317,10 +318,12 @@ function FieldEditor({
       )
 
     case 'PHONE':
+      // Saved as E.164 - a store-wide setting has no country to read a national number in
       return (
         <Input
           id={id}
           type="tel"
+          placeholder="+ country code and number"
           {...NO_AUTOFILL}
           value={value}
           onChange={textChange(value, onChange)}
@@ -421,11 +424,3 @@ function FieldEditor({
   }
 }
 
-function isValidJson(raw: string): boolean {
-  try {
-    JSON.parse(raw)
-    return true
-  } catch {
-    return false
-  }
-}

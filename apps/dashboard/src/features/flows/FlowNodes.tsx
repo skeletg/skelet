@@ -7,7 +7,6 @@ import {
   GitBranchIcon,
   TagIcon,
   WebhookIcon,
-  SatelliteDishIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,7 +20,6 @@ const ICONS: Record<string, LucideIcon> = {
   split: GitBranchIcon,
   add_segment: TagIcon,
   webhook: WebhookIcon,
-  remote_action: SatelliteDishIcon,
 }
 
 function Box({
@@ -87,9 +85,6 @@ export function SegmentNode({ data, selected }: NodeProps) {
 export function WebhookNode({ data, selected }: NodeProps) {
   return <LeafBody type="webhook" data={data} selected={selected} />
 }
-export function RemoteActionNode({ data, selected }: NodeProps) {
-  return <LeafBody type="remote_action" data={data} selected={selected} />
-}
 
 export function SplitNode({ data, selected }: NodeProps) {
   return (
@@ -98,8 +93,8 @@ export function SplitNode({ data, selected }: NodeProps) {
       <Box type="split" summary={nodeSummary('split', data as FlowNodeData)} selected={selected} />
       <Handle id="yes" type="source" position={Position.Bottom} style={{ left: '28%' }} />
       <Handle id="no" type="source" position={Position.Bottom} style={{ left: '72%' }} />
-      <span className="absolute -bottom-4 left-[20%] text-[9px] font-medium text-green-600">yes</span>
-      <span className="absolute -bottom-4 left-[66%] text-[9px] font-medium text-rose-600">no</span>
+      <span className="absolute -bottom-4 left-[20%] text-[9px] font-medium text-success">yes</span>
+      <span className="absolute -bottom-4 left-[66%] text-[9px] font-medium text-destructive">no</span>
     </div>
   )
 }

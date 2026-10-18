@@ -126,8 +126,6 @@ fragment LensSessionFields on LensSession {
   id
   anonId
   customerId
-  customerName
-  customerEmail
   startedAt
   endedAt
   durationMs

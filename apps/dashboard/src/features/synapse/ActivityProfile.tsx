@@ -4,6 +4,8 @@ import { type LucideIcon, ActivityIcon, GlobeIcon, MailIcon, PackageIcon, Shoppi
 import { cn } from '@/lib/utils'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { eventLabel } from './eventLabel'
+import { Tile } from '@/components/layout/panels'
+import { formatCents, formatDate, formatDateTime } from '@/lib/format'
 
 // Shared behavioural-profile renderer for Synapse: KPI tiles + a by-event
 // breakdown + the activity timeline (List ↔ visual day-grouped rail toggle)
@@ -55,10 +57,10 @@ export type ProfileData = {
 }
 
 const LIFECYCLE_STYLE: Record<string, string> = {
-  new: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
-  active: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-  at_risk: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  lapsed: 'bg-red-500/10 text-red-600 border-red-500/30',
+  new: 'bg-info-soft text-info border-info/30',
+  active: 'bg-success-soft text-success border-success/30',
+  at_risk: 'bg-warning-soft text-warning border-warning/30',
+  lapsed: 'bg-destructive-soft text-destructive border-destructive/30',
   prospect: 'bg-muted text-muted-foreground border-border',
 }
 
@@ -75,41 +77,28 @@ const sourceLabel = (s: string): string => SOURCE_LABELS[s] ?? s
 
 // sourceStyle gives each channel a stable color + icon for the visual rail
 // Class strings are full literals (never interpolated) so they survive purging
-function sourceStyle(s: string): { dot: string; Icon: LucideIcon } {
+function sourceStyle(s: string): { dot: string; fg: string; Icon: LucideIcon } {
   switch (s) {
     case 'web':
-      return { dot: 'bg-sky-500', Icon: GlobeIcon }
+      return { dot: 'bg-info', fg: 'text-info-foreground', Icon: GlobeIcon }
     case 'commerce':
-      return { dot: 'bg-emerald-500', Icon: ShoppingBagIcon }
+      return { dot: 'bg-success', fg: 'text-success-foreground', Icon: ShoppingBagIcon }
     case 'account':
-      return { dot: 'bg-amber-500', Icon: UserIcon }
+      return { dot: 'bg-muted-foreground', fg: 'text-background', Icon: UserIcon }
     case 'email':
     case 'campaign':
     case 'flow':
     case 'transactional':
-      return { dot: 'bg-violet-500', Icon: MailIcon }
+      return { dot: 'bg-muted-foreground', fg: 'text-background', Icon: MailIcon }
     default:
-      return { dot: 'bg-primary', Icon: ActivityIcon }
+      return { dot: 'bg-primary', fg: 'text-primary-foreground', Icon: ActivityIcon }
   }
 }
 
-function fmtDate(v?: string | null): string {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-function fmtDateTime(v?: string | null): string {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 function fmtTime(v?: string | null): string {
   if (!v) return '-'
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? '-' : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-}
-function fmtMoney(cents: number, currency: string): string {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
 }
 type TimelineItem = ProfileData['timeline'][number]
 type View = 'sessions' | 'channels' | 'story' | 'rhythm' | 'list'
@@ -188,8 +177,8 @@ export function ActivityProfile({
     <>
       <DetailPageSection title="Overview">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Tile label="First seen" value={fmtDate(p.firstSeen)} />
-          <Tile label="Last seen" value={fmtDate(p.lastSeen)} />
+          <Tile label="First seen" value={formatDate(p.firstSeen)} />
+          <Tile label="Last seen" value={formatDate(p.lastSeen)} />
           <Tile label="Visits" value={p.sessions.toLocaleString()} sub="distinct sessions" />
           <Tile label="Total events" value={p.totalEvents.toLocaleString()} />
           <Tile
@@ -197,7 +186,7 @@ export function ActivityProfile({
             value={p.pageViews.toLocaleString()}
             sub={
               p.conversions > 0
-                ? `${p.conversions} conversion${p.conversions === 1 ? '' : 's'}${p.revenue.length ? ' · ' + p.revenue.map((r) => fmtMoney(r.cents, r.currency)).join(', ') : ''}`
+                ? `${p.conversions} conversion${p.conversions === 1 ? '' : 's'}${p.revenue.length ? ' · ' + p.revenue.map((r) => formatCents(r.cents, r.currency)).join(', ') : ''}`
                 : 'no conversions'
             }
           />
@@ -313,7 +302,7 @@ function TraitsBody({ t, currency }: { t: NonNullable<ProfileData['traits']>; cu
   const money = (t.monetaryCents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
   const clv = (t.predictedClvCents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
   // Churn styling flips at the same thresholds the lifecycle stages use
-  const churnColor = t.churnRisk >= 70 ? 'bg-red-500' : t.churnRisk >= 40 ? 'bg-amber-500' : 'bg-emerald-500'
+  const churnColor = t.churnRisk >= 70 ? 'bg-destructive' : t.churnRisk >= 40 ? 'bg-warning' : 'bg-success'
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -386,10 +375,10 @@ function AffinitiesBody({ affinities }: { affinities: NonNullable<ProfileData['a
             <div className="mb-3 flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{a.name}</span>
               {top ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-xs">
                   <span className="text-muted-foreground">likely</span>
                   <span className="font-medium">{top.value}</span>
-                  <span className="font-semibold tabular-nums text-emerald-600">{Math.round((top.count / total) * 100)}%</span>
+                  <span className="font-semibold tabular-nums text-success">{Math.round((top.count / total) * 100)}%</span>
                 </span>
               ) : null}
             </div>
@@ -404,7 +393,7 @@ function AffinitiesBody({ affinities }: { affinities: NonNullable<ProfileData['a
                     </div>
                     <span className="block h-1.5 overflow-hidden rounded-full bg-muted">
                       <span
-                        className={cn('block h-full rounded-full', i === 0 ? 'bg-emerald-500' : 'bg-primary')}
+                        className={cn('block h-full rounded-full', i === 0 ? 'bg-success' : 'bg-primary')}
                         style={{ width: `${Math.max(3, pct)}%` }}
                       />
                     </span>
@@ -428,7 +417,7 @@ function ExperimentsBody({ arms }: { arms: NonNullable<ProfileData['experiments'
           <span className="font-mono text-xs">{a.experiment}</span>
           <span className="flex items-center gap-2">
             <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{a.variation}</span>
-            <span className="text-xs text-muted-foreground">{fmtDate(a.lastExposedAt)}</span>
+            <span className="text-xs text-muted-foreground">{formatDate(a.lastExposedAt)}</span>
           </span>
         </li>
       ))}
@@ -632,7 +621,7 @@ function SessionCard({ events }: { events: TimelineItem[] }) {
   return (
     <li className="overflow-hidden rounded-lg border">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-muted/30 px-3 py-2 text-xs">
-        <span className="font-medium text-foreground">{fmtDate(asc[0].occurredAt)}</span>
+        <span className="font-medium text-foreground">{formatDate(asc[0].occurredAt)}</span>
         <span className="text-muted-foreground">{fmtTime(asc[0].occurredAt)}</span>
         {durSec >= 60 ? <span className="text-muted-foreground">· {fmtDuration(durSec)}</span> : null}
         <span className="ml-auto text-muted-foreground tabular-nums">
@@ -654,7 +643,7 @@ function SessionRow({ e }: { e: TimelineItem }) {
   const det = detailFor(e)
   return (
     <li className="flex items-start gap-3 px-3 py-2">
-      <span className={cn('mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-white', s.dot)}>
+      <span className={cn('mt-0.5 grid size-6 shrink-0 place-items-center rounded-full', s.dot, s.fg)}>
         <Icon className="size-3" />
       </span>
       {det.image ? <img src={det.image} alt="" className="size-9 shrink-0 rounded border object-cover" loading="lazy" /> : null}
@@ -681,7 +670,7 @@ function CompactList({ items }: { items: TimelineItem[] }) {
                 {det.sub ? <span className="font-normal text-muted-foreground"> · {det.sub}</span> : null}
               </div>
               <div className="text-xs text-muted-foreground">
-                {sourceLabel(e.source)} · {fmtDateTime(e.occurredAt)}
+                {sourceLabel(e.source)} · {formatDateTime(e.occurredAt)}
               </div>
             </div>
           </li>
@@ -729,7 +718,7 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
                   return (
                     <span
                       key={i}
-                      title={`${det.primary} · ${fmtDateTime(e.occurredAt)}`}
+                      title={`${det.primary} · ${formatDateTime(e.occurredAt)}`}
                       className={cn('absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-background', sourceStyle(e.source).dot)}
                       style={{ left: `${left}%` }}
                     />
@@ -740,8 +729,8 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
         ))}
       </div>
       <div className="mt-1.5 flex justify-between pl-[88px] text-[11px] text-muted-foreground">
-        <span>{fmtDate(new Date(min).toISOString())}</span>
-        <span>{fmtDate(new Date(max).toISOString())}</span>
+        <span>{formatDate(new Date(min).toISOString())}</span>
+        <span>{formatDate(new Date(max).toISOString())}</span>
       </div>
     </div>
   )
@@ -752,7 +741,7 @@ function ChannelsView({ items }: { items: TimelineItem[] }) {
 function StoryView({ items }: { items: TimelineItem[] }) {
   const groups: { day: string; events: TimelineItem[] }[] = []
   for (const e of items) {
-    const day = fmtDate(e.occurredAt)
+    const day = formatDate(e.occurredAt)
     const last = groups[groups.length - 1]
     if (last && last.day === day) last.events.push(e)
     else groups.push({ day, events: [e] })
@@ -769,7 +758,7 @@ function StoryView({ items }: { items: TimelineItem[] }) {
               const det = detailFor(e)
               return (
                 <li key={i} className="flex items-start gap-3 rounded-lg border p-2">
-                  <span className={cn('mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-white', s.dot)}>
+                  <span className={cn('mt-0.5 grid size-7 shrink-0 place-items-center rounded-full', s.dot, s.fg)}>
                     <Icon className="size-3.5" />
                   </span>
                   {det.image ? <img src={det.image} alt="" className="size-12 shrink-0 rounded border object-cover" loading="lazy" /> : null}
@@ -865,23 +854,13 @@ function Legend({ className }: { className?: string }) {
         const Icon = s.Icon
         return (
           <span key={it.s} className="inline-flex items-center gap-1.5">
-            <span className={cn('grid size-3.5 place-items-center rounded-full text-white', s.dot)}>
+            <span className={cn('grid size-3.5 place-items-center rounded-full', s.dot, s.fg)}>
               <Icon className="size-2" />
             </span>
             {it.label}
           </span>
         )
       })}
-    </div>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
 }

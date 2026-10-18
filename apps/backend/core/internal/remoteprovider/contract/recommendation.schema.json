@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Recommend related products for a product page.",
+  "properties": {
+    "request": {
+      "properties": {
+        "limit": {
+          "type": "integer"
+        },
+        "productId": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "limit",
+        "productId",
+        "strategy"
+      ],
+      "title": "remoteRecRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "productIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "productIds"
+      ],
+      "title": "remoteRecResponse",
+      "type": "object"
+    }
+  },
+  "title": "recommendation",
+  "x-kind": "recommendation",
+  "x-source": "internal/recommend.remoteRecRequest -\u003e internal/recommend.remoteRecResponse"
+}

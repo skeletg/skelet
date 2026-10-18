@@ -17,22 +17,6 @@ query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [Stri
   }
 }
 
-query Orders {
-  orders {
-    id
-    number
-    status
-    paymentStatus
-    total
-    currencyCode
-    createdAt
-    shippingAddress {
-      firstName
-      lastName
-    }
-  }
-}
-
 query Order($id: ID!) {
   order(id: $id) {
     id
@@ -48,11 +32,18 @@ query Order($id: ID!) {
     shippingAmount
     discountAmount
     taxAmount
+    shippingRefundable
     total
     giftCardAmount
     storeCreditAmount
     currencyCode
     customerNote
+    poNumber
+    businessIds {
+      key
+      label
+      value
+    }
     carrier
     trackingNumber
     trackingUrl
@@ -83,16 +74,16 @@ query Order($id: ID!) {
     }
     lines {
       id
-      productName
-      productSku
+      name
+      sku
       unitPrice
       quantity
       totalPrice
       isGift
       components {
         id
-        productSku
-        productName
+        sku
+        name
         unitPrice
         quantity
       }
@@ -180,13 +171,17 @@ query Order($id: ID!) {
   }
 }
 
-mutation GenerateShippingLabel($fulfillmentId: ID!) {
-  generateShippingLabel(fulfillmentId: $fulfillmentId) {
+mutation GenerateShippingLabel($fulfillmentId: ID!, $force: Boolean) {
+  generateShippingLabel(fulfillmentId: $fulfillmentId, force: $force) {
     id
     format
     trackingNumber
     dataUrl
   }
+}
+
+mutation ResendOrderEmail($orderId: ID!, $message: OrderEmailMessage!, $fulfillmentId: ID) {
+  resendOrderEmail(orderId: $orderId, message: $message, fulfillmentId: $fulfillmentId)
 }
 
 mutation ConfirmOrder($id: ID!) {
@@ -395,8 +390,8 @@ query CreditMemos($orderId: ID!) {
     createdAt
     lines {
       orderLineId
-      productSku
-      productName
+      sku
+      name
       quantity
       unitAmount
       totalAmount

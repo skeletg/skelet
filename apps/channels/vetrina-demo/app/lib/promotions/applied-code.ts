@@ -44,6 +44,6 @@ export function describeAppliedCode(c: AppliedPromotionCode): AppliedCodeBenefit
 // "2× TOTE-BAG, MUG" - the gifts a code actually put in the cart
 export function giftSummary(gifts: PromotionFreeGift[]): string {
   return gifts
-    .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.productSku}`)
+    .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.sku}`)
     .join(", ");
 }

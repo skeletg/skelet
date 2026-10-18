@@ -1,4 +1,6 @@
+import { StoresLink } from "./stores/StoresLink";
 import { Link } from "@/app/components/LocaleLink";
+import { getTranslations } from "next-intl/server";
 
 import { getFreeShippingThreshold } from "@/app/lib/cart/read";
 import { loadHeader } from "@/app/lib/header/read";
@@ -30,7 +32,11 @@ export async function Header() {
     loadMenu("main-nav"),
     getFreeShippingThreshold(),
   ]);
-  const [brand, branding] = await Promise.all([getStoreName(), getBranding()]);
+  const [brand, branding, t] = await Promise.all([
+    getStoreName(),
+    getBranding(),
+    getTranslations("header"),
+  ]);
 
   return (
     <>
@@ -38,14 +44,15 @@ export async function Header() {
       <div className="site-banner bg-midnight-deep text-white">
         <p className="mx-auto w-full max-w-8xl px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-white/80 md:px-8">
           {freeShipThreshold > 0 ? (
-            <>
-              Free shipping on orders over{" "}
-              <span className="text-white">
-                {formatPrice(freeShipThreshold, channel?.currencyCode ?? "USD")}
-              </span>
-            </>
+            t.rich("freeShippingOver", {
+              amount: () => (
+                <span className="text-white">
+                  {formatPrice(freeShipThreshold, channel?.currencyCode ?? "USD")}
+                </span>
+              ),
+            })
           ) : (
-            <>Fair prices. Fast shipping. Easy returns.</>
+            t("tagline")
           )}
         </p>
       </div>
@@ -90,7 +97,7 @@ export async function Header() {
 
           {/* Admin-curated main-nav, catalog fallbacks otherwise - unresolved targets drop silently */}
           <nav
-            aria-label={mainNav?.name ?? "Browse"}
+            aria-label={mainNav?.name ?? t("browse")}
             className="hidden min-w-0 md:block md:pl-4"
           >
             <ul className="flex items-center gap-5 text-sm font-medium text-muted-foreground">
@@ -98,7 +105,7 @@ export async function Header() {
                 ? mainNav.items.flatMap((it) =>
                     it.url ? [{ key: it.id, url: it.url, label: it.label }] : [],
                   )
-                : FALLBACK_NAV
+                : FALLBACK_NAV.map((it) => ({ ...it, label: t(it.label) }))
               ).map((it) => (
                 <li key={it.key} className="shrink-0">
                   <Link
@@ -113,6 +120,7 @@ export async function Header() {
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <StoresLink />
             <SearchModal />
             {/* The currency switcher (approx-price presentment) is deliberately not rendered - the
                 provider, cookie plumbing and backend rates all still work, so restoring it is just
@@ -132,8 +140,9 @@ export async function Header() {
   );
 }
 
+// label is a header.* message key
 const FALLBACK_NAV = [
-  { key: "products", url: "/products", label: "All products" },
-  { key: "collections", url: "/collections", label: "Collections" },
-  { key: "blog", url: "/blog", label: "Blog" },
-];
+  { key: "products", url: "/products", label: "allProducts" },
+  { key: "collections", url: "/collections", label: "collections" },
+  { key: "blog", url: "/blog", label: "blog" },
+] as const;

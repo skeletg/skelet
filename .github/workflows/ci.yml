@@ -1,10 +1,5 @@
-# Backend + frontend test gate. The point of the service containers: the env-gated
-# integration suites - ClickHouse engine parity, the GDPR/forwarding/lens-grid
-# store tests, and the incremental-engagement equivalence - run here, not only
-# when someone remembers to export the DSNs locally. The queue
-# round-trip needs no service (it embeds nats-server). Mirrors dev: postgres
-# 18, clickhouse 26.7.5, migrate v4.19.1 - keep the pins in sync with
-# docker-compose.yml and apps/backend/Dockerfile.prod.
+# Backend + frontend test gate - the service containers are here so the env-gated integration suites run on every push, not only when someone exports the DSNs
+# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by bin/pin-check - the queue round-trip embeds nats-server and needs no service
 name: CI
 
 on:
@@ -36,7 +31,7 @@ jobs:
       clickhouse:
         image: clickhouse/clickhouse-server:26.7.5
         env:
-          CLICKHOUSE_DB: signals
+          CLICKHOUSE_DB: skelet_test_signals
           CLICKHOUSE_USER: skelet
           CLICKHOUSE_PASSWORD: skelet
         ports: ["9000:9000"]
@@ -48,8 +43,7 @@ jobs:
     env:
       DATABASE_URL: postgres://skelet:skelet@localhost:5432/skelet?sslmode=disable
       SIGNALS_DB_URL: postgres://skelet:skelet@localhost:5432/skelet_signals?sslmode=disable
-      SIGNALS_CH_TEST_DSN: clickhouse://skelet:skelet@localhost:9000/signals
-      SIGNALS_CH_MIGRATE_URL: clickhouse://localhost:9000?username=skelet&password=skelet&database=signals&x-multi-statement=true
+      SIGNALS_CH_TEST_DSN: clickhouse://skelet:skelet@localhost:9000/skelet_test_signals
     steps:
       # Full history + tags: the SDK's apidiff gate compares the surface against the last v* tag,
       # and a depth-1 checkout has none, which silently downgrades it to a skip
@@ -58,11 +52,14 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/backend/go.mod
-          cache-dependency-path: apps/backend/go.sum
-      - name: Install migrate
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: |
+            apps/backend/core/go.sum
+            apps/backend/signals/go.sum
+            apps/backend/sdk/go.sum
+      - name: Install dbmate
         run: |
-          go install -tags 'postgres,clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+          CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # The signals schema lives in its own database, same instance is fine (the
       # split contract) - the service container only creates the commerce one
@@ -70,7 +67,7 @@ jobs:
         run: psql "$DATABASE_URL" -c 'CREATE DATABASE skelet_signals'
         env:
           PGPASSWORD: skelet
-      # Every DB-backed test refuses a database without this marker (internal/testdb) - tests
+      # Every DB-backed test refuses a database without this marker (testdb) - tests
       # write real rows, so consent lives in the database, where a production DSN can't carry it
       - name: Mark databases as test-disposable
         run: |
@@ -78,32 +75,50 @@ jobs:
           psql "$DATABASE_URL" -c "ALTER DATABASE skelet_signals SET skelet.e2e = 'allowed'"
         env:
           PGPASSWORD: skelet
+      - name: Mark the spine database as test-disposable
+        run: docker exec ${{ job.services.clickhouse.id }} clickhouse-client --user=skelet --password=skelet --query "ALTER DATABASE skelet_test_signals MODIFY COMMENT 'skelet.e2e=allowed'"
       - name: Migrate commerce
-        working-directory: apps/backend
-        run: migrate -path internal/db/migrations -database "$DATABASE_URL" up
+        working-directory: apps/backend/core
+        run: dbmate --no-dump-schema --migrations-dir internal/db/migrations up
       - name: Migrate signals
-        working-directory: apps/backend
-        run: migrate -path internal/db/signals/migrations -database "$SIGNALS_DB_URL" up
+        working-directory: apps/backend/signals
+        run: dbmate --no-dump-schema --env SIGNALS_DB_URL --migrations-dir internal/db/migrations up
       - name: Migrate clickhouse
-        working-directory: apps/backend
-        run: migrate -path internal/analytics/spinech/migrations -database "$SIGNALS_CH_MIGRATE_URL" up
+        working-directory: apps/backend/signals
+        run: dbmate --no-dump-schema --env SIGNALS_CH_TEST_DSN --migrations-dir internal/analytics/spinech/migrations up
       - name: Build
-        working-directory: apps/backend
+        working-directory: apps/backend/core
         run: go build ./...
       - name: Vet
-        working-directory: apps/backend
+        working-directory: apps/backend/core
         run: go vet ./...
       - name: Test
-        working-directory: apps/backend
-        # -race, because the bus dispatches to detached goroutines, the outbox relay runs eight concurrent workers, and
-        # several registries are written at init() then read under load - none of which a plain run would catch
+        working-directory: apps/backend/core
+        # -race, because the bus dispatches to detached goroutines and the outbox relay runs eight concurrent workers
+        # -timeout past go's 10m default - CI builds its databases fresh, but -race is a different animal
+        # internal/e2e sits out, as in bin/test - bin/test-e2e gives it its own databases and a Signals process
+        run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
+      # The Signals module is its own go.mod, replacing core's by relative path - a change in a core
+      # package the suite imports has to fail here, not on the suite's image build
+      - name: Build (signals)
+        working-directory: apps/backend/signals
+        run: go build ./...
+      - name: Vet (signals)
+        working-directory: apps/backend/signals
+        run: go vet ./...
+      - name: Test (signals)
+        working-directory: apps/backend/signals
+        run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
+      # The SDK is the third module - its surface gate compares against the last tag, which the full-depth checkout above provides
+      - name: Test (sdk)
+        working-directory: apps/backend/sdk
         run: go test ./... -count=1 -race
       # The containers build with -tags vips (libvips webp rendering) - this step
       # is the only CI coverage that file gets, since the untagged runs skip it
       - name: Install libvips
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvips-dev
       - name: Build + test (vips tag)
-        working-directory: apps/backend
+        working-directory: apps/backend/core
         # -race here too - the tag already forces cgo, so the toolchain cost is paid
         run: |
           go build -tags vips ./...
@@ -122,7 +137,8 @@ jobs:
       - id: list
         run: |
           front='{"app":"dashboard","dir":"apps/dashboard"}'
-          images='{"image":"backend","context":"apps/backend"},{"image":"dashboard","context":"apps/dashboard"}'
+          # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
+          images='{"image":"backend","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
           for d in apps/channels/*/; do
             [ -f "$d/package.json" ] || continue
             n=$(basename "$d")
@@ -143,36 +159,36 @@ jobs:
       matrix: ${{ fromJSON(needs.discover.outputs.frontends) }}
     steps:
       - uses: actions/checkout@v4
+      # Version from the app's packageManager field - there's no root package.json for the
+      # action's default to read. Before setup-node, whose pnpm cache needs pnpm on PATH
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ matrix.dir }}/package.json
       # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
       - name: Install
         working-directory: ${{ matrix.dir }}
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         working-directory: ${{ matrix.dir }}
-        run: npm run typecheck
+        run: pnpm run typecheck
       # eslint stays out - it has accepted findings and bin/lint treats it as non-blocking
       - name: Test
         working-directory: ${{ matrix.dir }}
-        run: npm test
+        run: pnpm test
       # Production build - catches what typecheck+tests can't (vite chunking, next's prerender pass). Needs no live backend: every
       # storefront route is dynamic (gqlFetch reads cookies/headers), so next build fetches nothing at build time
       - name: Build
         working-directory: ${{ matrix.dir }}
-        run: npm run build
+        run: pnpm run build
 
-  # The prod images are how this actually deploys, so a Dockerfile that stops
-  # building must fail the PR, not the release evening. Build only - no push, no tags
-  # The dashboard's workspace shell is pointer gestures and cross-device state - dragging tabs
-  # between panes, splits, workspaces roaming through the preferences store. None of it is
-  # reachable from jsdom, so this is the only job that runs a real browser against a real stack.
-  # It builds two images, so it is the slowest job here; everything it covers is unreachable
-  # from `npm test`, which is why it is not folded into the frontend job.
+  # The prod images are how this actually deploys, so a Dockerfile that stops building must fail the PR, not the release evening.
+  # Build only - no push, no tags The dashboard's workspace shell is pointer gestures and cross-device state - dragging tabs between panes, splits, workspaces roaming through the preferences store.
   e2e:
     name: Dashboard end-to-end (real browser, real stack)
     runs-on: ubuntu-latest
@@ -181,11 +197,14 @@ jobs:
       E2E_ADMIN_PASSWORD: e2e-password
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/dashboard/package.json
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: apps/dashboard/package-lock.json
+          cache: pnpm
+          cache-dependency-path: apps/dashboard/pnpm-lock.yaml
       # bin/setup writes these from the templates on a dev machine; CI has no interactive setup
       - name: Environment files
         run: |
@@ -206,13 +225,13 @@ jobs:
         run: timeout 180 bash -c 'until curl -sf -o /dev/null http://localhost:5173/login; do sleep 2; done'
       - name: Install
         working-directory: apps/dashboard
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Install the browser
         working-directory: apps/dashboard
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Run the suite
         working-directory: apps/dashboard
-        run: npm run test:e2e
+        run: pnpm run test:e2e
       # A failed browser test says little without the trace, and nothing at all about why the
       # stack behind it misbehaved
       - name: Playwright report
@@ -234,7 +253,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # context = the app dir, matching docker-compose.prod.yml
       matrix: ${{ fromJSON(needs.discover.outputs.images) }}
     steps:
       - uses: actions/checkout@v4
@@ -243,7 +261,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/Dockerfile.prod
+          file: ${{ matrix.file || format('{0}/Dockerfile.prod', matrix.context) }}
           push: false
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
@@ -255,42 +273,66 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/backend/go.mod
-          cache-dependency-path: apps/backend/go.sum
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: |
+            apps/backend/core/go.sum
+            apps/backend/signals/go.sum
+            apps/backend/sdk/go.sum
       - name: gofmt
-        working-directory: apps/backend
         run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "gofmt would reformat:" && echo "$unformatted" && exit 1
-          fi
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+            unformatted=$(cd "$mod" && gofmt -l .)
+            if [ -n "$unformatted" ]; then
+              echo "gofmt would reformat in $mod:" && echo "$unformatted" && exit 1
+            fi
+          done
       # same pin as bin/lint - the two must agree or CI and local disagree
       - name: golangci-lint
-        working-directory: apps/backend
-        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...
+        run: |
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+            echo "==> $mod"
+            (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...) || exit 1
+          done
       # The pre-commit hook runs the whole of bin/codegen, but two of its steps need a live backend, so CI covers the part that needs
       # nothing but Go - it also fails when a plugin directory exists that plugins.json has not decided on
       - name: Plugin set matches plugins.json
-        working-directory: apps/backend
+        working-directory: apps/backend/core
         run: |
           go run ./cmd/plugingen
           git diff --exit-code plugins/firstparty
-      # The published reference providers are their own modules, so no other job
-      # compiles them - a contract change that breaks one fails here, not on a fork
-      - name: Example modules build
-        run: |
-          fail=0
-          for mod in $(find examples -name go.mod); do
-            echo "==> $(dirname "$mod")"
-            (cd "$(dirname "$mod")" && go build ./...) || fail=1
-          done
-          exit $fail
 
   # The same command the pre-commit hook runs, so "bin/check passes" means the same
-  # thing locally and here. No toolchain, no containers - three greps
+  # thing locally and here. Greps, plus buf's compatibility check of the proto against main, which
+  # needs main's history and runs on the host Go here (in the app container on a workstation)
   gates:
     name: bin/check (pins, structure, contracts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: apps/backend/core/go.sum
       - run: bin/check
+
+  # The backend half of bin/codegen --check (the TS half needs a running server) - regenerates in place and fails on any diff
+  codegen:
+    name: Codegen drift (backend half)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: |
+            apps/backend/core/go.sum
+            apps/backend/signals/go.sum
+            apps/backend/sdk/go.sum
+      - name: Environment files
+        run: |
+          cp env/go.env.example env/go.env
+          cp env/db.env.example env/db.env
+      - name: bin/codegen --check --no-frontend
+        run: bin/codegen --check --no-frontend

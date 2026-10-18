@@ -222,7 +222,7 @@ export function SearchMerchPage() {
                       <span>
                         <span className="font-mono text-xs">“{b.query}”</span> → product{' '}
                         <span className="font-mono text-xs">{b.productId}</span>{' '}
-                        <span className={b.weight > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}>
+                        <span className={b.weight > 0 ? 'text-success' : 'text-destructive'}>
                           {b.weight > 0 ? `boost +${b.weight}` : `bury ${b.weight}`}
                         </span>
                       </span>

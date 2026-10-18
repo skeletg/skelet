@@ -1,6 +1,5 @@
-// SYNC: mirrors frontCacheableOps in apps/backend/internal/wiring/response_cache.go - the backend serves exactly these from Valkey for anonymous callers, so a name here that isn't there means one side caches what the other won't
-// Sending a token on these bypasses that cache AND forces the route dynamic, which is what blocks full-page caching
-// Opt-OUT on purpose - a query missing from this list keeps its token, so forgetting one costs performance, never correctness
+// SYNC: mirrors frontCacheableOps in apps/backend/core/internal/wiring/response_cache.go - a name here that is not there means one side caches what the other does not
+// Opt-out on purpose: a query missing from this list keeps its token, so forgetting one costs performance, never correctness
 export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Product",
   "ProductWithReviews",
@@ -24,6 +23,7 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Countries",
   "CountrySettings",
   "Regions",
+  "PhoneSettings",
   "BlogPost",
   "BlogPostById",
   "BlogPosts",
@@ -35,7 +35,7 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "PresentmentCurrencies",
   "BlogPostsForSitemap",
   "CmsPagesForSitemap",
-  "PaymentMethods",
+  // PaymentMethods is not here - it reads the cart, and a signed-in shopper's cart refuses a request without their token
 ])
 
 export function isPublicOp(opName: string): boolean {

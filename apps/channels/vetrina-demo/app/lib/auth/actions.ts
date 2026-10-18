@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { revalidateAccount } from "@/app/lib/revalidate";
 import {
   AccountAddAddressDocument,
   AccountDeleteAddressDocument,
@@ -13,6 +14,7 @@ import {
   CustomerLogoutDocument,
   CustomerRegisterDocument,
   RequestPasswordResetDocument,
+  ResendVerificationDocument,
   ResendVerificationEmailDocument,
   ResetPasswordDocument,
   SetDefaultBillingAddressDocument,
@@ -28,8 +30,19 @@ import {
 } from "@/app/lib/auth/session";
 import { CART_COOKIE } from "@/app/lib/cart/read";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "@/app/lib/cart/merge-flag";
-import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
+import { GraphQLRequestError, gqlFetch } from "@/app/lib/graphql";
 import { safeReturnTo } from "@/app/lib/auth/return-to";
+import {
+  addressSchema,
+  changePasswordSchema,
+  forgotSchema,
+  loginSchema,
+  profileSchema,
+  registerSchema,
+  resetSchema,
+} from "@/app/lib/auth/schemas";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
+import { replyError } from "@/app/lib/forms/reply";
 
 // Returns false when the merge failed. The guest cart cookie is the customer's only handle on those lines, so it stays
 // put - dropping it on a backend hiccup throws the basket away for good
@@ -55,42 +68,24 @@ function withFlag(path: string, key: string, value: string): string {
   return `${path}${sep}${key}=${value}`;
 }
 
-// Server actions can't throw structured field errors to a form action, so return a
-// serializable result instead - one error string is enough for login/register
-export type AuthResult =
-  | { ok: true }
-  | { ok: false; error: string };
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof GraphQLRequestError && err.errors[0]?.message) {
-    return err.errors[0].message;
-  }
-  if (err instanceof Error && err.message) return err.message;
-  return fallback;
-}
+// Never echoed back into a re-rendered form - a failed submit clears them
+const PASSWORD_FIELDS = [
+  "password",
+  "confirmPassword",
+  "currentPassword",
+  "newPassword",
+];
 
 export async function registerAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  const confirm = String(formData.get("confirmPassword") ?? "");
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const marketingOptIn = formData.get("marketingOptIn") === "on";
-  const referralCode =
-    String(formData.get("referralCode") ?? "").trim() || null;
-
-  if (!email || !password || !firstName || !lastName) {
-    return { ok: false, error: "All fields are required." };
+): Promise<FormResult> {
+  const submission = parseForm(formData, registerSchema);
+  if (submission.status !== "success") {
+    return submission.reply({ hideFields: PASSWORD_FIELDS });
   }
-  if (password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
-  }
-  if (password !== confirm) {
-    return { ok: false, error: "Passwords do not match." };
-  }
+  const { email, password, firstName, lastName, referralCode } = submission.value;
+  const marketingOptIn = submission.value.marketingOptIn ?? false;
 
   const returnTo = safeReturnTo(formData.get("returnTo"));
   let verificationRequired = false;
@@ -99,15 +94,15 @@ export async function registerAction(
       input: { email, password, firstName, lastName, marketingOptIn, referralCode },
     });
     const payload = res.data.customerRegister;
-    // The store can require a verified address before issuing any session - the account exists but there are no tokens
-    // to set, so route to "check your inbox" instead of pretending the sign-in failed
+    // No tokens means the inbox holds the next step - a verification link, or a note to the owner when the address was
+    // already registered. The two look the same here on purpose, so route both to "check your inbox"
     verificationRequired =
       payload.verificationRequired || !payload.accessToken || !payload.refreshToken;
     if (!verificationRequired) {
       await setSessionCookies(payload.accessToken!, payload.refreshToken!);
     }
   } catch (err) {
-    return { ok: false, error: errorMessage(err, "Registration failed.") };
+    return replyError(submission, err, "registrationFailed", PASSWORD_FIELDS);
   }
   if (verificationRequired) {
     redirect("/account/login?verify=required");
@@ -120,15 +115,14 @@ export async function registerAction(
 }
 
 export async function loginAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  if (!email || !password) {
-    return { ok: false, error: "Email and password are required." };
+): Promise<FormResult> {
+  const submission = parseForm(formData, loginSchema);
+  if (submission.status !== "success") {
+    return submission.reply({ hideFields: PASSWORD_FIELDS });
   }
+  const { email, password } = submission.value;
 
   const returnTo = safeReturnTo(formData.get("returnTo"));
   try {
@@ -138,11 +132,18 @@ export async function loginAction(
     const payload = res.data.customerLogin;
     // Login always carries tokens - the nullable shape is shared with register, which withholds them pending verification
     if (!payload.accessToken || !payload.refreshToken) {
-      return { ok: false, error: "Sign in failed." };
+      return submission.reply({
+        formErrors: ["signInFailed"],
+        hideFields: PASSWORD_FIELDS,
+      });
     }
     await setSessionCookies(payload.accessToken, payload.refreshToken);
   } catch (err) {
-    return { ok: false, error: errorMessage(err, "Sign in failed.") };
+    // The form offers a fresh confirmation link off this key, since the gate keeps the shopper from the signed-in resend
+    if (err instanceof GraphQLRequestError && err.errors[0]?.extensions?.code === "EMAIL_NOT_VERIFIED") {
+      return submission.reply({ formErrors: ["emailNotVerified"], hideFields: PASSWORD_FIELDS });
+    }
+    return replyError(submission, err, "signInFailed", PASSWORD_FIELDS);
   }
   const merged = await mergeGuestCartIfNeeded();
   revalidatePath("/", "layout");
@@ -151,49 +152,45 @@ export async function loginAction(
 }
 
 export async function requestPasswordResetAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const email = String(formData.get("email") ?? "").trim();
-  if (!email) {
-    return { ok: false, error: "Email is required." };
-  }
+): Promise<FormResult> {
+  const submission = parseForm(formData, forgotSchema);
+  if (submission.status !== "success") return submission.reply();
   try {
-    await gqlFetch(RequestPasswordResetDocument, { email });
+    await gqlFetch(RequestPasswordResetDocument, {
+      email: submission.value.email,
+    });
   } catch {
     // Same anti-enumeration story - surface success even if the backend returned an
     // error so we don't leak account existence
   }
-  return { ok: true };
+  return replyReset(submission);
 }
 
 // token arrives as a bound argument, never as a form field - Next encrypts bound args,
 // so the live reset secret stays out of the DOM (and out of replay/snapshot capture)
 export async function resetPasswordAction(
   boundToken: string,
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
+): Promise<FormResult> {
+  const submission = parseForm(formData, resetSchema);
+  if (submission.status !== "success") {
+    return submission.reply({ hideFields: PASSWORD_FIELDS });
+  }
   const token = boundToken.trim();
-  const newPassword = String(formData.get("newPassword") ?? "");
-  const confirm = String(formData.get("confirmPassword") ?? "");
-  if (!token) return { ok: false, error: "Reset link is missing." };
-  if (newPassword.length < 8) {
-    return {
-      ok: false,
-      error: "Password must be at least 8 characters.",
-    };
+  if (!token) {
+    return submission.reply({
+      formErrors: ["resetLinkMissing"],
+      hideFields: PASSWORD_FIELDS,
+    });
   }
-  if (newPassword !== confirm) {
-    return { ok: false, error: "Passwords do not match." };
-  }
+  const { newPassword } = submission.value;
   try {
     await gqlFetch(ResetPasswordDocument, { token, newPassword });
   } catch (err) {
-    return {
-      ok: false,
-      error: errorMessage(err, "Reset link is invalid or expired."),
-    };
+    return replyError(submission, err, "resetLinkInvalid", PASSWORD_FIELDS);
   }
   redirect("/account/login?reset=ok");
 }
@@ -214,157 +211,101 @@ export async function resendVerificationEmailAction(formData: FormData) {
   redirect(`${returnTo}${sep}resent=${sent ? "1" : "0"}`);
 }
 
+// Signed out, for an account the verification gate won't let sign in. The backend answers the same for any address, and
+// so does this - a failure is not shown, or it would say the address exists
+export async function resendVerificationAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  const returnTo = safeReturnTo(formData.get("returnTo"));
+  if (email) {
+    try {
+      await gqlFetch(ResendVerificationDocument, { email });
+    } catch (err) {
+      console.error("resend verification failed:", err);
+    }
+  }
+  const dest = "/account/login?verify=sent";
+  redirect(returnTo ? `${dest}&returnTo=${encodeURIComponent(returnTo)}` : dest);
+}
+
 export async function changePasswordAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const currentPassword = String(formData.get("currentPassword") ?? "");
-  const newPassword = String(formData.get("newPassword") ?? "");
-  const confirm = String(formData.get("confirmPassword") ?? "");
-  if (!currentPassword || !newPassword) {
-    return { ok: false, error: "All fields are required." };
+): Promise<FormResult> {
+  const submission = parseForm(formData, changePasswordSchema);
+  if (submission.status !== "success") {
+    return submission.reply({ hideFields: PASSWORD_FIELDS });
   }
-  if (newPassword.length < 8) {
-    return {
-      ok: false,
-      error: "Password must be at least 8 characters.",
-    };
-  }
-  if (newPassword !== confirm) {
-    return { ok: false, error: "Passwords do not match." };
-  }
+  const { currentPassword, newPassword } = submission.value;
   try {
     await gqlFetch(ChangeCustomerPasswordDocument, {
       currentPassword,
       newPassword,
     });
   } catch (err) {
-    return {
-      ok: false,
-      error: errorMessage(err, "Could not change password."),
-    };
+    return replyError(submission, err, "passwordChangeFailed", PASSWORD_FIELDS);
   }
-  revalidatePath("/account");
-  return { ok: true };
+  revalidateAccount();
+  return replyReset(submission);
 }
 
 export async function updateProfileAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const phoneRaw = String(formData.get("phone") ?? "").trim();
-  // Send null for an explicitly-cleared phone so the backend can wipe the column
-  const phone = phoneRaw.length > 0 ? phoneRaw : null;
+): Promise<FormResult> {
+  const submission = parseForm(formData, profileSchema);
+  if (submission.status !== "success") return submission.reply();
+  // phone is null when cleared, so the backend wipes the column
+  const { firstName, lastName, phone } = submission.value;
   try {
-    await gqlFetch(UpdateProfileDocument, {
-      firstName: firstName || null,
-      lastName: lastName || null,
-      phone,
-    });
+    await gqlFetch(UpdateProfileDocument, { firstName, lastName, phone });
   } catch (err) {
-    return { ok: false, error: errorMessage(err, "Could not save profile.") };
+    return replyError(submission, err, "profileSaveFailed");
   }
-  revalidatePath("/account");
-  return { ok: true };
+  revalidateAccount();
+  return submission.reply();
 }
 
 // Address actions live with the auth surface because every mutation here is gated on a logged-in customer; failures
-// bubble back as the same AuthResult shape the profile/password forms use
+// bubble back as the same form result the profile/password forms use
 
-type AddressFormShape = {
-  firstName: string;
-  lastName: string;
-  company: string | null;
-  street1: string;
-  street2: string | null;
-  city: string;
-  state: string | null;
-  postalCode: string;
-  countryCode: string;
-  phone: string | null;
-};
-
-function readAddressInput(formData: FormData): AddressFormShape | string {
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const street1 = String(formData.get("street1") ?? "").trim();
-  const city = String(formData.get("city") ?? "").trim();
-  const postalCode = String(formData.get("postalCode") ?? "").trim();
-  const countryCode = String(formData.get("countryCode") ?? "")
-    .trim()
-    .toUpperCase();
-  if (
-    !firstName ||
-    !lastName ||
-    !street1 ||
-    !city ||
-    !postalCode ||
-    !countryCode
-  ) {
-    return "Please fill in every required field.";
-  }
-  // Country code must be a 2-letter ISO 3166 - backend validates the same shape;
-  // catching it early gives a clearer error than the backend's generic "invalid input"
-  if (!/^[A-Z]{2}$/.test(countryCode)) {
-    return "Country must be a 2-letter code (e.g. US, DE, RS).";
-  }
-  const company = String(formData.get("company") ?? "").trim() || null;
-  const street2 = String(formData.get("street2") ?? "").trim() || null;
-  const state = String(formData.get("state") ?? "").trim() || null;
-  const phone = String(formData.get("phone") ?? "").trim() || null;
-  return {
-    firstName,
-    lastName,
-    company,
-    street1,
-    street2,
-    city,
-    state,
-    postalCode,
-    countryCode,
-    phone,
-  };
+// The form posts PhoneInput's hidden companions beside the address - the API takes the address alone
+function addressInput<T extends { phoneCountry?: unknown; phoneAllowed?: unknown }>(v: T) {
+  const { phoneCountry: _country, phoneAllowed: _allowed, ...address } = v;
+  return address;
 }
 
 export async function addAddressAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
-  const parsed = readAddressInput(formData);
-  if (typeof parsed === "string") return { ok: false, error: parsed };
+): Promise<FormResult> {
+  const submission = parseForm(formData, addressSchema);
+  if (submission.status !== "success") return submission.reply();
   try {
-    await gqlFetch(AccountAddAddressDocument, { input: parsed });
+    await gqlFetch(AccountAddAddressDocument, { input: addressInput(submission.value) });
   } catch (err) {
-    return {
-      ok: false,
-      error: errorMessage(err, "Could not add address."),
-    };
+    return replyError(submission, err, "addressAddFailed");
   }
-  revalidatePath("/account");
-  revalidatePath("/account/addresses");
+  revalidateAccount();
   redirect("/account/addresses");
 }
 
 export async function updateAddressAction(
-  _prev: AuthResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AuthResult> {
+): Promise<FormResult> {
+  const submission = parseForm(formData, addressSchema);
+  if (submission.status !== "success") return submission.reply();
   const id = String(formData.get("id") ?? "");
-  if (!id) return { ok: false, error: "Missing address id." };
-  const parsed = readAddressInput(formData);
-  if (typeof parsed === "string") return { ok: false, error: parsed };
+  if (!id) return submission.reply({ formErrors: ["addressIdMissing"] });
   try {
-    await gqlFetch(AccountUpdateAddressDocument, { id, input: parsed });
+    await gqlFetch(AccountUpdateAddressDocument, {
+      id,
+      input: addressInput(submission.value),
+    });
   } catch (err) {
-    return {
-      ok: false,
-      error: errorMessage(err, "Could not save address."),
-    };
+    return replyError(submission, err, "addressSaveFailed");
   }
-  revalidatePath("/account");
-  revalidatePath("/account/addresses");
+  revalidateAccount();
   redirect("/account/addresses");
 }
 
@@ -373,8 +314,7 @@ const ADDRESSES_PAGE = "/account/addresses";
 // The address list re-renders from the server, so a failure that isn't announced looks
 // exactly like a click that never registered
 function finishAddressAction(ok: boolean, errorKey: string): never {
-  revalidatePath("/account");
-  revalidatePath(ADDRESSES_PAGE);
+  revalidateAccount();
   redirect(ok ? ADDRESSES_PAGE : `${ADDRESSES_PAGE}?error=${errorKey}`);
 }
 

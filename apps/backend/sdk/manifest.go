@@ -1,8 +1,6 @@
 package sdk
 
-// The host refuses to boot on a duplicate slug, an SDKRange excluding its own Version, a missing or out-of-range dependency, or a cycle
-// It runs after Install replays the queue, so init() panics surface first - this is the second line of defence, catching what init() can't see, like a plugin built against SDK 1 loaded into a host running SDK 2
-// Slug is forever once shipped: it namespaces config (plugin/<slug>/*), the enabled flag and the migrations table, so renaming makes downgrade impossible without manual SQL
+// The host refuses to boot on a duplicate slug, an SDKRange excluding its own Version, a missing or out-of-range dependency, or a cycle It runs after Install replays the queue, so init() panics surface first - this is the second line of defence, catching what init() can't see, like a plugin built against SDK 1 loaded into a host running SDK 2 Slug is forever once shipped: it namespaces config (plugin/<slug>/*), the enabled flag and the migrations table, so renaming makes downgrade impossible without manual SQL
 
 import (
 	"context"
@@ -15,18 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// The number SDKRange gates against, kept honest by api_surface_test.go: the exported surface of every
-// public package is recorded in api.json, and apidiff re-checks it against the last release tag using Go's
-// real compatibility rules - so a plugin's range is a real compatibility statement rather than a check
-// against a number that never moves
-const Version = "0.2.1" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the pre-release baseline
-// 0.2.0 was the import-path move: the module became github.com/skeletg/skelet/apps/backend so it is
-// fetchable at all, since its go.mod sits in a subdirectory and Go requires the path to say so.
-// Nothing in the surface changed there, but every plugin rewrote its imports, which is breaking by
-// any definition that matters to someone installing one
-// 0.2.1 adds the seams a plugin owning a domain needs - Database, Tendering, RegisterPriceResolver,
-// ReadCart, CreateDraftOrder, the channel-scoped authz pair and the request-scope readers. Additive,
-// so a ^0.2.0 plugin still compiles
+// The number SDKRange gates against, kept honest by api_surface_test.go: api.json records the exported surface and apidiff re-checks it against the last release tag
+const Version = "0.1.0" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the first release baseline, tagged apps/backend/sdk/v0.1.0 when the SDK is published
 
 // A compile-time Go literal rather than a file the host reads at boot - no YAML parsing, no filesystem access, no "where does the manifest live" debate
 // Generate any YAML mirror FROM this struct, never the reverse
@@ -39,30 +27,19 @@ type Manifest struct {
 
 	// Event types published, by convention "<slug>.<verb>_<object>" - the validator resolves every plugin's Consumes against these plus core's registry, so "A renamed its event and B's subscriber broke" surfaces at boot instead of at runtime
 	// PublishAsync refuses a type missing from this list, so the declaration and the runtime can't drift
+	// Boot refuses a name core already emits or another plugin declares - a publish under it would reach every subscriber and outbound webhook as that sender
 	Emits []string
 	// Every entry must resolve to a core event or another plugin's Emits or boot fails - the validator can't rewrite a subscriber's name, so a core rename only stays safe while both names are registered
 	Consumes []string
 
-	// What an UNREADABLE kill switch means for this plugin - fail_open (the zero value) keeps it
-	// serving through a config-store hiccup, fail_closed refuses instead
-	// Declared here rather than in config on purpose: during the outage this exists to survive, a
-	// config-stored policy is unreadable too, so it would always collapse back to fail_open
-	// It's also the plugin author's call, not the operator's - only the plugin knows whether
-	// "couldn't check" is safe, the way a fraud screen's isn't
+	// What an UNREADABLE kill switch means for this plugin - fail_open (the zero value) keeps it serving through a config-store hiccup, fail_closed refuses instead Declared here rather than in config on purpose: during the outage this exists to survive, a config-stored policy is unreadable too, so it would always collapse back to fail_open It's also the plugin author's call, not the operator's - only the plugin knows whether "couldn't check" is safe, the way a fraud screen's isn't
 	FailurePolicy FailurePolicy
 
-	// Declared side effects, so an operator can read a third-party plugin's claimed scope before installing
-	// This is DISCLOSURE, not a sandbox, and it can never become one: a Tier 1 plugin is compiled
-	// into the process with full privileges, so no list constrains what it actually does - enforcing
-	// it would mean moving plugins out-of-process, which is a different tier, not a hardening pass
-	// Treat a claim here the way you'd treat a README, and audit the code for anything you don't trust
-	// Vocabulary: db.read, db.write, valkey.read, valkey.write, http.outbound:<host> (or :*), filesystem.read:<path>, filesystem.write:<path>, events.publish:<type>, events.consume:<type>, long-running (goroutines outliving a request)
+	// Declared side effects, so an operator can read a third-party plugin's claimed scope before installing This is DISCLOSURE, not a sandbox, and it can never become one: a Tier 1 plugin is compiled into the process with full privileges, so no list constrains what it actually does - enforcing it would mean moving plugins out-of-process, which is a different tier, not a hardening pass Treat a claim here the way you'd treat a README, and audit the code for anything you don't trust Vocabulary: db.read, db.write, valkey.read, valkey.write, http.outbound:<host> (or :*), filesystem.read:<path>, filesystem.write:<path>, events.publish:<type>, events.consume:<type>, long-running (goroutines outliving a request)
 	Capabilities []string
 
-	// Browser-side origins this plugin's storefront/dashboard integration needs in the Content-Security-Policy -
-	// declared here (not registered at runtime) because they're static facts about the plugin, and cmd/secheadgen
-	// composes them into the CSP/Permissions-Policy constants and edge configs during bin/codegen, so installing a
-	// gateway never means hand-editing core's security headers
+	// Browser-side origins this plugin's integration needs in the Content-Security-Policy, declared rather than registered because they are static facts about the plugin
+	// cmd/secheadgen composes them into the header constants and the edge configs, so installing a gateway never means hand-editing core's security headers
 	SecurityOrigins *SecurityOrigins
 }
 
@@ -89,9 +66,7 @@ type Dependency struct {
 	Version string
 }
 
-// Reads the auto-registered plugin/<slug>/enabled, defaulting true - uuid.Nil for default scope, a channel id for the per-channel override
-// Instrument already gates payment hooks on this (and on the rate limit) and Subscribe* gates event handlers, so call it yourself only for code the host doesn't wrap - a goroutine you spawned, or a branch inside a scheduled job
-// No host or no manifest returns true; an unreadable flag is what Manifest.FailurePolicy decides
+// Reads the auto-registered plugin/<slug>/enabled, defaulting true - uuid.Nil for default scope, a channel id for the per-channel override Instrument already gates payment hooks on this (and on the rate limit) and Subscribe* gates event handlers, so call it yourself only for code the host doesn't wrap - a goroutine you spawned, or a branch inside a scheduled job No host or no manifest returns true; an unreadable flag is what Manifest.FailurePolicy decides
 func IsEnabled(ctx context.Context, slug string, channelID uuid.UUID) bool {
 	h := hostNow()
 	if h == nil {
@@ -113,9 +88,7 @@ type Plugin struct {
 
 func (p *Plugin) Slug() string { return p.slug }
 
-// Call from init() - it works after Install too, since the host falls back to direct registration
-// Panics on a duplicate slug or an obviously-bad manifest, which is what a misconfigured plugin deserves at boot - see the package doc for the full shape
-// Same rule cmd/cli's scaffolder applies, so a hand-written manifest cannot produce a slug the tooling refuses
+// Call from init() - it works after Install too, since the host falls back to direct registration Panics on a duplicate slug or an obviously-bad manifest, which is what a misconfigured plugin deserves at boot - see the package doc for the full shape Same rule cmd/cli's scaffolder applies, so a hand-written manifest cannot produce a slug the tooling refuses
 var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
 func RegisterPlugin(m Manifest) *Plugin {
@@ -171,6 +144,12 @@ func validateManifestStatic(m Manifest) error {
 	if _, err := parseRange(m.SDKRange); err != nil {
 		return fmt.Errorf("manifest: bad SDKRange %q: %w", m.SDKRange, err)
 	}
+	// A typo here compiles, since the type is a string, and would quietly mean fail-open
+	switch m.FailurePolicy {
+	case FailOpen, FailClosed:
+	default:
+		return fmt.Errorf("manifest: FailurePolicy %q must be sdk.FailOpen or sdk.FailClosed", m.FailurePolicy)
+	}
 	for i, dep := range m.Dependencies {
 		if strings.TrimSpace(dep.Slug) == "" {
 			return fmt.Errorf("manifest: dep[%d] empty slug", i)
@@ -197,19 +176,23 @@ func parseSemver(s string) (semver, error) {
 	if len(parts) != 3 {
 		return semver{}, fmt.Errorf("expected MAJOR.MINOR.PATCH")
 	}
-	maj, err := strconv.Atoi(parts[0])
-	if err != nil || maj < 0 {
-		return semver{}, fmt.Errorf("bad major %q", parts[0])
+	var nums [3]int
+	for i, name := range [3]string{"major", "minor", "patch"} {
+		n, err := semverPart(parts[i])
+		if err != nil {
+			return semver{}, fmt.Errorf("bad %s %q", name, parts[i])
+		}
+		nums[i] = n
 	}
-	min, err := strconv.Atoi(parts[1])
-	if err != nil || min < 0 {
-		return semver{}, fmt.Errorf("bad minor %q", parts[1])
+	return semver{Major: nums[0], Minor: nums[1], Patch: nums[2]}, nil
+}
+
+// Digits only, no leading zero - strconv.Atoi alone admits "+1" and "01", which semver does not
+func semverPart(p string) (int, error) {
+	if p == "" || (len(p) > 1 && p[0] == '0') || strings.TrimLeft(p, "0123456789") != "" {
+		return 0, fmt.Errorf("not a semver number")
 	}
-	patch, err := strconv.Atoi(parts[2])
-	if err != nil || patch < 0 {
-		return semver{}, fmt.Errorf("bad patch %q", parts[2])
-	}
-	return semver{Major: maj, Minor: min, Patch: patch}, nil
+	return strconv.Atoi(p)
 }
 
 func (a semver) compare(b semver) int {
@@ -310,9 +293,7 @@ func matchVersion(version, rng string) (bool, error) {
 	return r.satisfies(v), nil
 }
 
-// Lives in the SDK so the rules are expressed once and testable without booting a host - internal/plugin.ValidateManifests calls it
-// hostSDKVersion is passed rather than read from the constant so tests can simulate a future SDK meeting older plugins
-// knownEvents is core's registered event set; every Consumes must resolve to it or to another plugin's Emits, failing loud so a subscriber can't silently fall through
+// Lives in the SDK so the rules are expressed once and testable without booting a host - internal/plugin.ValidateManifests calls it hostSDKVersion is passed rather than read from the constant so tests can simulate a future SDK meeting older plugins knownEvents is core's OWN event set, plugin-registered names excluded; every Consumes must resolve to it or to a plugin's Emits, failing loud so a subscriber can't silently fall through, and no Emits may claim one of its names
 func ValidateManifestSet(hostSDKVersion string, manifests []Manifest, bySlug map[string]Manifest, knownEvents map[string]struct{}) error {
 	for _, m := range manifests {
 		ok, err := matchVersion(hostSDKVersion, m.SDKRange)
@@ -340,13 +321,21 @@ func ValidateManifestSet(hostSDKVersion string, manifests []Manifest, bySlug map
 		return err
 	}
 
-	// union of what anyone can consume - the same string in both core and a plugin is fine
+	// Each name has one sender - a plugin publishing core's order.placed, or a second plugin's event, would hand every subscriber a payload from someone else
 	available := make(map[string]struct{}, len(knownEvents))
 	for k := range knownEvents {
 		available[k] = struct{}{}
 	}
+	emitter := map[string]string{}
 	for _, m := range manifests {
 		for _, e := range m.Emits {
+			if _, core := knownEvents[e]; core {
+				return fmt.Errorf("plugin %q emits %q, which is a core event - publish under a name of its own", m.Slug, e)
+			}
+			if prev, taken := emitter[e]; taken && prev != m.Slug {
+				return fmt.Errorf("plugins %q and %q both emit %q", prev, m.Slug, e)
+			}
+			emitter[e] = m.Slug
 			available[e] = struct{}{}
 		}
 	}

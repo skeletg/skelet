@@ -10,6 +10,17 @@ fragment ShippingMethodFields on ShippingMethod {
   isActive
   countryMode
   allowedCountries
+  deliveryKind
+  unitsPerCharge
+  estimatedDays
+  deliversOnWeekends
+  typeRates {
+    productTypeId
+    productTypeName
+    priceCents
+    unitsPerCharge
+    freeShippingEligible
+  }
   createdAt
   updatedAt
 }
@@ -97,4 +108,42 @@ mutation UpsertShippingBox($input: ShippingBoxInput!) {
 
 mutation DeleteShippingBox($id: ID!) {
   deleteShippingBox(id: $id)
+}
+
+# ==================== Carrier availability ====================
+
+query ShippingCarriers($channelId: ID!) {
+  shippingCarriers(channelId: $channelId) {
+    carrierSlug
+    displayName
+    isEnabled
+    sortOrder
+    countryMode
+    allowedCountries
+    supportsTracking
+    supportsLabels
+    deliversOnWeekends
+  }
+}
+
+mutation SetShippingCarrierEnabled($channelId: ID!, $carrierSlug: String!, $enabled: Boolean!) {
+  setShippingCarrierEnabled(channelId: $channelId, carrierSlug: $carrierSlug, enabled: $enabled) {
+    carrierSlug
+    isEnabled
+  }
+}
+
+mutation SetShippingCarrierCountries($channelId: ID!, $carrierSlug: String!, $mode: String!, $countries: [String!]!) {
+  setShippingCarrierCountries(channelId: $channelId, carrierSlug: $carrierSlug, mode: $mode, countries: $countries) {
+    carrierSlug
+    countryMode
+    allowedCountries
+  }
+}
+
+mutation SetShippingCarrierWeekendDelivery($channelId: ID!, $carrierSlug: String!, $deliversOnWeekends: Boolean!) {
+  setShippingCarrierWeekendDelivery(channelId: $channelId, carrierSlug: $carrierSlug, deliversOnWeekends: $deliversOnWeekends) {
+    carrierSlug
+    deliversOnWeekends
+  }
 }

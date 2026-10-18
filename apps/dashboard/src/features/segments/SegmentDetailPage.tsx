@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { RefreshCwIcon, Trash2Icon, UserPlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -28,29 +29,32 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import {
-  DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
-import { changed, fieldDiff } from '@/shared/saving/diff'
-import { CustomersDocument } from '@/features/customers/Customers.gql'
-import {
-  AssignCustomersToSegmentDocument,
-  ClearSegmentMembershipDocument,
-  RefreshSegmentMembershipDocument,
-  RemoveCustomerFromSegmentDocument,
-  SegmentDetailDocument,
-  SetSegmentRulesDocument,
-  UpdateSegmentDocument,
-} from './Segments.gql'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { CustomersPagedDocument } from '@/features/customers/Customers.gql'
+import { useDebounced } from '@/shared/hooks/useDebounced'
+import { AssignCustomersToSegmentDocument, ClearSegmentMembershipDocument, RefreshSegmentMembershipDocument, RemoveCustomerFromSegmentDocument, SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.gql'
+import { useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { RulesBuilder } from './RulesBuilder'
-import { summarizeRules, type Rules } from './rules'
+import type { Rules } from './rules'
 import { PluginSections } from '@/plugins/detail-sections'
+import {
+  SEGMENT_LABELS,
+  generalChanged,
+  parseRules,
+  rulesChanged,
+  segmentDiff,
+  segmentRules,
+  segmentSchema,
+  toSegmentInput,
+  toSegmentRules,
+  toSegmentValues,
+} from './schemas/segment'
 
 type Segment = {
   id: string
@@ -60,14 +64,9 @@ type Segment = {
   isActive: boolean
   memberCount: number
   rules: unknown
+  rulesProblem?: string | null
   updatedAt: string
-  members: { id: string; email: string; firstName: string; lastName: string; joinedAt: string }[]
-}
-
-const parseRules = (raw: unknown): Rules | null => {
-  if (!raw || typeof raw !== 'object') return null
-  const r = raw as Rules
-  return { logic: r.logic === 'or' ? 'or' : 'and', conditions: r.conditions ?? [] }
+  members: { id: string; joinedAt: string }[]
 }
 
 export function SegmentDetailPage() {
@@ -77,24 +76,6 @@ export function SegmentDetailPage() {
     skip: !id,
   })
   const segment = data?.customerSegment as Segment | null | undefined
-
-  const { contextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-
-  async function onConfirmSave() {
-    setSaveError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Save failed')
-    } finally {
-      setSavingAll(false)
-    }
-  }
 
   if (loading && !segment) {
     return (
@@ -106,205 +87,122 @@ export function SegmentDetailPage() {
   if (error || !segment) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader
-          backTo="/segments"
-          title="Segment"
-          meta={error?.message ?? 'Not found'}
-        />
+        <DetailPageHeader backTo="/segments" title="Segment" meta={error?.message ?? 'Not found'} />
       </DetailPageLayout>
     )
   }
+  return <SegmentForm segment={segment} refetch={() => void refetch()} />
+}
 
+// General settings and rules are one form - the header Save reviews both; each goes through its
+// own mutation, and only when it changed. Membership acts on its own below the form
+function SegmentForm({ segment, refetch }: { segment: Segment; refetch: () => void }) {
+  const [update] = useMutation(UpdateSegmentDocument)
+  const [setRules] = useMutation(SetSegmentRulesDocument)
+
+  const baseline = useMemo(() => toSegmentValues(segment), [segment])
+  const record = useRecordForm({
+    id: 'segment',
+    title: 'Segment',
+    label: `Segment · ${segment.name}`,
+    isEdit: true,
+    baseline,
+    schema: segmentSchema,
+    diff: segmentDiff,
+    persist: { routeKey: `segment:${segment.id}` },
+    submit: async (v) => {
+      if (generalChanged(baseline, v)) await update({ variables: { input: toSegmentInput(v, segment.id) } })
+      if (rulesChanged(baseline, v)) await setRules({ variables: { segmentId: segment.id, rules: toSegmentRules(v) } })
+      refetch()
+    },
+  })
+  const { form } = record
+  const rules = useStore(form.store, (s) => segmentRules(s.values))
   const dynamic = parseRules(segment.rules) !== null
 
   return (
-    <SaveRegistryContext.Provider value={contextValue}>
-      <DetailPageLayout>
-        <DetailPageHeader
-          backTo="/segments"
-          backLabel="Back to segments"
-          title={segment.name}
-          badges={
-            <>
-              <Badge variant={segment.isActive ? 'default' : 'secondary'}>
-                {segment.isActive ? 'Active' : 'Inactive'}
-              </Badge>
-              <Badge variant="outline">{dynamic ? 'Dynamic' : 'Manual'}</Badge>
-            </>
-          }
-          meta={`${segment.memberCount} members · updated ${new Date(segment.updatedAt).toLocaleString()}`}
-          actions={
-            <Button
-              disabled={!isDirty || savingAll}
-              onClick={() => {
-                setSaveError(null)
-                setConfirmingSave(true)
-              }}
-            >
-              {savingAll ? 'Saving…' : isDirty ? 'Save changes' : 'No changes'}
-            </Button>
-          }
-        />
-        <DetailPageBody>
-          <GeneralSection segment={segment} refetch={refetch} />
-          <RulesSection segment={segment} refetch={refetch} />
+    <RecordFormPage
+      record={record}
+      backTo="/segments"
+      backLabel="Back to segments"
+      title={segment.name}
+      badges={
+        <>
+          {segment.isActive ? (
+            <Badge variant="secondary">Active</Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
+          )}
+          <Badge variant="outline">{dynamic ? 'Dynamic' : 'Manual'}</Badge>
+        </>
+      }
+      meta={`${segment.memberCount} members · updated ${new Date(segment.updatedAt).toLocaleString()}`}
+      createLabel="Save changes"
+      labels={SEGMENT_LABELS}
+      after={
+        <>
           <MembersSection segment={segment} refetch={refetch} />
           <PluginSections target="segment" entity={segment} mode="edit" />
-        </DetailPageBody>
-
-        <SaveConfirmDialog
-          open={confirmingSave}
-          scopeLabel={`Segment · ${segment.name}`}
-          sections={dirtySections}
-          saving={savingAll}
-          error={saveError}
-          onCancel={() => {
-            if (!savingAll) {
-              setConfirmingSave(false)
-              setSaveError(null)
-            }
-          }}
-          onConfirm={onConfirmSave}
-        />
-      </DetailPageLayout>
-    </SaveRegistryContext.Provider>
-  )
-}
-
-function GeneralSection({ segment, refetch }: { segment: Segment; refetch: () => void }) {
-  const [update] = useMutation(UpdateSegmentDocument)
-  const [name, setName] = useState(segment.name)
-  const [slug, setSlug] = useState(segment.slug)
-  const [description, setDescription] = useState(segment.description)
-  const [isActive, setIsActive] = useState(segment.isActive)
-
-  // Re-seed after saves so the section doesn't go phantom-dirty
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setName(segment.name)
-    setSlug(segment.slug)
-    setDescription(segment.description)
-    setIsActive(segment.isActive)
-  }, [segment])
-
-  const draft = { name, slug, description, isActive }
-  const server = {
-    name: segment.name,
-    slug: segment.slug,
-    description: segment.description,
-    isActive: segment.isActive,
-  }
-
-  useSaveSection({
-    id: 'segment-general',
-    title: 'General',
-    diff: fieldDiff(server, draft, [
-      { label: 'Name', value: (o) => o.name },
-      { label: 'Slug', value: (o) => o.slug },
-      { label: 'Description', value: (o) => o.description },
-      { label: 'Active', value: (o) => o.isActive },
-    ]),
-    save: async () => {
-      await update({
-        variables: {
-          input: { id: segment.id, name, slug, description, isActive },
-        },
-      })
-      refetch()
-    },
-  })
-
-  return (
-    <DetailPageSection title="General">
-      <div className="grid max-w-2xl gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="seg-name">Name</Label>
-            <Input id="seg-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="seg-slug">Slug</Label>
-            <Input id="seg-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              Referenced by promotions, campaigns and flows - renaming can break them
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="seg-desc">Description</Label>
-          <Textarea
-            id="seg-desc"
-            rows={2}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch id="seg-active" checked={isActive} onCheckedChange={setIsActive} />
-          <Label htmlFor="seg-active" className="font-normal">
-            Active - inactive segments are skipped by the rules refresh and hidden from pickers
-          </Label>
-        </div>
-      </div>
-    </DetailPageSection>
-  )
-}
-
-function RulesSection({ segment, refetch }: { segment: Segment; refetch: () => void }) {
-  const [setRules] = useMutation(SetSegmentRulesDocument)
-  const server = useMemo(() => parseRules(segment.rules), [segment.rules])
-  const [draft, setDraft] = useState<Rules | null>(server)
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(parseRules(segment.rules))
-  }, [segment.rules])
-
-  const dirty = JSON.stringify(server) !== JSON.stringify(draft)
-  const entry = dirty ? changed('Rules', summarizeRules(server), summarizeRules(draft)) : null
-
-  useSaveSection({
-    id: 'segment-rules',
-    title: 'Rules',
-    diff: entry ? [entry] : [],
-    save: async () => {
-      await setRules({
-        variables: { segmentId: segment.id, rules: draft && draft.conditions.length > 0 ? draft : null },
-      })
-      refetch()
-    },
-  })
-
-  return (
-    <DetailPageSection
-      title="Rules"
-      description="Dynamic segments recompute membership from these conditions - on the 6-hour refresh job or a manual refresh. Without rules, membership is manual (assigned below or by flows)."
+        </>
+      }
     >
-      <div className="grid gap-3">
-        <div className="flex items-center gap-3">
-          <Switch
-            id="seg-dynamic"
-            checked={draft !== null}
-            onCheckedChange={(on) =>
-              setDraft(on ? { logic: 'and', conditions: [] } : null)
-            }
-          />
-          <Label htmlFor="seg-dynamic" className="font-normal">
-            Dynamic membership (rule-based)
-          </Label>
+      <DetailPageSection title="General">
+        <div className="grid max-w-2xl gap-4">
+          <div className="grid grid-cols-2 items-start gap-4">
+            <form.AppField name="name">{(f) => <f.TextField id="seg-name" label="Name" />}</form.AppField>
+            <form.AppField name="slug">
+              {(f) => (
+                <f.TextField id="seg-slug" label="Slug" readOnly hint="Fixed once created - promotions, experiments and flows refer to it" />
+              )}
+            </form.AppField>
+          </div>
+          <form.AppField name="description">{(f) => <f.TextareaField id="seg-desc" label="Description" rows={2} />}</form.AppField>
+          <form.Field name="isActive">
+            {(f) => (
+              <div className="flex items-center gap-3">
+                <Switch id="seg-active" checked={f.state.value} onCheckedChange={f.handleChange} />
+                <Label htmlFor="seg-active" className="font-normal">
+                  Active - inactive segments are skipped by the rules refresh and hidden from pickers
+                </Label>
+              </div>
+            )}
+          </form.Field>
         </div>
-        {draft !== null && <RulesBuilder value={draft} onChange={setDraft} />}
-        {draft !== null && draft.conditions.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            No conditions yet - saving like this turns the segment back to manual
-          </p>
-        )}
-      </div>
-    </DetailPageSection>
+      </DetailPageSection>
+
+      <DetailPageSection
+        title="Rules"
+        description="Dynamic segments recompute membership from these conditions - on the 6-hour refresh job or a manual refresh. Without rules, membership is manual (assigned below or by flows)."
+      >
+        <div className="grid gap-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="seg-dynamic"
+              checked={rules !== null}
+              onCheckedChange={(on) => form.setFieldValue('rules', on ? ({ logic: 'and', conditions: [] } satisfies Rules) : null)}
+            />
+            <Label htmlFor="seg-dynamic" className="font-normal">
+              Dynamic membership (rule-based)
+            </Label>
+          </div>
+          {segment.rulesProblem && (
+            <p className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              These rules can't run, so membership isn't refreshing: {segment.rulesProblem}
+            </p>
+          )}
+          {rules !== null && <RulesBuilder value={rules} onChange={(next) => form.setFieldValue('rules', next)} />}
+          {rules !== null && rules.conditions.length === 0 && (
+            <p className="text-xs text-muted-foreground">No conditions yet - saving like this turns the segment back to manual</p>
+          )}
+        </div>
+      </DetailPageSection>
+    </RecordFormPage>
   )
 }
 
 function MembersSection({ segment, refetch }: { segment: Segment; refetch: () => void }) {
+  const memberIDs = useMemo(() => segment.members.map((m) => m.id), [segment])
+  const nameById = useCustomerNames(memberIDs)
   const dynamic = parseRules(segment.rules) !== null
   const [refresh, { loading: refreshing }] = useMutation(RefreshSegmentMembershipDocument)
   const [removeMember] = useMutation(RemoveCustomerFromSegmentDocument)
@@ -385,9 +283,9 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
             {segment.members.map((m) => (
               <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">
-                  {m.firstName || m.lastName ? `${m.firstName} ${m.lastName}`.trim() : m.email}
-                  {(m.firstName || m.lastName) && (
-                    <span className="ml-2 text-xs text-muted-foreground">{m.email}</span>
+                  {nameById.get(m.id)?.name || nameById.get(m.id)?.email || m.id.slice(0, 8)}
+                  {nameById.get(m.id)?.name && (
+                    <span className="ml-2 text-xs text-muted-foreground">{nameById.get(m.id)?.email}</span>
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -397,7 +295,7 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs"
-                  onClick={() => void onRemove(m.id, m.email)}
+                  onClick={() => void onRemove(m.id, nameById.get(m.id)?.email ?? m.id)}
                 >
                   Remove
                 </Button>
@@ -457,9 +355,10 @@ function AssignCustomersDialog({
   segmentId: string
   onAssigned: () => void
 }) {
-  const { data, loading } = useQuery(CustomersDocument, { skip: !open })
-  const [assign, { loading: assigning }] = useMutation(AssignCustomersToSegmentDocument)
   const [filter, setFilter] = useState('')
+  const search = useDebounced(filter.trim(), 250)
+  const { data, loading } = useQuery(CustomersPagedDocument, { variables: { search, limit: 50, offset: 0 }, skip: !open })
+  const [assign, { loading: assigning }] = useMutation(AssignCustomersToSegmentDocument)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -474,18 +373,7 @@ function AssignCustomersDialog({
     }
   }
 
-  const customers = useMemo(() => {
-    const all = data?.customers ?? []
-    const q = filter.trim().toLowerCase()
-    if (!q) return all.slice(0, 50)
-    return all
-      .filter(
-        (c) =>
-          c.email.toLowerCase().includes(q) ||
-          `${c.firstName} ${c.lastName}`.toLowerCase().includes(q),
-      )
-      .slice(0, 50)
-  }, [data, filter])
+  const customers = data?.customersPaged.items ?? []
 
   const toggle = (id: string) =>
     setSelected((prev) => {

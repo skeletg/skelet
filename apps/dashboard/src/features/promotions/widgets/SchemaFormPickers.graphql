@@ -1,0 +1,34 @@
+# Lean lookups for the rule editor's picker widgets - only the fields a picker renders, so a long
+# promotion editor doesn't pull the catalog's full payloads. Apollo dedupes, so several pickers of
+# one kind share a request
+
+query SchemaFormAttributes {
+  attributes {
+    id
+    slug
+    name
+    values {
+      slug
+      name
+    }
+  }
+}
+
+query SchemaFormCustomerGroups {
+  customerGroups {
+    id
+    slug
+    name
+  }
+}
+
+# Server-searched - the unpaged `products` list hydrates the whole catalogue for one dropdown
+query SchemaFormSkuPickerProducts($search: String) {
+  productsPaged(search: $search, limit: 20) {
+    items {
+      id
+      sku
+      name
+    }
+  }
+}

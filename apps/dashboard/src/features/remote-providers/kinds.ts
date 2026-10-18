@@ -8,7 +8,6 @@ export const KIND_LABELS: Record<RemoteProviderKind, string> = {
   ADDRESS_VALIDATOR: 'Address validator',
   PROMOTION_CONDITION: 'Promotion condition',
   PROMOTION_ACTION: 'Promotion action',
-  FLOW_ACTION: 'Flow action',
   FRAUD_RISK: 'Fraud / risk',
   CURRENCY_RATE: 'Currency rates',
   PRICING: 'Pricing',
@@ -19,15 +18,16 @@ export const KIND_LABELS: Record<RemoteProviderKind, string> = {
   RETURNS_POLICY: 'Returns policy',
   INVENTORY_AVAILABILITY: 'Inventory availability',
   SHIPPING_TRACKING: 'Shipping tracking',
+  DELIVERY_POINTS: 'Delivery points',
 }
 
 export const KIND_HINTS: Record<RemoteProviderKind, string> = {
+  DELIVERY_POINTS: 'Search and resolve PO boxes and lockers using the shared point contract.',
   SHIPPING_CARRIER: 'Called during rate quoting - respond with {"rates": [...]}.',
   TAX_PROVIDER: 'Called at order placement - respond with {"taxCents": ...}.',
   ADDRESS_VALIDATOR: 'Called at checkout - respond with {"valid": bool, "reason": ...}.',
   PROMOTION_CONDITION: 'Called during cart evaluation - respond with {"match": bool}. Set a cache TTL.',
   PROMOTION_ACTION: 'Called during cart evaluation - respond with discount amounts. Set a cache TTL.',
-  FLOW_ACTION: 'Called by flow remote-action nodes - respond with {"context": {...}, "branch": ...}.',
   FRAUD_RISK: 'Called at the pre-transaction checkout gate - respond with {"decision": "approve|review|reject", "score": 0-100}.',
   CURRENCY_RATE: 'Called by the currency-rates refresh job - respond with {"base": "USD", "rates": {"EUR": 0.92, ...}}.',
   PRICING: 'Called during cart pricing - respond with {"unitPriceCents": ...}. Set a cache TTL; always fails open to catalog price.',

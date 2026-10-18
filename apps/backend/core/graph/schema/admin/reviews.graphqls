@@ -1,0 +1,319 @@
+# Reviews - admin surface.
+
+enum ReviewQuestionInputType {
+  RATING_1_5
+  YES_NO
+  FREE_TEXT
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+type ReviewQuestion {
+  id:           ID!
+  slug:         String!
+  inputType:    ReviewQuestionInputType!
+  isRequired:   Boolean!
+  allowComment: Boolean!
+  sortOrder:    Int!
+  # Resolved for the requested locale (Locale header) with slug fallback
+  # when no translation exists. Always non-null on admin reads.
+  content:      ReviewQuestionContent!
+  # Every translation that exists, for the per-locale editor table.
+  allContent:   [ReviewQuestionContent!]!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type ReviewQuestionContent {
+  locale:    String!
+  label:     String!
+  helpText:  String!
+  updatedAt: Time!
+}
+
+type ReviewAnswer {
+  question:    ReviewQuestion!
+  rating:      Int       # 1..5 for RATING_1_5
+  boolValue:   Boolean   # for YES_NO
+  text:        String!   # comment + free-text answer
+}
+
+type ReviewMedia {
+  id:        ID!
+  url:       String!
+  mimeType:  String!
+  width:     Int
+  height:    Int
+  sizeBytes: Int!
+}
+
+type Review {
+  id:                  ID!
+  productId:           ID!
+  # Guest reviews have no customerId. Exactly one of customerId or
+  # guestName is set per the reviews_author_present_chk DB constraint.
+  customerId:          ID
+  guestName:           String!
+  guestEmail:          String!
+  channelId:         ID!
+  locale:              String!
+  title:               String!
+  body:                String!
+  isVerifiedPurchase:  Boolean!
+  status:              ReviewStatus!
+  submittedAt:         Time!
+  moderatedAt:         Time
+  moderatedBy:         ID
+  # set instead of moderatedBy when an integration token moderated
+  moderatedByIntegration: ID
+  moderatorNote:       String!
+  # AI moderation verdict (suggestion only - never changes status). Derived
+  # coarse flag: "" until checked, "genuine" = no concerns, "flagged" = has tags.
+  moderationLabel:     String!
+  moderationReason:    String!
+  # AI-assigned (or moderator-overridden) moderation-concern tag slugs (profanity,
+  # spam, …); empty = no concerns. Resolve names client-side from reviewModerationTags.
+  moderationTags:      [String!]!
+  # AI-assigned (or moderator-overridden) topic category slugs; empty = uncategorized. A review can be in several. Resolve names client-side from reviewCategories (kept cheap - no per-row fetch).
+  categorySlugs:       [String!]!
+  # Merchant reply (shown on the storefront). Empty = no reply.
+  merchantReply:       String!
+  merchantReplyAt:     Time
+  answers:             [ReviewAnswer!]!
+  media:               [ReviewMedia!]!
+}
+
+type ReviewListPage {
+  items:      [Review!]!
+  totalCount: Int!
+}
+
+# Per-status review tallies for the moderation hub tiles. Computed server-side (channel-scoped) so they stay exact regardless of how the list is paginated. total is the sum across statuses.
+type ReviewCounts {
+  pending:  Int!
+  approved: Int!
+  rejected: Int!
+  total:    Int!
+}
+
+# Operator-curated topic/issue group the AI classifies reviews into.
+type ReviewCategory {
+  id:          ID!
+  slug:        String!
+  name:        String!
+  description: String!
+  isActive:    Boolean!
+  sortOrder:   Int!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+# Operator-curated, abstract moderation concern the AI can flag on a review (profanity, off-topic, spam, …). A review can carry many; same CRUD shape as ReviewCategory.
+type ReviewModerationTag {
+  id:          ID!
+  slug:        String!
+  name:        String!
+  description: String!
+  isActive:    Boolean!
+  sortOrder:   Int!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+# Review insights (issue analytics): per-category counts for a window with the
+# prior equal-length window for deltas, a bucketed trend, and headline totals.
+type ReviewInsights {
+  total:      Int!
+  prevTotal:  Int!
+  byCategory: [ReviewCategoryStat!]!
+  # Category trend (a multi-category review appears in each of its bands).
+  timeseries: [ReviewInsightPoint!]!
+  # True reviews-per-period (one row per review) - the volume trend.
+  volume:     [ReviewVolumePoint!]!
+  # Status distribution for the window (pending/approved/rejected).
+  byStatus:   [ReviewStatusStat!]!
+  # Moderation-concern flag counts with prior-window deltas.
+  byTag:      [ReviewTagStat!]!
+}
+
+type ReviewStatusStat {
+  status: ReviewStatus!
+  count:  Int!
+}
+
+type ReviewTagStat {
+  slug:      String!
+  name:      String!
+  count:     Int!
+  prevCount: Int!
+}
+
+type ReviewCategoryStat {
+  # Empty slug = the uncategorized bucket. Counts can sum to more than the
+  # review total since a review can be in several categories.
+  slug:      String!
+  name:      String!
+  count:     Int!
+  prevCount: Int!
+}
+
+type ReviewInsightPoint {
+  period: Time!
+  slug:   String!
+  count:  Int!
+}
+
+type ReviewVolumePoint {
+  period: Time!
+  count:  Int!
+}
+
+input ReviewFilter {
+  status:        [ReviewStatus!]
+  productId:     ID
+  # Filter to reviews in any of these categories (by slug).
+  categorySlugs: [String!]
+}
+
+input CreateReviewQuestionInput {
+  slug:         String!
+  inputType:    ReviewQuestionInputType!
+  isRequired:   Boolean!
+  allowComment: Boolean!
+  sortOrder:    Int!
+  # Initial translation; locale + label are required (helpText optional).
+  locale:       String!
+  label:        String!
+  helpText:     String
+}
+
+input UpdateReviewQuestionInput {
+  id:           ID!
+  isRequired:   Boolean!
+  allowComment: Boolean!
+  sortOrder:    Int!
+}
+
+input UpsertReviewQuestionContentInput {
+  questionId: ID!
+  locale:     String!
+  label:      String!
+  helpText:   String
+}
+
+# Per-product-type assignment. Mirrors how attributes attach to product
+# types via catalog_product_type_attributes.
+input AssignReviewQuestionInput {
+  productTypeId: ID!
+  questionId:    ID!
+  sortOrder:     Int!
+}
+
+input CreateReviewCategoryInput {
+  slug:        String!
+  name:        String!
+  description: String
+  isActive:    Boolean!
+  sortOrder:   Int!
+}
+
+input UpdateReviewCategoryInput {
+  id:          ID!
+  name:        String!
+  description: String
+  isActive:    Boolean!
+  sortOrder:   Int!
+}
+
+input CreateReviewModerationTagInput {
+  slug:        String!
+  name:        String!
+  description: String
+  isActive:    Boolean!
+  sortOrder:   Int!
+}
+
+input UpdateReviewModerationTagInput {
+  id:          ID!
+  name:        String!
+  description: String
+  isActive:    Boolean!
+  sortOrder:   Int!
+}
+
+extend type Query {
+  reviewQuestions:        [ReviewQuestion!]!
+  reviewQuestion(id: ID!): ReviewQuestion!
+  # Review questions applicable to a product (those assigned to its product
+  # type), for the per-product filter on the questions table.
+  reviewQuestionsForProduct(productId: ID!): [ReviewQuestion!]!
+  reviews(
+    filter: ReviewFilter
+    limit:  Int = 50
+    offset: Int = 0
+  ): ReviewListPage!
+  review(id: ID!): Review!
+  # Per-status tallies for the hub tiles, channel-scoped to the caller.
+  # productId optionally narrows to one product.
+  reviewCounts(productId: ID): ReviewCounts!
+
+  # Category library (operator-managed).
+  reviewCategories:        [ReviewCategory!]!
+  reviewCategory(id: ID!): ReviewCategory!
+  # Moderation-tag library (operator-managed).
+  reviewModerationTags:    [ReviewModerationTag!]!
+  # Issue analytics over a window (date-ranged + channel-scoped) with prior-
+  # window deltas. Defaults: last 30 days, "day" bucket, the caller's channels.
+  reviewInsights(
+    channelId: ID
+    startDate: Time
+    endDate:   Time
+    bucket:    String
+  ): ReviewInsights!
+}
+
+extend type Mutation {
+  createReviewQuestion(input: CreateReviewQuestionInput!): ReviewQuestion!
+  updateReviewQuestion(input: UpdateReviewQuestionInput!): ReviewQuestion!
+  deleteReviewQuestion(id: ID!): Boolean!
+  upsertReviewQuestionContent(input: UpsertReviewQuestionContentInput!): ReviewQuestion!
+
+  assignReviewQuestion(input: AssignReviewQuestionInput!):   Boolean!
+  unassignReviewQuestion(productTypeId: ID!, questionId: ID!): Boolean!
+
+  approveReview(id: ID!, note: String): Review!
+  rejectReview(id: ID!, note: String): Review!
+
+  # AI review tools (gated reviews.moderate; suggestion-only). All require the AI assistant to be enabled (Settings → AI). Re-run AI moderation classification on a review (stores label + reason).
+  recheckReviewModeration(id: ID!): Review!
+  # Set (or, with an empty body, clear) the merchant reply shown on the storefront.
+  replyToReview(id: ID!, body: String!): Review!
+  # Draft a merchant reply with AI (returns the suggestion; does NOT persist).
+  draftReviewReply(id: ID!): String!
+  # (Re)generate + cache the product's AI "what customers say" summary; returns the text.
+  generateProductReviewSummary(productId: ID!): String!
+
+  # Review categories (gated reviews.manage).
+  createReviewCategory(input: CreateReviewCategoryInput!): ReviewCategory!
+  updateReviewCategory(input: UpdateReviewCategoryInput!): ReviewCategory!
+  deleteReviewCategory(id: ID!): Boolean!
+  # Moderator manual category override (empty list clears all; gated reviews.moderate).
+  setReviewCategories(id: ID!, categorySlugs: [String!]!): Review!
+
+  # Review moderation tags (gated reviews.manage).
+  createReviewModerationTag(input: CreateReviewModerationTagInput!): ReviewModerationTag!
+  updateReviewModerationTag(input: UpdateReviewModerationTagInput!): ReviewModerationTag!
+  deleteReviewModerationTag(id: ID!): Boolean!
+  # Moderator manual moderation-tag override (empty list clears all; gated reviews.moderate).
+  setReviewModerationTags(id: ID!, tagSlugs: [String!]!): Review!
+}
+
+# ProductType extension - assigned review questions for the storefront
+# form. Resolver returns the questions in their assignment sort order.
+extend type ProductType {
+  reviewQuestions: [ReviewQuestion!]!
+}

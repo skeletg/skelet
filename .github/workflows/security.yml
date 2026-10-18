@@ -19,20 +19,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/backend/go.mod
-          cache-dependency-path: apps/backend/go.sum
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: |
+            apps/backend/core/go.sum
+            apps/backend/signals/go.sum
+            apps/backend/sdk/go.sum
       # Pinned, not @latest - a scanner release can't silently change what merges
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+      # Both Go modules - the Signals one pulls in only part of core's dependency graph, so its own
+      # scan is what says whether the suite's image is affected
       - name: Scan
-        working-directory: apps/backend
-        run: govulncheck ./...
+        run: |
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+            echo "==> $mod"
+            (cd "$mod" && govulncheck ./...) || exit 1
+          done
 
-  npm-audit:
-    name: npm audit
+  pnpm-audit:
+    name: pnpm audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Any app's packageManager will do - bin/pin-check holds them all to one version
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/dashboard/package.json
       # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
@@ -46,6 +58,6 @@ jobs:
           for dir in apps/dashboard apps/channels/*/; do
             [ -f "$dir/package.json" ] || continue
             echo "==> $dir"
-            (cd "$dir" && npm audit --audit-level=high) || fail=1
+            (cd "$dir" && pnpm audit --audit-level high) || fail=1
           done
           exit $fail

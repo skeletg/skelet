@@ -12,6 +12,7 @@ import type { SitemapEntityType } from "@/app/graphql/schema.types";
 export const SITEMAP_CHUNK = 45000;
 
 export { absUrl };
+export { getSiteUrl } from "@/app/lib/channel/site";
 
 // Boundary-aware: excluding "/blog" drops "/blog" and "/blog/x" but not "/blogging-tips"
 function matchesExclude(path: string, rule: string): boolean {
@@ -22,11 +23,12 @@ function matchesExclude(path: string, rule: string): boolean {
 // fetches the config itself so no caller can forget half the rule
 export async function applySitemapExclusions<T extends { url: string }>(
   entries: T[],
+  base: string = SITE_URL,
 ): Promise<T[]> {
   const { excludePaths } = await getSeoConfig();
   if (excludePaths.length === 0) return entries;
   return entries.filter((e) => {
-    const path = e.url.startsWith(SITE_URL) ? e.url.slice(SITE_URL.length) || "/" : e.url;
+    const path = e.url.startsWith(base) ? e.url.slice(base.length) || "/" : e.url;
     return !excludePaths.some((rule) => matchesExclude(path, rule));
   });
 }

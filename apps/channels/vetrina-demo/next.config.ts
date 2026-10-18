@@ -1,17 +1,9 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
 
-// Proxies the backend's token-gated links the browser can't reach directly (app:8080 is
-// in-network): /download/:token, /unsubscribe/:token, /e/* pixels and click redirects
-
-// App-layer security headers so the storefront ships a CSP even off the prod edge
-// Static policy (no per-request nonce) so it caches across all paths. No HSTS - that's
-// the edge's concern, and asserting it over local http would wrongly pin the browser
-//
-// SYNC - narrower on purpose than apps/backend/internal/httpx/securityheaders.go and
-// apps/dashboard/nginx.conf.template: no gateway SDK runs here, so no host earns a slot
+// App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
+// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: no gateway SDK runs here, so no host earns a slot
 
 // Dev media is plain http on localhost which `https:` won't cover - prod media is https
 const imgSrc =
@@ -19,10 +11,17 @@ const imgSrc =
     ? "img-src 'self' data: blob: https:"
     : "img-src 'self' data: blob: https: http:";
 
+// React's dev build evals for fast refresh and error overlays - a prod bundle never does, so it
+// doesn't get the slot
+const scriptSrc =
+  process.env.NODE_ENV === "production"
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+
 // Same-origin only - a payment plugin's browser SDK is what earns a gateway host a slot here
 const CSP_BASE = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   imgSrc,
   "font-src 'self' data:",
@@ -37,7 +36,7 @@ const COMMON_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value: "camera=(), microphone=(), geolocation=(self), payment=()",
   },
 ];
 
@@ -76,33 +75,6 @@ const nextConfig: NextConfig = {
       { source: "/((?!cms/preview|blog/preview).*)", headers: SECURITY_HEADERS },
       { source: "/cms/preview/:path*", headers: PREVIEW_HEADERS },
       { source: "/blog/preview/:path*", headers: PREVIEW_HEADERS },
-    ];
-  },
-
-  async rewrites() {
-    return [
-      {
-        // Same-origin so <img src="/media/t/.."> works without exposing the backend host
-        source: "/media/t/:path*",
-        destination: `${BACKEND_INTERNAL_URL}/media/t/:path*`,
-      },
-      {
-        source: "/download/:path*",
-        destination: `${BACKEND_INTERNAL_URL}/download/:path*`,
-      },
-      {
-        source: "/unsubscribe/:path*",
-        destination: `${BACKEND_INTERNAL_URL}/unsubscribe/:path*`,
-      },
-      {
-        source: "/e/:path*",
-        destination: `${BACKEND_INTERNAL_URL}/e/:path*`,
-      },
-      {
-        // Lens ingest + client config, proxied so the browser sees a same-origin call
-        source: "/t/:path*",
-        destination: `${BACKEND_INTERNAL_URL}/t/:path*`,
-      },
     ];
   },
 };

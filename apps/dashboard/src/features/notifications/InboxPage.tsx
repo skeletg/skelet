@@ -20,18 +20,14 @@ import {
   type NotificationsQuery,
 } from './Notifications.gql'
 import { CATEGORY_LABEL, NOTIFICATION_CATEGORIES } from './preferences'
+import { formatDateTime } from '@/lib/format'
 
 type Row = NotificationsQuery['notifications'][number]
 
 const SEVERITY: Record<string, { label: string; cls: string }> = {
-  critical: { label: 'Critical', cls: 'bg-red-500/15 text-red-700 dark:text-red-400' },
-  warning: { label: 'Warning', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
-  info: { label: 'Info', cls: 'bg-sky-500/15 text-sky-700 dark:text-sky-400' },
-}
-
-function fmtWhen(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  critical: { label: 'Critical', cls: 'bg-destructive-soft text-destructive' },
+  warning: { label: 'Warning', cls: 'bg-warning-soft text-warning' },
+  info: { label: 'Info', cls: 'bg-info-soft text-info' },
 }
 
 // InboxPage is the full admin notification center - a catalog-style table of
@@ -93,7 +89,7 @@ export function InboxPage() {
       {
         accessorKey: 'createdAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="When" />,
-        cell: ({ row }) => <span className="whitespace-nowrap text-sm text-muted-foreground">{fmtWhen(row.original.createdAt)}</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(row.original.createdAt)}</span>,
       },
       {
         id: 'actions',

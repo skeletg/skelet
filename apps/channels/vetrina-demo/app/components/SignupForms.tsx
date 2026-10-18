@@ -6,6 +6,15 @@
 // a per-form frequency cap enforced by a first-party cookie
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+
+import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
+import { submitSignupAction } from "@/app/lib/beacons/actions";
+import { beaconFetch } from "@/app/lib/beacons/client";
+import { BEACON } from "@/app/lib/beacons/paths";
+import { signupSchema } from "@/app/lib/beacons/schemas";
+import { readCookie } from "@/app/lib/cookies";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 type Display = {
   trigger: string;
@@ -25,11 +34,6 @@ type FormDef = {
   display: Display;
 };
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
 function setCookie(name: string, value: string, days: number) {
   const maxAge = Math.max(1, days) * 24 * 60 * 60;
   document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; samesite=lax`;
@@ -43,7 +47,7 @@ export function SignupForms({ channelId }: { channelId: string }) {
   // Load the active forms once, pick the first not-recently-dismissed one
   useEffect(() => {
     let cancelled = false;
-    fetch("/t/forms", { headers: { "X-Channel-Id": channelId } })
+    beaconFetch(BEACON.signupForms, { channelId })
       .then((r) => (r.ok ? r.json() : []))
       .then((forms: FormDef[]) => {
         if (cancelled) return;
@@ -95,88 +99,75 @@ export function SignupForms({ channelId }: { channelId: string }) {
     setVisible(false);
   };
 
-  return <FormCard form={form} channelId={channelId} onDismiss={dismiss} />;
+  return <FormCard form={form} onDismiss={dismiss} />;
 }
 
 function FormCard({
   form,
-  channelId,
   onDismiss,
 }: {
   form: FormDef;
-  channelId: string;
   onDismiss: () => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
-  const [msg, setMsg] = useState(form.successMessage);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || state === "sending") return;
-    setState("sending");
-    try {
-      const res = await fetch("/t/forms/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Channel-Id": channelId },
-        body: JSON.stringify({ form: form.slug, email: email.trim(), name: name.trim() }),
-      });
-      if (res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        if (body.message) setMsg(body.message);
-        setState("done");
-        setCookie(seenCookie(form.slug), "1", 365);
-      } else {
-        setState("error");
-      }
-    } catch {
-      setState("error");
-    }
-  };
+  const t = useTranslations("signup");
+  const tc = useTranslations("common");
+  const tf = useTranslations("forms.fields");
+  const tb = useTranslations("product.backInStock");
+  const { form: meta, fields, formAction, onSubmit, pending, lastResult } = useActionForm(submitSignupAction, signupSchema);
+  const done = lastResult?.status === "success";
+  // A subscribed shopper isn't shown this form again for a year
+  useEffect(() => {
+    if (done) setCookie(seenCookie(form.slug), "1", 365);
+  }, [done, form.slug]);
 
   const inner = (
     <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">{form.heading || "Join our list"}</h2>
+        <h2 className="text-lg font-semibold">{form.heading || t("heading")}</h2>
         {form.type !== "inline" && (
-          <button onClick={onDismiss} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button onClick={onDismiss} aria-label={tc("close")} className="text-muted-foreground hover:text-foreground">
             ✕
           </button>
         )}
       </div>
       {form.body && <p className="mt-1 text-sm text-muted-foreground">{form.body}</p>}
-      {state === "done" ? (
-        <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-          {msg}
+      {done ? (
+        <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          {lastResult?.message || form.successMessage}
         </p>
       ) : (
-        <form onSubmit={submit} className="mt-4 grid gap-2">
+        <form id={meta.id} action={formAction} onSubmit={onSubmit} noValidate className="mt-4 grid gap-2">
+          <input type="hidden" name={fields.form.name} value={form.slug} />
           {form.collectName && (
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="First name"
+              key={fields.name.key}
+              name={fields.name.name}
+              aria-label={tf("firstName")}
+              placeholder={tf("firstName")}
               className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
             />
           )}
           <input
             type="email"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            key={fields.email.key}
+            name={fields.email.name}
+            aria-label={tf("email")}
+            aria-invalid={fields.email.errors ? true : undefined}
+            aria-describedby={fields.email.errors ? fields.email.errorId : undefined}
+            placeholder={tb("placeholder")}
             className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
           />
+          {fields.email.errors ? <FieldErrors id={fields.email.errorId} errors={fields.email.errors} /> : null}
           <button
             type="submit"
-            disabled={state === "sending"}
+            disabled={pending}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {state === "sending" ? "…" : form.buttonLabel || "Subscribe"}
+            {pending ? "…" : form.buttonLabel || t("subscribe")}
           </button>
-          {state === "error" && <p className="text-xs text-rose-600">Something went wrong - please try again.</p>}
+          <FormErrors errors={meta.errors} />
         </form>
       )}
     </div>

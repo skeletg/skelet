@@ -34,6 +34,8 @@ import {
   DuplicateProductOptionDocument,
   ProductDocument,
   ProductPickerDocument,
+  SetProductOptionChannelPriceDocument,
+  SetProductOptionValueChannelPriceDocument,
   UpdateProductOptionDocument,
   UpdateProductOptionValueDocument,
   UpsertProductOptionContentDocument,
@@ -61,12 +63,17 @@ import {
 } from './productOptionsStaging'
 import { useProductSaveSection } from './productSaveRegistry'
 import { useConfigScope } from '@/lib/config-scope'
+import { ChannelSurchargeInputs, channelEditsFrom, rawChannelPrices, type SurchargeChannel } from './ChannelSurchargeInputs'
 
 type WithOptions = {
   id: string
   contentLocale?: string | null
+  defaultCurrencyCode?: string
+  listings?: { channel: SurchargeChannel }[]
   productOptions: ProductOption[]
 }
+
+type Surcharges = { channels: SurchargeChannel[]; baseCurrency: string }
 
 const INPUT_TYPE_LABEL: Record<ProductOptionInputType, string> = {
   FIELD: 'Text · field',
@@ -127,7 +134,21 @@ export function ProductOptionsSection({
 
   const reduced = useMemo(() => reduceOps(pendingOps), [pendingOps])
   const staged = useMemo(() => applyOps(product.productOptions, reduced), [product.productOptions, reduced])
-  const diff = useMemo(() => opsToDiff(product.productOptions, reduced), [product.productOptions, reduced])
+  const surcharges = useMemo<Surcharges>(
+    () => ({
+      channels: (product.listings ?? []).map((l) => l.channel),
+      baseCurrency: product.defaultCurrencyCode ?? '',
+    }),
+    [product.listings, product.defaultCurrencyCode],
+  )
+  const diff = useMemo(() => {
+    const byId = new Map(surcharges.channels.map((c) => [c.id, c]))
+    const label = (id: string) => {
+      const c = byId.get(id)
+      return c ? `${c.name} (${c.currencyCode})` : 'another channel'
+    }
+    return opsToDiff(product.productOptions, reduced, label)
+  }, [product.productOptions, reduced, surcharges.channels])
 
   // New options/values must be created in the configured default locale (the backend enforces this); translations are
   // added afterwards by switching the edit locale
@@ -159,6 +180,8 @@ export function ProductOptionsSection({
   const [upsertValueContentMutation] = useMutation(UpsertProductOptionValueContentDocument, { refetchQueries: refetch })
   const [deleteValueMutation] = useMutation(DeleteProductOptionValueDocument, { refetchQueries: refetch })
   const [duplicateOptionMutation] = useMutation(DuplicateProductOptionDocument, { refetchQueries: refetch })
+  const [setOptionChannelPriceMutation] = useMutation(SetProductOptionChannelPriceDocument, { refetchQueries: refetch })
+  const [setValueChannelPriceMutation] = useMutation(SetProductOptionValueChannelPriceDocument, { refetchQueries: refetch })
 
   // Duplicate fires immediately (not staged) - it's a server-side
   // clone that doesn't interact with the section's pending ops
@@ -324,6 +347,12 @@ export function ProductOptionsSection({
       deleteValue: async (op) => {
         await deleteValueMutation({ variables: { id: op.id } })
       },
+      setOptionChannelPrice: async (op) => {
+        await setOptionChannelPriceMutation({ variables: op })
+      },
+      setValueChannelPrice: async (op) => {
+        await setValueChannelPriceMutation({ variables: op })
+      },
     }
 
     try {
@@ -347,6 +376,8 @@ export function ProductOptionsSection({
     updateValueMutation,
     upsertValueContentMutation,
     deleteValueMutation,
+    setOptionChannelPriceMutation,
+    setValueChannelPriceMutation,
   ])
 
   useProductSaveSection({ id: 'product-options', title: 'Product options', diff, save })
@@ -412,6 +443,7 @@ export function ProductOptionsSection({
                   locale={editLocale}
                   defaultLocale={defaultLocale}
                   productId={product.id}
+                  surcharges={surcharges}
                   onStage={stage}
                   onClose={() => setEditingOptionId(null)}
                 />
@@ -443,6 +475,7 @@ export function ProductOptionsSection({
                       <AddValueForm
                         option={opt}
                         locale={defaultLocale}
+                        surcharges={surcharges}
                         onStage={stage}
                         onClose={() => setValueForm(null)}
                       />
@@ -453,6 +486,7 @@ export function ProductOptionsSection({
                         locale={editLocale}
                         defaultLocale={defaultLocale}
                         productId={product.id}
+                        surcharges={surcharges}
                         onStage={stage}
                         onClose={() => setValueForm(null)}
                       />
@@ -469,6 +503,7 @@ export function ProductOptionsSection({
         <AddOptionForm
           locale={defaultLocale}
           existingMaxSort={sortedOptions.reduce((m, o) => Math.max(m, o.sortOrder), -1)}
+          surcharges={surcharges}
           onStage={stage}
           onClose={() => setAddingOption(false)}
         />
@@ -530,7 +565,7 @@ function OptionCard({
               </Badge>
             )}
             {pending && (
-              <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">Unsaved</Badge>
+              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
             )}
           </div>
           {content.helpText && (
@@ -580,7 +615,7 @@ function OptionCard({
                   {sortedValues.map((v) => {
                     const vp = isTemp(v.id)
                     return (
-                      <TableRow key={v.id} className={vp ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                      <TableRow key={v.id} className={vp ? 'bg-warning-soft' : ''}>
                         <TableCell className="font-medium">{valueContentFor(v, locale)}</TableCell>
                         <TableCell className="font-mono text-xs">
                           {v.sourceProduct ? (
@@ -671,11 +706,13 @@ function TwoClickDelete({ label, onConfirm }: { label: string; onConfirm: () => 
 function AddOptionForm({
   locale,
   existingMaxSort,
+  surcharges,
   onStage,
   onClose,
 }: {
   locale: string
   existingMaxSort: number
+  surcharges: Surcharges
   onStage: (op: PendingOp) => void
   onClose: () => void
 }) {
@@ -688,10 +725,12 @@ function AddOptionForm({
   const [maxChars, setMaxChars] = useState<string>('')
   const [maxFileBytes, setMaxFileBytes] = useState<string>('')
   const [fileExtensions, setFileExtensions] = useState<string>('')
+  const [channelPrices, setChannelPrices] = useState<Record<string, string>>({})
 
   const showPriceOnOption = !isSelect(inputType)
   const showTextConstraints = isText(inputType)
   const showFileConstraints = isFile(inputType)
+  const fixedSurcharge = showPriceOnOption && priceValue.trim() !== '' && priceType === 'FIXED'
 
   function reset() {
     setTitle('')
@@ -703,11 +742,13 @@ function AddOptionForm({
     setMaxChars('')
     setMaxFileBytes('')
     setFileExtensions('')
+    setChannelPrices({})
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const pv = priceValue.trim() === '' ? null : Number(priceValue)
+    const priceEdits = fixedSurcharge ? channelEditsFrom(surcharges.channels, channelPrices, []) : undefined
     onStage({
       kind: 'add-option',
       tempId: newTempId(),
@@ -722,6 +763,7 @@ function AddOptionForm({
       maxChars: showTextConstraints && maxChars.trim() !== '' ? Number(maxChars) : null,
       maxFileBytes: showFileConstraints && maxFileBytes.trim() !== '' ? Number(maxFileBytes) : null,
       fileExtensions: showFileConstraints && fileExtensions.trim() !== '' ? fileExtensions.trim() : null,
+      ...(priceEdits ? { channelPrices: priceEdits } : {}),
     })
     reset()
     onClose()
@@ -782,7 +824,7 @@ function AddOptionForm({
               <div className="grid gap-2">
                 <Label htmlFor="po-price-type">Type</Label>
                 <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger id="po-price-type"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" id="po-price-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                     <SelectItem value="PERCENT">Percent (%)</SelectItem>
@@ -790,6 +832,16 @@ function AddOptionForm({
                 </Select>
               </div>
             </div>
+          )}
+          {fixedSurcharge && (
+            <ChannelSurchargeInputs
+              idPrefix="po-channel-price-add"
+              channels={surcharges.channels}
+              baseCurrency={surcharges.baseCurrency}
+              baseAmount={Number(priceValue) || 0}
+              values={channelPrices}
+              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
+            />
           )}
           {isSelect(inputType) && (
             <p className="text-xs text-muted-foreground">
@@ -833,6 +885,7 @@ function EditOptionForm({
   locale,
   defaultLocale,
   productId,
+  surcharges,
   onStage,
   onClose,
 }: {
@@ -841,6 +894,7 @@ function EditOptionForm({
   locale: string
   defaultLocale: string
   productId: string
+  surcharges: Surcharges
   onStage: (op: PendingOp) => void
   onClose: () => void
 }) {
@@ -857,6 +911,7 @@ function EditOptionForm({
   const [maxChars, setMaxChars] = useState<string>(option.maxChars === null ? '' : String(option.maxChars))
   const [maxFileBytes, setMaxFileBytes] = useState<string>(option.maxFileBytes === null ? '' : String(option.maxFileBytes))
   const [fileExtensions, setFileExtensions] = useState<string>(option.fileExtensions ?? '')
+  const [channelPrices, setChannelPrices] = useState(() => rawChannelPrices(option.channelPrices))
 
   const showPriceOnOption = !isSelect(option.inputType)
   const showTextConstraints = isText(option.inputType)
@@ -931,6 +986,11 @@ function EditOptionForm({
         : {}),
       ...(visChanged && !hasNestedGroups ? { visibleIf: nextVisibleIf } : {}),
     }
+    const priceEdits =
+      showPriceOnOption && pv !== null && priceType === 'FIXED'
+        ? channelEditsFrom(surcharges.channels, channelPrices, option.channelPrices)
+        : undefined
+    if (priceEdits) Object.assign(op, { channelPrices: priceEdits })
     if (Object.keys(op).length > 2) onStage(op)
     onClose()
   }
@@ -980,7 +1040,7 @@ function EditOptionForm({
               <div className="grid gap-2">
                 <Label htmlFor="po-price-type-edit">Type</Label>
                 <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger id="po-price-type-edit"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" id="po-price-type-edit"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                     <SelectItem value="PERCENT">Percent (%)</SelectItem>
@@ -988,6 +1048,16 @@ function EditOptionForm({
                 </Select>
               </div>
             </div>
+          )}
+          {showPriceOnOption && priceValue.trim() !== '' && priceType === 'FIXED' && (
+            <ChannelSurchargeInputs
+              idPrefix="po-channel-price"
+              channels={surcharges.channels}
+              baseCurrency={surcharges.baseCurrency}
+              baseAmount={Number(priceValue) || 0}
+              values={channelPrices}
+              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
+            />
           )}
           {showTextConstraints && (
             <div className="grid gap-2">
@@ -1330,11 +1400,13 @@ function SourceProductPicker({
 function AddValueForm({
   option,
   locale,
+  surcharges,
   onStage,
   onClose,
 }: {
   option: ProductOption
   locale: string
+  surcharges: Surcharges
   onStage: (op: PendingOp) => void
   onClose: () => void
 }) {
@@ -1345,6 +1417,8 @@ function AddValueForm({
   const [quantity, setQuantity] = useState('1')
   const [forcedLineQty, setForcedLineQty] = useState('')
   const [sourceProduct, setSourceProduct] = useState<SourceProduct | null>(null)
+  const [channelPrices, setChannelPrices] = useState<Record<string, string>>({})
+  const fixed = priceType === 'FIXED' || !!sourceProduct
 
   function reset() {
     setTitle('')
@@ -1354,6 +1428,7 @@ function AddValueForm({
     setQuantity('1')
     setForcedLineQty('')
     setSourceProduct(null)
+    setChannelPrices({})
   }
 
   function onPickProduct(next: SourceProduct | null) {
@@ -1384,6 +1459,7 @@ function AddValueForm({
       locale,
       sourceProductId: sourceProduct?.id ?? null,
       sourceProduct,
+      ...(fixed ? { channelPrices: channelEditsFrom(surcharges.channels, channelPrices, []) } : {}),
     })
     reset()
     onClose()
@@ -1405,7 +1481,7 @@ function AddValueForm({
             </p>
             {sourceProduct && (
               <p className="text-xs text-muted-foreground">
-                The linked product's stock is not reserved or decremented by this option.
+                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
               </p>
             )}
           </div>
@@ -1413,7 +1489,7 @@ function AddValueForm({
             <Label htmlFor="pov-title">Title ({locale})</Label>
             <Input id="pov-title" required value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="pov-price">{sourceProduct ? 'Markup' : 'Price adjustment'}</Label>
               <Input id="pov-price" type="number" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
@@ -1425,7 +1501,7 @@ function AddValueForm({
                 onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
                 disabled={!!sourceProduct}
               >
-                <SelectTrigger id="pov-type"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full" id="pov-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                   <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>
@@ -1436,6 +1512,16 @@ function AddValueForm({
               )}
             </div>
           </div>
+          {fixed && (
+            <ChannelSurchargeInputs
+              idPrefix="pov-channel-price"
+              channels={surcharges.channels}
+              baseCurrency={surcharges.baseCurrency}
+              baseAmount={Number(priceValue) || 0}
+              values={channelPrices}
+              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
+            />
+          )}
           <div className="grid gap-2">
             <Label htmlFor="pov-quantity">Quantity</Label>
             <Input id="pov-quantity" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
@@ -1476,6 +1562,7 @@ function EditValueForm({
   locale,
   defaultLocale,
   productId,
+  surcharges,
   onStage,
   onClose,
 }: {
@@ -1483,6 +1570,7 @@ function EditValueForm({
   locale: string
   defaultLocale: string
   productId: string
+  surcharges: Surcharges
   onStage: (op: PendingOp) => void
   onClose: () => void
 }) {
@@ -1498,6 +1586,8 @@ function EditValueForm({
   const [quantity, setQuantity] = useState(String(value.quantity))
   const [forcedLineQty, setForcedLineQty] = useState(value.forcedLineQty != null ? String(value.forcedLineQty) : '')
   const [sourceProduct, setSourceProduct] = useState<SourceProduct | null>(value.sourceProduct ?? null)
+  const [channelPrices, setChannelPrices] = useState(() => rawChannelPrices(value.channelPrices))
+  const fixed = priceType === 'FIXED' || !!sourceProduct
   // same fold hazard as option titles - see EditOptionForm
   const titleLocked = isTemp(value.id) && locale !== defaultLocale
 
@@ -1528,6 +1618,8 @@ function EditValueForm({
         ? { sourceProductId: nextSrcId, sourceProduct: sourceProduct ?? null }
         : {}),
     }
+    const priceEdits = fixed ? channelEditsFrom(surcharges.channels, channelPrices, value.channelPrices) : undefined
+    if (priceEdits) Object.assign(op, { channelPrices: priceEdits })
     if (Object.keys(op).length > 2) onStage(op)
     onClose()
   }
@@ -1545,7 +1637,7 @@ function EditValueForm({
             <SourceProductPicker value={sourceProduct} onChange={onPickProduct} />
             {sourceProduct && (
               <p className="text-xs text-muted-foreground">
-                The linked product's stock is not reserved or decremented by this option.
+                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
               </p>
             )}
           </div>
@@ -1570,7 +1662,7 @@ function EditValueForm({
                 onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
                 disabled={!!sourceProduct}
               >
-                <SelectTrigger id="pov-type-edit"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full" id="pov-type-edit"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                   <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>
@@ -1578,6 +1670,16 @@ function EditValueForm({
               </Select>
             </div>
           </div>
+          {fixed && (
+            <ChannelSurchargeInputs
+              idPrefix="pov-channel-price-edit"
+              channels={surcharges.channels}
+              baseCurrency={surcharges.baseCurrency}
+              baseAmount={Number(priceValue) || 0}
+              values={channelPrices}
+              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
+            />
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label htmlFor="pov-sort-edit">Sort order</Label>

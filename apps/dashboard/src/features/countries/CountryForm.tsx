@@ -1,22 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { PlusIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import {
-  DetailPageBody,
-  DetailPageHeader,
-  DetailPageLayout,
-  DetailPageSection,
-} from '@/components/layout/detail-page'
-import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
-import { fieldDiff } from '@/shared/saving/diff'
-import { PluginSections } from '@/plugins/detail-sections'
-import { Checkbox } from '@/components/ui/checkbox'
+import { z } from 'zod'
+import { DetailPageSection } from '@/components/layout/detail-page'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { callingCode } from '@/lib/phone'
 import {
   Select,
   SelectContent,
@@ -24,8 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+import { PluginSections } from '@/plugins/detail-sections'
 import { LoadError } from '@/shared/errors/LoadError'
+import { ClashNote } from '@/shared/saving/RestoredDraftBanner'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
 import {
   CountriesAdminListDocument,
@@ -33,27 +25,17 @@ import {
   CreateCountryDocument,
   UpdateCountryDocument,
 } from './Countries.gql'
+import { BusinessIdFieldsEditor } from './BusinessIdFieldsEditor'
+import {
+  businessIdFieldSchema,
+  COUNTRY_LABELS,
+  countryDiff,
+  countrySchema,
+  toCountryInput,
+  toCountryValues,
+  type ExistingCountry,
+} from './schemas/country'
 
-type MetadataEntry = { key: string; value: string }
-
-type RegionEntry = { code: string; name: string; isActive: boolean; sortOrder: number }
-
-type ExistingCountry = {
-  code: string
-  name: string
-  nativeName: string
-  emojiFlag: string
-  phoneCode: string
-  iso3Code: string
-  numericCode: string
-  defaultCurrencyCode: string
-  isActive: boolean
-  sortOrder: number
-  metadata: MetadataEntry[]
-  regions: RegionEntry[]
-}
-
-const CODE_REGEX = /^[A-Z]{2}$/
 const NO_CURRENCY = '__none__'
 
 export function CountryCreatePage() {
@@ -89,262 +71,112 @@ export function CountryEditPage() {
   return <CountryFormPage mode="edit" country={data.country} />
 }
 
-function CountryFormPage({
-  mode,
-  country,
-}: {
-  mode: 'create' | 'edit'
-  country?: ExistingCountry
-}) {
+function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?: ExistingCountry }) {
   const navigate = useNavigate()
   const isEdit = mode === 'edit'
 
-  const [code, setCode] = useState(country?.code ?? '')
-  const [name, setName] = useState(country?.name ?? '')
-  const [nativeName, setNativeName] = useState(country?.nativeName ?? '')
-  const [emojiFlag, setEmojiFlag] = useState(country?.emojiFlag ?? '')
-  const [phoneCode, setPhoneCode] = useState(country?.phoneCode ?? '')
-  const [defaultCurrencyCode, setDefaultCurrencyCode] = useState(country?.defaultCurrencyCode ?? '')
-  const [isActive, setIsActive] = useState(country?.isActive ?? true)
-  const [sortOrder, setSortOrder] = useState(country?.sortOrder ?? 0)
-  const [metadata, setMetadata] = useState<MetadataEntry[]>(
-    country?.metadata.map((e) => ({ ...e })) ?? [],
-  )
-
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [codeError, setCodeError] = useState<string | null>(null)
-
-  // Header Save reviews the change list before writing - docs/conventions.md
-  const { contextValue: saveContextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-
   const currenciesQuery = useQuery(CurrenciesPickerDocument)
   const currencies = useMemo(
-    () =>
-      [...(currenciesQuery.data?.currencies ?? [])].sort((a, b) =>
-        a.code.localeCompare(b.code),
-      ),
+    () => [...(currenciesQuery.data?.currencies ?? [])].sort((a, b) => a.code.localeCompare(b.code)),
     [currenciesQuery.data],
   )
 
   const refetchQueries = [{ query: CountriesAdminListDocument }]
-  const [createCountry, { loading: creating }] = useMutation(CreateCountryDocument, {
-    refetchQueries,
+  const [createCountry] = useMutation(CreateCountryDocument, { refetchQueries })
+  const [updateCountry] = useMutation(UpdateCountryDocument, { refetchQueries })
+
+  const baseline = useMemo(() => toCountryValues(country), [country])
+  const record = useRecordForm({
+    id: 'country',
+    title: 'Country',
+    label: isEdit ? `Country · ${country?.name ?? country?.code ?? ''}` : 'New country',
+    isEdit,
+    baseline,
+    schema: countrySchema,
+    diff: countryDiff,
+    persist: { routeKey: `country:${country?.code ?? 'new'}` },
+    submit: async (value) => {
+      const input = toCountryInput(value)
+      if (country) await updateCountry({ variables: { input: { ...input, code: country.code } } })
+      else await createCountry({ variables: { input } })
+    },
+    onSaved: () => navigate('/countries'),
   })
-  const [updateCountry, { loading: updating }] = useMutation(UpdateCountryDocument, {
-    refetchQueries,
-  })
-  const loading = creating || updating
-
-  const draft = { name, nativeName, emojiFlag, phoneCode, defaultCurrencyCode, isActive, sortOrder }
-  const original = {
-    name: country?.name ?? '',
-    nativeName: country?.nativeName ?? '',
-    emojiFlag: country?.emojiFlag ?? '',
-    phoneCode: country?.phoneCode ?? '',
-    defaultCurrencyCode: country?.defaultCurrencyCode ?? '',
-    isActive: country?.isActive ?? true,
-    sortOrder: country?.sortOrder ?? 0,
-  }
-  // Keyed on the serialized pair: both are fresh object literals every render, so the memo
-  // needs their CONTENT - and a dep list takes plain identifiers, not calls
-  const originalKey = JSON.stringify(original)
-  const draftKey = JSON.stringify(draft)
-  const countryDiff = useMemo(
-    () =>
-      isEdit
-        ? fieldDiff(original, draft, [
-            { label: 'Name', value: (o) => o.name },
-            { label: 'Native name', value: (o) => o.nativeName },
-            { label: 'Flag', value: (o) => o.emojiFlag },
-            { label: 'Phone code', value: (o) => o.phoneCode },
-            { label: 'Default currency', value: (o) => o.defaultCurrencyCode },
-            { label: 'Active', value: (o) => o.isActive },
-            { label: 'Sort order', value: (o) => o.sortOrder },
-          ])
-        : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isEdit, originalKey, draftKey],
-  )
-
-  useSaveSection({ id: 'country', title: 'Country', diff: countryDiff, save: () => applyChanges() })
-
-  async function onConfirmSave() {
-    setSaveError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-
-  function cleanMetadata(entries: MetadataEntry[]): MetadataEntry[] {
-    return entries
-      .map((e) => ({ key: e.key.trim(), value: e.value.trim() }))
-      .filter((e) => e.key.length > 0)
-  }
-
-  async function applyChanges() {
-    setSubmitError(null)
-    setCodeError(null)
-
-    const trimmedCode = code.trim().toUpperCase()
-    if (!isEdit) {
-      if (!CODE_REGEX.test(trimmedCode)) {
-        setCodeError('Use ISO 3166-1 alpha-2: exactly 2 uppercase letters (e.g. US, DE).')
-        throw new Error('Use ISO 3166-1 alpha-2: exactly 2 uppercase letters (e.g. US, DE).')
-      }
-    }
-
-    const cleanedMetadata = cleanMetadata(metadata)
-    const sharedFields = {
-      name,
-      nativeName: nativeName || undefined,
-      emojiFlag: emojiFlag || undefined,
-      phoneCode: phoneCode || undefined,
-      defaultCurrencyCode: defaultCurrencyCode || undefined,
-      isActive,
-      sortOrder,
-      metadata: cleanedMetadata,
-    }
-
-    try {
-      if (isEdit && country) {
-        await updateCountry({
-          variables: { input: { code: country.code, ...sharedFields } },
-        })
-      } else {
-        await createCountry({
-          variables: { input: { code: trimmedCode, ...sharedFields } },
-        })
-      }
-      navigate('/countries')
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong.')
-      throw err // the dialog keeps itself open and surfaces the message
-    }
-  }
+  const { form, draft } = record
+  const clash = (field: string) => <ClashNote draft={draft} field={field} />
 
   return (
-    <SaveRegistryContext.Provider value={saveContextValue}>
-    <DetailPageLayout>
-      <DetailPageHeader
-        backTo="/countries"
-        backLabel="Back to countries"
-        title={isEdit ? country?.name ?? country?.code ?? 'Country' : 'New country'}
-        meta={
-          isEdit && country?.code ? (
-            <code className="font-mono">{country.code}</code>
-          ) : !isEdit ? (
-            <span>
-              ISO 3166-1 alpha-2 country with native name, flag, phone code, and a default
-              currency.
-            </span>
-          ) : null
-        }
-        actions={
-          <Button
-            type="button"
-            size="sm"
-            disabled={loading || (isEdit && !isDirty)}
-            onClick={() => (isEdit ? setConfirmingSave(true) : void applyChanges())}
-          >
-            {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Create country'}
-          </Button>
-        }
-      />
+    <RecordFormPage
+      record={record}
+      backTo="/countries"
+      backLabel="Back to countries"
+      title={isEdit ? country?.name ?? country?.code ?? 'Country' : 'New country'}
+      meta={
+        isEdit && country?.code ? (
+          <code className="font-mono">{country.code}</code>
+        ) : !isEdit ? (
+          <span>ISO 3166-1 alpha-2 country with native name, flag, phone code, and a default currency.</span>
+        ) : null
+      }
+      createLabel="Create country"
+      labels={COUNTRY_LABELS}
+      after={<PluginSections target="country" entity={country ?? null} mode={isEdit ? 'edit' : 'create'} />}
+    >
+      <DetailPageSection title="Identity" description="2-letter ISO 3166-1 alpha-2 code, name, and native name.">
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+          <form.AppField name="code">
+            {(f) => (
+              <f.TextField
+                id="country-code"
+                label="Code"
+                maxLength={2}
+                disabled={isEdit}
+                placeholder="US"
+                parse={(raw) => raw.toUpperCase()}
+                hint={isEdit ? 'Code is immutable.' : 'Uppercased as you type. Pattern: ^[A-Z]{2}$'}
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="emojiFlag">
+            {(f) => <f.TextField id="country-flag" label="Flag emoji" maxLength={8} placeholder="🇺🇸" note={clash('emojiFlag')} />}
+          </form.AppField>
+          <form.AppField name="name">
+            {(f) => <f.TextField id="country-name" label="Name" placeholder="United States" note={clash('name')} />}
+          </form.AppField>
+          <form.AppField name="nativeName">
+            {(f) => (
+              <f.TextField id="country-native" label="Native name" placeholder="United States" note={clash('nativeName')} />
+            )}
+          </form.AppField>
+        </div>
+      </DetailPageSection>
 
-      <div>
-        <DetailPageBody>
-          <DetailPageSection
-            title="Identity"
-            description="2-letter ISO 3166-1 alpha-2 code, name, and native name."
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="country-code">Code</Label>
-                <Input
-                  id="country-code"
-                  required
-                  maxLength={2}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  disabled={isEdit}
-                  placeholder="US"
-                  aria-invalid={!!codeError}
-                  className={cn(codeError && 'border-destructive')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {isEdit
-                    ? 'Code is immutable.'
-                    : 'Uppercased on save. Pattern: ^[A-Z]{2}$'}
-                </p>
-                {codeError && <p className="text-xs text-destructive">{codeError}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="country-flag">Flag emoji</Label>
-                <Input
-                  id="country-flag"
-                  maxLength={8}
-                  value={emojiFlag}
-                  onChange={(e) => setEmojiFlag(e.target.value)}
-                  placeholder="🇺🇸"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="country-name">Name</Label>
-                <Input
-                  id="country-name"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="United States"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="country-native">Native name</Label>
-                <Input
-                  id="country-native"
-                  value={nativeName}
-                  onChange={(e) => setNativeName(e.target.value)}
-                  placeholder="United States"
-                />
-              </div>
-            </div>
-          </DetailPageSection>
-
-          <DetailPageSection
-            title="Defaults"
-            description="Phone calling code and default currency. Default currency is FK-validated."
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <DetailPageSection
+        title="Defaults"
+        description="Phone calling code, which follows the country code, and default currency."
+      >
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+          {/* Read-only: phone checks take the calling code from libphonenumber, so a typed one could only disagree */}
+          <form.Subscribe selector={(s) => [s.values.code, s.values.phoneCode] as const}>
+            {([code, stored]) => (
               <div className="grid gap-2">
                 <Label htmlFor="country-phone">Phone code</Label>
-                <Input
-                  id="country-phone"
-                  maxLength={6}
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
-                  placeholder="+1"
-                />
+                <Input id="country-phone" value={callingCode(code) ?? stored} readOnly disabled placeholder="From the country code" />
+                <p className="text-xs text-muted-foreground">Set by the country code.</p>
               </div>
+            )}
+          </form.Subscribe>
+          <form.Field name="defaultCurrencyCode">
+            {(f) => (
               <div className="grid gap-2">
                 <Label htmlFor="country-currency">Default currency</Label>
                 <Select
-                  value={defaultCurrencyCode || NO_CURRENCY}
-                  onValueChange={(v) => setDefaultCurrencyCode(v === NO_CURRENCY ? '' : v)}
+                  value={f.state.value || NO_CURRENCY}
+                  onValueChange={(v) => f.handleChange(v === NO_CURRENCY ? '' : v)}
                   disabled={currenciesQuery.loading}
                 >
-                  <SelectTrigger id="country-currency">
-                    <SelectValue
-                      placeholder={currenciesQuery.loading ? 'Loading…' : 'No default'}
-                    />
+                  <SelectTrigger className="w-full" id="country-currency">
+                    <SelectValue placeholder={currenciesQuery.loading ? 'Loading…' : 'No default'} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_CURRENCY}>No default</SelectItem>
@@ -352,9 +184,7 @@ function CountryFormPage({
                       <SelectItem key={entry.code} value={entry.code}>
                         <span className="mr-1.5 font-mono">{entry.symbol || '·'}</span>
                         <span>{entry.name}</span>
-                        <span className="ml-1.5 text-xs text-muted-foreground">
-                          ({entry.code})
-                        </span>
+                        <span className="ml-1.5 text-xs text-muted-foreground">({entry.code})</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -362,173 +192,110 @@ function CountryFormPage({
                 <p className="text-xs text-muted-foreground">
                   Picker shows active currencies. Manage the catalog on the Currencies page.
                 </p>
+                {clash('defaultCurrencyCode')}
               </div>
-            </div>
-          </DetailPageSection>
+            )}
+          </form.Field>
+        </div>
+      </DetailPageSection>
 
-          <DetailPageSection title="Display & state">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="country-sort">Sort order</Label>
-                  <Input
-                    id="country-sort"
-                    type="number"
-                    inputMode="numeric"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-md border p-3">
-                <Checkbox
-                  id="country-active"
-                  checked={isActive}
-                  onCheckedChange={(v) => setIsActive(!!v)}
-                />
-                <Label htmlFor="country-active" className="cursor-pointer">
-                  Active - inactive countries cannot be assigned to new addresses
-                </Label>
-              </div>
-            </div>
-          </DetailPageSection>
-
-          {country && (
-            <DetailPageSection
-              title="ISO codes & subdivisions"
-              description="Reference data, set by the country/region seed (data patches), not edited here."
-            >
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>ISO alpha-3</Label>
-                  <Input value={country.iso3Code || '-'} readOnly disabled />
-                </div>
-                <div className="grid gap-2">
-                  <Label>ISO numeric-3</Label>
-                  <Input value={country.numericCode || '-'} readOnly disabled />
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Subdivisions (ISO 3166-2)</Label>
-                {country.regions.length === 0 ? (
-                  <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                    No subdivisions seeded - region is free-text for this country.
-                  </p>
-                ) : (
-                  <div className="overflow-hidden rounded-md border">
-                    {country.regions.map((rg) => (
-                      <div
-                        key={rg.code}
-                        className="flex items-center gap-3 border-b px-3 py-1.5 text-sm last:border-b-0"
-                      >
-                        <code className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
-                          {country.code}-{rg.code}
-                        </code>
-                        <span className="min-w-0 flex-1 truncate">{rg.name}</span>
-                        {!rg.isActive && (
-                          <span className="text-[10px] text-muted-foreground">inactive</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {country.regions.length} subdivision{country.regions.length === 1 ? '' : 's'}.
-                  Managed via the region seed; extendable through a data patch.
-                </p>
-              </div>
-            </DetailPageSection>
+      <DetailPageSection
+        title="Company identification at checkout"
+        description="What a business purchase from this country asks for, in this order - Serbia's PIB and Matični broj, a VAT number elsewhere. Checkout checks each value against its format, and the order keeps them with their labels for the invoice. The company's country is its billing address, else where the order goes."
+      >
+        <form.Field name="businessIdFields">
+          {(f) => (
+            <>
+              <BusinessIdFieldsEditor
+                value={f.state.value}
+                onChange={(next) => f.handleChange(next)}
+                errors={rowErrors(f.state.value)}
+              />
+              {clash('businessIdFields')}
+            </>
           )}
+        </form.Field>
+      </DetailPageSection>
 
-          <DetailPageSection title="Metadata">
-            <KeyValueEditor entries={metadata} onChange={setMetadata} />
-          </DetailPageSection>
+      <DetailPageSection title="Display & state">
+        <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <form.AppField name="sortOrder">
+              {(f) => <f.NumberField id="country-sort" label="Sort order" note={clash('sortOrder')} />}
+            </form.AppField>
+          </div>
+          <div className="rounded-md border p-3">
+            <form.AppField name="isActive">
+              {(f) => (
+                <f.CheckboxField id="country-active" label="Active - inactive countries cannot be assigned to new addresses" />
+              )}
+            </form.AppField>
+          </div>
+        </div>
+      </DetailPageSection>
 
-          {submitError && (
-            <div className="px-6 pb-4">
-              <Alert variant="destructive">
-                <AlertTitle>{isEdit ? 'Update failed' : 'Create failed'}</AlertTitle>
-                <AlertDescription>{submitError}</AlertDescription>
-              </Alert>
-            </div>
-          )}
-        </DetailPageBody>
-      </div>
+      {country && <IsoReference country={country} />}
 
-      <DetailPageBody className="border-t-0">
-        <PluginSections
-          target="country"
-          entity={country ?? null}
-          mode={isEdit ? 'edit' : 'create'}
-        />
-      </DetailPageBody>
-
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={`Country · ${country?.name ?? country?.code ?? ''}`}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveError}
-        onCancel={() => { if (!savingAll) { setConfirmingSave(false); setSaveError(null) } }}
-        onConfirm={onConfirmSave}
-      />
-    </DetailPageLayout>
-    </SaveRegistryContext.Provider>
+      <DetailPageSection title="Metadata">
+        <form.AppField name="metadata">{(f) => <f.MetadataField note={clash('metadata')} />}</form.AppField>
+      </DetailPageSection>
+    </RecordFormPage>
   )
 }
 
-function KeyValueEditor({
-  entries,
-  onChange,
-}: {
-  entries: MetadataEntry[]
-  onChange: (entries: MetadataEntry[]) => void
-}) {
-  function update(idx: number, patch: Partial<MetadataEntry>) {
-    onChange(entries.map((e, i) => (i === idx ? { ...e, ...patch } : e)))
-  }
-  function remove(idx: number) {
-    onChange(entries.filter((_, i) => i !== idx))
-  }
-  function add() {
-    onChange([...entries, { key: '', value: '' }])
-  }
+// "Field 2: Label is required" - the list's own problems, named by row, since the rows have no field of their own
+function rowErrors(fields: z.input<typeof businessIdFieldSchema>[]): string[] {
+  const res = z.array(businessIdFieldSchema).safeParse(fields)
+  if (res.success) return []
+  const keys = fields.map((f) => f.key.trim()).filter(Boolean)
+  const dup = keys.find((k, i) => keys.indexOf(k) !== i)
+  return [
+    ...res.error.issues.map((i) => `Field ${Number(i.path[0]) + 1}: ${i.message}.`),
+    ...(dup ? [`The key ${dup} is used twice.`] : []),
+  ]
+}
 
+// Reference data from the country/region seed - shown, never edited here
+function IsoReference({ country }: { country: ExistingCountry }) {
   return (
-    <div className="grid gap-2">
-      {entries.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No entries.</p>
-      ) : (
+    <DetailPageSection
+      title="ISO codes & subdivisions"
+      description="Reference data, set by the country/region seed (data patches), not edited here."
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
-          {entries.map((entry, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_2fr_auto] gap-2">
-              <Input
-                value={entry.key}
-                onChange={(e) => update(idx, { key: e.target.value })}
-                placeholder="key"
-              />
-              <Input
-                value={entry.value}
-                onChange={(e) => update(idx, { value: e.target.value })}
-                placeholder="value"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => remove(idx)}
-                aria-label="Remove entry"
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </div>
-          ))}
+          <Label>ISO alpha-3</Label>
+          <Input value={country.iso3Code || '-'} readOnly disabled />
         </div>
-      )}
-      <Button type="button" variant="outline" size="sm" onClick={add} className="w-fit">
-        <PlusIcon className="size-4" />
-        Add entry
-      </Button>
-    </div>
+        <div className="grid gap-2">
+          <Label>ISO numeric-3</Label>
+          <Input value={country.numericCode || '-'} readOnly disabled />
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Subdivisions (ISO 3166-2)</Label>
+        {country.regions.length === 0 ? (
+          <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+            No subdivisions seeded - region is free-text for this country.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-md border">
+            {country.regions.map((rg) => (
+              <div key={rg.code} className="flex items-center gap-3 border-b px-3 py-1.5 text-sm last:border-b-0">
+                <code className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
+                  {country.code}-{rg.code}
+                </code>
+                <span className="min-w-0 flex-1 truncate">{rg.name}</span>
+                {!rg.isActive && <span className="text-[10px] text-muted-foreground">inactive</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {country.regions.length} subdivision{country.regions.length === 1 ? '' : 's'}. Managed via the region seed;
+          extendable through a data patch.
+        </p>
+      </div>
+    </DetailPageSection>
   )
 }

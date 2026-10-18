@@ -6,6 +6,11 @@ import {
   StoreFeaturesDocument,
   type StoreFeaturesQuery,
 } from "@/app/lib/config/operations.gql";
+import {
+  DEFAULT_CHECKOUT_SETTINGS,
+  parseCheckoutSettings,
+  type CheckoutSettings,
+} from "@/app/lib/checkout/settings";
 import { gqlFetch } from "@/app/lib/graphql";
 import { getCurrentLocale, getCurrentChannelId } from "@/app/lib/locale/read";
 
@@ -16,14 +21,21 @@ const PLP_PAGINATION_STYLE_PATH = "search/browse/pagination_style";
 
 const ALLOW_GUEST_PATH = "sales/checkout/allow_guest";
 
+const STORE_AVAILABILITY_PATH = "sales/store_availability/enabled";
+
 export type PlpPaginationStyle = "pagination" | "load_more" | "hybrid";
+
+// Once per render, for getters that can't tolerate staleness
+const getLivePublicConfig = cache(async (): Promise<PublicConfigQuery> => {
+  const res = await gqlFetch(PublicConfigDocument, {});
+  return res.data as PublicConfigQuery;
+});
 
 // getPlpPaginationStyle picks the PLP pager UI - anything absent, unknown, or unreachable falls
 // back to classic numbered pagination, the pre-setting behaviour
 export const getPlpPaginationStyle = cache(async (): Promise<PlpPaginationStyle> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === PLP_PAGINATION_STYLE_PATH);
     return row?.value === "load_more" || row?.value === "hybrid" ? row.value : "pagination";
   } catch {
@@ -36,8 +48,7 @@ export const getPlpPaginationStyle = cache(async (): Promise<PlpPaginationStyle>
 // fill the form rather than after. Absent or unreachable reads as allowed, matching the default
 export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === ALLOW_GUEST_PATH);
     return row?.value !== "false";
   } catch {
@@ -45,14 +56,33 @@ export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
   }
 });
 
+// Whether the store finder and its entry points show - live like the guest flag, so switching stores off hides them on
+// the next render. Absent or unreachable reads as off, matching the default
+export const getStoreAvailabilityEnabled = cache(async (): Promise<boolean> => {
+  try {
+    const data = await getLivePublicConfig();
+    const row = data.publicConfig.find((c) => c.path === STORE_AVAILABILITY_PATH);
+    return row?.value === "true";
+  } catch {
+    return false;
+  }
+});
+
+// The sales/checkout switches - live like the guest flag, since the backend enforces the same values at the next step
+export const getCheckoutSettings = cache(async (): Promise<CheckoutSettings> => {
+  try {
+    const data = await getLivePublicConfig();
+    return parseCheckoutSettings(data.publicConfig);
+  } catch {
+    return DEFAULT_CHECKOUT_SETTINGS;
+  }
+});
+
 // getBrowsePageSize returns the configured PLP page size, falling back to DEFAULT_BROWSE_PAGE_SIZE when the value is
 // absent, unparseable, or the backend is unreachable - the grid must still render
 export const getBrowsePageSize = cache(async (): Promise<number> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    // res.data is `unknown` here - the generated typed-document-node generics don't
-    // resolve under this tsconfig (see any *.gql.ts)
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === BROWSE_PAGE_SIZE_PATH);
     const n = row ? Number.parseInt(row.value, 10) : Number.NaN;
     return Number.isFinite(n) && n > 0 ? n : DEFAULT_BROWSE_PAGE_SIZE;

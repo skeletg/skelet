@@ -168,6 +168,31 @@
        Safari ≤ 17 (which gracefully no-ops). */
     scrollbar-gutter: stable;
   }
+  /* Tailwind v4 leaves buttons on the default arrow; every clickable control gets the hand back
+     here, and a cursor-* utility on the element still wins over it */
+  button,
+  [role="button"],
+  [role="tab"],
+  select,
+  summary,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="range"],
+  input[type="color"],
+  input[type="submit"],
+  input[type="reset"],
+  input[type="button"],
+  label:has(input[type="checkbox"], input[type="radio"]),
+  ::file-selector-button {
+    cursor: pointer;
+  }
+  :disabled,
+  :disabled::file-selector-button,
+  [aria-disabled="true"],
+  label:has(input:disabled) {
+    cursor: not-allowed;
+  }
 }
 
 @layer utilities {

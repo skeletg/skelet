@@ -592,3 +592,10 @@ mutation UpdateCmsBlockType($input: UpdateCMSBlockTypeInput!) {
 mutation DeleteCmsBlockType($id: ID!) {
   deleteCMSBlockType(id: $id)
 }
+
+mutation MintCmsPagePreviewToken($input: MintCMSPagePreviewTokenInput!) {
+  mintCMSPagePreviewToken(input: $input) {
+    token
+    expiresAt
+  }
+}

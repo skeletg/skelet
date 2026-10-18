@@ -4,12 +4,12 @@ import type { PaymentStatus } from '@/graphql/schema.types'
 
 const styles: Record<PaymentStatus, { label: string; className: string }> = {
   UNPAID:     { label: 'Unpaid',     className: 'bg-muted text-muted-foreground' },
-  AUTHORIZED: { label: 'Authorized', className: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-100 dark:border-amber-900' },
-  PARTIALLY_CAPTURED: { label: 'Partially captured', className: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-100 dark:border-amber-900' },
-  PAID:       { label: 'Paid',       className: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-100 dark:border-emerald-900' },
-  PARTIALLY_REFUNDED: { label: 'Partially refunded', className: 'bg-slate-100 text-slate-900 border-slate-200 dark:bg-slate-950/60 dark:text-slate-100 dark:border-slate-900' },
-  REFUNDED:   { label: 'Refunded',   className: 'bg-slate-100 text-slate-900 border-slate-200 dark:bg-slate-950/60 dark:text-slate-100 dark:border-slate-900' },
-  VOIDED:     { label: 'Voided',     className: 'bg-slate-100 text-slate-900 border-slate-200 dark:bg-slate-950/60 dark:text-slate-100 dark:border-slate-900' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-warning-soft text-warning border-warning/30' },
+  PARTIALLY_CAPTURED: { label: 'Partially captured', className: 'bg-warning-soft text-warning border-warning/30' },
+  PAID:       { label: 'Paid',       className: 'bg-success-soft text-success border-success/30' },
+  PARTIALLY_REFUNDED: { label: 'Partially refunded', className: 'bg-muted text-muted-foreground border-border' },
+  REFUNDED:   { label: 'Refunded',   className: 'bg-muted text-muted-foreground border-border' },
+  VOIDED:     { label: 'Voided',     className: 'bg-muted text-muted-foreground border-border' },
 }
 
 export function PaymentStatusBadge({ status, className }: { status: PaymentStatus; className?: string }) {

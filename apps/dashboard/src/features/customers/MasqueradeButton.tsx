@@ -67,6 +67,7 @@ export function MasqueradeButton({
           <div className="flex gap-2">
             <Input readOnly value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
             <Button
+              className="h-10"
               type="button"
               variant="outline"
               onClick={() => {

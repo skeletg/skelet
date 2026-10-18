@@ -4,6 +4,7 @@ import { useResolvedPageTitle } from '@/lib/page-title'
 import { useLandingPref } from '@/lib/landing'
 import { randomId } from '@/lib/random-id'
 import { confirmCloseTab, confirmSwitchWorkspace, mirrorTabTitles } from '@/lib/unsaved-changes'
+import { purgeDraftsForTab } from '@/lib/form-drafts'
 import { allowNextNavigation } from '@/lib/nav-guard'
 import { usePrefsLoaded, usePreference } from '@/lib/admin-prefs'
 import {
@@ -381,6 +382,8 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
     // Closing is the one tab action that unmounts a page and drops its staged edits - switching,
     // moving and splitting all leave every panel mounted, so they stay unprompted
     if (!confirmCloseTab(tabId)) return
+    // the tab id is the drafts' home and it never comes back, so what they held is now unreachable
+    purgeDraftsForTab(tabId)
 
     const rest = pane.tabs.filter((t) => t.id !== tabId)
     const focused = state.focusedPaneId === paneId

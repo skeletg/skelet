@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+// Shapes more than one Signals service returns, and where this package's conventions are written down
+//
+// Money is cents plus a currency code, never a float. A window is a day count, never a timestamp
+// pair, so the server owns "now" and two processes never disagree about it. A day bucket is a
+// YYYY-MM-DD string rather than a Timestamp, since a bucket is not an instant and has no timezone.
+// A lookup by identifier that misses answers NOT_FOUND rather than an empty message, so "absent"
+// always means the field is genuinely optional. A list that grows with the store pages with
+// page_size and page_token; one that is a ranked top-N takes a limit instead, since it has no page 2;
+// and an admin table that shows a total and jumps to a numbered page takes limit and offset beside
+// that total, since a token can only walk forward
+package skelet.signals.v1;
+
+// Money earned in one currency, and how many orders it came from
+message AttributedRevenue {
+  string currency = 1;
+  int64 cents = 2;
+  int32 orders = 3;
+}
+
+// A label and how often it was seen - devices, referrers, countries and the like
+message LabelCount {
+  string label = 1;
+  int32 views = 2;
+}
+
+// A distinct value of some dimension and how often it appeared
+message ValueCount {
+  string value = 1;
+  int32 count = 2;
+}
+
+// An event name and how many times it fired
+message EventCount {
+  string name = 1;
+  int32 count = 2;
+}

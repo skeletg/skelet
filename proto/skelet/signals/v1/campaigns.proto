@@ -1,0 +1,179 @@
+syntax = "proto3";
+
+// Email campaigns: a broadcast composed in the email builder and sent to an audience, now or on a schedule
+// These are the admin reads and writes core relays; the send itself runs on the suite's tick, asked for over MaintenanceService
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service CampaignService {
+  rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse);
+  rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse);
+  rpc CreateCampaign(CreateCampaignRequest) returns (CreateCampaignResponse);
+  // Drafts only - a scheduled or sent campaign is what it was
+  rpc UpdateCampaign(UpdateCampaignRequest) returns (UpdateCampaignResponse);
+  // Soft - a sent campaign keeps its recipients and its opens, and a scheduled one never goes out
+  rpc DeleteCampaign(DeleteCampaignRequest) returns (DeleteCampaignResponse);
+  rpc RestoreCampaign(RestoreCampaignRequest) returns (RestoreCampaignResponse);
+  // No time means now, which the next send tick picks up
+  rpc ScheduleCampaign(ScheduleCampaignRequest) returns (ScheduleCampaignResponse);
+  rpc CancelCampaign(CancelCampaignRequest) returns (CancelCampaignResponse);
+  // The stored campaign rendered with sample data, mailed to one address
+  rpc SendCampaignTest(SendCampaignTestRequest) returns (SendCampaignTestResponse);
+  // How many the audience holds, and how many of those are opted in to marketing mail
+  rpc EstimateCampaignAudience(EstimateCampaignAudienceRequest) returns (EstimateCampaignAudienceResponse);
+  // Unsaved content rendered with sample data, for the composer
+  rpc RenderCampaignPreview(RenderCampaignPreviewRequest) returns (RenderCampaignPreviewResponse);
+}
+
+message Campaign {
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  // A reusable library email supplying the content - unset, the inline subject, blocks and styles do
+  optional string email_id = 4;
+  string subject = 5;
+  // The builder's block document and theme, as the dashboard holds them
+  string blocks_json = 6;
+  string styles_json = 7;
+  // all | group | segment
+  string audience_kind = 8;
+  optional string audience_id = 9;
+  // draft | scheduled | sending | testing | sent | cancelled
+  string status = 10;
+  optional google.protobuf.Timestamp scheduled_for = 11;
+  optional google.protobuf.Timestamp sent_at = 12;
+  int32 total_recipients = 13;
+  int32 sent_count = 14;
+  int32 failed_count = 15;
+  int32 skipped_count = 16;
+  // Unique recipients, human hits only
+  int32 opened_count = 17;
+  int32 clicked_count = 18;
+  // The subject-line A/B test - a slice of the audience splits between the two subjects, and the
+  // higher metric rate's subject goes to the rest once the window elapses
+  bool ab_enabled = 19;
+  string ab_subject_b = 20;
+  int32 ab_test_percent = 21;
+  // open | click
+  string ab_winner_metric = 22;
+  int32 ab_test_minutes = 23;
+  // Empty until decided, then a | b
+  string ab_winner = 24;
+  optional google.protobuf.Timestamp ab_test_started_at = 25;
+  google.protobuf.Timestamp created_at = 26;
+  google.protobuf.Timestamp updated_at = 27;
+  optional google.protobuf.Timestamp deleted_at = 28;
+}
+
+message CampaignInput {
+  // Ignored on update, since a campaign does not move between channels
+  string channel_id = 1;
+  string name = 2;
+  optional string email_id = 3;
+  string subject = 4;
+  string blocks_json = 5;
+  string styles_json = 6;
+  string audience_kind = 7;
+  optional string audience_id = 8;
+  bool ab_enabled = 9;
+  string ab_subject_b = 10;
+  int32 ab_test_percent = 11;
+  string ab_winner_metric = 12;
+  int32 ab_test_minutes = 13;
+}
+
+message ListCampaignsRequest {
+  string channel_id = 1;
+  bool include_deleted = 2;
+}
+
+message ListCampaignsResponse {
+  repeated Campaign campaigns = 1;
+}
+
+message GetCampaignRequest {
+  string id = 1;
+}
+
+message GetCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message CreateCampaignRequest {
+  CampaignInput campaign = 1;
+}
+
+message CreateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message UpdateCampaignRequest {
+  string id = 1;
+  CampaignInput campaign = 2;
+}
+
+message UpdateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message DeleteCampaignRequest {
+  string id = 1;
+}
+
+message DeleteCampaignResponse {}
+
+message RestoreCampaignRequest {
+  string id = 1;
+}
+
+message RestoreCampaignResponse {}
+
+message ScheduleCampaignRequest {
+  string id = 1;
+  optional google.protobuf.Timestamp scheduled_for = 2;
+}
+
+message ScheduleCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message CancelCampaignRequest {
+  string id = 1;
+}
+
+message CancelCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message SendCampaignTestRequest {
+  string id = 1;
+  string to = 2;
+}
+
+message SendCampaignTestResponse {}
+
+message EstimateCampaignAudienceRequest {
+  string channel_id = 1;
+  string audience_kind = 2;
+  optional string audience_id = 3;
+}
+
+message EstimateCampaignAudienceResponse {
+  // Active customers with an address
+  int32 total = 1;
+  // Of those, opted in to marketing mail
+  int32 eligible = 2;
+}
+
+message RenderCampaignPreviewRequest {
+  string channel_id = 1;
+  string subject = 2;
+  string blocks_json = 3;
+  string styles_json = 4;
+}
+
+message RenderCampaignPreviewResponse {
+  string subject = 1;
+  string html = 2;
+}

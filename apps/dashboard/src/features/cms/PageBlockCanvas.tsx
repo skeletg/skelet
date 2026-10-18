@@ -41,11 +41,13 @@ import {
 import { CollectionsDocument } from '@/features/catalog/Collections.gql'
 import { WebFormsDocument } from '@/features/webforms/WebForms.gql'
 import { useConfigScope } from '@/lib/config-scope'
-import { RootCategoriesDocument } from '@/features/catalog/Categories.gql'
+import { useCategoryIndex } from '@/features/catalog/category-picker/category-options'
+import { CategorySelect } from '@/features/catalog/category-picker/CategorySelect'
 import { AutocompletePicker } from '@/features/promotions/widgets/AutocompletePicker'
 import { MediaImageInput } from '@/features/media/MediaImageInput'
 import { type AssetRef } from '@/features/media/asset-ref'
 import { PrismSegmentsDocument } from '@/features/prism/Prism.gql'
+import { useFeatures } from '@/shared/features/useFeatures'
 import { LexicalRichTextEditor, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
 import { LinkField } from './LinkField'
 import {
@@ -82,61 +84,85 @@ function EntityPicker({
   onChange: (v: string | undefined) => void
   disabled: boolean
 }) {
-  const collections = useQuery(CollectionsDocument, { skip: kind !== 'collection', fetchPolicy: 'cache-first' })
-  const categories = useQuery(RootCategoriesDocument, { skip: kind !== 'category', fetchPolicy: 'cache-first' })
-  const q = kind === 'collection' ? collections : categories
+  return kind === 'category' ? (
+    <CategoryEntityPicker value={value} onChange={onChange} disabled={disabled} />
+  ) : (
+    <CollectionPicker value={value} onChange={onChange} disabled={disabled} />
+  )
+}
 
-  const options = useMemo<{ value: string; label: string; hint?: string }[]>(() => {
-    if (kind === 'collection') {
-      return (collections.data?.collections ?? []).map((c) => {
+// The shared category tree - browse or search by name, each option labelled by its path
+function CategoryEntityPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string | undefined) => void
+  disabled: boolean
+}) {
+  const { error } = useCategoryIndex()
+  // If the catalog query fails (e.g. the admin lacks catalog read), degrade to a
+  // raw id input rather than an empty, useless picker
+  if (error) {
+    return (
+      <Input value={value} placeholder="category id" disabled={disabled} onChange={(e) => onChange(e.target.value || undefined)} />
+    )
+  }
+  return (
+    <CategorySelect
+      value={value}
+      onChange={(id) => onChange(id || undefined)}
+      disabled={disabled}
+      placeholder="Search categories…"
+      aria-label="Category"
+    />
+  )
+}
+
+function CollectionPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string | undefined) => void
+  disabled: boolean
+}) {
+  const collections = useQuery(CollectionsDocument, { fetchPolicy: 'cache-first' })
+
+  const options = useMemo<{ value: string; label: string; hint?: string }[]>(
+    () =>
+      (collections.data?.collections ?? []).map((c) => {
         const n = c.products.length
         return { value: c.id, label: c.name || c.slug, hint: `${n} product${n === 1 ? '' : 's'} · ${c.id.slice(0, 8)}` }
-      })
-    }
-    const flat: { value: string; label: string; hint?: string }[] = []
-    const walk = (
-      nodes: { id: string; slug: string; name?: string | null; productCount?: number; children: typeof nodes }[],
-      depth: number,
-    ) => {
-      for (const n of nodes) {
-        // Deepest tree level is fetched id-only (no count) - fall back to the id
-        const idShort = n.id.slice(0, 8)
-        const hint =
-          typeof n.productCount === 'number'
-            ? `${n.productCount} product${n.productCount === 1 ? '' : 's'} · ${idShort}`
-            : idShort
-        flat.push({ value: n.id, label: `${'- '.repeat(depth)}${n.name || n.slug}`, hint })
-        if (n.children?.length) walk(n.children, depth + 1)
-      }
-    }
-    walk((categories.data?.rootCategories ?? []) as never, 0)
-    return flat
-  }, [kind, collections.data, categories.data])
+      }),
+    [collections.data],
+  )
 
   // If the catalog query fails (e.g. the admin lacks catalog read), degrade to a
   // raw id input rather than an empty, useless dropdown
-  if (q.error) {
+  if (collections.error) {
     return (
       <Input
         value={value}
-        placeholder={`${kind} id`}
+        placeholder="collection id"
         disabled={disabled}
         onChange={(e) => onChange(e.target.value || undefined)}
       />
     )
   }
-  // Searchable dropdown - type to filter by name, so it scales to large
-  // catalogs (the source picker can face hundreds of categories/collections)
-  // Each option carries a short id (and product count for collections) as the
-  // hint, so similarly-named entries stay distinguishable
+  // Searchable dropdown - type to filter by name, so it scales to large catalogs.
+  // Each option carries a short id and product count as the hint, so similarly-named
+  // entries stay distinguishable
   return (
     <AutocompletePicker
       options={options}
       value={value || ''}
       onChange={(v) => onChange((typeof v === 'string' ? v : v[0]) || undefined)}
-      placeholder={q.loading ? 'Loading…' : `Search ${kind === 'collection' ? 'collections' : 'categories'}…`}
-      emptyMessage={`No ${kind === 'collection' ? 'collections' : 'categories'} found.`}
-      loading={q.loading}
+      placeholder={collections.loading ? 'Loading…' : 'Search collections…'}
+      emptyMessage="No collections found."
+      loading={collections.loading}
     />
   )
 }
@@ -499,7 +525,8 @@ function BlockCard({
     : {}) as { startAt?: string; endAt?: string; segments?: string[]; devices?: string[] }
   const visSegments = Array.isArray(vis.segments) ? vis.segments : []
   const visDevices = Array.isArray(vis.devices) ? vis.devices : []
-  const { data: segData } = useQuery(PrismSegmentsDocument, { skip: !open })
+  const { enabled: featureEnabled } = useFeatures()
+  const { data: segData } = useQuery(PrismSegmentsDocument, { skip: !open || !featureEnabled('signals') })
   const segments = segData?.experimentSegments ?? []
 
   function setVis(key: string, val: unknown) {

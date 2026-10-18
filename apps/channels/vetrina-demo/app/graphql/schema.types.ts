@@ -14,9 +14,9 @@ export type Scalars = {
 
 export type AddBundleToCartInput = {
   cartId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
+  sku: Scalars['String']['input'];
 };
 
 export type AddBundleToCartSelectionInput = {
@@ -27,8 +27,8 @@ export type AddBundleToCartSelectionInput = {
 export type AddConfiguredToCartInput = {
   cartId: Scalars['ID']['input'];
   options: Array<ProductOptionSelectionInput>;
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 export type Address = {
@@ -139,8 +139,8 @@ export type BlogAuthor = {
   __typename?: 'BlogAuthor';
   content?: Maybe<BlogAuthorContent>;
   displayName: Scalars['String']['output'];
-  email?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  publicEmail?: Maybe<Scalars['String']['output']>;
   slug: Scalars['String']['output'];
 };
 
@@ -203,7 +203,6 @@ export type BlogPostContent = {
 export type BlogPostFilter = {
   authorSlug?: InputMaybe<Scalars['String']['input']>;
   categorySlug?: InputMaybe<Scalars['String']['input']>;
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   tagSlug?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -328,6 +327,26 @@ export type BundleSelection = {
   sortOrder: Scalars['Int']['output'];
 };
 
+export type BusinessIdField = {
+  __typename?: 'BusinessIdField';
+  hint: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  pattern: Scalars['String']['output'];
+  required: Scalars['Boolean']['output'];
+};
+
+export type BusinessIdValue = {
+  __typename?: 'BusinessIdValue';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type BusinessIdValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+};
+
 export type CmsPage = {
   __typename?: 'CMSPage';
   canonicalUrl?: Maybe<Scalars['String']['output']>;
@@ -365,7 +384,6 @@ export type CmsPageContent = {
 };
 
 export type CmsPageFilter = {
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   onlyPublished?: InputMaybe<Scalars['Boolean']['input']>;
   pageTypeId?: InputMaybe<Scalars['ID']['input']>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
@@ -401,12 +419,57 @@ export type CmsRelationshipTarget =
 export type Cart = {
   __typename?: 'Cart';
   appliedCodes: Array<AppliedPromotionCode>;
+  checkout: CartCheckout;
   id: Scalars['ID']['output'];
   lines: Array<CartLine>;
   note: Scalars['String']['output'];
+  offer?: Maybe<CartOffer>;
   savedItems: Array<SavedItem>;
   subtotal: Scalars['Int']['output'];
   totalDiscount: Scalars['Int']['output'];
+};
+
+export type CartAddress = {
+  __typename?: 'CartAddress';
+  city: Scalars['String']['output'];
+  company?: Maybe<Scalars['String']['output']>;
+  countryCode: Scalars['String']['output'];
+  firstName: Scalars['String']['output'];
+  lastName: Scalars['String']['output'];
+  phone?: Maybe<Scalars['String']['output']>;
+  postalCode: Scalars['String']['output'];
+  sourceAddressId?: Maybe<Scalars['ID']['output']>;
+  state?: Maybe<Scalars['String']['output']>;
+  street1: Scalars['String']['output'];
+  street2?: Maybe<Scalars['String']['output']>;
+};
+
+export type CartCheckout = {
+  __typename?: 'CartCheckout';
+  billingAddress?: Maybe<CartAddress>;
+  billingSameAsShipping: Scalars['Boolean']['output'];
+  businessIds: Array<BusinessIdValue>;
+  canSplit: Scalars['Boolean']['output'];
+  company: Scalars['String']['output'];
+  deliveryGroups: Array<DeliveryGroup>;
+  destination?: Maybe<CheckoutDestination>;
+  digitalLineIds: Array<Scalars['ID']['output']>;
+  email: Scalars['String']['output'];
+  fulfillment: FulfillmentNeed;
+  giftCards: Array<CartGiftCard>;
+  isPickup: Scalars['Boolean']['output'];
+  paymentProviderSlug?: Maybe<Scalars['String']['output']>;
+  phone: Scalars['String']['output'];
+  pickupContact?: Maybe<PickupContact>;
+  poNumber: Scalars['String']['output'];
+  purchaseType: PurchaseType;
+  ready: Scalars['Boolean']['output'];
+  requirements: Array<CheckoutRequirement>;
+  shippingAddress?: Maybe<CartAddress>;
+  shippingMethod?: Maybe<ShippingQuote>;
+  splitDelivery: Scalars['Boolean']['output'];
+  totals: CheckoutTotals;
+  useStoreCredit: Scalars['Boolean']['output'];
 };
 
 export type CartEstimate = {
@@ -418,6 +481,13 @@ export type CartEstimate = {
   taxCents: Scalars['Int']['output'];
 };
 
+export type CartGiftCard = {
+  __typename?: 'CartGiftCard';
+  appliedCents: Scalars['Int']['output'];
+  balanceCents: Scalars['Int']['output'];
+  code: Scalars['String']['output'];
+};
+
 export type CartLine = {
   __typename?: 'CartLine';
   availableQuantity?: Maybe<Scalars['Float']['output']>;
@@ -425,10 +495,11 @@ export type CartLine = {
   currentUnitPrice?: Maybe<Scalars['Int']['output']>;
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
+  isCustom: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<CartLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -436,11 +507,11 @@ export type CartLine = {
 export type CartLineComponent = {
   __typename?: 'CartLineComponent';
   id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
   optionId: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
   selectionId: Scalars['ID']['output'];
+  sku: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -459,6 +530,38 @@ export type CartLineOption = {
   textValue: Scalars['String']['output'];
   valueLabel: Scalars['String']['output'];
 };
+
+export type CartOffer = {
+  __typename?: 'CartOffer';
+  expiresAt: Scalars['Time']['output'];
+  isGuest: Scalars['Boolean']['output'];
+  locks: Array<CartOfferLock>;
+  message: Scalars['String']['output'];
+  paymentMethods: Array<Scalars['String']['output']>;
+  state: CartOfferState;
+};
+
+export type CartOfferLock =
+  | 'BILLING'
+  | 'COUPONS'
+  | 'DELIVERY'
+  | 'LINES'
+  | 'SHIPPING';
+
+export type CartOfferOpening = {
+  __typename?: 'CartOfferOpening';
+  cartId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
+  state: CartOfferState;
+};
+
+export type CartOfferState =
+  | 'COMPLETED'
+  | 'DRAFT'
+  | 'EXPIRED'
+  | 'OPENED'
+  | 'REVOKED'
+  | 'SENT';
 
 export type Category = {
   __typename?: 'Category';
@@ -502,6 +605,51 @@ export type Channel = {
   name: Scalars['String']['output'];
   publicUrl: Scalars['String']['output'];
   slug: Scalars['String']['output'];
+};
+
+export type CheckoutDestination = {
+  __typename?: 'CheckoutDestination';
+  countryCode: Scalars['String']['output'];
+  postalCode: Scalars['String']['output'];
+  regionCode?: Maybe<Scalars['String']['output']>;
+};
+
+export type CheckoutDetailsInput = {
+  billingAddress?: InputMaybe<AddressInput>;
+  billingAddressId?: InputMaybe<Scalars['ID']['input']>;
+  billingSameAsShipping: Scalars['Boolean']['input'];
+  businessIds?: InputMaybe<Array<BusinessIdValueInput>>;
+  company?: InputMaybe<Scalars['String']['input']>;
+  email?: InputMaybe<Scalars['String']['input']>;
+  phone?: InputMaybe<Scalars['String']['input']>;
+  pickupContact?: InputMaybe<PickupContactInput>;
+  poNumber?: InputMaybe<Scalars['String']['input']>;
+  purchaseType?: PurchaseType;
+  shippingAddress?: InputMaybe<AddressInput>;
+  shippingAddressId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type CheckoutRequirement = {
+  __typename?: 'CheckoutRequirement';
+  code: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  mode: RequirementMode;
+  scope: Scalars['String']['output'];
+  status: RequirementStatus;
+  type: Scalars['String']['output'];
+};
+
+export type CheckoutTotals = {
+  __typename?: 'CheckoutTotals';
+  amountDueCents: Scalars['Int']['output'];
+  discountCents: Scalars['Int']['output'];
+  giftCardCents: Scalars['Int']['output'];
+  shippingCents: Scalars['Int']['output'];
+  storeCreditCents: Scalars['Int']['output'];
+  subtotalCents: Scalars['Int']['output'];
+  taxCents: Scalars['Int']['output'];
+  totalCents: Scalars['Int']['output'];
 };
 
 export type Collection = {
@@ -629,6 +777,7 @@ export type ConsentPurpose =
 
 export type Country = {
   __typename?: 'Country';
+  businessIdFields: Array<BusinessIdField>;
   code: Scalars['String']['output'];
   defaultCurrency?: Maybe<Currency>;
   defaultCurrencyCode: Scalars['String']['output'];
@@ -678,7 +827,7 @@ export type Customer = {
 export type CustomerAuthPayload = {
   __typename?: 'CustomerAuthPayload';
   accessToken?: Maybe<Scalars['String']['output']>;
-  customer: Customer;
+  customer?: Maybe<Customer>;
   refreshToken?: Maybe<Scalars['String']['output']>;
   verificationRequired: Scalars['Boolean']['output'];
 };
@@ -724,6 +873,82 @@ export type CustomerSubscription = {
   title: Scalars['String']['output'];
 };
 
+export type DeliveryChoice = {
+  __typename?: 'DeliveryChoice';
+  carrierName: Scalars['String']['output'];
+  carrierSlug: Scalars['String']['output'];
+  description: Scalars['String']['output'];
+  estimatedArrival?: Maybe<Scalars['String']['output']>;
+  estimatedDays?: Maybe<Scalars['Int']['output']>;
+  kind: Scalars['String']['output'];
+  kindLabel: Scalars['String']['output'];
+  methodCode: Scalars['String']['output'];
+  methodName: Scalars['String']['output'];
+  optionId: Scalars['ID']['output'];
+  optionName: Scalars['String']['output'];
+  pointLabel?: Maybe<Scalars['String']['output']>;
+  priceCents: Scalars['Int']['output'];
+  shipTo: DeliveryShipTo;
+};
+
+export type DeliveryGroup = {
+  __typename?: 'DeliveryGroup';
+  choices: Array<DeliveryChoice>;
+  key: Scalars['String']['output'];
+  kinds: Array<Scalars['String']['output']>;
+  lineIds: Array<Scalars['ID']['output']>;
+  selection?: Maybe<DeliverySelection>;
+  shipments: Array<DeliveryShipment>;
+};
+
+export type DeliveryPoint = {
+  __typename?: 'DeliveryPoint';
+  city: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  distanceKm?: Maybe<Scalars['Float']['output']>;
+  hours?: Maybe<Scalars['String']['output']>;
+  id: Scalars['String']['output'];
+  instructions?: Maybe<Scalars['String']['output']>;
+  lat?: Maybe<Scalars['Float']['output']>;
+  lng?: Maybe<Scalars['Float']['output']>;
+  name: Scalars['String']['output'];
+  phone?: Maybe<Scalars['String']['output']>;
+  postalCode: Scalars['String']['output'];
+  region?: Maybe<Scalars['String']['output']>;
+  street1: Scalars['String']['output'];
+  street2?: Maybe<Scalars['String']['output']>;
+};
+
+export type DeliverySelection = {
+  __typename?: 'DeliverySelection';
+  carrierSlug: Scalars['String']['output'];
+  estimatedArrival?: Maybe<Scalars['String']['output']>;
+  estimatedDays?: Maybe<Scalars['Int']['output']>;
+  kind: Scalars['String']['output'];
+  methodCode: Scalars['String']['output'];
+  methodName: Scalars['String']['output'];
+  optionId: Scalars['ID']['output'];
+  optionName: Scalars['String']['output'];
+  point?: Maybe<DeliveryPoint>;
+  pointLabel?: Maybe<Scalars['String']['output']>;
+  priceCents: Scalars['Int']['output'];
+  shipTo: DeliveryShipTo;
+};
+
+export type DeliveryShipTo =
+  | 'CUSTOMER'
+  | 'POINT';
+
+export type DeliveryShipment = {
+  __typename?: 'DeliveryShipment';
+  estimatedArrival?: Maybe<Scalars['String']['output']>;
+  estimatedDays?: Maybe<Scalars['Int']['output']>;
+  lineIds: Array<Scalars['ID']['output']>;
+  originCity?: Maybe<Scalars['String']['output']>;
+  originName?: Maybe<Scalars['String']['output']>;
+  priceCents?: Maybe<Scalars['Int']['output']>;
+};
+
 export type DownloadGrant = {
   __typename?: 'DownloadGrant';
   createdAt: Scalars['Time']['output'];
@@ -735,6 +960,11 @@ export type DownloadGrant = {
   productId: Scalars['ID']['output'];
   title: Scalars['String']['output'];
 };
+
+export type FulfillmentNeed =
+  | 'MIXED'
+  | 'NONE'
+  | 'PHYSICAL';
 
 export type GiftCardBalance = {
   __typename?: 'GiftCardBalance';
@@ -832,6 +1062,7 @@ export type Mutation = {
   addToCart: Cart;
   addToWishlist: Scalars['Boolean']['output'];
   applyCoupon: Cart;
+  applyGiftCard: Cart;
   cancelSubscription: CustomerSubscription;
   changeCustomerPassword: Scalars['Boolean']['output'];
   clearCart: Cart;
@@ -843,27 +1074,40 @@ export type Mutation = {
   deleteAddress: Scalars['Boolean']['output'];
   deleteMyPaymentMethod: Scalars['Boolean']['output'];
   finalizeOrderPayment: Scalars['Boolean']['output'];
+  markCartOfferOpened: Scalars['Boolean']['output'];
   mergeGuestCart: Cart;
   moveSavedToCart: Cart;
   moveToCart: Cart;
+  openCartOffer: CartOfferOpening;
   placeOrder: Order;
   presignWebFormUpload: WebFormUploadTicket;
   redeemLoyaltyPoints: LoyaltyRedeemResult;
   removeCoupon: Cart;
   removeFromCart: Cart;
   removeFromWishlist: Scalars['Boolean']['output'];
+  removeGiftCard: Cart;
   removeSavedItem: Cart;
   reorder: ReorderResult;
   requestPasswordReset: Scalars['Boolean']['output'];
   requestProductOptionFileUpload: ProductOptionFileUpload;
   requestReturn: OrderReturn;
   requestReviewMediaUpload: ReviewMediaUpload;
+  resendVerification: Scalars['Boolean']['output'];
   resendVerificationEmail: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
+  revokeWishlistShare: Scalars['Boolean']['output'];
   saveForLater: Cart;
   savePaymentMethod: SavedPaymentMethod;
+  setCartDelivery: Cart;
+  setCartDeliveryPoint: Cart;
+  setCartDestination: Cart;
+  setCartDetails: Cart;
   setCartEmail: Cart;
   setCartNote: Cart;
+  setCartPaymentMethod: Cart;
+  setCartShippingMethod: Cart;
+  setCartSplitDelivery: Cart;
+  setCartStoreCredit: Cart;
   setConsent: CustomerConsent;
   setDefaultBillingAddress: Customer;
   setDefaultShippingAddress: Customer;
@@ -896,10 +1140,8 @@ export type MutationAddConfiguredToCartArgs = {
 
 export type MutationAddToCartArgs = {
   cartId: Scalars['ID']['input'];
-  productName: Scalars['String']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
-  unitPrice: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
@@ -909,6 +1151,12 @@ export type MutationAddToWishlistArgs = {
 
 
 export type MutationApplyCouponArgs = {
+  cartId: Scalars['ID']['input'];
+  code: Scalars['String']['input'];
+};
+
+
+export type MutationApplyGiftCardArgs = {
   cartId: Scalars['ID']['input'];
   code: Scalars['String']['input'];
 };
@@ -965,6 +1213,11 @@ export type MutationFinalizeOrderPaymentArgs = {
 };
 
 
+export type MutationMarkCartOfferOpenedArgs = {
+  cartId: Scalars['ID']['input'];
+};
+
+
 export type MutationMergeGuestCartArgs = {
   guestCartId: Scalars['ID']['input'];
 };
@@ -981,22 +1234,16 @@ export type MutationMoveToCartArgs = {
 };
 
 
+export type MutationOpenCartOfferArgs = {
+  token: Scalars['String']['input'];
+};
+
+
 export type MutationPlaceOrderArgs = {
-  billingAddress?: InputMaybe<AddressInput>;
-  billingAddressId?: InputMaybe<Scalars['ID']['input']>;
+  acceptTerms?: InputMaybe<Scalars['Boolean']['input']>;
   cartId?: InputMaybe<Scalars['ID']['input']>;
-  customerNote?: InputMaybe<Scalars['String']['input']>;
-  email: Scalars['String']['input'];
-  giftCardCodes?: InputMaybe<Array<Scalars['String']['input']>>;
-  paymentProviderSlug?: InputMaybe<Scalars['String']['input']>;
   paymentToken?: InputMaybe<Scalars['String']['input']>;
-  poNumber?: InputMaybe<Scalars['String']['input']>;
   savedPaymentMethodId?: InputMaybe<Scalars['ID']['input']>;
-  shippingAddress?: InputMaybe<AddressInput>;
-  shippingAddressId?: InputMaybe<Scalars['ID']['input']>;
-  shippingCarrierSlug?: InputMaybe<Scalars['String']['input']>;
-  shippingMethodCode?: InputMaybe<Scalars['String']['input']>;
-  useStoreCredit?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 
@@ -1031,6 +1278,12 @@ export type MutationRemoveFromWishlistArgs = {
 };
 
 
+export type MutationRemoveGiftCardArgs = {
+  cartId: Scalars['ID']['input'];
+  code: Scalars['String']['input'];
+};
+
+
 export type MutationRemoveSavedItemArgs = {
   cartId: Scalars['ID']['input'];
   savedItemId: Scalars['ID']['input'];
@@ -1051,8 +1304,8 @@ export type MutationRequestProductOptionFileUploadArgs = {
   filename: Scalars['String']['input'];
   mimeType: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   sizeBytes: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
@@ -1066,6 +1319,11 @@ export type MutationRequestReviewMediaUploadArgs = {
   mimeType: Scalars['String']['input'];
   productId: Scalars['ID']['input'];
   sizeBytes: Scalars['Int']['input'];
+};
+
+
+export type MutationResendVerificationArgs = {
+  email: Scalars['String']['input'];
 };
 
 
@@ -1087,6 +1345,36 @@ export type MutationSavePaymentMethodArgs = {
 };
 
 
+export type MutationSetCartDeliveryArgs = {
+  carrierSlug: Scalars['String']['input'];
+  cartId: Scalars['ID']['input'];
+  groupKey: Scalars['String']['input'];
+  methodCode: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetCartDeliveryPointArgs = {
+  cartId: Scalars['ID']['input'];
+  groupKey: Scalars['String']['input'];
+  pointId: Scalars['String']['input'];
+};
+
+
+export type MutationSetCartDestinationArgs = {
+  cartId: Scalars['ID']['input'];
+  countryCode: Scalars['String']['input'];
+  postalCode: Scalars['String']['input'];
+  regionCode?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationSetCartDetailsArgs = {
+  cartId: Scalars['ID']['input'];
+  input: CheckoutDetailsInput;
+};
+
+
 export type MutationSetCartEmailArgs = {
   cartId: Scalars['ID']['input'];
   email: Scalars['String']['input'];
@@ -1096,6 +1384,31 @@ export type MutationSetCartEmailArgs = {
 export type MutationSetCartNoteArgs = {
   cartId: Scalars['ID']['input'];
   note: Scalars['String']['input'];
+};
+
+
+export type MutationSetCartPaymentMethodArgs = {
+  cartId: Scalars['ID']['input'];
+  providerSlug: Scalars['String']['input'];
+};
+
+
+export type MutationSetCartShippingMethodArgs = {
+  carrierSlug: Scalars['String']['input'];
+  cartId: Scalars['ID']['input'];
+  code: Scalars['String']['input'];
+};
+
+
+export type MutationSetCartSplitDeliveryArgs = {
+  cartId: Scalars['ID']['input'];
+  split: Scalars['Boolean']['input'];
+};
+
+
+export type MutationSetCartStoreCreditArgs = {
+  cartId: Scalars['ID']['input'];
+  use: Scalars['Boolean']['input'];
 };
 
 
@@ -1226,10 +1539,10 @@ export type OrderLine = {
   __typename?: 'OrderLine';
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -1290,6 +1603,36 @@ export type PaymentStatus =
   | 'REFUNDED'
   | 'UNPAID'
   | 'VOIDED';
+
+export type PhoneCountryFormat = {
+  __typename?: 'PhoneCountryFormat';
+  callingCode: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  example: Scalars['String']['output'];
+  nationalExample: Scalars['String']['output'];
+  template: Scalars['String']['output'];
+};
+
+export type PhoneSettings = {
+  __typename?: 'PhoneSettings';
+  defaultCountryCode: Scalars['String']['output'];
+  formats: Array<PhoneCountryFormat>;
+  lockedCountryCode?: Maybe<Scalars['String']['output']>;
+  restrictedToStoreCountries: Scalars['Boolean']['output'];
+};
+
+export type PickupContact = {
+  __typename?: 'PickupContact';
+  firstName: Scalars['String']['output'];
+  lastName: Scalars['String']['output'];
+  someoneElse: Scalars['Boolean']['output'];
+};
+
+export type PickupContactInput = {
+  firstName: Scalars['String']['input'];
+  lastName: Scalars['String']['input'];
+  someoneElse: Scalars['Boolean']['input'];
+};
 
 export type PickupLocation = {
   __typename?: 'PickupLocation';
@@ -1561,10 +1904,10 @@ export type PromotionFreeGift = {
   __typename?: 'PromotionFreeGift';
   href?: Maybe<Scalars['String']['output']>;
   inCart: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   productId?: Maybe<Scalars['ID']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type PromotionalDisplay = {
@@ -1578,6 +1921,56 @@ export type PromotionalDisplay = {
   ruleId: Scalars['ID']['output'];
   ruleSlug: Scalars['String']['output'];
 };
+
+export type PublicStore = {
+  __typename?: 'PublicStore';
+  city: Scalars['String']['output'];
+  countryCode: Scalars['String']['output'];
+  distanceKm?: Maybe<Scalars['Float']['output']>;
+  hours: Scalars['JSON']['output'];
+  id: Scalars['ID']['output'];
+  latitude?: Maybe<Scalars['Float']['output']>;
+  line1: Scalars['String']['output'];
+  line2: Scalars['String']['output'];
+  longitude?: Maybe<Scalars['Float']['output']>;
+  name: Scalars['String']['output'];
+  phone: Scalars['String']['output'];
+  pickupEnabled: Scalars['Boolean']['output'];
+  postalCode: Scalars['String']['output'];
+  region: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+  stockStatus?: Maybe<StoreStockStatus>;
+  timezone: Scalars['String']['output'];
+};
+
+export type PublicStoresInput = {
+  city?: InputMaybe<Scalars['String']['input']>;
+  inStockOnly?: InputMaybe<Scalars['Boolean']['input']>;
+  latitude?: InputMaybe<Scalars['Float']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  longitude?: InputMaybe<Scalars['Float']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  pickupOnly?: InputMaybe<Scalars['Boolean']['input']>;
+  preferredStoreId?: InputMaybe<Scalars['ID']['input']>;
+  productId?: InputMaybe<Scalars['ID']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type PublicStoresResult = {
+  __typename?: 'PublicStoresResult';
+  cities: Array<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  hasPickupStores: Scalars['Boolean']['output'];
+  items: Array<PublicStore>;
+  preferredStore?: Maybe<PublicStore>;
+  productEligible: Scalars['Boolean']['output'];
+  stockCheckingAvailable: Scalars['Boolean']['output'];
+  totalCount: Scalars['Int']['output'];
+};
+
+export type PurchaseType =
+  | 'BUSINESS'
+  | 'PERSONAL';
 
 export type Query = {
   __typename?: 'Query';
@@ -1608,6 +2001,7 @@ export type Query = {
   currencies: Array<Currency>;
   currency: Currency;
   currentChannel?: Maybe<Channel>;
+  deliveryPoints: Array<DeliveryPoint>;
   features: StoreFeatures;
   freeShippingThreshold: Scalars['Int']['output'];
   giftCardBalance?: Maybe<GiftCardBalance>;
@@ -1619,6 +2013,7 @@ export type Query = {
   menu?: Maybe<Menu>;
   menus: Array<Menu>;
   myCart: Cart;
+  myCartOffers: Array<Cart>;
   myDataExport: Scalars['String']['output'];
   myDownloads: Array<DownloadGrant>;
   myOrder: Order;
@@ -1630,6 +2025,7 @@ export type Query = {
   myWishlist: Array<Product>;
   myWishlistShareToken: Scalars['String']['output'];
   paymentMethods: Array<PaymentMethodOption>;
+  phoneSettings: PhoneSettings;
   pickupLocations: Array<PickupLocation>;
   presentmentCurrencies: Array<PresentmentCurrency>;
   previewBlogPost?: Maybe<BlogPost>;
@@ -1638,8 +2034,10 @@ export type Query = {
   productQuestions: Array<ProductQuestion>;
   productSortOptions: Array<ProductSortOption>;
   productsByIds: Array<Product>;
+  productsBySkus: Array<Product>;
   publicConfig: Array<ConfigValue>;
   publicConfigSections: Array<ConfigSection>;
+  publicStores: PublicStoresResult;
   regions: Array<Region>;
   rootCategories: Array<Category>;
   route?: Maybe<RouteResolution>;
@@ -1649,6 +2047,7 @@ export type Query = {
   shippingQuotes: Array<ShippingQuote>;
   sitemapCounts: SitemapCounts;
   sitemapEntries: Array<SitemapEntry>;
+  trackOrder?: Maybe<TrackOrderResult>;
   validateAddress: AddressValidationResult;
   wishlistProductIds: Array<Scalars['ID']['output']>;
 };
@@ -1770,6 +2169,13 @@ export type QueryCurrencyArgs = {
 };
 
 
+export type QueryDeliveryPointsArgs = {
+  cartId: Scalars['ID']['input'];
+  groupKey: Scalars['String']['input'];
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type QueryFreeShippingThresholdArgs = {
   countryCode?: InputMaybe<Scalars['String']['input']>;
 };
@@ -1812,6 +2218,7 @@ export type QueryMyOrderArgs = {
 
 
 export type QueryPaymentMethodsArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
   countryCode: Scalars['String']['input'];
 };
 
@@ -1839,6 +2246,16 @@ export type QueryProductQuestionsArgs = {
 
 export type QueryProductsByIdsArgs = {
   ids: Array<Scalars['ID']['input']>;
+};
+
+
+export type QueryProductsBySkusArgs = {
+  skus: Array<Scalars['String']['input']>;
+};
+
+
+export type QueryPublicStoresArgs = {
+  input?: InputMaybe<PublicStoresInput>;
 };
 
 
@@ -1872,7 +2289,10 @@ export type QuerySharedWishlistArgs = {
 
 
 export type QueryShippingQuotesArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
   countryCode: Scalars['String']['input'];
+  postalCode?: InputMaybe<Scalars['String']['input']>;
+  regionCode?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -1880,6 +2300,13 @@ export type QuerySitemapEntriesArgs = {
   entityType: SitemapEntityType;
   limit: Scalars['Int']['input'];
   offset: Scalars['Int']['input'];
+};
+
+
+export type QueryTrackOrderArgs = {
+  email: Scalars['String']['input'];
+  number: Scalars['String']['input'];
+  postalCode: Scalars['String']['input'];
 };
 
 
@@ -1920,9 +2347,9 @@ export type ReorderResult = {
 
 export type ReorderSkippedLine = {
   __typename?: 'ReorderSkippedLine';
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   reason: Scalars['String']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type RequestReturnInput = {
@@ -1931,6 +2358,16 @@ export type RequestReturnInput = {
   reason?: InputMaybe<Scalars['String']['input']>;
   resolution?: InputMaybe<Scalars['String']['input']>;
 };
+
+export type RequirementMode =
+  | 'OPTIONAL'
+  | 'REQUIRED';
+
+export type RequirementStatus =
+  | 'INVALID'
+  | 'MISSING'
+  | 'OPTIONAL'
+  | 'SATISFIED';
 
 export type ReturnLineInput = {
   orderLineId: Scalars['ID']['input'];
@@ -2073,9 +2510,9 @@ export type SavedItem = {
   __typename?: 'SavedItem';
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type SavedPaymentMethod = {
@@ -2093,6 +2530,8 @@ export type ShippingQuote = {
   carrierName: Scalars['String']['output'];
   carrierSlug: Scalars['String']['output'];
   code: Scalars['String']['output'];
+  estimatedArrival?: Maybe<Scalars['String']['output']>;
+  estimatedDays?: Maybe<Scalars['Int']['output']>;
   name: Scalars['String']['output'];
   priceCents: Scalars['Int']['output'];
 };
@@ -2119,6 +2558,12 @@ export type StoreFeatures = {
   __typename?: 'StoreFeatures';
   signals: Scalars['Boolean']['output'];
 };
+
+export type StoreStockStatus =
+  | 'IN_STOCK'
+  | 'LOW_STOCK'
+  | 'OUT_OF_STOCK'
+  | 'UNKNOWN';
 
 export type SubmitReviewInput = {
   answers: Array<ReviewAnswerInput>;
@@ -2171,6 +2616,13 @@ export type TierPrice = {
   price: Scalars['Int']['output'];
 };
 
+export type TrackOrderResult = {
+  __typename?: 'TrackOrderResult';
+  email: Scalars['String']['output'];
+  orderId: Scalars['ID']['output'];
+  requiresLogin: Scalars['Boolean']['output'];
+};
+
 export type VariantMode =
   | 'ATTRIBUTE'
   | 'LIST';
@@ -2183,10 +2635,8 @@ export type WebFormFieldError = {
 
 export type WebFormFileInput = {
   fieldKey: Scalars['String']['input'];
-  mimeType?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   objectKey: Scalars['String']['input'];
-  size?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type WebFormUploadTicket = {

@@ -17,13 +17,6 @@ fragment ExperimentFields on Experiment {
   updatedAt
 }
 
-query PrismSegments {
-  experimentSegments {
-    slug
-    name
-  }
-}
-
 query Experiments($channelId: ID!) {
   experiments(channelId: $channelId) {
     ...ExperimentFields
@@ -103,4 +96,11 @@ mutation UpdateExperiment($id: ID!, $input: SaveExperimentInput!) {
 
 mutation DeleteExperiment($id: ID!) {
   deleteExperiment(id: $id)
+}
+
+query PrismSegments {
+  experimentSegments {
+    slug
+    name
+  }
 }

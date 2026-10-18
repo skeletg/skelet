@@ -35,7 +35,7 @@ export type ConfigScopeContextValue = {
   effectiveLocale: string
   /** undefined in GLOBAL mode - mutations that REQUIRE a store gate behind `isChannel`, see `useScopeRequirement` */
   effectiveChannelId: string | undefined
-  /** Final fallback when neither a scope locale nor an entity `contentLocale` exists, e.g. first paint of a Create screen - empty while the config query loads */
+  /** Final fallback when neither a scope locale nor an entity `contentLocale` exists, e.g. first paint of a Create screen - the default channel's locale, "en" when none is flagged (as the backend does), empty while the config query loads */
   globalDefaultLocale: string
   /** Grants for this page are channel-scoped, so there's no GLOBAL scope to sit in - the header disables Global and auto-snaps into a permitted channel */
   restrictedToChannels: boolean

@@ -30,29 +30,11 @@ import {
   CmsTagsDocument,
   type CmsPageRowFragment,
 } from './Cms.gql'
+import { formatDate } from '@/lib/format'
+import { workflowLabel } from './page-detail/shared'
 
 function pageTitle(p: CmsPageRowFragment) {
   return p.content?.title?.trim() || p.allContent[0]?.title?.trim() || p.slug
-}
-
-function fmtWhen(v: unknown): string {
-  const d = new Date(v as string)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-
-function workflowLabel(state: string): string {
-  switch (state) {
-    case 'DRAFT':
-      return 'Draft'
-    case 'IN_REVIEW':
-      return 'In review'
-    case 'APPROVED':
-      return 'Approved'
-    case 'PUBLISHED':
-      return 'Published'
-    default:
-      return state
-  }
 }
 
 type TagOps = Record<string, 'add' | 'remove'>
@@ -261,7 +243,7 @@ export function CmsPagesPage() {
           !value?.length || value.includes(row.original.isPublished ? 'published' : 'draft'),
         cell: ({ row }) =>
           row.original.isPublished ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success">
               <CheckCircle2Icon className="size-3.5" /> Published
             </span>
           ) : (
@@ -283,7 +265,7 @@ export function CmsPagesPage() {
         accessorKey: 'updatedAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-sm text-muted-foreground">{fmtWhen(row.original.updatedAt)}</span>
+          <span className="whitespace-nowrap text-sm text-muted-foreground">{formatDate(row.original.updatedAt)}</span>
         ),
       },
     )

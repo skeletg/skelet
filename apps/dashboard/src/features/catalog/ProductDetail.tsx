@@ -38,6 +38,7 @@ import {
   SetProductVariantModeDocument,
   SetProductAttributesDocument,
   UpdateProductDocument,
+  ProductsPagedDocument,
 } from './Catalog.gql'
 import { AttributesEditor } from './AttributesEditor'
 import { ProductReferencesCard } from './ProductReferencesCard'
@@ -94,7 +95,7 @@ export function ProductDetail() {
 
   const productRefetch = [{ query: ProductDocument, variables: productVariables }]
   const [deleteProduct, { loading: deleting }] = useMutation(DeleteProductDocument, {
-    refetchQueries: ['ProductsPaged'],
+    refetchQueries: [ProductsPagedDocument],
   })
   const [setAttrs, { loading: savingAttrs }] = useMutation(SetProductAttributesDocument, {
     refetchQueries: productRefetch,
@@ -277,7 +278,7 @@ export function ProductDetail() {
 
       <DetailPageBody>
           <GeneralProductSection
-            key={`${product.id}:${translationLocale || 'no-locale'}:${product.updatedAt}:general`}
+            key={`${product.id}:${translationLocale || 'no-locale'}:general`}
             product={product}
             locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
             scopeLabel={
@@ -304,7 +305,6 @@ export function ProductDetail() {
                     product={product}
                     canManage={canManage}
                     channelId={scope.channelId}
-                    productQueryVariables={productVariables}
                   />
                 ) : (
                   <div className="rounded-md border bg-muted/30 p-4 text-sm">
@@ -338,19 +338,18 @@ export function ProductDetail() {
           >
             <div className="grid gap-4">
               <AdvancedInventoryPricingSection
-                key={`${product.id}:${product.updatedAt}:advanced`}
+                key={`${product.id}:advanced`}
                 product={product}
                 canManage={canManage}
                 productVariables={productVariables}
               />
               <TierPricingSection
-                key={`${product.id}:${product.updatedAt}:tier-pricing`}
+                key={`${product.id}:tier-pricing`}
                 productId={product.id}
                 groupPrices={product.groupPrices ?? []}
                 currencyCode={product.defaultCurrencyCode}
                 canManage={canManage}
                 productVariables={productVariables}
-                embedded
               />
             </div>
           </CollapsibleSection>
@@ -362,7 +361,7 @@ export function ProductDetail() {
           />
 
           <ContentAndMediaSection
-            key={`${product.id}:${translationLocale || 'no-locale'}:${product.updatedAt}:content-media`}
+            key={`${product.id}:${translationLocale || 'no-locale'}:content-media`}
             product={product}
             locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
             scopeLabel={
@@ -443,7 +442,6 @@ export function ProductDetail() {
                 <Separator />
                 <ChildrenSection
                   product={product}
-                  productTypeId={product.productType.id}
                   canManage={canManage}
                   embedded
                 />
@@ -525,18 +523,17 @@ export function ProductDetail() {
           >
             <div className="grid gap-6">
               <ProductSeoEditor
-                key={`${product.id}:${scopedLocale ?? 'default'}:${product.updatedAt}:seo`}
+                key={`${product.id}:${scopedLocale ?? 'default'}:seo`}
                 product={product}
                 locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
                 canManage={canManage}
                 productVariables={productVariables}
               />
               <ChannelUrlOverridesEditor
-                key={`${product.id}:${product.updatedAt}:channel-urls`}
+                key={`${product.id}:channel-urls`}
                 productId={product.id}
                 listings={product.listings}
                 canManage={canManage}
-                productVariables={productVariables}
               />
             </div>
           </CollapsibleSection>
@@ -548,7 +545,8 @@ export function ProductDetail() {
             onOpenChange={setMetadataOpen}
           >
             <ProductMetadataEditor
-              key={`${product.id}:${product.updatedAt}:metadata`}
+              key={`${product.id}:metadata`}
+              productId={product.id}
               metadata={product.metadata}
               privateMetadata={product.privateMetadata}
               canManage={canManage}

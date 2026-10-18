@@ -1,3 +1,44 @@
+# Minimal customer identity for the Synapse profile page header (name + email),
+# so a deep link / refresh resolves the person without the heavy Customer query.
+query SynapseCustomerHeader($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    firstName
+    lastName
+  }
+}
+
+# The core half of a customer's 360° rollup - consent, email engagement and automation-flow enrollments (Pulse)
+# Their audiences come from the Signals API alongside it - customer-only, an anonymous visitor has none
+query CustomerSignals($customerId: ID!) {
+  customerSignals(customerId: $customerId) {
+    consents { kind name channel purpose optedIn }
+    email { sent opened clicked lastSentAt lastOpenAt }
+    flows { flowId flowName trigger status enrolledAt updatedAt }
+  }
+}
+
+# Commerce/CRM summary for a customer - shown alongside the behavioural profile
+# on the Synapse customer page (customer-only; anonymous visitors have none).
+query CustomerCommerce($customerId: ID!) {
+  customerCommerce(customerId: $customerId) {
+    orders
+    spend {
+      currency
+      cents
+      orders
+    }
+    firstOrderAt
+    lastOrderAt
+    returns
+    activeSubscriptions
+    marketingOptedIn
+    group
+    memberSince
+  }
+}
+
 query SynapseOverview($channelId: ID!, $sinceDays: Int) {
   synapseOverview(channelId: $channelId, sinceDays: $sinceDays) {
     totalEvents
@@ -16,8 +57,6 @@ query SynapseOverview($channelId: ID!, $sinceDays: Int) {
     }
     activeCustomers {
       customerId
-      name
-      email
       events
       lastSeen
     }
@@ -111,17 +150,6 @@ query CustomerProfile($customerId: ID!, $sinceDays: Int) {
   }
 }
 
-# Minimal customer identity for the Synapse profile page header (name + email),
-# so a deep link / refresh resolves the person without the heavy Customer query.
-query SynapseCustomerHeader($id: ID!) {
-  customer(id: $id) {
-    id
-    email
-    firstName
-    lastName
-  }
-}
-
 # A single anonymous (not-yet-identified) visitor's behavioural profile - the
 # drill-down reached from the overview's "most active visitors" list. Same shape
 # as customerProfile (it reuses the CustomerProfile type server-side).
@@ -200,38 +228,6 @@ query VisitorProfile($channelId: ID!, $anonId: String!, $sinceDays: Int) {
         count
       }
     }
-  }
-}
-
-# Cross-Signals 360° rollup for a customer - audiences (Synapse segments),
-# consent + email engagement + automation-flow enrollments (Pulse) - shown on
-# the Synapse customer page. Customer-only; anonymous visitors have none.
-query CustomerSignals($customerId: ID!) {
-  customerSignals(customerId: $customerId) {
-    segments { id name slug }
-    consents { kind name channel purpose optedIn }
-    email { sent opened clicked lastSentAt lastOpenAt }
-    flows { flowId flowName trigger status enrolledAt updatedAt }
-  }
-}
-
-# Commerce/CRM summary for a customer - shown alongside the behavioural profile
-# on the Synapse customer page (customer-only; anonymous visitors have none).
-query CustomerCommerce($customerId: ID!) {
-  customerCommerce(customerId: $customerId) {
-    orders
-    spend {
-      currency
-      cents
-      orders
-    }
-    firstOrderAt
-    lastOrderAt
-    returns
-    activeSubscriptions
-    marketingOptedIn
-    group
-    memberSince
   }
 }
 
@@ -359,8 +355,6 @@ query SynapseSegment($id: ID!) {
     membersTruncated
     members {
       customerId
-      name
-      email
       lifecycle
       recencyDays
       orders
@@ -481,5 +475,15 @@ query SynapseInsights($channelId: ID!, $event: String, $breakdown: String, $meas
     uniques
     prevTotal
     prevUniques
+  }
+}
+
+# The customer's audiences (Synapse segments) for the 360 rollup on the profile
+# page - segments live in the Signals database, so core's half can't carry them.
+query CustomerAudiences($customerId: ID!) {
+  customerAudiences(customerId: $customerId) {
+    id
+    name
+    slug
   }
 }

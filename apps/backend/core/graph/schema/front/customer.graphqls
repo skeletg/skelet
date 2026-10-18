@@ -1,0 +1,166 @@
+type Customer {
+  id:               ID!
+  email:            String!
+  firstName:        String!
+  lastName:         String!
+  phone:            String
+  isEmailVerified:  Boolean!
+  addresses:        [Address!]!
+  defaultBillingAddress:  Address
+  defaultShippingAddress: Address
+  consents:         [CustomerConsent!]!
+  # Store-credit balance in the store currency, spendable at checkout.
+  storeCreditBalance: Int!
+}
+
+enum ConsentPurpose { MARKETING TRANSACTIONAL }
+enum ConsentChannel { EMAIL SMS PUSH }
+
+type ConsentDefinition {
+  slug:         String!
+  name:         String!
+  description:  String!
+  purpose:      ConsentPurpose!
+  channel:      ConsentChannel!
+  required:     Boolean!
+  defaultOptIn: Boolean!
+}
+
+type CustomerConsent {
+  kind:       String!
+  definition: ConsentDefinition!
+  optedIn:    Boolean!
+  source:     String!
+  updatedAt:  Time
+  isDefault:  Boolean!
+}
+
+type Address {
+  id:          ID!
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type CustomerAuthPayload {
+  # Null when no session was issued - registration withholds it while require_email_verification is on, and when the address already has an account.
+  accessToken:  String
+  refreshToken: String
+  # Null whenever the tokens are, so the answer never shows whether the address already had an account.
+  customer:     Customer
+  # True when registration issued no session. Clients should route to a "check your inbox" state - the inbox holds either a verification link or, for an address that already has an account, a note to its owner.
+  verificationRequired: Boolean!
+}
+
+input CustomerRegisterInput {
+  email:          String!
+  password:       String!
+  firstName:      String!
+  lastName:       String!
+  marketingOptIn: Boolean
+  # Another customer's referral code (from a share link). Invalid or self-referencing codes are silently ignored - registration never fails because of a bad code.
+  referralCode:   String
+}
+
+input CustomerLoginInput {
+  email:    String!
+  password: String!
+}
+
+input AddressInput {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+extend type Query {
+  # GDPR self-serve data export: JSON bundle of your profile, addresses,
+  # and orders.
+  myDataExport:       String!
+  myProfile:          Customer!
+  consentDefinitions: [ConsentDefinition!]!
+}
+
+extend type Mutation {
+  customerRegister(input: CustomerRegisterInput!):              CustomerAuthPayload!
+  customerLogin(input: CustomerLoginInput!):                    CustomerAuthPayload!
+  customerRefreshToken(token: String!):                         CustomerAuthPayload!
+  customerLogout(token: String!):                               Boolean!
+  updateProfile(firstName: String, lastName: String, phone: String): Customer!
+  changeCustomerPassword(currentPassword: String!, newPassword: String!): Boolean!
+  verifyEmail(token: String!):                                  Boolean!
+  resendVerificationEmail:                                      Boolean!
+  # Signed-out resend for an account the verification gate keeps from signing in. Always true, so it never shows whether the address has an account.
+  resendVerification(email: String!):                           Boolean!
+  requestPasswordReset(email: String!):                         Boolean!
+  resetPassword(token: String!, newPassword: String!):          Boolean!
+  addAddress(input: AddressInput!):                             Address!
+  updateAddress(id: ID!, input: AddressInput!):                 Address!
+  deleteAddress(id: ID!):                                       Boolean!
+  setDefaultBillingAddress(id: ID!):                            Customer!
+  setDefaultShippingAddress(id: ID!):                           Customer!
+  setConsent(kind: String!, optedIn: Boolean!):                 CustomerConsent!
+}
+
+# --- Loyalty points ---
+
+type LoyaltyStatus {
+  # Whether the loyalty program is enabled on this store.
+  enabled: Boolean!
+  # Signed-in customer's points balance (0 for guests).
+  balancePoints: Int!
+  # Points earned per currency unit of merchandise value.
+  earnPointsPerUnit: Int!
+  # Cents of store credit granted per redeemed point.
+  redeemCentsPerPoint: Int!
+}
+
+type LoyaltyRedeemResult {
+  balancePoints:      Int!
+  storeCreditBalance: Int!
+  grantedCents:       Int!
+}
+
+extend type Query {
+  loyaltyStatus: LoyaltyStatus!
+}
+
+extend type Mutation {
+  # Convert points into store credit at the store's configured rate.
+  # Requires a signed-in customer.
+  redeemLoyaltyPoints(points: Int!): LoyaltyRedeemResult!
+}
+
+# --- Referral program ---
+
+type ReferralInfo {
+  enabled: Boolean!
+  # The signed-in customer's share code.
+  code: String!
+  # Store credit the referrer earns per converted referral.
+  referrerRewardCents: Int!
+  # Store credit a new customer gets on their first order.
+  refereeRewardCents: Int!
+  referredCount: Int!
+  rewardedCount: Int!
+  earnedCents:   Int!
+}
+
+extend type Query {
+  # Requires a signed-in customer; mints the share code on first read.
+  myReferral: ReferralInfo!
+}
