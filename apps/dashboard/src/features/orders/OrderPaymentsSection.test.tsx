@@ -2,7 +2,13 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderDialog } from '@/test/page-harness'
 import { OrderPaymentsSection } from './OrderPaymentsSection'
-import { OfflinePaymentMethodsDocument, OrderDocument, OrdersPagedDocument, RefundPaymentDocument } from './Orders.gql'
+import {
+  OfflinePaymentMethodsDocument,
+  OrderDocument,
+  OrdersPagedDocument,
+  RecordOfflinePaymentDocument,
+  RefundPaymentDocument,
+} from './Orders.gql'
 
 // What these pin: the refund amount is typed in major units - "12.50" refunds 1250 cents, not 12 - and a
 // blank field's placeholder shows what a blank refund would actually move
@@ -68,5 +74,49 @@ describe('OrderPaymentsSection refund', () => {
     const input = await renderRefund(() => {})
     fireEvent.change(input, { target: { value: '1.234' } })
     expect((screen.getAllByRole('button', { name: 'Refund' }).at(-1) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+// Offline payments: the amount uses the order currency's decimals - "1500" yen is 1500, not 150000
+const unpaidJpy = { ...(order as object), currencyCode: 'JPY', paymentStatus: 'UNPAID', paymentProvider: '', paymentReference: '', total: 3000, paymentTransactions: [] } as never
+
+async function renderRecord(onInput: (v: Record<string, unknown>) => void) {
+  renderDialog(<OrderPaymentsSection order={unpaidJpy} />, [
+    meMock(),
+    {
+      request: { query: OfflinePaymentMethodsDocument, variables: { channelId: 'c1' } },
+      result: { data: { paymentMethods: [] } },
+      maxUsageCount: 3,
+    },
+    {
+      request: { query: RecordOfflinePaymentDocument, variables: captureInput(onInput) },
+      result: { data: { recordOfflinePayment: { __typename: 'Order', id: 'o1', paymentStatus: 'PARTIALLY_PAID' } } },
+    },
+    { request: { query: OrderDocument, variables: () => true }, result: { data: { order: null } }, maxUsageCount: 3 },
+    { request: { query: OrdersPagedDocument, variables: () => true }, result: { data: { ordersPaged: null } }, maxUsageCount: 3 },
+  ])
+  fireEvent.click(await screen.findByRole('button', { name: 'Record payment' }, SLOW))
+  return screen.getByLabelText('Amount') as HTMLInputElement
+}
+
+const submitRecord = () => fireEvent.click(screen.getAllByRole('button', { name: 'Record payment' }).at(-1)!)
+
+describe('OrderPaymentsSection offline payment', () => {
+  it('converts by the order currency decimals', async () => {
+    const calls: Record<string, unknown>[] = []
+    const input = await renderRecord((v) => calls.push(v))
+    expect(input.placeholder).toBe('3000')
+    fireEvent.change(input, { target: { value: '1500' } })
+    submitRecord()
+    await vi.waitFor(() => expect(calls[0]).toMatchObject({ orderId: 'o1', amount: 1500 }), SLOW)
+  })
+
+  it('refuses text that is not an amount', async () => {
+    const calls: Record<string, unknown>[] = []
+    const input = await renderRecord((v) => calls.push(v))
+    fireEvent.change(input, { target: { value: '12abc' } })
+    submitRecord()
+    expect(await screen.findByText(/Enter a positive amount/)).toBeTruthy()
+    expect(calls).toHaveLength(0)
   })
 })

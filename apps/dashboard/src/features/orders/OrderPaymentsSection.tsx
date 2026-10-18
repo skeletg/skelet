@@ -139,8 +139,8 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
   async function onRecord() {
     setError(null)
     try {
-      const cents = recordAmount.trim() === '' ? null : Math.round(parseFloat(recordAmount) * 100)
-      if (cents !== null && (!Number.isFinite(cents) || cents <= 0)) {
+      const cents = toMinor(recordAmount, order.currencyCode)
+      if (recordAmount.trim() !== '' && (cents === null || cents <= 0)) {
         setError('Enter a positive amount, or leave it blank for the full balance.')
         return
       }
@@ -292,7 +292,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
                       inputMode="decimal"
                       value={recordAmount}
                       onChange={(e) => setRecordAmount(e.target.value)}
-                      placeholder={(amountDue / 100).toFixed(2)}
+                      placeholder={fromMinor(amountDue, order.currencyCode)}
                     />
                     <p className="text-xs text-muted-foreground">
                       Blank records the full {formatCents(amountDue, order.currencyCode)} owed
