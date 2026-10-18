@@ -32,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DetailPageSection } from '@/components/layout/detail-page'
-import { formatCents, fromMinor, toMinor } from '@/lib/format'
+import { dayStartISO, formatCents, fromMinor, toMinor } from '@/lib/format'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   OfflinePaymentMethodsDocument,
@@ -151,7 +151,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             amount: cents,
             method: method || offlineDefault || 'other',
             reference: reference.trim() || null,
-            receivedAt: receivedAt ? new Date(receivedAt).toISOString() : null,
+            receivedAt: receivedAt ? dayStartISO(receivedAt) : null,
             note: payNote.trim() || null,
           },
         },
