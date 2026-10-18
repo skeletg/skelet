@@ -62,7 +62,7 @@ export function WebhooksList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteWebhook, { loading: deleting }] = useMutation(DeleteWebhookDocument, {
-    refetchQueries: [{ query: WebhooksDocument }],
+    refetchQueries: [WebhooksDocument],
   })
 
   async function onConfirmDelete() {

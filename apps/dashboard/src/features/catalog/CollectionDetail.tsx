@@ -121,7 +121,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
   const [upsertContent] = useMutation(UpsertCollectionContentDocument, { refetchQueries })
   const [deleteContent, { loading: deletingContent }] = useMutation(DeleteCollectionContentDocument, { refetchQueries })
   const [deleteCollection, { loading: deleting }] = useMutation(DeleteCollectionDocument, {
-    refetchQueries: [{ query: CollectionsDocument }],
+    refetchQueries: [CollectionsDocument],
   })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)

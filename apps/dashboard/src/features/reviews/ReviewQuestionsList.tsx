@@ -66,7 +66,7 @@ export function ReviewQuestionsList() {
 
   const [deleteQuestion, { loading: deleting }] = useMutation(
     DeleteReviewQuestionDocument,
-    { refetchQueries: [{ query: ReviewQuestionsDocument }] },
+    { refetchQueries: [ReviewQuestionsDocument] },
   )
 
   async function onConfirmDelete() {

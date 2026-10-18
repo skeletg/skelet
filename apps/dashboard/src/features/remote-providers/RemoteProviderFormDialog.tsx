@@ -51,7 +51,7 @@ function RemoteProviderForm({
 }) {
   const channelsQuery = useQuery(ChannelsDocument)
   const channels = channelsQuery.data?.channels ?? []
-  const [createProvider] = useMutation(CreateRemoteProviderDocument, { refetchQueries: [{ query: RemoteProvidersDocument }] })
+  const [createProvider] = useMutation(CreateRemoteProviderDocument, { refetchQueries: [RemoteProvidersDocument] })
   const [updateProvider] = useMutation(UpdateRemoteProviderDocument)
   // The raw signing secret comes back from create exactly once - handed over after the dialog closes
   const created = useRef<CreatedSecret | null>(null)
