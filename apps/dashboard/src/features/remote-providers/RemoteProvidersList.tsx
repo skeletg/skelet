@@ -55,6 +55,7 @@ export function RemoteProvidersList() {
   const rows = useMemo(() => (data?.remoteProviders ?? []) as ProviderRow[], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<ProviderRow | null>(null)
+  const [confirmingRotate, setConfirmingRotate] = useState<ProviderRow | null>(null)
   const [newSecret, setNewSecret] = useState<{ secret: string; name: string } | null>(null)
   const [opError, setOpError] = useState<string | null>(null)
 
@@ -74,18 +75,15 @@ export function RemoteProvidersList() {
     }
   }
 
-  async function onRotate(row: ProviderRow) {
-    setOpError(null)
-    try {
-      const { data } = await rotateSecret({ variables: { id: row.id } })
-      if (data) {
-        setNewSecret({
-          secret: data.rotateRemoteProviderSecret.rawSecret,
-          name: data.rotateRemoteProviderSecret.provider.name,
-        })
-      }
-    } catch (err) {
-      setOpError(err instanceof Error ? err.message : 'Rotate failed.')
+  // The old secret stops verifying the moment this runs, so it sits behind a confirm - which also shows a failure
+  async function onConfirmRotate() {
+    if (!confirmingRotate) return
+    const { data } = await rotateSecret({ variables: { id: confirmingRotate.id } })
+    if (data) {
+      setNewSecret({
+        secret: data.rotateRemoteProviderSecret.rawSecret,
+        name: data.rotateRemoteProviderSecret.provider.name,
+      })
     }
   }
 
@@ -191,7 +189,7 @@ export function RemoteProvidersList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onRotate(row.original)}>
+                      <DropdownMenuItem onClick={() => setConfirmingRotate(row.original)}>
                         <RefreshCwIcon className="size-4" />
                         Rotate secret
                       </DropdownMenuItem>
@@ -263,6 +261,15 @@ export function RemoteProvidersList() {
         onClose={() => setNewSecret(null)}
       />
 
+      <ConfirmDialog
+        open={!!confirmingRotate}
+        onOpenChange={(open) => !open && setConfirmingRotate(null)}
+        title={`Rotate the secret for ${confirmingRotate?.name ?? 'this provider'}?`}
+        description="The current secret stops working immediately. Calls signed with it fail until the provider has the new one."
+        confirmLabel="Rotate secret"
+        destructive
+        onConfirm={onConfirmRotate}
+      />
       <ConfirmDialog
         open={!!confirmingDelete}
         onOpenChange={(o) => !o && setConfirmingDelete(null)}
