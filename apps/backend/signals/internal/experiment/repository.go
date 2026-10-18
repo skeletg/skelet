@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
@@ -57,6 +58,9 @@ func (r *repo) Create(ctx context.Context, e Experiment) (Experiment, error) {
 		ChannelID: e.ChannelID, Key: e.Key, Name: e.Name, Status: e.Status,
 		Coverage: int32(e.Coverage), GoalEvent: e.GoalEvent, Variations: vars, SegmentSlug: e.SegmentSlug,
 	})
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
+		return Experiment{}, ErrKeyTaken
+	}
 	if err != nil {
 		return Experiment{}, err
 	}
