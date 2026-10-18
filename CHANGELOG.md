@@ -11,6 +11,14 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **GA4 and Meta destination credentials move from the URL into the destination's secret.** The
+  forwarder adds the GA4 `api_secret` or the Meta `access_token` to the URL when it sends, and refuses a
+  target URL that still carries one, because the URL is shown to admins and a failed delivery used to
+  copy it into `last_error` and the logs. Destination secrets are now sealed at rest under a new
+  `SIGNALS_ENCRYPTION_KEY`, which production requires for the `signals` process and which `./skelet setup`
+  and `./skelet up` generate. Audience sync now posts to webhook destinations only, signed like every
+  forwarded batch.
+
 - **`JWT_SECRET` is retired and split into keys each tier holds only if it needs them.** It signed
   admin sessions, customer sessions, email links and (as a fallback) review votes, and compose handed it
   to core, both Signals processes and the storefront - so any of them could mint a superuser admin
@@ -281,6 +289,17 @@ The release process, and which version number means what, is in
   root `.env`, both compose files and `bin/test-e2e` carry it.
 
 ### Fixed
+
+- GA4 forwarding sent every batch as one JSON array, which the Measurement Protocol accepts with a 2xx
+  and then discards, so nothing ever reached GA4. Each visitor now goes as its own request of at most 25
+  events.
+- Event destinations no longer follow redirects, which re-sent a signed batch to wherever the target
+  pointed, and a destination with a backlog now hands over after 20 batches a run instead of holding up
+  the rest.
+- An over-limit email click still redirects to its link instead of answering 429.
+- `/t/config` and `/t/experiments` send `Vary: X-Channel-Id`, so a shared cache can't serve one store's
+  answer to another. One `/t/collect` batch is capped at 2000 events, and Lens page keys must be a path
+  of at most 512 bytes, which stops a forged crawl beacon from minting unbounded rollup rows.
 
 - **The AI chat offered Signals tools on a server with Signals switched off.** Its sections were
   gated on permission slugs alone and never consulted `SIGNALS_ENABLED`, so with the suite off the

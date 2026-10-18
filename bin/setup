@@ -397,7 +397,7 @@ if [ "$SKELET_TARGET" != dev ]; then
     # A secret reaching the container only through env_file is invisible to ${VAR:?}, and datastore passwords are generated here since an empty one silently becomes a blank password
     touch .env
     del_env .env JWT_SECRET
-    for key in ADMIN_JWT_SECRET CUSTOMER_JWT_PRIVATE_KEY CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET REVIEW_VOTER_TOKEN_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD CLICKHOUSE_PASSWORD; do
+    for key in ADMIN_JWT_SECRET CUSTOMER_JWT_PRIVATE_KEY CUSTOMER_JWT_PUBLIC_KEY EMAIL_LINK_SECRET REVIEW_VOTER_TOKEN_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD CLICKHOUSE_PASSWORD; do
         cur="$(get_env .env "$key")"
         placeholder "$cur" || { echo "    .env $key already set, left alone"; continue; }
         # the ones the backend also reads must MATCH there, not be generated twice
@@ -405,7 +405,7 @@ if [ "$SKELET_TARGET" != dev ]; then
             ADMIN_JWT_SECRET|CUSTOMER_JWT_PRIVATE_KEY|CUSTOMER_JWT_PUBLIC_KEY|EMAIL_LINK_SECRET|REVIEW_VOTER_TOKEN_SECRET|CONFIG_ENCRYPTION_KEY|SIGNALS_SERVICE_SECRET) val="$(get_env "$backend_env" "$key")" ;;
             *) val="" ;;
         esac
-        [ -n "$val" ] || { if [ "$key" = CONFIG_ENCRYPTION_KEY ]; then val="$(gen_key_b64)"; else val="$(gen_secret)"; fi; }
+        [ -n "$val" ] || { case "$key" in CONFIG_ENCRYPTION_KEY|SIGNALS_ENCRYPTION_KEY) val="$(gen_key_b64)" ;; *) val="$(gen_secret)" ;; esac; }
         set_env .env "$key" "$val"
         echo "    .env $key set"
     done

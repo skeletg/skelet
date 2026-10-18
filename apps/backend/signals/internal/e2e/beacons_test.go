@@ -206,38 +206,40 @@ func TestIngestBeaconsAlwaysAnswer204(t *testing.T) { // beacons are fire-and-fo
 		"rec malformed":     {"/t/rec", `not json`},
 		"crawl bot":         {"/t/crawl", `{"path":"/p/tire","ua":"Mozilla/5.0 (compatible; Googlebot/2.1)"}`},
 		"crawl human ua":    {"/t/crawl", `{"path":"/p/tire","ua":"Mozilla/5.0 (Windows NT 10.0) Chrome/126.0"}`},
-		"unknown path":      {"/t/whatever", `{}`},
 	} {
 		status, _, body := tRequest(t, ts, http.MethodPost, call.path, ch.String(), call.body)
 		if status != http.StatusNoContent {
 			t.Errorf("%s: POST %s = %d %q, want 204", name, call.path, status, body)
 		}
 	}
+	// Only a route is a beacon - anything else is refused before it can reach the limiter or the spine
+	if status, _, _ := tRequest(t, ts, http.MethodPost, "/t/whatever", ch.String(), `{}`); status != http.StatusNotFound {
+		t.Errorf("POST /t/whatever = %d, want 404", status)
+	}
+	if status, _, _ := tRequest(t, ts, http.MethodPost, "/t/config", ch.String(), `{}`); status != http.StatusMethodNotAllowed {
+		t.Errorf("POST /t/config = %d, want 405", status)
+	}
 }
 
-// Over-limit GETs get an honest 429 while POST beacons keep answering 204, so a scraper can't tell when it's being throttled - the "other" bucket is used so this test can't starve the real endpoints
-func TestIngestRateLimitThrottlesGetsSilencesPosts(t *testing.T) {
+// Over-limit GETs get an honest 429 through the wired limiter - the silent 204 for an over-limit POST is pinned in beaconhttp, since
+// 300 POSTs here would answer the same either way. This runs last among the /t tests, so the drained bucket starves nothing after it
+func TestIngestRateLimitThrottlesGets(t *testing.T) {
 	h := newHarness(t)
 	ch := h.channel(t)
 	ts := beaconServer(t, h)
 
 	var got429 bool
 	for i := range 320 {
-		status, _, _ := tRequest(t, ts, http.MethodGet, "/t/unknown-probe", ch.String(), "")
+		status, _, _ := tRequest(t, ts, http.MethodGet, "/t/experiments", ch.String(), "")
 		if status == http.StatusTooManyRequests {
 			got429 = true
 			break
 		}
-		if status != http.StatusNoContent {
-			t.Fatalf("request %d: status = %d, want 204 until the limit", i, status)
+		if status != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200 until the limit", i, status)
 		}
 	}
 	if !got429 {
 		t.Fatal("320 GETs never hit the rate limit, want a 429 within the 300/min budget")
-	}
-	// same bucket, but a POST - the refusal must stay indistinguishable from success
-	status, _, _ := tRequest(t, ts, http.MethodPost, "/t/unknown-probe", ch.String(), `{}`)
-	if status != http.StatusNoContent {
-		t.Errorf("over-limit POST = %d, want the silent 204", status)
 	}
 }

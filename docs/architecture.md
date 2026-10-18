@@ -57,7 +57,7 @@ skelet/
 │   │           ├── sendlog/, suppression/  ← the email send log and the suppression list
 │   │           ├── emailtemplate/, flow/, campaign/  ← Pulse: the email builder, the flow engine, broadcasts
 │   │           ├── engagement/, sms/, corefront/     ← the send tracker, the text gateway, core's storefront API
-│   │           ├── ingesthttp/, pulsehttp/  ← /t and /e
+│   │           ├── beaconhttp/      ← /t and /e
 │   │           ├── signalsgrpc/     ← the wire contract's handlers
 │   │           ├── signalsboot/     ← spine + queue + engine assembly
 │   │           └── db/              ← migrations/, query/*.sql and sqlc/ (DO NOT EDIT)

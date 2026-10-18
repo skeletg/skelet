@@ -23,7 +23,7 @@ input EventDestinationInput {
   name:      String!
   kind:      String!
   targetUrl: String!
-  # webhook kind: HMAC signing key (signature over "<ts>.<body>" in X-Destination-Signature + X-Destination-Timestamp). Other kinds carry credentials in targetUrl query params per their conventions.
+  # Write-only, sealed at rest. webhook: the HMAC signing key (signature over "<ts>.<body>" in X-Destination-Signature + X-Destination-Timestamp). ga4_mp: the api_secret, meta_capi: the access_token - added to the URL at send time, and refused in targetUrl.
   secret:       String
   eventSources: [String!]
   eventNames:   [String!]

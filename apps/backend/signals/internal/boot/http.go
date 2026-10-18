@@ -14,13 +14,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/beaconhttp"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/geo"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/ingesthttp"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/pulsehttp"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/signalsboot"
 )
@@ -49,14 +48,14 @@ type beaconDeps struct {
 func newBeaconMux(d beaconDeps) *http.ServeMux {
 	mux := http.NewServeMux()
 	RegisterPprof(mux)
-	mux.Handle("/t/", ingesthttp.New(ingesthttp.Options{
+	mux.Handle("/t/", beaconhttp.Tracker(beaconhttp.TrackerOptions{
 		Channels: d.Channels, Lens: d.Lens, Experiments: d.Experiment, Segments: d.Segment,
 		Geo: d.Geo, Rollup: d.Rollup,
 		Limiter:   ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute),
 		Customers: d.Config.Customers,
 	}))
 	// The open pixel and click redirect every marketing mail carries, so the hit lands beside the send log it names
-	mux.Handle("/e/", pulsehttp.New(pulsehttp.Options{
+	mux.Handle("/e/", beaconhttp.Mail(beaconhttp.MailOptions{
 		Campaigns: d.Campaign, Flows: d.Flow,
 		Limiter: ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute),
 	}))

@@ -166,7 +166,7 @@ type DestinationInput struct {
 	Name      string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Kind      string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	TargetUrl string                 `protobuf:"bytes,4,opt,name=target_url,json=targetUrl,proto3" json:"target_url,omitempty"`
-	// webhook kind: the HMAC signing key. Other kinds carry credentials in target_url per their own conventions
+	// webhook: the HMAC signing key. ga4_mp: the api_secret, meta_capi: the access_token, joined to target_url only at send time
 	// Absent leaves the stored secret alone, which is how an edit that does not rotate it looks
 	Secret        *string  `protobuf:"bytes,5,opt,name=secret,proto3,oneof" json:"secret,omitempty"`
 	EventSources  []string `protobuf:"bytes,6,rep,name=event_sources,json=eventSources,proto3" json:"event_sources,omitempty"`

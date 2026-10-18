@@ -2,8 +2,9 @@ import { z } from 'zod'
 import { absoluteUrl } from '@/shared/schemas/fields'
 import type { EventDestinationInput } from '@/graphql/schema.types'
 
-// Analytics destination dialog. The signing secret is write-only: never shown again, so an edit
-// leaves it blank to keep the stored one and only a new webhook destination has to supply it
+// Analytics destination dialog. The secret is write-only: never shown again, so an edit leaves it blank to keep
+// the stored one and only a new destination has to supply it - the webhook's signing key, GA4's API secret or Meta's
+// access token, which the forwarder adds to the URL at send time so the URL itself never holds a credential
 
 export type ExistingDestination = {
   id: string
@@ -13,6 +14,27 @@ export type ExistingDestination = {
   eventSources: string[]
   eventNames: string[]
   isActive: boolean
+}
+
+const SECRET_FIELDS = {
+  webhook: { label: 'Signing secret', placeholder: 'HMAC key' },
+  ga4_mp: { label: 'API secret', placeholder: 'Measurement Protocol API secret' },
+  meta_capi: { label: 'Access token', placeholder: 'Conversions API access token' },
+}
+
+export function secretField(kind: string) {
+  return SECRET_FIELDS[kind as keyof typeof SECRET_FIELDS] ?? SECRET_FIELDS.webhook
+}
+
+const CREDENTIAL_PARAMS = ['api_secret', 'access_token']
+
+function credentialInUrl(raw: string): string | undefined {
+  try {
+    const params = new URL(raw).searchParams
+    return CREDENTIAL_PARAMS.find((p) => params.has(p))
+  } catch {
+    return undefined
+  }
 }
 
 // The analytics spine's source column - filters match against these
@@ -28,8 +50,8 @@ export function destinationSchema(opts: { isEdit: boolean }) {
         .string()
         .describe(
           opts.isEdit
-            ? 'New HMAC signing secret for webhook deliveries - write-only, empty string keeps the stored one'
-            : 'HMAC signing secret for webhook deliveries, write-only - required for a webhook destination',
+            ? 'New write-only secret (webhook HMAC key, GA4 api_secret or Meta access token) - empty string keeps the stored one'
+            : 'Write-only secret, required: the webhook HMAC key, the GA4 api_secret or the Meta access token',
         ),
       eventSources: z
         .array(z.string())
@@ -38,9 +60,14 @@ export function destinationSchema(opts: { isEdit: boolean }) {
       isActive: z.boolean().describe('Whether events are being delivered'),
     })
     .describe('An analytics destination that analytics events are forwarded to')
-    .refine((v) => opts.isEdit || v.kind !== 'webhook' || v.secret.trim() !== '', {
-      message: 'A new webhook destination needs a signing secret',
-      path: ['secret'],
+    .superRefine((v, ctx) => {
+      if (!opts.isEdit && v.secret.trim() === '') {
+        ctx.addIssue({ code: 'custom', path: ['secret'], message: `A new destination needs its ${secretField(v.kind).label.toLowerCase()}` })
+      }
+      const param = credentialInUrl(v.targetUrl)
+      if (param) {
+        ctx.addIssue({ code: 'custom', path: ['targetUrl'], message: `Put the ${param} in the ${secretField(v.kind).label.toLowerCase()} field, not the URL` })
+      }
     })
 }
 

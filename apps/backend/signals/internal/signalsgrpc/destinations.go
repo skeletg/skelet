@@ -2,10 +2,11 @@ package signalsgrpc
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -45,7 +46,7 @@ func (s *destinationServer) CreateDestination(ctx context.Context, req *signalsv
 	}
 	d, err := s.svc.Create(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, destinationErr(err)
 	}
 	return &signalsv1.CreateDestinationResponse{Destination: destinationProto(d)}, nil
 }
@@ -62,7 +63,7 @@ func (s *destinationServer) UpdateDestination(ctx context.Context, req *signalsv
 	in.ChannelID = existing.ChannelID
 	d, err := s.svc.Update(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, destinationErr(err)
 	}
 	return &signalsv1.UpdateDestinationResponse{Destination: destinationProto(d)}, nil
 }
@@ -73,7 +74,7 @@ func (s *destinationServer) DeleteDestination(ctx context.Context, req *signalsv
 		return nil, err
 	}
 	if err := s.svc.Delete(ctx, d.ChannelID, d.ID); err != nil {
-		return nil, err
+		return nil, destinationErr(err)
 	}
 	return &signalsv1.DeleteDestinationResponse{Deleted: true}, nil
 }
@@ -92,7 +93,7 @@ func (s *destinationServer) SyncAudience(ctx context.Context, req *signalsv1.Syn
 	}
 	n, err := s.svc.SyncAudience(ctx, segID, d.ID, req.GetIdentifiers())
 	if err != nil {
-		return nil, err
+		return nil, destinationErr(err)
 	}
 	return &signalsv1.SyncAudienceResponse{IdentifiersSent: int32(n)}, nil
 }
@@ -114,11 +115,8 @@ func (s *destinationServer) load(ctx context.Context, field, rawID string) (dest
 		return destination.Destination{}, err
 	}
 	d, err := s.svc.Get(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return destination.Destination{}, notFound("destination")
-	}
 	if err != nil {
-		return destination.Destination{}, err
+		return destination.Destination{}, destinationErr(err)
 	}
 	if err := requireChannel(ctx, "settings.manage", d.ChannelID); err != nil {
 		return destination.Destination{}, err
@@ -138,6 +136,18 @@ func destinationProto(d destination.Destination) *signalsv1.EventDestination {
 		out.LastForwardedAt = ts(*d.LastForwardedAt)
 	}
 	return out
+}
+
+func destinationErr(err error) error {
+	switch {
+	case errors.Is(err, destination.ErrNotFound):
+		return notFound("destination")
+	case errors.Is(err, destination.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, destination.ErrAudienceNeedsWebhook):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return err
 }
 
 func destinationInput(id *uuid.UUID, in *signalsv1.DestinationInput) (destination.UpsertInput, error) {

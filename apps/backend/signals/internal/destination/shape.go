@@ -9,24 +9,30 @@ import (
 
 // Payload shaping per destination kind - pure functions, unit-testable without credentials or network
 
-func ShapePayload(kind string, batch []Event) ([]byte, error) {
+// The Measurement Protocol's per-request event ceiling - it answers 2xx even to a payload it discards, so the cap is ours to keep
+const ga4MaxEvents = 25
+
+func ShapePayload(kind string, batch []Event) ([][]byte, error) {
 	switch kind {
 	case KindGA4:
 		return shapeGA4(batch)
 	case KindMetaCAPI:
-		return shapeMetaCAPI(batch)
+		return one(shapeMetaCAPI(batch))
 	default:
-		return shapeWebhook(batch)
+		return one(json.Marshal(map[string]any{"events": batch, "count": len(batch)}))
 	}
 }
 
-func shapeWebhook(batch []Event) ([]byte, error) {
-	return json.Marshal(map[string]any{"events": batch, "count": len(batch)})
+func one(body []byte, err error) ([][]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+	return [][]byte{body}, nil
 }
 
-// shapeGA4 renders GA4 Measurement Protocol - MP wants a client_id per payload, so we group by visitor identity (anon
-// id, else customer id) and emit one envelope per identity in an array - Event names are snake_cased for MP rules
-func shapeGA4(batch []Event) ([]byte, error) {
+// shapeGA4 renders GA4 Measurement Protocol - one {client_id, events} object per request, so the batch is grouped by visitor
+// identity (anon id, else customer id) and each group split at the event ceiling - Event names are snake_cased for MP rules
+func shapeGA4(batch []Event) ([][]byte, error) {
 	type mpEvent struct {
 		Name   string         `json:"name"`
 		Params map[string]any `json:"params,omitempty"`
@@ -57,11 +63,18 @@ func shapeGA4(batch []Event) ([]byte, error) {
 		}
 		env.Events = append(env.Events, mpEvent{Name: ga4Name(e.Name), Params: params})
 	}
-	out := make([]mpEnvelope, 0, len(order))
+	var out [][]byte
 	for _, cid := range order {
-		out = append(out, *byClient[cid])
+		events := byClient[cid].Events
+		for start := 0; start < len(events); start += ga4MaxEvents {
+			body, err := json.Marshal(mpEnvelope{ClientID: cid, Events: events[start:min(start+ga4MaxEvents, len(events))]})
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, body)
+		}
 	}
-	return json.Marshal(out)
+	return out, nil
 }
 
 func ga4Name(name string) string {

@@ -20,7 +20,7 @@ describe('DestinationFormDialog', () => {
     fireEvent.change(screen.getByLabelText('Target URL'), { target: { value: 'example.com/hook' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create destination' }))
     expect(await screen.findByText('Enter a full URL, starting with https://')).toBeDefined()
-    expect(screen.getByText('A new webhook destination needs a signing secret')).toBeDefined()
+    expect(screen.getByText('A new destination needs its signing secret')).toBeDefined()
 
     fireEvent.change(screen.getByLabelText('Target URL'), { target: { value: 'https://example.com/hook' } })
     fireEvent.change(screen.getByLabelText('Signing secret'), { target: { value: 'k3y' } })
@@ -30,6 +30,33 @@ describe('DestinationFormDialog', () => {
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ channelId: 'c1', kind: 'webhook', secret: 'k3y', eventSources: ['web'], eventNames: [] }),
     )
+  })
+
+  it('takes the GA4 api secret in its own field and refuses it in the URL', async () => {
+    const onCreate = vi.fn()
+    const onSaved = vi.fn()
+    renderDialog(<DestinationFormDialog open onOpenChange={() => {}} channelId="c1" onSaved={onSaved} />, [
+      {
+        request: { query: CreateEventDestinationDocument, variables: captureInput(onCreate) },
+        result: { data: { createEventDestination: { __typename: 'EventDestination', id: 'd1' } } },
+      },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /GA4/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Prod GA4' } })
+    fireEvent.change(screen.getByLabelText('Target URL'), {
+      target: { value: 'https://www.google-analytics.com/mp/collect?measurement_id=G-1&api_secret=leak' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create destination' }))
+    expect(await screen.findByText('Put the api_secret in the api secret field, not the URL')).toBeDefined()
+    expect(screen.getByText('A new destination needs its api secret')).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText('Target URL'), {
+      target: { value: 'https://www.google-analytics.com/mp/collect?measurement_id=G-1' },
+    })
+    fireEvent.change(screen.getByLabelText('API secret'), { target: { value: 's3cr3t' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create destination' }))
+    await vi.waitFor(() => expect(onSaved).toHaveBeenCalled(), SLOW)
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ga4_mp', secret: 's3cr3t' }))
   })
 
   it('keeps the stored secret when an edit leaves it blank', async () => {
