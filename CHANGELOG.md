@@ -290,6 +290,11 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- A scripted email block ran with no limits, so a large loop or a self-doubling string could hang or
+  exhaust the send loop. Saving one now needs a sample render inside 200 ms and 512 KB, literal loops are
+  capped at 1000, `append`/`prepend`/`replace` results are capped, and `capture` is refused. Button,
+  image, video and social links must be http(s), mailto, tel or a merge tag, including inside rows.
+
 - GA4 forwarding sent every batch as one JSON array, which the Measurement Protocol accepts with a 2xx
   and then discards, so nothing ever reached GA4. Each visitor now goes as its own request of at most 25
   events.

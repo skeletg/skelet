@@ -31,6 +31,11 @@ func (s *Service) SaveBlock(ctx context.Context, sn Snippet) error {
 	if err := validateFields(sn.Fields); err != nil {
 		return err
 	}
+	if sn.Scripted && strings.TrimSpace(sn.HTMLTemplate) != "" {
+		if err := checkScripted(sn); err != nil {
+			return err
+		}
+	}
 	// An HTML body is admin-trusted and sanitized at render, while a composed body validates each block
 	if strings.TrimSpace(sn.HTMLTemplate) == "" {
 		for i, b := range sn.Blocks {

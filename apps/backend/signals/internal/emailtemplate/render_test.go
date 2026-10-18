@@ -273,7 +273,7 @@ func TestValidateStyleAndColor(t *testing.T) {
 
 func TestValidateRowBlock(t *testing.T) {
 	row := Block{Type: "row", Columns: []Column{
-		{Width: 1, Blocks: []Block{{Type: "image", URL: "x"}}},
+		{Width: 1, Blocks: []Block{{Type: "image", URL: "https://cdn.example/x.png"}}},
 		{Width: 2, Blocks: []Block{{Type: "text", Content: "hi"}}},
 	}}
 	if err := validateBlock(row, true); err != nil {
