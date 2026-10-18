@@ -30,7 +30,7 @@ const (
 	notBot      = "NOT e.is_bot"
 )
 
-// The analytical reads, implemented with native ClickHouse functions (windowFunnel / uniqExact / ARRAY JOIN JSONExtractKeysAndValues / window functions) - the engine-independent post-processing (Retention cohorts, Flow path-tree, Insights fold) is shared with the Postgres driver via analytics.*FromEvents helpers, so results stay byte-identical across engines
+// The analytical reads, implemented with native ClickHouse functions (windowFunnel / uniqExact / ARRAY JOIN JSONExtractKeysAndValues / window functions) - the post-processing (Retention cohorts, Flow path-tree, Insights fold) lives in the analytics.*FromEvents helpers
 
 func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, steps []string, since time.Time) ([]analytics.FunnelStep, error) {
 	out := make([]analytics.FunnelStep, len(steps))
@@ -40,7 +40,7 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, steps []string,
 	if len(steps) < 2 {
 		return out, nil
 	}
-	// Native windowFunnel: per resolved person, the longest in-order chain of the step events (greedy earliest-match = the Postgres walker) - a ~10-year window (ms, matching toUnixTimestamp64Milli) means no inter-step limit inside the query window, and countIf(level >= k) is the people who reached step k
+	// Native windowFunnel: per resolved person, the longest in-order chain of the step events (greedy earliest-match) - a ~10-year window (ms, matching toUnixTimestamp64Milli) means no inter-step limit inside the query window, and countIf(level >= k) is the people who reached step k
 	conds := make([]string, len(steps)) // windowFunnel conditions
 	cols := make([]string, len(steps))  // countIf output columns
 	inHolders := make([]string, len(steps))
@@ -57,7 +57,7 @@ func (s *Store) Funnel(ctx context.Context, channelID uuid.UUID, steps []string,
 	for _, st := range steps { // event_name IN (...) args
 		args = append(args, st)
 	}
-	// the empty-actor guard matches Postgres's COALESCE(...) IS NOT NULL - without it every unattributable event (zero customer, empty anon) merges into one phantom person whose combined stream walks the funnel
+	// the empty-actor guard - without it every unattributable event (zero customer, empty anon) merges into one phantom person whose combined stream walks the funnel
 	q := fmt.Sprintf(`
 		SELECT %s
 		FROM (
@@ -89,7 +89,7 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakd
 	if unit == "week" {
 		bucket = "toStartOfWeek(e.occurred_at, 1)" // Monday, matching date_trunc('week')
 	}
-	// breakdown: no key -> '(none)'; else missing/'' -> '(none)' (COALESCE parity) - non-string values stringify via JSONExtractRaw the way Postgres's ->> does - bare JSONExtractString returns '' for numbers and booleans, folding them all into '(none)'
+	// breakdown: no key -> '(none)'; else missing/'' -> '(none)' - non-string values stringify via JSONExtractRaw - bare JSONExtractString returns '' for numbers and booleans, folding them all into '(none)'
 	bdCol, bdArgs := "'(none)'", []any(nil)
 	if breakdown != "" {
 		bdCol = "if((multiIf(NOT JSONHas(e.properties, ?), '', " +
@@ -130,7 +130,7 @@ func (s *Store) Insights(ctx context.Context, channelID uuid.UUID, event, breakd
 	var out analytics.Insights
 	out.Points, out.Series = analytics.RollupInsightsSeries(in, measure == "unique")
 
-	// window-level measures (headline + prior equal-length window) - errors are swallowed (the series is the primary result), matching the Postgres driver
+	// window-level measures (headline + prior equal-length window) - errors are swallowed, since the series is the primary result
 	wm := "SELECT toInt64(count()), " + uniq + " " + from + " WHERE e.channel_id = ? AND e.occurred_at >= ? AND e.occurred_at < ? AND " + notBot + evCond
 	_ = s.conn.QueryRow(ctx, wm, append([]any{channelID, since, now}, evArg...)...).Scan(&out.Total, &out.Uniques)
 	prevStart := since.Add(-now.Sub(since))
@@ -143,7 +143,7 @@ func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event strin
 		windowDays = 30
 	}
 	out := analytics.Stickiness{WindowDays: windowDays}
-	// optional event filter (""=any activity); actor resolved, empty actor dropped (matches the Postgres COALESCE(...) IS NOT NULL guard)
+	// optional event filter (""=any activity); actor resolved, empty actor dropped
 	evCond, evArg := "", []any(nil)
 	if event != "" {
 		evCond, evArg = " AND e.event_name = ?", []any{event}
@@ -309,7 +309,7 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 
 func (s *Store) Engagement(ctx context.Context, channelID uuid.UUID, since time.Time) (analytics.Engagement, error) {
 	var out analytics.Engagement
-	// human vs raw opens/clicks: machine is a JSON bool (JSONExtractBool = false when absent), mirroring Postgres's COALESCE(properties->>'machine','false')
+	// human vs raw opens/clicks: machine is a JSON bool (JSONExtractBool = false when absent)
 	if err := s.conn.QueryRow(ctx, `
 		SELECT
 			toInt64(countIf(event_name = 'email_opened'))                                          AS opens_raw,
@@ -860,7 +860,7 @@ func (s *Store) EventActors(ctx context.Context, channelID uuid.UUID, event stri
 	return s.segmentEventActors(ctx, channelID, event, now.AddDate(0, 0, -days), minCount)
 }
 
-// SegmentActors evaluates a behavioral segment tree: intersection of positive conditions minus anyone matched by a negated one (same set algebra as the Postgres driver; only the per-condition actor query is engine-native)
+// SegmentActors evaluates a behavioral segment tree: intersection of positive conditions minus anyone matched by a negated one
 func (s *Store) SegmentActors(ctx context.Context, channelID uuid.UUID, conds []analytics.SegmentCondition, now time.Time) ([]uuid.UUID, error) {
 	actors := func(c analytics.SegmentCondition) ([]uuid.UUID, error) {
 		minCount := max(c.MinCount, 1)
@@ -1130,9 +1130,9 @@ func (s *Store) ChannelEngagementCountsFor(ctx context.Context, channelID uuid.U
 }
 
 // A keyset page of raw events for outbound forwarding - ClickHouse sorts on (channel_id, dedupe_key), so this orders explicitly and pays a sort, which is bounded by the batch limit
-// The cursor compares milliseconds and the uuid AS TEXT: a batch insert stamps one created_at across the whole batch, so the tiebreaker decides the page boundary, and ClickHouse orders UUID by its two internal words rather than by its text, so comparing the raw column would disagree with Postgres and re-serve rows
+// The cursor compares milliseconds and the uuid AS TEXT: a batch insert stamps one created_at across the whole batch, so the tiebreaker decides the page boundary, and ClickHouse orders UUID by its two internal words rather than by its text, so comparing the raw column would disagree with the text cursor and re-serve rows
 func (s *Store) EventsForForwarding(ctx context.Context, channelID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int) ([]analytics.ForwardEvent, error) {
-	// the 5s watermark mirrors the Postgres driver - a batch mid-flush must never end up behind an advanced cursor
+	// the 5s watermark - a batch mid-flush must never end up behind an advanced cursor
 	// The bare created_at >= bound is what the minmax skip index can evaluate - without it the function-wrapped tuple reads the channel's entire retained history every poll, and the tuple then draws the exact page boundary within that granule set
 	rows, err := s.conn.Query(ctx, `
 		SELECT id, event_name, occurred_at, customer_id, anon_id, source, properties, created_at, dedupe_key
@@ -1202,7 +1202,7 @@ func (s *Store) ExperimentGoalEvents(ctx context.Context, channelID uuid.UUID, s
 }
 
 // Per-variation exposed / converted / revenue for one experiment
-// Postgres matches a goal to an exposure with a LATERAL on `anon OR customer` plus occurred_at >= first exposure - ClickHouse joins on equality only, so both sides collapse to one actor key first (customer when known, else the stitched customer, else the anon) - equivalent, since the OR only ever bridged those two spellings of one person - the time bound moves into the aggregates rather than a WHERE, which would drop an exposure whose only goal predates it instead of counting it unconverted
+// A goal matches an exposure by the same person - ClickHouse joins on equality only, so both sides collapse to one actor key first (customer when known, else the stitched customer, else the anon) - equivalent, since the OR only ever bridged those two spellings of one person - the time bound moves into the aggregates rather than a WHERE, which would drop an exposure whose only goal predates it instead of counting it unconverted
 func (s *Store) ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]analytics.VariationResult, error) {
 	// dictHas, not a zero-sentinel compare on the dictGet - see dictHit
 	const goalActor = "if(customer_id != " + zeroUUID + ", toString(customer_id), " +
@@ -1253,7 +1253,7 @@ func (s *Store) ExperimentResults(ctx context.Context, channelID uuid.UUID, key,
 }
 
 // --- Lens spine reads (ClickHouse driver) ---
-// page_key and custom_name are materialized columns, so the page-scoped filters and the $rage_click / $js_error / $web_vitals discriminators are plain column reads - and Postgres uses the interpolating percentile_cont, so p75 here is quantileExactInclusive rather than the non-interpolating quantileExact
+// page_key and custom_name are materialized columns, so the page-scoped filters and the $rage_click / $js_error / $web_vitals discriminators are plain column reads - p75 is the interpolating quantileExactInclusive
 
 // The web page_view filter every page-scoped Lens read shares
 const lensPageView = "source = 'web' AND event_name = 'page_view' AND channel_id = ? AND page_key = ?"
@@ -1388,8 +1388,8 @@ func (s *Store) LensTopErrors(ctx context.Context, channelID uuid.UUID, since ti
 	return out, rows.Err()
 }
 
-// JSON_VALUE, not JSONExtractString: the tracker sends value as a JSON NUMBER and JSONExtractString returns an empty string for non-strings, so every sample would fail the guard and the vitals dashboards would sit permanently empty - JSON_VALUE stringifies scalars the way Postgres ->> does, so the drivers agree
-// The regex guard mirrors the Postgres `~ '^-?[0-9.]+$'` - a junk sample would otherwise coerce to 0 and drag the percentile
+// JSON_VALUE, not JSONExtractString: the tracker sends value as a JSON NUMBER and JSONExtractString returns an empty string for non-strings, so every sample would fail the guard and the vitals dashboards would sit permanently empty - JSON_VALUE stringifies scalars
+// The regex guard - a junk sample would otherwise coerce to 0 and drag the percentile
 const lensVitalValue = "JSON_VALUE(properties, '$.value')"
 
 const lensVitals = "channel_id = ? AND event_name = 'custom' AND custom_name = '$web_vitals' AND occurred_at >= ? " +
@@ -1463,7 +1463,7 @@ func (s *Store) LensSessionSignals(ctx context.Context, channelID uuid.UUID, ses
 	return out, rows.Err()
 }
 
-// --- event-derived heatmaps: the reason grid increments append here instead of upserting Postgres counter rows ---
+// --- event-derived heatmaps: grid increments append as raw events, aggregated at read ---
 
 // page_key is the MATERIALIZED column, not a JSONExtract - the filter then reads one compressed column (and prunes via PREWHERE) instead of parsing the JSON blob of every lens_cell row the channel has ever kept
 func (s *Store) LensCellsFromEvents(ctx context.Context, channelID uuid.UUID, pageKey, viewport, state, kind string, since time.Time) ([]analytics.LensCellCount, error) {
