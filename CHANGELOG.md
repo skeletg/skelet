@@ -11,6 +11,12 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **A started experiment's variations, weights, coverage, goal and audience are fixed.** Changing any of them
+  mid-run re-bucketed visitors under results that no longer described the test; the editor disables them
+  and names stay editable. Keys must be lowercase letters, digits, dashes or underscores (up to 64), an
+  experiment has at most 10 variations of up to 2 KB each, and a duplicate key answers "already exists".
+  Validation messages now reach the editor instead of showing as internal errors.
+
 - **GA4 and Meta destination credentials move from the URL into the destination's secret.** The
   forwarder adds the GA4 `api_secret` or the Meta `access_token` to the URL when it sends, and refuses a
   target URL that still carries one, because the URL is shown to admins and a failed delivery used to
