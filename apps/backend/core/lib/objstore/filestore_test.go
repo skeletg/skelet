@@ -18,7 +18,7 @@ func newTestFileStore(t *testing.T) *FileStore {
 	t.Helper()
 	s, err := New(context.Background(), Config{
 		Driver: DriverFilesystem, Dir: t.TempDir(), SigningKey: strings.Repeat("k", 32),
-		PublicURLBase: "https://api.shop/files/o", PresignEndpoint: "https://api.shop/files/u", MaxUploadBytes: 64,
+		PublicURLBase: "https://cdn.shop", PresignEndpoint: "https://api.shop/files", MaxUploadBytes: 64,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestFileStoreSignedUploads(t *testing.T) {
 	s := newTestFileStore(t)
 	h := s.Handler()
 	signed, err := s.PresignUpload(ctx, "media/a.png", "image/png", 5, time.Minute)
-	if err != nil || !strings.HasPrefix(signed, "https://api.shop/files/u/") {
+	if err != nil || !strings.HasPrefix(signed, "https://api.shop/files/media/a.png?t=") {
 		t.Fatalf("presign = %q %v", signed, err)
 	}
 	if rec := put(t, h, signed, "text/html", []byte("12345")); rec.Code != http.StatusForbidden {
@@ -159,12 +159,19 @@ func TestFileStoreSignedUploads(t *testing.T) {
 			t.Fatalf("a %d-byte body on a 5-byte grant got %d", len(body), rec.Code)
 		}
 	}
-	tampered := strings.Replace(signed, "/u/e", "/u/f", 1)
-	if tampered == signed {
-		tampered = signed[:len(signed)-2] + "AA"
+	_, token, _ := strings.Cut(signed, "?t=")
+	for name, u := range map[string]string{
+		"a tampered token":        signed[:len(signed)-2] + "AA",
+		"no token":                "https://api.shop/files/media/a.png",
+		"another key's path":      "https://api.shop/files/media/evil.png?t=" + token,
+		"a token without its sig": "https://api.shop/files/media/a.png?t=" + strings.SplitN(token, ".", 2)[0],
+	} {
+		if rec := put(t, h, u, "image/png", []byte("12345")); rec.Code != http.StatusForbidden {
+			t.Fatalf("%s got %d", name, rec.Code)
+		}
 	}
-	if rec := put(t, h, tampered, "image/png", []byte("12345")); rec.Code != http.StatusForbidden {
-		t.Fatalf("a tampered token got %d", rec.Code)
+	if _, _, ok, _ := s.Head(ctx, "media/evil.png"); ok {
+		t.Fatal("a token wrote to a key it wasn't signed for")
 	}
 	if _, _, ok, _ := s.Head(ctx, "media/a.png"); ok {
 		t.Fatal("a refused upload left an object behind")
@@ -185,14 +192,11 @@ func TestFileStoreSignedUploads(t *testing.T) {
 		t.Fatalf("an unsized upload past MaxUploadBytes got %d", rec.Code)
 	}
 	other := &FileStore{cfg: Config{SigningKey: strings.Repeat("o", 32)}}
-	if _, err := other.verify(strings.TrimPrefix(signed, "https://api.shop/files/u/"), time.Now()); err == nil {
+	if _, err := other.verify(token, time.Now()); err == nil {
 		t.Fatal("a token verified under a different signing key")
 	}
-	get := httptest.NewRequest(http.MethodGet, signed, nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, get)
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("GET on the upload route got %d", rec.Code)
+	if got := s.PublicURL("media/a.png"); got != "https://cdn.shop/media/a.png" {
+		t.Fatalf("PublicURL = %q, want the STORAGE_PUBLIC_URL base", got)
 	}
 }
 
@@ -204,7 +208,7 @@ func TestFileStoreServesWithoutRunningContent(t *testing.T) {
 	_ = s.PutBytes(ctx, "m/logo.svg", []byte("<svg/>"), "image/svg+xml")
 	serve := func(method, key string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, httptest.NewRequest(method, "/files/o/"+key, nil))
+		s.Handler().ServeHTTP(rec, httptest.NewRequest(method, "/files/"+key, nil))
 		return rec
 	}
 	rec := serve(http.MethodGet, "m/pic.png")
@@ -225,8 +229,10 @@ func TestFileStoreServesWithoutRunningContent(t *testing.T) {
 			t.Fatalf("GET %s = %d, want 404", key, rec.Code)
 		}
 	}
-	if rec := serve(http.MethodDelete, "m/pic.png"); rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("DELETE = %d", rec.Code)
+	for _, method := range []string{http.MethodDelete, http.MethodPost, http.MethodPatch} {
+		if rec := serve(method, "m/pic.png"); rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s = %d, want 405", method, rec.Code)
+		}
 	}
 }
 
@@ -246,10 +252,14 @@ func TestMigrateBetweenDrivers(t *testing.T) {
 }
 
 func TestConfigFromEnvFilesystem(t *testing.T) {
-	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data", "STORAGE_PUBLIC_URL": "https://api.shop/", "S3_BUCKET_NAME": "media"}
+	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data", "STORAGE_UPLOAD_URL": "https://api.shop/", "S3_BUCKET_NAME": "media"}
 	cfg := ConfigFromEnv(func(k string) string { return env[k] })
-	if cfg.Bucket != "" || cfg.Dir != "/data" || cfg.PublicURLBase != "https://api.shop/files/o" || cfg.PresignEndpoint != "https://api.shop/files/u" {
-		t.Fatalf("cfg = %+v", cfg)
+	if cfg.Bucket != "" || cfg.Dir != "/data" || cfg.PublicURLBase != "https://api.shop/files" || cfg.PresignEndpoint != "https://api.shop/files" {
+		t.Fatalf("cfg = %+v, want core serving its own files", cfg)
+	}
+	env["STORAGE_PUBLIC_URL"] = "https://cdn.shop/"
+	if cfg := ConfigFromEnv(func(k string) string { return env[k] }); cfg.PublicURLBase != "https://cdn.shop" || cfg.PresignEndpoint != "https://api.shop/files" {
+		t.Fatalf("cfg = %+v, want reads from the CDN and uploads still to core", cfg)
 	}
 	if cfg.SigningKey != "" {
 		t.Fatal("outside development the dev signing key filled in")

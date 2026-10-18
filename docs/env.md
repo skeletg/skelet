@@ -400,16 +400,23 @@ either driver.
 
 ### Filesystem
 
-Every key is a file under `STORAGE_DIR`, and core serves them itself:
-objects at `/files/o/<key>`, browser uploads at `/files/u/<token>`. That
+Every key is a file under `STORAGE_DIR`, and core serves them itself at
+`/files/<key>`. A browser upload is a PUT to that same path with a signed
+`?t=` token, just like a presigned S3 URL. That
 makes it the simplest thing for a single server, and the wrong thing for
 more than one, since every process that touches files has to see the same
 directory.
 
 - `STORAGE_DIR` - the directory. Created on boot if it's missing.
-- `STORAGE_PUBLIC_URL` - core's public origin, e.g. `https://api.shop.com`.
-  Media URLs and upload URLs are built from it, so without it browsers can't
-  upload and image links only work on the API's own host.
+- `STORAGE_UPLOAD_URL` - core's public origin, e.g. `https://api.shop.com`.
+  Browsers upload to it, and media URLs default to `<it>/files/<key>`.
+  Without it browsers can't upload, and image links only work on the API's
+  own host.
+- `STORAGE_PUBLIC_URL` - OPTIONAL. The base media URLs are built from, when
+  something other than core serves the directory: nginx, Caddy or a CDN in
+  front of it, e.g. `https://cdn.shop.com` for `https://cdn.shop.com/<key>`.
+  Uploads still go to core. Whatever serves it should send the same headers
+  core does (below).
 - `STORAGE_SIGNING_KEY` - signs the upload URLs the way S3 signs a presigned
   PUT: one key, one content type, one exact size, fifteen minutes. It lives
   in the root `.env`, `./skelet setup` generates it, and production refuses

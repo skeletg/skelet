@@ -26,7 +26,7 @@ func (s *FileStore) PresignUpload(_ context.Context, key, contentType string, si
 		return "", fmt.Errorf("media: presign upload: STORAGE_SIGNING_KEY is not set")
 	}
 	if s.cfg.PresignEndpoint == "" {
-		return "", fmt.Errorf("media: presign upload: STORAGE_PUBLIC_URL is not set, so a browser has nowhere to upload to")
+		return "", fmt.Errorf("media: presign upload: STORAGE_UPLOAD_URL is not set, so a browser has nowhere to upload to")
 	}
 	if err := checkKey(key); err != nil {
 		return "", fmt.Errorf("media: presign upload: %w", err)
@@ -36,7 +36,7 @@ func (s *FileStore) PresignUpload(_ context.Context, key, contentType string, si
 		return "", fmt.Errorf("media: presign upload: %w", err)
 	}
 	payload := base64.RawURLEncoding.EncodeToString(body)
-	return s.cfg.PresignEndpoint + "/" + payload + "." + s.sign(payload), nil
+	return s.cfg.PresignEndpoint + "/" + escapeKey(key) + "?t=" + payload + "." + s.sign(payload), nil
 }
 
 func (s *FileStore) sign(payload string) string {
@@ -63,29 +63,28 @@ func (s *FileStore) verify(token string, now time.Time) (uploadGrant, error) {
 	return g, nil
 }
 
-// Handler answers the filesystem driver's two routes, mounted at FilesPath on core: GET and HEAD read an object, PUT takes an upload
+// Handler is mounted at FilesPath on core - one path per object, like S3, so an upload URL is the object's own plus a token
 func (s *FileStore) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key, ok := strings.CutPrefix(r.URL.Path, FilesPath)
 		switch {
-		case strings.HasPrefix(r.URL.Path, filesUploadPath):
-			s.serveUpload(w, r)
-		case strings.HasPrefix(r.URL.Path, filesObjectPath):
-			s.serveObject(w, r)
-		default:
+		case !ok:
 			http.NotFound(w, r)
+		case r.Method == http.MethodGet || r.Method == http.MethodHead:
+			s.serveObject(w, r, key)
+		case r.Method == http.MethodPut:
+			s.serveUpload(w, r, key)
+		default:
+			w.Header().Set("Allow", "GET, HEAD, PUT")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
 }
 
-func (s *FileStore) serveUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.Header().Set("Allow", http.MethodPut)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	g, err := s.verify(strings.TrimPrefix(r.URL.Path, filesUploadPath), time.Now())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+func (s *FileStore) serveUpload(w http.ResponseWriter, r *http.Request, key string) {
+	g, err := s.verify(r.URL.Query().Get("t"), time.Now())
+	if err != nil || g.Key != key {
+		http.Error(w, errBadGrant.Error(), http.StatusForbidden)
 		return
 	}
 	if r.Header.Get("Content-Type") != g.ContentType {
@@ -109,13 +108,7 @@ func (s *FileStore) serveUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // Uploaded files share core's origin, so nothing in them may run there - non-media types download instead of rendering
-func (s *FileStore) serveObject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	key := strings.TrimPrefix(r.URL.Path, filesObjectPath)
+func (s *FileStore) serveObject(w http.ResponseWriter, r *http.Request, key string) {
 	f, err := s.open(key)
 	if err != nil {
 		http.NotFound(w, r)

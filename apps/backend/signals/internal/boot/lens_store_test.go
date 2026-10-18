@@ -18,7 +18,7 @@ func TestADedicatedLensBucketIsPrivate(t *testing.T) {
 
 // On the filesystem driver LENS_STORAGE_DIR is the private store, and the S3 variables never leak into it
 func TestADedicatedLensDirIsPrivate(t *testing.T) {
-	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data/media", "STORAGE_PUBLIC_URL": "https://api.shop", "LENS_S3_BUCKET": "lens-private"}
+	env := map[string]string{"STORAGE_DRIVER": "filesystem", "STORAGE_DIR": "/data/media", "STORAGE_UPLOAD_URL": "https://api.shop", "LENS_S3_BUCKET": "lens-private"}
 	shared := lensStoreConfig(func(k string) string { return env[k] })
 	if shared.Dir != "/data/media" || shared.Bucket != "" || shared.PublicURLBase == "" {
 		t.Fatalf("without LENS_STORAGE_DIR Lens should use the media directory: %+v", shared)
