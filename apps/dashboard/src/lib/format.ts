@@ -94,6 +94,16 @@ function toDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
+// A date input's "2026-03-04" as the instants bounding that day in the admin's own time zone - new Date('2026-03-04') is UTC
+// midnight, which drops the end day from a range and lands a stored date on the previous day for anyone west of UTC
+export function dayStartISO(day: string): string {
+  return new Date(`${day}T00:00:00`).toISOString()
+}
+
+export function dayEndISO(day: string): string {
+  return new Date(`${day}T23:59:59.999`).toISOString()
+}
+
 // "Mar 4, 2026, 3:15 PM"
 export function formatDateTime(v: unknown): string {
   return toDate(v)?.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) ?? '-'

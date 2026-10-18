@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  dayEndISO,
+  dayStartISO,
   formatCents,
   fromMinor,
   toMinor,
@@ -146,5 +148,19 @@ describe('timeAgo', () => {
 
   it('returns empty for an unparseable value', () => {
     expect(timeAgo('nope')).toBe('')
+  })
+})
+
+// Run with TZ set west and east of UTC too - in UTC the old new Date('YYYY-MM-DD') happened to be right
+describe('dayStartISO / dayEndISO', () => {
+  it('bound the picked day in local time', () => {
+    const start = new Date(dayStartISO('2026-03-04'))
+    const end = new Date(dayEndISO('2026-03-04'))
+    expect([start.getFullYear(), start.getMonth(), start.getDate(), start.getHours()]).toEqual([2026, 2, 4, 0])
+    expect([end.getDate(), end.getHours(), end.getMinutes()]).toEqual([4, 23, 59])
+  })
+
+  it('a one-day range spans the whole day', () => {
+    expect(new Date(dayEndISO('2026-03-04')).getTime() - new Date(dayStartISO('2026-03-04')).getTime()).toBe(86_399_999)
   })
 })
