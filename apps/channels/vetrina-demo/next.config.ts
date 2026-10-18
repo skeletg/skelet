@@ -18,6 +18,16 @@ const scriptSrc =
     ? "script-src 'self' 'unsafe-inline'"
     : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
 
+// Browser uploads go straight to object storage, a host of its own - UPLOAD_ORIGINS names it at build,
+// and dev adds the local Garage and API ports
+const connectSrc = [
+  "connect-src 'self'",
+  process.env.UPLOAD_ORIGINS?.trim(),
+  process.env.NODE_ENV === "production" ? "" : "http://localhost:*",
+]
+  .filter(Boolean)
+  .join(" ");
+
 // Same-origin only - a payment plugin's browser SDK is what earns a gateway host a slot here
 const CSP_BASE = [
   "default-src 'self'",
@@ -25,7 +35,7 @@ const CSP_BASE = [
   "style-src 'self' 'unsafe-inline'",
   imgSrc,
   "font-src 'self' data:",
-  "connect-src 'self'",
+  connectSrc,
   "base-uri 'self'",
   "form-action 'self'",
 ];

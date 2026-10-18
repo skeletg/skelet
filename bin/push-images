@@ -8,10 +8,21 @@ cd "$(dirname "$(dirname "$0")")"
 TAG="${1:-$(git rev-parse --short HEAD)}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 
+# A build-time setting (UPLOAD_ORIGINS, the preview origins) comes from your shell, else the root .env
+setting() {
+  if [ -n "${!1:-}" ]; then printf '%s' "${!1}"; return; fi
+  [ -f .env ] && sed -n "s/^$1=//p" .env | tail -1
+}
+
 build() { # <service> <context> [dockerfile relative to the context, default Dockerfile.prod]
-  local svc="$1" ctx="$2" df="${3:-Dockerfile.prod}" ref="$REGISTRY/skelet-$1:$TAG"
+  local svc="$1" ctx="$2" df="${3:-Dockerfile.prod}" ref="$REGISTRY/skelet-$1:$TAG" name val
+  local args=()
+  for name in $(sed -nE 's/^ARG ([A-Z][A-Z0-9_]*).*/\1/p' "$ctx/$df" | sort -u); do
+    val="$(setting "$name" || true)"
+    [ -n "$val" ] && args+=(--build-arg "$name=$val")
+  done
   echo "==> build $ref  ($PLATFORM)"
-  docker build --platform "$PLATFORM" -f "$ctx/$df" -t "$ref" "$ctx"
+  docker build --platform "$PLATFORM" ${args[@]+"${args[@]}"} -f "$ctx/$df" -t "$ref" "$ctx"
   echo "==> push  $ref"
   docker push "$ref"
 }

@@ -1,0 +1,8 @@
+# Test fixtures and the dev Garage config, reviewed 2026-10-18 - none is a real credential
+846b421e8e290caaadcfb7010193d4028c0bcead:apps/backend/core/internal/e2ekit/harness.go:generic-api-key:329
+c365ce1b7c83296a47b831e0b6610ac829827738:apps/backend/core/graph/admin/action_audit_db_test.go:generic-api-key:76
+d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:295
+d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:299
+d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:303
+d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:314
+d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:env/garage.toml:generic-api-key:20

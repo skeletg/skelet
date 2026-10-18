@@ -12,6 +12,9 @@ COPY . .
 
 ARG NEXT_PUBLIC_DASHBOARD_ORIGIN
 ENV NEXT_PUBLIC_DASHBOARD_ORIGIN=$NEXT_PUBLIC_DASHBOARD_ORIGIN
+# next.config.ts bakes it into the CSP at build
+ARG UPLOAD_ORIGINS
+ENV UPLOAD_ORIGINS=$UPLOAD_ORIGINS
 
 # No channel and no backend at build time: the host picks the channel per request, and pages render on first visit
 RUN pnpm run build

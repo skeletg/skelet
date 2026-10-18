@@ -386,6 +386,16 @@ Required for media to work. `STORAGE_DRIVER` picks where files live: `s3`
 (the default when it's empty) for S3 or anything that speaks it, or
 `filesystem` for a directory on the box.
 
+Browsers upload straight to the store rather than through the API, and the
+dashboard, storefront and edge CSPs only allow connections to their own
+origin. So in production set `UPLOAD_ORIGINS` in the root `.env` to the host
+uploads go to - the S3 presign host (on AWS, `https://<bucket>.s3.<region>.amazonaws.com`),
+or `STORAGE_UPLOAD_URL` on the filesystem driver. Space-separate several.
+The dashboard and Caddy read it when they start; the storefront bakes it in
+at build, so `./skelet release` passes it through. Without it uploads fail
+with a CSP error in the browser console. Dev needs nothing - its local hosts
+are already allowed.
+
 ### S3
 
 Two shapes:
