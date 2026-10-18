@@ -50,12 +50,16 @@ func TestAFlowSendsOnlyALibraryEmailOfItsOwnChannel(t *testing.T) {
 	}
 
 	f.Graph = graph(foreign.ID)
-	svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()})
+	if err := svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()}); err != nil {
+		t.Fatal(err)
+	}
 	if len(box.sent) != 0 {
 		t.Fatalf("mailed %q - another channel's email went out under this shop", box.sent[0].Subject)
 	}
 	f.Graph = graph(own.ID)
-	svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()})
+	if err := svc.execEmail(ctx, f, f.Graph.Nodes[1], FlowRun{FlowID: f.ID, CustomerID: uuid.New()}); err != nil {
+		t.Fatal(err)
+	}
 	if len(box.sent) != 1 {
 		t.Fatalf("the flow's own email sent %d times, want 1", len(box.sent))
 	}
