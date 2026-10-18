@@ -68,23 +68,35 @@ func backupBucket(ctx context.Context) (*objstore.Storage, string) {
 	return store, prefix
 }
 
-// Lens keeps replay chunks and DOM snapshots in the store's own bucket - the same S3_* variables core's
-// media reads. Without one the rest of Lens still works, so this warns rather than refusing to boot
+// Lens keeps replay chunks and DOM snapshots in LENS_S3_BUCKET, else the store's own media bucket - the same S3_* endpoint and
+// credentials core's media reads. Without either the rest of Lens still works, so this warns rather than refusing to boot
+// A dedicated bucket is private - it gets no public URL base, since nothing in it is ever linked to
+func lensStoreConfig(getenv func(string) string) objstore.Config {
+	cfg := objstore.Config{
+		Bucket:           strings.TrimSpace(getenv("S3_BUCKET_NAME")),
+		Region:           getenv("AWS_REGION"),
+		InternalEndpoint: getenv("S3_ENDPOINT_URL"),
+		PresignEndpoint:  getenv("S3_PRESIGN_ENDPOINT_URL"),
+		PublicURLBase:    getenv("S3_PUBLIC_URL_BASE"),
+		UsePathStyle:     getenv("S3_USE_PATH_STYLE") == "true",
+		MaxUploadBytes:   EnvInt64("S3_MAX_UPLOAD_BYTES", 10*1024*1024),
+	}
+	if own := strings.TrimSpace(getenv("LENS_S3_BUCKET")); own != "" {
+		cfg.Bucket, cfg.PublicURLBase, cfg.PresignEndpoint = own, "", ""
+	}
+	return cfg
+}
+
 func wireLensBlobStore(ctx context.Context, lensSvc *lens.Service, channels *analytics.ChannelRoster) error {
-	bucket := os.Getenv("S3_BUCKET_NAME")
-	if bucket == "" {
+	cfg := lensStoreConfig(os.Getenv)
+	if cfg.Bucket == "" {
 		slog.Warn("S3 not configured - session replays and page snapshots are dropped at ingest, so replay and heatmaps stay empty")
 		return nil
 	}
-	store, err := objstore.New(ctx, objstore.Config{
-		Bucket:           bucket,
-		Region:           os.Getenv("AWS_REGION"),
-		InternalEndpoint: os.Getenv("S3_ENDPOINT_URL"),
-		PresignEndpoint:  os.Getenv("S3_PRESIGN_ENDPOINT_URL"),
-		PublicURLBase:    os.Getenv("S3_PUBLIC_URL_BASE"),
-		UsePathStyle:     os.Getenv("S3_USE_PATH_STYLE") == "true",
-		MaxUploadBytes:   EnvInt64("S3_MAX_UPLOAD_BYTES", 10*1024*1024),
-	})
+	if cfg.PublicURLBase != "" && os.Getenv("APP_ENV") == "production" {
+		slog.Warn("Lens recordings share the publicly served media bucket - their keys are random, but LENS_S3_BUCKET keeps them off the public endpoint", "bucket", cfg.Bucket)
+	}
+	store, err := objstore.New(ctx, cfg)
 	if err != nil {
 		return err
 	}

@@ -16,32 +16,28 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
-func TestChunkBlobKeyIsDeterministicPerSequence(t *testing.T) { // replay chunks are re-uploaded on retry, and a key that drifted would leave orphaned objects the prune path can never find
-	sess := uuid.New()
-	first := chunkBlobKey(sess, 0)
-
-	if first != chunkBlobKey(sess, 0) {
-		t.Error("two calls with the same session and sequence produced different keys")
+// The bucket can be served publicly, so no key may be derivable from what an outsider knows - a session, a channel, a page
+func TestBlobKeysCannotBeGuessed(t *testing.T) {
+	sess, ch := uuid.New(), uuid.New()
+	if first, again := chunkBlobKey(sess, 0), chunkBlobKey(sess, 0); first == again {
+		t.Error("the same session and sequence give the same chunk key, so knowing them finds the recording")
 	}
-	if first == chunkBlobKey(sess, 1) {
-		t.Error("sequence 0 and 1 share a key, so the second chunk would overwrite the first")
+	if first, again := snapshotBlobKey(ch, "/p", "desktop", "default", "h"), snapshotBlobKey(ch, "/p", "desktop", "default", "h"); first == again {
+		t.Error("the same page identity gives the same snapshot key, so a visitor can fetch it")
 	}
-	if chunkBlobKey(uuid.New(), 0) == first {
-		t.Error("two sessions share a chunk key")
+	chunk := chunkBlobKey(sess, 3)
+	if !strings.HasPrefix(chunk, "lens/replay/"+sess.String()+"/3-") || !strings.HasSuffix(chunk, ".gz") {
+		t.Errorf("chunk key = %q, want it under its session and sequence so an operator can find it", chunk)
 	}
-	if !strings.HasPrefix(first, "lens/replay/") || !strings.HasSuffix(first, ".gz") {
-		t.Errorf("key = %q, want a lens/replay prefix and a .gz suffix", first)
-	}
-	if !strings.Contains(first, sess.String()) {
-		t.Errorf("key = %q, want the session id in it so an operator can find a recording's objects", first)
+	if len(strings.TrimSuffix(strings.TrimPrefix(chunk, "lens/replay/"+sess.String()+"/3-"), ".gz")) != 32 {
+		t.Errorf("chunk key = %q, want a 128-bit random part", chunk)
 	}
 }
 
-func TestSnapshotBlobKeyContainsAPageKeyWithSlashes(t *testing.T) { // page keys are URL paths, and passing one through unhashed would fan a single channel's snapshots across a directory tree the prune path walks blindly
+func TestSnapshotBlobKeyHashesAPageKeyWithSlashes(t *testing.T) { // page keys are URL paths, and an unhashed one would fan a channel's snapshots across a directory tree
 	ch := uuid.New()
 	key := snapshotBlobKey(ch, "/collections/winter/tires?page=2", "1440x900", "default", "abc123")
-
-	if got := strings.Count(key, "/"); got != 3 { // lens/snapshot/<channel>/<hash>.gz
+	if got := strings.Count(key, "/"); got != 3 { // lens/snapshot/<channel>/<hash>-<random>.gz
 		t.Errorf("key = %q has %d slashes, want the page key folded into one hashed segment", key, got)
 	}
 	if strings.Contains(key, "collections") {
@@ -49,26 +45,6 @@ func TestSnapshotBlobKeyContainsAPageKeyWithSlashes(t *testing.T) { // page keys
 	}
 	if !strings.HasPrefix(key, "lens/snapshot/"+ch.String()+"/") {
 		t.Errorf("key = %q, want it scoped under the channel", key)
-	}
-}
-
-func TestSnapshotBlobKeyIsDeterministicAndVariesWithEveryPart(t *testing.T) { // the key is recomputed rather than stored, so any part it ignores would silently serve one page's snapshot for another
-	ch := uuid.New()
-	base := snapshotBlobKey(ch, "/p/tire", "1440x900", "default", "hash1")
-	if base != snapshotBlobKey(ch, "/p/tire", "1440x900", "default", "hash1") {
-		t.Fatal("the same inputs produced two different keys")
-	}
-
-	for name, key := range map[string]string{
-		"page key":   snapshotBlobKey(ch, "/p/other", "1440x900", "default", "hash1"),
-		"viewport":   snapshotBlobKey(ch, "/p/tire", "390x844", "default", "hash1"),
-		"state":      snapshotBlobKey(ch, "/p/tire", "1440x900", "cart-open", "hash1"),
-		"layoutHash": snapshotBlobKey(ch, "/p/tire", "1440x900", "default", "hash2"),
-		"channel":    snapshotBlobKey(uuid.New(), "/p/tire", "1440x900", "default", "hash1"),
-	} {
-		if key == base {
-			t.Errorf("changing the %s did not change the key", name)
-		}
 	}
 }
 
