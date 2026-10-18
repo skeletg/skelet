@@ -50,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCents } from '@/lib/format'
+import { currencyDecimals, formatCents, toMinor } from '@/lib/format'
 import {
   AdjustGiftCardDocument,
   DisableGiftCardDocument,
@@ -78,13 +78,6 @@ function statusVariant(
   }
 }
 
-// majorToCents converts a user-entered amount in major units (e.g. "50.00") to integer minor units - Assumes 2-decimal
-// currencies, which covers the common case; cent-exact entry is also accepted via the same field
-function majorToCents(v: string): number | null {
-  const n = Number(v)
-  if (!Number.isFinite(n)) return null
-  return Math.round(n * 100)
-}
 
 export function GiftCardsList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
@@ -261,7 +254,7 @@ function IssueGiftCardDialog({
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setSubmitError(null)
-    const cents = majorToCents(amount)
+    const cents = toMinor(amount, currencyCode.trim().toUpperCase())
     if (cents == null || cents <= 0) {
       setSubmitError('Enter a positive amount.')
       return
@@ -323,7 +316,7 @@ function IssueGiftCardDialog({
                 required
                 type="number"
                 min="0"
-                step="0.01"
+                step={currencyCode ? 10 ** -currencyDecimals(currencyCode.trim().toUpperCase()) : 0.01}
                 placeholder="50.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -395,7 +388,7 @@ function IssueGiftCardDialog({
   )
 }
 
-function AdjustGiftCardDialog({
+export function AdjustGiftCardDialog({
   card,
   onClose,
 }: {
@@ -414,7 +407,7 @@ function AdjustGiftCardDialog({
     e.preventDefault()
     if (!card) return
     setSubmitError(null)
-    const cents = majorToCents(amount)
+    const cents = toMinor(amount, card.currencyCode)
     if (cents == null || cents === 0) {
       setSubmitError('Enter a non-zero amount (negative to deduct).')
       return
@@ -457,7 +450,7 @@ function AdjustGiftCardDialog({
               id="gc-adjust-amount"
               required
               type="number"
-              step="0.01"
+              step={card ? 10 ** -currencyDecimals(card.currencyCode) : 0.01}
               placeholder="-10.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
