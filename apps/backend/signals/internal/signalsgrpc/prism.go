@@ -2,6 +2,7 @@ package signalsgrpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -48,7 +49,7 @@ func (s *prismServer) GetExperimentResults(ctx context.Context, req *signalsv1.G
 	days := windowDays(req.GetSinceDays(), 30)
 	_, analysis, err := s.svc.Results(ctx, exp.ID, time.Now().AddDate(0, 0, -int(days)))
 	if err != nil {
-		return nil, err
+		return nil, experimentErr(err)
 	}
 	vars := make([]*signalsv1.ExperimentVariationResult, 0, len(analysis.Variations))
 	for _, v := range analysis.Variations {
@@ -120,7 +121,7 @@ func (s *prismServer) CreateExperiment(ctx context.Context, req *signalsv1.Creat
 	}
 	exp, err := s.svc.Create(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, experimentErr(err)
 	}
 	return &signalsv1.CreateExperimentResponse{Experiment: experimentProto(exp)}, nil
 }
@@ -137,7 +138,7 @@ func (s *prismServer) UpdateExperiment(ctx context.Context, req *signalsv1.Updat
 	in.ChannelID = existing.ChannelID
 	exp, err := s.svc.Update(ctx, existing.ID, in)
 	if err != nil {
-		return nil, err
+		return nil, experimentErr(err)
 	}
 	return &signalsv1.UpdateExperimentResponse{Experiment: experimentProto(exp)}, nil
 }
@@ -203,4 +204,19 @@ func experimentInput(in *signalsv1.ExperimentInput) (experiment.Input, error) {
 		Coverage: int(in.GetCoverage()), GoalEvent: in.GetGoalEvent(), SegmentSlug: in.GetSegmentSlug(),
 		Variations: vars,
 	}, nil
+}
+
+// The experiment service's sentinels as the codes core's resolvers render - anything else is the suite's own failure
+func experimentErr(err error) error {
+	switch {
+	case errors.Is(err, experiment.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, experiment.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, experiment.ErrKeyTaken):
+		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, experiment.ErrLocked):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return err
 }
