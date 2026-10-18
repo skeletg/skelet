@@ -101,13 +101,13 @@ function ExpandableRow({
 export function OrderSummaryPanel({ order, isDraft }: { order: OrderData; isDraft: boolean }) {
   const money = (cents: number) => formatCents(cents, order.currencyCode)
 
-  const succeeded = order.paymentTransactions.filter((t) => t.status === 'SUCCEEDED')
+  const succeeded = order.paymentTransactions.filter((t) => t.status === 'succeeded')
   const sum = (kind: string) =>
     succeeded.filter((t) => t.kind === kind).reduce((n, t) => n + t.amount, 0)
 
   // Offline payments write a capture row too, so cash on delivery reads the same as a card here
-  const captured = sum('CAPTURE')
-  const refunded = sum('REFUND')
+  const captured = sum('capture')
+  const refunded = sum('refund')
   const tendered = order.giftCardAmount + order.storeCreditAmount
   const collected = captured + tendered
   const due = Math.max(0, order.total - collected)

@@ -85,3 +85,19 @@ describe('OrderCreditMemosSection', () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe('OrderCreditMemosSection on a card-paid order', () => {
+  it('enables the memo button once a capture succeeded', async () => {
+    const cardPaid = { ...(order as object), giftCardAmount: 0, paymentTransactions: [{ id: 't1', kind: 'capture', amount: 5000, status: 'succeeded' }] } as never
+    renderDialog(<OrderCreditMemosSection order={cardPaid} />, [
+      meMock(),
+      { request: { query: CreditMemosDocument, variables: { orderId: 'o1' } }, result: { data: { creditMemos: [] } } },
+      {
+        request: { query: CreditableQuantitiesDocument, variables: { orderId: 'o1' } },
+        result: { data: { creditableQuantities: [] } },
+      },
+    ])
+    const button = (await screen.findByRole('button', { name: 'Issue credit memo' }, SLOW)) as HTMLButtonElement
+    expect(button.disabled).toBe(false)
+  })
+})

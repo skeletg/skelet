@@ -75,7 +75,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
   const memos = data?.creditMemos ?? []
   // Nothing has been collected, so there is nothing refundable and the section would be a placeholder
   const collected =
-    order.paymentTransactions.some((t) => t.kind === 'CAPTURE' && t.status === 'SUCCEEDED') ||
+    order.paymentTransactions.some((t) => t.kind === 'capture' && t.status === 'succeeded') ||
     order.giftCardAmount > 0 ||
     order.storeCreditAmount > 0
   const rmaNumberFor = (returnId: string) =>
