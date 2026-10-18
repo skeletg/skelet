@@ -26,9 +26,8 @@ analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse 
 email, Prism for experiments - writing to its own database.
 
 The rest is plugins: Go compiled into the binary, added with `./skelet cli plugin add`,
-each one its own versioned module. Payment gateways ship that way, and so does B2B -
-company accounts, credit lines, contract pricing and quotes. See
-[docs/plugins.md](docs/plugins.md).
+each one its own versioned module - payment gateways, whole business domains with their own
+tables and admin screens, or a small integration. See [docs/plugins.md](docs/plugins.md).
 
 Underneath: per-channel role permissions, a runtime config registry, machine-to-machine
 integration tokens, HMAC-signed webhooks, a transactional outbox for durable async work,
@@ -80,6 +79,13 @@ the committed output has drifted from its source.
 
 Everything lives in `docs/`, one file per question - **[start with the index](docs/README.md)**,
 or go straight to [concepts.md](docs/concepts.md) for the vocabulary the rest assumes.
+
+## Contributing
+
+We're not accepting pull requests yet, but bug reports and ideas are very welcome as
+issues - [CONTRIBUTING.md](CONTRIBUTING.md) has the details. Found a security problem?
+Please report it privately, as [SECURITY.md](SECURITY.md) describes, rather than in a
+public issue.
 
 ## License
 

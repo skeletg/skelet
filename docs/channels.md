@@ -83,8 +83,7 @@ and `url`. So the same product can be live in the US at one price, unpublished i
 and on sale in the UK, with one catalog row underneath. Categories, CMS pages, blog posts,
 menus and inventory locations use the same shape.
 
-**3. Belongs to exactly one channel.** Carts, orders, **customers**, reviews, companies and
-B2B quotes, tax rules, shipping zones, carriers and boxes, payment methods, experiments,
+**3. Belongs to exactly one channel.** Carts, orders, **customers**, reviews, tax rules, shipping zones, carriers and boxes, payment methods, experiments,
 flows, email campaigns and templates library, signup and web forms, search boosts, pins and
 redirects.
 

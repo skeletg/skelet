@@ -109,8 +109,7 @@ pool only, so `order.*` is valid on both a sync and an async webhook even though
 `order.` namespace contains some of each - each one receives only its own half.
 
 **Enabled plugins emit their own**, declared in their manifest and registered at boot. Those
-are runtime additions belonging to the plugin, so they are not in the core catalogue below -
-the `b2b.*` and `company.*` events are the live example, and they arrive with the b2b plugin.
+are runtime additions belonging to the plugin, so they are not in the core catalogue below.
 The event picker in Settings shows what your install actually has.
 
 <!-- BEGIN GENERATED WEBHOOK EVENTS -->
@@ -299,7 +298,7 @@ The event picker in Settings shows what your install actually has.
 |---|---|---|
 | `payment.authorized` | async | Fires after a payment authorization succeeds (funds held, not yet captured). Payload includes orderId, provider, amount, currency. |
 | `payment.captured` | async | Fires after funds are captured (money moves). The usual trigger for accounting + fulfillment. |
-| `payment.provider_webhook` | async | Fires when an inbound payment-provider callback (e.g. Stripe/Braintree/PayPal) is received and processed - useful for reconciliation of async/delayed settlement events. |
+| `payment.provider_webhook` | async | Fires when an inbound payment-provider callback is received and processed - useful for reconciliation of async/delayed settlement events. |
 | `payment.refunded` | async | Fires after a full or partial refund is issued. Payload includes the refunded amount. |
 | `payment.voided` | async | Fires after an uncaptured authorization is voided (the hold is released). |
 
