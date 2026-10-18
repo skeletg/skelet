@@ -17,7 +17,7 @@ import { useDevRequests } from '@/lib/dev-monitor'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { MeDocument } from './Me.gql'
 import { useAuth } from './auth'
-import { JAEGER_URL, STOREFRONT_ORIGIN } from '@/lib/app-origins'
+import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
 
 // Dev-only inspector sheet: the resolved truth behind permission /
 // channel / locale debugging - Everything here is read-only and comes
@@ -28,10 +28,6 @@ import { JAEGER_URL, STOREFRONT_ORIGIN } from '@/lib/app-origins'
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8080'
 
 const TOOL_LINKS: { label: string; href: string; hint: string }[] = [
-  { label: 'Mailpit', href: 'http://localhost:8025', hint: 'caught emails' },
-  { label: 'Jaeger', href: JAEGER_URL, hint: 'traces' },
-  { label: 'Garage', href: 'http://localhost:9901', hint: 'object storage console' },
-  { label: 'Webhook tester', href: 'http://localhost:8081', hint: 'outbound webhooks' },
   { label: 'Admin playground', href: `${BACKEND_URL}/playground/admin`, hint: 'GraphQL' },
   { label: 'Front playground', href: `${BACKEND_URL}/playground/front`, hint: 'GraphQL' },
 ]
@@ -190,14 +186,9 @@ export function DevInspector({
                         </td>
                         <td className="px-2 py-1">
                           {r.traceId ? (
-                            <a
-                              href={`${JAEGER_URL}/trace/${r.traceId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-0.5 text-primary hover:underline"
-                            >
-                              open <ExternalLinkIcon className="size-2.5" />
-                            </a>
+                            <span className="block max-w-24 truncate font-mono" title={r.traceId}>
+                              {r.traceId}
+                            </span>
                           ) : (
                             '-'
                           )}
@@ -250,7 +241,7 @@ export function DevInspector({
           {/* ---- Tools ---- */}
           <section className="grid gap-1.5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Local tools
+              Playgrounds
             </h3>
             <div className="grid grid-cols-2 gap-1.5">
               {TOOL_LINKS.map((t) => (

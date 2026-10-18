@@ -86,7 +86,7 @@ skelet - the dev commands for this repo
 
 Common
   setup      configure this clone (run this first)
-  up         start the dev stack          [--lean skips OpenSearch, Jaeger, Signals]
+  up         start the dev stack          [--lean skips OpenSearch, Signals, dev tools]
   serve      a frontend on the host       [skelet serve dashboard]
   down       stop and remove containers
   logs       tail service logs            [skelet logs app]

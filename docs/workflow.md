@@ -73,15 +73,35 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
   install or the SWC native binary). `CHOKIDAR_USEPOLLING=true` +
   `WATCHPACK_POLLING=true` because inotify is unreliable over bind mounts
   on WSL2/macOS.
-- `mailpit` - SMTP catcher; SMTP at `:1025`, web UI at <http://localhost:8025>.
-- `webhook-tester` - webhook listener UI at <http://localhost:8081>.
 - `garage` + `garage-init` - S3-compatible storage (Garage); S3 API at
   `:9900`, public reads via the web endpoint at `:9902`
   (vhost-addressed: `http://media.localhost:9902/<key>`), bucket
   `media` + `skeletdev` key auto-provisioned, CORS + website
-  access applied by `garage-init`. Web console (`garage-webui`) at
-  <http://localhost:9901>; CLI ops via
+  access applied by `garage-init`. CLI ops via
   `docker compose exec garage /garage <cmd>`.
+
+### Optional dev tools
+
+None of these are needed, and nothing in the apps knows about them. Each is a compose
+profile of its own name: pick them in `./skelet setup` (or `--tools LIST|none`), which
+saves the list to git-ignored `.skelet-tools`, or start one for a single session with
+`./skelet up <name>`.
+
+- `mailpit` - SMTP catcher; SMTP at `:1025`, web UI at <http://localhost:8025>.
+  Without it, mail prints to the app log.
+- `webhook-tester` - webhook listener UI at <http://localhost:8081>; point
+  webhooks at `http://webhook-tester:8080/<any-path>`.
+- `grafana` - Grafana with Tempo, Prometheus and Loki behind it, UI at
+  <http://localhost:3030> (admin / admin). Takes the backends' OTLP traces and
+  metrics on `grafana:4318`, and `grafana-alloy` beside it ships every skelet
+  container's stdout into Loki.
+- `garage-webui` - Garage's web console at <http://localhost:9901>.
+
+`./skelet up` wires the env files to match `.skelet-tools`: picking `mailpit` points
+`SMTP_HOST` at it, picking `grafana` points the `OTEL_*` vars at it, and dropping either
+blanks them again. Values you set to something else (a real relay, your own collector)
+are left alone. A tool started ad hoc with `./skelet up <name>` is not wired - add it to
+`.skelet-tools` for that.
 
 ### Looking at another channel
 
@@ -210,7 +230,8 @@ vite is actually serving. `.skelet-apps` lists only the ones you asked to contai
 so an empty file means every frontend runs on the host with `./skelet serve <app>`.
 
 Non-interactive variants: `./skelet setup --all`, `--backend-only`, or `./skelet setup --apps
-dashboard,vetrina-demo` (comma list), with `--docker-apps LIST|none` for the placement.
+dashboard,vetrina-demo` (comma list), with `--docker-apps LIST|none` for the placement and
+`--tools LIST|none` for the optional dev tools.
 Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
 `./skelet setup --apps ...` then `./skelet down && ./skelet up` to change them. Selecting an app
 again restores its source.

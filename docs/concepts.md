@@ -169,7 +169,7 @@ once:
 | OpenSearch | Search index. Optional - the app runs without it |
 | ClickHouse | Columnar DB. The Signals spine |
 | NATS JetStream | Durable queue. Optional, in front of beacon ingest |
-| Mailpit | Dev SMTP catcher. Nothing leaves your machine |
+| Mailpit | Optional dev SMTP catcher. Nothing leaves your machine |
 | gqlgen | Schema-first GraphQL codegen for Go |
 | sqlc | Generates Go from SQL. There are no hand-written DB calls |
 | air | Backend hot reload in dev |

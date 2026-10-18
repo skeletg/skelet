@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guided first-run, safe to re-run - answers become env files, secrets and a plugin set
-# Flags: --all | --backend-only | --apps LIST|none | --docker-apps LIST|none | --keep-code | --yes | --profile FILE
+# Flags: --all | --backend-only | --apps LIST|none | --docker-apps LIST|none | --tools LIST|none | --keep-code | --yes | --profile FILE
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
@@ -35,6 +35,17 @@ done
 all_apps="dashboard"
 for n in "${storefronts[@]}"; do all_apps="$all_apps,$n"; done
 
+# Optional dev tools, each a compose profile of its own name - none of them is needed to run the stack
+all_tools="mailpit,webhook-tester,grafana,garage-webui"
+tool_hint() {
+    case "$1" in
+        mailpit)        echo "Mailpit - catches outgoing email, UI on :8025 (without it, mail prints to the app log)" ;;
+        webhook-tester) echo "Webhook tester - catches outbound webhooks, UI on :8081" ;;
+        grafana)        echo "Grafana - traces, metrics and container logs, UI on :3030" ;;
+        garage-webui)   echo "Garage web UI - object storage console on :9901" ;;
+    esac
+}
+
 valid_app() {
     [ "$1" = "dashboard" ] && return 0
     for n in "${storefronts[@]}"; do [ "$1" = "$n" ] && return 0; done
@@ -47,6 +58,8 @@ apps_set=0
 # There the dev server and the gates share one node_modules, so the linter checks the tree vite is actually serving; in Docker those are two trees that drift apart
 docker_apps=""
 docker_apps_set=0
+tools=""
+tools_set=0
 keep_code=0
 assume_yes=0
 while [ $# -gt 0 ]; do
@@ -69,6 +82,14 @@ while [ $# -gt 0 ]; do
                 valid_app "$a" || { echo "Unknown app \"$a\" (valid: ${all_apps//,/, }, none)"; exit 2; }
             done
             docker_apps_set=1 ;;
+        --tools)
+            shift
+            [ -n "${1:-}" ] || { echo "--tools needs a value (e.g. ${all_tools} or none)"; exit 2; }
+            tools="$1"; [ "$tools" = "none" ] && tools=""
+            for t in ${tools//,/ }; do
+                case ",$all_tools," in *,"$t",*) ;; *) echo "Unknown tool \"$t\" (valid: ${all_tools//,/, }, none)"; exit 2 ;; esac
+            done
+            tools_set=1 ;;
         --keep-code) keep_code=1 ;;
         --yes|-y)    assume_yes=1 ;;
         --profile)
@@ -76,7 +97,7 @@ while [ $# -gt 0 ]; do
             [ -n "${1:-}" ] || { echo "--profile needs a file"; exit 2; }
             [ -f "$1" ] || { echo "No such profile: $1"; exit 2; }
             PROFILE="$1"; assume_yes=1 ;;
-        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --docker-apps LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
+        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
     esac
     shift
 done
@@ -307,6 +328,23 @@ if [ "$interactive" = 1 ]; then
     fi
 fi
 
+# ---------------------------------------------------------------- dev tools
+# Off unless picked - a re-run defaults to the last answers, a first non-interactive run to none
+if [ "$tools_set" = 0 ]; then
+    tools="${SKELET_TOOLS_SELECTED-}"
+    if [ "$interactive" = 1 ] && [ "$SKELET_TARGET" = dev ]; then
+        echo "==> Optional dev tools - the stack runs without any of them"
+        picks=()
+        for t in ${all_tools//,/ }; do
+            case ",$tools," in *,"$t",*) d=y ;; *) d=n ;; esac
+            ask_yn "    $(tool_hint "$t")?" "$d" && picks+=("$t")
+        done
+        tools=$(IFS=,; echo "${picks[*]-}")
+    fi
+fi
+printf '%s\n' "$tools" > .skelet-tools
+echo "==> Dev tools: ${tools:-none}  (saved to .skelet-tools; start one ad hoc with ./skelet up <name>)"
+
 cat > "$PROFILE" <<EOF
 # Written by bin/setup - your answers, so a re-run defaults to them
 SKELET_TARGET=$SKELET_TARGET
@@ -317,6 +355,7 @@ SKELET_GATEWAYS=$SKELET_GATEWAYS
 SKELET_ADMIN_SLUG=$SKELET_ADMIN_SLUG
 SKELET_APPS_SELECTED=$apps
 SKELET_DOCKER_APPS=$docker_apps
+SKELET_TOOLS_SELECTED=$tools
 EOF
 echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS ai=$SKELET_AI, search=$SKELET_SEARCH  (saved to $PROFILE)"
 
@@ -628,7 +667,14 @@ if [ -n "$host_apps" ]; then
     echo "These run on the host, so bin/dev does not start them:"
     for a in $host_apps; do echo "  ./skelet serve $a"; done
 fi
-echo "  Mailpit (caught email)  http://localhost:8025"
+for t in ${tools//,/ }; do
+    case "$t" in
+        mailpit)        echo "  Mailpit (caught email)  http://localhost:8025" ;;
+        webhook-tester) echo "  Webhook tester          http://localhost:8081" ;;
+        grafana)        echo "  Grafana                 http://localhost:3030  (admin / admin)" ;;
+        garage-webui)   echo "  Garage web UI           http://localhost:9901" ;;
+    esac
+done
 if [ -z "$apps" ]; then
     echo
     echo "Backend-only clone: point your own frontend at the GraphQL APIs above."

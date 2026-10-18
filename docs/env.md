@@ -92,7 +92,7 @@ publish before it starts anything. On a terminal it asks, port by port,
 whether you've stopped the other thing - it checks again, and asks again if
 you haven't - or offers to move a datastore to a free port and writes the
 var above into the root `.env`. Without a terminal it lists the clashes and
-exits. The app-facing ports (8080, 5173, 3000, 8025, 9900-9902) stay
+exits. The app-facing ports (8080, 5173, 3000, 9900, 9902) stay
 fixed, because they're part of the origins and CSP the apps are built
 around, so for those the only answer is to free them.
 
@@ -447,9 +447,9 @@ services; production logs a warning while Lens shares the public bucket.
 
 ## Email and SMS
 
-`SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev,
-`./skelet up` points these at Mailpit; an unset `SMTP_HOST` prints emails to
-stdout instead. Two processes send through them: `app` its own transactional
+`SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev an unset
+`SMTP_HOST` prints emails to stdout; with the optional `mailpit` dev tool picked,
+`./skelet up` points these at it. Two processes send through them: `app` its own transactional
 mail, and `signals` every campaign and flow mail - both read the same file, so
 one relay serves the install.
 
@@ -607,7 +607,8 @@ compose.
 ## Observability and logs
 
 `SENTRY_DSN` and the OTel vars are optional - blank means logs to stdout.
-The dev Jaeger takes OTLP at `http://jaeger:4318`. `APP_VERSION` is the
+With the optional `grafana` dev tool picked, `./skelet up` points them at
+`http://grafana:4318`. `APP_VERSION` is the
 release tag for Sentry and OTel; CI should inject the git sha.
 
 Application logs go to stdout as JSON (text when `APP_ENV != production`),
