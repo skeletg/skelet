@@ -2,7 +2,10 @@ package experiment
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -28,38 +31,76 @@ type Input struct {
 	Variations  []Variation
 }
 
+var (
+	ErrNotFound = errors.New("experiment not found")
+	ErrInvalid  = errors.New("invalid experiment")
+	ErrKeyTaken = errors.New("another experiment in this channel already uses that key")
+	// A visitor's bucket comes from the variations, weights, coverage and targeting, and the goal is what the results count - change
+	// any of them mid-run and visitors re-bucket while the results describe a test that no longer exists
+	ErrLocked = errors.New("a started experiment's variations, weights, coverage, goal and targeting are fixed - stop it and start a new one")
+)
+
+// Every visitor gets the running list, publicly cached, so its size is bounded
+const (
+	maxVariations     = 10
+	maxVariationValue = 2 << 10
+)
+
+var keyRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+func invalid(format string, a ...any) error {
+	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, a...))
+}
+
 func validate(in Input) error {
-	if strings.TrimSpace(in.Key) == "" {
-		return fmt.Errorf("experiment key is required")
+	if !keyRe.MatchString(in.Key) {
+		return invalid("key %q must be lowercase letters, digits, dashes or underscores, up to 64", in.Key)
 	}
 	if strings.TrimSpace(in.Name) == "" {
-		return fmt.Errorf("experiment name is required")
+		return invalid("name is required")
 	}
 	switch in.Status {
 	case StatusDraft, StatusRunning, StatusStopped:
 	default:
-		return fmt.Errorf("invalid status %q", in.Status)
+		return invalid("unknown status %q", in.Status)
 	}
 	if in.Coverage < 0 || in.Coverage > 100 {
-		return fmt.Errorf("coverage must be between 0 and 100")
+		return invalid("coverage must be between 0 and 100")
 	}
 	if len(in.Variations) < 2 {
-		return fmt.Errorf("an experiment needs at least 2 variations")
+		return invalid("an experiment needs at least 2 variations")
+	}
+	if len(in.Variations) > maxVariations {
+		return invalid("an experiment has at most %d variations", maxVariations)
 	}
 	seen := map[string]bool{}
 	for _, v := range in.Variations {
 		if strings.TrimSpace(v.Key) == "" {
-			return fmt.Errorf("each variation needs a key")
+			return invalid("each variation needs a key")
 		}
 		if seen[v.Key] {
-			return fmt.Errorf("duplicate variation key %q", v.Key)
+			return invalid("duplicate variation key %q", v.Key)
 		}
 		seen[v.Key] = true
 		if v.Weight < 0 {
-			return fmt.Errorf("variation %q weight cannot be negative", v.Key)
+			return invalid("variation %q weight cannot be negative", v.Key)
+		}
+		if len(v.Value) > maxVariationValue {
+			return invalid("variation %q value is over %d KB", v.Key, maxVariationValue>>10)
 		}
 	}
 	return nil
+}
+
+// What a started experiment may still change: its name and its status
+func locked(was Experiment, in Input) bool {
+	return was.Status != StatusDraft && (!sameArms(was.Variations, in.Variations) || was.Coverage != in.Coverage ||
+		was.GoalEvent != in.GoalEvent || was.SegmentSlug != in.SegmentSlug)
+}
+
+// A variation's display name is free to change - only what buckets a visitor or renders for them counts
+func sameArms(a, b []Variation) bool {
+	return slices.EqualFunc(a, b, func(x, y Variation) bool { return x.Key == y.Key && x.Weight == y.Weight && x.Value == y.Value })
 }
 
 func (s *Service) Create(ctx context.Context, in Input) (Experiment, error) {
@@ -73,8 +114,19 @@ func (s *Service) Create(ctx context.Context, in Input) (Experiment, error) {
 }
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Experiment, error) {
+	was, found, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Experiment{}, err
+	}
+	if !found {
+		return Experiment{}, ErrNotFound
+	}
+	in.Key = was.Key // the key names the experiment's exposure events, so it never changes
 	if err := validate(in); err != nil {
 		return Experiment{}, err
+	}
+	if locked(was, in) {
+		return Experiment{}, ErrLocked
 	}
 	ok, err := s.repo.Update(ctx, Experiment{
 		ID: id, ChannelID: in.ChannelID, Name: in.Name, Status: in.Status, Coverage: in.Coverage,
@@ -84,7 +136,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Experimen
 		return Experiment{}, err
 	}
 	if !ok {
-		return Experiment{}, fmt.Errorf("experiment not found")
+		return Experiment{}, ErrNotFound
 	}
 	e, _, err := s.repo.Get(ctx, id)
 	return e, err
@@ -112,8 +164,11 @@ func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
 // uplift + chance-to-win vs the control, a significance-gated winner, and a sample-ratio-mismatch health check
 func (s *Service) Results(ctx context.Context, id uuid.UUID, since time.Time) (Experiment, Analysis, error) {
 	e, ok, err := s.repo.Get(ctx, id)
-	if err != nil || !ok {
+	if err != nil {
 		return Experiment{}, Analysis{}, err
+	}
+	if !ok {
+		return Experiment{}, Analysis{}, ErrNotFound
 	}
 	res, err := s.repo.Results(ctx, e.ChannelID, e.Key, e.GoalEvent, since)
 	if err != nil {

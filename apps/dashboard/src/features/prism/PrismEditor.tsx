@@ -108,6 +108,8 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
   const { key, name, status, coverage, goalEvent, segmentSlug, variations } = draft.values
   const { setKey, setName, setStatus, setCoverage, setGoalEvent, setSegmentSlug, setVariations } = draft.setters
   const [expId, setExpId] = useState<string | null>(initial.id)
+  // Once started, what buckets a visitor is fixed server-side - changing it would re-bucket them under results that no longer apply
+  const locked = !!expId && initial.status !== 'draft'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -230,12 +232,12 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="ecov">Coverage %</Label>
-                <Input id="ecov" type="number" min={0} max={100} value={coverage} onChange={(ev) => setCoverage(Number(ev.target.value))} className="w-28" />
+                <Input id="ecov" type="number" min={0} max={100} value={coverage} onChange={(ev) => setCoverage(Number(ev.target.value))} className="w-28" disabled={locked} />
               </div>
             </div>
             <div className="grid gap-1.5">
               <Label>Goal event</Label>
-              <GoalEventPicker value={goalEvent} onChange={setGoalEvent} events={goalEvents} />
+              <GoalEventPicker value={goalEvent} onChange={setGoalEvent} events={goalEvents} disabled={locked} />
               <p className="text-xs text-muted-foreground">
                 Search a tracked event or type a new name. The conversion is counted when the storefront calls{' '}
                 <code className="text-[11px]">window.lens.track(&apos;{goalEvent || 'purchase'}&apos;)</code> after
@@ -244,7 +246,7 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
             </div>
             <div className="grid gap-1.5">
               <Label>Target audience</Label>
-              <Select value={segmentSlug || '__all__'} onValueChange={(v) => setSegmentSlug(v === '__all__' ? '' : v)}>
+              <Select value={segmentSlug || '__all__'} onValueChange={(v) => setSegmentSlug(v === '__all__' ? '' : v)} disabled={locked}>
                 <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All visitors</SelectItem>
@@ -268,15 +270,19 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
 
         <DetailPageSection
           title="Variations"
-          description="The first is the control. Weights set the split. value is the payload the storefront renders (useExperiment returns it)."
-          trailing={<Button variant="outline" size="sm" onClick={addVar}>Add variation</Button>}
+          description={
+            locked
+              ? 'Fixed once the experiment has started, along with coverage, goal and audience - stop it and start a new one to change them. Names can still change.'
+              : 'The first is the control. Weights set the split. value is the payload the storefront renders (useExperiment returns it).'
+          }
+          trailing={<Button variant="outline" size="sm" onClick={addVar} disabled={locked}>Add variation</Button>}
         >
           <div className="grid gap-2">
             {variations.map((v, i) => (
               <div key={i} className="flex flex-wrap items-end gap-2 rounded border p-3">
                 <div className="grid gap-1">
                   <Label className="text-xs">Key</Label>
-                  <Input value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" />
+                  <Input value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" disabled={locked} />
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-xs">Name</Label>
@@ -284,13 +290,13 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-xs">Weight</Label>
-                  <Input type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" />
+                  <Input type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" disabled={locked} />
                 </div>
                 <div className="grid flex-1 gap-1">
                   <Label className="text-xs">Value{i === 0 ? ' (control)' : ''}</Label>
-                  <Input value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" />
+                  <Input value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" disabled={locked} />
                 </div>
-                {variations.length > 2 && (
+                {variations.length > 2 && !locked && (
                   <Button variant="ghost" size="sm" onClick={() => removeVar(i)}>✕</Button>
                 )}
               </div>
@@ -538,7 +544,7 @@ function ChanceBar({ name, chance, exposed }: { name: string; chance: number; ex
 
 // GoalEventPicker is a searchable combobox over the channel's tracked events
 // that also lets you commit a brand-new name (a goal that hasn't fired yet)
-function GoalEventPicker({ value, onChange, events }: { value: string; onChange: (v: string) => void; events: string[] }) {
+function GoalEventPicker({ value, onChange, events, disabled }: { value: string; onChange: (v: string) => void; events: string[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const q = search.trim()
@@ -551,7 +557,7 @@ function GoalEventPicker({ value, onChange, events }: { value: string; onChange:
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal" disabled={disabled}>
           <span className={cn('min-w-0 truncate', !value && 'text-muted-foreground')}>
             {value || 'Select or type a goal event…'}
           </span>
