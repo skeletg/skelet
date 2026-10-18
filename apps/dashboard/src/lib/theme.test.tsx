@@ -115,15 +115,16 @@ describe('token model', () => {
 
 describe('the shipped default', () => {
   // what the user asked the app to look like out of the box
-  it('is white content carrying the Skelet accent against a dark Skelet rail', () => {
+  it('is white content as an inset sheet on a dark tuned rail', () => {
     expect(DEFAULT_APPEARANCE.mode).toBe('light')
-    expect(DEFAULT_APPEARANCE.palette).toBe('skelet')
-    expect(DEFAULT_APPEARANCE.sidebarPalette).toBe('skelet')
+    expect(DEFAULT_APPEARANCE.palette).toBe('tuned')
+    expect(DEFAULT_APPEARANCE.sidebarPalette).toBeNull()
     expect(DEFAULT_APPEARANCE.sidebarMode).toBe('dark')
+    expect(DEFAULT_APPEARANCE.frame).toBe('inset')
   })
 
-  it('rounds corners subtly', () => {
-    expect(DEFAULT_APPEARANCE.radius).toBe('subtle')
+  it('rounds corners at the medium step', () => {
+    expect(DEFAULT_APPEARANCE.radius).toBe('default')
   })
 
   // the ids are stored in preferences, so each step has to keep its id or every admin who picked
@@ -146,26 +147,28 @@ describe('the shipped default', () => {
 
 describe('sidebarThemeAttrs', () => {
   const custom = defaultCustomTheme(false)
+  // the Skelet Sharp pairing - a built-in palette on both content and rail
+  const SHARP = { ...DEFAULT_APPEARANCE, palette: 'skelet' as const, sidebarPalette: 'skelet' as const }
 
   it('is null when the rail follows the content, so the markup is untouched', () => {
-    expect(sidebarThemeAttrs({ ...DEFAULT_APPEARANCE, sidebarPalette: null }, custom)).toBeNull()
+    expect(sidebarThemeAttrs({ ...SHARP, sidebarPalette: null }, custom)).toBeNull()
   })
 
   // this is what makes a light page with a dark rail expressible at all
   it('scopes a built-in palette to the rail', () => {
-    const attrs = sidebarThemeAttrs(DEFAULT_APPEARANCE, custom)
+    const attrs = sidebarThemeAttrs(SHARP, custom)
     expect(attrs).toEqual({ attr: 'skelet', dark: true })
   })
 
   // neutral stores as '' but paints through a real [data-theme='neutral'] block
   it('names the neutral block rather than an empty attribute', () => {
-    const attrs = sidebarThemeAttrs({ ...DEFAULT_APPEARANCE, sidebarPalette: '' }, custom)
+    const attrs = sidebarThemeAttrs({ ...SHARP, sidebarPalette: '' }, custom)
     expect(attrs?.attr).toBe('neutral')
   })
 
   it('carries custom colours inline, since custom has no CSS block', () => {
     const attrs = sidebarThemeAttrs(
-      { ...DEFAULT_APPEARANCE, sidebarPalette: 'custom', sidebarMode: 'dark' },
+      { ...SHARP, sidebarPalette: 'custom', sidebarMode: 'dark' },
       { ...custom, sidebarColors: { background: '#101010' } },
     )
     expect(attrs?.attr).toBeUndefined()
