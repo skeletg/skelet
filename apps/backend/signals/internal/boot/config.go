@@ -5,7 +5,6 @@ package boot
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -124,19 +123,6 @@ func EnvOr(key, def string) string { // a set-but-empty var means "unset" here, 
 		return v
 	}
 	return def
-}
-
-func EnvInt64(name string, def int64) int64 { // logs bad input instead of swallowing it - these are byte sizes, where a typo silently capping uploads is worth a line in the log
-	raw := os.Getenv(name)
-	if raw == "" {
-		return def
-	}
-	n, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		log.Printf("env %s=%q not a valid int64; using default %d", name, raw, def)
-		return def
-	}
-	return n
 }
 
 // RateLimitPerMin is a limiter's per-minute budget, 0 while the layer is off - ratelimit.AllowN admits

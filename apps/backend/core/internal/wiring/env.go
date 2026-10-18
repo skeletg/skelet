@@ -6,8 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 )
 
 func EnvInt(key string, def int) int { // only accepts positives - every caller sizes a pool or a limit where a stray 0 means "unset", so it falls back to def
@@ -37,18 +35,6 @@ func EnvBool(key string, def bool) bool {
 		}
 	}
 	return def
-}
-
-func mediaConfigFromEnv() objstore.Config { // shared by the app tier, which fails without it, and the beacon tier, which only wants it for replay-blob GC
-	return objstore.Config{
-		Bucket:           os.Getenv("S3_BUCKET_NAME"),
-		Region:           os.Getenv("AWS_REGION"),
-		InternalEndpoint: os.Getenv("S3_ENDPOINT_URL"),
-		PresignEndpoint:  os.Getenv("S3_PRESIGN_ENDPOINT_URL"),
-		PublicURLBase:    os.Getenv("S3_PUBLIC_URL_BASE"),
-		UsePathStyle:     os.Getenv("S3_USE_PATH_STYLE") == "true",
-		MaxUploadBytes:   EnvInt64("S3_MAX_UPLOAD_BYTES", 10*1024*1024),
-	}
 }
 
 func EnvInt64(name string, def int64) int64 { // logs bad input instead of swallowing it - these are byte sizes, where a typo silently capping uploads is worth a line in the log

@@ -46,7 +46,7 @@ func run() error {
 	defer stop()
 
 	// It writes to the bucket and optionally opens a pool - no session tokens, so no JWT gate here
-	if err := envcheck.Report(envcheck.Production(os.Getenv, envcheck.Database, envcheck.S3)); err != nil {
+	if err := envcheck.Report(envcheck.Production(os.Getenv, envcheck.Database, envcheck.Storage)); err != nil {
 		return err
 	}
 
@@ -65,20 +65,13 @@ func run() error {
 		port = defaultPort
 	}
 
-	storage, err := objstore.New(ctx, objstore.Config{
-		Bucket:           os.Getenv("S3_BUCKET_NAME"),
-		Region:           os.Getenv("AWS_REGION"),
-		InternalEndpoint: os.Getenv("S3_ENDPOINT_URL"),
-		PresignEndpoint:  os.Getenv("S3_PRESIGN_ENDPOINT_URL"),
-		PublicURLBase:    os.Getenv("S3_PUBLIC_URL_BASE"),
-		UsePathStyle:     os.Getenv("S3_USE_PATH_STYLE") == "true",
-	})
+	storage, err := objstore.New(ctx, objstore.FromEnv())
 	if err != nil {
 		return fmt.Errorf("media storage: %w", err)
 	}
 	if !storage.HasPublicBase() {
 		// Not fatal, but warm hits then get proxied instead of redirected - which is most of the point
-		slog.Warn("S3_PUBLIC_URL_BASE is unset: warm derivatives will be proxied, not redirected")
+		slog.Warn("the store has no public URL base: warm derivatives will be proxied, not redirected")
 	}
 
 	transformer := media.NewTransformer(storage)

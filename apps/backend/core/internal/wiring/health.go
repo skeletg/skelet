@@ -28,7 +28,7 @@ type healthDeps struct {
 
 	Infra         Infra
 	SearchTier    SearchTier
-	MediaStorage  *objstore.Storage
+	MediaStorage  objstore.Storage
 	Scheduler     *scheduler.Service
 	Webhook       *webhook.Service
 	SignalsClient *signalsclient.Client

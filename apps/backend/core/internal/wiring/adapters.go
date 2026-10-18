@@ -121,7 +121,7 @@ type CartCatalogAdapter struct {
 // CartFileAdapter resolves an uploaded media asset for a FILE-type product option pick - it reads the asset row (filename, mime, public URL) and HEADs object storage for the authoritative byte size + existence, so the cart validates against the real upload rather than client-claimed values
 type CartFileAdapter struct {
 	media   *medialibrary.Service
-	storage *objstore.Storage
+	storage objstore.Storage
 }
 
 func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, productID, id uuid.UUID) (cart.FileAsset, error) {
@@ -150,7 +150,7 @@ func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, productID, id uui
 
 // WebformFileStore adapts objstore.Storage to webform.FileStore: presign uploads for form file fields and Head-validate them, translating the (size, mime, exists, err) shape into the (size, mime, err) the webform service expects
 type WebformFileStore struct {
-	storage *objstore.Storage
+	storage objstore.Storage
 }
 
 func (a WebformFileStore) PresignUpload(ctx context.Context, key, contentType string, sizeBytes int64, ttl time.Duration) (string, error) {
@@ -965,11 +965,11 @@ func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service, ch
 	return CartCatalogAdapter{svc: cat, customers: customers, channels: channels}
 }
 
-func NewCartFileAdapter(lib *medialibrary.Service, store *objstore.Storage) CartFileAdapter {
+func NewCartFileAdapter(lib *medialibrary.Service, store objstore.Storage) CartFileAdapter {
 	return CartFileAdapter{media: lib, storage: store}
 }
 
-func NewWebformFileStore(store *objstore.Storage) WebformFileStore {
+func NewWebformFileStore(store objstore.Storage) WebformFileStore {
 	return WebformFileStore{storage: store}
 }
 
@@ -1130,7 +1130,7 @@ func publishedOn(listings []catalog.ProductChannelListing, channelID uuid.UUID) 
 }
 
 // Adapts objstore to download.FileStore - a grant URL under the bucket's public base is one of ours and streams from its key
-type storedDownloads struct{ st *objstore.Storage }
+type storedDownloads struct{ st objstore.Storage }
 
 func (d storedDownloads) KeyFor(u string) (string, bool) {
 	rest, ok := strings.CutPrefix(u, d.st.PublicURL(""))

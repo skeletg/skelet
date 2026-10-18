@@ -42,6 +42,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/httpx"
+	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
@@ -198,6 +199,11 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		},
 	}))
 
+	// The filesystem driver serves its own objects and takes the browser's uploads, which S3 would have answered
+	if files, ok := s.MediaStorage.(interface{ Handler() http.Handler }); ok {
+		mux.Handle(objstore.FilesPath, otelx.WrapHTTP(files.Handler(), "media.files"))
+	}
+
 	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
 	feed := catalogio.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory, s.Catalog)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
@@ -261,7 +267,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   AllowedOrigins(infra.Config),
-		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodOptions},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", channel.HeaderChannelID},
 		AllowCredentials: false, // JWT travels in Authorization header, not cookies
 		MaxAge:           300,
@@ -269,13 +275,13 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 
 	// Outer-first: Recover → RequestID → Sentry → cors → mux - Recover outermost so it catches panics from anywhere downstream, including sentryhttp itself (Repanic=true) - RequestID stamps before Sentry so the per-request Hub scope can be tagged with it; Sentry is the identity wrapper when Reporter is nil, so wiring stays unconditional
 	sentryMw := observability.SentryMiddleware(tel.Reporter != nil)
-	maxBodyBytes := int64(8 << 20) // DoS guard - API payloads are small; media uploads bypass the server via presigned S3 URLs - override with REQUEST_MAX_BODY_BYTES
+	maxBodyBytes := int64(8 << 20) // DoS guard - API payloads are small; media uploads bypass it via presigned URLs, and the filesystem driver caps its own - override with REQUEST_MAX_BODY_BYTES
 	if v := os.Getenv("REQUEST_MAX_BODY_BYTES"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
 			maxBodyBytes = n
 		}
 	}
-	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath)))
+	rootHandler := httpx.Recover(httpx.SecurityHeaders(httpx.LimitBody(maxBodyBytes, httpx.RequestID(sentryMw(corsHandler)), dataImportPath, objstore.FilesPath)))
 	return RootHandler{rootHandler}
 }
 

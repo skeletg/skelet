@@ -38,7 +38,7 @@ func run() error {
 
 	if err := envcheck.Report(envcheck.Production(os.Getenv, // everything, because this process is the API, the admin surface and the mail sender at once
 		envcheck.CoreSessionKeys, envcheck.TrustedProxies, envcheck.ConfigEncryptionKey, envcheck.Database,
-		envcheck.CORS, envcheck.FrontendURLs, envcheck.SMTP, envcheck.S3, envcheck.OpenSearch,
+		envcheck.CORS, envcheck.FrontendURLs, envcheck.SMTP, envcheck.Storage, envcheck.OpenSearch,
 		envcheck.RateLimiting, envcheck.LoginLockout, envcheck.SignalsCaller,
 	)); err != nil {
 		return err

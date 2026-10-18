@@ -9,6 +9,15 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+### Added
+
+- **Files can live on the local disk.** `STORAGE_DRIVER=filesystem` keeps every object under `STORAGE_DIR`
+  instead of S3, and core serves them at `/files/o/` and takes browser uploads at `/files/u/` with URLs
+  signed by `STORAGE_SIGNING_KEY`, locked to one key, content type and exact size like a presigned PUT.
+  Served files get `nosniff`, a sandboxing CSP and, unless they're an image, video, audio or PDF, a download
+  disposition. Lens recordings follow, or go to `LENS_STORAGE_DIR`, and `media-migrate --dest-dir` moves
+  a bucket onto disk. `S3_MAX_UPLOAD_BYTES` is now `STORAGE_MAX_UPLOAD_BYTES`, for either driver.
+
 ### Changed
 
 - **A segment's slug is fixed once it exists.** Experiments and promotions target segments by slug, so a

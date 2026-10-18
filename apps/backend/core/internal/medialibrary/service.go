@@ -26,7 +26,7 @@ var allowedDocumentMimeTypes = []string{
 
 var filenameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
-// The object storage the library manages - *objstore.Storage in production
+// The object storage the library manages - objstore.Storage in production
 type Storage interface {
 	PublicURL(key string) string
 	MaxUploadBytes() int64

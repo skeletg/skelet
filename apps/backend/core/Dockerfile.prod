@@ -33,7 +33,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for scheduler time math
 # vips for the two binaries built with -tags vips
-RUN apk add --no-cache ca-certificates curl tzdata vips && adduser -D -u 10001 app
+# /data/media is owned by app so a volume mounted there for STORAGE_DRIVER=filesystem starts out writable
+RUN apk add --no-cache ca-certificates curl tzdata vips && adduser -D -u 10001 app && mkdir -p /data/media && chown app /data/media
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/media /app/media
