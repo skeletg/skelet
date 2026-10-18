@@ -296,6 +296,11 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- A scripted email block ran with no limits, so a large loop or a self-doubling string could hang or
+  exhaust the send loop. Saving one now needs a sample render inside 200 ms and 512 KB, literal loops are
+  capped at 1000, `append`/`prepend`/`replace` results are capped, and `capture` is refused. Button,
+  image, video and social links must be http(s), mailto, tel or a merge tag, including inside rows.
+
 - A flow email that failed to send was dropped and the run moved on, so a passing SMTP error lost an order
   receipt or a reset email for good. The run now waits on its node and retries on a 1m/5m/15m/1h ladder
   before failing; permanent bounces don't retry and, like campaign bounces, feed the suppression list.
