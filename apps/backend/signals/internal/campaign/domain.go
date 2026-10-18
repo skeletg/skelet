@@ -2,11 +2,19 @@
 package campaign
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
+)
+
+var (
+	ErrNotFound   = errors.New("campaign not found")
+	ErrInvalid    = errors.New("invalid campaign")
+	ErrWrongState = errors.New("campaign can't do that in its current state")
+	ErrSendFailed = errors.New("test send failed")
 )
 
 const ( // campaign lifecycle - validated in Go, with no DB enum

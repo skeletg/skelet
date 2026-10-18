@@ -23,8 +23,9 @@ type Contact struct {
 
 // The audience a send is drawn from
 type audienceReader interface {
-	// Everyone the channel could mail, consent included - the caller filters down to the audience kind
-	ListForChannel(ctx context.Context, channelID uuid.UUID) ([]Contact, error)
+	// Everyone the channel could mail, consent included, a keyset page by customer id after `after` - the caller filters
+	// down to the audience kind
+	ListForChannel(ctx context.Context, channelID, after uuid.UUID, limit int) ([]Contact, error)
 	// One person, for the paths that already know who they are
 	Get(ctx context.Context, customerID uuid.UUID) (Contact, bool, error)
 	// Consent as it stands right now - the send loop works from stored recipient rows, and someone

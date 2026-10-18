@@ -76,9 +76,16 @@ func (q *Queries) ChannelRoster(ctx context.Context) ([]ChannelRosterRow, error)
 
 const channelRosterContacts = `-- name: ChannelRosterContacts :many
 SELECT customer_id, channel_id, email, first_name, is_active, customer_group_id, marketing_opted_in
-FROM customer_roster WHERE channel_id = $1
-ORDER BY synced_at, customer_id
+FROM customer_roster WHERE channel_id = $1 AND customer_id > $2
+ORDER BY customer_id
+LIMIT $3
 `
+
+type ChannelRosterContactsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	AfterID   uuid.UUID `json:"after_id"`
+	Lim       int32     `json:"lim"`
+}
 
 type ChannelRosterContactsRow struct {
 	CustomerID       uuid.UUID     `json:"customer_id"`
@@ -90,10 +97,10 @@ type ChannelRosterContactsRow struct {
 	MarketingOptedIn bool          `json:"marketing_opted_in"`
 }
 
-// Everyone a channel could mail, as core last pushed them - the audience a campaign draws from,
+// Everyone a channel could mail, as core last pushed them, a keyset page at a time - the audience a campaign draws from,
 // consent included so the send loop filters without a second read
-func (q *Queries) ChannelRosterContacts(ctx context.Context, channelID uuid.UUID) ([]ChannelRosterContactsRow, error) {
-	rows, err := q.db.QueryContext(ctx, channelRosterContacts, channelID)
+func (q *Queries) ChannelRosterContacts(ctx context.Context, arg ChannelRosterContactsParams) ([]ChannelRosterContactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, channelRosterContacts, arg.ChannelID, arg.AfterID, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
