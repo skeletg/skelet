@@ -62,10 +62,10 @@ func ParseRules(raw json.RawMessage) (*Rules, error) {
 	dec.DisallowUnknownFields()
 	var r Rules
 	if err := dec.Decode(&r); err != nil {
-		return nil, fmt.Errorf("invalid rules: %w", err)
+		return nil, fmt.Errorf("%w: rules don't parse: %w", ErrInvalid, err)
 	}
 	if err := r.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	return &r, nil
 }
@@ -110,6 +110,9 @@ func (r *Rules) Validate() error {
 	if len(r.Conditions) == 0 {
 		return fmt.Errorf("rules need at least one condition")
 	}
+	if len(r.Conditions) > maxConditions {
+		return fmt.Errorf("rules may have at most %d conditions", maxConditions)
+	}
 	for i, c := range r.Conditions {
 		if err := c.validate(); err != nil {
 			return fmt.Errorf("condition %d: %w", i+1, err)
@@ -117,6 +120,9 @@ func (r *Rules) Validate() error {
 	}
 	return nil
 }
+
+// Each condition is a subquery in the one compiled statement
+const maxConditions = 50
 
 var moneyTraitFields = map[string]bool{"monetary_cents": true, "predicted_clv_cents": true}
 

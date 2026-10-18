@@ -16,13 +16,6 @@ type MemberSegment struct {
 	Slug string
 }
 
-// One segment a customer belongs to, carrying the two columns that say whether Signals maintains it
-type Membership struct {
-	Slug       string
-	Rules      json.RawMessage
-	Definition string
-}
-
 type Member struct {
 	ID        uuid.UUID
 	ChannelID uuid.UUID

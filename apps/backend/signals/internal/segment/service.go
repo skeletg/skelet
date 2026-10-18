@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -14,7 +17,6 @@ import (
 type Service struct {
 	repo Repository
 	tx   Transactor
-	bus  Publisher
 	// The signals database, for the compiled rules query (rules.go) - the same one the repository writes memberships to,
 	// since everything a rule reads is a projection the suite already holds
 	dbc *sql.DB
@@ -22,19 +24,9 @@ type Service struct {
 	orders WindowedOrders
 }
 
-func (s *Service) SetEventBus(bus Publisher) { s.bus = bus }
-
 // Transactor runs a membership swap in one transaction, on whatever pool the segments live on
 type Transactor interface {
 	InTransaction(ctx context.Context, fn func(*sql.Tx) error) error
-}
-
-// Event is the shape a bus takes, named here so this package needs no vocabulary from one
-type Event interface{ Type() string }
-
-// Publisher carries a segment refresh out to whatever is listening - optional, nil publishes nothing
-type Publisher interface {
-	Publish(ctx context.Context, e Event)
 }
 
 func NewService(repo Repository, txMgr Transactor, dbc *sql.DB, orders WindowedOrders) *Service {
@@ -56,8 +48,6 @@ func (s *Service) ReplaceMembership(ctx context.Context, segmentID uuid.UUID, cu
 	})
 }
 
-func (s *Service) Repo() Repository { return s.repo }
-
 func (s *Service) MemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error) {
 	return s.repo.MemberIDs(ctx, segmentID)
 }
@@ -71,9 +61,21 @@ type CreateInput struct {
 	IsActive    bool
 }
 
+var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+func validateNames(slug, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("%w: a name is required", ErrInvalid)
+	}
+	if !slugRe.MatchString(slug) {
+		return fmt.Errorf("%w: slug %q must be lowercase letters, digits and dashes, up to 64", ErrInvalid, slug)
+	}
+	return nil
+}
+
 func (s *Service) Create(ctx context.Context, in CreateInput) (Segment, error) {
-	if in.Slug == "" || in.Name == "" {
-		return Segment{}, fmt.Errorf("slug and name are required")
+	if err := validateNames(in.Slug, in.Name); err != nil {
+		return Segment{}, err
 	}
 	return s.repo.Create(ctx, Segment{
 		Slug:        in.Slug,
@@ -94,6 +96,16 @@ type UpdateInput struct {
 }
 
 func (s *Service) Update(ctx context.Context, in UpdateInput) (Segment, error) {
+	existing, err := s.repo.Get(ctx, in.ID)
+	if err != nil {
+		return Segment{}, err
+	}
+	if in.Slug != existing.Slug {
+		return Segment{}, ErrSlugImmutable
+	}
+	if err := validateNames(in.Slug, in.Name); err != nil {
+		return Segment{}, err
+	}
 	return s.repo.Update(ctx, Segment{
 		ID:          in.ID,
 		Slug:        in.Slug,
@@ -188,7 +200,7 @@ func (s *Service) SetRules(ctx context.Context, id uuid.UUID, raw json.RawMessag
 		}
 		if owner, owned := seg.OwnerChannel(); owned {
 			if err := rules.ValidateOwner(owner); err != nil {
-				return Segment{}, err
+				return Segment{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 			}
 		}
 	}
@@ -226,30 +238,39 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 		return 0, err
 	}
 	query, args := rules.CompileIn(resolved, owner)
-	rows, err := s.dbc.QueryContext(ctx, query, args...)
+	matched, err := s.swapInRuleMatches(ctx, id, query, args)
 	if err != nil {
-		return 0, fmt.Errorf("run segment rules: %w", err)
+		return 0, err
 	}
-	defer rows.Close()
-	var ids []uuid.UUID
-	for rows.Next() {
-		var cid uuid.UUID
-		if err := rows.Scan(&cid); err != nil {
-			return 0, err
+	if err := s.repo.RecordDailySnapshot(ctx, id); err != nil {
+		log.Printf("[segment] daily snapshot %s: %v", seg.Slug, err) // it only feeds the growth chart
+	}
+	return matched, nil
+}
+
+// The rule query's matches land in a transaction-local table and the membership is diffed against it in SQL, so a refresh
+// never carries a big segment's ids through Go and back - members who stay keep their row and their added_at
+// The compiled query is the one dynamic statement Signals runs, so the statements around it are here beside it rather than in sqlc
+func (s *Service) swapInRuleMatches(ctx context.Context, segmentID uuid.UUID, query string, args []any) (int, error) {
+	var matched int
+	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		if _, err := t.ExecContext(ctx, `CREATE TEMP TABLE segment_matches (customer_id uuid PRIMARY KEY) ON COMMIT DROP`); err != nil {
+			return fmt.Errorf("stage segment matches: %w", err)
 		}
-		ids = append(ids, cid)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	if err := s.ReplaceMembership(ctx, id, ids); err != nil {
-		return 0, err
-	}
-	_ = s.repo.RecordDailySnapshot(ctx, id)
-	if s.bus != nil {
-		s.bus.Publish(ctx, &Refreshed{SegmentID: id, Slug: seg.Slug, Matched: len(ids)})
-	}
-	return len(ids), nil
+		if _, err := t.ExecContext(ctx, `INSERT INTO segment_matches `+query+` ON CONFLICT DO NOTHING`, args...); err != nil {
+			return fmt.Errorf("run segment rules: %w", err)
+		}
+		if _, err := t.ExecContext(ctx, `DELETE FROM customer_segment_memberships m WHERE m.segment_id = $1
+			AND NOT EXISTS (SELECT 1 FROM segment_matches x WHERE x.customer_id = m.customer_id)`, segmentID); err != nil {
+			return fmt.Errorf("drop segment leavers: %w", err)
+		}
+		if _, err := t.ExecContext(ctx, `INSERT INTO customer_segment_memberships (customer_id, segment_id)
+			SELECT customer_id, $1 FROM segment_matches ON CONFLICT DO NOTHING`, segmentID); err != nil {
+			return fmt.Errorf("add segment joiners: %w", err)
+		}
+		return t.QueryRowContext(ctx, `SELECT count(*) FROM segment_matches`).Scan(&matched)
+	})
+	return matched, err
 }
 
 // Rules saved before money needed a channel are unambiguous on a one-channel install, so they're completed and stored rather than left failing

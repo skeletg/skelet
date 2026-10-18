@@ -15,22 +15,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-const addCustomerToSegment = `-- name: AddCustomerToSegment :exec
-INSERT INTO customer_segment_memberships (customer_id, segment_id)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING
-`
-
-type AddCustomerToSegmentParams struct {
-	CustomerID uuid.UUID `json:"customer_id"`
-	SegmentID  uuid.UUID `json:"segment_id"`
-}
-
-func (q *Queries) AddCustomerToSegment(ctx context.Context, arg AddCustomerToSegmentParams) error {
-	_, err := q.db.ExecContext(ctx, addCustomerToSegment, arg.CustomerID, arg.SegmentID)
-	return err
-}
-
 const bulkAddCustomersToSegment = `-- name: BulkAddCustomersToSegment :exec
 INSERT INTO customer_segment_memberships (customer_id, segment_id)
 SELECT customer_id, $1::UUID
@@ -256,30 +240,6 @@ SELECT id, slug, name, description, definition, is_active, created_at, updated_a
 
 func (q *Queries) GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error) {
 	row := q.db.QueryRowContext(ctx, getCustomerSegment, id)
-	var i CustomerSegment
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Name,
-		&i.Description,
-		&i.Definition,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LifecycleNewDays,
-		&i.LifecycleActiveDays,
-		&i.LifecycleAtRiskDays,
-		&i.Rules,
-	)
-	return i, err
-}
-
-const getCustomerSegmentBySlug = `-- name: GetCustomerSegmentBySlug :one
-SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments WHERE slug = $1
-`
-
-func (q *Queries) GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error) {
-	row := q.db.QueryRowContext(ctx, getCustomerSegmentBySlug, slug)
 	var i CustomerSegment
 	err := row.Scan(
 		&i.ID,
@@ -597,45 +557,6 @@ func (q *Queries) SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.U
 			return nil, err
 		}
 		items = append(items, customer_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const segmentSlugsForCustomer = `-- name: SegmentSlugsForCustomer :many
-SELECT s.slug, s.rules, s.definition
-FROM customer_segments s
-JOIN customer_segment_memberships m ON m.segment_id = s.id
-WHERE m.customer_id = $1 AND s.is_active = TRUE
-ORDER BY s.slug
-`
-
-type SegmentSlugsForCustomerRow struct {
-	Slug       string                `json:"slug"`
-	Rules      pqtype.NullRawMessage `json:"rules"`
-	Definition string                `json:"definition"`
-}
-
-// Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
-// rules + definition ride along so the caller can tell a computed segment from a hand-picked one
-func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentSlugsForCustomer, customerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SegmentSlugsForCustomerRow{}
-	for rows.Next() {
-		var i SegmentSlugsForCustomerRow
-		if err := rows.Scan(&i.Slug, &i.Rules, &i.Definition); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

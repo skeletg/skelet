@@ -8,19 +8,35 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
-var ErrSegmentNotFound = errors.New("segment: not found")
+var (
+	ErrSegmentNotFound = errors.New("segment not found")
+	ErrInvalid         = errors.New("invalid segment")
+	ErrSlugTaken       = errors.New("another segment already uses that slug")
+	// The slug is the name experiments and promotions target a segment by, so renaming it would orphan every one of them
+	ErrSlugImmutable = errors.New("a segment's slug can't change once it exists - create a new segment instead")
+)
+
+const uniqueViolation = "23505"
+
+// A unique violation on the slug, which is the one unique column an admin writes
+func slugConflict(err error) error {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == uniqueViolation {
+		return ErrSlugTaken
+	}
+	return err
+}
 
 type Repository interface {
 	Create(ctx context.Context, s Segment) (Segment, error)
 	Update(ctx context.Context, s Segment) (Segment, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	Get(ctx context.Context, id uuid.UUID) (Segment, error)
-	GetBySlug(ctx context.Context, slug string) (Segment, error)
 	List(ctx context.Context, limit, offset int32) ([]Segment, int32, error)
 	ListVisible(ctx context.Context, scope ChannelScope, limit, offset int32) ([]Segment, int32, error)
 	CountMembersIn(ctx context.Context, ids []uuid.UUID, scope ChannelScope) (map[uuid.UUID]int32, error)
@@ -34,7 +50,6 @@ type Repository interface {
 	// FillRules swaps the rules only while they still read old, false when an edit got there first
 	FillRules(ctx context.Context, id uuid.UUID, old, rules json.RawMessage) (bool, error)
 
-	AddMember(ctx context.Context, customerID, segmentID uuid.UUID) error
 	BulkAddMembers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error
 	RemoveMember(ctx context.Context, customerID, segmentID uuid.UUID) error
 	ClearMembership(ctx context.Context, segmentID uuid.UUID) error
@@ -44,7 +59,6 @@ type Repository interface {
 	MemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
 	ListMembers(ctx context.Context, segmentID uuid.UUID, limit, offset int32, channelIDs []uuid.UUID) ([]Member, error)
 
-	MembershipsForCustomer(ctx context.Context, customerID uuid.UUID) ([]Membership, error)
 	SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]MemberSegment, error)
 
 	// WithTx returns a Repository scoped to the given transaction
@@ -72,7 +86,7 @@ func (r *postgresRepository) Create(ctx context.Context, in Segment) (Segment, e
 		IsActive:    in.IsActive,
 	})
 	if err != nil {
-		return Segment{}, fmt.Errorf("create segment: %w", err)
+		return Segment{}, fmt.Errorf("create segment: %w", slugConflict(err))
 	}
 	return toSegment(row), nil
 }
@@ -86,8 +100,11 @@ func (r *postgresRepository) Update(ctx context.Context, in Segment) (Segment, e
 		Definition:  in.Definition,
 		IsActive:    in.IsActive,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Segment{}, ErrSegmentNotFound
+	}
 	if err != nil {
-		return Segment{}, fmt.Errorf("update segment: %w", err)
+		return Segment{}, fmt.Errorf("update segment: %w", slugConflict(err))
 	}
 	return toSegment(row), nil
 }
@@ -124,17 +141,6 @@ func (r *postgresRepository) Get(ctx context.Context, id uuid.UUID) (Segment, er
 	return toSegment(row), nil
 }
 
-func (r *postgresRepository) GetBySlug(ctx context.Context, slug string) (Segment, error) {
-	row, err := r.queries.GetCustomerSegmentBySlug(ctx, slug)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Segment{}, ErrSegmentNotFound
-		}
-		return Segment{}, fmt.Errorf("get segment by slug: %w", err)
-	}
-	return toSegment(row), nil
-}
-
 func (r *postgresRepository) List(ctx context.Context, limit, offset int32) ([]Segment, int32, error) {
 	rows, err := r.queries.ListCustomerSegments(ctx, db.ListCustomerSegmentsParams{
 		Limit:  limit,
@@ -152,13 +158,6 @@ func (r *postgresRepository) List(ctx context.Context, limit, offset int32) ([]S
 		out[i] = toSegment(row)
 	}
 	return out, count, nil
-}
-
-func (r *postgresRepository) AddMember(ctx context.Context, customerID, segmentID uuid.UUID) error {
-	return r.queries.AddCustomerToSegment(ctx, db.AddCustomerToSegmentParams{
-		CustomerID: customerID,
-		SegmentID:  segmentID,
-	})
 }
 
 func (r *postgresRepository) BulkAddMembers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error {
@@ -226,18 +225,6 @@ func (r *postgresRepository) CountMembersByIDs(ctx context.Context, ids []uuid.U
 	out := make(map[uuid.UUID]int32, len(rows))
 	for _, row := range rows {
 		out[row.SegmentID] = row.Count
-	}
-	return out, nil
-}
-
-func (r *postgresRepository) MembershipsForCustomer(ctx context.Context, customerID uuid.UUID) ([]Membership, error) {
-	rows, err := r.queries.SegmentSlugsForCustomer(ctx, customerID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Membership, len(rows))
-	for i, row := range rows {
-		out[i] = Membership{Slug: row.Slug, Rules: row.Rules.RawMessage, Definition: row.Definition}
 	}
 	return out, nil
 }
