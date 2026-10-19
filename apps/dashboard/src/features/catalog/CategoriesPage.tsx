@@ -1444,7 +1444,7 @@ function NewCategoryStores({
         </div>
       )}
       {currentChannelId && !selected.has(currentChannelId) ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           It won&rsquo;t appear in this store&rsquo;s category list - you&rsquo;ll find it under Global default.
         </p>
       ) : null}
