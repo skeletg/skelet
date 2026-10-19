@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import {
@@ -624,6 +624,7 @@ function HtmlBodyEditor({
   fields: CustomFieldDef[]
   htmlRef: React.MutableRefObject<HTMLTextAreaElement | null>
 }) {
+  const fid = useId()
   return (
     <div className="mx-auto grid max-w-3xl gap-4 p-6">
       <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/20 p-3">
@@ -642,7 +643,7 @@ function HtmlBodyEditor({
       {scripted && <ScriptingHelp fields={fields} />}
 
       <div className="grid gap-2">
-        <Label>HTML template</Label>
+        <Label htmlFor={`${fid}-html-template`}>HTML template</Label>
         <div className="flex flex-wrap gap-1">
           {fields.filter((f) => f.key).map((f) => (
             <button
@@ -665,7 +666,7 @@ function HtmlBodyEditor({
             </button>
           ))}
         </div>
-        <Textarea
+        <Textarea id={`${fid}-html-template`}
           ref={htmlRef}
           value={html}
           rows={12}
@@ -680,8 +681,8 @@ function HtmlBodyEditor({
       </div>
 
       <div className="grid gap-1.5">
-        <Label>Custom CSS (optional)</Label>
-        <Textarea
+        <Label htmlFor={`${fid}-custom-css-optional`}>Custom CSS (optional)</Label>
+        <Textarea id={`${fid}-custom-css-optional`}
           value={css}
           rows={4}
           className="font-mono text-xs"
@@ -694,8 +695,8 @@ function HtmlBodyEditor({
       </div>
 
       <div className="grid gap-1.5">
-        <Label>Plain-text template (optional)</Label>
-        <Textarea value={text} rows={3} className="font-mono text-xs" onChange={(e) => onText(e.target.value)} placeholder="{{label}} - {{customer.firstName}}" />
+        <Label htmlFor={`${fid}-plain-text-template-opti`}>Plain-text template (optional)</Label>
+        <Textarea id={`${fid}-plain-text-template-opti`} value={text} rows={3} className="font-mono text-xs" onChange={(e) => onText(e.target.value)} placeholder="{{label}} - {{customer.firstName}}" />
       </div>
     </div>
   )
