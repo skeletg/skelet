@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon } from 'lucide-react'
 
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -46,7 +46,7 @@ import {
   type SubscriptionsQuery,
 } from './Subscriptions.gql'
 
-type SubscriptionRow = SubscriptionsQuery['subscriptions'][number]
+type SubscriptionRow = SubscriptionsQuery['subscriptionsPaged']['items'][number]
 
 const STATUS_FILTERS = ['ALL', 'ACTIVE', 'PAUSED', 'CANCELED', 'EXPIRED'] as const
 
@@ -69,18 +69,19 @@ function intervalLabel(count: number, unit: string): string {
 
 export function SubscriptionsList() {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('ALL')
-  const variables = useMemo(
-    () => ({
+  // Server-paged - the page lives in the URL like the other lists
+  const urlState = useListUrlState()
+  const { pagination, setPagination } = urlState
+  const { data, loading, error } = useQuery(SubscriptionsDocument, {
+    variables: {
       status: statusFilter === 'ALL' ? undefined : (statusFilter as SubscriptionStatus),
-      limit: 100,
-      offset: 0,
-    }),
-    [statusFilter],
-  )
-  const { data, loading, error } = useQuery(SubscriptionsDocument, { variables })
-  const rows = useMemo(() => data?.subscriptions ?? [], [data])
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+    },
+  })
+  const rows = useMemo(() => data?.subscriptionsPaged.items ?? [], [data])
 
-  const refetchQueries = [{ query: SubscriptionsDocument, variables }]
+  const refetchQueries = [SubscriptionsDocument]
   const [cancelSub] = useMutation(CancelSubscriptionDocument, { refetchQueries })
   const [pauseSub] = useMutation(PauseSubscriptionDocument, { refetchQueries })
   const [resumeSub] = useMutation(ResumeSubscriptionDocument, { refetchQueries })
@@ -204,7 +205,13 @@ export function SubscriptionsList() {
         title="Subscriptions"
         meta="Recurring customer subscriptions. Billing advances automatically; invoices stay due until payment capture is wired."
         actions={
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v as typeof statusFilter)
+              setPagination({ ...pagination, pageIndex: 0 })
+            }}
+          >
             <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
@@ -233,7 +240,20 @@ export function SubscriptionsList() {
               <AlertDescription>{error.message}</AlertDescription>
             </Alert>
           ) : (
-            <DataTable columns={columns} data={rows} loading={loading} />
+            <DataTable
+              columns={columns}
+              data={rows}
+              loading={loading && rows.length === 0}
+              manual={{
+                rowCount: data?.subscriptionsPaged.totalCount ?? 0,
+                pagination,
+                onPaginationChange: setPagination,
+                globalFilter: urlState.globalFilter,
+                onGlobalFilterChange: urlState.setGlobalFilter,
+                columnFilters: urlState.columnFilters,
+                onColumnFiltersChange: urlState.setColumnFilters,
+              }}
+            />
           )}
         </DetailPageSection>
       </DetailPageBody>
