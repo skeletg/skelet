@@ -41,7 +41,9 @@ const graph = {
     totalNodes: 0, totalEdges: 0, crawled: 0, discovered: 0, unseen: 0, orphans: 0, noindexed: 0, broken: 0,
     redirected: 0, boilerplate: 0, contextual: 0, maxDepth: 0, returnedNodes: 0, dropped: 0, complete: true,
   },
-  crawl: { __typename: 'SiteCrawl', id: 'cr1', baseUrl: 'https://shop.example', status: 'DONE', pagesCrawled: 10, linksFound: 20, hitBudget: false },
+  // The map is built from the previous, finished crawl - sharing cr1 let the cache overwrite the running crawl with DONE
+  // whenever this answer landed second, and the test failed about half its runs
+  crawl: { __typename: 'SiteCrawl', id: 'cr0', baseUrl: 'https://shop.example', status: 'DONE', pagesCrawled: 10, linksFound: 20, hitBudget: false },
 }
 
 afterEach(() => vi.useRealTimers())
