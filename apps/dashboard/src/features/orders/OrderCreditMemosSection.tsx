@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -45,6 +45,7 @@ type LineDraft = { checked: boolean; quantity: string }
 // is the "refund without a return" case: goodwill, a pricing correction, a
 // shipping credit
 export function OrderCreditMemosSection({ order }: { order: OrderData }) {
+  const fid = useId()
   // Channel-scoped, matching the backend gate - a global has() check would offer the button on channels the admin can't refund on
   const canRefund = usePermissions().canAccessChannelScope('orders.refund', order.channelId)
   const [open, setOpen] = useState(false)
@@ -324,9 +325,9 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
             </div>
 
             <div className="space-y-1">
-              <Label>Refund to</Label>
+              <Label htmlFor={`${fid}-refund-to`}>Refund to</Label>
               <Select value={refundTarget} onValueChange={setRefundTarget}>
-                <SelectTrigger>
+                <SelectTrigger id={`${fid}-refund-to`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

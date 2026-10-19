@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -131,6 +131,7 @@ export function CampaignComposer() {
 }
 
 function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id: string) => void }) {
+  const fid = useId()
   // A new email needs emails.manage - editing a campaign or flow doesn't bring it
   const canCreateEmail = usePermissions().has('emails.manage')
   const editable = initial.status === 'draft'
@@ -468,9 +469,9 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
                       <Input id="abmin" type="number" min={1} value={abTestMinutes} onChange={(e) => setAbTestMinutes(Number(e.target.value))} className="w-32" />
                     </div>
                     <div className="grid gap-1.5">
-                      <Label>Winner by</Label>
+                      <Label htmlFor={`${fid}-winner-by`}>Winner by</Label>
                       <Select value={abWinnerMetric} onValueChange={setAbWinnerMetric}>
-                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`${fid}-winner-by`} className="w-32"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="open">Open rate</SelectItem>
                           <SelectItem value="click">Click rate</SelectItem>
