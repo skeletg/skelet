@@ -105,7 +105,8 @@ type Repository interface {
 	// The cancel-restore path knows ids, not codes - it locks before checking whether the restore already ran
 	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (GiftCard, error)
 	UpdateBalance(ctx context.Context, id uuid.UUID, balance int64, status string) (GiftCard, error)
-	List(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error)
+	// search matches the code or recipient email; the total counts every match, not just this page
+	List(ctx context.Context, channelIDs []uuid.UUID, search string, limit, offset int32) ([]GiftCard, int32, error)
 	// Cards issued by a given order - used for issuance idempotency under at-least-once OrderPlaced delivery
 	ListByIssuedOrder(ctx context.Context, orderID uuid.UUID) ([]GiftCard, error)
 	InsertTransaction(ctx context.Context, t Transaction) (Transaction, error)

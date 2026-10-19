@@ -24,7 +24,8 @@ type PromotionRule {
   isActive:            Boolean!
   conditions:          [PromotionCondition!]!
   actions:             [PromotionAction!]!
-  codes(limit: Int = 50, offset: Int = 0): PromotionCodeList!
+  # search matches the code; isActive narrows to enabled or disabled codes
+  codes(search: String, isActive: Boolean, limit: Int = 50, offset: Int = 0): PromotionCodeList!
   contents:            [PromotionRuleContent!]!
   createdByAdminId:    ID
   updatedByAdminId:    ID
