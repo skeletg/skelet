@@ -911,7 +911,7 @@ function OptionListEditor({
                 onChange(next)
               }}
             />
-            <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange(options.filter((_, j) => j !== i))}>
+            <Button aria-label="Remove option" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange(options.filter((_, j) => j !== i))}>
               <Trash2Icon className="size-4" />
             </Button>
           </div>
@@ -960,7 +960,7 @@ function MatrixEditor({ field, onChange }: { field: Field; onChange: (patch: Par
                   onChange({ rows: next })
                 }}
               />
-              <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange({ rows: rows.filter((_, j) => j !== i) })}>
+              <Button aria-label="Remove row" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange({ rows: rows.filter((_, j) => j !== i) })}>
                 <Trash2Icon className="size-4" />
               </Button>
             </div>
@@ -1006,7 +1006,7 @@ function RepeaterEditor({ field, onChange }: { field: Field; onChange: (patch: P
               <label className="flex items-center gap-1 text-xs">
                 <Switch checked={!!s.required} onCheckedChange={(v) => patchSub(i, { required: v })} /> Req
               </label>
-              <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange({ subFields: subs.filter((_, j) => j !== i) })}>
+              <Button aria-label="Remove sub-field" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => onChange({ subFields: subs.filter((_, j) => j !== i) })}>
                 <Trash2Icon className="size-4" />
               </Button>
             </div>
@@ -1128,7 +1128,7 @@ function ConditionEditor({
                   onChange={(e) => setRules(rules.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
                 />
               )}
-              <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => setRules(rules.filter((_, j) => j !== i))}>
+              <Button aria-label="Remove rule" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => setRules(rules.filter((_, j) => j !== i))}>
                 <Trash2Icon className="size-4" />
               </Button>
             </div>

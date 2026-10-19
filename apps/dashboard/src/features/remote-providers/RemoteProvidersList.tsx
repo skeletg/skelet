@@ -177,7 +177,7 @@ export function RemoteProvidersList() {
                   />
                   <RemoteProviderFormDialog
                     trigger={
-                      <Button variant="ghost" size="icon" className="size-8">
+                      <Button aria-label="Edit provider" variant="ghost" size="icon" className="size-8">
                         <PencilIcon className="size-4" />
                       </Button>
                     }
@@ -186,7 +186,7 @@ export function RemoteProvidersList() {
                   />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="size-8">
+                      <Button aria-label="Provider actions" variant="ghost" size="icon" className="size-8">
                         <MoreHorizontalIcon className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>

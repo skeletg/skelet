@@ -583,7 +583,7 @@ function FieldsEditor({
                 ))}
               </SelectContent>
             </Select>
-            <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0 text-destructive" onClick={() => onRemove(i)}>
+            <Button aria-label="Remove input" type="button" variant="ghost" size="icon" className="size-7 shrink-0 text-destructive" onClick={() => onRemove(i)}>
               <Trash2Icon className="size-4" />
             </Button>
           </div>

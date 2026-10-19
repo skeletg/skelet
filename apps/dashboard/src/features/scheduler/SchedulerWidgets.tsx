@@ -172,7 +172,7 @@ export function HeadersEditor({
             placeholder="value"
             className="text-sm"
           />
-          <Button
+          <Button aria-label="Remove header"
             type="button"
             variant="ghost"
             size="icon"

@@ -575,7 +575,7 @@ export function ChatDock() {
               disabled={sending || !effectiveChannel || !enabled}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
             />
-            <Button
+            <Button aria-label="Send message"
               type="submit"
               size="icon"
               disabled={sending || !input.trim() || !effectiveChannel || !enabled}
