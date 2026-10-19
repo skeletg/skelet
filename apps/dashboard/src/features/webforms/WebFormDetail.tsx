@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -205,6 +205,7 @@ function keysOf(fields: Field[]): Set<string> {
 }
 
 export function WebFormDetail() {
+  const fid = useId()
   const { id } = useParams<{ id: string }>()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
@@ -429,9 +430,9 @@ export function WebFormDetail() {
               <Input id="wf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contact form" />
             </div>
             <div className="grid gap-1.5">
-              <Label>Status</Label>
+              <Label htmlFor={`${fid}-status`}>Status</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as FormStatus)}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${fid}-status`} className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
@@ -752,16 +753,17 @@ function SectionSettings({
   priorFields: Field[]
   onChange: (patch: Partial<Field>) => void
 }) {
+  const fid = useId()
   return (
     <div className="grid gap-3 rounded-lg border bg-muted/30 p-3">
       <div className="grid gap-1.5 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label>Section title</Label>
-          <Input value={section.label} onChange={(e) => onChange({ label: e.target.value })} />
+          <Label htmlFor={`${fid}-section-title`}>Section title</Label>
+          <Input id={`${fid}-section-title`} value={section.label} onChange={(e) => onChange({ label: e.target.value })} />
         </div>
         <div className="grid gap-1.5">
-          <Label>Description</Label>
-          <Input value={section.helpText ?? ''} onChange={(e) => onChange({ helpText: e.target.value })} />
+          <Label htmlFor={`${fid}-description`}>Description</Label>
+          <Input id={`${fid}-description`} value={section.helpText ?? ''} onChange={(e) => onChange({ helpText: e.target.value })} />
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">
@@ -784,6 +786,7 @@ function FieldEditorBody({
   priorFields: Field[]
   onChange: (patch: Partial<Field>) => void
 }) {
+  const fid = useId()
   const layout = isLayout(field.type)
   const matrix = field.type === 'matrix'
   const repeater = field.type === 'repeater'
@@ -792,15 +795,15 @@ function FieldEditorBody({
   return (
     <div className="grid gap-4">
       <div className="grid gap-1.5">
-        <Label>Label</Label>
-        <Input value={field.label} onChange={(e) => onChange({ label: e.target.value })} />
+        <Label htmlFor={`${fid}-label`}>Label</Label>
+        <Input id={`${fid}-label`} value={field.label} onChange={(e) => onChange({ label: e.target.value })} />
       </div>
 
       {(scalar || composite) && (
         <div className="grid gap-1.5 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label>Field key</Label>
-            <Input
+            <Label htmlFor={`${fid}-field-key`}>Field key</Label>
+            <Input id={`${fid}-field-key`}
               value={field.key}
               onChange={(e) => onChange({ key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
               className="font-mono text-xs"
@@ -809,8 +812,8 @@ function FieldEditorBody({
           </div>
           {scalar && (
             <div className="grid gap-1.5">
-              <Label>Placeholder</Label>
-              <Input value={field.placeholder ?? ''} onChange={(e) => onChange({ placeholder: e.target.value })} />
+              <Label htmlFor={`${fid}-placeholder`}>Placeholder</Label>
+              <Input id={`${fid}-placeholder`} value={field.placeholder ?? ''} onChange={(e) => onChange({ placeholder: e.target.value })} />
             </div>
           )}
         </div>
@@ -818,8 +821,8 @@ function FieldEditorBody({
 
       {!layout && (
         <div className="grid gap-1.5">
-          <Label>Help text</Label>
-          <Input value={field.helpText ?? ''} onChange={(e) => onChange({ helpText: e.target.value })} />
+          <Label htmlFor={`${fid}-help-text`}>Help text</Label>
+          <Input id={`${fid}-help-text`} value={field.helpText ?? ''} onChange={(e) => onChange({ helpText: e.target.value })} />
         </div>
       )}
 
@@ -844,8 +847,8 @@ function FieldEditorBody({
       {field.type === 'file' && (
         <div className="grid gap-1.5 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label>Max file size (MB)</Label>
-            <Input
+            <Label htmlFor={`${fid}-max-file-size-mb`}>Max file size (MB)</Label>
+            <Input id={`${fid}-max-file-size-mb`}
               type="number"
               value={field.maxFileBytes ? Math.round(field.maxFileBytes / (1024 * 1024)) : ''}
               onChange={(e) =>
@@ -854,8 +857,8 @@ function FieldEditorBody({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Accepted types</Label>
-            <Input
+            <Label htmlFor={`${fid}-accepted-types`}>Accepted types</Label>
+            <Input id={`${fid}-accepted-types`}
               value={(field.acceptMimes ?? []).join(', ')}
               placeholder="image/*, application/pdf"
               onChange={(e) =>
@@ -984,6 +987,7 @@ function MatrixEditor({ field, onChange }: { field: Field; onChange: (patch: Par
 
 // RepeaterEditor configures the per-instance sub-fields + instance-count bounds
 function RepeaterEditor({ field, onChange }: { field: Field; onChange: (patch: Partial<Field>) => void }) {
+  const fid = useId()
   const subs = field.subFields ?? []
   function patchSub(i: number, patch: Partial<Field>) {
     onChange({ subFields: subs.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
@@ -1026,12 +1030,12 @@ function RepeaterEditor({ field, onChange }: { field: Field; onChange: (patch: P
       </Button>
       <div className="grid grid-cols-2 gap-2">
         <div className="grid gap-1">
-          <Label className="text-xs">Min entries</Label>
-          <Input type="number" value={field.minItems ?? ''} onChange={(e) => onChange({ minItems: e.target.value ? Number(e.target.value) : undefined })} />
+          <Label htmlFor={`${fid}-min-entries`} className="text-xs">Min entries</Label>
+          <Input id={`${fid}-min-entries`} type="number" value={field.minItems ?? ''} onChange={(e) => onChange({ minItems: e.target.value ? Number(e.target.value) : undefined })} />
         </div>
         <div className="grid gap-1">
-          <Label className="text-xs">Max entries</Label>
-          <Input type="number" value={field.maxItems ?? ''} onChange={(e) => onChange({ maxItems: e.target.value ? Number(e.target.value) : undefined })} />
+          <Label htmlFor={`${fid}-max-entries`} className="text-xs">Max entries</Label>
+          <Input id={`${fid}-max-entries`} type="number" value={field.maxItems ?? ''} onChange={(e) => onChange({ maxItems: e.target.value ? Number(e.target.value) : undefined })} />
         </div>
       </div>
     </div>
@@ -1151,6 +1155,7 @@ function SettingsEditor({
   fields: Field[]
   onChange: (s: FormSettings) => void
 }) {
+  const fid = useId()
   const patch = (p: Partial<FormSettings>) => onChange({ ...settings, ...p })
   const emailFields = fields.filter((f) => f.type === 'email')
   const conf = settings.confirmation ?? {}
@@ -1158,24 +1163,24 @@ function SettingsEditor({
     <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
       <SettingsCard icon={SendIcon} title="After submit" description="What the visitor sees when they submit.">
         <div className="grid gap-1.5">
-          <Label>Submit button label</Label>
-          <Input value={settings.submitLabel ?? ''} placeholder="Submit" onChange={(e) => patch({ submitLabel: e.target.value })} />
+          <Label htmlFor={`${fid}-submit-button-label`}>Submit button label</Label>
+          <Input id={`${fid}-submit-button-label`} value={settings.submitLabel ?? ''} placeholder="Submit" onChange={(e) => patch({ submitLabel: e.target.value })} />
         </div>
         <div className="grid gap-1.5">
-          <Label>Success message</Label>
-          <Textarea value={settings.successMessage ?? ''} placeholder="Thanks - we'll be in touch." onChange={(e) => patch({ successMessage: e.target.value })} />
+          <Label htmlFor={`${fid}-success-message`}>Success message</Label>
+          <Textarea id={`${fid}-success-message`} value={settings.successMessage ?? ''} placeholder="Thanks - we'll be in touch." onChange={(e) => patch({ successMessage: e.target.value })} />
         </div>
         <div className="grid gap-1.5">
-          <Label>Redirect URL (optional)</Label>
-          <Input value={settings.redirectUrl ?? ''} placeholder="/thank-you" onChange={(e) => patch({ redirectUrl: e.target.value })} />
+          <Label htmlFor={`${fid}-redirect-url-optional`}>Redirect URL (optional)</Label>
+          <Input id={`${fid}-redirect-url-optional`} value={settings.redirectUrl ?? ''} placeholder="/thank-you" onChange={(e) => patch({ redirectUrl: e.target.value })} />
           <p className="text-[11px] text-muted-foreground">If set, the visitor is redirected here instead of seeing the message.</p>
         </div>
       </SettingsCard>
 
       <SettingsCard icon={BellIcon} title="Notifications" description="Who gets told about a submission.">
         <div className="grid gap-1.5">
-          <Label>Notify these emails (comma-separated)</Label>
-          <Input
+          <Label htmlFor={`${fid}-notify-these-emails-comm`}>Notify these emails (comma-separated)</Label>
+          <Input id={`${fid}-notify-these-emails-comm`}
             value={(settings.notifyEmails ?? []).join(', ')}
             placeholder="team@example.com"
             onChange={(e) => patch({ notifyEmails: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
@@ -1189,9 +1194,9 @@ function SettingsEditor({
           {conf.enabled && (
             <div className="grid gap-2 pt-1">
               <div className="grid gap-1.5">
-                <Label className="text-xs">Send to which email field</Label>
+                <Label htmlFor={`${fid}-send-to-which-email-fiel`} className="text-xs">Send to which email field</Label>
                 <Select value={conf.toFieldKey ?? ''} onValueChange={(v) => patch({ confirmation: { ...conf, toFieldKey: v } })}>
-                  <SelectTrigger className="w-full h-8 text-xs"><SelectValue placeholder="Select an email field" /></SelectTrigger>
+                  <SelectTrigger id={`${fid}-send-to-which-email-fiel`} className="w-full h-8 text-xs"><SelectValue placeholder="Select an email field" /></SelectTrigger>
                   <SelectContent>
                     {emailFields.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">Add an email field first</div>}
                     {emailFields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>)}
@@ -1223,8 +1228,8 @@ function SettingsEditor({
           </label>
         </div>
         <div className="grid gap-1.5 sm:max-w-xs">
-          <Label>Record consent under (optional)</Label>
-          <Input value={settings.consentKind ?? ''} placeholder="marketing_email" onChange={(e) => patch({ consentKind: e.target.value })} />
+          <Label htmlFor={`${fid}-record-consent-under-opt`}>Record consent under (optional)</Label>
+          <Input id={`${fid}-record-consent-under-opt`} value={settings.consentKind ?? ''} placeholder="marketing_email" onChange={(e) => patch({ consentKind: e.target.value })} />
         </div>
       </SettingsCard>
     </div>
