@@ -56,6 +56,14 @@ describe('CustomerGroupDetailPage', () => {
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ name: 'Trade', description: null }), SLOW)
   })
 
+  it('opens the same review on ⌘S', async () => {
+    renderGroup()
+    await screen.findByRole('button', { name: 'Save changes' })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Trade' } })
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(within(await screen.findByRole('alertdialog', {}, SLOW)).getByRole('button', { name: /Apply 1 change/ })).toBeDefined()
+  })
+
   it('is read-only without a global customers.manage grant', async () => {
     renderGroup(meMock({ superuser: false, permissions: ['customers.view'] }))
     // Disabled through the page's fieldset, not the input's own attribute
