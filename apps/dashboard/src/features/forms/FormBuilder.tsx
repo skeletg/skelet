@@ -115,7 +115,7 @@ export function FormBuilder() {
   if (isNew && !isChannel) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader title="New form" backTo="/forms" />
+        <DetailPageHeader title="New signup form" backTo="/forms" />
         <DetailPageBody>
           <DetailPageSection>
             <Alert>

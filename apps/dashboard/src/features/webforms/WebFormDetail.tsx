@@ -335,7 +335,7 @@ export function WebFormDetail() {
   if (!isNew && loading && !loaded) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader backTo="/cms/forms" backLabel="Forms" title="Form" />
+        <DetailPageHeader backTo="/cms/forms" backLabel="Web forms" title="Form" />
         <div className="p-6 text-sm text-muted-foreground">Loading…</div>
       </DetailPageLayout>
     )
@@ -343,7 +343,7 @@ export function WebFormDetail() {
   if (error) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader backTo="/cms/forms" backLabel="Forms" title="Form" />
+        <DetailPageHeader backTo="/cms/forms" backLabel="Web forms" title="Form" />
         <div className="p-6">
           <Alert variant="destructive">
             <AlertTitle>Couldn't load form</AlertTitle>
@@ -356,7 +356,7 @@ export function WebFormDetail() {
   if (isNew && !isChannel) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader backTo="/cms/forms" backLabel="Forms" title="New form" />
+        <DetailPageHeader backTo="/cms/forms" backLabel="Web forms" title="New web form" />
         <div className="p-6">
           <Alert>
             <AlertTitle>Pick a channel</AlertTitle>
@@ -397,8 +397,8 @@ export function WebFormDetail() {
     >
       <DetailPageHeader
         backTo="/cms/forms"
-        backLabel="Forms"
-        title={isNew ? 'New form' : name || 'Form'}
+        backLabel="Web forms"
+        title={isNew ? 'New web form' : name || 'Form'}
         actions={
           <div className="flex items-center gap-2">
             {!isNew && (
