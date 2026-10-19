@@ -114,7 +114,10 @@ describe('CustomerGroupDetailPage delete', () => {
   }
 
   async function deleteIt() {
-    fireEvent.click(await screen.findByRole('button', { name: /Delete group/ }, SLOW))
+    // Disabled until the member count and the grants load - a click before then opens nothing
+    const del = await screen.findByRole<HTMLButtonElement>('button', { name: /Delete group/ }, SLOW)
+    await vi.waitFor(() => expect(del.disabled).toBe(false), SLOW)
+    fireEvent.click(del)
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete group/ }))
     expect(await screen.findByText('groups list', {}, SLOW)).toBeTruthy()
