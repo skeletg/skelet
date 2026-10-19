@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -96,6 +96,7 @@ export function PrismEditor() {
 }
 
 function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: string) => void }) {
+  const fid = useId()
   const draft = useDraft({
     key: initial.key,
     name: initial.name,
@@ -220,9 +221,9 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="grid gap-1.5">
-                <Label>Status</Label>
+                <Label htmlFor={`${fid}-status`}>Status</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${fid}-status`} className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="running">Running</SelectItem>
@@ -245,9 +246,9 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
               </p>
             </div>
             <div className="grid gap-1.5">
-              <Label>Target audience</Label>
+              <Label htmlFor={`${fid}-target-audience`}>Target audience</Label>
               <Select value={segmentSlug || '__all__'} onValueChange={(v) => setSegmentSlug(v === '__all__' ? '' : v)} disabled={locked}>
-                <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${fid}-target-audience`} className="w-72"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All visitors</SelectItem>
                   {segmentSlug && !segments.some((s) => s.slug === segmentSlug) && (
@@ -281,20 +282,20 @@ function EditorInner({ initial, onSaved }: { initial: Draft; onSaved: (id: strin
             {variations.map((v, i) => (
               <div key={i} className="flex flex-wrap items-end gap-2 rounded border p-3">
                 <div className="grid gap-1">
-                  <Label className="text-xs">Key</Label>
-                  <Input value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" disabled={locked} />
+                  <Label htmlFor={`${fid}-key-${i}`} className="text-xs">Key</Label>
+                  <Input id={`${fid}-key-${i}`} value={v.key} onChange={(ev) => setVar(i, { key: ev.target.value })} className="w-28" disabled={locked} />
                 </div>
                 <div className="grid gap-1">
-                  <Label className="text-xs">Name</Label>
-                  <Input value={v.name} onChange={(ev) => setVar(i, { name: ev.target.value })} className="w-32" />
+                  <Label htmlFor={`${fid}-name-${i}`} className="text-xs">Name</Label>
+                  <Input id={`${fid}-name-${i}`} value={v.name} onChange={(ev) => setVar(i, { name: ev.target.value })} className="w-32" />
                 </div>
                 <div className="grid gap-1">
-                  <Label className="text-xs">Weight</Label>
-                  <Input type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" disabled={locked} />
+                  <Label htmlFor={`${fid}-weight-${i}`} className="text-xs">Weight</Label>
+                  <Input id={`${fid}-weight-${i}`} type="number" min={0} value={v.weight} onChange={(ev) => setVar(i, { weight: Number(ev.target.value) })} className="w-20" disabled={locked} />
                 </div>
                 <div className="grid flex-1 gap-1">
-                  <Label className="text-xs">Value{i === 0 ? ' (control)' : ''}</Label>
-                  <Input value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" disabled={locked} />
+                  <Label htmlFor={`${fid}-value-${i}`} className="text-xs">Value{i === 0 ? ' (control)' : ''}</Label>
+                  <Input id={`${fid}-value-${i}`} value={v.value} onChange={(ev) => setVar(i, { value: ev.target.value })} placeholder="Buy now" disabled={locked} />
                 </div>
                 {variations.length > 2 && !locked && (
                   <Button variant="ghost" size="sm" onClick={() => removeVar(i)}>✕</Button>
