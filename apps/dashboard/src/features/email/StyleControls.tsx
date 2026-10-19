@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, XIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,11 +18,12 @@ function ColorField({
   value: string | undefined
   onChange: (v: string | undefined) => void
 }) {
+  const fid = useId()
   // The native picker needs a hex; fall back to black when unset/non-hex
   const swatch = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000'
   return (
     <div className="grid gap-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label htmlFor={fid} className="text-xs">{label}</Label>
       <div className="flex items-center gap-1.5">
         <input
           type="color"
@@ -30,7 +32,7 @@ function ColorField({
           className="size-8 shrink-0 cursor-pointer rounded border bg-background p-0.5"
           aria-label={`${label} color picker`}
         />
-        <Input
+        <Input id={fid}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value || undefined)}
           placeholder="inherit"
@@ -68,13 +70,14 @@ function NumberField({
   placeholder?: string
   suffix?: string
 }) {
+  const fid = useId()
   return (
     <div className="grid gap-1.5">
-      <Label className="text-xs">
+      <Label htmlFor={fid} className="text-xs">
         {label}
         {suffix ? <span className="text-muted-foreground"> ({suffix})</span> : null}
       </Label>
-      <Input
+      <Input id={fid}
         type="number"
         min={min}
         max={max}
@@ -208,6 +211,7 @@ export function GlobalStyleControls({
   value: EmailStyles
   onChange: (s: EmailStyles) => void
 }) {
+  const fid = useId()
   const patch = (p: Partial<EmailStyles>) => {
     const next = { ...value, ...p }
     for (const k of Object.keys(next) as Array<keyof EmailStyles>) {
@@ -220,8 +224,8 @@ export function GlobalStyleControls({
       <ColorField label="Background" value={value.background} onChange={(v) => patch({ background: v })} />
       <NumberField label="Content width" suffix="px" min={200} max={1000} placeholder="600" value={value.contentWidth} onChange={(v) => patch({ contentWidth: v })} />
       <div className="grid gap-1.5">
-        <Label className="text-xs">Font family</Label>
-        <Input
+        <Label htmlFor={`${fid}-font-family`} className="text-xs">Font family</Label>
+        <Input id={`${fid}-font-family`}
           value={value.fontFamily ?? ''}
           onChange={(e) => patch({ fontFamily: e.target.value || undefined })}
           placeholder="Helvetica, Arial, sans-serif"
