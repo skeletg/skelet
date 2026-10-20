@@ -80,6 +80,7 @@ import {
 } from './typeCategory'
 import { PluginSections } from '@/plugins/detail-sections'
 import { FORM_WIDGETS } from './widgets/registry'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 
 // ---- Types ----
 
@@ -658,6 +659,7 @@ function RuleSubrow({
   onMoveUp?: () => void
   onMoveDown?: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const current = types.find((t) => t.slug === row.type)
   const schema = current?.paramsSchema as JSONSchema | undefined
   const cat = row.type ? categorize(row.type, kind) : null
@@ -708,11 +710,14 @@ function RuleSubrow({
             variant="ghost"
             size="icon"
             className="size-7"
-            onClick={() => {
-              if (window.confirm(`Change ${kind} type? This will clear the current parameters.`)) {
-                onChange({ ...row, type: '', params: {} })
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: `Change ${kind} type?`,
+                description: 'This will clear the current parameters.',
+                confirmLabel: 'Change type',
+                onConfirm: () => onChange({ ...row, type: '', params: {} }),
+              })
+            }
             aria-label="Change type"
           >
             <PencilIcon className="size-4" />
@@ -744,6 +749,7 @@ function RuleSubrow({
           </p>
         )}
       </div>
+      {confirmDialog}
     </div>
   )
 }
@@ -842,6 +848,7 @@ function CodesSection({
   codes: CodeRow[]
   onChanged?: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [openGen, setOpenGen] = useState(false)
   const [deleteCode] = useMutation(DeletePromotionCodeDocument)
   const [updateCode] = useMutation(UpdatePromotionCodeDocument)
@@ -908,11 +915,17 @@ function CodesSection({
             variant="ghost"
             size="icon"
             className="size-8"
-            onClick={async () => {
-              if (!window.confirm(`Delete code ${row.original.code}?`)) return
-              await deleteCode({ variables: { id: row.original.id } })
-              onChanged?.()
-            }}
+            onClick={() =>
+              confirm({
+                title: `Delete code ${row.original.code}?`,
+                confirmLabel: 'Delete code',
+                destructive: true,
+                onConfirm: async () => {
+                  await deleteCode({ variables: { id: row.original.id } })
+                  onChanged?.()
+                },
+              })
+            }
             aria-label="Delete code"
           >
             <Trash2Icon className="size-4" />
@@ -920,7 +933,7 @@ function CodesSection({
         ),
       },
     ],
-    [deleteCode, updateCode, onChanged],
+    [deleteCode, updateCode, onChanged, confirm],
   )
 
   return (
@@ -959,6 +972,7 @@ function CodesSection({
         onOpenChange={setOpenGen}
         onGenerated={onChanged}
       />
+      {confirmDialog}
     </DetailPageSection>
   )
 }
