@@ -3,17 +3,6 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
@@ -23,6 +12,7 @@ import {
   DeleteCmsPageTypeDocument,
   type CmsPageTypeRowFragment,
 } from './Cms.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function typeName(t: CmsPageTypeRowFragment) {
   return t.content?.name ?? t.slug
@@ -40,20 +30,13 @@ export function CmsPageTypesPage() {
   const types = useMemo(() => data?.cmsPageTypes ?? [], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<CmsPageTypeRowFragment | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteType, { loading: deleting }] = useMutation(DeleteCmsPageTypeDocument, {
+  const [deleteType] = useMutation(DeleteCmsPageTypeDocument, {
     refetchQueries: [{ query: CmsPageTypesDocument }],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteType({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteType({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<CmsPageTypeRowFragment>[]>(
@@ -103,7 +86,6 @@ export function CmsPageTypesPage() {
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
               onClick={() => {
-                setDeleteError(null)
                 setConfirmingDelete(row.original)
               }}
             >
@@ -149,43 +131,16 @@ export function CmsPageTypesPage() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete ? typeName(confirmingDelete) : 'page type'}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the page type and its attribute assignments. It must have no pages.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete page type'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete ? typeName(confirmingDelete) : 'page type'}?</>}
+        description="This removes the page type and its attribute assignments. It must have no pages."
+        confirmLabel="Delete page type"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }
