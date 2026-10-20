@@ -94,6 +94,7 @@ import {
 import { readImageDimensions } from '@/lib/image'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { formatBytes } from '@/lib/format'
+import { putToSignedUrl } from '@/lib/upload'
 
 type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
@@ -789,12 +790,7 @@ function UploadMediaDialog({
       const payload = requested.data?.requestMediaAssetUpload
       if (!payload) throw new Error('Upload request did not return a payload.')
 
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Upload failed with HTTP ${uploaded.status}`)
+      await putToSignedUrl(payload.uploadUrl, file)
 
       const dimensions: { width?: number; height?: number } =
         file.type.startsWith('image/') ? await readImageDimensions(file) : {}

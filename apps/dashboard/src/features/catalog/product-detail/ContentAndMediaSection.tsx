@@ -26,6 +26,7 @@ import { Section, type ContentProduct } from './shared'
 import { readImageDimensions } from '@/lib/image'
 import { ProductMediaPanel } from './ProductMediaPanel'
 import { useProductContentWrite } from './productContent'
+import { putToSignedUrl } from '@/lib/upload'
 
 const DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'DESCRIPTION'
 const SHORT_DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'SHORT_DESCRIPTION'
@@ -82,12 +83,7 @@ export function ContentAndMediaSection({
     const payload = upload.data?.requestProductMediaUpload
     if (!payload) throw new Error('Upload request did not return a signed URL.')
 
-    const uploaded = await fetch(payload.uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file,
-    })
-    if (!uploaded.ok) throw new Error(`Image upload failed with HTTP ${uploaded.status}.`)
+    await putToSignedUrl(payload.uploadUrl, file, 'Image upload')
 
     const confirmed = await confirmUpload({
       variables: {

@@ -16,6 +16,7 @@ import { getAuthStoredState } from '@/shared/auth/auth'
 import { MediaAssetPicker } from './MediaAssetPicker'
 import { type AssetRef, assetPreviewUrl, isAssetRef } from './asset-ref'
 import { readImageDimensions } from '@/lib/image'
+import { putToSignedUrl } from '@/lib/upload'
 
 type ImageValue = string | AssetRef | undefined
 
@@ -96,12 +97,7 @@ export function MediaImageInput({
       })
       const payload = req.data?.requestMediaAssetUpload
       if (!payload) throw new Error('Upload request did not return a signed URL.')
-      const put = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!put.ok) throw new Error(`Upload failed (HTTP ${put.status}).`)
+      await putToSignedUrl(payload.uploadUrl, file)
       const conf = await confirmUpload({
         variables: { assetId: payload.asset.id, width: dims.width, height: dims.height },
       })
