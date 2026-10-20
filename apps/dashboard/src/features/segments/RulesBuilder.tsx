@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ export function RulesBuilder({
   value: Rules
   onChange: (next: Rules) => void
 }) {
+  const fid = useId()
   const { data: groupsData } = useQuery(CustomerGroupsDocument)
   const groups = groupsData?.customerGroups ?? []
   const { data: channelsData } = useQuery(ChannelsDocument)
@@ -53,12 +55,12 @@ export function RulesBuilder({
   return (
     <div className="grid gap-3">
       <div className="flex items-center gap-2">
-        <Label className="text-sm font-normal text-muted-foreground">Customer matches</Label>
+        <Label htmlFor={`${fid}-customer-matches`} className="text-sm font-normal text-muted-foreground">Customer matches</Label>
         <Select
           value={value.logic ?? 'and'}
           onValueChange={(v) => onChange({ ...value, logic: v as Rules['logic'] })}
         >
-          <SelectTrigger className="h-8 w-40">
+          <SelectTrigger id={`${fid}-customer-matches`} className="h-8 w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

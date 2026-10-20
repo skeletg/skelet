@@ -424,7 +424,7 @@ function renderStructuredBlockEditor(
                 {typedData[key].map((item, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <Input value={item} onChange={(event) => updateList(key, typedData[key].map((value, valueIndex) => valueIndex === index ? event.target.value : value))} placeholder={`${key === 'pros' ? 'Pro' : 'Con'} item`} />
-                    <Button type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateList(key, typedData[key].filter((_, valueIndex) => valueIndex !== index))}>
+                    <Button aria-label="Remove item" type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateList(key, typedData[key].filter((_, valueIndex) => valueIndex !== index))}>
                       <Trash2Icon className="size-4" />
                     </Button>
                   </div>
@@ -471,7 +471,7 @@ function renderStructuredBlockEditor(
               {typedData.columns.map((column, index) => (
                 <Input key={index} value={column} onChange={(event) => setColumns(typedData.columns.map((value, valueIndex) => valueIndex === index ? event.target.value : value))} placeholder={`Column ${index + 1}`} />
               ))}
-              <Button
+              <Button aria-label="Remove last column"
                 type="button"
                 size="icon"
                 variant="ghost"
@@ -498,7 +498,7 @@ function renderStructuredBlockEditor(
                     placeholder={`Cell ${rowIndex + 1}.${cellIndex + 1}`}
                   />
                 ))}
-                <Button type="button" size="icon" variant="ghost" className="size-9" onClick={() => updateData({ ...typedData, rows: typedData.rows.filter((_, existingRowIndex) => existingRowIndex !== rowIndex) })}>
+                <Button aria-label="Remove row" type="button" size="icon" variant="ghost" className="size-9" onClick={() => updateData({ ...typedData, rows: typedData.rows.filter((_, existingRowIndex) => existingRowIndex !== rowIndex) })}>
                   <Trash2Icon className="size-4" />
                 </Button>
               </div>
@@ -526,7 +526,7 @@ function renderStructuredBlockEditor(
               <div key={index} className="grid gap-2 rounded-md border bg-background p-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tab {index + 1}</span>
-                  <Button type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateData({ ...typedData, tabs: typedData.tabs.filter((_, tabIndex) => tabIndex !== index) })}>
+                  <Button aria-label={`Remove tab ${index + 1}`} type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateData({ ...typedData, tabs: typedData.tabs.filter((_, tabIndex) => tabIndex !== index) })}>
                     <Trash2Icon className="size-4" />
                   </Button>
                 </div>
@@ -557,7 +557,7 @@ function renderStructuredBlockEditor(
               <div key={index} className="grid gap-2 rounded-md border bg-background p-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Testimonial {index + 1}</span>
-                  <Button type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateData({ ...typedData, items: typedData.items.filter((_, itemIndex) => itemIndex !== index) })}>
+                  <Button aria-label={`Remove testimonial ${index + 1}`} type="button" size="icon" variant="ghost" className="size-8" onClick={() => updateData({ ...typedData, items: typedData.items.filter((_, itemIndex) => itemIndex !== index) })}>
                     <Trash2Icon className="size-4" />
                   </Button>
                 </div>
@@ -604,7 +604,7 @@ function renderStructuredBlockEditor(
               <div key={index} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <Input value={row.label} onChange={(event) => updateData({ ...typedData, rows: typedData.rows.map((existing, existingIndex) => existingIndex === index ? { ...existing, label: event.target.value } : existing) })} placeholder="Label" />
                 <Input value={row.value} onChange={(event) => updateData({ ...typedData, rows: typedData.rows.map((existing, existingIndex) => existingIndex === index ? { ...existing, value: event.target.value } : existing) })} placeholder="Value" />
-                <Button type="button" size="icon" variant="ghost" className="size-9" onClick={() => updateData({ ...typedData, rows: typedData.rows.filter((_, existingIndex) => existingIndex !== index) })}>
+                <Button aria-label="Remove row" type="button" size="icon" variant="ghost" className="size-9" onClick={() => updateData({ ...typedData, rows: typedData.rows.filter((_, existingIndex) => existingIndex !== index) })}>
                   <Trash2Icon className="size-4" />
                 </Button>
               </div>

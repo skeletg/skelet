@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { CheckCircle2Icon, CircleSlashIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -152,6 +153,7 @@ function ScopeRow({
   onChange: (patch: { channelId?: string | null; locale?: string | null }) => void
   onRemove?: () => void
 }) {
+  const fid = useId()
   const channel = channels.find((c) => c.id === scope.channelId)
   const localeOptions = channel
     ? Array.from(new Set([channel.defaultLocale, ...channel.locales.map((l) => l.code)]))
@@ -164,14 +166,14 @@ function ScopeRow({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] items-center gap-2">
       <div className="grid gap-0.5">
-        <Label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Label htmlFor={`${fid}-channel`} className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Channel
         </Label>
         <Select
           value={scope.channelId === null ? ANY : scope.channelId}
           onValueChange={(v) => onChange({ channelId: v === ANY ? null : v, locale: null })}
         >
-          <SelectTrigger className="h-8">
+          <SelectTrigger id={`${fid}-channel`} className="h-8">
             <SelectValue placeholder="Any channel" />
           </SelectTrigger>
           <SelectContent>
@@ -185,14 +187,14 @@ function ScopeRow({
         </Select>
       </div>
       <div className="grid gap-0.5">
-        <Label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Label htmlFor={`${fid}-locale`} className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Locale
         </Label>
         <Select
           value={scope.locale === null ? ANY : scope.locale}
           onValueChange={(v) => onChange({ locale: v === ANY ? null : v })}
         >
-          <SelectTrigger className="h-8">
+          <SelectTrigger id={`${fid}-locale`} className="h-8">
             <SelectValue placeholder="Any locale" />
           </SelectTrigger>
           <SelectContent>

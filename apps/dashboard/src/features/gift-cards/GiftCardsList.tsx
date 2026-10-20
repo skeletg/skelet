@@ -160,7 +160,7 @@ export function GiftCardsList() {
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button aria-label="Gift card actions" variant="ghost" size="icon" className="size-8">
                 <MoreHorizontalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>

@@ -164,7 +164,7 @@ export function SubscriptionsList() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-7">
+                <Button aria-label="Subscription actions" variant="ghost" size="icon" className="size-7">
                   <MoreHorizontalIcon className="size-4" />
                 </Button>
               </DropdownMenuTrigger>

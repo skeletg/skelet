@@ -184,7 +184,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
                     )
                   }
                 />
-                <Button
+                <Button aria-label="Remove line"
                   type="button"
                   variant="ghost"
                   size="icon"

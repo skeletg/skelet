@@ -4,13 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { allRouterRoutes, getFooterNodes, getNavNodes } from './registry'
 import { flattenLeaves } from './types'
 import { useVisibleNav } from './use-visible-nav'
+import { useVisiblePages } from './use-visible-pages'
 import './routes'
 
 vi.mock('@/shared/auth/usePermissions', () => ({
   usePermissions: () => ({ has: () => true, loading: false }),
 }))
+const flags = vi.hoisted(() => ({ on: false }))
 vi.mock('@/shared/features/useFeatures', () => ({
-  useFeatures: () => ({ enabled: () => false, loading: false }),
+  useFeatures: () => ({ enabled: () => flags.on, loading: false }),
 }))
 
 function visibleSidebarPaths(): string[] {
@@ -45,5 +47,21 @@ describe('the sidebar with the signals feature off', () => {
 
   it('still sees signals routes to guard', () => {
     expect(signalsRoutes).toEqual(expect.arrayContaining(['/emails', '/flows', '/segments']))
+  })
+})
+
+// ⌘K lists route-only pages too, so two with one title read as the same page there - Segments and New form did
+describe('page titles', () => {
+  it.each([false, true])('names every listable page uniquely, features on: %s', (on) => {
+    flags.on = on
+    let titles: string[] = []
+    function Harness() {
+      titles = useVisiblePages().pages.map((p) => p.title)
+      return null
+    }
+    render(<Harness />)
+    const seen = new Set<string>()
+    expect(titles.filter((t) => seen.size === seen.add(t).size)).toEqual([])
+    flags.on = false
   })
 })

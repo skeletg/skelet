@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
@@ -195,6 +195,7 @@ function AssignQuestionDialog({
   busy: boolean
   onSubmit: (questionId: string, sortOrder: number) => Promise<void>
 }) {
+  const fid = useId()
   const nextSort = existingSortOrders.length === 0 ? 0 : Math.max(...existingSortOrders) + 1
   const [questionId, setQuestionId] = useState('')
   const [sortOrder, setSortOrder] = useState(nextSort)
@@ -216,9 +217,9 @@ function AssignQuestionDialog({
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label>Question</Label>
+            <Label htmlFor={`${fid}-question`}>Question</Label>
             <Select value={questionId} onValueChange={setQuestionId}>
-              <SelectTrigger>
+              <SelectTrigger id={`${fid}-question`}>
                 <SelectValue placeholder="Pick a question…" />
               </SelectTrigger>
               <SelectContent>

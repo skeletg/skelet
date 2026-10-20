@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -115,7 +115,7 @@ export function FormBuilder() {
   if (isNew && !isChannel) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader title="New form" backTo="/forms" />
+        <DetailPageHeader title="New signup form" backTo="/forms" />
         <DetailPageBody>
           <DetailPageSection>
             <Alert>
@@ -171,6 +171,7 @@ function Builder({
   onCreated: (id: string) => void
   onDeleted: () => void
 }) {
+  const fid = useId()
   const isNew = initial.id == null
   // Saving and deleting a form need forms.manage - a viewer gets the form read-only, no Save or Delete
   const canEdit = usePermissions().has('forms.manage')
@@ -339,9 +340,9 @@ function Builder({
                 <p className="text-xs text-muted-foreground">Used to reference this form on the storefront.</p>
               </div>
               <div className="grid gap-1.5">
-                <Label>Status</Label>
+                <Label htmlFor={`${fid}-status`}>Status</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-status`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -351,9 +352,9 @@ function Builder({
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>Type</Label>
+                <Label htmlFor={`${fid}-type`}>Type</Label>
                 <Select value={type} onValueChange={setType}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-type`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -397,9 +398,9 @@ function Builder({
           <DetailPageSection title="After signup" description="What happens once someone confirms their subscription from the emailed link.">
             <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
-                <Label>Add to segment</Label>
+                <Label htmlFor={`${fid}-add-to-segment`}>Add to segment</Label>
                 <Select value={targetSegmentId ?? '__none'} onValueChange={(v) => setTargetSegmentId(v === '__none' ? null : v)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-add-to-segment`} className="w-full">
                     <SelectValue placeholder="No segment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -425,9 +426,9 @@ function Builder({
           <DetailPageSection title="Display rules" description="When and how often the form appears.">
             <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
-                <Label>Trigger</Label>
+                <Label htmlFor={`${fid}-trigger`}>Trigger</Label>
                 <Select value={trigger} onValueChange={setTrigger}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-trigger`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
