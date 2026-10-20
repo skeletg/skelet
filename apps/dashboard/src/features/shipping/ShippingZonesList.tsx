@@ -4,17 +4,6 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +24,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { ShippingZoneCreatePage, ShippingZoneEditPage } from './ShippingZoneForm'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { DeleteShippingZoneDocument, ShippingZonesDocument, type ShippingZonesQuery } from './Shipping.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ShippingZone = ShippingZonesQuery['shippingZones'][number]
 
@@ -75,24 +65,17 @@ export function ShippingZonesList() {
   )
 
   const [confirmingDelete, setConfirmingDelete] = useState<ShippingZone | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const refetchQueries = effectiveChannelId
     ? [{ query: ShippingZonesDocument, variables: { channelId: effectiveChannelId } }]
     : []
-  const [deleteZone, { loading: deleting }] = useMutation(DeleteShippingZoneDocument, { refetchQueries })
+  const [deleteZone] = useMutation(DeleteShippingZoneDocument, { refetchQueries })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteZone({ variables: { id: confirmingDelete.id } })
-      if (activeID === confirmingDelete.id) {
-        navigate('/shipping', { replace: true })
-      }
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    await deleteZone({ variables: { id: confirmingDelete.id } })
+    if (activeID === confirmingDelete.id) {
+      navigate('/shipping', { replace: true })
     }
   }
 
@@ -179,7 +162,6 @@ export function ShippingZonesList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -241,45 +223,16 @@ export function ShippingZonesList() {
         </DetailPageSection>
       </DetailPageBody>
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingDelete?.name || confirmingDelete?.code}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Methods inside this zone are cascade-deleted. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete zone'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name || confirmingDelete?.code}?</>}
+        description="Methods inside this zone are cascade-deleted. This action cannot be undone."
+        confirmLabel="Delete zone"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageLayout>
   )
 }
