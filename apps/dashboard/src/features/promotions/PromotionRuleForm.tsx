@@ -370,14 +370,12 @@ function RuleEditor({
                 onChange={(id) => form.setFieldValue('labelMediaId', id ?? '')}
                 label="Label image (PLP corner sticker)"
                 description="Overlaid on product listing cards. Use a transparent PNG / SVG so it sits cleanly over the product photo."
-                mimeGroup="IMAGE"
               />
               <MediaPicker
                 value={values.bannerMediaId || null}
                 onChange={(id) => form.setFieldValue('bannerMediaId', id ?? '')}
                 label="Banner image (PDP hero strip)"
                 description="Rendered between the gallery and the price on product detail pages. Landscape orientation works best."
-                mimeGroup="IMAGE"
                 previewClassName="size-24 w-40"
               />
             </div>
