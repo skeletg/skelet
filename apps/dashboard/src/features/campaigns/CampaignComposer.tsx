@@ -22,16 +22,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
@@ -44,6 +34,7 @@ import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/E
 import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Draft = {
   id: string | null
@@ -291,7 +282,6 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
   async function onConfirmCancel() {
     if (!campaignId) return
     await cancelCampaign({ variables: { id: campaignId } })
-    setConfirmCancel(false)
     onCreated(campaignId)
   }
 
@@ -618,20 +608,16 @@ function ReadOnlyCampaign({
         <PluginSections target="campaign" entity={initial} mode={initial.id ? 'edit' : 'create'} />
       </DetailPageBody>
 
-      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this send?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The campaign stops sending. Recipients already emailed have been sent; the rest will not be.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmCancel}>Cancel send</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmCancel}
+        onOpenChange={setConfirmCancel}
+        title="Cancel this send?"
+        description="The campaign stops sending. Recipients already emailed have been sent; the rest will not be."
+        confirmLabel="Cancel send"
+        cancelLabel="Keep"
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => void onConfirmCancel()}
+      />
     </DetailPageLayout>
   )
 }
