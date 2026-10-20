@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, globalScope, meMock, renderPage } from '@/test/page-harness'
 import { ReviewQuestionDetailPage } from './ReviewQuestionDetail'
-import { ReviewQuestionDocument, UpsertReviewQuestionContentDocument } from './Reviews.gql'
+import { DeleteReviewQuestionDocument, ReviewQuestionDocument, UpsertReviewQuestionContentDocument } from './Reviews.gql'
 
 // What these pin: every translation row goes through the one header Save, only changed rows are
 // written, and a stored translation can't be saved with its label emptied
@@ -23,12 +24,13 @@ const question = {
   updatedAt: '2026-01-01T00:00:00Z',
 }
 
-function renderQuestion(onUpsert = vi.fn()) {
+function renderQuestion(onUpsert = vi.fn(), extra: MockLink.MockedResponse[] = []) {
   renderPage({
     path: '/reviews/questions/q1',
     scope: { ...globalScope, availableLocales: ['en', 'de'] },
-    routes: { '/reviews/questions/:id': <ReviewQuestionDetailPage /> },
+    routes: { '/reviews/questions/:id': <ReviewQuestionDetailPage />, '/reviews/questions': <p>Questions list</p> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: ReviewQuestionDocument, variables: { id: 'q1' } }, result: { data: { reviewQuestion: question } }, maxUsageCount: 5 },
       {
@@ -65,5 +67,29 @@ describe('ReviewQuestionDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/Label is required/)).toBeDefined()
     expect(onUpsert).not.toHaveBeenCalled()
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('ReviewQuestionDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderQuestion(vi.fn(), [mock])
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete' }, SLOW))[0])
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteReviewQuestionDocument, variables: { id: 'q1' } }, result: { errors: [{ message: 'question is required' }] } })
+    expect(await within(dialog).findByText('question is required')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteReviewQuestionDocument, variables: { id: 'q1' } }, result: { data: { deleteReviewQuestion: true } } })
+    expect(await screen.findByText('Questions list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })
