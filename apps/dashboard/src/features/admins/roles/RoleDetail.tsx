@@ -3,16 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { PencilIcon, PlusIcon, TrashIcon, UserMinusIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,6 +37,7 @@ import { buildRoleSummary, headlineForRole } from './roleSummary'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePageTitle } from '@/lib/page-title'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // RoleDetail is one flowing read-only page: overview, then the GRANTED permissions as a
 // group-rail list (ungranted slugs live in the /admins/permissions catalog, repeating all 84
@@ -70,12 +61,11 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
   const groupsQuery = useQuery(PermissionGroupsDocument)
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [addingMembers, setAddingMembers] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
 
-  const [deleteRole, { loading: deleting }] = useMutation(DeleteRoleDocument, {
+  const [deleteRole] = useMutation(DeleteRoleDocument, {
     refetchQueries: [{ query: RolesDocument }],
   })
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
@@ -139,13 +129,8 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
   }, [adminsQuery.data, role])
 
   async function onConfirmDelete() {
-    setDeleteError(null)
-    try {
-      await deleteRole({ variables: { id } })
-      navigate('/admins/roles', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteRole({ variables: { id } })
+    navigate('/admins/roles', { replace: true })
   }
 
   async function onRemoveMember(adminId: string) {
@@ -208,10 +193,7 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
+                onClick={() => setConfirmingDelete(true)}
               >
                 <TrashIcon className="size-4" />
                 Delete
@@ -354,44 +336,15 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
         onOpenChange={setAddingMembers}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {role.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the role and its permission bindings. Admins currently in this role
-              will lose the permissions it granted. Roles with members cannot be deleted -
-              remove members first.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-            >
-              {deleting ? 'Deleting…' : 'Delete role'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {role.name}?</>}
+        description="This removes the role and its permission bindings. Admins currently in this role will lose the permissions it granted. Roles with members cannot be deleted - remove members first."
+        confirmLabel="Delete role"
+        busyLabel="Deleting…"
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

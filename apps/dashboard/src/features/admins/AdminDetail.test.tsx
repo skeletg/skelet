@@ -1,10 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { AuthContext } from '@/shared/auth/auth'
 import { RolesDocument } from '@/features/admins/roles/Roles.gql'
 import { AdminDetail } from './AdminDetail'
-import { AdminDocument, UpdateAdminDocument } from './Admins.gql'
+import { AdminDocument, DeleteAdminDocument, UpdateAdminDocument } from './Admins.gql'
 
 // What these pin: profile and role edits are reviewed together and written in one update, a blank
 // name keeps the confirm dialog open, and the role list is only sent when it changed
@@ -32,7 +33,7 @@ const admin = {
   permissions: [],
 }
 
-function renderAdmin(onUpdate = vi.fn()) {
+function renderAdmin(onUpdate = vi.fn(), extra: MockLink.MockedResponse[] = []) {
   renderPage({
     path: '/admins/a1',
     routes: {
@@ -41,8 +42,10 @@ function renderAdmin(onUpdate = vi.fn()) {
           <AdminDetail />
         </AuthContext.Provider>
       ),
+      '/admins': <p>Admins list</p>,
     },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: AdminDocument, variables: { id: 'a1' } }, result: { data: { admin } }, maxUsageCount: 3 },
       { request: { query: RolesDocument }, result: { data: { roles: [role('packer', 'Packer'), role('support', 'Support')] } }, maxUsageCount: 3 },
@@ -87,5 +90,29 @@ describe('AdminDetail', () => {
     fireEvent.change(first, { target: { value: 'Janet' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ firstName: 'Janet', lastName: 'Doe', isActive: true }), SLOW)
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's message,
+// a successful one goes back to the list
+describe('AdminDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderAdmin(vi.fn(), [mock])
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete admin' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete admin' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteAdminDocument, variables: { id: 'a1' } }, result: { errors: [{ message: 'last superuser' }] } })
+    expect(await within(dialog).findByText('last superuser')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteAdminDocument, variables: { id: 'a1' } }, result: { data: { deleteAdmin: true } } })
+    expect(await screen.findByText('Admins list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })

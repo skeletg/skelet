@@ -2,17 +2,6 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { MailCheckIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DetailPageSection } from '@/components/layout/detail-page'
@@ -37,6 +26,7 @@ import {
   toAdminDetailValues,
   toAdminUpdateInput,
 } from './schemas/admin'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 export function AdminDetail() {
   const { id = '' } = useParams()
@@ -74,11 +64,10 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
     refetchQueries: [{ query: AdminDocument, variables: { id: admin.id } }, { query: AdminsDocument }],
   })
-  const [deleteAdmin, deleteState] = useMutation(DeleteAdminDocument, {
+  const [deleteAdmin] = useMutation(DeleteAdminDocument, {
     refetchQueries: [{ query: AdminsDocument }],
   })
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const baseline = useMemo(() => toAdminDetailValues(admin), [admin])
   const record = useRecordForm({
@@ -97,13 +86,8 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
   const { form } = record
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteAdmin({ variables: { id: admin.id } })
-      navigate('/admins', { replace: true })
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Delete failed.')
-    }
+    await deleteAdmin({ variables: { id: admin.id } })
+    navigate('/admins', { replace: true })
   }
 
   return (
@@ -154,10 +138,7 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
                 <Button
                   variant="destructive"
                   disabled={isSelf}
-                  onClick={() => {
-                    setDeleteError(null)
-                    setConfirmingDelete(true)
-                  }}
+                  onClick={() => setConfirmingDelete(true)}
                 >
                   <Trash2Icon className="size-4" />
                   Delete admin
@@ -221,44 +202,15 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
         </DetailPageSection>
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {admin.firstName} {admin.lastName}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Access is revoked immediately and any refresh tokens become invalid. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteState.loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteState.loading}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-            >
-              {deleteState.loading ? 'Deleting…' : 'Delete admin'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {admin.firstName} {admin.lastName}?</>}
+        description="Access is revoked immediately and any refresh tokens become invalid. This cannot be undone."
+        confirmLabel="Delete admin"
+        busyLabel="Deleting…"
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }
