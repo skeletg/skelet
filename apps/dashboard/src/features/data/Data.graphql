@@ -87,12 +87,6 @@ query DataJobs($resources: [String!], $direction: String, $statuses: [String!], 
   }
 }
 
-query DataJob($id: ID!) {
-  dataJob(id: $id) {
-    ...DataJobFields
-  }
-}
-
 query DataJobErrors($id: ID!, $limit: Int, $offset: Int) {
   dataJobErrors(id: $id, limit: $limit, offset: $offset) {
     totalCount

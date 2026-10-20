@@ -36,10 +36,6 @@ query WebFormSubmissions($formId: ID!, $limit: Int, $offset: Int) {
   }
 }
 
-query WebFormSubmissionCount($formId: ID!) {
-  webFormSubmissionCount(formId: $formId)
-}
-
 mutation CreateWebForm($channelId: ID!, $input: SaveWebFormInput!) {
   createWebForm(channelId: $channelId, input: $input) {
     ...WebFormFields

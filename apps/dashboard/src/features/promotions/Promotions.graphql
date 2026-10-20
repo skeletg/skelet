@@ -62,15 +62,6 @@ fragment PromotionRuleFields on PromotionRule {
   updatedAt
 }
 
-query PromotionRules($limit: Int, $offset: Int) {
-  promotionRules(limit: $limit, offset: $offset) {
-    items {
-      ...PromotionRuleFields
-    }
-    totalCount
-  }
-}
-
 query PromotionRule($id: ID!) {
   promotionRule(id: $id) {
     ...PromotionRuleFields
