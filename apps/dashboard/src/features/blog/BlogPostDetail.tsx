@@ -15,16 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -76,6 +66,7 @@ import { BlogPreviewPanel } from './BlogPreviewPanel'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
 import { readImageDimensions } from '@/lib/image'
 import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function statusLabel(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase()
@@ -179,7 +170,7 @@ function PostForm({
   const [scheduleMut, { loading: scheduling }] = useMutation(ScheduleBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
   const [unpublishMut, { loading: unpublishing }] = useMutation(UnpublishBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
   const [archiveMut, { loading: archiving }] = useMutation(ArchiveBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
-  const [deletePost, { loading: deleting }] = useMutation(DeleteBlogPostDocument, { refetchQueries: refetchList })
+  const [deletePost] = useMutation(DeleteBlogPostDocument, { refetchQueries: refetchList })
   const [deleteContent] = useMutation(DeleteBlogPostContentDocument, { refetchQueries: refetchPost, awaitRefetchQueries: true })
   // Media-library upload pair for the body's Insert Image - images go into a per-post directory in the
   // shared library; the editor inserts a figure/caption node with the returned URL
@@ -277,7 +268,6 @@ function PostForm({
       navigate('/blog/posts', { replace: true })
     } catch (err) {
       setFeedback({ kind: 'err', msg: err instanceof Error ? err.message : 'Delete failed.' })
-      setConfirmDelete(false)
     }
   }
 
@@ -650,20 +640,15 @@ function PostForm({
 
           <PostStoresSection postId={post.id} listings={post.channelListings} canManage={canManage} refetchVariables={variables} />
 
-          <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete post?</AlertDialogTitle>
-                <AlertDialogDescription>This permanently removes the post and all its translations. URL redirects are preserved.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onDelete} disabled={deleting}>
-                  {deleting ? 'Deleting…' : 'Delete'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title="Delete post?"
+            description="This permanently removes the post and all its translations. URL redirects are preserved."
+            confirmLabel="Delete"
+            // Not awaited: the dialog closes at once and a failure shows in the page feedback, as it always has
+            onConfirm={() => void onDelete()}
+          />
 
           <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={`Locale ${locale}`} sections={registry.dirtySections} />
         </div>
