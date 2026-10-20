@@ -8,17 +8,6 @@ import {
   type Table,
 } from '@/components/data-table/tanstack'
 import { ArrowUpDownIcon, CheckIcon, FilterIcon, PlusIcon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,6 +38,7 @@ import {
   ProductTypesDocument,
 } from './Catalog.gql'
 import { richTextToPlainText, type RichTextValue } from './LexicalRichTextEditor'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ProductListing = {
   isPublished: boolean
@@ -322,9 +312,8 @@ export function ProductsList() {
   const { data: attributesData } = useQuery(AttributesDocument)
 
   const [confirmingDelete, setConfirmingDelete] = useState<ProductRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteProduct, { loading: deleting }] = useMutation(DeleteProductDocument, {
+  const [deleteProduct] = useMutation(DeleteProductDocument, {
     // By operation name, so the active instance refetches with the page and filters
     // the user is actually looking at rather than a bare first page
     refetchQueries: [ProductsPagedDocument],
@@ -332,13 +321,7 @@ export function ProductsList() {
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteProduct({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteProduct({ variables: { id: confirmingDelete.id } })
   }
 
   const productTypeOptions = useMemo(
@@ -527,7 +510,6 @@ export function ProductsList() {
             separatorBefore: true,
             hidden: () => !canManage,
             onSelect: (row) => {
-              setDeleteError(null)
               setConfirmingDelete(row)
             },
           },
@@ -630,46 +612,16 @@ export function ProductsList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingDelete ? resolveProductDisplayName(confirmingDelete) : 'product'}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes the product, its attribute assignments, and any variants the
-              backend may cascade.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete product'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete ? resolveProductDisplayName(confirmingDelete) : 'product'}?</>}
+        description="Permanently removes the product, its attribute assignments, and any variants the backend may cascade."
+        confirmLabel="Delete product"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }
