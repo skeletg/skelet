@@ -13,6 +13,25 @@ allowBuilds:
   fsevents: false
   unrs-resolver: false
 
+# Patched floors for what pnpm audit flags at high or critical, each held to its current major line
+# so nothing upgrades past what its parent supports - drop an entry once the parent ships the fix
+overrides:
+  "shell-quote@>=1.8.4 <1.11.0": "^1.11.0"
+  "fast-uri@>=3.0.0 <3.1.7": "^3.1.8"
+  "brace-expansion@>=4.0.0 <5.0.11": "^5.0.11"
+  "@fastify/busboy@<3.2.1": "^3.2.1"
+  "source-map-js@<1.2.2": "^1.2.2"
+  "@graphql-tools/executor-legacy-ws@<1.1.35": "^1.1.35"
+  "@graphql-tools/utils@<12.0.1": "^12.0.1"
+  "brace-expansion@<1.1.20": "^1.1.20"
+  "sharp@<0.35.5": "^0.35.5"
+
+# Reviewed and accepted: braces has no patched release, and only dev tooling reaches it (glob matching
+# in eslint, the codegen loaders and the CLIs) over patterns written in this repo, never user input
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
+
 # Bring node_modules back in line with the lockfile before any `pnpm run` - a host tree kept beside a
 # Docker app's volume (for the IDE and the gates bin/channel and bin/dash run there) never sees the
 # container's reinstalls, and would otherwise typecheck and lint against yesterday's dependencies

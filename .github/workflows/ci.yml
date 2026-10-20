@@ -205,11 +205,19 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: apps/dashboard/pnpm-lock.yaml
-      # bin/setup writes these from the templates on a dev machine; CI has no interactive setup
+      # bin/setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
+      # leave the customer session pair and the config key blank, and the server refuses to boot without
+      # them, so they're generated here the way bin/setup does it - the public half derived from the seed
       - name: Environment files
         run: |
           cp env/go.env.example env/go.env
           cp env/db.env.example env/db.env
+          seed="$(openssl rand -base64 32 | tr -d '\n')"
+          pub="$({ printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; printf '%s' "$seed" | base64 -d; } \
+            | openssl pkey -inform DER -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')"
+          sed -i -e "s|^CUSTOMER_JWT_PRIVATE_KEY=.*|CUSTOMER_JWT_PRIVATE_KEY=$seed|" \
+            -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" \
+            -e "s|^CONFIG_ENCRYPTION_KEY=.*|CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n')|" env/go.env
       # --wait blocks on the app's healthcheck, so the migrate step it depends on has finished too
       - name: Start the stack
         run: docker compose --profile dashboard up -d --wait app dashboard
@@ -291,7 +299,7 @@ jobs:
         run: |
           for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
             echo "==> $mod"
-            (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...) || exit 1
+            (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...) || exit 1
           done
       # The pre-commit hook runs the whole of bin/codegen, but two of its steps need a live backend, so CI covers the part that needs
       # nothing but Go - it also fails when a plugin directory exists that plugins.json has not decided on

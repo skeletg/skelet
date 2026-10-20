@@ -307,6 +307,8 @@ services:
     environment:
       # nginx proxies the SPA's /api/* here
       BACKEND_UPSTREAM: http://app:8080
+      # Where browsers upload files - joins the CSP's connect-src, see docs/env.md
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     depends_on:
       app: { condition: service_healthy }
     healthcheck:
@@ -327,6 +329,8 @@ services:
     build:
       context: ./apps/channels/vetrina-demo
       dockerfile: Dockerfile.prod
+      args:
+        UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
     env_file: [env/prod-vetrina-demo.env]
     ports: ["127.0.0.1:3000:3000"]
@@ -357,6 +361,8 @@ services:
     profiles: ["edge"]
     image: caddy:2-alpine
     env_file: [env/prod-caddy.env] # domains + ACME email only, no secrets at the edge
+    environment:
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     ports:
       - "80:80"
       - "443:443"

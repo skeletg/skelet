@@ -34,7 +34,8 @@ mistake to avoid:
 | | Where | What it means |
 |---|---|---|
 | **Release tag** | `vX.Y.Z` git tag | the whole product |
-| **SDK** | `sdk.Version` | the plugin API surface |
+| **Core module** | `apps/backend/core/vX.Y.Z` git tag | the same number as the release - what a plugin fetches core's GraphQL model packages by |
+| **SDK** | `sdk.Version`, tagged `apps/backend/sdk/vX.Y.Z` | the plugin API surface |
 | **Provider contract** | `contract.Version` | the remote-provider wire format |
 | **Plugins** | each plugin's `Manifest.Version` | that plugin |
 
@@ -80,6 +81,20 @@ the PATCH. There is no compatibility promise until `1.0.0`.
    Annotated, not lightweight: `git describe` and the SDK gate both want a real
    tag object.
 
+   The Go modules take tags of their own, prefixed with their directory, because
+   that's how Go finds a module that isn't at the repo root. Core's always matches
+   the release; the SDK's only when `sdk.Version` moved, and then to that number:
+
+   ```
+   git tag -a apps/backend/core/v0.1.0 -m "core v0.1.0"
+   git tag -a apps/backend/sdk/v0.1.0 -m "sdk v0.1.0"    # only if sdk.Version changed
+   git push origin --tags
+   ```
+
+   Core's `go.mod` requires the SDK at `sdk.Version` - the local `replace` hides
+   that inside this repo, but a plugin fetching core resolves exactly that tag, so
+   it has to exist.
+
 8. **Publish images**, if you are shipping them:
 
    ```
@@ -92,13 +107,14 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 ## What the first tag switches on
 
 The SDK's compatibility gate (`sdk.TestAPICompatibility`) resolves its baseline
-with `git describe --tags --match "v*"` and **skips while no such tag exists**.
-It has been inert this whole time.
+with `git describe --tags --match "apps/backend/sdk/v*"` and **skips while no such
+tag exists**. The product tags don't count, so it stays inert until the SDK is
+tagged for the first time.
 
-Tagging `v0.1.0` activates it. From that point every change to the SDK's exported
+The first `apps/backend/sdk/v0.1.0` activates it. From that point every change to the SDK's exported
 surface is diffed against the last release with `apidiff`, and a change that
 breaks compatibility fails CI unless `sdk.Version` carries the bump the rules
-demand. That is the point - but it means the first release is also the moment the
+demand. That is the point - but it means the first SDK tag is also the moment the
 SDK stops being freely reshapeable, so get the surface where you want it *before*
 tagging rather than after.
 
