@@ -701,7 +701,9 @@ func (r *queryResolver) SearchProducts(ctx context.Context, query string, limit 
 	hits, total, err := r.ProductSearch.SearchProducts(ctx, query, *storeID, r.activeLocale(ctx), lim, off, merchBoosts)
 	if err != nil {
 		// Every tier failed - an empty result is indistinguishable from "no matches", so say so loudly
-		log.Printf("[search:error] product search failed on every tier for store %s: %v", *storeID, err)
+		if !errors.Is(err, search.ErrFallbackSaturated) { // the tier reports its own shedding in batches
+			log.Printf("[search:error] product search failed on every tier for store %s: %v", *storeID, err)
+		}
 		graphqlx.MarkUncacheable(ctx)
 		return empty, nil
 	}
@@ -828,7 +830,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	// The tier handles primary-then-backup and reports degradation itself, so an error here means BOTH engines failed
 	res, err := r.ProductSearch.BrowseProducts(ctx, *storeID, locale, queryStr, indexerFilter, sortSlug, lim, off, browseBoosts)
 	if err != nil {
-		log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
+		if !errors.Is(err, search.ErrFallbackSaturated) {
+			log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
+		}
+		graphqlx.MarkUncacheable(ctx)
 		return empty, nil
 	}
 	// Same seam rule as the filter input above - a facet on a private attribute never renders, whichever tier built it

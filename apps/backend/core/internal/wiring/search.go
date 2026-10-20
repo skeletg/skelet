@@ -40,6 +40,7 @@ type searchDeps struct {
 	fx.In
 
 	Root           RootContext
+	Cfg            Config
 	Bus            *events.Bus
 	Queries        *db.Queries
 	Blog           *blog.Service
@@ -141,6 +142,7 @@ func newSearchTier(d searchDeps) SearchTier {
 		func(ctx context.Context, op string, cause error) {
 			graphqlx.MarkUncacheable(ctx)
 		},
+		search.WithFallbackLimit(max(1, d.Cfg.MaxConns/4)),
 	)
 	return SearchTier{
 		Client:   searchClient,
