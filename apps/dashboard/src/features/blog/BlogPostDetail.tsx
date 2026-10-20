@@ -76,6 +76,7 @@ import { changed } from '@/shared/saving/diff'
 import { BlogPreviewPanel } from './BlogPreviewPanel'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
 import { readImageDimensions } from '@/lib/image'
+import { putToSignedUrl } from '@/lib/upload'
 
 function statusLabel(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase()
@@ -304,8 +305,7 @@ function PostForm({
     })
     const payload = requested.data?.requestMediaAssetUpload
     if (!payload) throw new Error('Upload request did not return a signed URL.')
-    const uploaded = await fetch(payload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    if (!uploaded.ok) throw new Error(`Image upload failed with HTTP ${uploaded.status}.`)
+    await putToSignedUrl(payload.uploadUrl, file, 'Image upload')
     const confirmed = await confirmMediaUpload({ variables: { assetId: payload.asset.id, width: dims.width, height: dims.height } })
     const asset = confirmed.data?.confirmMediaAssetUpload
     if (!asset) throw new Error('Image upload confirmation failed.')

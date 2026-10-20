@@ -39,6 +39,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { formatDateTime } from '@/lib/format'
+import { slugify } from '@/lib/slug'
 import { LoadError } from '@/shared/errors/LoadError'
 import { NotFound } from '@/shared/errors/NotFound'
 
@@ -48,15 +49,6 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
 }
 
 const SUBMISSIONS_LIMIT = 25
-
-// slugify - lowercase, hyphenate, strip non-url-safe chars
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 type Loaded = {
   id: string | null

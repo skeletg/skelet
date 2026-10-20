@@ -815,12 +815,6 @@ export function readString(props: Record<string, unknown>, key: string): string 
   return typeof v === 'string' ? v : ''
 }
 
-export function readNumber(props: Record<string, unknown>, key: string): number | undefined {
-  const v = props[key]
-  if (typeof v === 'number' && Number.isFinite(v)) return v
-  return undefined
-}
-
 // --- document (de)serialization -------------------------------------------
 
 function isCmsBlock(value: unknown): value is CmsBlock {

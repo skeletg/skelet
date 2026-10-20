@@ -62,6 +62,7 @@ import {
 } from './facet-overrides-draft'
 import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
 import { readImageDimensions } from '@/lib/image'
+import { putToSignedUrl } from '@/lib/upload'
 
 type CollectionRecord = NonNullable<CollectionQuery['collection']>
 
@@ -465,12 +466,7 @@ function CollectionCoverBlock({
       ])
       const payload = upload.data?.requestCollectionCoverUpload
       if (!payload) throw new Error('Upload request did not return a signed URL.')
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Cover upload failed with HTTP ${uploaded.status}.`)
+      await putToSignedUrl(payload.uploadUrl, file, 'Cover upload')
       await confirmUpload({ variables: { collectionId: collection.id, width, height } })
       setPendingFile(null)
     },

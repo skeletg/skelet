@@ -4,17 +4,6 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { usePermissions } from '@/shared/auth/usePermissions'
@@ -23,6 +12,7 @@ import {
   DeleteMenuDocument,
   MenusListDocument,
 } from './Menus.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type MenuRow = {
   id: string
@@ -47,20 +37,13 @@ export function MenusList() {
   )
 
   const [confirmingDelete, setConfirmingDelete] = useState<MenuRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteMenu, { loading: deleting }] = useMutation(DeleteMenuDocument, {
+  const [deleteMenu] = useMutation(DeleteMenuDocument, {
     refetchQueries: [MenusListDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteMenu({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteMenu({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<MenuRow>[]>(
@@ -106,7 +89,6 @@ export function MenusList() {
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
               onClick={() => {
-                setDeleteError(null)
                 setConfirmingDelete(row.original)
               }}
             >
@@ -142,44 +124,16 @@ export function MenusList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the menu and every item inside it. Channels referencing
-              the slug fall back to their empty state.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete menu'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description="This removes the menu and every item inside it. Channels referencing the slug fall back to their empty state."
+        confirmLabel="Delete menu"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

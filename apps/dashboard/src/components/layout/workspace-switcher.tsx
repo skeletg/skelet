@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useWorkspaceTabs } from '@/lib/workspace-tabs-context'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 
 // Workspaces are whole saved arrangements - their own tabs, their own split layout. The switcher is
 // the one place they are made, named, copied and thrown away, and it also holds the layout actions
@@ -76,6 +77,7 @@ function NamePrompt({ prompt, onClose, onSubmit }: { prompt: Prompt | null; onCl
 }
 
 export function WorkspaceSwitcher() {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const {
     workspaces,
     workspaceId,
@@ -148,9 +150,14 @@ export function WorkspaceSwitcher() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onSelect={() => {
-                  if (window.confirm(`Delete "${workspaceName}" and its tabs?`)) deleteWorkspace(workspaceId)
-                }}
+                onSelect={() =>
+                  confirm({
+                    title: `Delete "${workspaceName}" and its tabs?`,
+                    confirmLabel: 'Delete workspace',
+                    destructive: true,
+                    onConfirm: () => deleteWorkspace(workspaceId),
+                  })
+                }
               >
                 <TrashIcon className="size-4" />
                 Delete workspace
@@ -161,6 +168,7 @@ export function WorkspaceSwitcher() {
       </DropdownMenu>
       {/* keyed so the input starts empty on every open, rather than holding the last name typed */}
       <NamePrompt key={prompt?.mode ?? 'closed'} prompt={prompt} onClose={() => setPrompt(null)} onSubmit={submit} />
+      {confirmDialog}
     </>
   )
 }

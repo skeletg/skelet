@@ -134,6 +134,19 @@ export function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
+// "1.5 MB" - binary units up to GB, and '0 B' for zero or an unusable value
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = bytes
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
+}
+
 // "5m ago" - '' for an unparseable value
 export function timeAgo(iso: string): string {
   const t = new Date(iso).getTime()

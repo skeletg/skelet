@@ -3,17 +3,6 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +23,7 @@ import {
   type ReviewQuestionFieldsFragment,
 } from './Reviews.gql'
 import { ReviewQuestionFormDialog } from './ReviewQuestionFormDialog'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const TYPE_LABELS: Record<string, string> = {
   RATING_1_5: 'Rating 1–5',
@@ -70,20 +60,13 @@ export function ReviewQuestionsTable() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState<ReviewQuestionFieldsFragment | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
+  const [deleteQuestion] = useMutation(DeleteReviewQuestionDocument, {
     refetchQueries: [ReviewQuestionsDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteQuestion({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteQuestion({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<ReviewQuestionFieldsFragment>[]>(
@@ -151,7 +134,6 @@ export function ReviewQuestionsTable() {
                 <DropdownMenuItem
                   variant="destructive"
                   onSelect={() => {
-                    setDeleteError(null)
                     setConfirmingDelete(row.original)
                   }}
                 >
@@ -236,46 +218,16 @@ export function ReviewQuestionsTable() {
 
       <ReviewQuestionFormDialog open={createOpen} onOpenChange={setCreateOpen} attribute={null} />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete &quot;{confirmingDelete?.content?.label || confirmingDelete?.slug}&quot;?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              The question is unassigned from every product type and its answers on past reviews are
-              deleted. This is permanent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Couldn't delete</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete question'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete &quot;{confirmingDelete?.content?.label || confirmingDelete?.slug}&quot;?</>}
+        description="The question is unassigned from every product type and its answers on past reviews are deleted. This is permanent."
+        confirmLabel="Delete question"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageBody>
   )
 }

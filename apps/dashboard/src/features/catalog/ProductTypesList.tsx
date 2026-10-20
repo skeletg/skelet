@@ -3,17 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon, TruckIcon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +20,7 @@ import {
 } from './Catalog.gql'
 import { ProductTypeFormDialog, type ExistingProductType } from './ProductTypeFormDialog'
 import { ProductTypeDetail } from './ProductTypeDetail'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ProductTypeRow = ExistingProductType & {
   attributes: Array<{ attribute: { id: string; name: string } }>
@@ -55,23 +45,16 @@ export function ProductTypesList() {
   const rows = useMemo(() => ((data?.productTypes ?? []) as ProductTypeRow[]), [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<ProductTypeRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteProductType, { loading: deleting }] = useMutation(DeleteProductTypeDocument, {
+  const [deleteProductType] = useMutation(DeleteProductTypeDocument, {
     refetchQueries: [ProductTypesDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteProductType({ variables: { id: confirmingDelete.id } })
-      if (activeID === confirmingDelete.id) {
-        navigate('/catalog/product-types', { replace: true })
-      }
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    await deleteProductType({ variables: { id: confirmingDelete.id } })
+    if (activeID === confirmingDelete.id) {
+      navigate('/catalog/product-types', { replace: true })
     }
   }
 
@@ -153,7 +136,6 @@ export function ProductTypesList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -197,44 +179,16 @@ export function ProductTypesList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the product type and its attribute assignments.
-              Product types with products attached cannot be deleted - the backend will reject those.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete product type'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description="This permanently removes the product type and its attribute assignments. Product types with products attached cannot be deleted - the backend will reject those."
+        confirmLabel="Delete product type"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

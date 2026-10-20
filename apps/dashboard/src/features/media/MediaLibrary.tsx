@@ -92,6 +92,9 @@ import {
   type UpdateMediaAssetMutationVariables,
 } from './MediaLibrary.gql'
 import { readImageDimensions } from '@/lib/image'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { formatBytes } from '@/lib/format'
+import { putToSignedUrl } from '@/lib/upload'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 import { onTreeItemKeyDown } from '@/lib/tree-keys'
@@ -104,6 +107,7 @@ const UPLOAD_ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/svg+xml,application/pdf'
 
 export function MediaLibrary() {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [searchParams, setSearchParams] = useSearchParams()
   const path = searchParams.get('path') ?? ''
   const query = searchParams.get('q') ?? ''
@@ -242,11 +246,17 @@ export function MediaLibrary() {
     }
   }
 
+  function askDeleteCurrentDirectory(recursive: boolean) {
+    confirm({
+      title: recursive ? 'Delete this directory and all files inside it?' : 'Delete this empty directory?',
+      confirmLabel: 'Delete directory',
+      destructive: true,
+      onConfirm: () => onDeleteCurrentDirectory(recursive),
+    })
+  }
+
   async function onDeleteCurrentDirectory(recursive: boolean) {
     if (!path) return
-    if (!window.confirm(recursive ? 'Delete this directory and all files inside it?' : 'Delete this empty directory?')) {
-      return
-    }
     setErrorMessage(null)
     try {
       await deleteDirectory({ variables: { path, recursive } })
@@ -353,11 +363,11 @@ export function MediaLibrary() {
                         Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={() => onDeleteCurrentDirectory(false)}>
+                      <DropdownMenuItem variant="destructive" onSelect={() => askDeleteCurrentDirectory(false)}>
                         <Trash2Icon className="size-4" />
                         Delete empty
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => onDeleteCurrentDirectory(true)}>
+                      <DropdownMenuItem variant="destructive" onSelect={() => askDeleteCurrentDirectory(true)}>
                         <Trash2Icon className="size-4" />
                         Delete recursive
                       </DropdownMenuItem>
@@ -461,6 +471,7 @@ export function MediaLibrary() {
         }}
         onError={setErrorMessage}
       />
+      {confirmDialog}
     </div>
   )
 }
@@ -788,12 +799,7 @@ function UploadMediaDialog({
       const payload = requested.data?.requestMediaAssetUpload
       if (!payload) throw new Error('Upload request did not return a payload.')
 
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Upload failed with HTTP ${uploaded.status}`)
+      await putToSignedUrl(payload.uploadUrl, file)
 
       const dimensions: { width?: number; height?: number } =
         file.type.startsWith('image/') ? await readImageDimensions(file) : {}
@@ -871,6 +877,7 @@ export function AssetDetailsSheet({
   onDeleted: () => void
   onError: (message: string | null) => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [title, setTitle] = useState(asset?.title ?? '')
   const [altText, setAltText] = useState(asset?.altText ?? '')
   const [caption, setCaption] = useState(asset?.caption ?? '')
@@ -987,7 +994,6 @@ export function AssetDetailsSheet({
 
   async function onDelete() {
     if (!asset) return
-    if (!window.confirm('Delete this media asset?')) return
     onError(null)
     try {
       await deleteAsset({ variables: { id: asset.id, deleteFromStorage: true } })
@@ -1116,7 +1122,10 @@ export function AssetDetailsSheet({
                   <Button onClick={onSave} disabled={saving}>
                     {saving ? 'Saving...' : 'Save'}
                   </Button>
-                  <Button variant="destructive" onClick={onDelete}>
+                  <Button
+                    variant="destructive"
+                    onClick={() => confirm({ title: 'Delete this media asset?', confirmLabel: 'Delete asset', destructive: true, onConfirm: onDelete })}
+                  >
                     <Trash2Icon className="size-4" />
                     Delete
                   </Button>
@@ -1124,6 +1133,7 @@ export function AssetDetailsSheet({
               ) : null}
             </>
           ) : null}
+          {confirmDialog}
         </SheetContent>
       </Sheet>
     </>
@@ -1263,17 +1273,5 @@ function buildBreadcrumbs(path: string): { name: string; path: string }[] {
     crumbs.push({ name: parts[i], path: parts.slice(0, i + 1).join('/') })
   }
   return crumbs
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unit = 0
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024
-    unit += 1
-  }
-  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 

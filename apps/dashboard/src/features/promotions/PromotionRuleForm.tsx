@@ -82,19 +82,10 @@ import {
 } from './typeCategory'
 import { PluginSections } from '@/plugins/detail-sections'
 import { FORM_WIDGETS } from './widgets/registry'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { slugify } from '@/lib/slug'
 
 // ---- Types ----
-
-// slugify turns "Free Shipping (DACH)!" into "free-shipping-dach" - Used by the create flow to derive a slug from the name as the operator
-// types, so they don't have to repeat themselves - Edit pages keep the existing slug - URL stability matters more than re-derivation
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 type ConditionRow = {
   type: string
@@ -103,7 +94,6 @@ type ConditionRow = {
   paramsVersion?: number
   sortOrder?: number
 }
-
 
 type CodeRow = PromotionCodeFieldsFragment
 
@@ -382,14 +372,12 @@ function RuleEditor({
                 onChange={(id) => form.setFieldValue('labelMediaId', id ?? '')}
                 label="Label image (PLP corner sticker)"
                 description="Overlaid on product listing cards. Use a transparent PNG / SVG so it sits cleanly over the product photo."
-                mimeGroup="IMAGE"
               />
               <MediaPicker
                 value={values.bannerMediaId || null}
                 onChange={(id) => form.setFieldValue('bannerMediaId', id ?? '')}
                 label="Banner image (PDP hero strip)"
                 description="Rendered between the gallery and the price on product detail pages. Landscape orientation works best."
-                mimeGroup="IMAGE"
                 previewClassName="size-24 w-40"
               />
             </div>
@@ -660,6 +648,7 @@ function RuleSubrow({
   onMoveUp?: () => void
   onMoveDown?: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const current = types.find((t) => t.slug === row.type)
   const schema = current?.paramsSchema as JSONSchema | undefined
   const cat = row.type ? categorize(row.type, kind) : null
@@ -710,11 +699,14 @@ function RuleSubrow({
             variant="ghost"
             size="icon"
             className="size-7"
-            onClick={() => {
-              if (window.confirm(`Change ${kind} type? This will clear the current parameters.`)) {
-                onChange({ ...row, type: '', params: {} })
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: `Change ${kind} type?`,
+                description: 'This will clear the current parameters.',
+                confirmLabel: 'Change type',
+                onConfirm: () => onChange({ ...row, type: '', params: {} }),
+              })
+            }
             aria-label="Change type"
           >
             <PencilIcon className="size-4" />
@@ -746,6 +738,7 @@ function RuleSubrow({
           </p>
         )}
       </div>
+      {confirmDialog}
     </div>
   )
 }
@@ -836,6 +829,7 @@ function TypePicker({
 // ---- Codes ----
 
 function CodesSection({ ruleId }: { ruleId: string }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [openGen, setOpenGen] = useState(false)
   // Server-paged and searched - its own URL keys, so the page's other params stay clear
   const urlState = useListUrlState({ key: 'codes' })
@@ -919,11 +913,17 @@ function CodesSection({ ruleId }: { ruleId: string }) {
             variant="ghost"
             size="icon"
             className="size-8"
-            onClick={async () => {
-              if (!window.confirm(`Delete code ${row.original.code}?`)) return
-              await deleteCode({ variables: { id: row.original.id } })
-              onChanged?.()
-            }}
+            onClick={() =>
+              confirm({
+                title: `Delete code ${row.original.code}?`,
+                confirmLabel: 'Delete code',
+                destructive: true,
+                onConfirm: async () => {
+                  await deleteCode({ variables: { id: row.original.id } })
+                  onChanged?.()
+                },
+              })
+            }
             aria-label="Delete code"
           >
             <Trash2Icon className="size-4" />
@@ -931,7 +931,7 @@ function CodesSection({ ruleId }: { ruleId: string }) {
         ),
       },
     ],
-    [deleteCode, updateCode, onChanged],
+    [deleteCode, updateCode, onChanged, confirm],
   )
 
   return (
@@ -980,6 +980,7 @@ function CodesSection({ ruleId }: { ruleId: string }) {
         onOpenChange={setOpenGen}
         onGenerated={onChanged}
       />
+      {confirmDialog}
     </DetailPageSection>
   )
 }

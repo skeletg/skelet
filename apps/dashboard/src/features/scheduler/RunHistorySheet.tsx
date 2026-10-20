@@ -12,12 +12,7 @@ import { ScheduledJobRunsDocument } from './Scheduler.gql'
 import { formatTimestamp } from '@/lib/format'
 
 function RunStatusBadge({ status }: { status: string }) {
-  if (status === 'success')
-    return (
-      <Badge className="bg-success-soft text-success">
-        success
-      </Badge>
-    )
+  if (status === 'success') return <Badge variant="success">success</Badge>
   return <Badge variant="destructive">error</Badge>
 }
 

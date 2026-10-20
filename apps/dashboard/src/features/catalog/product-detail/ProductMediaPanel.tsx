@@ -65,6 +65,7 @@ import {
 import { type ProductMediaSummary } from './shared'
 import { readImageDimensions } from '@/lib/image'
 import { effectiveMediaRoles } from './media-utils'
+import { putToSignedUrl } from '@/lib/upload'
 
 const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string; Icon: LucideIcon; fallbackHint: string }> = [
   { role: 'MAIN', label: 'Main', Icon: StarIcon, fallbackHint: 'Uses the first image until one is chosen' },
@@ -257,12 +258,7 @@ export function ProductMediaPanel({
       ])
       const payload = upload.data?.requestProductMediaUpload
       if (!payload) throw new Error('Upload request did not return a signed URL.')
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Image upload failed with HTTP ${uploaded.status}.`)
+      await putToSignedUrl(payload.uploadUrl, file, 'Image upload')
       await confirmUpload({ variables: { mediaId: payload.media.id, width, height } })
       // If the user picked a target role, queue the assignment in the draft
       // (it'll be applied by the global Save)

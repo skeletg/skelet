@@ -190,12 +190,6 @@ query CmsAttributes {
   }
 }
 
-query CmsAttribute($id: ID, $slug: String) {
-  cmsAttribute(id: $id, slug: $slug) {
-    ...CmsAttributeRow
-  }
-}
-
 mutation CreateCmsAttribute($input: CreateCMSAttributeInput!) {
   createCMSAttribute(input: $input) {
     ...CmsAttributeRow
@@ -449,9 +443,6 @@ mutation TranslateCmsPage($pageId: ID!, $sourceLocale: String!, $targetLocale: S
 # ==================== Reusable sections (snippets) ====================
 query CmsSnippets {
   cmsSnippets { id slug name blocks createdAt updatedAt }
-}
-query CmsSnippet($id: ID!) {
-  cmsSnippet(id: $id) { id slug name blocks createdAt updatedAt }
 }
 mutation CreateCmsSnippet($input: CreateCMSSnippetInput!) {
   createCMSSnippet(input: $input) { id slug name blocks }

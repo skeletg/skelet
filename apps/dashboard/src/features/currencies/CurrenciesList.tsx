@@ -9,17 +9,6 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +26,7 @@ import {
   DeleteCurrencyDocument,
 } from './Currencies.gql'
 import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CurrencyRow = {
   code: string
@@ -70,21 +60,18 @@ export function CurrenciesList() {
   const rows = useMemo(() => (data?.currencies ?? []) as CurrencyRow[], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<CurrencyRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteCurrency, { loading: deleting }] = useMutation(DeleteCurrencyDocument, {
+  const [deleteCurrency] = useMutation(DeleteCurrencyDocument, {
     refetchQueries: [CurrenciesAdminListDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
     try {
       await deleteCurrency({ variables: { code: confirmingDelete.code } })
-      setConfirmingDelete(null)
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Delete failed.'
-      setDeleteError(friendlyDeleteError(raw))
+      throw new Error(friendlyDeleteError(raw), { cause: err })
     }
   }
 
@@ -177,7 +164,6 @@ export function CurrenciesList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -234,44 +220,16 @@ export function CurrenciesList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.code}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The backend refuses deletion if anything still references this currency
-              (countries defaulting to it, product listings, channels, etc.).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete blocked</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete currency'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.code}?</>}
+        description="The backend refuses deletion if anything still references this currency (countries defaulting to it, product listings, channels, etc.)."
+        confirmLabel="Delete currency"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

@@ -10,17 +10,6 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +28,7 @@ import {
   DeleteBlogPostDocument,
   type BlogPostRowFragment,
 } from './Blog.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function postTitle(p: BlogPostRowFragment) {
   return (
@@ -99,11 +89,10 @@ export function BlogPostsList() {
   const stores = useMemo(() => storesData?.channels ?? [], [storesData])
   const authors = authorsData?.blogAuthors ?? []
 
-  const [deletePost, { loading: deleting }] = useMutation(DeleteBlogPostDocument, {
+  const [deletePost] = useMutation(DeleteBlogPostDocument, {
     refetchQueries: [{ query: BlogPostsDocument, variables }],
   })
   const [confirmingDelete, setConfirmingDelete] = useState<BlogPostRowFragment | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const rows = data?.blogPosts.items ?? []
 
@@ -238,7 +227,6 @@ export function BlogPostsList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -256,12 +244,7 @@ export function BlogPostsList() {
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    try {
-      await deletePost({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deletePost({ variables: { id: confirmingDelete.id } })
   }
 
   return (
@@ -319,45 +302,16 @@ export function BlogPostsList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingDelete ? postTitle(confirmingDelete) : 'post'}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the post and its translations. URL redirects are preserved.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete post'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete ? postTitle(confirmingDelete) : 'post'}?</>}
+        description="This permanently removes the post and its translations. URL redirects are preserved."
+        confirmLabel="Delete post"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </div>
   )
 }

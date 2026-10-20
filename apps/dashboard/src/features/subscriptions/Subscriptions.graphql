@@ -27,22 +27,6 @@ query Subscriptions($status: SubscriptionStatus, $limit: Int, $offset: Int) {
   }
 }
 
-query Subscription($id: ID!) {
-  subscription(id: $id) {
-    ...SubscriptionFields
-    invoices {
-      id
-      periodStart
-      periodEnd
-      amount
-      currencyCode
-      status
-      sequence
-      createdAt
-    }
-  }
-}
-
 mutation CancelSubscription($id: ID!) {
   cancelSubscription(id: $id) {
     ...SubscriptionFields

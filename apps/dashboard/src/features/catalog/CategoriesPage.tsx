@@ -101,21 +101,14 @@ import {
   toCategoryCreateInput,
   toCategoryValues,
 } from './schemas/category'
+import { slugify } from '@/lib/slug'
+import { putToSignedUrl } from '@/lib/upload'
 import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type CategoryDetail = CategoryDetailFieldsFragment
 type CategoryFacetOverride = CategoryDetail['facetOverrides'][number]
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-}
 
 function countCategories(cats: CategorySummary[]): number {
   let n = 0
@@ -1136,12 +1129,7 @@ function CategoryCoverSection({
     ])
     const payload = upload.data?.requestCategoryCoverUpload
     if (!payload) throw new Error('Upload request did not return a signed URL.')
-    const uploaded = await fetch(payload.uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file,
-    })
-    if (!uploaded.ok) throw new Error(`Banner upload failed with HTTP ${uploaded.status}.`)
+    await putToSignedUrl(payload.uploadUrl, file, 'Banner upload')
     await confirmUpload({ variables: { categoryId: category.id, width, height } })
     setPendingFile(null)
   }, [pendingClear, pendingFile, altText, category.id, clearCover, requestUpload, confirmUpload])

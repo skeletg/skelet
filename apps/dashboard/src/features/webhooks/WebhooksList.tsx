@@ -9,17 +9,6 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +26,7 @@ import {
   DeleteWebhookDocument,
   WebhooksDocument,
 } from './Webhooks.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type WebhookRow = {
   id: string
@@ -59,21 +49,14 @@ export function WebhooksList() {
   const rows = useMemo(() => (data?.webhooks ?? []) as WebhookRow[], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<WebhookRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteWebhook, { loading: deleting }] = useMutation(DeleteWebhookDocument, {
+  const [deleteWebhook] = useMutation(DeleteWebhookDocument, {
     refetchQueries: [WebhooksDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteWebhook({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteWebhook({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<WebhookRow>[]>(
@@ -186,7 +169,6 @@ export function WebhooksList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -245,43 +227,16 @@ export function WebhooksList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the webhook and all its delivery history.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete webhook'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description="This will permanently delete the webhook and all its delivery history."
+        confirmLabel="Delete webhook"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

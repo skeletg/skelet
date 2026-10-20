@@ -12,17 +12,6 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -70,7 +59,6 @@ export function IntegrationsList() {
   const { data, loading, error } = useQuery(IntegrationsDocument)
 
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<IntegrationRow | null>(null)
-  const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null)
   const [confirmingRegenerate, setConfirmingRegenerate] = useState<IntegrationRow | null>(null)
 
@@ -80,7 +68,7 @@ export function IntegrationsList() {
   const [regenerate] = useMutation(RegenerateIntegrationTokenDocument, {
     refetchQueries: [IntegrationsDocument],
   })
-  const [deleteIntegration, { loading: deletingRow }] = useMutation(DeleteIntegrationDocument, {
+  const [deleteIntegration] = useMutation(DeleteIntegrationDocument, {
     refetchQueries: [IntegrationsDocument],
   })
 
@@ -109,13 +97,7 @@ export function IntegrationsList() {
 
   async function onConfirmRowDelete() {
     if (!confirmingRowDelete) return
-    setRowDeleteError(null)
-    try {
-      await deleteIntegration({ variables: { id: confirmingRowDelete.id } })
-      setConfirmingRowDelete(null)
-    } catch (err) {
-      setRowDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteIntegration({ variables: { id: confirmingRowDelete.id } })
   }
 
   const bulkActions = useMemo<BulkAction<IntegrationRow>[]>(
@@ -275,7 +257,6 @@ export function IntegrationsList() {
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => {
-                  setRowDeleteError(null)
                   setConfirmingRowDelete(row.original)
                 }}
               >
@@ -342,43 +323,15 @@ export function IntegrationsList() {
         onClose={() => setNewToken(null)}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRowDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingRowDelete(null)
-            setRowDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingRowDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Any client calling the API with this integration's token will receive 401 responses
-              immediately. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {rowDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{rowDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingRow}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deletingRow}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmRowDelete()
-              }}
-            >
-              {deletingRow ? 'Deleting…' : 'Delete integration'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingRowDelete(null)}
+        title={<>Delete {confirmingRowDelete?.name}?</>}
+        description="Any client calling the API with this integration's token will receive 401 responses immediately. This cannot be undone."
+        confirmLabel="Delete integration"
+        busyLabel="Deleting…"
+        onConfirm={onConfirmRowDelete}
+      />
     </>
   )
 }
