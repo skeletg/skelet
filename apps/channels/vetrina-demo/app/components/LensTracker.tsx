@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { redactPath } from "@/app/lib/analytics/redact";
+import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@/app/lib/analytics/recording-policy";
 import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
 import { beaconFetch } from "@/app/lib/beacons/client";
@@ -131,13 +132,15 @@ function selectorFor(el: Element | null): string {
 function recordSnapshot(st: State, state: string) {
   const layoutKey = `${st.curPageKey}|${st.curViewport}|${state}`;
   if (st.seenLayouts.has(layoutKey) || !st.snapshot) return;
+  // The live location, not curPageKey: a delayed overlay snapshot can fire after navigating onto a private page
+  if (isPrivateRecordingPath(location.pathname)) return;
   try {
     // Same masking contract as LensReplay - without it the snapshot captures what the
     // recorder is told to skip (hidden token fields, .lens-block regions)
     const node = st.snapshot(document, {
       maskAllInputs: true,
       maskTextClass: "lens-mask",
-      blockClass: "lens-block",
+      blockClass: RECORDING_BLOCK_CLASS,
       inlineStylesheet: true,
       slimDOM: false,
     });
