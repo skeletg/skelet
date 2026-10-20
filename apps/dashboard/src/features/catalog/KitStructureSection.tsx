@@ -2,16 +2,6 @@ import { useCallback, useMemo, useState, type FormEvent } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { PackagePlusIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -39,6 +29,7 @@ import {
   RemoveKitComponentDocument,
   UpdateKitComponentDocument,
 } from './Catalog.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 // Kit components share the grouped staging layer - same (member, qty, order)
 // shape, only the copy and the committed mutations differ
 import {
@@ -256,39 +247,19 @@ export function KitStructureSection({ product, canManage }: { product: Kit; canM
         />
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRemove}
         onOpenChange={(v) => {
           if (!v) setConfirmingRemove(null)
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Remove {confirmingRemove?.member.name ?? confirmingRemove?.member.sku ?? ''} from this kit?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Stages the component for removal. The product itself isn't deleted - only its place in
-              this kit goes when you confirm the page-level save.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                if (confirmingRemove) {
-                  stage({ kind: 'remove-member', id: confirmingRemove.id })
-                  setConfirmingRemove(null)
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Stage remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={<>Remove {confirmingRemove?.member.name ?? confirmingRemove?.member.sku ?? ''} from this kit?</>}
+        description="Stages the component for removal. The product itself isn't deleted - only its place in this kit goes when you confirm the page-level save."
+        confirmLabel="Stage remove"
+        destructive
+        onConfirm={() => {
+          if (confirmingRemove) stage({ kind: 'remove-member', id: confirmingRemove.id })
+        }}
+      />
     </div>
   )
 }
