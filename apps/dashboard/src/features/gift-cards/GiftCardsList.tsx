@@ -5,6 +5,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import {
@@ -14,16 +15,6 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -492,63 +483,26 @@ function DisableGiftCardConfirm({
   card: GiftCardRow | null
   onClose: () => void
 }) {
-  const [err, setErr] = useState<string | null>(null)
-  const [disable, { loading }] = useMutation(DisableGiftCardDocument, {
+  const [disable] = useMutation(DisableGiftCardDocument, {
     refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
   })
 
   async function onConfirm() {
     if (!card) return
-    setErr(null)
-    try {
-      await disable({ variables: { id: card.id } })
-      onClose()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Disable failed.')
-    }
+    await disable({ variables: { id: card.id } })
   }
 
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={!!card}
-      onOpenChange={(v) => {
-        if (!v) {
-          setErr(null)
-          onClose()
-        }
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Disable {card?.code}?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            The card can no longer be redeemed. Its remaining balance is kept on
-            record but becomes unusable. This can&apos;t be undone from here.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {err && (
-          <Alert variant="destructive">
-            <AlertTitle>Disable failed</AlertTitle>
-            <AlertDescription>{err}</AlertDescription>
-          </Alert>
-        )}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={loading}
-            onClick={(e) => {
-              e.preventDefault()
-              onConfirm()
-            }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {loading ? 'Disabling…' : 'Disable card'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      onOpenChange={(v) => !v && onClose()}
+      title={<>Disable {card?.code}?</>}
+      description="The card can no longer be redeemed. Its remaining balance is kept on record but becomes unusable. This can't be undone from here."
+      confirmLabel="Disable card"
+      busyLabel="Disabling…"
+      destructive
+      onConfirm={onConfirm}
+    />
   )
 }
 
