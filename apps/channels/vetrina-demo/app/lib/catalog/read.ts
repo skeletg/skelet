@@ -22,14 +22,9 @@ import { gqlFetch } from "@/app/lib/graphql";
 import { normalizeBrowseVars } from "@/app/lib/catalog/browse-vars";
 import { surfaceCacheOpts } from "@/app/lib/config/read";
 
-// Storefront cache surface for the PDP product fetch. Matches the backend
-// revalidate.Surface (internal/catalog/cache.go, Key:"product") + the admin
-// Settings → Cache page. DefaultEnabled is false there, so PDPs stay uncached
-// until an operator flips cache/product/{enabled,mode} on
+// Both match a backend revalidate.Surface (internal/catalog/cache.go), whose cache/<key>/{enabled,ttl_seconds} Settings → Cache drives through surfaceCacheOpts
 export const PRODUCT_SURFACE = "product";
-
-// Cache surface for categories, listings and collections - backend-registered as revalidate.Surface{Key:"catalog"}, off
-// by default until Settings -> Cache enables it Bust tags: category:<id>, collection:<id>, catalog:browse, catalog:all
+// Bust tags: category:<id>, collection:<id>, catalog:browse, catalog:all
 export const CATALOG_SURFACE = "catalog";
 
 export type ProductMedia = {
@@ -400,8 +395,8 @@ export const getProduct = cache(async (id: string): Promise<{
   product: ProductDetail | null;
 }> => {
   try {
-// When the product surface is enabled, cache the PDP fetch for everyone, tagged product:<id> so a price/stock/delete
-// busts it via /api/revalidate. Per-id only - a catalog-wide tag would stampede the renderer. No-store until enabled
+// Cached for everyone, tagged product:<id> so a price/stock/delete busts it via /api/revalidate. Per-id only - a
+// catalog-wide tag would stampede the renderer
     const cacheOpts = await surfaceCacheOpts(PRODUCT_SURFACE, {
       tags: [`product:${id}`],
     });
