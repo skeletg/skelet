@@ -12,17 +12,6 @@ import {
   ShieldIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -43,6 +32,7 @@ import { useAuth } from '@/shared/auth/auth'
 import { AdminFormDialog, type ExistingAdmin } from './AdminFormDialog'
 import { AdminsDocument, DeleteAdminDocument, UpdateAdminDocument } from './Admins.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // the form's shape plus what only the list shows
 type AdminRow = ExistingAdmin & { lastLoginAt?: string | null }
@@ -67,9 +57,8 @@ export function AdminsList() {
   const rows = useMemo(() => (data?.admins ?? []) as AdminRow[], [data])
 
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<AdminRow | null>(null)
-  const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
 
-  const [deleteAdmin, { loading: deletingRow }] = useMutation(DeleteAdminDocument, {
+  const [deleteAdmin] = useMutation(DeleteAdminDocument, {
     refetchQueries: [{ query: AdminsDocument }],
   })
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
@@ -81,13 +70,7 @@ export function AdminsList() {
 
   async function onConfirmRowDelete() {
     if (!confirmingRowDelete) return
-    setRowDeleteError(null)
-    try {
-      await deleteAdmin({ variables: { id: confirmingRowDelete.id } })
-      setConfirmingRowDelete(null)
-    } catch (err) {
-      setRowDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteAdmin({ variables: { id: confirmingRowDelete.id } })
   }
 
   const roleOptions = useMemo(() => {
@@ -269,7 +252,6 @@ export function AdminsList() {
                       disabled={isSelf}
                       onSelect={() => {
                         if (isSelf) return
-                        setRowDeleteError(null)
                         setConfirmingRowDelete(row.original)
                       }}
                     >
@@ -327,45 +309,15 @@ export function AdminsList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRowDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingRowDelete(null)
-            setRowDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingRowDelete?.firstName} {confirmingRowDelete?.lastName}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              The admin's access is revoked immediately and any refresh tokens become invalid.
-              This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {rowDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{rowDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingRow}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deletingRow}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmRowDelete()
-              }}
-            >
-              {deletingRow ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingRowDelete(null)}
+        title={<>Delete {confirmingRowDelete?.firstName} {confirmingRowDelete?.lastName}?</>}
+        description="The admin's access is revoked immediately and any refresh tokens become invalid. This cannot be undone."
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        onConfirm={onConfirmRowDelete}
+      />
     </>
   )
 }
