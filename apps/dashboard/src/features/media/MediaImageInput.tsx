@@ -15,6 +15,7 @@ import { ADMIN_MEDIA_SVG_ENDPOINT } from '@/lib/api-endpoint'
 import { getAuthStoredState } from '@/shared/auth/auth'
 import { MediaAssetPicker } from './MediaAssetPicker'
 import { type AssetRef, assetPreviewUrl, isAssetRef } from './asset-ref'
+import { readImageDimensions } from '@/lib/image'
 
 type ImageValue = string | AssetRef | undefined
 
@@ -86,7 +87,8 @@ export function MediaImageInput({
         await uploadSvg(file)
         return
       }
-      const dims = await readImageDimensions(file)
+      // Best-effort: an image the browser can't decode still uploads, just without stamped dimensions
+      const dims = await readImageDimensions(file).catch(() => ({ width: 0, height: 0 }))
       const req = await requestUpload({
         variables: {
           input: { path, filename: file.name, mimeType: file.type, sizeBytes: file.size, altText: '' },
@@ -202,22 +204,4 @@ export function MediaImageInput({
       />
     </div>
   )
-}
-
-// readImageDimensions probes a File for its natural size so the confirm step can
-// stamp width/height on the asset - Resolves 0×0 on a decode error (best-effort)
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: img.naturalWidth, height: img.naturalHeight })
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: 0, height: 0 })
-    }
-    img.src = url
-  })
 }
