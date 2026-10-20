@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderDialog } from '@/test/page-harness'
 import { dayStartISO } from '@/lib/format'
@@ -9,6 +10,7 @@ import {
   OrdersPagedDocument,
   RecordOfflinePaymentDocument,
   RefundPaymentDocument,
+  VoidPaymentDocument,
 } from './Orders.gql'
 
 // What these pin: the refund amount is typed in major units - "12.50" refunds 1250 cents, not 12 - and a
@@ -128,5 +130,37 @@ describe('OrderPaymentsSection offline payment', () => {
     submitRecord()
     expect(await screen.findByText(/Enter a positive amount/)).toBeTruthy()
     expect(calls).toHaveLength(0)
+  })
+})
+
+// Void confirms through the shared ConfirmDialog: a refused void keeps it open with the gateway's message and, once
+// dismissed, leaves it on the section; a successful void closes it
+describe('OrderPaymentsSection void', () => {
+  const authorized = { ...(order as object), paymentStatus: 'AUTHORIZED', paymentTransactions: [txn('t1', 'authorize', 5000)] } as never
+  async function confirmVoid(mock: MockLink.MockedResponse) {
+    renderDialog(<OrderPaymentsSection order={authorized} />, [
+      meMock(),
+      { request: { query: OfflinePaymentMethodsDocument, variables: { channelId: 'c1' } }, result: { data: { paymentMethods: [] } }, maxUsageCount: 3 },
+      { request: { query: OrderDocument, variables: () => true }, result: { data: { order: null } }, maxUsageCount: 3 },
+      { request: { query: OrdersPagedDocument, variables: () => true }, result: { data: { ordersPaged: null } }, maxUsageCount: 3 },
+      mock,
+    ])
+    fireEvent.click(await screen.findByRole('button', { name: 'Void' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Void' }))
+    return dialog
+  }
+
+  it('keeps a refused void open, then reports it on the section once dismissed', async () => {
+    const dialog = await confirmVoid({ request: { query: VoidPaymentDocument, variables: { orderId: 'o1' } }, result: { errors: [{ message: 'authorization expired' }] } })
+    expect(await within(dialog).findByText('authorization expired')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep authorization' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(screen.getByText('authorization expired')).toBeDefined()
+  })
+
+  it('closes once the void goes through', async () => {
+    await confirmVoid({ request: { query: VoidPaymentDocument, variables: { orderId: 'o1' } }, result: { data: { voidPayment: { __typename: 'Order', id: 'o1', paymentStatus: 'VOIDED' } } } })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })
