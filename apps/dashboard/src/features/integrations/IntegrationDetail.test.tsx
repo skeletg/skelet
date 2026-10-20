@@ -1,9 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderPage } from '@/test/page-harness'
 import { PermissionGroupsDocument } from '@/features/admins/permissions/Permissions.gql'
 import { IntegrationDetail } from './IntegrationDetail'
 import {
+  DeleteIntegrationDocument,
   IntegrationsDocument,
   RegenerateIntegrationTokenDocument,
   SetIntegrationActiveDocument,
@@ -115,5 +117,37 @@ describe('IntegrationDetail regenerate token', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate token' }))
     await vi.waitFor(() => expect(regenerated).toHaveBeenCalledWith({ id: 'i1' }), SLOW)
     expect(await screen.findByText('sk_new', {}, SLOW)).toBeTruthy()
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('IntegrationDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderPage({
+      path: '/integrations/i1',
+      routes: { '/integrations/:id': <IntegrationDetail />, '/integrations': <p>Integrations list</p> },
+      mocks: [
+        { request: { query: IntegrationsDocument }, result: { data: { integrations: [integration] } }, maxUsageCount: 3 },
+        { request: { query: PermissionGroupsDocument }, result: { data: { permissionGroups: [] } }, maxUsageCount: 3 },
+        mock,
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete integration' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete integration' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteIntegrationDocument, variables: { id: 'i1' } }, result: { errors: [{ message: 'integration is in use' }] } })
+    expect(await within(dialog).findByText('integration is in use')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteIntegrationDocument, variables: { id: 'i1' } }, result: { data: { deleteIntegration: true } } })
+    expect(await screen.findByText('Integrations list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })
