@@ -197,7 +197,11 @@ func (r *productResolver) Backorderable(ctx context.Context, obj *model.Product)
 	if v, ok := r.cachedBackorderable(ctx, pid); ok {
 		return v, nil
 	}
-	if r.primeGroupOnce(ctx, "backorderable", pid, func(ids []uuid.UUID) error { return r.primeBackorderable(ctx, ids) }) {
+	storeID := uuid.Nil
+	if id := channelIDFromContext(ctx); id != nil {
+		storeID = *id
+	}
+	if r.primeGroupOnce(ctx, "stock", pid, func(ids []uuid.UUID) error { return r.primeStock(ctx, ids, storeID) }) {
 		if v, ok := r.cachedBackorderable(ctx, pid); ok {
 			return v, nil
 		}
@@ -873,10 +877,9 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		if err := r.primeListings(ctx, hydratedIDs); err != nil {
 			return empty, nil
 		}
-		if err := r.primeSalable(ctx, hydratedIDs, *storeID); err != nil {
+		if err := r.primeStock(ctx, hydratedIDs, *storeID); err != nil {
 			return empty, nil
 		}
-		_ = r.primeBackorderable(ctx, hydratedIDs)
 		if err := r.primeReviewAggregates(ctx, hydratedIDs); err != nil {
 			return empty, nil
 		}

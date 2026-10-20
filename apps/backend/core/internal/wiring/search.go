@@ -26,11 +26,12 @@ import (
 
 // SearchTier is the assembled product-discovery stack - Client is nil when OPENSEARCH_URL is unset - /health reports on it, so it stays visible rather than being hidden inside Engine
 type SearchTier struct {
-	Client   *search.Client
-	Products *search.ProductIndexer
-	Posts    *search.BlogPostIndexer
-	Engine   search.Engine
-	Indexes  *search.IndexRegistry // every index the reindex tooling can address (core here, plugin-owned via the SDK host) - non-nil even with no cluster, so callers enumerate without a nil check
+	Client     *search.Client
+	Products   *search.ProductIndexer
+	Posts      *search.BlogPostIndexer
+	Engine     search.Engine
+	Attributes *search.AttributeCache
+	Indexes    *search.IndexRegistry // every index the reindex tooling can address (core here, plugin-owned via the SDK host) - non-nil even with no cluster, so callers enumerate without a nil check
 }
 
 // Search assembles product discovery - it is a TIER, not one engine: OpenSearch answers when it can, Postgres answers when it can't - including when it was never configured, which is the shipped default
@@ -145,11 +146,12 @@ func newSearchTier(d searchDeps) SearchTier {
 		search.WithFallbackLimit(max(1, d.Cfg.MaxConns/4)),
 	)
 	return SearchTier{
-		Client:   searchClient,
-		Products: productIndexer,
-		Posts:    blogPostIndexer,
-		Engine:   productSearchEngine,
-		Indexes:  registry,
+		Client:     searchClient,
+		Products:   productIndexer,
+		Posts:      blogPostIndexer,
+		Engine:     productSearchEngine,
+		Attributes: attrCache,
+		Indexes:    registry,
 	}
 }
 

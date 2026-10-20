@@ -3,7 +3,9 @@ package front
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -273,4 +275,8 @@ func (r *Resolver) loadCustomer(ctx context.Context, id uuid.UUID) (customer.Cus
 		return loaders.Customer.Load(ctx, id)()
 	}
 	return r.CustomerSvc.GetByID(ctx, id)
+}
+
+func selectsField(ctx context.Context, name string) bool {
+	return slices.Contains(graphql.CollectAllFields(ctx), name)
 }

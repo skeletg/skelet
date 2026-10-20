@@ -88,11 +88,10 @@ func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart
 	for _, p := range bySKU {
 		ids = append(ids, p.ID)
 	}
-	salable, err := r.InventorySvc.SalableByProductIDs(ctx, ids, store.ID)
+	salable, backorderable, err := r.InventorySvc.StockByProductIDs(ctx, ids, store.ID)
 	if err != nil {
 		return
 	}
-	backorderable, _ := r.InventorySvc.BackorderableByProductIDs(ctx, ids)
 	for _, line := range m.Lines {
 		p, ok := bySKU[line.Sku]
 		if !ok {
