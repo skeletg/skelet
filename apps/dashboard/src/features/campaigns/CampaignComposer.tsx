@@ -41,9 +41,10 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
 import type { EmailBlock, EmailStyles } from '@/features/email/blocks'
 import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/Emails.gql'
-import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
+import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, EmailCampaignStatsDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 type Draft = {
   id: string | null
@@ -637,8 +638,15 @@ function ReadOnlyCampaign({
   )
 }
 
-function CampaignStats({ initial }: { initial: Draft }) {
-  const { data } = useQuery(EmailCampaignDocument, { variables: { id: initial.id ?? '' }, skip: !initial.id, pollInterval: 5000 })
+// Counters only move while a send is in flight, so only then does this poll - and it polls the counters alone, not
+// the full campaign with its email design. The polled status lands in the same cached campaign the page builds
+// `initial` from, so a finished send ends the polling by itself
+const IN_FLIGHT = new Set(['scheduled', 'sending', 'testing'])
+
+export function CampaignStats({ initial }: { initial: Draft }) {
+  const pollInterval = useVisiblePollInterval(IN_FLIGHT.has(initial.status) ? 5000 : 0)
+  const { data, refetch } = useQuery(EmailCampaignStatsDocument, { variables: { id: initial.id ?? '' }, skip: !initial.id, pollInterval })
+  useRefetchWhenShown(refetch)
   const c = data?.emailCampaign
   const cells: Array<[string, string | number]> = [
     ['Total', c?.totalRecipients ?? 0],

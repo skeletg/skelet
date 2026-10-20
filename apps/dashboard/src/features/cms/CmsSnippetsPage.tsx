@@ -16,6 +16,7 @@ import {
 import { sameValue } from '@/lib/form-drafts'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import {
   CmsSnippetsDocument,
   CreateCmsSnippetDocument,
@@ -42,6 +43,7 @@ export function CmsSnippetsPage() {
   const [deleteSnippet] = useMutation(DeleteCmsSnippetDocument, { refetchQueries: refetch })
 
   const [editing, setEditing] = useState<Snippet | 'new' | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState<Snippet | null>(null)
 
   if (loading) return <LoadingState label="Loading sections…" />
 
@@ -77,7 +79,7 @@ export function CmsSnippetsPage() {
                       variant="ghost"
                       size="icon"
                       className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteSnippet({ variables: { id: s.id } })}
+                      onClick={() => setConfirmingDelete(s)}
                       aria-label={`Delete ${s.name}`}
                     >
                       <Trash2Icon className="size-4" />
@@ -88,6 +90,17 @@ export function CmsSnippetsPage() {
             </ul>
           )}
         </DetailPageSection>
+        <ConfirmDialog
+          open={!!confirmingDelete}
+          onOpenChange={(open) => !open && setConfirmingDelete(null)}
+          title={`Delete ${confirmingDelete?.name ?? 'this section'}?`}
+          description="Pages that embed this section lose it the next time they render. This can't be undone."
+          confirmLabel="Delete section"
+          destructive
+          onConfirm={async () => {
+            if (confirmingDelete) await deleteSnippet({ variables: { id: confirmingDelete.id } })
+          }}
+        />
 
         {editing && (
           <SnippetEditor

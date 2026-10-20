@@ -12,6 +12,31 @@ import (
 
 type channelLister interface {
 	ListForChannels(ctx context.Context, status string, channelIDs []uuid.UUID, limit, offset int32) ([]Subscription, error)
+	CountForChannels(ctx context.Context, status string, channelIDs []uuid.UUID) (int32, error)
+}
+
+// CountForChannels is the total behind ListForChannels: nil channelIDs is every channel, an empty slice none
+func (s *Service) CountForChannels(ctx context.Context, status string, channelIDs []uuid.UUID) (int32, error) {
+	if channelIDs != nil && len(channelIDs) == 0 {
+		return 0, nil
+	}
+	l, ok := s.repo.(channelLister)
+	if !ok {
+		return 0, fmt.Errorf("count subscriptions by channel: unsupported repository")
+	}
+	return l.CountForChannels(ctx, status, channelIDs)
+}
+
+func (r *postgresRepository) CountForChannels(ctx context.Context, status string, channelIDs []uuid.UUID) (int32, error) {
+	var st sql.NullString
+	if status != "" {
+		st = sql.NullString{String: status, Valid: true}
+	}
+	n, err := r.queries.CountSubscriptions(ctx, db.CountSubscriptionsParams{Status: st, ChannelIds: channelIDs})
+	if err != nil {
+		return 0, fmt.Errorf("count subscriptions: %w", err)
+	}
+	return n, nil
 }
 
 func (s *Service) ListForChannels(ctx context.Context, status string, channelIDs []uuid.UUID, limit, offset int32) ([]Subscription, error) {

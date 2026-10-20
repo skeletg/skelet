@@ -29,7 +29,7 @@ export function NewChannelDialog({
 function NewChannelForm({ onClose, onCreated }: { onClose: () => void; onCreated: (channelId: string) => void }) {
   const currencies = useQuery(CurrenciesPickerDocument).data?.currencies ?? []
   const locales = useQuery(LocalesPickerDocument).data?.locales ?? []
-  const [createChannel] = useMutation(CreateChannelDocument, { refetchQueries: [{ query: ChannelsDocument }] })
+  const [createChannel] = useMutation(CreateChannelDocument, { refetchQueries: [ChannelsDocument] })
   const createdId = useRef('')
 
   const dialog = useDialogForm({

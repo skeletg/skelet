@@ -2686,6 +2686,11 @@ type GiftCard struct {
 	Transactions   []*GiftCardTransaction `json:"transactions"`
 }
 
+type GiftCardPage struct {
+	TotalCount int32       `json:"totalCount"`
+	Items      []*GiftCard `json:"items"`
+}
+
 type GiftCardTransaction struct {
 	ID        string    `json:"id"`
 	Amount    int32     `json:"amount"`
@@ -4826,6 +4831,11 @@ type SubscriptionInvoice struct {
 	Status       SubscriptionInvoiceStatus `json:"status"`
 	Sequence     int32                     `json:"sequence"`
 	CreatedAt    time.Time                 `json:"createdAt"`
+}
+
+type SubscriptionPage struct {
+	TotalCount int32                   `json:"totalCount"`
+	Items      []*CustomerSubscription `json:"items"`
 }
 
 type SubscriptionTerms struct {

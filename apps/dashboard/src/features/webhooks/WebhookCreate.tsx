@@ -31,7 +31,7 @@ export function WebhookCreate() {
   const events = useMemo(() => eventTypesData?.webhookEventTypes ?? [], [eventTypesData])
   const channelsQuery = useQuery(ChannelsDocument)
   const channels = channelsQuery.data?.channels ?? []
-  const [createWebhook] = useMutation(CreateWebhookDocument, { refetchQueries: [{ query: WebhooksDocument }] })
+  const [createWebhook] = useMutation(CreateWebhookDocument, { refetchQueries: [WebhooksDocument] })
 
   const baseline = useMemo(() => toWebhookValues(), [])
   const record = useRecordForm({

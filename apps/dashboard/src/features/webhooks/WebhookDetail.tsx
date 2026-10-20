@@ -73,7 +73,7 @@ export function WebhookDetail() {
   const [setActive, { loading: toggling }] = useMutation(SetWebhookActiveDocument)
   const [rotateSecret, { loading: rotating }] = useMutation(RotateWebhookSecretDocument)
   const [deleteWebhook, { loading: deleting }] = useMutation(DeleteWebhookDocument, {
-    refetchQueries: [{ query: WebhooksDocument }],
+    refetchQueries: [WebhooksDocument],
   })
   const [clearDeliveries, { loading: clearing }] = useMutation(ClearWebhookDeliveriesDocument, {
     refetchQueries: [WebhookDeliveriesDocument],

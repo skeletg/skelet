@@ -396,8 +396,8 @@ function PageTypeAttributesPanel({
   const fid = useId()
   const { data: attrsData } = useQuery(CmsAttributesDocument)
   const allAttrs = attrsData?.cmsAttributes ?? []
-  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
-  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
+  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
+  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
 
   const [picked, setPicked] = useState('')
   const [required, setRequired] = useState(false)

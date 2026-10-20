@@ -101,3 +101,20 @@ func (r *mutationResolver) giftCardIssueChannel(ctx context.Context, raw *string
 	}
 	return &id, nil
 }
+
+// One page of the cards the caller may view - callers gate on giftcards.view first
+func (r *queryResolver) giftCardPage(ctx context.Context, search string, limit, offset *int32) (*model.GiftCardPage, error) {
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "giftcards.view")
+	if err != nil {
+		return nil, err
+	}
+	cards, total, err := r.GiftcardSvc.Page(ctx, permitted.IDs(), search, int32Or(limit, 50), int32Or(offset, 0))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.GiftCard, len(cards))
+	for i, c := range cards {
+		out[i] = toGiftCardModel(c, nil)
+	}
+	return &model.GiftCardPage{TotalCount: total, Items: out}, nil
+}

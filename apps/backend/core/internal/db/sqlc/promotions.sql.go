@@ -146,11 +146,20 @@ func (q *Queries) CountCustomerRedemptions(ctx context.Context, arg CountCustome
 }
 
 const countPromotionCodesByRule = `-- name: CountPromotionCodesByRule :one
-SELECT COUNT(*)::INTEGER FROM promotion_codes WHERE rule_id = $1
+SELECT COUNT(*)::INTEGER FROM promotion_codes
+WHERE rule_id = $1
+  AND ($2::text = '' OR code ILIKE '%' || $2::text || '%')
+  AND ($3::boolean IS NULL OR is_active = $3::boolean)
 `
 
-func (q *Queries) CountPromotionCodesByRule(ctx context.Context, ruleID uuid.UUID) (int32, error) {
-	row := q.db.QueryRowContext(ctx, countPromotionCodesByRule, ruleID)
+type CountPromotionCodesByRuleParams struct {
+	RuleID   uuid.UUID    `json:"rule_id"`
+	Search   string       `json:"search"`
+	IsActive sql.NullBool `json:"is_active"`
+}
+
+func (q *Queries) CountPromotionCodesByRule(ctx context.Context, arg CountPromotionCodesByRuleParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countPromotionCodesByRule, arg.RuleID, arg.Search, arg.IsActive)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -992,18 +1001,29 @@ func (q *Queries) ListConditionsByRules(ctx context.Context, ruleIds []uuid.UUID
 const listPromotionCodesByRule = `-- name: ListPromotionCodesByRule :many
 SELECT id, rule_id, code, max_uses, per_customer_limit, valid_from, valid_to, restricted_to_email, used_count, is_active, created_at, updated_at FROM promotion_codes
 WHERE rule_id = $1
+  AND ($2::text = '' OR code ILIKE '%' || $2::text || '%')
+  AND ($3::boolean IS NULL OR is_active = $3::boolean)
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListPromotionCodesByRuleParams struct {
-	RuleID uuid.UUID `json:"rule_id"`
-	Limit  int32     `json:"limit"`
-	Offset int32     `json:"offset"`
+	RuleID   uuid.UUID    `json:"rule_id"`
+	Search   string       `json:"search"`
+	IsActive sql.NullBool `json:"is_active"`
+	Off      int32        `json:"off"`
+	Lim      int32        `json:"lim"`
 }
 
+// search matches the code; a NULL is_active keeps both. CountPromotionCodesByRule keeps the same WHERE
 func (q *Queries) ListPromotionCodesByRule(ctx context.Context, arg ListPromotionCodesByRuleParams) ([]PromotionCode, error) {
-	rows, err := q.db.QueryContext(ctx, listPromotionCodesByRule, arg.RuleID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listPromotionCodesByRule,
+		arg.RuleID,
+		arg.Search,
+		arg.IsActive,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}

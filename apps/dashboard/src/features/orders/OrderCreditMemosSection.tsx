@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { SectionNote } from './SectionNote'
-import { formatCents } from '@/lib/format'
+import { currencyDecimals, formatCents, toMinor } from '@/lib/format'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   CreditMemosDocument,
@@ -76,7 +76,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
   const memos = data?.creditMemos ?? []
   // Nothing has been collected, so there is nothing refundable and the section would be a placeholder
   const collected =
-    order.paymentTransactions.some((t) => t.kind === 'CAPTURE' && t.status === 'SUCCEEDED') ||
+    order.paymentTransactions.some((t) => t.kind === 'capture' && t.status === 'succeeded') ||
     order.giftCardAmount > 0 ||
     order.storeCreditAmount > 0
   const rmaNumberFor = (returnId: string) =>
@@ -113,16 +113,27 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
     setOpen(true)
   }
 
-  const cents = (v: string) => Math.round(parseFloat(v || '0') * 100) || 0
+  // Blank is 0; anything else must be a non-negative amount in the order currency - null flags it
+  const cents = (v: string) => (v.trim() === '' ? 0 : toMinor(v, order.currencyCode))
 
   async function submit() {
     setError('')
-    const picked = Object.entries(lines)
-      .filter(([, d]) => d.checked && parseFloat(d.quantity) > 0)
-      .map(([orderLineId, d]) => ({ orderLineId, quantity: parseFloat(d.quantity) }))
+    // Quantities are Float end to end (a line can be 1.5 m) - refuse junk, negatives and more than is left to credit
+    const checked = Object.entries(lines)
+      .filter(([, d]) => d.checked && d.quantity.trim() !== '')
+      .map(([orderLineId, d]) => ({ orderLineId, quantity: Number(d.quantity) }))
+    if (checked.some((l) => !Number.isFinite(l.quantity) || l.quantity < 0 || l.quantity > (remaining.get(l.orderLineId) ?? 0))) {
+      setError('Each quantity must be a number between 0 and what is left to credit.')
+      return
+    }
+    const picked = checked.filter((l) => l.quantity > 0)
     const shipping = cents(shippingRefund)
     const adjustment = cents(adjustmentRefund)
     const fee = cents(adjustmentFee)
+    if (shipping === null || adjustment === null || fee === null || shipping < 0 || adjustment < 0 || fee < 0) {
+      setError('Amounts must be positive numbers in the order currency, or blank.')
+      return
+    }
     if (picked.length === 0 && shipping === 0 && adjustment === 0) {
       setError('Pick at least one line, or enter a shipping or adjustment amount.')
       return
@@ -294,7 +305,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   id="cm-shipping"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step={10 ** -currencyDecimals(order.currencyCode)}
                   placeholder={`Up to ${formatCents(order.shippingRefundable, order.currencyCode)}`}
                   value={shippingRefund}
                   onChange={(e) => setShippingRefund(e.target.value)}
@@ -306,7 +317,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   id="cm-adjustment"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step={10 ** -currencyDecimals(order.currencyCode)}
                   value={adjustmentRefund}
                   onChange={(e) => setAdjustmentRefund(e.target.value)}
                 />
@@ -317,7 +328,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   id="cm-fee"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step={10 ** -currencyDecimals(order.currencyCode)}
                   value={adjustmentFee}
                   onChange={(e) => setAdjustmentFee(e.target.value)}
                 />

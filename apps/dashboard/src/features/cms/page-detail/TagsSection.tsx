@@ -25,7 +25,7 @@ export function CmsPageTagsSection({
 }) {
   const [update] = useMutation(UpdateCmsPageDocument, { refetchQueries: [{ query: CmsPageDocument, variables: refetchVariables }] })
   const { data: tagData } = useQuery(CmsTagsDocument)
-  const [createTag] = useMutation(CreateCmsTagDocument, { refetchQueries: [{ query: CmsTagsDocument }] })
+  const [createTag] = useMutation(CreateCmsTagDocument, { refetchQueries: [CmsTagsDocument] })
   const library = useMemo(() => tagData?.cmsTags ?? [], [tagData])
   const nameBySlug = useMemo(() => Object.fromEntries(library.map((t) => [t.slug, t.name])) as Record<string, string>, [library])
   const [newName, setNewName] = useState('')

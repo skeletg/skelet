@@ -50,9 +50,16 @@ type SubscriptionInvoice {
   createdAt:    Time!
 }
 
+type SubscriptionPage {
+  totalCount: Int!
+  items:      [CustomerSubscription!]!
+}
+
 extend type Query {
   # All subscriptions, newest first; optionally filtered by status.
   subscriptions(status: SubscriptionStatus, limit: Int, offset: Int): [CustomerSubscription!]!
+  # One page of subscriptions with the total, newest first; optionally filtered by status
+  subscriptionsPaged(status: SubscriptionStatus, limit: Int, offset: Int): SubscriptionPage!
   # One subscription with its invoice history.
   subscription(id: ID!): CustomerSubscription
 }
