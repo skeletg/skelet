@@ -65,6 +65,7 @@ services:
     ports: ["127.0.0.1:18081:8080"]
     environment:
       BACKEND_UPSTREAM: http://app:8080
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     depends_on:
       app: { condition: service_healthy }
     healthcheck:
@@ -121,6 +122,8 @@ services:
     profiles: ["edge"]
     image: caddy:2-alpine
     env_file: [env/prod-caddy.env]
+    environment:
+      UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     ports:
       - "80:80"
       - "443:443"

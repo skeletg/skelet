@@ -35,7 +35,7 @@ for mod in "${MODULES[@]}"; do
     export GOTOOLCHAIN="go$go_directive+auto"
     # Always the pinned version, never a binary that happens to be on PATH - that binary is whatever
     # was installed whenever, so local lint quietly ran different rules from CI
-    GCL=(go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1)
+    GCL=(go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0)
     ( cd "$mod" && "${GCL[@]}" run ./... ) || backend_dirty=1
 done
 

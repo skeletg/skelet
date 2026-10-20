@@ -11,9 +11,28 @@ allowBuilds:
   fsevents: false
 
 # Carried over from package.json's npm overrides - parent>child scopes the pin to these two
+# Patched floors for what pnpm audit flags at high or critical, each held to its current major line
+# so nothing upgrades past what its parent supports - drop an entry once the parent ships the fix
 overrides:
   "@graphql-codegen/visitor-plugin-common>auto-bind": "4.0.0"
   "@graphql-codegen/near-operation-file-preset>auto-bind": "4.0.0"
+  "shell-quote@>=1.8.4 <1.11.0": "^1.11.0"
+  "fast-uri@>=3.0.0 <3.1.7": "^3.1.8"
+  "brace-expansion@>=4.0.0 <5.0.11": "^5.0.11"
+  "@fastify/busboy@<3.2.1": "^3.2.1"
+  "source-map-js@<1.2.2": "^1.2.2"
+  "@graphql-tools/executor-legacy-ws@<1.1.35": "^1.1.35"
+  "@graphql-tools/utils@<12.0.1": "^12.0.1"
+  "proxy-addr@<2.0.8": "^2.0.8"
+  "undici@>=7.0.0 <7.29.1": "^7.29.1"
+  "undici@>=8.0.0 <8.10.2": "^8.10.2"
+  "@modelcontextprotocol/sdk@<1.31.0": "^1.31.0"
+
+# Reviewed and accepted: braces has no patched release, and only dev tooling reaches it (glob matching
+# in eslint, the codegen loaders and the CLIs) over patterns written in this repo, never user input
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
 
 # Bring node_modules back in line with the lockfile before any `pnpm run` - a host tree kept beside a
 # Docker app's volume (for the IDE and the gates bin/channel and bin/dash run there) never sees the
