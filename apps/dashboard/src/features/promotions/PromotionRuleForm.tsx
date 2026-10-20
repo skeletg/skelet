@@ -81,19 +81,9 @@ import {
 import { PluginSections } from '@/plugins/detail-sections'
 import { FORM_WIDGETS } from './widgets/registry'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { slugify } from '@/lib/slug'
 
 // ---- Types ----
-
-// slugify turns "Free Shipping (DACH)!" into "free-shipping-dach" - Used by the create flow to derive a slug from the name as the operator
-// types, so they don't have to repeat themselves - Edit pages keep the existing slug - URL stability matters more than re-derivation
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 type ConditionRow = {
   type: string
@@ -102,7 +92,6 @@ type ConditionRow = {
   paramsVersion?: number
   sortOrder?: number
 }
-
 
 type CodeRow = PromotionCodeFieldsFragment
 
