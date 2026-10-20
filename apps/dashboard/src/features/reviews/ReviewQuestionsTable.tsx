@@ -72,7 +72,7 @@ export function ReviewQuestionsTable() {
   const [confirmingDelete, setConfirmingDelete] = useState<ReviewQuestionFieldsFragment | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
+    refetchQueries: [ReviewQuestionsDocument],
   })
 
   async function onConfirmDelete() {

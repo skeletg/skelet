@@ -52,7 +52,7 @@ export function AttributesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteAttribute, { loading: deleting }] = useMutation(DeleteAttributeDocument, {
-    refetchQueries: [{ query: AttributesDocument }],
+    refetchQueries: [AttributesDocument],
   })
 
   async function onConfirmDelete() {

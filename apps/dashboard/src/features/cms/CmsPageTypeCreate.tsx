@@ -17,7 +17,7 @@ export function CmsPageTypeCreate() {
   const navigate = useNavigate()
   const locale = useEditingLocale()
   const [slugTouched, setSlugTouched] = useState(false)
-  const [createType] = useMutation(CreateCmsPageTypeDocument, { refetchQueries: [{ query: CmsPageTypesDocument }] })
+  const [createType] = useMutation(CreateCmsPageTypeDocument, { refetchQueries: [CmsPageTypesDocument] })
   const createdId = useRef<string | null>(null)
 
   const record = useRecordForm({

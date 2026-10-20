@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -78,23 +77,19 @@ func (r *queryResolver) Subscriptions(ctx context.Context, status *model.Subscri
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "subscriptions.view"); err != nil {
 		return nil, err
 	}
-	statusFilter := ""
-	if status != nil {
-		statusFilter = strings.ToLower(string(*status))
+	items, _, err := r.subscriptionPage(ctx, status, limit, offset, false)
+	return items, err
+}
+
+func (r *queryResolver) SubscriptionsPaged(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) (*model.SubscriptionPage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "subscriptions.view"); err != nil {
+		return nil, err
 	}
-	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "subscriptions.view") // scope-filter mirrors the orders/customers lists
+	items, total, err := r.subscriptionPage(ctx, status, limit, offset, true)
 	if err != nil {
 		return nil, err
 	}
-	visible, err := r.SubscriptionSvc.ListForChannels(ctx, statusFilter, perm.IDs(), int32Or(limit, 50), int32Or(offset, 0))
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model.CustomerSubscription, len(visible))
-	for i, s := range visible {
-		out[i] = toCustomerSubscriptionModel(s, nil)
-	}
-	return out, nil
+	return &model.SubscriptionPage{TotalCount: total, Items: items}, nil
 }
 
 func (r *queryResolver) Subscription(ctx context.Context, id string) (*model.CustomerSubscription, error) {

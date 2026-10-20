@@ -21,7 +21,7 @@ export function ActiveSessionsCard() {
   const { data, loading } = useQuery(MeDocument)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [logoutOtherDevices, logoutState] = useMutation(LogoutOtherDevicesDocument, {
-    refetchQueries: [{ query: MeDocument }],
+    refetchQueries: [MeDocument],
   })
 
   const sessions = data?.me.sessions ?? []

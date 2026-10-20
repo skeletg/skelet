@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '@tanstack/react-form'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -43,7 +43,8 @@ import {
   DetailPageBody,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { Badge } from '@/components/ui/badge'
 import { ColorPicker } from '@/components/ColorPicker'
 import { MediaPicker } from '@/components/MediaPicker'
@@ -59,6 +60,7 @@ import {
   DeletePromotionRuleContentDocument,
   PromotionActionTypesDocument,
   PromotionConditionTypesDocument,
+  PromotionRuleCodesDocument,
   PromotionRuleDocument,
   UpdatePromotionCodeDocument,
   UpdatePromotionRuleDocument,
@@ -498,7 +500,7 @@ function RuleEditor({
           </DetailPageSection>
         </fieldset>
 
-        {isEdit ? <CodesSection ruleId={rule.id} codes={rule.codes.items} onChanged={onSaved} /> : null}
+        {isEdit ? <CodesSection ruleId={rule.id} /> : null}
         <PluginSections target="promotion" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} />
       </DetailPageBody>
       <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={record.label} sections={registry.dirtySections} />
@@ -833,16 +835,25 @@ function TypePicker({
 
 // ---- Codes ----
 
-function CodesSection({
-  ruleId,
-  codes,
-  onChanged,
-}: {
-  ruleId: string
-  codes: CodeRow[]
-  onChanged?: () => void
-}) {
+function CodesSection({ ruleId }: { ruleId: string }) {
   const [openGen, setOpenGen] = useState(false)
+  // Server-paged and searched - its own URL keys, so the page's other params stay clear
+  const urlState = useListUrlState({ key: 'codes' })
+  const { pagination, globalFilter: search, columnFilters } = urlState
+  const debouncedSearch = useDebounced(search.trim(), 300)
+  // Both statuses ticked, or neither, is no filter at all
+  const active = columnFilters.find((f) => f.id === 'isActive')?.value as string[] | undefined
+  const { data, loading, error, refetch } = useQuery(PromotionRuleCodesDocument, {
+    variables: {
+      id: ruleId,
+      search: debouncedSearch || null,
+      isActive: active?.length === 1 ? active[0] === 'true' : null,
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+    },
+  })
+  const codes: CodeRow[] = data?.promotionRule?.codes.items ?? []
+  const onChanged = useCallback(() => void refetch(), [refetch])
   const [deleteCode] = useMutation(DeletePromotionCodeDocument)
   const [updateCode] = useMutation(UpdatePromotionCodeDocument)
   // Codes use the shared DataTable so search / sort / pagination /
@@ -931,10 +942,20 @@ function CodesSection({
       <DataTable
         columns={columns}
         data={codes}
+        loading={loading && codes.length === 0}
+        error={error ? { message: error.message } : null}
+        manual={{
+          rowCount: data?.promotionRule?.codes.totalCount ?? 0,
+          pagination,
+          onPaginationChange: urlState.setPagination,
+          globalFilter: search,
+          onGlobalFilterChange: urlState.setGlobalFilter,
+          columnFilters,
+          onColumnFiltersChange: urlState.setColumnFilters,
+        }}
         getRowId={(row) => row.id}
         emptyState="No codes yet. Generate a batch to get started."
         searchPlaceholder="Search code…"
-        initialSorting={[{ id: 'code', desc: false }]}
         filters={[
           {
             column: 'isActive',

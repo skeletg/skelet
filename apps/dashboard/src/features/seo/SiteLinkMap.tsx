@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import {
@@ -35,6 +35,7 @@ import { CrawlDiffPanel } from './CrawlDiffPanel'
 import { LinkMapCanvas, type ColorMode, type MapEdge, type MapNode } from './LinkMapCanvas'
 import { HOMEPAGE_COLOR, NODE_COLORS, NODE_LABELS, type MapNodeType } from './link-map-theme'
 import { cn } from '@/lib/utils'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 const DETAIL_ROUTES: Record<MapNodeType, string | null> = {
   PRODUCT: '/products',
@@ -80,14 +81,21 @@ export function SiteLinkMap() {
   const [baseUrl, setBaseUrl] = useState('')
   const [maxPages, setMaxPages] = useState('2000')
 
+  // While a crawl runs the numbers only exist in its progress row, so it polls - pollInterval rather than a hand-rolled
+  // timer, which restarted on every render (its deps were the query results). The interval reads the previous render's
+  // crawl state, adjusted during render like JobHistory, because the query can't see its own result before it runs
+  const [crawling, setCrawling] = useState(false)
   const crawlsQuery = useQuery(SiteCrawlsDocument, {
     variables: { channelId, limit: 5 },
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
+    pollInterval: useVisiblePollInterval(crawling ? 3000 : 0),
   })
+  useRefetchWhenShown(crawlsQuery.refetch)
   const crawls = crawlsQuery.data?.siteCrawls ?? []
   const active = crawls.find((c) => c.status === 'RUNNING') ?? null
   const lastDone = crawls.find((c) => c.status !== 'RUNNING') ?? null
+  if (!!active !== crawling) setCrawling(!!active)
 
   const graphQuery = useQuery(LinkMapDocument, {
     variables: { channelId, maxNodes: budget },
@@ -97,16 +105,16 @@ export function SiteLinkMap() {
   const graph = graphQuery.data?.linkGraph
   const stats = graph?.stats
 
-  // While a crawl runs the numbers only exist in its progress row, so poll it and pull the map once it lands
+  // Pull the map once, when a running crawl finishes
+  const refetchGraph = graphQuery.refetch
+  const runningCrawl = useRef<string | null>(null)
   useEffect(() => {
-    if (!active) return
-    const timer = setInterval(() => {
-      void crawlsQuery.refetch().then((res) => {
-        if (!res.data?.siteCrawls.some((c) => c.status === 'RUNNING')) void graphQuery.refetch()
-      })
-    }, 3000)
-    return () => clearInterval(timer)
-  }, [active, crawlsQuery, graphQuery])
+    if (active) runningCrawl.current = active.id
+    else if (runningCrawl.current) {
+      runningCrawl.current = null
+      void refetchGraph()
+    }
+  }, [active, refetchGraph])
 
   const [startCrawl, startState] = useMutation(StartSiteCrawlDocument, {
     onCompleted: () => {

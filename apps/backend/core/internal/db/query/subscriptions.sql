@@ -56,6 +56,12 @@ WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
 ORDER BY created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
+-- name: CountSubscriptions :one
+-- The total behind ListSubscriptions / ListSubscriptionsForChannels - a nil channel_ids is every channel
+SELECT COUNT(*)::INTEGER FROM subscriptions
+WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
+  AND (sqlc.narg(channel_ids)::uuid[] IS NULL OR channel_id = ANY(sqlc.narg(channel_ids)::uuid[]));
+
 -- name: ListDueSubscriptions :many
 -- The scheduler's hot path: active subscriptions whose next charge is due
 SELECT * FROM subscriptions

@@ -46,4 +46,12 @@ func TestAChannelScopedListIsFilteredBeforeTheLimit(t *testing.T) {
 	if none, _ := svc.ListForChannels(ctx, "", []uuid.UUID{}, 10, 0); len(none) != 0 {
 		t.Errorf("no permitted channels listed %d subscriptions", len(none))
 	}
+	// The total follows the same scope: counting the foreign one would leave the pager a page of nothing
+	all, _ := svc.ListForChannels(ctx, "", []uuid.UUID{own}, 200, 0)
+	if n, err := svc.CountForChannels(ctx, "", []uuid.UUID{own}); err != nil || int(n) != len(all) {
+		t.Errorf("count = %d, %v, want the %d listed", n, err, len(all))
+	}
+	if n, _ := svc.CountForChannels(ctx, "", []uuid.UUID{}); n != 0 {
+		t.Errorf("no permitted channels counted %d subscriptions", n)
+	}
 }

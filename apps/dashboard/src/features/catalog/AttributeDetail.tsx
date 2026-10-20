@@ -102,7 +102,7 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
 
   const refetch = [{ query: AttributeDocument, variables: { id } }, { query: AttributesDocument }]
   const [deleteAttribute, { loading: deleting }] = useMutation(DeleteAttributeDocument, {
-    refetchQueries: [{ query: AttributesDocument }],
+    refetchQueries: [AttributesDocument],
   })
   const [updateAttribute] = useMutation(UpdateAttributeDocument, { refetchQueries: refetch })
   const [addValue] = useMutation(AddAttributeValueDocument, { refetchQueries: refetch })

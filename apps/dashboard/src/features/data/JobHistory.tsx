@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { JobCounts, JobProgress, JobStatusBadge } from './JobStatus'
 import { formatTimestamp } from '@/lib/format'
 import { isRunning, type DataJob } from './jobs'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 // While anything is in flight the list re-reads every second - a finished board stops polling entirely,
 // so an idle hub costs nothing
@@ -37,8 +38,9 @@ export function JobHistory({
   const { data, loading, refetch } = useQuery(DataJobsDocument, {
     variables: { resources: resourceSlug ? [resourceSlug] : null, limit },
     fetchPolicy: 'cache-and-network',
-    pollInterval: running > 0 ? ACTIVE_POLL_MS : 0,
+    pollInterval: useVisiblePollInterval(running > 0 ? ACTIVE_POLL_MS : 0),
   })
+  useRefetchWhenShown(refetch)
   const [cancel] = useMutation(CancelDataJobDocument)
 
   useEffect(() => {

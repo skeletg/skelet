@@ -74,7 +74,7 @@ export function CountriesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteCountry, { loading: deleting }] = useMutation(DeleteCountryDocument, {
-    refetchQueries: [{ query: CountriesAdminListDocument }],
+    refetchQueries: [CountriesAdminListDocument],
   })
 
   async function onConfirmDelete() {

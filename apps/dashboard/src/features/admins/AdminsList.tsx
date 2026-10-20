@@ -70,13 +70,13 @@ export function AdminsList() {
   const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
 
   const [deleteAdmin, { loading: deletingRow }] = useMutation(DeleteAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
   const [deleteAdminBulk] = useMutation(DeleteAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
 
   async function onConfirmRowDelete() {

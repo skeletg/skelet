@@ -62,7 +62,7 @@ export function ReviewCategoriesContent() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteCategory, { loading: deleting }] = useMutation(DeleteReviewCategoryDocument, {
-    refetchQueries: [{ query: ReviewCategoriesDocument }],
+    refetchQueries: [ReviewCategoriesDocument],
   })
 
   function openCreate() {

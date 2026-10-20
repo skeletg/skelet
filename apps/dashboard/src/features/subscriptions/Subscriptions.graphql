@@ -19,8 +19,11 @@ fragment SubscriptionFields on CustomerSubscription {
 }
 
 query Subscriptions($status: SubscriptionStatus, $limit: Int, $offset: Int) {
-  subscriptions(status: $status, limit: $limit, offset: $offset) {
-    ...SubscriptionFields
+  subscriptionsPaged(status: $status, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...SubscriptionFields
+    }
   }
 }
 

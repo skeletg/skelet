@@ -24,6 +24,7 @@ import {
   RebuildQueueDocument,
 } from './Cache.gql'
 import { formatDateTime } from '@/lib/format'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // CacheAdminPage - the abstract storefront cache console - Lists every registered
@@ -43,9 +44,10 @@ export function CacheAdminPage() {
     { query: CacheSurfacesDocument },
     { query: CacheRevalidationsDocument, variables: { limit: 50 } },
   ]
-  const queueQ = useQuery(RebuildQueueDocument, { variables: { recentLimit: 10 }, pollInterval: 5000 })
+  const queueQ = useQuery(RebuildQueueDocument, { variables: { recentLimit: 10 }, pollInterval: useVisiblePollInterval(5000) })
+  useRefetchWhenShown(queueQ.refetch)
   const queue = queueQ.data?.rebuildQueue
-  const [setConfig] = useMutation(SetConfigValueDocument, { refetchQueries: [{ query: CacheSurfacesDocument }] })
+  const [setConfig] = useMutation(SetConfigValueDocument, { refetchQueries: [CacheSurfacesDocument] })
   const [purge] = useMutation(PurgeCacheDocument, { refetchQueries: refetch })
   const [rebuild, { loading: rebuilding }] = useMutation(RebuildCacheDocument, { refetchQueries: refetch })
   const [enqueue, { loading: enqueuing }] = useMutation(EnqueueRebuildDocument, {

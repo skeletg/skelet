@@ -56,7 +56,7 @@ export function ReviewModerationTagsContent() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteTag, { loading: deleting }] = useMutation(DeleteReviewModerationTagDocument, {
-    refetchQueries: [{ query: ReviewModerationTagsDocument }],
+    refetchQueries: [ReviewModerationTagsDocument],
   })
 
   function openCreate() {
