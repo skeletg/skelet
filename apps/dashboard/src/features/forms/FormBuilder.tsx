@@ -19,16 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
@@ -40,6 +30,7 @@ import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocumen
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { formatDateTime } from '@/lib/format'
 import { slugify } from '@/lib/slug'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -274,11 +265,9 @@ function Builder({
     if (!formId) return
     try {
       await deleteForm({ variables: { id: formId } })
-      setConfirmDelete(false)
       onDeleted()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed.')
-      setConfirmDelete(false)
     }
   }
 
@@ -501,20 +490,16 @@ function Builder({
         </fieldset>
       </DetailPageBody>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this form?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The form stops appearing on the storefront. Existing signups are kept. This can&apos;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this form?"
+        description="The form stops appearing on the storefront. Existing signups are kept. This can't be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep"
+        // Not awaited: the dialog closes at once and a failure shows on the page, as it always has
+        onConfirm={() => void onConfirmDelete()}
+      />
     </DetailPageLayout>
   )
 }
