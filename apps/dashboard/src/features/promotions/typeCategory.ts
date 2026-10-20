@@ -15,11 +15,9 @@ import {
   PackageIcon,
   PercentIcon,
   ShoppingCartIcon,
-  StoreIcon,
   TagIcon,
   TruckIcon,
   UserIcon,
-  WandSparklesIcon,
 } from 'lucide-react'
 
 export type CategoryKey =
@@ -186,8 +184,3 @@ function listOrLabel(v: unknown, fallback: string): string {
   const trimmed = v.slice(0, 3).map(String).join(', ')
   return v.length > 3 ? `${trimmed} +${v.length - 3}` : trimmed
 }
-
-// Kept so the icon set stays consistent across the form - a fallback "smart" badge for future
-// composite condition rendering, not referenced on this module's current path
-export const _COMPOSITE_HINT_ICON = WandSparklesIcon
-export const _STORE_HINT_ICON = StoreIcon

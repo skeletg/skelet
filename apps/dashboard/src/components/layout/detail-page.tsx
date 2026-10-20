@@ -2,7 +2,6 @@ import { useCallback, useState, type ReactNode, type Ref } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { BackLink } from '@/components/ui/back-link'
 import { cn } from '@/lib/utils'
 import { useScrollHideHeader } from '@/lib/use-scroll-hide-header'
 import { useParentPage } from '@/nav/active-path'
@@ -146,14 +145,6 @@ export function DetailPageHeader({
       </div>
     </div>
   )
-}
-
-// The derived back link on its own, for the handful of subpages that predate DetailPageHeader and
-// render a plain form instead - same target and label, without restructuring the page around it
-export function PageBackLink({ className }: { className?: string }) {
-  const parent = useParentPage()
-  if (!parent) return null
-  return <BackLink to={parent.path} label={`Back to ${parent.title}`} className={className} />
 }
 
 // `divide-y` rules between sibling sections, `pb-16` keeps the last one clear of the scroll edge

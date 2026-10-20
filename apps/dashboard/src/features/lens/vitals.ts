@@ -56,15 +56,6 @@ export function vitalColor(metric: VitalMetric, v: number): string {
   return r === 'good' ? VITAL_GREEN : r === 'ni' ? VITAL_AMBER : VITAL_RED
 }
 
-export function vitalTextClass(metric: VitalMetric, v: number): string {
-  const r = vitalRating(metric, v)
-  return r === 'good'
-    ? 'text-success'
-    : r === 'ni'
-      ? 'text-warning'
-      : 'text-destructive'
-}
-
 // Maps a value to a 0..1 arc fill, 1 at the "good" edge and 0 at "poor", linear within the band and clamped beyond - lower is better for every CWV
 export function vitalScore(metric: VitalMetric, v: number): number {
   const [good, poor] = VITAL_THRESHOLDS[metric]
