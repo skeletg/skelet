@@ -14,6 +14,7 @@ describe("isPrivateRecordingPath", () => {
       "/orders/5b0e7c1e-0000-4000-8000-000000000000",
       "/track-order",
       "/gift-card",
+      "/verify-email",
       "/wishlist/sharedtoken123",
       "/cms/preview/7",
       "/blog/preview/7",

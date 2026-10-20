@@ -5,8 +5,8 @@
 // swaps a private page in during client navigation is already blocked before either recorder reacts to the route
 export const RECORDING_BLOCK_CLASS = "lens-block";
 
-// Every path under these segments shows a shopper's own data
-const PRIVATE_ROOTS = new Set(["account", "cart", "checkout", "orders", "track-order", "gift-card"]);
+// Every path under these segments shows a shopper's own data - verify-email prints the signed-in address
+const PRIVATE_ROOTS = new Set(["account", "cart", "checkout", "orders", "track-order", "gift-card", "verify-email"]);
 // A locale prefix (as-needed scheme, so absent for the default locale): en, de, pt-br, zh-hant-tw
 const LOCALE_SEGMENT = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i;
 
