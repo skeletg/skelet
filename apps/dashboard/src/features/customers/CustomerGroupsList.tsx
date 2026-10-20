@@ -4,16 +4,6 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon, StarIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +21,7 @@ import {
   DeleteCustomerGroupDocument,
   SetDefaultCustomerGroupDocument,
 } from './CustomerGroups.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type GroupRow = ExistingCustomerGroup & {
   isDefault: boolean
@@ -52,11 +43,10 @@ export function CustomerGroupsList() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState<GroupRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const refetchQueries = [{ query: CustomerGroupsDocument }]
-  const [deleteGroup, { loading: deleting }] = useMutation(DeleteCustomerGroupDocument, {
+  const [deleteGroup] = useMutation(DeleteCustomerGroupDocument, {
     refetchQueries,
   })
   const [setDefault, { loading: settingDefault }] = useMutation(SetDefaultCustomerGroupDocument, {
@@ -65,13 +55,7 @@ export function CustomerGroupsList() {
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteGroup({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteGroup({ variables: { id: confirmingDelete.id } })
   }
 
   async function onSetDefault(row: GroupRow) {
@@ -159,7 +143,6 @@ export function CustomerGroupsList() {
                         disabled={!canDelete}
                         onSelect={() => {
                           if (!canDelete) return
-                          setDeleteError(null)
                           setConfirmingDelete(r)
                         }}
                       >
@@ -215,44 +198,16 @@ export function CustomerGroupsList() {
 
       <CustomerGroupFormDialog open={createOpen} onOpenChange={setCreateOpen} />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The group and its definition will be removed. Groups with members or the
-              default group cannot be deleted - the backend will reject those.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete group'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description="The group and its definition will be removed. Groups with members or the default group cannot be deleted - the backend will reject those."
+        confirmLabel="Delete group"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }
