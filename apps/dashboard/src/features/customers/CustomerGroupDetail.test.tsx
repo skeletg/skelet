@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { CustomerGroupDetailPage } from './CustomerGroupDetail'
-import { CustomerGroupDocument, UpdateCustomerGroupDocument } from './CustomerGroups.gql'
+import { CustomerGroupDocument, DeleteCustomerGroupDocument, UpdateCustomerGroupDocument } from './CustomerGroups.gql'
 import { CustomersPagedDocument } from './Customers.gql'
 
 // What these pin: a profile edit is reviewed and saved with an emptied description cleared, and an
@@ -19,12 +20,13 @@ const group = {
   createdAt: '2026-01-01T00:00:00Z',
 }
 
-function renderGroup(me = meMock(), onUpdate = vi.fn()) {
+function renderGroup(me = meMock(), onUpdate = vi.fn(), extra: MockLink.MockedResponse[] = []) {
   renderPage({
     path: '/customers/groups/g1',
     adminId: 'admin-1',
-    routes: { '/customers/groups/:id': <CustomerGroupDetailPage /> },
+    routes: { '/customers/groups/:id': <CustomerGroupDetailPage />, '/customers/groups': <p>Groups list</p> },
     mocks: [
+      ...extra,
       me,
       { request: { query: CustomerGroupDocument, variables: { id: 'g1' } }, result: { data: { customerGroup: group } }, maxUsageCount: 3 },
       {
@@ -61,5 +63,32 @@ describe('CustomerGroupDetailPage', () => {
     // Disabled through the page's fieldset, not the input's own attribute
     expect((await screen.findByLabelText('Name')).matches(':disabled')).toBe(true)
     expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('CustomerGroupDetailPage delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderGroup(meMock(), vi.fn(), [mock])
+    // The button renders disabled until the grants load
+    const trigger = await screen.findByRole('button', { name: 'Delete group' }, SLOW)
+    await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false), SLOW)
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete group' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteCustomerGroupDocument, variables: { id: 'g1' } }, result: { errors: [{ message: 'group is the default' }] } })
+    expect(await within(dialog).findByText('group is the default')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteCustomerGroupDocument, variables: { id: 'g1' } }, result: { data: { deleteCustomerGroup: true } } })
+    expect(await screen.findByText('Groups list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })

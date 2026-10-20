@@ -3,17 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef, type PaginationState } from '@/components/data-table/tanstack'
 import { StarIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
@@ -40,6 +29,7 @@ import {
   toCustomerGroupInput,
   toCustomerGroupValues,
 } from './schemas/customerGroup'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type MemberRow = {
   id: string
@@ -126,12 +116,11 @@ function CustomerGroupForm({ group }: { group: Group }) {
   ]
   const [updateGroup] = useMutation(UpdateCustomerGroupDocument, { refetchQueries: refetch })
   const [setDefault, setDefaultState] = useMutation(SetDefaultCustomerGroupDocument, { refetchQueries: refetch })
-  const [deleteGroup, deleteState] = useMutation(DeleteCustomerGroupDocument, {
+  const [deleteGroup] = useMutation(DeleteCustomerGroupDocument, {
     refetchQueries: [{ query: CustomerGroupsDocument }],
   })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const baseline = useMemo(() => toCustomerGroupValues(group), [group])
@@ -177,13 +166,8 @@ function CustomerGroupForm({ group }: { group: Group }) {
   }
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteGroup({ variables: { id: group.id } })
-      navigate('/customers/groups', { replace: true })
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Delete failed.')
-    }
+    await deleteGroup({ variables: { id: group.id } })
+    navigate('/customers/groups', { replace: true })
   }
 
   // Guard and displayed count read the same number, so Delete is never offered on a populated group
@@ -264,10 +248,7 @@ function CustomerGroupForm({ group }: { group: Group }) {
                 type="button"
                 variant="destructive"
                 disabled={!canDelete}
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
+                onClick={() => setConfirmingDelete(true)}
               >
                 <Trash2Icon className="size-4" />
                 Delete group
@@ -287,40 +268,15 @@ function CustomerGroupForm({ group }: { group: Group }) {
         </div>
       </DetailPageSection>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {group.name}?</AlertDialogTitle>
-            <AlertDialogDescription>The group definition will be removed. This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteState.loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteState.loading}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-            >
-              {deleteState.loading ? 'Deleting…' : 'Delete group'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {group.name}?</>}
+        description="The group definition will be removed. This cannot be undone."
+        confirmLabel="Delete group"
+        busyLabel="Deleting…"
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }

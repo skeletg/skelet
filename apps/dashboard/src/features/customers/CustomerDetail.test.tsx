@@ -1,4 +1,5 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { CustomerDetail } from './CustomerDetail'
@@ -8,6 +9,7 @@ import {
   AdminUpdateCustomerDocument,
   CustomerConsentHistoryDocument,
   CustomerDocument,
+  DeleteCustomerDocument,
   SetCustomerGroupDocument,
   SetCustomerTaxStatusDocument,
   SetCustomerVatIdDocument,
@@ -77,13 +79,14 @@ const recorder = (fn: (v: Record<string, unknown>) => void) => (vars: Record<str
   return true
 }
 
-function renderCustomer() {
+function renderCustomer(extra: MockLink.MockedResponse[] = []) {
   const writes = { update: vi.fn(), group: vi.fn(), consent: vi.fn(), tax: vi.fn(), vat: vi.fn() }
   renderPage({
     path: '/customers/cu1',
     adminId: 'admin-1',
-    routes: { '/customers/:id': <CustomerDetail /> },
+    routes: { '/customers/:id': <CustomerDetail />, '/customers': <p>Customers list</p> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: CustomerDocument, variables: { id: 'cu1' } }, result: { data: { customer } }, maxUsageCount: 5 },
       { request: { query: CustomerGroupsDocument }, result: { data: { customerGroups: [group('g1', 'Retail', true), group('g2', 'Wholesale')] } }, maxUsageCount: 3 },
@@ -156,5 +159,32 @@ describe('CustomerDetail', () => {
     expect(await screen.findByText('Signup form (confirmed)', undefined, SLOW)).toBeDefined()
     expect(screen.getByText('Opted out')).toBeDefined()
     expect(screen.getByText('Admin')).toBeDefined()
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('CustomerDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderCustomer([mock])
+    // The button renders disabled until the grants load
+    const trigger = await screen.findByRole('button', { name: 'Delete customer' }, SLOW)
+    await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false), SLOW)
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete customer' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteCustomerDocument, variables: { id: 'cu1' } }, result: { errors: [{ message: 'customer has orders' }] } })
+    expect(await within(dialog).findByText('customer has orders')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteCustomerDocument, variables: { id: 'cu1' } }, result: { data: { deleteCustomer: true } } })
+    expect(await screen.findByText('Customers list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })
