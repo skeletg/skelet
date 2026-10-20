@@ -51,7 +51,7 @@ export function WebhooksList() {
   const [confirmingDelete, setConfirmingDelete] = useState<WebhookRow | null>(null)
 
   const [deleteWebhook] = useMutation(DeleteWebhookDocument, {
-    refetchQueries: [{ query: WebhooksDocument }],
+    refetchQueries: [WebhooksDocument],
   })
 
   async function onConfirmDelete() {

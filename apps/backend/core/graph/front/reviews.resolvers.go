@@ -271,17 +271,18 @@ func (r *productResolver) ReviewAggregates(ctx context.Context, obj *model1.Prod
 		v := *agg.OverallAverage
 		out.OverallAverage = &v
 	}
-	{ // per-question averages need the question models for their labels
+	if selectsField(ctx, "perQuestion") { // per-question averages need the question models for their labels - a star row never asks, so it skips both
 		ptID, err := r.productTypeIDOf(ctx, obj)
-		if err == nil {
+		perQuestion, aerr := r.perQuestionAggregates(ctx, productID)
+		if err == nil && aerr == nil {
 			questions, qerr := r.getAssignedQuestionsLocalized(ctx, ptID, r.activeLocale(ctx))
 			if qerr == nil {
 				byID := make(map[uuid.UUID]review.Question, len(questions))
 				for _, q := range questions {
 					byID[q.ID] = q
 				}
-				out.PerQuestion = make([]*model.ReviewQuestionAverage, 0, len(agg.PerQuestion))
-				for _, p := range agg.PerQuestion {
+				out.PerQuestion = make([]*model.ReviewQuestionAverage, 0, len(perQuestion))
+				for _, p := range perQuestion {
 					q := byID[p.QuestionID]
 					out.PerQuestion = append(out.PerQuestion, &model.ReviewQuestionAverage{
 						Question: reviewQuestionToModel(q),

@@ -141,7 +141,7 @@ export function ProductDownloadsSection({
                 </Badge>
                 {canManage && (
                   <>
-                    <Button
+                    <Button aria-label="Edit download"
                       type="button"
                       variant="ghost"
                       size="icon"
@@ -150,7 +150,7 @@ export function ProductDownloadsSection({
                     >
                       <PencilIcon className="size-3.5" />
                     </Button>
-                    <Button
+                    <Button aria-label="Delete download"
                       type="button"
                       variant="ghost"
                       size="icon"

@@ -65,7 +65,7 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
     refetchQueries: [{ query: AdminDocument, variables: { id: admin.id } }, { query: AdminsDocument }],
   })
   const [deleteAdmin] = useMutation(DeleteAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 

@@ -95,6 +95,9 @@ import { readImageDimensions } from '@/lib/image'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 import { formatBytes } from '@/lib/format'
 import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
+import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
@@ -303,9 +306,10 @@ export function MediaLibrary() {
           </div>
         </div>
 
-        <div className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
+        <div role="tree" aria-label="Folders" className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
           <RootRow
             isActive={path === '' && !query}
+            tabbable={path === ''}
             onClick={() => navigateTo('')}
           />
           {directoryTree.length > 0 ? (
@@ -472,18 +476,23 @@ export function MediaLibrary() {
   )
 }
 
-function RootRow({ isActive, onClick }: { isActive: boolean; onClick: () => void }) {
+// The tree's one tab stop is the open folder's row - Library's when the root is open, a search included
+function RootRow({ isActive, tabbable, onClick }: { isActive: boolean; tabbable: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <div
+      role="treeitem"
+      tabIndex={tabbable ? 0 : -1}
+      aria-level={1}
+      aria-selected={isActive}
       onClick={onClick}
-      className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+      onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: true, hasChildren: false, onToggle: () => {}, onOpen: onClick })}
+      className={`mb-1 flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         isActive ? 'bg-primary/10 font-medium text-foreground' : 'text-foreground/90 hover:bg-muted/60'
       }`}
     >
       <FolderIcon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
       <span className="truncate">Library</span>
-    </button>
+    </div>
   )
 }
 
@@ -851,7 +860,7 @@ function UploadMediaDialog({
   )
 }
 
-function AssetDetailsSheet({
+export function AssetDetailsSheet({
   asset,
   canManage,
   currentPath,
@@ -890,6 +899,22 @@ function AssetDetailsSheet({
       setFilename(asset.filename)
       setTargetPath(asset.directoryPath)
     }
+  }
+
+  // Closing the sheet used to drop typed-in metadata without a word - it now asks, and leaving the page is guarded too
+  const dirty =
+    !!asset &&
+    (title !== asset.title ||
+      altText !== asset.altText ||
+      caption !== asset.caption ||
+      notes !== asset.notes ||
+      filename !== asset.filename ||
+      targetPath !== asset.directoryPath)
+  useUnsavedChangesGuard(dirty, 'Media asset')
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+  function requestOpenChange(open: boolean) {
+    if (!open && dirty) setConfirmingDiscard(true)
+    else onOpenChange(open)
   }
 
   const [updateAsset] = useMutation<UpdateMediaAssetMutation, UpdateMediaAssetMutationVariables>(
@@ -979,128 +1004,139 @@ function AssetDetailsSheet({
   }
 
   return (
-    <Sheet open={!!asset} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-        {asset ? (
-          <>
-            <SheetHeader>
-              <SheetTitle>{asset.title || asset.filename}</SheetTitle>
-            </SheetHeader>
-            <div className="grid gap-4 px-4">
-              <div className="overflow-hidden rounded-lg border bg-muted">
-                {asset.mimeGroup === 'IMAGE' ? (
-                  <div className="flex justify-center">
-                    <div className="relative">
-                      <img
-                        src={asset.url}
-                        alt={asset.altText || asset.filename}
-                        className={cn('max-h-80 max-w-full', canManage && 'cursor-crosshair')}
-                        onClick={canManage ? onPickFocal : undefined}
-                      />
-                      {asset.focalX != null && asset.focalY != null && (
-                        <span
-                          className="pointer-events-none absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md ring-1 ring-black/40"
-                          style={{ left: `${asset.focalX * 100}%`, top: `${asset.focalY * 100}%` }}
+    <>
+      <ConfirmDialog
+        open={confirmingDiscard}
+        onOpenChange={setConfirmingDiscard}
+        title="Discard changes to this asset?"
+        description="The title, alt text, caption, notes or location you edited haven't been saved."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => onOpenChange(false)}
+      />
+      <Sheet open={!!asset} onOpenChange={requestOpenChange}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+          {asset ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>{asset.title || asset.filename}</SheetTitle>
+              </SheetHeader>
+              <div className="grid gap-4 px-4">
+                <div className="overflow-hidden rounded-lg border bg-muted">
+                  {asset.mimeGroup === 'IMAGE' ? (
+                    <div className="flex justify-center">
+                      <div className="relative">
+                        <img
+                          src={asset.url}
+                          alt={asset.altText || asset.filename}
+                          className={cn('max-h-80 max-w-full', canManage && 'cursor-crosshair')}
+                          onClick={canManage ? onPickFocal : undefined}
                         />
-                      )}
+                        {asset.focalX != null && asset.focalY != null && (
+                          <span
+                            className="pointer-events-none absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md ring-1 ring-black/40"
+                            style={{ left: `${asset.focalX * 100}%`, top: `${asset.focalY * 100}%` }}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid aspect-video place-items-center text-muted-foreground">
-                    <FileTextIcon className="size-12" />
-                  </div>
-                )}
-              </div>
-              {asset.mimeGroup === 'IMAGE' && canManage && (
-                <p className="text-xs text-muted-foreground">
-                  Click the image to set the crop focal point - server-side cover crops stay centered on it.{' '}
-                  {asset.focalX != null && asset.focalY != null ? (
-                    <>
-                      <span className="tabular-nums">
-                        ({Math.round(asset.focalX * 100)}%, {Math.round(asset.focalY * 100)}%)
-                      </span>{' '}
-                      <button type="button" className="underline underline-offset-2" onClick={() => void applyFocal(null, null)}>
-                        Clear
-                      </button>
-                    </>
                   ) : (
-                    <span>None set - crops use the center.</span>
-                  )}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">{asset.mimeType}</Badge>
-                <span>{formatBytes(asset.sizeBytes)}</span>
-                {asset.width && asset.height ? <span>{asset.width}x{asset.height}</span> : null}
-                <Button variant="ghost" size="xs" asChild>
-                  <a href={asset.url} target="_blank" rel="noreferrer">
-                    <ExternalLinkIcon className="size-3" />
-                    Open
-                  </a>
-                </Button>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-title">Title</Label>
-                <Input id="asset-title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="asset-alt">Alt text</Label>
-                  {aiEnabled && canManage && asset?.mimeGroup === 'IMAGE' && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      disabled={genningAlt}
-                      onClick={onGenerateAlt}
-                      title="Generate alt text from the image with AI"
-                    >
-                      <SparklesIcon className="size-3.5" />
-                      {genningAlt ? 'Generating…' : 'Generate'}
-                    </Button>
+                    <div className="grid aspect-video place-items-center text-muted-foreground">
+                      <FileTextIcon className="size-12" />
+                    </div>
                   )}
                 </div>
-                <Input id="asset-alt" value={altText} onChange={(event) => setAltText(event.target.value)} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-caption">Caption</Label>
-                <Textarea id="asset-caption" value={caption} onChange={(event) => setCaption(event.target.value)} rows={3} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-notes">Notes</Label>
-                <Textarea id="asset-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={!canManage} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="asset-path">Directory path</Label>
-                  <Input id="asset-path" value={targetPath} onChange={(event) => setTargetPath(event.target.value)} disabled={!canManage} placeholder={currentPath} />
+                {asset.mimeGroup === 'IMAGE' && canManage && (
+                  <p className="text-xs text-muted-foreground">
+                    Click the image to set the crop focal point - server-side cover crops stay centered on it.{' '}
+                    {asset.focalX != null && asset.focalY != null ? (
+                      <>
+                        <span className="tabular-nums">
+                          ({Math.round(asset.focalX * 100)}%, {Math.round(asset.focalY * 100)}%)
+                        </span>{' '}
+                        <button type="button" className="underline underline-offset-2" onClick={() => void applyFocal(null, null)}>
+                          Clear
+                        </button>
+                      </>
+                    ) : (
+                      <span>None set - crops use the center.</span>
+                    )}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">{asset.mimeType}</Badge>
+                  <span>{formatBytes(asset.sizeBytes)}</span>
+                  {asset.width && asset.height ? <span>{asset.width}x{asset.height}</span> : null}
+                  <Button variant="ghost" size="xs" asChild>
+                    <a href={asset.url} target="_blank" rel="noreferrer">
+                      <ExternalLinkIcon className="size-3" />
+                      Open
+                    </a>
+                  </Button>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="asset-filename">Filename</Label>
-                  <Input id="asset-filename" value={filename} onChange={(event) => setFilename(event.target.value)} disabled={!canManage} />
+                  <Label htmlFor="asset-title">Title</Label>
+                  <Input id="asset-title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="asset-alt">Alt text</Label>
+                    {aiEnabled && canManage && asset?.mimeGroup === 'IMAGE' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        disabled={genningAlt}
+                        onClick={onGenerateAlt}
+                        title="Generate alt text from the image with AI"
+                      >
+                        <SparklesIcon className="size-3.5" />
+                        {genningAlt ? 'Generating…' : 'Generate'}
+                      </Button>
+                    )}
+                  </div>
+                  <Input id="asset-alt" value={altText} onChange={(event) => setAltText(event.target.value)} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="asset-caption">Caption</Label>
+                  <Textarea id="asset-caption" value={caption} onChange={(event) => setCaption(event.target.value)} rows={3} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="asset-notes">Notes</Label>
+                  <Textarea id="asset-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={!canManage} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="asset-path">Directory path</Label>
+                    <Input id="asset-path" value={targetPath} onChange={(event) => setTargetPath(event.target.value)} disabled={!canManage} placeholder={currentPath} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="asset-filename">Filename</Label>
+                    <Input id="asset-filename" value={filename} onChange={(event) => setFilename(event.target.value)} disabled={!canManage} />
+                  </div>
                 </div>
               </div>
-            </div>
-            {canManage ? (
-              <SheetFooter>
-                <Button onClick={onSave} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => confirm({ title: 'Delete this media asset?', confirmLabel: 'Delete asset', destructive: true, onConfirm: onDelete })}
-                >
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </Button>
-              </SheetFooter>
-            ) : null}
-          </>
-        ) : null}
-        {confirmDialog}
-      </SheetContent>
-    </Sheet>
+              {canManage ? (
+                <SheetFooter>
+                  <Button onClick={onSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => confirm({ title: 'Delete this media asset?', confirmLabel: 'Delete asset', destructive: true, onConfirm: onDelete })}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </Button>
+                </SheetFooter>
+              ) : null}
+            </>
+          ) : null}
+          {confirmDialog}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 
@@ -1140,7 +1176,7 @@ function DirectoryTree({
   depth?: number
 }) {
   return (
-    <ul className="grid gap-0.5">
+    <ul role={depth > 0 ? 'group' : 'none'} className="grid gap-0.5">
       {nodes.map((node) => (
         <DirectoryTreeNode key={node.path} node={node} activePath={activePath} onNavigate={onNavigate} depth={depth} />
       ))}
@@ -1173,9 +1209,15 @@ function DirectoryTreeNode({
   }
 
   return (
-    <li>
+    <li role="none">
       <div
-        className={`group relative flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors ${
+        role="treeitem"
+        tabIndex={isActive ? 0 : -1}
+        aria-level={depth + 2}
+        aria-selected={isActive}
+        aria-expanded={hasChildren ? open : undefined}
+        onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: open, hasChildren, onToggle: () => setOpen((v) => !v), onOpen: () => onNavigate(node.path) })}
+        className={`group relative flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isActive
             ? 'bg-primary/10 font-medium text-foreground'
             : isAncestor
@@ -1196,11 +1238,13 @@ function DirectoryTreeNode({
               />
             ))
           : null}
+        {/* The row's arrow keys expand and collapse, so this stays a mouse target out of the tab order */}
         <button
           type="button"
+          tabIndex={-1}
           className="grid size-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
           onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-          aria-label={open ? 'Collapse' : 'Expand'}
+          aria-label={open ? `Collapse ${node.name}` : `Expand ${node.name}`}
           disabled={!hasChildren}
         >
           {hasChildren ? (

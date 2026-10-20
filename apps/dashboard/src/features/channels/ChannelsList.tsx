@@ -66,7 +66,7 @@ export function ChannelsList() {
   const [confirmingDelete, setConfirmingDelete] = useState<ChannelRow | null>(null)
 
   const [deleteChannel] = useMutation(DeleteChannelDocument, {
-    refetchQueries: [{ query: ChannelsDocument }],
+    refetchQueries: [ChannelsDocument],
   })
 
   async function onConfirmDelete() {

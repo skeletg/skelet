@@ -170,7 +170,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		PluginLoaders: pluginhost.DataLoaderRegistrations(),
 	}
 	// LocaleClampMiddleware sits inside both channel + locale middleware (it needs the resolved channel AND the extracted header) and snaps unsupported locales to the channel default - front surface only - admin reads must keep accepting arbitrary locales for translation tooling
-	frontRespCache := frontResponseCache(cache.New(infra.Cache.Client, "frontresp"), 60*time.Second) // sits INSIDE channel + locale resolution so its key uses the RESOLVED channel id and clamped locale - keying on the raw headers bled cached responses across host-resolved siblings that send no X-Channel-Id at all
+	frontRespCache := frontResponseCache(cache.New(infra.Cache.Client, "frontresp"), frontRespEpochs{infra.Cache.Client}, 60*time.Second) // sits INSIDE channel + locale resolution so its key uses the RESOLVED channel id and clamped locale - keying on the raw headers bled cached responses across host-resolved siblings that send no X-Channel-Id at all
 	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceKeys)(devDebug(maxBody(256<<10)(authpkg.CustomerMiddleware(infra.Config.CustomerKeys.Verifier())(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(s.Cart.OfferGrantMiddleware(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv))))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))

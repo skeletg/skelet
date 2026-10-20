@@ -126,7 +126,7 @@ function MenuForm({ menu }: { menu: Menu }) {
   // updateMenu in the same save, and updateMenu's bare-row answer (no channels) can otherwise land
   // last through its own refetch
   const [setMenuStores] = useMutation(SetMenuStoresDocument, { refetchQueries: listRefetch })
-  const [deleteMenu, { loading: deletingMenu }] = useMutation(DeleteMenuDocument, { refetchQueries: [{ query: MenusListDocument }] })
+  const [deleteMenu, { loading: deletingMenu }] = useMutation(DeleteMenuDocument, { refetchQueries: [MenusListDocument] })
   const [createMenuItem] = useMutation(CreateMenuItemDocument, { refetchQueries })
   const [updateMenuItem] = useMutation(UpdateMenuItemDocument, { refetchQueries })
   const [deleteMenuItem] = useMutation(DeleteMenuItemDocument, { refetchQueries })

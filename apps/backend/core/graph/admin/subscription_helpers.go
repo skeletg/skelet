@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"github.com/google/uuid"
 
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // toSubscriptionTermsModel maps a product's recurring terms to GraphQL.
@@ -77,4 +79,31 @@ func uuidPtrToString(p *uuid.UUID) *string {
 	}
 	s := p.String()
 	return &s
+}
+
+// One page of the subscriptions the caller may view, and the total when withTotal - callers gate on subscriptions.view first
+func (r *queryResolver) subscriptionPage(ctx context.Context, status *model.SubscriptionStatus, limit, offset *int32, withTotal bool) ([]*model.CustomerSubscription, int32, error) {
+	statusFilter := ""
+	if status != nil {
+		statusFilter = strings.ToLower(string(*status))
+	}
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "subscriptions.view") // scope-filter mirrors the orders/customers lists
+	if err != nil {
+		return nil, 0, err
+	}
+	visible, err := r.SubscriptionSvc.ListForChannels(ctx, statusFilter, perm.IDs(), int32Or(limit, 50), int32Or(offset, 0))
+	if err != nil {
+		return nil, 0, err
+	}
+	var total int32
+	if withTotal {
+		if total, err = r.SubscriptionSvc.CountForChannels(ctx, statusFilter, perm.IDs()); err != nil {
+			return nil, 0, err
+		}
+	}
+	out := make([]*model.CustomerSubscription, len(visible))
+	for i, s := range visible {
+		out[i] = toCustomerSubscriptionModel(s, nil)
+	}
+	return out, total, nil
 }

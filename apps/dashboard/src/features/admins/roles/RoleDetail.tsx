@@ -66,7 +66,7 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
   const [removeError, setRemoveError] = useState<string | null>(null)
 
   const [deleteRole] = useMutation(DeleteRoleDocument, {
-    refetchQueries: [{ query: RolesDocument }],
+    refetchQueries: [RolesDocument],
   })
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
     refetchQueries: [

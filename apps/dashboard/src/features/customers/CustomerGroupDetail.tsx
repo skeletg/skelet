@@ -117,7 +117,7 @@ function CustomerGroupForm({ group }: { group: Group }) {
   const [updateGroup] = useMutation(UpdateCustomerGroupDocument, { refetchQueries: refetch })
   const [setDefault, setDefaultState] = useMutation(SetDefaultCustomerGroupDocument, { refetchQueries: refetch })
   const [deleteGroup] = useMutation(DeleteCustomerGroupDocument, {
-    refetchQueries: [{ query: CustomerGroupsDocument }],
+    refetchQueries: [CustomerGroupsDocument],
   })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)

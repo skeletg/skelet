@@ -85,6 +85,8 @@ import {
   SaveLibraryEmailDocument,
   SuggestEmailSubjectsDocument,
 } from './Emails.gql'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 let uid = 0
 const nextId = () => `le_${++uid}`
@@ -139,7 +141,7 @@ export function EmailLibraryDetail() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(LibraryEmailDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(LibraryEmailDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
   const { data: groupsData } = useQuery(EmailGroupsDocument, { fetchPolicy: 'cache-and-network' })
   const groups: GroupOption[] = groupsData?.emailGroups ?? []
   // New emails default to the Marketing group; the operator can retag as needed
@@ -158,6 +160,11 @@ export function EmailLibraryDetail() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.libraryEmail && error) {
+    return <LoadError title="Couldn't load this email" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.libraryEmail && !loading) return <NotFound />
   if (!isNew && !data?.libraryEmail) {
     return (
       <DetailPageLayout>

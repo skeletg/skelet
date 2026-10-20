@@ -240,3 +240,26 @@ func TestACodeIsFoundHoweverItIsTyped(t *testing.T) {
 		}
 	}
 }
+
+// The gift card list pages on the server, so search has to reach the database and the total has to follow it
+func TestPageSearchesCodeAndRecipient(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	email := "page-" + uuid.NewString()[:8] + "@example.test"
+	card, err := r.svc.Issue(ctx, IssueInput{CurrencyCode: "USD", Amount: 1000, RecipientEmail: email, ChannelID: &r.channel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, search := range []string{email[:13], strings.ToLower(card.Code)} {
+		got, total, err := r.svc.Page(ctx, nil, search, 10, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != 1 || len(got) != 1 || got[0].ID != card.ID {
+			t.Errorf("Page(%q) = %d rows of %d, want just the card", search, len(got), total)
+		}
+	}
+	if got, total, _ := r.svc.Page(ctx, []uuid.UUID{}, "", 10, 0); len(got) != 0 || total != 0 {
+		t.Errorf("no permitted channels paged %d cards of %d", len(got), total)
+	}
+}

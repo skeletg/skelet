@@ -12,6 +12,9 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { changed } from '@/shared/saving/diff'
+import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
+import { useSaveRegistry, useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import {
   CmsTagsDocument,
   CreateCmsTagDocument,
@@ -40,6 +43,45 @@ export function CmsTagsPage() {
   const [newName, setNewName] = useState('')
   const [pendingDelete, setPendingDelete] = useState<Tag | null>(null)
 
+  // Renames stage and go through the header Save like any other field edit - they used to write on blur, with no
+  // review and no error, so a failed rename still showed the new name. Create and delete keep their own buttons
+  const registry = useSaveRegistry('Tags')
+  const [renames, setRenames] = useState<Map<string, string>>(new Map())
+  const [confirmingSave, setConfirmingSave] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const diff = tags
+    .map((t) => (renames.has(t.slug) ? changed(`Tag · ${t.slug} · name`, t.name, renames.get(t.slug)?.trim()) : null))
+    .filter((e): e is SectionDiffEntry => e !== null)
+  useSaveSection(
+    {
+      id: 'tags',
+      title: 'Tags',
+      diff,
+      save: async () => {
+        for (const t of tags) {
+          const name = renames.get(t.slug)?.trim()
+          if (name && name !== t.name) await renameTag({ variables: { slug: t.slug, name } })
+        }
+        setRenames(new Map())
+      },
+    },
+    registry.contextValue,
+  )
+
+  async function onConfirmSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await registry.saveAll()
+      setConfirmingSave(false)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not save the tags')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function onCreate() {
     const name = newName.trim()
     if (!name) return
@@ -54,6 +96,13 @@ export function CmsTagsPage() {
         backLabel="Back to pages"
         title="Tags"
         meta={<span>Manage the shared tag vocabulary used across CMS pages.</span>}
+        actions={
+          canManage && (
+            <Button size="sm" disabled={!registry.isDirty || saving} onClick={() => setConfirmingSave(true)}>
+              Save
+            </Button>
+          )
+        }
       />
       <DetailPageBody>
         {canManage && (
@@ -88,15 +137,13 @@ export function CmsTagsPage() {
                 <li key={t.slug} className="flex items-center gap-3 rounded-md border p-2">
                   <TagIcon className="size-4 shrink-0 text-muted-foreground" />
                   <Input
-                    defaultValue={t.name}
+                    aria-label={`Name of tag ${t.slug}`}
+                    value={renames.get(t.slug) ?? t.name}
                     disabled={!canManage}
                     className="h-8 max-w-xs"
-                    onBlur={(e) => {
-                      const name = e.target.value.trim()
-                      if (name && name !== t.name) void renameTag({ variables: { slug: t.slug, name } })
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setRenames((prev) => new Map(prev).set(t.slug, name))
                     }}
                   />
                   <code className="font-mono text-xs text-muted-foreground">{t.slug}</code>
@@ -138,6 +185,15 @@ export function CmsTagsPage() {
         onConfirm={() => {
           if (pendingDelete) void deleteTag({ variables: { slug: pendingDelete.slug } })
         }}
+      />
+      <SaveConfirmDialog
+        open={confirmingSave}
+        scopeLabel="Tags"
+        sections={registry.dirtySections}
+        saving={saving}
+        error={saveError}
+        onCancel={() => setConfirmingSave(false)}
+        onConfirm={() => void onConfirmSave()}
       />
     </DetailPageLayout>
   )

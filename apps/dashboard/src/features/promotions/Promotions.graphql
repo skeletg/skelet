@@ -71,7 +71,14 @@ query PromotionRule($id: ID!) {
       terms
       updatedAt
     }
-    codes(limit: 1000) {
+  }
+}
+
+# The rule page's codes table - a rule can hold thousands of generated codes, so it pages and searches on the server
+query PromotionRuleCodes($id: ID!, $search: String, $isActive: Boolean, $limit: Int, $offset: Int) {
+  promotionRule(id: $id) {
+    id
+    codes(search: $search, isActive: $isActive, limit: $limit, offset: $offset) {
       items {
         ...PromotionCodeFields
       }

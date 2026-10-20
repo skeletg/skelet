@@ -1,5 +1,5 @@
 import { Trans } from '@lingui/react/macro'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -26,8 +26,13 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/shared/auth/auth'
 import { purgeAllDrafts } from '@/lib/form-drafts'
-import { ChangePasswordDialog } from '@/features/admins/ChangePasswordDialog'
 import { useWelcome } from '@/features/onboarding/welcome-context'
+
+// The dialog brings the form stack (TanStack Form, zod, the phone parser) - none of it belongs in the shell every page
+// loads, so it arrives on first open and then stays mounted for its close animation
+const ChangePasswordDialog = lazy(() =>
+  import('@/features/admins/ChangePasswordDialog').then((m) => ({ default: m.ChangePasswordDialog })),
+)
 
 function initials(firstName: string, lastName: string) {
   return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase() || '?'
@@ -39,6 +44,7 @@ export function NavUser() {
   const navigate = useNavigate()
   const welcome = useWelcome() // null outside the shell, so the item simply isn't offered
   const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordDialogLoaded, setPasswordDialogLoaded] = useState(false)
 
   if (!auth) return null
   const { admin } = auth
@@ -98,7 +104,12 @@ export function NavUser() {
               <UserRoundIcon />
               <Trans>Account</Trans>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setChangingPassword(true)}>
+            <DropdownMenuItem
+              onSelect={() => {
+                setPasswordDialogLoaded(true)
+                setChangingPassword(true)
+              }}
+            >
               <KeyRoundIcon />
               <Trans>Change password</Trans>
             </DropdownMenuItem>
@@ -119,7 +130,11 @@ export function NavUser() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
+        {passwordDialogLoaded && (
+          <Suspense fallback={null}>
+            <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
+          </Suspense>
+        )}
       </SidebarMenuItem>
     </SidebarMenu>
   )

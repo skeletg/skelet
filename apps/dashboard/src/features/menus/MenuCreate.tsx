@@ -15,7 +15,7 @@ export function MenuCreate() {
   const navigate = useNavigate()
   // UI state, not the admin's work - stays out of the form (and out of the stored draft)
   const [slugTouched, setSlugTouched] = useState(false)
-  const [createMenu] = useMutation(CreateMenuDocument, { refetchQueries: [{ query: MenusListDocument }] })
+  const [createMenu] = useMutation(CreateMenuDocument, { refetchQueries: [MenusListDocument] })
   const createdId = useRef<string | null>(null)
 
   const record = useRecordForm({

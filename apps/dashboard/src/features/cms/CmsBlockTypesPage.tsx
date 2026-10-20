@@ -34,7 +34,7 @@ export function CmsBlockTypesPage() {
   const navigate = useNavigate()
   const { has } = usePermissions()
   const canManage = has('cms.types_manage')
-  const { data, loading, refetch } = useQuery(CmsBlockTypesDocument)
+  const { data, loading, error, refetch } = useQuery(CmsBlockTypesDocument)
   const [deleteType] = useMutation(DeleteCmsBlockTypeDocument)
   const [confirmDelete, setConfirmDelete] = useState<Row | null>(null)
 
@@ -115,7 +115,7 @@ export function CmsBlockTypesPage() {
       />
       <DetailPageBody>
         <DetailPageSection>
-          <DataTable columns={columns} data={rows} loading={loading} />
+          <DataTable columns={columns} data={rows} loading={loading} error={error} />
         </DetailPageSection>
       </DetailPageBody>
 

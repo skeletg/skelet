@@ -165,7 +165,7 @@ func (f *fakeRepo) GetCode(_ context.Context, id uuid.UUID) (promotion.Code, err
 	}
 	return promotion.Code{}, nil
 }
-func (f *fakeRepo) ListCodesByRule(context.Context, uuid.UUID, int32, int32) ([]promotion.Code, int32, error) {
+func (f *fakeRepo) ListCodesByRule(context.Context, uuid.UUID, string, *bool, int32, int32) ([]promotion.Code, int32, error) {
 	return nil, 0, nil
 }
 func (f *fakeRepo) BulkInsertCodes(_ context.Context, _ uuid.UUID, codes []string) ([]string, error) {

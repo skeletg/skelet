@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { z } from 'zod'
@@ -257,6 +257,7 @@ function rowErrors(fields: z.input<typeof businessIdFieldSchema>[]): string[] {
 
 // Reference data from the country/region seed - shown, never edited here
 function IsoReference({ country }: { country: ExistingCountry }) {
+  const fid = useId()
   return (
     <DetailPageSection
       title="ISO codes & subdivisions"
@@ -264,12 +265,12 @@ function IsoReference({ country }: { country: ExistingCountry }) {
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label>ISO alpha-3</Label>
-          <Input value={country.iso3Code || '-'} readOnly disabled />
+          <Label htmlFor={`${fid}-iso-alpha-3`}>ISO alpha-3</Label>
+          <Input id={`${fid}-iso-alpha-3`} value={country.iso3Code || '-'} readOnly disabled />
         </div>
         <div className="grid gap-2">
-          <Label>ISO numeric-3</Label>
-          <Input value={country.numericCode || '-'} readOnly disabled />
+          <Label htmlFor={`${fid}-iso-numeric-3`}>ISO numeric-3</Label>
+          <Input id={`${fid}-iso-numeric-3`} value={country.numericCode || '-'} readOnly disabled />
         </div>
       </div>
       <div className="grid gap-1.5">

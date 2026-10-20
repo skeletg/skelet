@@ -94,6 +94,7 @@ import {
 import { slugify } from '@/lib/slug'
 import { putToSignedUrl } from '@/lib/upload'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type CategoryDetail = CategoryDetailFieldsFragment
 type CategoryFacetOverride = CategoryDetail['facetOverrides'][number]
@@ -403,7 +404,7 @@ export function CategoriesPage() {
             onDragEnd={onDragEnd}
             onDragCancel={() => { setDragActiveId(null); setDropTarget(null) }}
           >
-            <div className="scrollbar-accent flex-1 overflow-y-auto py-1">
+            <div role="tree" aria-label="Category tree" className="scrollbar-accent flex-1 overflow-y-auto py-1">
               {visibleFlat.length === 0 ? (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">
                   No matches for &ldquo;{search}&rdquo;
@@ -413,6 +414,8 @@ export function CategoriesPage() {
                   <TreeNode
                     key={node.id}
                     node={node}
+                    // One tab stop for the whole tree - the selected row when it's showing, else the first; arrows move within
+                    tabbable={node.id === (visibleFlat.some((n) => n.id === selectedId) ? selectedId : visibleFlat[0]?.id)}
                     isSelected={node.id === selectedId}
                     dropTarget={dropTarget}
                     onSelect={() => navigate(`/categories/${node.id}`)}
@@ -483,6 +486,7 @@ function EmptyState({ canManage, onNew }: { canManage: boolean; onNew: () => voi
 
 function TreeNode({
   node,
+  tabbable,
   isSelected,
   dropTarget,
   onSelect,
@@ -490,6 +494,7 @@ function TreeNode({
   canDrag,
 }: {
   node: FlatNode
+  tabbable: boolean
   isSelected: boolean
   dropTarget: { id: string; zone: DropZone } | null
   onSelect: () => void
@@ -512,8 +517,14 @@ function TreeNode({
       <div
         ref={setDropRef}
         data-node-id={node.id}
+        role="treeitem"
+        tabIndex={tabbable ? 0 : -1}
+        aria-level={node.depth + 1}
+        aria-selected={isSelected}
+        aria-expanded={node.hasChildren ? node.expanded : undefined}
+        onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: node.expanded, hasChildren: node.hasChildren, onToggle, onOpen: onSelect })}
         style={{ paddingLeft: `${node.depth * 1.125 + 0.5}rem` }}
-        className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors
+        className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring
           ${isSelected
             ? 'bg-primary/10 text-foreground'
             : 'text-foreground/90 hover:bg-muted/60'
@@ -550,11 +561,13 @@ function TreeNode({
         ) : (
           <span className="size-3.5" />
         )}
+        {/* The row's arrow keys expand and collapse, so this stays a mouse target out of the tab order */}
         <button
           type="button"
+          tabIndex={-1}
           className="grid size-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
           onClick={(e) => { e.stopPropagation(); onToggle() }}
-          aria-label={node.expanded ? 'Collapse' : 'Expand'}
+          aria-label={node.expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
         >
           {node.hasChildren
             ? node.expanded
@@ -1370,7 +1383,7 @@ function NewCategoryStores({
         </div>
       )}
       {currentChannelId && !selected.has(currentChannelId) ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           It won&rsquo;t appear in this store&rsquo;s category list - you&rsquo;ll find it under Global default.
         </p>
       ) : null}

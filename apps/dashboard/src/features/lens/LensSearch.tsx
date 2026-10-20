@@ -16,6 +16,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { type LensSearchAnalyticsQuery, LensSearchAnalyticsDocument } from './Lens.gql'
 import { Empty, Tile } from '@/components/layout/panels'
 import { formatNumber } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
 
 type TermRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['top'][number]
 
@@ -24,7 +25,7 @@ type TermRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['top'][number]
 export function LensSearch() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
-  const { data, loading } = useQuery(LensSearchAnalyticsDocument, {
+  const { data, loading, error, refetch } = useQuery(LensSearchAnalyticsDocument, {
     variables: { channelId, sinceDays: 30 },
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
@@ -76,6 +77,10 @@ export function LensSearch() {
     ],
     [],
   )
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load search analytics" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>

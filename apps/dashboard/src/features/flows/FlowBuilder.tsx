@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useId } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useUnsavedFields } from '@/lib/unsaved-changes'
 import { duringCommit } from '@/lib/nav-guard'
@@ -46,6 +46,8 @@ import {
 } from './flowTypes'
 import { CreateFlowDocument, FlowDocument, FlowSegmentsDocument, FlowTriggerTypesDocument, SetFlowStatusDocument, UpdateFlowDocument } from './Flows.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -74,7 +76,7 @@ export function FlowBuilder() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(FlowDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(FlowDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
 
   if (isNew && !isChannel) {
     return (
@@ -89,6 +91,11 @@ export function FlowBuilder() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.flow && error) {
+    return <LoadError title="Couldn't load this flow" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.flow && !loading) return <NotFound />
   if (!isNew && !data?.flow) {
     return (
       <DetailPageLayout>
@@ -379,6 +386,7 @@ function ConfigPanel({
   transactional: boolean
   onTransactional: (v: boolean) => void
 }) {
+  const fid = useId()
   // A new email needs emails.manage - editing a campaign or flow doesn't bring it
   const canCreateEmail = usePermissions().has('emails.manage')
   if (!selected) {
@@ -399,9 +407,9 @@ function ConfigPanel({
     return (
       <div className="grid gap-3">
         <div className="grid gap-2">
-          <Label className="text-xs">When this happens…</Label>
+          <Label htmlFor={`${fid}-when-this-happens`} className="text-xs">When this happens…</Label>
           <Select value={triggerType} onValueChange={onTrigger}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id={`${fid}-when-this-happens`} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -449,9 +457,9 @@ function ConfigPanel({
     <div className="grid gap-4">
       {selected.type === 'send_email' && (
         <div className="grid gap-1.5">
-          <Label className="text-xs">Email to send</Label>
+          <Label htmlFor={`${fid}-email-to-send`} className="text-xs">Email to send</Label>
           <Select value={d.emailId || undefined} onValueChange={(v) => patch({ emailId: v })}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id={`${fid}-email-to-send`} className="w-full">
               <SelectValue placeholder="Pick an email…" />
             </SelectTrigger>
             <SelectContent>
@@ -486,8 +494,8 @@ function ConfigPanel({
 
       {selected.type === 'send_sms' && (
         <div className="grid gap-1.5">
-          <Label className="text-xs">Message</Label>
-          <textarea
+          <Label htmlFor={`${fid}-message`} className="text-xs">Message</Label>
+          <textarea id={`${fid}-message`}
             value={d.smsBody ?? ''}
             onChange={(e) => patch({ smsBody: e.target.value })}
             rows={4}
@@ -522,9 +530,9 @@ function ConfigPanel({
 
       {selected.type === 'add_segment' && (
         <div className="grid gap-1.5">
-          <Label className="text-xs">Add to segment</Label>
+          <Label htmlFor={`${fid}-add-to-segment`} className="text-xs">Add to segment</Label>
           <Select value={d.segmentId || undefined} onValueChange={(v) => patch({ segmentId: v })}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id={`${fid}-add-to-segment`} className="w-full">
               <SelectValue placeholder="Pick a segment…" />
             </SelectTrigger>
             <SelectContent>
@@ -546,8 +554,8 @@ function ConfigPanel({
 
       {selected.type === 'webhook' && (
         <div className="grid gap-1.5">
-          <Label className="text-xs">POST URL</Label>
-          <Input value={d.url ?? ''} onChange={(e) => patch({ url: e.target.value })} placeholder="https://example.com/hook" />
+          <Label htmlFor={`${fid}-post-url`} className="text-xs">POST URL</Label>
+          <Input id={`${fid}-post-url`} value={d.url ?? ''} onChange={(e) => patch({ url: e.target.value })} placeholder="https://example.com/hook" />
           <p className="text-xs text-muted-foreground">Fire-and-forget. Receives {`{ flowId, customerId, context }`}. Private hosts are blocked.</p>
         </div>
       )}
@@ -560,14 +568,15 @@ function ConfigPanel({
 }
 
 function WaitConfig({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
+  const fid = useId()
   const unit = seconds % 86400 === 0 ? 'days' : seconds % 3600 === 0 ? 'hours' : 'minutes'
   const amount = unit === 'days' ? seconds / 86400 : unit === 'hours' ? seconds / 3600 : Math.round(seconds / 60)
   const toSeconds = (amt: number, u: string) => (u === 'days' ? amt * 86400 : u === 'hours' ? amt * 3600 : amt * 60)
   return (
     <div className="grid gap-1.5">
-      <Label className="text-xs">Wait for</Label>
+      <Label htmlFor={`${fid}-wait-for`} className="text-xs">Wait for</Label>
       <div className="flex gap-2">
-        <Input
+        <Input id={`${fid}-wait-for`}
           type="number"
           min={1}
           value={amount}

@@ -60,7 +60,7 @@ export function RemoteProvidersList() {
   const [opError, setOpError] = useState<string | null>(null)
 
   const [deleteProvider] = useMutation(DeleteRemoteProviderDocument, {
-    refetchQueries: [{ query: RemoteProvidersDocument }],
+    refetchQueries: [RemoteProvidersDocument],
   })
   const [setActive] = useMutation(SetRemoteProviderActiveDocument)
   const [rotateSecret] = useMutation(RotateRemoteProviderSecretDocument)
@@ -175,7 +175,7 @@ export function RemoteProvidersList() {
                   />
                   <RemoteProviderFormDialog
                     trigger={
-                      <Button variant="ghost" size="icon" className="size-8">
+                      <Button aria-label="Edit provider" variant="ghost" size="icon" className="size-8">
                         <PencilIcon className="size-4" />
                       </Button>
                     }

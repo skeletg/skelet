@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import type { HealthStatus } from '@/graphql/schema.types'
 import { SystemHealthDocument } from './SystemHealth.gql'
 import { type Check, meaningful, useJustChanged } from './refreshCue'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 // Groups and rows are whatever the backend registered, so nothing here is keyed to a specific subsystem - a new one appears with no change
 // to this file Semantic colours are spelled out rather than taken from primary/accent, which are theme tokens an operator can recolour
@@ -65,8 +66,9 @@ function checkedAgo(iso?: string): string {
 export function SystemHealthPage() {
   const { data, loading, error, refetch } = useQuery(SystemHealthDocument, {
     fetchPolicy: 'cache-and-network',
-    pollInterval: 5_000,
+    pollInterval: useVisiblePollInterval(5_000),
   })
+  useRefetchWhenShown(refetch)
   const health = data?.systemHealth
   const groups = health?.groups ?? []
   const all: Check[] = groups.flatMap((g) => g.checks)

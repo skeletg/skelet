@@ -621,7 +621,37 @@ func (s *Service) BackorderableByProductIDs(ctx context.Context, productIDs []uu
 
 // The batched Salable - native stock overlaid with the remote provider for products it knows, falling back to native when the provider is down - A missing key is the -1 sentinel, as in Salable
 func (s *Service) SalableByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error) {
-	native, err := s.salableNativeByProductIDs(ctx, productIDs, channelID)
+	if len(productIDs) == 0 {
+		return map[uuid.UUID]float64{}, nil
+	}
+	items, err := s.repo.ListItemsByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	return s.salableFromItems(ctx, productIDs, channelID, items)
+}
+
+func (s *Service) StockByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, map[uuid.UUID]bool, error) {
+	if len(productIDs) == 0 {
+		return map[uuid.UUID]float64{}, map[uuid.UUID]bool{}, nil
+	}
+	items, err := s.repo.ListItemsByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	salable, err := s.salableFromItems(ctx, productIDs, channelID, items)
+	if err != nil {
+		return nil, nil, err
+	}
+	backorderable := make(map[uuid.UUID]bool, len(items))
+	for pid, item := range items {
+		backorderable[pid] = item.Backorderable
+	}
+	return salable, backorderable, nil
+}
+
+func (s *Service) salableFromItems(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID, items map[uuid.UUID]Item) (map[uuid.UUID]float64, error) {
+	native, err := s.salableNative(ctx, productIDs, channelID, items)
 	if err != nil {
 		return nil, err
 	}
@@ -633,16 +663,8 @@ func (s *Service) SalableByProductIDs(ctx context.Context, productIDs []uuid.UUI
 	return native, nil
 }
 
-func (s *Service) salableNativeByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error) {
-	if len(productIDs) == 0 {
-		return map[uuid.UUID]float64{}, nil
-	}
+func (s *Service) salableNative(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID, items map[uuid.UUID]Item) (map[uuid.UUID]float64, error) {
 	out := make(map[uuid.UUID]float64, len(productIDs))
-
-	items, err := s.repo.ListItemsByProductIDs(ctx, productIDs)
-	if err != nil {
-		return nil, err
-	}
 	// Untracked products (no row) get the sentinel up front, so callers needn't re-check the input
 	for _, pid := range productIDs {
 		if _, ok := items[pid]; !ok {

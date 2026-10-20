@@ -99,10 +99,10 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
+    refetchQueries: [ReviewQuestionsDocument],
   })
   const [upsert] = useMutation(UpsertReviewQuestionContentDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
+    refetchQueries: [ReviewQuestionsDocument],
   })
 
   // The locale list comes back as a fresh array each render - key the offered rows on its content

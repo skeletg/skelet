@@ -20,7 +20,7 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 export function ConsentHistorySection({ customerId, kindName }: { customerId: string; kindName: (kind: string) => string }) {
-  const { data, loading } = useQuery(CustomerConsentHistoryDocument, { variables: { customerId } })
+  const { data, loading, error } = useQuery(CustomerConsentHistoryDocument, { variables: { customerId } })
 
   const columns = useMemo<ColumnDef<ConsentEvent>[]>(
     () => [
@@ -67,6 +67,7 @@ export function ConsentHistorySection({ customerId, kindName }: { customerId: st
     <DataTable
       columns={columns}
       data={events}
+      error={error}
       getRowId={(row) => row.id}
       pageSize={10}
       emptyState="No consent changes recorded yet."

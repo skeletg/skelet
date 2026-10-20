@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -31,6 +32,7 @@ export function ConditionEditor({
   onChange: (c: FlowCondition) => void
   segments: SegmentOpt[]
 }) {
+  const fid = useId()
   // 'in_segment' is the wire alias; show it as 'segment' in the picker
   const kind = value.kind === 'in_segment' ? 'segment' : value.kind
   // Only offer what this install registered, unfiltered until the query answers so an existing flow's kind is never dropped
@@ -49,9 +51,9 @@ export function ConditionEditor({
   return (
     <div className="grid gap-2 rounded-md border p-2.5">
       <div className="grid gap-1.5">
-        <Label className="text-xs">Condition</Label>
+        <Label htmlFor={`${fid}-condition`} className="text-xs">Condition</Label>
         <Select value={kind} onValueChange={(k) => onChange(defaultCondition(k))}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${fid}-condition`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -151,10 +153,11 @@ export function ConditionEditor({
   )
 
   function NumField({ label, value: v, onChange: oc }: { label: string; value: number; onChange: (n: number) => void }) {
+    const id = `${fid}-${label.replace(/\W+/g, '-')}` // the editor's id, so one per field across its NumFields
     return (
       <div className="grid gap-1">
-        <Label className="text-[11px] text-muted-foreground">{label}</Label>
-        <Input type="number" value={v} onChange={(e) => oc(num(e.target.value))} />
+        <Label htmlFor={id} className="text-[11px] text-muted-foreground">{label}</Label>
+        <Input id={id} type="number" value={v} onChange={(e) => oc(num(e.target.value))} />
       </div>
     )
   }

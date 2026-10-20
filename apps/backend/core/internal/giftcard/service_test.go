@@ -68,8 +68,8 @@ func (f *fakeRepo) UpdateBalance(_ context.Context, id uuid.UUID, balance int64,
 	f.balanceTo, f.statusTo = &balance, &status
 	return GiftCard{ID: id, Balance: balance, Status: status}, nil
 }
-func (f *fakeRepo) List(_ context.Context, _ []uuid.UUID, _, _ int32) ([]GiftCard, error) {
-	return nil, nil
+func (f *fakeRepo) List(_ context.Context, _ []uuid.UUID, _ string, _, _ int32) ([]GiftCard, int32, error) {
+	return nil, 0, nil
 }
 func (f *fakeRepo) ListByIssuedOrder(_ context.Context, _ uuid.UUID) ([]GiftCard, error) {
 	return nil, nil

@@ -3,7 +3,9 @@ package search
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -116,6 +118,235 @@ func TestTieredEngine(t *testing.T) {
 		}
 		if backup.calls != 0 || degraded {
 			t.Fatalf("backup called %d times, degraded=%v - want neither", backup.calls, degraded)
+		}
+	})
+}
+
+type fakeClock struct{ t time.Time }
+
+func (c *fakeClock) now() time.Time          { return c.t }
+func (c *fakeClock) advance(d time.Duration) { c.t = c.t.Add(d) }
+
+func TestBreaker(t *testing.T) {
+	newTestBreaker := func() (*breaker, *fakeClock) {
+		clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+		b := newBreaker()
+		b.now = clock.now
+		return b, clock
+	}
+	fail := func(b *breaker, n int) (tripped bool) {
+		for range n {
+			tr, _ := b.record(false, true)
+			tripped = tripped || tr
+		}
+		return tripped
+	}
+
+	t.Run("trips at the failure floor", func(t *testing.T) {
+		b, _ := newTestBreaker()
+		if fail(b, breakerMinFailures-1) {
+			t.Fatal("tripped below the floor")
+		}
+		if !fail(b, 1) {
+			t.Fatal("did not trip at the floor")
+		}
+		if try, _ := b.allow(); try {
+			t.Fatal("open breaker let a request through")
+		}
+	})
+
+	t.Run("successes outnumbering failures keep it closed", func(t *testing.T) {
+		b, _ := newTestBreaker()
+		for range 10 {
+			b.record(false, false)
+		}
+		if fail(b, 9) {
+			t.Fatal("tripped while successes outnumbered failures")
+		}
+	})
+
+	t.Run("failures spread across windows don't add up", func(t *testing.T) {
+		b, clock := newTestBreaker()
+		fail(b, breakerMinFailures-1)
+		clock.advance(breakerWindow + time.Second)
+		if fail(b, breakerMinFailures-1) {
+			t.Fatal("counted failures from an expired window")
+		}
+	})
+
+	t.Run("one probe after the cooldown decides", func(t *testing.T) {
+		b, clock := newTestBreaker()
+		fail(b, breakerMinFailures)
+		clock.advance(breakerCooldown)
+		try, probe := b.allow()
+		if !try || !probe {
+			t.Fatalf("allow() = %v, %v after the cooldown, want a probe", try, probe)
+		}
+		if try, _ := b.allow(); try {
+			t.Fatal("a second request went through while the probe was out")
+		}
+		b.record(true, true)
+		if try, _ := b.allow(); try {
+			t.Fatal("a failed probe didn't reopen the breaker")
+		}
+		clock.advance(breakerCooldown)
+		_, probe = b.allow()
+		if _, recovered := b.record(probe, false); !recovered {
+			t.Fatal("a healthy probe didn't close the breaker")
+		}
+		if try, probe := b.allow(); !try || probe {
+			t.Fatalf("allow() = %v, %v after recovery, want a plain request", try, probe)
+		}
+	})
+
+	t.Run("a released probe frees the slot", func(t *testing.T) {
+		b, clock := newTestBreaker()
+		fail(b, breakerMinFailures)
+		clock.advance(breakerCooldown)
+		_, probe := b.allow()
+		b.release(probe)
+		if try, probe := b.allow(); !try || !probe {
+			t.Fatal("a released probe left the breaker stuck open")
+		}
+	})
+}
+
+func TestTieredEngineCircuit(t *testing.T) {
+	primary := &stubEngine{name: "primary", err: errors.New("timeout")}
+	backup := &stubEngine{name: "backup", total: 2}
+	var causes []error
+	e := NewTieredEngine(primary, backup, func(_ context.Context, _ string, cause error) { causes = append(causes, cause) })
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	e.breaker.now = clock.now
+	browse := func() (BrowseResult, error) {
+		return e.BrowseProducts(context.Background(), uuid.New(), "en", "", BrowseFilter{}, "", 10, 0, nil)
+	}
+
+	for range breakerMinFailures + 3 {
+		if res, err := browse(); err != nil || res.Total != 2 {
+			t.Fatalf("got total=%d err=%v, want the backup's 2/nil", res.Total, err)
+		}
+	}
+	if primary.calls != breakerMinFailures {
+		t.Fatalf("primary called %d times, want %d before the circuit opened", primary.calls, breakerMinFailures)
+	}
+	if len(causes) != breakerMinFailures+3 || !errors.Is(causes[len(causes)-1], errPrimaryOpen) {
+		t.Fatalf("skipped requests must still report degraded, got %v", causes)
+	}
+
+	primary.err = nil
+	primary.total = 9
+	clock.advance(breakerCooldown)
+	for range 2 {
+		if res, err := browse(); err != nil || res.Total != 9 {
+			t.Fatalf("got total=%d err=%v, want the recovered primary's 9/nil", res.Total, err)
+		}
+	}
+}
+
+func TestTieredEngineCancelledProbe(t *testing.T) {
+	primary := &stubEngine{name: "primary", err: errors.New("timeout")}
+	backup := &stubEngine{name: "backup", total: 2}
+	e := NewTieredEngine(primary, backup, nil)
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	e.breaker.now = clock.now
+	for range breakerMinFailures {
+		_, _ = e.BrowseProducts(context.Background(), uuid.New(), "en", "", BrowseFilter{}, "", 10, 0, nil)
+	}
+	clock.advance(breakerCooldown)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	primary.err = context.Canceled
+	if _, err := e.BrowseProducts(ctx, uuid.New(), "en", "", BrowseFilter{}, "", 10, 0, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled probe err = %v, want context.Canceled", err)
+	}
+	primary.err, primary.total = nil, 9
+	if res, err := e.BrowseProducts(context.Background(), uuid.New(), "en", "", BrowseFilter{}, "", 10, 0, nil); err != nil || res.Total != 9 {
+		t.Fatalf("got total=%d err=%v, want the primary probed again after a cancelled probe", res.Total, err)
+	}
+}
+
+type gatedEngine struct {
+	name    string
+	gate    chan struct{}
+	entered chan struct{}
+	calls   atomic.Int32
+}
+
+func (g *gatedEngine) Name() string { return g.name }
+func (g *gatedEngine) SearchProducts(context.Context, string, uuid.UUID, string, int, int, map[uuid.UUID]float64) ([]ProductHit, int64, error) {
+	g.calls.Add(1)
+	g.entered <- struct{}{}
+	<-g.gate
+	return nil, 1, nil
+}
+func (g *gatedEngine) BrowseProducts(context.Context, uuid.UUID, string, string, BrowseFilter, string, int, int, map[uuid.UUID]float64) (BrowseResult, error) {
+	g.calls.Add(1)
+	g.entered <- struct{}{}
+	<-g.gate
+	return BrowseResult{Total: 1}, nil
+}
+func (g *gatedEngine) ListSortOptions(context.Context) []SortOption { return nil }
+
+func TestTieredEngineFallbackCap(t *testing.T) {
+	newGate := func() *gatedEngine {
+		return &gatedEngine{name: "backup", gate: make(chan struct{}), entered: make(chan struct{}, 8)}
+	}
+	search := func(e *TieredEngine, errs chan<- error) {
+		_, _, err := e.SearchProducts(context.Background(), "q", uuid.New(), "en", 10, 0, nil)
+		errs <- err
+	}
+
+	t.Run("sheds past the cap and frees the slot after", func(t *testing.T) {
+		backup := newGate()
+		defer close(backup.gate)
+		e := NewTieredEngine(&stubEngine{name: "primary", err: errors.New("down")}, backup, nil, WithFallbackLimit(1))
+		e.wait = 20 * time.Millisecond
+		first, second := make(chan error, 1), make(chan error, 1)
+		go search(e, first)
+		<-backup.entered
+
+		go search(e, second)
+		select {
+		case err := <-second:
+			if !errors.Is(err, ErrFallbackSaturated) {
+				t.Fatalf("second fallback err = %v, want ErrFallbackSaturated", err)
+			}
+		case <-backup.entered:
+			t.Fatal("a second request reached the backup past the cap")
+		}
+		backup.gate <- struct{}{}
+		if err := <-first; err != nil {
+			t.Fatalf("first fallback: %v", err)
+		}
+		third := make(chan error, 1)
+		go search(e, third)
+		select {
+		case <-backup.entered:
+			backup.gate <- struct{}{}
+		case err := <-third:
+			t.Fatalf("the slot wasn't released: %v", err)
+		}
+		if err := <-third; err != nil {
+			t.Fatalf("third fallback: %v", err)
+		}
+	})
+
+	t.Run("a tier without a primary is never capped", func(t *testing.T) {
+		backup := newGate()
+		defer close(backup.gate)
+		e := NewTieredEngine(nil, backup, nil, WithFallbackLimit(1))
+		e.wait = 20 * time.Millisecond
+		errs := make(chan error, 2)
+		go search(e, errs)
+		go search(e, errs)
+		for range 2 {
+			select {
+			case <-backup.entered:
+			case err := <-errs:
+				t.Fatalf("a primary-less tier refused a request: %v", err)
+			}
 		}
 	})
 }

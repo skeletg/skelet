@@ -115,16 +115,20 @@ func (r *postgresRepository) UpdateBalance(ctx context.Context, id uuid.UUID, ba
 	return toGiftCard(row), nil
 }
 
-func (r *postgresRepository) List(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error) {
-	rows, err := r.queries.ListGiftCards(ctx, db.ListGiftCardsParams{ChannelIds: channelIDs, Lim: limit, Off: offset})
+func (r *postgresRepository) List(ctx context.Context, channelIDs []uuid.UUID, search string, limit, offset int32) ([]GiftCard, int32, error) {
+	rows, err := r.queries.ListGiftCards(ctx, db.ListGiftCardsParams{ChannelIds: channelIDs, Search: search, Lim: limit, Off: offset})
 	if err != nil {
-		return nil, fmt.Errorf("list gift cards: %w", err)
+		return nil, 0, fmt.Errorf("list gift cards: %w", err)
+	}
+	total, err := r.queries.CountGiftCards(ctx, db.CountGiftCardsParams{ChannelIds: channelIDs, Search: search})
+	if err != nil {
+		return nil, 0, fmt.Errorf("count gift cards: %w", err)
 	}
 	out := make([]GiftCard, len(rows))
 	for i, row := range rows {
 		out[i] = toGiftCard(row)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (r *postgresRepository) ListByIssuedOrder(ctx context.Context, orderID uuid.UUID) ([]GiftCard, error) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useId } from 'react'
 import { AlertTriangleIcon, CheckCircle2Icon, ImageIcon, XCircleIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,6 +154,7 @@ export function SeoPanel({
   currentSpec: string
   onSaveSeo: (settings: SeoSettings) => Promise<unknown>
 }) {
+  const fid = useId()
   const [ogImage, setOgImage] = useState<ImageValue>(currentOgImage)
   const [noindex, setNoindex] = useState(seoNoindex)
   const [canonical, setCanonical] = useState(currentCanonical)
@@ -298,21 +299,21 @@ export function SeoPanel({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="flex items-center justify-between gap-3 rounded-md border p-3">
           <div className="grid gap-0.5">
-            <Label className="text-sm">Allow search indexing</Label>
+            <Label htmlFor={`${fid}-allow-search-indexing`} className="text-sm">Allow search indexing</Label>
             <span className="text-xs text-muted-foreground">
               Off emits &lt;meta robots noindex&gt; - keeps this page out of search results.
             </span>
           </div>
-          <Switch checked={!noindex} onCheckedChange={(v) => setNoindex(!v)} disabled={!canManage} />
+          <Switch id={`${fid}-allow-search-indexing`} checked={!noindex} onCheckedChange={(v) => setNoindex(!v)} disabled={!canManage} />
         </div>
         <div className="flex items-center justify-between gap-3 rounded-md border p-3">
           <div className="grid gap-0.5">
-            <Label className="text-sm">Follow links</Label>
+            <Label htmlFor={`${fid}-follow-links`} className="text-sm">Follow links</Label>
             <span className="text-xs text-muted-foreground">
               Off adds nofollow - crawlers won&apos;t follow links from this page.
             </span>
           </div>
-          <Switch checked={!nofollow} onCheckedChange={(v) => setNofollow(!v)} disabled={!canManage} />
+          <Switch id={`${fid}-follow-links`} checked={!nofollow} onCheckedChange={(v) => setNofollow(!v)} disabled={!canManage} />
         </div>
       </div>
 
@@ -331,13 +332,13 @@ export function SeoPanel({
       </div>
 
       <div className="grid gap-2">
-        <Label className="text-sm">Structured data (schema.org)</Label>
+        <Label htmlFor={`${fid}-structured-data-schema-o`} className="text-sm">Structured data (schema.org)</Label>
         <Select
           value={schemaMode}
           onValueChange={(v) => setSchemaMode(v as SchemaMode)}
           disabled={!canManage}
         >
-          <SelectTrigger className="h-9">
+          <SelectTrigger id={`${fid}-structured-data-schema-o`} className="h-9">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
