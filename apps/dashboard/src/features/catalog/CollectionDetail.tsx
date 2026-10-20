@@ -13,16 +13,6 @@ import {
   XIcon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,6 +53,7 @@ import {
 import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
 import { readImageDimensions } from '@/lib/image'
 import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CollectionRecord = NonNullable<CollectionQuery['collection']>
 
@@ -126,9 +117,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
   })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [confirmingContentDelete, setConfirmingContentDelete] = useState(false)
-  const [contentDeleteError, setContentDeleteError] = useState<string | null>(null)
 
   const baseline = useMemo(() => toCollectionValues(collection, locale), [collection, locale])
   const schema = useMemo(() => collectionSchema(baseline), [baseline])
@@ -153,23 +142,12 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
   const { form } = record
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteCollection({ variables: { id: collection.id } })
-      navigate('/collections', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteCollection({ variables: { id: collection.id } })
+    navigate('/collections', { replace: true })
   }
 
   async function onDeleteContent() {
-    setContentDeleteError(null)
-    try {
-      await deleteContent({ variables: { collectionId: collection.id, locale } })
-      setConfirmingContentDelete(false)
-    } catch (err) {
-      setContentDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteContent({ variables: { collectionId: collection.id, locale } })
   }
 
   return (
@@ -195,10 +173,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
             variant="outline"
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => {
-              setDeleteError(null)
-              setConfirmingDelete(true)
-            }}
+            onClick={() => setConfirmingDelete(true)}
             disabled={deleting}
           >
             <Trash2Icon className="size-4" />
@@ -281,10 +256,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setContentDeleteError(null)
-                  setConfirmingContentDelete(true)
-                }}
+                onClick={() => setConfirmingContentDelete(true)}
                 disabled={!hasTranslation || deletingContent}
               >
                 <Trash2Icon className="size-4" />
@@ -327,66 +299,25 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
 
       <PluginSections target="collection" entity={collection} mode="edit" />
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingContentDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingContentDelete(false)
-            setContentDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {locale} translation?</AlertDialogTitle>
-            <AlertDialogDescription>This removes the locale-specific name, description, and SEO fields for this collection.</AlertDialogDescription>
-          </AlertDialogHeader>
-          {contentDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{contentDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingContent}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onDeleteContent} disabled={deletingContent}>
-              {deletingContent ? 'Deleting...' : 'Delete translation'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingContentDelete}
+        title={<>Delete {locale} translation?</>}
+        description="This removes the locale-specific name, description, and SEO fields for this collection."
+        confirmLabel="Delete translation"
+        busyLabel="Deleting..."
+        onConfirm={onDeleteContent}
+      />
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete collection?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the collection record, cover image reference, translations, product memberships, and autogenerated public
-              rewrite.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete} disabled={deleting}>
-              {deleting ? 'Deleting...' : 'Delete collection'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title="Delete collection?"
+        description="This removes the collection record, cover image reference, translations, product memberships, and autogenerated public rewrite."
+        confirmLabel="Delete collection"
+        busyLabel="Deleting..."
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }
