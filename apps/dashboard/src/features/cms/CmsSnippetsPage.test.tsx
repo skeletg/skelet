@@ -1,8 +1,8 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { CmsSnippetsPage } from './CmsSnippetsPage'
-import { CmsSnippetsDocument, CreateCmsSnippetDocument, UpdateCmsSnippetDocument } from './Cms.gql'
+import { CmsSnippetsDocument, CreateCmsSnippetDocument, DeleteCmsSnippetDocument, UpdateCmsSnippetDocument } from './Cms.gql'
 
 // What these pin: a slug the backend would refuse is caught before anything is sent, and an edit
 // writes the section's name and its blocks back as one document
@@ -17,7 +17,7 @@ const banner = {
   updatedAt: '2026-01-01T00:00:00Z',
 }
 
-function renderSnippets(writes = { create: vi.fn(), update: vi.fn() }) {
+function renderSnippets(writes = { create: vi.fn(), update: vi.fn(), remove: vi.fn() }) {
   renderPage({
     path: '/cms/sections',
     routes: { '/cms/sections': <CmsSnippetsPage /> },
@@ -31,6 +31,10 @@ function renderSnippets(writes = { create: vi.fn(), update: vi.fn() }) {
       {
         request: { query: UpdateCmsSnippetDocument, variables: captureInput(writes.update) },
         result: { data: { updateCMSSnippet: banner } },
+      },
+      {
+        request: { query: DeleteCmsSnippetDocument, variables: captureInput(writes.remove) },
+        result: { data: { deleteCMSSnippet: true } },
       },
     ],
   })
@@ -65,5 +69,19 @@ describe('CmsSnippetsPage', () => {
       () => expect(writes.update).toHaveBeenCalledWith({ id: 's1', name: 'Promo strip', blocks: { version: 1, blocks: [] } }),
       SLOW,
     )
+  })
+
+  it('asks before deleting a section and sends nothing on cancel', async () => {
+    const writes = renderSnippets()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Promo banner' }, SLOW))
+    let dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), SLOW)
+    expect(writes.remove).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Promo banner' }))
+    dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete section' }))
+    await vi.waitFor(() => expect(writes.remove).toHaveBeenCalledWith({ id: 's1' }), SLOW)
   })
 })

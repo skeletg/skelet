@@ -24,6 +24,7 @@ import {
   RebuildQueueDocument,
 } from './Cache.gql'
 import { formatDateTime } from '@/lib/format'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // CacheAdminPage - the abstract storefront cache console - Lists every registered
 // cacheable surface (CMS now; products/categories later) with an enable toggle
@@ -55,6 +56,7 @@ export function CacheAdminPage() {
   const [rebuildPath, setRebuildPath] = useState('')
   const [bulkPaths, setBulkPaths] = useState('')
   const [enqueuedMsg, setEnqueuedMsg] = useState('')
+  const [confirmingPurgeAll, setConfirmingPurgeAll] = useState(false)
 
   const setEnabled = (key: string, on: boolean) =>
     setConfig({ variables: { path: `cache/${key}/enabled`, value: on ? 'true' : 'false' } })
@@ -167,12 +169,23 @@ export function CacheAdminPage() {
               <Button
                 type="button"
                 variant="destructive"
-                onClick={() => void purge({ variables: {} })}
+                onClick={() => setConfirmingPurgeAll(true)}
                 title="Invalidate all bulk-invalidatable surfaces (per-item-only surfaces like products are excluded). Pages rebuild on next request."
               >
                 <TrashIcon className="size-4" /> Invalidate everything
               </Button>
             </div>
+            <ConfirmDialog
+              open={confirmingPurgeAll}
+              onOpenChange={setConfirmingPurgeAll}
+              title="Invalidate every cached surface?"
+              description="Every bulk-invalidatable page goes stale at once, so the next visitors to each one wait for a fresh render and the renderer takes the whole storefront's load."
+              confirmLabel="Invalidate everything"
+              destructive
+              onConfirm={async () => {
+                await purge({ variables: {} })
+              }}
+            />
           </DetailPageSection>
         )}
 

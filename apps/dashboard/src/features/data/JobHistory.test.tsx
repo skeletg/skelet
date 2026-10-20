@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MockedProvider } from '@apollo/client/testing/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { DataJobsDocument } from './Data.gql'
+import { CancelDataJobDocument, DataJobsDocument } from './Data.gql'
 import { JobHistory } from './JobHistory'
 
 function job(overrides: Record<string, unknown> = {}) {
@@ -99,5 +99,36 @@ describe('JobHistory', () => {
       </MockedProvider>,
     )
     expect(await screen.findByRole('button', { name: /3 failed rows/i })).toBeTruthy()
+  })
+
+  // Cancelling stops an import halfway with no resume, so the button asks first
+  it('cancels a running job only after the admin confirms', async () => {
+    const cancelled = vi.fn()
+    const running = job({ id: 'job-2', direction: 'import', status: 'running' })
+    render(
+      <MockedProvider
+        mocks={[
+          { request, result: result([running]), maxUsageCount: 20 },
+          {
+            request: {
+              query: CancelDataJobDocument,
+              variables: (vars: Record<string, unknown>) => {
+                cancelled(vars)
+                return true
+              },
+            },
+            result: { data: { cancelDataJob: { ...running, status: 'cancelled' } } },
+          },
+        ]}
+      >
+        <JobHistory resourceSlug="products" />
+      </MockedProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(cancelled).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel job' }))
+    await waitFor(() => expect(cancelled).toHaveBeenCalledWith({ id: 'job-2' }))
   })
 })

@@ -24,6 +24,7 @@ import { LoadError } from '@/shared/errors/LoadError'
 import { PermissionSelector } from '@/components/PermissionSelector'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { NewTokenDialog } from './NewTokenDialog'
 import {
   DeleteIntegrationDocument,
@@ -88,6 +89,7 @@ function IntegrationForm({ integration }: { integration: Integration }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null)
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false)
 
   const baseline = useMemo(() => toIntegrationDetailValues(integration), [integration])
   const record = useRecordForm({
@@ -111,17 +113,14 @@ function IntegrationForm({ integration }: { integration: Integration }) {
   const { form } = record
   const hasExpiry = useStore(form.store, (s) => s.values.hasExpiry)
 
+  // Behind a confirm - the old token dies the moment this runs, and a failure stays in that dialog instead of vanishing
   async function onRegenerate() {
-    try {
-      const { data } = await regenerate({ variables: { id: integration.id } })
-      if (data) {
-        setNewToken({
-          token: data.regenerateIntegrationToken.rawToken,
-          name: data.regenerateIntegrationToken.integration.name,
-        })
-      }
-    } catch {
-      /* noop */
+    const { data } = await regenerate({ variables: { id: integration.id } })
+    if (data) {
+      setNewToken({
+        token: data.regenerateIntegrationToken.rawToken,
+        name: data.regenerateIntegrationToken.integration.name,
+      })
     }
   }
 
@@ -176,7 +175,7 @@ function IntegrationForm({ integration }: { integration: Integration }) {
               </label>
             )}
           </form.Field>
-          <Button type="button" variant="outline" size="sm" onClick={onRegenerate} disabled={regenState.loading}>
+          <Button type="button" variant="outline" size="sm" onClick={() => setConfirmingRegenerate(true)} disabled={regenState.loading}>
             <RefreshCwIcon className="size-4" />
             {regenState.loading ? 'Regenerating…' : 'Regenerate token'}
           </Button>
@@ -243,6 +242,15 @@ function IntegrationForm({ integration }: { integration: Integration }) {
         </form.Field>
       </DetailPageSection>
 
+      <ConfirmDialog
+        open={confirmingRegenerate}
+        onOpenChange={setConfirmingRegenerate}
+        title={`Regenerate the token for ${integration.name}?`}
+        description="The current token stops working immediately. Anything still using it fails until you give it the new one."
+        confirmLabel="Regenerate token"
+        destructive
+        onConfirm={onRegenerate}
+      />
       <NewTokenDialog
         token={newToken?.token ?? null}
         integrationName={newToken?.name ?? null}
