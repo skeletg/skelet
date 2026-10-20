@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { CancelDataJobDocument, DataJobsDocument } from './Data.gql'
 import { downloadJobArtifact } from './api'
 import { JobErrorsSheet } from './JobErrorsSheet'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { JobCounts, JobProgress, JobStatusBadge } from './JobStatus'
 import { formatTimestamp } from '@/lib/format'
 import { isRunning, type DataJob } from './jobs'
@@ -29,6 +30,7 @@ export function JobHistory({
   reloadKey?: number
 }) {
   const [errorsFor, setErrorsFor] = useState<DataJob | null>(null)
+  const [confirmingCancel, setConfirmingCancel] = useState<DataJob | null>(null)
   const [running, setRunning] = useState(0)
   // pollInterval rather than start/stopPolling, so the board speeds up while work is in flight and goes
   // completely quiet once nothing is - useQuery has to be called before its own result can be counted, so
@@ -129,10 +131,7 @@ export function JobHistory({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={async () => {
-                    await cancel({ variables: { id: job.id } })
-                    await refetch()
-                  }}
+                  onClick={() => setConfirmingCancel(job)}
                 >
                   <XIcon className="mr-2 size-4" />
                   Cancel
@@ -143,6 +142,19 @@ export function JobHistory({
         ))}
       </div>
       {errorsFor ? <JobErrorsSheet job={errorsFor} onClose={() => setErrorsFor(null)} /> : null}
+      <ConfirmDialog
+        open={!!confirmingCancel}
+        onOpenChange={(open) => !open && setConfirmingCancel(null)}
+        title={`Cancel this ${confirmingCancel?.direction ?? 'job'}?`}
+        description="It stops where it is and can't be resumed. Rows an import already wrote stay written - start a new job to finish the rest."
+        confirmLabel="Cancel job"
+        destructive
+        onConfirm={async () => {
+          if (!confirmingCancel) return
+          await cancel({ variables: { id: confirmingCancel.id } })
+          await refetch()
+        }}
+      />
     </>
   )
 }

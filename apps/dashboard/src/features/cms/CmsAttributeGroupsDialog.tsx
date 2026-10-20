@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import {
   CmsAttributeGroupsDocument,
   CreateCmsAttributeGroupDocument,
@@ -32,6 +33,7 @@ export function CmsAttributeGroupsDialog({ trigger }: { trigger: ReactNode }) {
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState<GroupRow | null>(null)
 
   const { data, loading, refetch } = useQuery(CmsAttributeGroupsDocument, {
     skip: !open,
@@ -106,7 +108,8 @@ export function CmsAttributeGroupsDialog({ trigger }: { trigger: ReactNode }) {
                   className="size-8 text-destructive"
                   disabled={busy}
                   title="Delete group"
-                  onClick={() => void run(() => deleteGroup({ variables: { id: g.id } }))}
+                  aria-label={`Delete group ${g.slug}`}
+                  onClick={() => setConfirmingDelete(g)}
                 >
                   <Trash2Icon className="size-3.5" />
                 </Button>
@@ -147,6 +150,19 @@ export function CmsAttributeGroupsDialog({ trigger }: { trigger: ReactNode }) {
             Done
           </Button>
         </DialogFooter>
+        <ConfirmDialog
+          open={!!confirmingDelete}
+          onOpenChange={(o) => !o && setConfirmingDelete(null)}
+          title={`Delete the group ${confirmingDelete?.slug ?? ''}?`}
+          description="Page-type fields filed under it become ungrouped, and its translated labels are deleted. This can't be undone."
+          confirmLabel="Delete group"
+          destructive
+          onConfirm={async () => {
+            if (!confirmingDelete) return
+            await deleteGroup({ variables: { id: confirmingDelete.id } })
+            await refetch()
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

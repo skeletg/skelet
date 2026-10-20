@@ -34,6 +34,7 @@ import { PromotionSimulatorDialog } from './PromotionSimulatorDialog'
 import { RedemptionsTrend } from './analyticsShared'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { Panel, Tile } from '@/components/layout/panels'
+import { dayEndISO, dayStartISO } from '@/lib/format'
 
 type HubRow = {
   id: string
@@ -61,8 +62,8 @@ export function PromotionsHome() {
   const [end, setEnd] = useState('')
   const variables = useMemo(
     () => ({
-      start: start ? new Date(start).toISOString() : null,
-      end: end ? new Date(end).toISOString() : null,
+      start: start ? dayStartISO(start) : null,
+      end: end ? dayEndISO(end) : null,
     }),
     [start, end],
   )
