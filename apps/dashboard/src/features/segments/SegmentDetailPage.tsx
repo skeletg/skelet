@@ -5,16 +5,6 @@ import { useStore } from '@tanstack/react-form'
 import { RefreshCwIcon, Trash2Icon, UserPlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,6 +45,7 @@ import {
   toSegmentRules,
   toSegmentValues,
 } from './schemas/segment'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Segment = {
   id: string
@@ -233,12 +224,11 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
   async function onClear() {
     try {
       await clear({ variables: { segmentId: segment.id } })
-      setConfirmingClear(false)
-      toast.success('Membership cleared')
-      refetch()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Clear failed')
+      throw new Error(err instanceof Error ? err.message : 'Clear failed', { cause: err })
     }
+    toast.success('Membership cleared')
+    refetch()
   }
 
   return (
@@ -317,29 +307,16 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
         onAssigned={refetch}
       />
 
-      <AlertDialog open={confirmingClear} onOpenChange={setConfirmingClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all {segment.memberCount} members?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Empties the segment immediately. {dynamic ? 'The next rules refresh will repopulate it.' : 'Manual segments stay empty until you assign customers again.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={clearing}
-              onClick={(e) => {
-                e.preventDefault()
-                void onClear()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {clearing ? 'Clearing…' : 'Clear membership'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingClear}
+        onOpenChange={setConfirmingClear}
+        title={<>Clear all {segment.memberCount} members?</>}
+        description={<>Empties the segment immediately. {dynamic ? 'The next rules refresh will repopulate it.' : 'Manual segments stay empty until you assign customers again.'}</>}
+        confirmLabel="Clear membership"
+        busyLabel="Clearing…"
+        destructive
+        onConfirm={onClear}
+      />
     </DetailPageSection>
   )
 }
