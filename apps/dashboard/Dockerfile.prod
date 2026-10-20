@@ -19,6 +19,8 @@ RUN pnpm run typecheck && pnpm exec vite build
 FROM nginxinc/nginx-unprivileged:1.31-alpine
 # envsubst'd into the config at start - where /api/* goes
 ENV BACKEND_UPSTREAM=http://app:8080
+# Always defined, so envsubst blanks it rather than leaving a literal ${UPLOAD_ORIGINS} in the CSP
+ENV UPLOAD_ORIGINS=""
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

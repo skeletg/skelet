@@ -48,6 +48,9 @@ func main() {
 	// both edge formats escape a literal double quote the same way; the Go const targets get raw values
 	csp := strings.ReplaceAll(rawCSP, `"`, `\"`)
 	pp := strings.ReplaceAll(rawPP, `"`, `\"`)
+	// Where browsers upload to is per deployment, so the edge copies take it from the environment at start
+	nginxCSP := strings.Replace(csp, "connect-src 'self'", "connect-src 'self' ${UPLOAD_ORIGINS}", 1)
+	caddyCSP := strings.Replace(csp, "connect-src 'self'", "connect-src 'self' {$UPLOAD_ORIGINS}", 1)
 
 	targets := []target{
 		{root + "/apps/backend/core/lib/httpx/securityheaders.go", []sub{
@@ -55,11 +58,11 @@ func main() {
 			{regexp.MustCompile("^(const PermissionsPolicy = `).*(`)$"), rawPP},
 		}},
 		{root + "/apps/dashboard/nginx.conf.template", []sub{
-			{regexp.MustCompile(`^(\s*add_header Content-Security-Policy ").*(" always;)$`), csp},
+			{regexp.MustCompile(`^(\s*add_header Content-Security-Policy ").*(" always;)$`), nginxCSP},
 			{regexp.MustCompile(`^(\s*add_header Permissions-Policy ").*(" always;)$`), pp},
 		}},
 		{root + "/deploy/caddy/Caddyfile", []sub{
-			{regexp.MustCompile(`^(\s*Content-Security-Policy ").*(")\s*$`), csp},
+			{regexp.MustCompile(`^(\s*Content-Security-Policy ").*(")\s*$`), caddyCSP},
 			{regexp.MustCompile(`^(\s*Permissions-Policy ").*(")\s*$`), pp},
 		}},
 	}

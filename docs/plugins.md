@@ -28,7 +28,7 @@ own migrations.
 
 The SDK never exposes `internal/*` types. Its API surface is pinned in
 `sdk/api.json` so a breaking change is a visible diff, and a second gate runs
-`apidiff` against the last release tag to classify that diff by Go's own
+`apidiff` against the last SDK tag to classify that diff by Go's own
 compatibility rules - an added interface method reads as an addition to a text
 diff but breaks every plugin implementing it, and apidiff says so. `sdk/sdktest`
 ships a fake host so a plugin can be tested without booting the app, and it is
@@ -36,6 +36,11 @@ covered by the same gates.
 
 `apps/backend/core/plugins/example` exercises every registration verb - start there.
 `apps/backend/core/plugins/plugins.json` decides which plugin directories compile in.
+
+A plugin in its own repository requires `github.com/skeletg/skelet/apps/backend/sdk`, plus
+`.../apps/backend/core` if it adds GraphQL resolvers. Both are published as tags named after
+their directory, like `apps/backend/sdk/v0.1.0`. Until the first of those is pushed, `go get`
+can't fetch them, so build a plugin inside this tree under `apps/backend/core/plugins/`.
 
 Payment gateways are plugins too, each in its own repository named after its slug - naming the
 repo after the slug is what makes the install need no flags. A deployment that takes card
