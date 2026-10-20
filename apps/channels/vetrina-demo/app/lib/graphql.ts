@@ -112,6 +112,7 @@ type FetchOptions = {
   revalidate?: number;
   // Channel + locale (and anything else) folded into the cache key
   cacheKeyExtra?: string[];
+  surface?: string;
 };
 
 // The `variables` argument is required when the document declares any - the generated TypedDocumentNode<TData,
@@ -133,6 +134,7 @@ export async function gqlFetch<TData, TVariables>(
   };
   // A request no channel claims still names one, so the backend answers "no store" rather than for its default channel
   headers["X-Channel-Id"] = channelId || "unresolved";
+  if (options.surface) headers["X-Skelet-Cache-Surface"] = options.surface;
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -166,6 +168,8 @@ export async function gqlFetch<TData, TVariables>(
       body: JSON.stringify({
         query: print(document as DocumentNode),
         variables,
+        // The backend's response cache allowlists by operationName, so without it no storefront read was ever cached there
+        ...(opName !== "(anonymous)" ? { operationName: opName } : {}),
         ...(options.cacheKeyExtra ? { __cacheKey: options.cacheKeyExtra } : {}),
       }),
       ...cacheInit,

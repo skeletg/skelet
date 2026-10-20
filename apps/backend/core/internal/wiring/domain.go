@@ -104,13 +104,14 @@ func newMediaLibraryService(q *db.Queries, store objstore.Storage) *medialibrary
 }
 
 // Generic, not CMS-specific - logs every purge and busts each channel's storefront Data Cache tags
-func newRevalidateClient(q *db.Queries, channels *channel.Service) *revalidate.Client {
+func newRevalidateClient(q *db.Queries, channels *channel.Service, vk CacheRedis) *revalidate.Client {
 	c := revalidate.New(
 		os.Getenv("STOREFRONT_REVALIDATE_URL"),
 		os.Getenv("STOREFRONT_REVALIDATE_SECRET"),
 		revalidate.NewDBStore(q),
 	)
 	c.SetChannels(storefrontChannels{channels})
+	c.SetBeforePurge(frontRespEpochs{vk.Client}.bump)
 	return c
 }
 

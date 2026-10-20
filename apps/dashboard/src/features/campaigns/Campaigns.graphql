@@ -50,6 +50,18 @@ query EmailCampaign($id: ID!) {
   }
 }
 
+# Just the delivery counters, for the stats tiles to poll - the full campaign query carries the whole email design
+query EmailCampaignStats($id: ID!) {
+  emailCampaign(id: $id) {
+    id
+    status
+    totalRecipients
+    sentCount
+    failedCount
+    skippedCount
+  }
+}
+
 query CampaignMergeTags {
   campaignMergeTags
 }

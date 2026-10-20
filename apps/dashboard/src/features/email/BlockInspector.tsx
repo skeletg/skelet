@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useId } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { PlusIcon, SparklesIcon, XIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -638,6 +638,7 @@ function ProductsFields({
   block: EmailBlock
   setProducts: (p: NonNullable<EmailBlock['products']>) => void
 }) {
+  const fid = useId()
   const p = block.products ?? { mode: 'skus', skus: [], limit: 3, columns: 3 }
   const { data: collectionsData } = useQuery(CollectionsDocument, {
     skip: p.mode !== 'collection',
@@ -664,9 +665,9 @@ function ProductsFields({
   return (
     <div className="grid gap-3">
       <div className="grid gap-1.5">
-        <Label>Source</Label>
+        <Label htmlFor={`${fid}-source`}>Source</Label>
         <Select value={p.mode || 'skus'} onValueChange={(v) => patch({ mode: v })}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${fid}-source`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -678,10 +679,10 @@ function ProductsFields({
 
       {p.mode === 'collection' ? (
         <div className="grid gap-1.5">
-          <Label>Collection</Label>
+          <Label htmlFor={`${fid}-collection`}>Collection</Label>
           {collections.length > 0 ? (
             <Select value={p.collectionId || undefined} onValueChange={(v) => patch({ collectionId: v })}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={`${fid}-collection`} className="w-full">
                 <SelectValue placeholder="Pick a collection…" />
               </SelectTrigger>
               <SelectContent>
@@ -694,6 +695,7 @@ function ProductsFields({
             </Select>
           ) : (
             <Input
+              id={`${fid}-collection`}
               value={p.collectionId ?? ''}
               placeholder="Collection ID"
               onChange={(e) => patch({ collectionId: e.target.value })}

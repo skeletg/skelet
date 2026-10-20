@@ -10,6 +10,7 @@ import {
   RetryWebhookDeadLetterDocument,
   WebhookDeadLettersDocument,
 } from './Webhooks.gql'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 // DeadLetters lists async deliveries that exhausted the retry ladder Each row can be re-queued for a fresh delivery
 // cycle; Clear drops the parked rows for good - Flat divide-y list per dashboard idiom
@@ -20,8 +21,9 @@ export function DeadLetters({ webhookId }: { webhookId: string }) {
 
   const { data, loading, error, refetch } = useQuery(WebhookDeadLettersDocument, {
     variables: { webhookId, limit: 50 },
-    pollInterval: 15000,
+    pollInterval: useVisiblePollInterval(15000),
   })
+  useRefetchWhenShown(refetch)
   const [retryItem, { loading: retrying }] = useMutation(RetryWebhookDeadLetterDocument)
   const [clearAll, { loading: clearing }] = useMutation(ClearWebhookDeadLettersDocument)
 

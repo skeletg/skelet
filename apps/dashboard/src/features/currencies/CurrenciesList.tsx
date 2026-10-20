@@ -73,7 +73,7 @@ export function CurrenciesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteCurrency, { loading: deleting }] = useMutation(DeleteCurrencyDocument, {
-    refetchQueries: [{ query: CurrenciesAdminListDocument }],
+    refetchQueries: [CurrenciesAdminListDocument],
   })
 
   async function onConfirmDelete() {

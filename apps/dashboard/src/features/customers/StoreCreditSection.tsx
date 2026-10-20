@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatCents } from '@/lib/format'
+import { currencyDecimals, formatCents, toMinor } from '@/lib/format'
 
 import { AdjustStoreCreditDocument, StoreCreditDocument } from './Customers.gql'
 import { useCustomerAccess } from './useCustomerAccess'
@@ -25,13 +25,6 @@ import { useCustomerAccess } from './useCustomerAccess'
 // needs a typed acknowledgement on top of the dialog
 const CONFIRM_ABOVE_CENTS = 100_000
 
-// majorToCents converts a user-entered amount in major units (e.g. "50.00")
-// to integer cents, rejecting unparseable input
-function majorToCents(v: string): number | null {
-  const n = Number.parseFloat(v)
-  if (Number.isNaN(n)) return null
-  return Math.round(n * 100)
-}
 
 type LedgerEntry = {
   id: string
@@ -175,7 +168,7 @@ function AdjustStoreCreditDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [adjust, { loading }] = useMutation(AdjustStoreCreditDocument)
 
-  const cents = majorToCents(amount)
+  const cents = toMinor(amount, currencyCode)
   const needsAck = cents != null && Math.abs(cents) >= CONFIRM_ABOVE_CENTS
 
   function reset() {
@@ -237,7 +230,7 @@ function AdjustStoreCreditDialog({
               id="sc-adjust-amount"
               required
               type="number"
-              step="0.01"
+              step={10 ** -currencyDecimals(currencyCode)}
               placeholder="25.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}

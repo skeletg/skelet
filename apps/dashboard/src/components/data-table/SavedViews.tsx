@@ -131,7 +131,7 @@ export function SavedViews({ viewsKey, paramKey = '' }: { viewsKey: string; para
                       onChange={(e) => setDraftName(e.target.value)}
                       className="h-7 text-xs"
                     />
-                    <Button type="submit" variant="ghost" size="icon" className="size-7">
+                    <Button aria-label="Save view name" type="submit" variant="ghost" size="icon" className="size-7">
                       <CheckIcon className="size-3.5" />
                     </Button>
                   </form>

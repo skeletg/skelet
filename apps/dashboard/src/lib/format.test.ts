@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  dayEndISO,
+  dayStartISO,
   formatCents,
+  fromMinor,
+  toMinor,
   formatDate,
   formatDateTime,
   formatNumber,
   formatShortDay,
   formatTimestamp,
+  localDay,
   timeAgo,
 } from './format'
 
@@ -27,6 +32,32 @@ describe('formatCents', () => {
 
   it('never throws on unknown currency codes', () => {
     expect(() => formatCents(1234, 'XXX')).not.toThrow()
+  })
+
+  it('does not divide zero-decimal currencies by 100', () => {
+    expect(formatCents(1250, 'JPY')).toMatch(/1[,.]?250/)
+  })
+})
+
+describe('toMinor / fromMinor', () => {
+  it('converts by the currency decimals', () => {
+    expect(toMinor('12.50', 'USD')).toBe(1250)
+    expect(toMinor('0.29', 'USD')).toBe(29)
+    expect(toMinor('1250', 'JPY')).toBe(1250)
+    expect(toMinor('1.234', 'BHD')).toBe(1234)
+  })
+
+  it('refuses blank, junk and extra decimals instead of rounding', () => {
+    expect(toMinor('', 'USD')).toBeNull()
+    expect(toMinor('abc', 'USD')).toBeNull()
+    expect(toMinor('1.234', 'USD')).toBeNull()
+    expect(toMinor('12.5', 'JPY')).toBeNull()
+  })
+
+  it('round-trips', () => {
+    expect(fromMinor(1250, 'USD')).toBe('12.50')
+    expect(fromMinor(1250, 'JPY')).toBe('1250')
+    expect(toMinor(fromMinor(1999, 'EUR'), 'EUR')).toBe(1999)
   })
 })
 
@@ -118,5 +149,31 @@ describe('timeAgo', () => {
 
   it('returns empty for an unparseable value', () => {
     expect(timeAgo('nope')).toBe('')
+  })
+})
+
+// Run with TZ set west and east of UTC too - in UTC the old new Date('YYYY-MM-DD') happened to be right
+describe('dayStartISO / dayEndISO', () => {
+  it('bound the picked day in local time', () => {
+    const start = new Date(dayStartISO('2026-03-04'))
+    const end = new Date(dayEndISO('2026-03-04'))
+    expect([start.getFullYear(), start.getMonth(), start.getDate(), start.getHours()]).toEqual([2026, 2, 4, 0])
+    expect([end.getDate(), end.getHours(), end.getMinutes()]).toEqual([4, 23, 59])
+  })
+
+  it('a one-day range spans the whole day', () => {
+    expect(new Date(dayEndISO('2026-03-04')).getTime() - new Date(dayStartISO('2026-03-04')).getTime()).toBe(86_399_999)
+  })
+})
+
+describe('localDay', () => {
+  it('is the local calendar day, not the UTC one', () => {
+    // 23:30 local on Mar 4 - already Mar 5 in UTC anywhere west of it
+    expect(localDay(new Date(2026, 2, 4, 23, 30))).toBe('2026-03-04')
+    expect(localDay(new Date(2026, 2, 5, 0, 15))).toBe('2026-03-05')
+  })
+
+  it('round-trips through dayStartISO', () => {
+    expect(localDay(new Date(dayStartISO('2026-12-31')))).toBe('2026-12-31')
   })
 })

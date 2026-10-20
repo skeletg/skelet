@@ -128,7 +128,7 @@ export function QuestionsList() {
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button aria-label="Question actions" variant="ghost" size="icon" className="size-8">
                 <MoreHorizontalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>

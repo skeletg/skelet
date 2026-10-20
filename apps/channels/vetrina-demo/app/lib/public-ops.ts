@@ -35,6 +35,18 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "PresentmentCurrencies",
   "BlogPostsForSitemap",
   "CmsPagesForSitemap",
+  "BrowseProductsSlim",
+  "CompareProducts",
+  "StoreProduct",
+  "FreeShippingThreshold",
+  "ChannelLocales",
+  "BlogAuthorById",
+  "BlogAuthorBySlug",
+  "BlogAuthorsIndex",
+  "BlogCategoryBySlug",
+  "BlogPostsFiltered",
+  "BlogTagBySlug",
+  "BlogTaxonomyIndex",
   // PaymentMethods is not here - it reads the cart, and a signed-in shopper's cart refuses a request without their token
 ])
 

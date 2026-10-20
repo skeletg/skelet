@@ -94,6 +94,7 @@ import {
 import { readImageDimensions } from '@/lib/image'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
+import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
@@ -295,9 +296,10 @@ export function MediaLibrary() {
           </div>
         </div>
 
-        <div className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
+        <div role="tree" aria-label="Folders" className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
           <RootRow
             isActive={path === '' && !query}
+            tabbable={path === ''}
             onClick={() => navigateTo('')}
           />
           {directoryTree.length > 0 ? (
@@ -463,18 +465,23 @@ export function MediaLibrary() {
   )
 }
 
-function RootRow({ isActive, onClick }: { isActive: boolean; onClick: () => void }) {
+// The tree's one tab stop is the open folder's row - Library's when the root is open, a search included
+function RootRow({ isActive, tabbable, onClick }: { isActive: boolean; tabbable: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <div
+      role="treeitem"
+      tabIndex={tabbable ? 0 : -1}
+      aria-level={1}
+      aria-selected={isActive}
       onClick={onClick}
-      className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+      onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: true, hasChildren: false, onToggle: () => {}, onOpen: onClick })}
+      className={`mb-1 flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         isActive ? 'bg-primary/10 font-medium text-foreground' : 'text-foreground/90 hover:bg-muted/60'
       }`}
     >
       <FolderIcon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
       <span className="truncate">Library</span>
-    </button>
+    </div>
   )
 }
 
@@ -1159,7 +1166,7 @@ function DirectoryTree({
   depth?: number
 }) {
   return (
-    <ul className="grid gap-0.5">
+    <ul role={depth > 0 ? 'group' : 'none'} className="grid gap-0.5">
       {nodes.map((node) => (
         <DirectoryTreeNode key={node.path} node={node} activePath={activePath} onNavigate={onNavigate} depth={depth} />
       ))}
@@ -1192,9 +1199,15 @@ function DirectoryTreeNode({
   }
 
   return (
-    <li>
+    <li role="none">
       <div
-        className={`group relative flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors ${
+        role="treeitem"
+        tabIndex={isActive ? 0 : -1}
+        aria-level={depth + 2}
+        aria-selected={isActive}
+        aria-expanded={hasChildren ? open : undefined}
+        onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: open, hasChildren, onToggle: () => setOpen((v) => !v), onOpen: () => onNavigate(node.path) })}
+        className={`group relative flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isActive
             ? 'bg-primary/10 font-medium text-foreground'
             : isAncestor
@@ -1215,11 +1228,13 @@ function DirectoryTreeNode({
               />
             ))
           : null}
+        {/* The row's arrow keys expand and collapse, so this stays a mouse target out of the tab order */}
         <button
           type="button"
+          tabIndex={-1}
           className="grid size-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
           onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-          aria-label={open ? 'Collapse' : 'Expand'}
+          aria-label={open ? `Collapse ${node.name}` : `Expand ${node.name}`}
           disabled={!hasChildren}
         >
           {hasChildren ? (

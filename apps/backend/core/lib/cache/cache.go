@@ -89,23 +89,54 @@ func GetJSON[T any](ctx context.Context, c *Cache, suffix string) (T, bool) { //
 
 func GetJSONIn[T any](ctx context.Context, c *Cache, group, suffix string) (T, bool) {
 	var zero T
-	if c == nil || c.client == nil {
+	raw, ok := c.getIn(ctx, group, suffix)
+	if !ok {
 		return zero, false
+	}
+	var out T
+	if err := json.Unmarshal(raw, &out); err != nil {
+		// Schema drift between writer and reader - drop the stale entry and the next miss repopulates
+		c.DelIn(ctx, group, suffix)
+		return zero, false
+	}
+	return out, true
+}
+
+// Stored and handed back byte for byte, for values that arrive already serialized
+func (c *Cache) GetRaw(ctx context.Context, suffix string) ([]byte, bool) {
+	return c.getIn(ctx, "", suffix)
+}
+
+func (c *Cache) SetRaw(ctx context.Context, suffix string, raw []byte, ttl time.Duration) {
+	c.setIn(ctx, "", suffix, raw, ttl)
+}
+
+func (c *Cache) getIn(ctx context.Context, group, suffix string) ([]byte, bool) {
+	if c == nil || c.client == nil {
+		return nil, false
 	}
 	raw, err := getScript.Run(ctx, c.client, c.genKeys(group), c.args(group, suffix)...).Text()
 	if err != nil {
 		if !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
 			slog.Warn("cache get error", "ns", c.prefix, "suffix", suffix, "err", err)
 		}
-		return zero, false
+		return nil, false
 	}
-	var out T
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		// Schema drift between writer and reader - drop the stale entry and the next miss repopulates
-		c.DelIn(ctx, group, suffix)
-		return zero, false
+	return []byte(raw), true
+}
+
+func (c *Cache) setIn(ctx context.Context, group, suffix string, raw []byte, ttl time.Duration) {
+	if c == nil || c.client == nil {
+		return
 	}
-	return out, true
+	if ttl <= 0 || ttl > maxEntryTTL {
+		ttl = maxEntryTTL
+	}
+	if err := setScript.Run(ctx, c.client, c.genKeys(group), c.args(group, suffix, raw, ttl.Milliseconds())...).Err(); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("cache set error", "ns", c.prefix, "suffix", suffix, "err", err)
+		}
+	}
 }
 
 func (c *Cache) SetJSON(ctx context.Context, suffix string, v any, ttl time.Duration) { // errors are logged rather than returned - a miss next time is harmless, and callers shouldn't handle two failure modes for one read path
@@ -116,19 +147,12 @@ func (c *Cache) SetJSONIn(ctx context.Context, group, suffix string, v any, ttl 
 	if c == nil || c.client == nil {
 		return
 	}
-	if ttl <= 0 || ttl > maxEntryTTL {
-		ttl = maxEntryTTL
-	}
 	raw, err := json.Marshal(v)
 	if err != nil {
 		slog.Warn("cache marshal error", "ns", c.prefix, "suffix", suffix, "err", err)
 		return
 	}
-	if err := setScript.Run(ctx, c.client, c.genKeys(group), c.args(group, suffix, raw, ttl.Milliseconds())...).Err(); err != nil {
-		if !errors.Is(err, context.Canceled) {
-			slog.Warn("cache set error", "ns", c.prefix, "suffix", suffix, "err", err)
-		}
-	}
+	c.setIn(ctx, group, suffix, raw, ttl)
 }
 
 // For write paths after a mutation, so the next read goes back to Postgres - missing keys are silently ignored, per Valkey's DEL semantics

@@ -20,7 +20,9 @@ func (r *Resolver) getAttributeNameMaps(ctx context.Context, locale string) (map
 			m, ok := c.attrNameMaps[locale]
 			return m, ok
 		},
-		func() (attrNameMaps, error) { return r.buildAttributeNameMaps(ctx, locale) },
+		func() (attrNameMaps, error) {
+			return r.Metadata.attributeNames(ctx, locale, func(ctx context.Context) (attrNameMaps, error) { return r.buildAttributeNameMaps(ctx, locale) })
+		},
 		func(m attrNameMaps) {
 			c.mu.Lock()
 			c.attrNameMaps[locale] = m
@@ -44,21 +46,25 @@ func (r *Resolver) buildAttributeNameMaps(ctx context.Context, locale string) (a
 
 	attrNames := map[string]string{}
 	if len(attrIDs) > 0 {
-		if rows, err := r.CatalogSvc.ListAttributeContentByAttributeIDs(ctx, attrIDs); err == nil {
-			for _, row := range rows {
-				if row.Locale == locale && row.Name != "" {
-					attrNames[row.AttributeID.String()] = row.Name
-				}
+		rows, err := r.CatalogSvc.ListAttributeContentByAttributeIDs(ctx, attrIDs)
+		if err != nil {
+			return attrNameMaps{}, err
+		}
+		for _, row := range rows {
+			if row.Locale == locale && row.Name != "" {
+				attrNames[row.AttributeID.String()] = row.Name
 			}
 		}
 	}
 	valueNames := map[string]string{}
 	if len(valueIDs) > 0 {
-		if rows, err := r.CatalogSvc.ListAttributeValueContentByValueIDs(ctx, valueIDs); err == nil {
-			for _, row := range rows {
-				if row.Locale == locale && row.Name != "" {
-					valueNames[row.ValueID.String()] = row.Name
-				}
+		rows, err := r.CatalogSvc.ListAttributeValueContentByValueIDs(ctx, valueIDs)
+		if err != nil {
+			return attrNameMaps{}, err
+		}
+		for _, row := range rows {
+			if row.Locale == locale && row.Name != "" {
+				valueNames[row.ValueID.String()] = row.Name
 			}
 		}
 	}

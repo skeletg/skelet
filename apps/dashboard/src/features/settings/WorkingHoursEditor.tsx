@@ -119,7 +119,7 @@ export function WorkingHoursEditor({
                         disabled={disabled}
                         className="h-8 w-32"
                       />
-                      <Button
+                      <Button aria-label="Remove time range"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"

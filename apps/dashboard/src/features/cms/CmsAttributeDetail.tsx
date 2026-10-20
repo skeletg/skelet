@@ -84,12 +84,12 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
   const { isNum, isText, isBool } = attributeKind(a.inputType)
 
   const [update] = useMutation(UpdateCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteAttr, { loading: deleting }] = useMutation(DeleteCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
 
   const baseline = useMemo(() => toCmsAttributeDefaultsValues(a), [a])
@@ -310,16 +310,16 @@ function AttributeValuesEditor({
   const { effectiveLocale } = useConfigScope()
   const [addValue, setAddValue] = useState({ slug: '' })
   const [addAttrValue] = useMutation(AddCmsAttributeValueDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
   const [updateValue] = useMutation(UpdateCmsAttributeValueDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
   const [deleteValue] = useMutation(DeleteCmsAttributeValueDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
   const [upsertValueContent] = useMutation(UpsertCmsAttributeValueContentDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
 
   // Staged, never saved directly - renames, adds and deletes wait for the header Save and its confirm dialog,

@@ -3,6 +3,7 @@
 // Categories are inferred from the slug prefix, which covers every shipped core.* type without
 // backend changes - plugin slugs off-convention land in "Other", and can mimic the prefix to slot in
 
+import { formatCents } from './promoFormat'
 import type { LucideIcon } from 'lucide-react'
 import {
   BlendIcon,
@@ -108,9 +109,9 @@ export function summariseType(slug: string, label: string, params: unknown): str
     case 'core.cart_subtotal_range': {
       const min = num(p.min_cents)
       const max = num(p.max_cents)
-      if (min != null && max != null) return `Cart subtotal $${min / 100}–$${max / 100}`
-      if (min != null) return `Cart subtotal ≥ $${min / 100}`
-      if (max != null) return `Cart subtotal ≤ $${max / 100}`
+      if (min != null && max != null) return `Cart subtotal ${formatCents(min)}–${formatCents(max)}`
+      if (min != null) return `Cart subtotal ≥ ${formatCents(min)}`
+      if (max != null) return `Cart subtotal ≤ ${formatCents(max)}`
       return label
     }
     case 'core.cart_qty_range': {
@@ -139,7 +140,7 @@ export function summariseType(slug: string, label: string, params: unknown): str
     }
     case 'core.fixed_off_subtotal': {
       const cents = num(p.cents)
-      return cents != null ? `$${cents / 100} off cart` : label
+      return cents != null ? `${formatCents(cents)} off cart` : label
     }
     case 'core.percent_off_matching_items': {
       const bps = num(p.bps)
@@ -147,7 +148,7 @@ export function summariseType(slug: string, label: string, params: unknown): str
     }
     case 'core.fixed_off_matching_items': {
       const cents = num(p.cents_per_unit)
-      return cents != null ? `$${cents / 100} off each matching unit` : label
+      return cents != null ? `${formatCents(cents)} off each matching unit` : label
     }
     case 'core.bogo': {
       const buy = num(p.buy_qty)
@@ -167,7 +168,7 @@ export function summariseType(slug: string, label: string, params: unknown): str
       return `Free gift choice (max ${num(p.max_picks) ?? '?'})`
     case 'core.cap_total_discount': {
       const cents = num(p.max_cents)
-      return cents != null ? `Cap total discount at $${cents / 100}` : label
+      return cents != null ? `Cap total discount at ${formatCents(cents)}` : label
     }
     default:
       return label

@@ -74,7 +74,7 @@ export function LocalesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteLocale, { loading: deleting }] = useMutation(DeleteLocaleDocument, {
-    refetchQueries: [{ query: LocalesAdminListDocument }],
+    refetchQueries: [LocalesAdminListDocument],
   })
 
   async function onConfirmDelete() {

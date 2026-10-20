@@ -36,6 +36,7 @@ import {
   ChatConversationsDocument,
 } from './Ai.gql'
 import { MessageContent } from './ChatMessage'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -177,6 +178,7 @@ export function ChatDock() {
   const client = useApolloClient()
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [confirmingDeleteChat, setConfirmingDeleteChat] = useState<string | null>(null)
   const [saveConv] = useMutation(SaveChatConversationDocument)
   const [deleteConv] = useMutation(DeleteChatConversationDocument)
   const { data: convData, refetch: refetchConvs } = useQuery(ChatConversationsDocument, {
@@ -229,12 +231,9 @@ export function ChatDock() {
     setHistoryOpen(false)
   }
 
+  // Behind a confirm - a deleted conversation can't be brought back, and a failure now shows in the dialog instead of being ignored
   async function removeConversation(id: string) {
-    try {
-      await deleteConv({ variables: { id } })
-    } catch {
-      /* ignore */
-    }
+    await deleteConv({ variables: { id } })
     if (id === conversationId) newChat()
     void refetchConvs()
   }
@@ -457,7 +456,7 @@ export function ChatDock() {
                       type="button"
                       aria-label="Delete chat"
                       className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                      onClick={() => void removeConversation(c.id)}
+                      onClick={() => setConfirmingDeleteChat(c.id)}
                     >
                       <XIcon className="size-3.5" />
                     </button>
@@ -575,7 +574,7 @@ export function ChatDock() {
               disabled={sending || !effectiveChannel || !enabled}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
             />
-            <Button
+            <Button aria-label="Send message"
               type="submit"
               size="icon"
               disabled={sending || !input.trim() || !effectiveChannel || !enabled}
@@ -587,6 +586,17 @@ export function ChatDock() {
           <p className="mt-2 text-center text-[11px] text-muted-foreground">Chat can make mistakes - double-check important numbers.</p>
         </div>
       </div>
+      <ConfirmDialog
+        open={!!confirmingDeleteChat}
+        onOpenChange={(o) => !o && setConfirmingDeleteChat(null)}
+        title="Delete this chat?"
+        description="The conversation is removed from your history for good."
+        confirmLabel="Delete chat"
+        destructive
+        onConfirm={async () => {
+          if (confirmingDeleteChat) await removeConversation(confirmingDeleteChat)
+        }}
+      />
     </aside>
   )
 }

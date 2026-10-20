@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -284,7 +285,7 @@ func (r *mutationResolver) DeletePromotionRuleContent(ctx context.Context, ruleI
 
 // Codes is the resolver for the codes field. Loads codes lazily so the list page (which doesn't ask for codes) doesn't
 // pay the join, and the detail page can paginate
-func (r *promotionRuleResolver) Codes(ctx context.Context, obj *model.PromotionRule, limit *int32, offset *int32) (*model.PromotionCodeList, error) {
+func (r *promotionRuleResolver) Codes(ctx context.Context, obj *model.PromotionRule, search *string, isActive *bool, limit *int32, offset *int32) (*model.PromotionCodeList, error) {
 	if r.PromotionSvc == nil {
 		return &model.PromotionCodeList{Items: []*model.PromotionCode{}, TotalCount: 0}, nil
 	}
@@ -292,7 +293,7 @@ func (r *promotionRuleResolver) Codes(ctx context.Context, obj *model.PromotionR
 	if err != nil {
 		return nil, err
 	}
-	codes, total, err := r.PromotionSvc.Repo().ListCodesByRule(ctx, rid, derefInt32Default(limit, 50), derefInt32Default(offset, 0))
+	codes, total, err := r.PromotionSvc.Repo().ListCodesByRule(ctx, rid, strings.TrimSpace(ptrStr(search)), isActive, derefInt32Default(limit, 50), derefInt32Default(offset, 0))
 	if err != nil {
 		return nil, err
 	}

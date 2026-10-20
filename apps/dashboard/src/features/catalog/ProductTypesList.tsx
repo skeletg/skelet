@@ -58,7 +58,7 @@ export function ProductTypesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteProductType, { loading: deleting }] = useMutation(DeleteProductTypeDocument, {
-    refetchQueries: [{ query: ProductTypesDocument }],
+    refetchQueries: [ProductTypesDocument],
   })
 
   async function onConfirmDelete() {

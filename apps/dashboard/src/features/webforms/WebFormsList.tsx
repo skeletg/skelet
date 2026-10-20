@@ -131,7 +131,7 @@ export function WebFormsList() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        title="Forms"
+        title="Web forms"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">

@@ -94,7 +94,7 @@ export function DeliverySettingsFields({
                   }
                   className="h-8 font-mono text-xs"
                 />
-                <Button
+                <Button aria-label="Remove header"
                   type="button"
                   variant="ghost"
                   size="icon"

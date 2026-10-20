@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
@@ -393,10 +393,11 @@ function PageTypeAttributesPanel({
   type: CmsPageTypeRowFragment
   canManage: boolean
 }) {
+  const fid = useId()
   const { data: attrsData } = useQuery(CmsAttributesDocument)
   const allAttrs = attrsData?.cmsAttributes ?? []
-  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
-  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
+  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
+  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
 
   const [picked, setPicked] = useState('')
   const [required, setRequired] = useState(false)
@@ -486,8 +487,8 @@ function PageTypeAttributesPanel({
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Switch checked={required} onCheckedChange={setRequired} />
-            <Label className="text-xs">Required</Label>
+            <Switch id={`${fid}-required`} checked={required} onCheckedChange={setRequired} />
+            <Label htmlFor={`${fid}-required`} className="text-xs">Required</Label>
           </div>
           {groups.length > 0 && (
             <Select value={groupId} onValueChange={setGroupId}>
@@ -505,9 +506,9 @@ function PageTypeAttributesPanel({
           )}
           {conditionSources.length > 0 && (
             <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Show only if</Label>
+              <Label htmlFor={`${fid}-show-only-if`} className="text-xs text-muted-foreground">Show only if</Label>
               <Select value={condAttr} onValueChange={setCondAttr}>
-                <SelectTrigger className="h-8 w-40">
+                <SelectTrigger id={`${fid}-show-only-if`} className="h-8 w-40">
                   <SelectValue placeholder="(always)" />
                 </SelectTrigger>
                 <SelectContent>
