@@ -6,16 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { LoadingState } from '@/components/ui/loading-state'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
@@ -29,6 +19,7 @@ import {
   DeleteCmsTagDocument,
   type CmsTagsQuery,
 } from './Cms.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Tag = CmsTagsQuery['cmsTags'][number]
 
@@ -131,29 +122,23 @@ export function CmsTagsPage() {
         </DetailPageSection>
       </DetailPageBody>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete tag “{pendingDelete?.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the tag from the library and from the{' '}
-              {pendingDelete?.pageCount ?? 0} page(s) that use it. This can't be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (pendingDelete) void deleteTag({ variables: { slug: pendingDelete.slug } })
-                setPendingDelete(null)
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title={<>Delete tag “{pendingDelete?.name}”?</>}
+        description={
+          <>
+            This removes the tag from the library and from the{' '}
+            {pendingDelete?.pageCount ?? 0} page(s) that use it. This can't be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => {
+          if (pendingDelete) void deleteTag({ variables: { slug: pendingDelete.slug } })
+        }}
+      />
     </DetailPageLayout>
   )
 }
