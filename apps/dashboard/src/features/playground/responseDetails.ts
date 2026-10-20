@@ -51,12 +51,6 @@ export function responseTone(d: ResponseDetails): ResponseTone {
   return d.errorCount > 0 ? 'warning' : 'success'
 }
 
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
-
 export function formatDuration(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`
 }

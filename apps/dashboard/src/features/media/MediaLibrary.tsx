@@ -93,6 +93,7 @@ import {
 } from './MediaLibrary.gql'
 import { readImageDimensions } from '@/lib/image'
 import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { formatBytes } from '@/lib/format'
 
 type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
@@ -1232,17 +1233,5 @@ function buildBreadcrumbs(path: string): { name: string; path: string }[] {
     crumbs.push({ name: parts[i], path: parts.slice(0, i + 1).join('/') })
   }
   return crumbs
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unit = 0
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024
-    unit += 1
-  }
-  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
