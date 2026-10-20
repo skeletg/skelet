@@ -873,16 +873,33 @@ func (r *postgresRepository) GetAggregates(ctx context.Context, productID uuid.U
 }
 
 func (r *postgresRepository) GetAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID *uuid.UUID) (map[uuid.UUID]Aggregates, error) {
+	out, err := r.GetOverallAggregatesByProductIDs(ctx, productIDs, channelID)
+	if err != nil || len(productIDs) == 0 {
+		return out, err
+	}
+	perQ, err := r.queries.AggregateReviewRatingsByProductIDs(ctx, db.AggregateReviewRatingsByProductIDsParams{ProductIds: productIDs, ChannelID: sqlnull.UUID(channelID)})
+	if err != nil {
+		return nil, fmt.Errorf("aggregate per-question by ids: %w", err)
+	}
+	for _, row := range perQ {
+		agg := out[row.ProductID]
+		agg.PerQuestion = append(agg.PerQuestion, QuestionAverage{
+			QuestionID: row.QuestionID,
+			Average:    row.Average,
+			Count:      int(row.SampleCount),
+		})
+		out[row.ProductID] = agg
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) GetOverallAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID *uuid.UUID) (map[uuid.UUID]Aggregates, error) {
 	if len(productIDs) == 0 {
 		return map[uuid.UUID]Aggregates{}, nil
 	}
 	overall, err := r.queries.AggregateOverallRatingsByProductIDs(ctx, db.AggregateOverallRatingsByProductIDsParams{ProductIds: productIDs, ChannelID: sqlnull.UUID(channelID)})
 	if err != nil {
 		return nil, fmt.Errorf("aggregate overall by ids: %w", err)
-	}
-	perQ, err := r.queries.AggregateReviewRatingsByProductIDs(ctx, db.AggregateReviewRatingsByProductIDsParams{ProductIds: productIDs, ChannelID: sqlnull.UUID(channelID)})
-	if err != nil {
-		return nil, fmt.Errorf("aggregate per-question by ids: %w", err)
 	}
 	out := make(map[uuid.UUID]Aggregates, len(overall))
 	for _, row := range overall {
@@ -900,15 +917,6 @@ func (r *postgresRepository) GetAggregatesByProductIDs(ctx context.Context, prod
 			int(row.Bucket4),
 			int(row.Bucket5),
 		}
-		out[row.ProductID] = agg
-	}
-	for _, row := range perQ {
-		agg := out[row.ProductID]
-		agg.PerQuestion = append(agg.PerQuestion, QuestionAverage{
-			QuestionID: row.QuestionID,
-			Average:    row.Average,
-			Count:      int(row.SampleCount),
-		})
 		out[row.ProductID] = agg
 	}
 	return out, nil

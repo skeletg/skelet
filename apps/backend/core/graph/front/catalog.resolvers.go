@@ -197,7 +197,11 @@ func (r *productResolver) Backorderable(ctx context.Context, obj *model.Product)
 	if v, ok := r.cachedBackorderable(ctx, pid); ok {
 		return v, nil
 	}
-	if r.primeGroupOnce(ctx, "backorderable", pid, func(ids []uuid.UUID) error { return r.primeBackorderable(ctx, ids) }) {
+	storeID := uuid.Nil
+	if id := channelIDFromContext(ctx); id != nil {
+		storeID = *id
+	}
+	if r.primeGroupOnce(ctx, "stock", pid, func(ids []uuid.UUID) error { return r.primeStock(ctx, ids, storeID) }) {
 		if v, ok := r.cachedBackorderable(ctx, pid); ok {
 			return v, nil
 		}
@@ -701,7 +705,9 @@ func (r *queryResolver) SearchProducts(ctx context.Context, query string, limit 
 	hits, total, err := r.ProductSearch.SearchProducts(ctx, query, *storeID, r.activeLocale(ctx), lim, off, merchBoosts)
 	if err != nil {
 		// Every tier failed - an empty result is indistinguishable from "no matches", so say so loudly
-		log.Printf("[search:error] product search failed on every tier for store %s: %v", *storeID, err)
+		if !errors.Is(err, search.ErrFallbackSaturated) { // the tier reports its own shedding in batches
+			log.Printf("[search:error] product search failed on every tier for store %s: %v", *storeID, err)
+		}
 		graphqlx.MarkUncacheable(ctx)
 		return empty, nil
 	}
@@ -828,7 +834,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	// The tier handles primary-then-backup and reports degradation itself, so an error here means BOTH engines failed
 	res, err := r.ProductSearch.BrowseProducts(ctx, *storeID, locale, queryStr, indexerFilter, sortSlug, lim, off, browseBoosts)
 	if err != nil {
-		log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
+		if !errors.Is(err, search.ErrFallbackSaturated) {
+			log.Printf("[search:error] browse failed on every tier for store %s: %v", *storeID, err)
+		}
+		graphqlx.MarkUncacheable(ctx)
 		return empty, nil
 	}
 	// Same seam rule as the filter input above - a facet on a private attribute never renders, whichever tier built it
@@ -868,10 +877,9 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		if err := r.primeListings(ctx, hydratedIDs); err != nil {
 			return empty, nil
 		}
-		if err := r.primeSalable(ctx, hydratedIDs, *storeID); err != nil {
+		if err := r.primeStock(ctx, hydratedIDs, *storeID); err != nil {
 			return empty, nil
 		}
-		_ = r.primeBackorderable(ctx, hydratedIDs)
 		if err := r.primeReviewAggregates(ctx, hydratedIDs); err != nil {
 			return empty, nil
 		}

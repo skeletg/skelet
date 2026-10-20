@@ -55,6 +55,7 @@ type Loaders struct {
 	Customer         *dataloader.Loader[uuid.UUID, customer.Customer]
 	ProductReviews   *dataloader.Loader[ReviewsKey, []review.Review]
 	ReviewAggregates *dataloader.Loader[uuid.UUID, review.Aggregates]
+	ReviewOverall    *dataloader.Loader[uuid.UUID, review.Aggregates] // no PerQuestion
 	ReviewVoteCounts *dataloader.Loader[uuid.UUID, review.VoteCounts]
 	MyReviewVote     *dataloader.Loader[uuid.UUID, int16]
 	Channel          *dataloader.Loader[uuid.UUID, channel.Channel]
@@ -93,7 +94,12 @@ func New(d Deps) *Loaders {
 			dataloader.WithCache[ReviewsKey, []review.Review](dataloader.NewCache[ReviewsKey, []review.Review]()),
 		),
 		ReviewAggregates: dataloader.NewBatchedLoader(
-			reviewAggregatesBatchFn(d.Review),
+			reviewAggregatesBatchFn(d.Review.GetAggregatesByProductIDs),
+			dataloader.WithWait[uuid.UUID, review.Aggregates](loaderWait),
+			dataloader.WithCache[uuid.UUID, review.Aggregates](dataloader.NewCache[uuid.UUID, review.Aggregates]()),
+		),
+		ReviewOverall: dataloader.NewBatchedLoader(
+			reviewAggregatesBatchFn(d.Review.GetOverallAggregatesByProductIDs),
 			dataloader.WithWait[uuid.UUID, review.Aggregates](loaderWait),
 			dataloader.WithCache[uuid.UUID, review.Aggregates](dataloader.NewCache[uuid.UUID, review.Aggregates]()),
 		),
@@ -249,10 +255,10 @@ func productReviewsBatchFn(svc *review.Service) dataloader.BatchFunc[ReviewsKey,
 }
 
 // Zero-value Aggregates for products with no approved reviews - that's the storefront-visible truth, and matches how the resolver already treats absent map entries
-func reviewAggregatesBatchFn(svc *review.Service) dataloader.BatchFunc[uuid.UUID, review.Aggregates] {
+func reviewAggregatesBatchFn(fetch func(context.Context, []uuid.UUID) (map[uuid.UUID]review.Aggregates, error)) dataloader.BatchFunc[uuid.UUID, review.Aggregates] {
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[review.Aggregates] {
 		out := make([]*dataloader.Result[review.Aggregates], len(keys))
-		byID, err := svc.GetAggregatesByProductIDs(ctx, keys)
+		byID, err := fetch(ctx, keys)
 		if err != nil {
 			for i := range keys {
 				out[i] = &dataloader.Result[review.Aggregates]{Error: err}
