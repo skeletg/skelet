@@ -13,16 +13,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,6 +61,7 @@ import { CmsPageHistorySchedule } from './page-detail/HistorySchedule'
 import { workflowLabel } from './page-detail/shared'
 import { PluginSections } from '@/plugins/detail-sections'
 import { pageContentDiff, pageContentSchema, toPageContentValues } from './schemas/page'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const parseBlocks = (body: unknown) => parseDocument(body)?.blocks ?? []
 
@@ -135,7 +126,6 @@ function CmsPageEditor({
   const [translatePage] = useMutation(TranslateCmsPageDocument, { refetchQueries: refetchPage })
 
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
 
   const displayTitle = p.content?.title?.trim() || p.allContent[0]?.title?.trim() || p.slug
@@ -225,13 +215,8 @@ function CmsPageEditor({
     }
   }
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deletePage({ variables: { id: p.id } })
-      navigate('/cms/pages', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deletePage({ variables: { id: p.id } })
+    navigate('/cms/pages', { replace: true })
   }
   async function onDuplicate() {
     await run(async () => {
@@ -300,10 +285,7 @@ function CmsPageEditor({
                   variant="outline"
                   size="sm"
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    setDeleteError(null)
-                    setConfirmDelete(true)
-                  }}
+                  onClick={() => setConfirmDelete(true)}
                   disabled={deleting}
                 >
                   <Trash2Icon className="size-4" />
@@ -539,28 +521,15 @@ function CmsPageEditor({
           <PluginSections target="cms-page" entity={p} mode="edit" />
         </DetailPageBody>
 
-        <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete page?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This permanently removes the page, its translations, and selections. URL redirects are preserved.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteError && (
-              <Alert variant="destructive">
-                <AlertTitle>Delete failed</AlertTitle>
-                <AlertDescription>{deleteError}</AlertDescription>
-              </Alert>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onDelete} disabled={deleting}>
-                {deleting ? 'Deleting…' : 'Delete'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete page?"
+          description="This permanently removes the page, its translations, and selections. URL redirects are preserved."
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          onConfirm={onDelete}
+        />
 
         <SaveConfirmDialog
           {...confirm.dialogProps}
