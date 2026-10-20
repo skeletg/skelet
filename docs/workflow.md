@@ -249,6 +249,14 @@ app, because that is where pnpm switches itself to the pinned version - and on W
 10.x switching itself to 12 has been seen to leave a pnpm that won't start, which
 `self-update` fixes.
 
+CI's `pnpm audit` checks each lockfile against the live advisory database, so it can start
+failing with no commit at all. Most findings are a transitive dep the lockfile resolved before
+the fix shipped, inside a range that already allows it - Renovate's weekly lockfile
+maintenance picks those up, and to fix one sooner, trigger that PR from the dependency
+dashboard or delete the app's `pnpm-lock.yaml` and run `./skelet pnpm <app> install`. An
+override in `pnpm-workspace.yaml` is only for a fix the parent's range excludes - check with
+`pnpm why <pkg>` - and its comment names the parent, so it can go once that parent widens.
+
 A clone from before the switch to pnpm needs two things done once:
 
 - **Host apps**: the old npm `node_modules` has to go - `./skelet setup` replaces it, and
