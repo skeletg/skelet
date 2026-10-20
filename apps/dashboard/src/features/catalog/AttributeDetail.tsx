@@ -12,16 +12,6 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { LoadingState } from '@/components/ui/loading-state'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -65,6 +55,7 @@ import {
   toAttributeSettingsValues,
   type AttributeSettingsValues,
 } from './schemas/attributeSettings'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Attribute = NonNullable<AttributeQuery['attribute']>
 
@@ -110,7 +101,6 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
   const [deleteValue] = useMutation(DeleteAttributeValueDocument, { refetchQueries: refetch })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const baseline = useMemo(() => toAttributeSettingsValues(attribute), [attribute])
   const schema = useMemo(() => attributeSettingsSchema(attribute.inputType), [attribute.inputType])
@@ -131,13 +121,8 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
   })
 
   async function onDeleteAttribute() {
-    setDeleteError(null)
-    try {
-      await deleteAttribute({ variables: { id } })
-      navigate('/catalog/attributes', { replace: true })
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Delete failed.')
-    }
+    await deleteAttribute({ variables: { id } })
+    navigate('/catalog/attributes', { replace: true })
   }
 
   const supportsValues = INPUT_TYPES_WITH_VALUES.has(attribute.inputType)
@@ -164,10 +149,7 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
             variant="outline"
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => {
-              setDeleteError(null)
-              setConfirmingDelete(true)
-            }}
+            onClick={() => setConfirmingDelete(true)}
             disabled={deleting}
           >
             <Trash2Icon className="size-4" />
@@ -222,43 +204,16 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
 
       <PluginSections target="attribute" entity={attribute} mode="edit" />
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {attribute.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes this attribute, all its values, and its assignments to any product types.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDeleteAttribute()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete attribute'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {attribute.name}?</>}
+        description="Permanently removes this attribute, all its values, and its assignments to any product types."
+        confirmLabel="Delete attribute"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDeleteAttribute}
+      />
     </RecordFormPage>
   )
 }
@@ -274,7 +229,6 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
   // The indexable master switch is an action, not a field: flipping it cascades to every value and
   // per-product slug override, so it gets its own confirm and writes the moment that's accepted
   const [cascadePending, setCascadePending] = useState<{ next: boolean } | null>(null)
-  const [cascadeError, setCascadeError] = useState<string | null>(null)
   const [cascadeResult, setCascadeResult] = useState<{ values: number; products: number } | null>(null)
   const [cascadeIndexable, { loading: cascading }] = useMutation(SetAttributeIndexableDocument, {
     refetchQueries: [{ query: AttributeDocument, variables: { id: attribute.id } }, { query: AttributesDocument }],
@@ -317,7 +271,6 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
             id="s-attr-indexable"
             checked={attribute.isIndexable}
             onCheckedChange={(next) => {
-              setCascadeError(null)
               setCascadeResult(null)
               setCascadePending({ next })
             }}
@@ -385,53 +338,26 @@ function SettingsFields({ form, attribute, canManage }: { form: SettingsForm; at
         </Alert>
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!cascadePending}
-        onOpenChange={(v) => {
-          if (!v && !cascading) {
-            setCascadePending(null)
-            setCascadeError(null)
-          }
+        onOpenChange={(v) => !v && setCascadePending(null)}
+        title={cascadePending?.next ? 'Mark this entire facet indexable?' : 'Remove indexable from this entire facet?'}
+        description={
+          <>
+            This will set <code className="font-mono">isIndexable = {String(cascadePending?.next)}</code> on{' '}
+            <strong>{attribute.name}</strong> AND every value / per-product slug override under it. The change is one transaction;
+            per-value flags can still be flipped individually afterwards.
+          </>
+        }
+        confirmLabel={cascadePending?.next ? 'Yes, mark indexable' : 'Yes, remove'}
+        busyLabel="Applying…"
+        onConfirm={async () => {
+          if (!cascadePending) return
+          const res = await cascadeIndexable({ variables: { attributeId: attribute.id, isIndexable: cascadePending.next } })
+          const data = res.data?.setAttributeIndexable
+          if (data) setCascadeResult({ values: data.affectedValuesCount, products: data.affectedProductsCount })
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{cascadePending?.next ? 'Mark this entire facet indexable?' : 'Remove indexable from this entire facet?'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will set <code className="font-mono">isIndexable = {String(cascadePending?.next)}</code> on{' '}
-              <strong>{attribute.name}</strong> AND every value / per-product slug override under it. The change is one transaction;
-              per-value flags can still be flipped individually afterwards.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {cascadeError && (
-            <Alert variant="destructive">
-              <AlertTitle>Cascade failed</AlertTitle>
-              <AlertDescription>{cascadeError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cascading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={cascading}
-              onClick={async (e) => {
-                e.preventDefault()
-                if (!cascadePending) return
-                setCascadeError(null)
-                try {
-                  const res = await cascadeIndexable({ variables: { attributeId: attribute.id, isIndexable: cascadePending.next } })
-                  const data = res.data?.setAttributeIndexable
-                  if (data) setCascadeResult({ values: data.affectedValuesCount, products: data.affectedProductsCount })
-                  setCascadePending(null)
-                } catch (e2) {
-                  setCascadeError(e2 instanceof Error ? e2.message : 'Cascade failed.')
-                }
-              }}
-            >
-              {cascading ? 'Applying…' : cascadePending?.next ? 'Yes, mark indexable' : 'Yes, remove'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
     </fieldset>
   )
 }

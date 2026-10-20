@@ -2,16 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { ExternalLinkIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +27,7 @@ import {
   UrlRewritesDocument,
   type UrlRewritesQuery,
 } from './Catalog.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type UrlRewrite = UrlRewritesQuery['urlRewrites']['items'][number]
 
@@ -72,7 +63,7 @@ export function UrlRewritesSection({
   const refetchQueries = [{ query: UrlRewritesDocument, variables: rewritesVariables }]
   const [createRewrite, { loading: creating }] = useMutation(CreateUrlRewriteDocument, { refetchQueries })
   const [updateRewrite, { loading: updating }] = useMutation(UpdateUrlRewriteDocument, { refetchQueries })
-  const [deleteRewrite, { loading: deleting }] = useMutation(DeleteUrlRewriteDocument, { refetchQueries })
+  const [deleteRewrite] = useMutation(DeleteUrlRewriteDocument, { refetchQueries })
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<UrlRewrite | null>(null)
@@ -126,13 +117,7 @@ export function UrlRewritesSection({
 
   async function handleDelete() {
     if (!toDelete) return
-    setMutationError(null)
-    try {
-      await deleteRewrite({ variables: { id: toDelete.id } })
-      setToDelete(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteRewrite({ variables: { id: toDelete.id } })
   }
 
   const canonical = rewrites.find((r) => r.redirectType === 0)
@@ -262,27 +247,21 @@ export function UrlRewritesSection({
         onSubmit={handleFormSubmit}
       />
 
-      <AlertDialog open={Boolean(toDelete)} onOpenChange={(v) => { if (!v) setToDelete(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete redirect?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes the redirect for{' '}
-              <code className="font-mono text-xs">{toDelete?.requestPath}</code>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); handleDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete redirect'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onOpenChange={(v) => { if (!v) setToDelete(null) }}
+        title="Delete redirect?"
+        description={
+          <>
+            Permanently removes the redirect for{' '}
+            <code className="font-mono text-xs">{toDelete?.requestPath}</code>.
+          </>
+        }
+        confirmLabel="Delete redirect"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

@@ -4,19 +4,10 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import type { ColumnDef } from '@/components/data-table/tanstack'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -128,33 +119,23 @@ export function CmsBlockTypesPage() {
         </DetailPageSection>
       </DetailPageBody>
 
-      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{confirmDelete?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Blocks of this type already placed on pages will stop rendering on the storefront.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!confirmDelete) return
-                deleteType({ variables: { id: confirmDelete.id } })
-                  .then(() => {
-                    toast.success('Block type deleted')
-                    void refetch()
-                  })
-                  .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Delete failed'))
-                setConfirmDelete(null)
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(o) => !o && setConfirmDelete(null)}
+        title={<>Delete "{confirmDelete?.name}"?</>}
+        description="Blocks of this type already placed on pages will stop rendering on the storefront."
+        confirmLabel="Delete"
+        // Not awaited: the dialog closes at once and the outcome lands in a toast, as it always has
+        onConfirm={() => {
+          if (!confirmDelete) return
+          deleteType({ variables: { id: confirmDelete.id } })
+            .then(() => {
+              toast.success('Block type deleted')
+              void refetch()
+            })
+            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Delete failed'))
+        }}
+      />
     </DetailPageLayout>
   )
 }

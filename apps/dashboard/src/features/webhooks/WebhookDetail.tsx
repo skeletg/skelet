@@ -11,16 +11,6 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -38,6 +28,7 @@ import {
 } from '@/components/layout/detail-page'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { LoadError } from '@/shared/errors/LoadError'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { WebhookFormDialog } from './WebhookFormDialog'
 import { WebhookKindBadge } from './WebhookKindBadge'
 import { WebhookHealth } from './WebhookHealth'
@@ -101,30 +92,19 @@ export function WebhookDetail() {
 
   async function onRotateSecret() {
     if (!webhook) return
-    setOpError(null)
-    try {
-      const { data } = await rotateSecret({ variables: { id: webhook.id } })
-      if (data) {
-        setNewSecret({
-          secret: data.rotateWebhookSecret.rawSecret,
-          name: webhook.name,
-        })
-      }
-      setConfirmingRotate(false)
-    } catch (err) {
-      setOpError(err instanceof Error ? err.message : 'Rotate failed.')
+    const { data } = await rotateSecret({ variables: { id: webhook.id } })
+    if (data) {
+      setNewSecret({
+        secret: data.rotateWebhookSecret.rawSecret,
+        name: webhook.name,
+      })
     }
   }
 
   async function onDelete() {
     if (!webhook) return
-    setOpError(null)
-    try {
-      await deleteWebhook({ variables: { id: webhook.id } })
-      navigate('/webhooks', { replace: true })
-    } catch (err) {
-      setOpError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteWebhook({ variables: { id: webhook.id } })
+    navigate('/webhooks', { replace: true })
   }
 
   async function onClearDeliveries() {
@@ -135,10 +115,9 @@ export function WebhookDetail() {
       const n = data?.clearWebhookDeliveries ?? 0
       setClearedCount(n)
       setTimeout(() => setClearedCount(null), 4000)
-      setConfirmingClear(false)
     } catch (err) {
+      // Not rethrown: a failed clear closes the dialog and reports on the page, as it always has
       setOpError(err instanceof Error ? err.message : 'Clear failed.')
-      setConfirmingClear(false)
     }
   }
 
@@ -438,65 +417,43 @@ export function WebhookDetail() {
         onClose={() => setNewSecret(null)}
       />
 
-      <AlertDialog open={confirmingRotate} onOpenChange={setConfirmingRotate}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will invalidate the current secret immediately. Any receiver still using the old
-              secret will fail signature verification.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); onRotateSecret() }}>
-              {rotating ? 'Rotating…' : 'Rotate immediately'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingRotate}
+        onOpenChange={setConfirmingRotate}
+        title="Rotate secret?"
+        description="This will invalidate the current secret immediately. Any receiver still using the old secret will fail signature verification."
+        confirmLabel="Rotate immediately"
+        busyLabel="Rotating…"
+        onConfirm={onRotateSecret}
+      />
 
-      <AlertDialog open={confirmingClear} onOpenChange={setConfirmingClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear delivery history?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes every recorded delivery attempt for{' '}
-              <span className="font-semibold">{webhook.name}</span>. Future deliveries will still be
-              logged, but the current history cannot be recovered.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => { e.preventDefault(); onClearDeliveries() }}
-            >
-              {clearing ? 'Clearing…' : 'Clear history'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingClear}
+        onOpenChange={setConfirmingClear}
+        title="Clear delivery history?"
+        description={
+          <>
+            This permanently deletes every recorded delivery attempt for{' '}
+            <span className="font-semibold">{webhook.name}</span>. Future deliveries will still be
+            logged, but the current history cannot be recovered.
+          </>
+        }
+        confirmLabel="Clear history"
+        busyLabel="Clearing…"
+        destructive
+        onConfirm={onClearDeliveries}
+      />
 
-      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Permanently delete {webhook.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove all delivery logs and configuration. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => { e.preventDefault(); onDelete() }}
-            >
-              {deleting ? 'Deleting…' : 'Delete webhook'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={<>Permanently delete {webhook.name}?</>}
+        description="This will remove all delivery logs and configuration. This action cannot be undone."
+        confirmLabel="Delete webhook"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
     </DetailPageLayout>
   )
 }

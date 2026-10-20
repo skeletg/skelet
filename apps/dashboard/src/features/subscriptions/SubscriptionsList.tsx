@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon } from 'lucide-react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import {
@@ -11,16 +12,6 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -258,32 +249,26 @@ export function SubscriptionsList() {
         </DetailPageSection>
       </DetailPageBody>
 
-      <AlertDialog open={Boolean(canceling)} onOpenChange={(v) => { if (!v) setCanceling(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Stops future billing for{' '}
-              <span className="font-medium">{canceling?.title}</span>. Already-issued invoices are
-              kept. This can't be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep active</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                const s = canceling
-                setCanceling(null)
-                if (s) run(() => cancelSub({ variables: { id: s.id } }))
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Cancel subscription
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={Boolean(canceling)}
+        onOpenChange={(v) => { if (!v) setCanceling(null) }}
+        title="Cancel subscription?"
+        description={
+          <>
+            Stops future billing for{' '}
+            <span className="font-medium">{canceling?.title}</span>. Already-issued invoices are
+            kept. This can't be undone.
+          </>
+        }
+        confirmLabel="Cancel subscription"
+        cancelLabel="Keep active"
+        destructive
+        // Not awaited: the dialog closes at once and run() reports a failure on the page, as it always has
+        onConfirm={() => {
+          const s = canceling
+          if (s) void run(() => cancelSub({ variables: { id: s.id } }))
+        }}
+      />
     </DetailPageLayout>
   )
 }

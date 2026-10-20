@@ -8,16 +8,6 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -77,6 +67,7 @@ import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
 import { defaultColumn, quantityColumn } from './product-picker-columns'
 import { TranslationLocales } from '@/components/TranslationLocales'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Bundle = {
   id: string
@@ -243,11 +234,9 @@ export function BundleStructureSection({
 
   function onDeleteOption(option: BundleOption) {
     stage({ kind: 'delete-option', id: option.id })
-    setConfirmingDeleteOption(null)
   }
   function onDeleteSelection(selection: Selection) {
     stage({ kind: 'delete-selection', id: selection.id })
-    setConfirmingDeleteSelection(null)
   }
 
   return (
@@ -326,55 +315,25 @@ export function BundleStructureSection({
         />
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDeleteOption}
         onOpenChange={(v) => { if (!v) setConfirmingDeleteOption(null) }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete option "{confirmingDeleteOption?.title}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Stages the option (and every selection under it) for removal. The linked simple products
-              themselves are not deleted. The change takes effect when you confirm the page-level save.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); if (confirmingDeleteOption) onDeleteOption(confirmingDeleteOption) }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Stage delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={<>Delete option "{confirmingDeleteOption?.title}"?</>}
+        description="Stages the option (and every selection under it) for removal. The linked simple products themselves are not deleted. The change takes effect when you confirm the page-level save."
+        confirmLabel="Stage delete"
+        destructive
+        onConfirm={() => { if (confirmingDeleteOption) onDeleteOption(confirmingDeleteOption) }}
+      />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDeleteSelection}
         onOpenChange={(v) => { if (!v) setConfirmingDeleteSelection(null) }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Remove {confirmingDeleteSelection?.selection.product.name ?? confirmingDeleteSelection?.selection.product.sku ?? ''} from this option?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Stages the selection for removal. The product itself isn't deleted - only the link is
-              removed when you confirm the page-level save.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); if (confirmingDeleteSelection) onDeleteSelection(confirmingDeleteSelection.selection) }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Stage remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={<>Remove {confirmingDeleteSelection?.selection.product.name ?? confirmingDeleteSelection?.selection.product.sku ?? ''} from this option?</>}
+        description="Stages the selection for removal. The product itself isn't deleted - only the link is removed when you confirm the page-level save."
+        confirmLabel="Stage remove"
+        destructive
+        onConfirm={() => { if (confirmingDeleteSelection) onDeleteSelection(confirmingDeleteSelection.selection) }}
+      />
     </div>
   )
 }

@@ -26,16 +26,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -71,6 +61,7 @@ import {
 import { RenderCampaignPreviewDocument } from '@/features/campaigns/Campaigns.gql'
 import { toComponent } from './model'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const MERGE_TAGS = ['store.name', 'store.logoUrl', 'storefront.url', 'customer.firstName', 'customer.email']
 const FIELD_KINDS: CustomFieldKind[] = ['text', 'textarea', 'url', 'color', 'number', 'date', 'image', 'select', 'boolean']
@@ -178,7 +169,6 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   const [error, setError] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const htmlRef = useRef<HTMLTextAreaElement | null>(null)
 
   const blocks = useMemo(() => items.map((i) => i.block), [items])
@@ -336,13 +326,8 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
 
   const [deleteBlock] = useMutation(DeleteEmailBlockDocument)
   async function onConfirmDelete() {
-    setDeleting(true)
-    try {
-      await deleteBlock({ variables: { channelId: initial.channelId, slug: initial.slug } })
-      onDeleted()
-    } finally {
-      setDeleting(false)
-    }
+    await deleteBlock({ variables: { channelId: initial.channelId, slug: initial.slug } })
+    onDeleted()
   }
 
   const { data: previewData } = useQuery(RenderCampaignPreviewDocument, {
@@ -528,22 +513,15 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmingDelete} onOpenChange={(o) => !deleting && setConfirmingDelete(o)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this block?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Emails that reference “{name}” ({initial.slug}) will render nothing in its place. This can’t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete} disabled={deleting}>
-              {deleting ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this block?"
+        description={<>Emails that reference “{name}” ({initial.slug}) will render nothing in its place. This can’t be undone.</>}
+        confirmLabel="Delete"
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => void onConfirmDelete()}
+      />
     </DndContext>
   )
 }

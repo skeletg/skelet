@@ -1,5 +1,6 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { BlogPostDetail } from './BlogPostDetail'
@@ -7,6 +8,7 @@ import {
   BlogCategoriesDocument,
   BlogPostDocument,
   BlogTagsDocument,
+  DeleteBlogPostDocument,
   SetBlogPostChannelListingDocument,
   SetBlogPostTagsDocument,
   UpdateBlogPostDocument,
@@ -62,14 +64,15 @@ const recorder = (fn: (v: Record<string, unknown>) => void) => (vars: Record<str
   return true
 }
 
-function renderPost() {
+function renderPost(extra: MockLink.MockedResponse[] = []) {
   const writes = { settings: vi.fn(), content: vi.fn(), tags: vi.fn() }
   renderPage({
     path: '/blog/posts/p1',
     adminId: 'admin-1',
     scope: { ...globalScope, effectiveLocale: 'en' },
-    routes: { '/blog/posts/:id': <BlogPostDetail /> },
+    routes: { '/blog/posts/:id': <BlogPostDetail />, '/blog/posts': <p>Posts list</p> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: BlogPostDocument, variables: () => true }, result: { data: { blogPost: post } }, maxUsageCount: 5 },
       { request: { query: BlogCategoriesDocument, variables: () => true }, result: { data: { blogCategories: [] } }, maxUsageCount: 3 },
@@ -106,6 +109,29 @@ describe('BlogPostDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/A translation needs a title/)).toBeDefined()
     expect(writes.content).not.toHaveBeenCalled()
+  })
+})
+
+// Delete confirms through the shared ConfirmDialog without waiting on the server: it closes as soon as it is
+// confirmed, a refused delete reports in the page feedback, and a successful one goes back to the list
+describe('BlogPostDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderPost([mock])
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  }
+
+  it('closes at once and reports a refused delete on the page', async () => {
+    await confirmDelete({ request: { query: DeleteBlogPostDocument, variables: { id: 'p1' } }, result: { errors: [{ message: 'post is pinned' }] }, delay: 500 })
+    expect(screen.queryByText('post is pinned')).toBeNull() // closed before the server answered
+    expect(await screen.findByText('post is pinned', {}, SLOW)).toBeDefined()
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteBlogPostDocument, variables: { id: 'p1' } }, result: { data: { deleteBlogPost: true } } })
+    expect(await screen.findByText('Posts list', {}, SLOW)).toBeDefined()
   })
 })
 

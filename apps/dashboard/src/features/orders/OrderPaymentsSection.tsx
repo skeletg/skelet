@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -130,9 +121,10 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
     setError(null)
     try {
       await voidPayment({ variables: { orderId: order.id } })
-      setConfirmVoid(false)
     } catch (e) {
+      // Kept as well as thrown: once the dialog is dismissed the section's own alert still reports it
       setError(e instanceof Error ? e.message : 'Void failed.')
+      throw new Error(e instanceof Error ? e.message : 'Void failed.', { cause: e })
     }
   }
 
@@ -408,29 +400,16 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmVoid} onOpenChange={(v) => { if (!v) setConfirmVoid(false) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Void authorization?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This releases the uncaptured authorization with the gateway. It can't be undone - the
-              customer would need to be re-charged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Void failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={voidState.loading}>Keep authorization</AlertDialogCancel>
-            <AlertDialogAction disabled={voidState.loading} onClick={(e) => { e.preventDefault(); onVoid() }}>
-              {voidState.loading ? 'Voiding…' : 'Void'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmVoid}
+        onOpenChange={setConfirmVoid}
+        title="Void authorization?"
+        description="This releases the uncaptured authorization with the gateway. It can't be undone - the customer would need to be re-charged."
+        confirmLabel="Void"
+        cancelLabel="Keep authorization"
+        busyLabel="Voiding…"
+        onConfirm={onVoid}
+      />
     </DetailPageSection>
   )
 }

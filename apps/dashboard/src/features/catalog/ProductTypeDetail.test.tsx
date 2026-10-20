@@ -1,9 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { ProductTypeDetail } from './ProductTypeDetail'
 import {
   AttributesDocument,
+  DeleteProductTypeDocument,
   ProductTypeDocument,
   ProductTypesDocument,
   SetProductTypeUrlPathTemplateDocument,
@@ -98,4 +100,38 @@ it.each([false, true])('saves explicit delivery-kind restrictions and the all-ki
   expect(within(dialog).getByText('Allowed delivery kinds')).toBeDefined()
   fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
   await vi.waitFor(() => expect(onKinds).toHaveBeenCalledWith({ productTypeId: 'pt1', kinds: all ? null : ['ship_to_address', 'store_pickup'] }), SLOW)
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('ProductTypeDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderPage({
+      path: '/catalog/product-types/pt1', adminId: 'admin-1',
+      routes: { '/catalog/product-types/:id': <ProductTypeDetail productTypeId="pt1" />, '/catalog/product-types': <p>Product types list</p> },
+      mocks: [
+        meMock(),
+        { request: { query: ProductTypeDocument, variables: { id: 'pt1' } }, result: { data: { productType } }, maxUsageCount: 5 },
+        { request: { query: ProductTypesDocument }, result: { data: { productTypes: [] } }, maxUsageCount: 5 },
+        { request: { query: AttributesDocument }, result: { data: { attributes: [] } }, maxUsageCount: 5 },
+        mock,
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete product type' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete product type' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteProductTypeDocument, variables: { id: 'pt1' } }, result: { errors: [{ message: 'type has products' }] } })
+    expect(await within(dialog).findByText('type has products')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteProductTypeDocument, variables: { id: 'pt1' } }, result: { data: { deleteProductType: true } } })
+    expect(await screen.findByText('Product types list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  })
 })

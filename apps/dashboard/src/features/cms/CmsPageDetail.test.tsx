@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, globalScope, meMock, renderPage } from '@/test/page-harness'
 import { CmsPageDetail } from './CmsPageDetail'
-import { AiStatusDocument, CmsPageDocument, UpsertCmsPageContentDocument } from './Cms.gql'
+import { AiStatusDocument, CmsPageDocument, DeleteCmsPageDocument, UpsertCmsPageContentDocument } from './Cms.gql'
 
 // What these pin: the locale's content is staged in the page's review and written as one content row
 // carrying the block layout, and a blank title is refused before it reaches the service
@@ -51,14 +52,15 @@ const page = {
   updatedAt: '2026-01-01T00:00:00Z',
 }
 
-function renderCmsPage() {
+function renderCmsPage(extra: MockLink.MockedResponse[] = []) {
   const onContent = vi.fn()
   renderPage({
     path: '/cms/pages/pg1',
     adminId: 'admin-1',
     scope: { ...globalScope, effectiveLocale: 'en' },
-    routes: { '/cms/pages/:id': <CmsPageDetail /> },
+    routes: { '/cms/pages/:id': <CmsPageDetail />, '/cms/pages': <p>Pages list</p> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: CmsPageDocument, variables: { id: 'pg1' } }, result: { data: { cmsPage: page } }, maxUsageCount: 5 },
       { request: { query: AiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus', enabled: false } } }, maxUsageCount: 3 },
@@ -94,5 +96,29 @@ describe('CmsPageDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/Title is required/)).toBeDefined()
     expect(onContent).not.toHaveBeenCalled()
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog and waits for the server: a refused delete keeps it open
+// with the server's message (it used to close and drop it), a successful one goes back to the list
+describe('CmsPageDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderCmsPage([mock])
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteCmsPageDocument, variables: { id: 'pg1' } }, result: { errors: [{ message: 'page is the home page' }] } })
+    expect(await within(dialog).findByText('page is the home page')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteCmsPageDocument, variables: { id: 'pg1' } }, result: { data: { deleteCMSPage: true } } })
+    expect(await screen.findByText('Pages list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })

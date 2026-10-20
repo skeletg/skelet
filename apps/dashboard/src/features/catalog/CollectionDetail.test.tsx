@@ -1,11 +1,14 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, meMock, renderPage } from '@/test/page-harness'
 import { CollectionDetail } from './CollectionDetail'
 import { ProductPickerPagedDocument, ProductTypesDocument } from './Catalog.gql'
 import {
   AddProductToCollectionDocument,
   CollectionDocument,
+  DeleteCollectionContentDocument,
+  DeleteCollectionDocument,
   RemoveProductFromCollectionDocument,
   ReorderCollectionProductsDocument,
   UpdateCollectionDocument,
@@ -65,14 +68,15 @@ const recorder = (fn: (v: Record<string, unknown>) => void) => (vars: Record<str
   return true
 }
 
-function renderCollection(products: ReturnType<typeof product>[] = []) {
+function renderCollection(products: ReturnType<typeof product>[] = [], extra: MockLink.MockedResponse[] = []) {
   const writes = { update: vi.fn(), content: vi.fn(), add: vi.fn(), remove: vi.fn(), reorder: vi.fn() }
   const membership = { __typename: 'Collection' as const, id: 'col1', updatedAt: '2026-01-02T00:00:00Z', products }
   renderPage({
     path: '/collections/col1',
     adminId: 'admin-1',
-    routes: { '/collections/:id': <CollectionDetail /> },
+    routes: { '/collections/:id': <CollectionDetail />, '/collections': <p>Collections list</p> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: CollectionDocument, variables: { id: 'col1' } }, result: { data: { collection: { ...collection, products } } }, maxUsageCount: 5 },
       {
@@ -196,5 +200,42 @@ describe('CollectionDetail', () => {
     expect(writes.add).toHaveBeenCalledWith(expect.objectContaining({ collectionId: 'col1', productId: 'p3' }))
     expect(writes.remove).toHaveBeenCalledWith({ collectionId: 'col1', productId: 'p1' })
     expect(writes.reorder).not.toHaveBeenCalled()
+  })
+})
+
+// Both deletes confirm through the shared ConfirmDialog and wait for the server: a refusal keeps the dialog open
+// with its message (it used to close and drop it), success closes it - and a collection delete goes back to the list
+describe('CollectionDetail deletes', () => {
+  async function confirm(trigger: string, button: string, mock: MockLink.MockedResponse) {
+    renderCollection([], [mock])
+    await screen.findByRole('button', { name: /Save changes/ }, SLOW)
+    fireEvent.click(await screen.findByRole('button', { name: trigger }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: button }))
+    return dialog
+  }
+
+  it('keeps a refused collection delete open with its message', async () => {
+    const dialog = await confirm('Delete', 'Delete collection', { request: { query: DeleteCollectionDocument, variables: { id: 'col1' } }, result: { errors: [{ message: 'collection is featured' }] } })
+    expect(await within(dialog).findByText('collection is featured')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the collection delete goes through', async () => {
+    await confirm('Delete', 'Delete collection', { request: { query: DeleteCollectionDocument, variables: { id: 'col1' } }, result: { data: { deleteCollection: true } } })
+    expect(await screen.findByText('Collections list', {}, SLOW)).toBeDefined()
+  })
+
+  it('keeps a refused translation delete open with its message', async () => {
+    const remove = { query: DeleteCollectionContentDocument, variables: { collectionId: 'col1', locale: 'en' } }
+    const dialog = await confirm('Delete translation', 'Delete translation', { request: remove, result: { errors: [{ message: 'last translation' }] } })
+    expect(await within(dialog).findByText('last translation')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('closes the translation delete once it goes through', async () => {
+    const remove = { query: DeleteCollectionContentDocument, variables: { collectionId: 'col1', locale: 'en' } }
+    await confirm('Delete translation', 'Delete translation', { request: remove, result: { data: { deleteCollectionContent: true } } })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })

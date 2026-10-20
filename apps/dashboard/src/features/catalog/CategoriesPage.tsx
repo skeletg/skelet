@@ -37,16 +37,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -103,6 +93,7 @@ import {
 } from './schemas/category'
 import { slugify } from '@/lib/slug'
 import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type CategoryDetail = CategoryDetailFieldsFragment
@@ -688,9 +679,7 @@ function CategoryRecordForm({
   // loses the removed locale too
   const [deleteContent] = useMutation(DeleteCategoryContentDocument, { refetchQueries: detailRefetch, awaitRefetchQueries: true })
 
-  const [deleting, setDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   // UI state, not the admin's work - an existing slug is never re-derived from the name
   const [slugTouched, setSlugTouched] = useState(!isNew)
   const createdId = useRef('')
@@ -753,17 +742,8 @@ function CategoryRecordForm({
 
   async function onDelete() {
     if (!categoryId) return
-    setDeleting(true)
-    setDeleteError(null)
-    try {
-      await deleteCategory({ variables: { id: categoryId } })
-      setConfirmingDelete(false)
-      onDeleted?.()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    } finally {
-      setDeleting(false)
-    }
+    await deleteCategory({ variables: { id: categoryId } })
+    onDeleted?.()
   }
 
   const headerTitle = isNew ? 'New category' : values.name || category.slug || 'Category'
@@ -815,11 +795,7 @@ function CategoryRecordForm({
                     variant="outline"
                     size="sm"
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      setDeleteError(null)
-                      setConfirmingDelete(true)
-                    }}
-                    disabled={deleting}
+                    onClick={() => setConfirmingDelete(true)}
                   >
                     <Trash2Icon className="size-4" />
                     Delete
@@ -1011,41 +987,16 @@ function CategoryRecordForm({
         </div>
 
         {/* ── Delete confirmation ─────────────────────────────── */}
-        <AlertDialog
+        <ConfirmDialog
           open={confirmingDelete}
-          onOpenChange={(v) => {
-            if (!v) {
-              setConfirmingDelete(false)
-              setDeleteError(null)
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {values.name || category?.slug || 'this category'}?</AlertDialogTitle>
-              <AlertDialogDescription>This permanently removes the category. Child categories will be detached from it.</AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Delete failed</AlertTitle>
-                <AlertDescription>{deleteError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={deleting}
-                onClick={(e) => {
-                  e.preventDefault()
-                  void onDelete()
-                }}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleting ? 'Deleting…' : 'Delete category'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          onOpenChange={setConfirmingDelete}
+          title={<>Delete {values.name || category?.slug || 'this category'}?</>}
+          description="This permanently removes the category. Child categories will be detached from it."
+          confirmLabel="Delete category"
+          busyLabel="Deleting…"
+          destructive
+          onConfirm={onDelete}
+        />
 
         <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={scopeLabel} sections={registry.dirtySections} />
       </div>

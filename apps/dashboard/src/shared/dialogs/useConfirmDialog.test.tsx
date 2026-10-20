@@ -35,6 +35,22 @@ describe('useConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
+  it('names the dismiss button when told to', async () => {
+    function Cancelable() {
+      const [ask, dialog] = useConfirmDialog()
+      return (
+        <>
+          <button onClick={() => ask({ title: 'Cancel send?', confirmLabel: 'Cancel send', cancelLabel: 'Keep', onConfirm: vi.fn() })}>Stop</button>
+          {dialog}
+        </>
+      )
+    }
+    render(<Cancelable />)
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  })
+
   it('stays open and shows why when the action fails', async () => {
     render(<Page onConfirm={() => Promise.reject(new Error('Still in use'))} />)
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))

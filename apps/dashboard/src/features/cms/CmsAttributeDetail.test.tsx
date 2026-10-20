@@ -1,10 +1,12 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { CmsAttributeDetail } from './CmsAttributeDetail'
 import {
   AddCmsAttributeValueDocument,
   CmsAttributesDocument,
+  DeleteCmsAttributeDocument,
   DeleteCmsAttributeValueDocument,
   UpdateCmsAttributeDocument,
   UpdateCmsAttributeValueDocument,
@@ -63,6 +65,34 @@ describe('CmsAttributeDetail', () => {
       () => expect(onUpdate).toHaveBeenCalledWith({ id: 'a1', validation: { min: 1, max: 30 }, defaultValue: 3 }),
       SLOW,
     )
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('CmsAttributeDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderPage({
+      path: '/cms/attributes/a1',
+      routes: { '/cms/attributes/:id': <CmsAttributeDetail />, '/cms/attributes': <p>Attributes list</p> },
+      mocks: [meMock(), { request: { query: CmsAttributesDocument }, result: { data: { cmsAttributes: [attribute] } }, maxUsageCount: 3 }, mock],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete attribute' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteCmsAttributeDocument, variables: { id: 'a1' } }, result: { errors: [{ message: 'attribute is assigned' }] } })
+    expect(await within(dialog).findByText('attribute is assigned')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteCmsAttributeDocument, variables: { id: 'a1' } }, result: { data: { deleteCMSAttribute: true } } })
+    expect(await screen.findByText('Attributes list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })
 

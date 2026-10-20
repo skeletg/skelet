@@ -3,17 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { RefreshCwIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,10 +73,9 @@ function IntegrationForm({ integration }: { integration: Integration }) {
   const [updateIntegration] = useMutation(UpdateIntegrationDocument, { refetchQueries })
   const [setActive] = useMutation(SetIntegrationActiveDocument, { refetchQueries })
   const [regenerate, regenState] = useMutation(RegenerateIntegrationTokenDocument, { refetchQueries })
-  const [deleteIntegration, deleteState] = useMutation(DeleteIntegrationDocument, { refetchQueries })
+  const [deleteIntegration] = useMutation(DeleteIntegrationDocument, { refetchQueries })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null)
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false)
 
@@ -125,13 +113,8 @@ function IntegrationForm({ integration }: { integration: Integration }) {
   }
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteIntegration({ variables: { id: integration.id } })
-      navigate('/integrations', { replace: true })
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Delete failed.')
-    }
+    await deleteIntegration({ variables: { id: integration.id } })
+    navigate('/integrations', { replace: true })
   }
 
   return (
@@ -193,10 +176,7 @@ function IntegrationForm({ integration }: { integration: Integration }) {
               <Button
                 type="button"
                 variant="destructive"
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
+                onClick={() => setConfirmingDelete(true)}
               >
                 <Trash2Icon className="size-4" />
                 Delete integration
@@ -258,42 +238,15 @@ function IntegrationForm({ integration }: { integration: Integration }) {
         onClose={() => setNewToken(null)}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {integration.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This cannot be undone. Clients using this integration's token will be rejected immediately.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteState.loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteState.loading}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-            >
-              {deleteState.loading ? 'Deleting…' : 'Delete integration'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {integration.name}?</>}
+        description="This cannot be undone. Clients using this integration's token will be rejected immediately."
+        confirmLabel="Delete integration"
+        busyLabel="Deleting…"
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }

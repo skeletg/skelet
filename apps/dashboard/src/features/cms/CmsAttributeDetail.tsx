@@ -2,17 +2,6 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { GripIcon, PlusIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +34,7 @@ import {
   toCmsAttributeDefaultsInput,
   toCmsAttributeDefaultsValues,
 } from './schemas/cmsAttribute'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function acceptsValues(t: CmsAttributeRowFragment['inputType']): boolean {
   return t === 'SELECT' || t === 'MULTISELECT'
@@ -87,7 +77,6 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
     refetchQueries: [CmsAttributesDocument],
   })
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteAttr, { loading: deleting }] = useMutation(DeleteCmsAttributeDocument, {
     refetchQueries: [CmsAttributesDocument],
   })
@@ -111,13 +100,8 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
   const { form } = record
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteAttr({ variables: { id: a.id } })
-      navigate('/cms/attributes', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteAttr({ variables: { id: a.id } })
+    navigate('/cms/attributes', { replace: true })
   }
 
   return (
@@ -154,10 +138,7 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
             variant="outline"
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => {
-              setDeleteError(null)
-              setConfirmDelete(true)
-            }}
+            onClick={() => setConfirmDelete(true)}
             disabled={deleting}
           >
             <Trash2Icon className="size-4" />
@@ -265,35 +246,16 @@ function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment
         </div>
       </DetailPageSection>
 
-      <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {attrName(a)}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the attribute definition. It must be unassigned from all page types first.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete attribute'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={<>Delete {attrName(a)}?</>}
+        description="This permanently removes the attribute definition. It must be unassigned from all page types first."
+        confirmLabel="Delete attribute"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }
