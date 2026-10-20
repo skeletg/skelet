@@ -36,7 +36,7 @@ type LedgerEntry = {
 
 export function StoreCreditSection({ customerId }: { customerId: string }) {
   const { canManage } = useCustomerAccess()
-  const { data, loading, refetch } = useQuery(StoreCreditDocument, {
+  const { data, loading, error, refetch } = useQuery(StoreCreditDocument, {
     variables: { customerId },
   })
   const [adjusting, setAdjusting] = useState(false)
@@ -92,6 +92,15 @@ export function StoreCreditSection({ customerId }: { customerId: string }) {
 
   if (loading && !credit) {
     return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+  // A failed load used to return null too, so the section vanished as if the customer had none
+  if (error && !credit) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Couldn&apos;t load store credit</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
+    )
   }
   if (!credit) return null
 

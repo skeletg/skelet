@@ -7,6 +7,7 @@ import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
 
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -60,9 +61,8 @@ import {
   type GiftCardsAdminListQuery,
 } from './GiftCards.gql'
 
-type GiftCardRow = GiftCardsAdminListQuery['giftCards'][number]
+type GiftCardRow = GiftCardsAdminListQuery['giftCardsPaged']['items'][number]
 
-const LIST_VARS = { limit: 100, offset: 0 }
 
 function statusVariant(
   status: string,
@@ -80,12 +80,18 @@ function statusVariant(
 
 
 export function GiftCardsList() {
-  // URL-backed, so a filtered view survives navigation and can be pasted to someone else
+  // Server-paged and searched, URL-backed so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
+  const { pagination, globalFilter: search } = urlState
+  const debouncedSearch = useDebounced(search.trim(), 300)
   const { data, loading, error } = useQuery(GiftCardsAdminListDocument, {
-    variables: LIST_VARS,
+    variables: {
+      search: debouncedSearch || null,
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+    },
   })
-  const rows = useMemo(() => data?.giftCards ?? [], [data])
+  const rows = useMemo(() => data?.giftCardsPaged.items ?? [], [data])
 
   const [issueOpen, setIssueOpen] = useState(false)
   const [adjusting, setAdjusting] = useState<GiftCardRow | null>(null)
@@ -154,7 +160,7 @@ export function GiftCardsList() {
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button aria-label="Gift card actions" variant="ghost" size="icon" className="size-8">
                 <MoreHorizontalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -190,13 +196,21 @@ export function GiftCardsList() {
       <DetailPageBody>
         <DetailPageSection>
           <DataTable
-            urlState={urlState}
+            manual={{
+              rowCount: data?.giftCardsPaged.totalCount ?? 0,
+              pagination,
+              onPaginationChange: urlState.setPagination,
+              globalFilter: search,
+              onGlobalFilterChange: urlState.setGlobalFilter,
+              columnFilters: urlState.columnFilters,
+              onColumnFiltersChange: urlState.setColumnFilters,
+            }}
             columns={columns}
             data={rows}
-            loading={loading}
+            loading={loading && rows.length === 0}
             error={error ? { message: error.message } : null}
             getRowId={(row) => row.id}
-            searchPlaceholder="Search…"
+            searchPlaceholder="Search code or recipient…"
             emptyState="No gift cards yet."
             toolbarRightSlot={
               <Button size="sm" onClick={() => setIssueOpen(true)}>
@@ -239,7 +253,7 @@ function IssueGiftCardDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [issue, { loading }] = useMutation(IssueGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   function reset() {
@@ -400,7 +414,7 @@ export function AdjustGiftCardDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [adjust, { loading }] = useMutation(AdjustGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -494,7 +508,7 @@ function DisableGiftCardConfirm({
 }) {
   const [err, setErr] = useState<string | null>(null)
   const [disable, { loading }] = useMutation(DisableGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   async function onConfirm() {

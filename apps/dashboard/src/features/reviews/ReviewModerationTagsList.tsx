@@ -45,7 +45,7 @@ export function ReviewModerationTagsContent() {
     useState<ReviewModerationTagFieldsFragment | null>(null)
 
   const [deleteTag] = useMutation(DeleteReviewModerationTagDocument, {
-    refetchQueries: [{ query: ReviewModerationTagsDocument }],
+    refetchQueries: [ReviewModerationTagsDocument],
   })
 
   function openCreate() {

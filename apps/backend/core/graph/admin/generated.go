@@ -1844,6 +1844,11 @@ type ComplexityRoot struct {
 		Transactions   func(childComplexity int) int
 	}
 
+	GiftCardPage struct {
+		Items      func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
 	GiftCardTransaction struct {
 		Amount    func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
@@ -3367,7 +3372,7 @@ type ComplexityRoot struct {
 		BannerMedia      func(childComplexity int) int
 		BannerMediaID    func(childComplexity int) int
 		ChannelID        func(childComplexity int) int
-		Codes            func(childComplexity int, limit *int32, offset *int32) int
+		Codes            func(childComplexity int, search *string, isActive *bool, limit *int32, offset *int32) int
 		Conditions       func(childComplexity int) int
 		Contents         func(childComplexity int) int
 		CreatedAt        func(childComplexity int) int
@@ -3565,6 +3570,7 @@ type ComplexityRoot struct {
 		Flows                        func(childComplexity int, channelID string, includeDeleted *bool) int
 		GiftCard                     func(childComplexity int, code string) int
 		GiftCards                    func(childComplexity int, limit *int32, offset *int32) int
+		GiftCardsPaged               func(childComplexity int, search *string, limit *int32, offset *int32) int
 		Integrations                 func(childComplexity int) int
 		InventoryLocation            func(childComplexity int, id string) int
 		InventoryLocations           func(childComplexity int, search *string, limit *int32, offset *int32, filter *model.InventoryLocationFilter) int
@@ -3669,6 +3675,7 @@ type ComplexityRoot struct {
 		StoreCredit                  func(childComplexity int, customerID string) int
 		Subscription                 func(childComplexity int, id string) int
 		Subscriptions                func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
+		SubscriptionsPaged           func(childComplexity int, status *model.SubscriptionStatus, limit *int32, offset *int32) int
 		SynapseFlow                  func(childComplexity int, channelID string, event string, sinceDays *int32, depth *int32) int
 		SynapseFunnel                func(childComplexity int, channelID string, steps []string, sinceDays *int32) int
 		SynapseInsights              func(childComplexity int, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) int
@@ -4323,6 +4330,11 @@ type ComplexityRoot struct {
 		PeriodStart  func(childComplexity int) int
 		Sequence     func(childComplexity int) int
 		Status       func(childComplexity int) int
+	}
+
+	SubscriptionPage struct {
+		Items      func(childComplexity int) int
+		TotalCount func(childComplexity int) int
 	}
 
 	SubscriptionTerms struct {
@@ -5237,7 +5249,7 @@ type ProductTypeResolver interface {
 	ReviewQuestions(ctx context.Context, obj *model.ProductType) ([]*model.ReviewQuestion, error)
 }
 type PromotionRuleResolver interface {
-	Codes(ctx context.Context, obj *model.PromotionRule, limit *int32, offset *int32) (*model.PromotionCodeList, error)
+	Codes(ctx context.Context, obj *model.PromotionRule, search *string, isActive *bool, limit *int32, offset *int32) (*model.PromotionCodeList, error)
 	Contents(ctx context.Context, obj *model.PromotionRule) ([]*model.PromotionRuleContent, error)
 
 	LabelMedia(ctx context.Context, obj *model.PromotionRule) (*model.MediaAsset, error)
@@ -5360,6 +5372,7 @@ type QueryResolver interface {
 	SignupForm(ctx context.Context, id string) (*model.SignupForm, error)
 	SignupFormSubmissions(ctx context.Context, formID string, limit *int32) ([]*model.SignupFormSubmission, error)
 	GiftCards(ctx context.Context, limit *int32, offset *int32) ([]*model.GiftCard, error)
+	GiftCardsPaged(ctx context.Context, search *string, limit *int32, offset *int32) (*model.GiftCardPage, error)
 	GiftCard(ctx context.Context, code string) (*model.GiftCard, error)
 	SignalsInsights(ctx context.Context, channelID string, sinceDays *int32) ([]*model.SignalsInsight, error)
 	Integrations(ctx context.Context) ([]*model.Integration, error)
@@ -5464,6 +5477,7 @@ type QueryResolver interface {
 	VisitorProfile(ctx context.Context, channelID string, anonID string, sinceDays *int32) (*model.CustomerProfile, error)
 	CustomerAudiences(ctx context.Context, customerID string) ([]*model.SignalSegment, error)
 	Subscriptions(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) ([]*model.CustomerSubscription, error)
+	SubscriptionsPaged(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) (*model.SubscriptionPage, error)
 	Subscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	SystemHealth(ctx context.Context) (*model.SystemHealth, error)
 	TaxRules(ctx context.Context, channelID *string) ([]*model.TaxRule, error)
@@ -13242,6 +13256,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GiftCard.Transactions(childComplexity), true
+
+	case "GiftCardPage.items":
+		if e.ComplexityRoot.GiftCardPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GiftCardPage.Items(childComplexity), true
+	case "GiftCardPage.totalCount":
+		if e.ComplexityRoot.GiftCardPage.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GiftCardPage.TotalCount(childComplexity), true
 
 	case "GiftCardTransaction.amount":
 		if e.ComplexityRoot.GiftCardTransaction.Amount == nil {
@@ -23012,7 +23039,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.PromotionRule.Codes(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.PromotionRule.Codes(childComplexity, args["search"].(*string), args["isActive"].(*bool), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "PromotionRule.conditions":
 		if e.ComplexityRoot.PromotionRule.Conditions == nil {
 			break
@@ -24442,6 +24469,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.GiftCards(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.giftCardsPaged":
+		if e.ComplexityRoot.Query.GiftCardsPaged == nil {
+			break
+		}
+
+		args, err := ec.field_Query_giftCardsPaged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.GiftCardsPaged(childComplexity, args["search"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.integrations":
 		if e.ComplexityRoot.Query.Integrations == nil {
 			break
@@ -25507,6 +25545,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Subscriptions(childComplexity, args["status"].(*model.SubscriptionStatus), args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.subscriptionsPaged":
+		if e.ComplexityRoot.Query.SubscriptionsPaged == nil {
+			break
+		}
+
+		args, err := ec.field_Query_subscriptionsPaged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SubscriptionsPaged(childComplexity, args["status"].(*model.SubscriptionStatus), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.synapseFlow":
 		if e.ComplexityRoot.Query.SynapseFlow == nil {
 			break
@@ -28315,6 +28364,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SubscriptionInvoice.Status(childComplexity), true
+
+	case "SubscriptionPage.items":
+		if e.ComplexityRoot.SubscriptionPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubscriptionPage.Items(childComplexity), true
+	case "SubscriptionPage.totalCount":
+		if e.ComplexityRoot.SubscriptionPage.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubscriptionPage.TotalCount(childComplexity), true
 
 	case "SubscriptionTerms.createdAt":
 		if e.ComplexityRoot.SubscriptionTerms.CreatedAt == nil {
@@ -34782,9 +34844,16 @@ type GiftCardTransaction {
   createdAt: Time!
 }
 
+type GiftCardPage {
+  totalCount: Int!
+  items:      [GiftCard!]!
+}
+
 extend type Query {
-  # Gift cards newest-first (paginated).
+  # Gift cards newest-first (paginated). giftCardsPaged adds search and the total
   giftCards(limit: Int, offset: Int): [GiftCard!]!
+  # One page of gift cards, newest first. search matches the code or the recipient's email
+  giftCardsPaged(search: String, limit: Int, offset: Int): GiftCardPage!
   # Look up one card by its code (for the redeem/balance-check admin tool).
   giftCard(code: String!): GiftCard
 }
@@ -36524,7 +36593,8 @@ type PromotionRule {
   isActive:            Boolean!
   conditions:          [PromotionCondition!]!
   actions:             [PromotionAction!]!
-  codes(limit: Int = 50, offset: Int = 0): PromotionCodeList!
+  # search matches the code; isActive narrows to enabled or disabled codes
+  codes(search: String, isActive: Boolean, limit: Int = 50, offset: Int = 0): PromotionCodeList!
   contents:            [PromotionRuleContent!]!
   createdByAdminId:    ID
   updatedByAdminId:    ID
@@ -38533,9 +38603,16 @@ type SubscriptionInvoice {
   createdAt:    Time!
 }
 
+type SubscriptionPage {
+  totalCount: Int!
+  items:      [CustomerSubscription!]!
+}
+
 extend type Query {
   # All subscriptions, newest first; optionally filtered by status.
   subscriptions(status: SubscriptionStatus, limit: Int, offset: Int): [CustomerSubscription!]!
+  # One page of subscriptions with the total, newest first; optionally filtered by status
+  subscriptionsPaged(status: SubscriptionStatus, limit: Int, offset: Int): SubscriptionPage!
   # One subscription with its invoice history.
   subscription(id: ID!): CustomerSubscription
 }
@@ -42594,6 +42671,16 @@ func (ec *executionContext) childFields_GiftCard(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type GiftCard", field.Name)
 }
 
+func (ec *executionContext) childFields_GiftCardPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalCount":
+		return ec.fieldContext_GiftCardPage_totalCount(ctx, field)
+	case "items":
+		return ec.fieldContext_GiftCardPage_items(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GiftCardPage", field.Name)
+}
+
 func (ec *executionContext) childFields_GiftCardTransaction(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -46070,6 +46157,16 @@ func (ec *executionContext) childFields_SubscriptionInvoice(ctx context.Context,
 		return ec.fieldContext_SubscriptionInvoice_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SubscriptionInvoice", field.Name)
+}
+
+func (ec *executionContext) childFields_SubscriptionPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalCount":
+		return ec.fieldContext_SubscriptionPage_totalCount(ctx, field)
+	case "items":
+		return ec.fieldContext_SubscriptionPage_items(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SubscriptionPage", field.Name)
 }
 
 func (ec *executionContext) childFields_SubscriptionTerms(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -55911,22 +56008,38 @@ func (ec *executionContext) field_Product_salableQuantity_args(ctx context.Conte
 func (ec *executionContext) field_PromotionRule_codes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "search",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["search"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "isActive",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["isActive"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+	args["limit"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["offset"] = arg3
 	return args, nil
 }
 
@@ -57559,6 +57672,36 @@ func (ec *executionContext) field_Query_giftCard_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["code"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_giftCardsPaged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "search",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["search"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
 	return args, nil
 }
 
@@ -59455,6 +59598,36 @@ func (ec *executionContext) field_Query_subscription_args(ctx context.Context, r
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_subscriptionsPaged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (*model.SubscriptionStatus, error) {
+			return ec.unmarshalOSubscriptionStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
 	return args, nil
 }
 
@@ -90742,6 +90915,61 @@ func (ec *executionContext) fieldContext_GiftCard_transactions(_ context.Context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GiftCardTransaction(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GiftCardPage_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.GiftCardPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GiftCardPage_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GiftCardPage_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GiftCardPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GiftCardPage_items(ctx context.Context, field graphql.CollectedField, obj *model.GiftCardPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GiftCardPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GiftCard) graphql.Marshaler {
+			return ec.marshalNGiftCard2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGiftCardᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GiftCardPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GiftCardPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GiftCard(ctx, field)
 		},
 	}
 	return fc, nil
@@ -130020,7 +130248,7 @@ func (ec *executionContext) _PromotionRule_codes(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.PromotionRule().Codes(ctx, obj, fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.PromotionRule().Codes(ctx, obj, fc.Args["search"].(*string), fc.Args["isActive"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.PromotionCodeList) graphql.Marshaler {
@@ -135988,6 +136216,50 @@ func (ec *executionContext) fieldContext_Query_giftCards(ctx context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_giftCardsPaged(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_giftCardsPaged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().GiftCardsPaged(ctx, fc.Args["search"].(*string), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GiftCardPage) graphql.Marshaler {
+			return ec.marshalNGiftCardPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGiftCardPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_giftCardsPaged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GiftCardPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_giftCardsPaged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_giftCard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -140384,6 +140656,50 @@ func (ec *executionContext) fieldContext_Query_subscriptions(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_subscriptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_subscriptionsPaged(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_subscriptionsPaged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SubscriptionsPaged(ctx, fc.Args["status"].(*model.SubscriptionStatus), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SubscriptionPage) graphql.Marshaler {
+			return ec.marshalNSubscriptionPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_subscriptionsPaged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubscriptionPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_subscriptionsPaged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -150959,6 +151275,61 @@ func (ec *executionContext) _SubscriptionInvoice_createdAt(ctx context.Context, 
 }
 func (ec *executionContext) fieldContext_SubscriptionInvoice_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SubscriptionInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SubscriptionPage_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.SubscriptionPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubscriptionPage_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubscriptionPage_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubscriptionPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SubscriptionPage_items(ctx context.Context, field graphql.CollectedField, obj *model.SubscriptionPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubscriptionPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSubscription) graphql.Marshaler {
+			return ec.marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerSubscriptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubscriptionPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubscriptionPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSubscription(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _SubscriptionTerms_intervalUnit(ctx context.Context, field graphql.CollectedField, obj *model.SubscriptionTerms) (ret graphql.Marshaler) {
@@ -184502,6 +184873,49 @@ func (ec *executionContext) _GiftCard(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var giftCardPageImplementors = []string{"GiftCardPage"}
+
+func (ec *executionContext) _GiftCardPage(ctx context.Context, sel ast.SelectionSet, obj *model.GiftCardPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, giftCardPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GiftCardPage")
+		case "totalCount":
+			out.Values[i] = ec._GiftCardPage_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._GiftCardPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var giftCardTransactionImplementors = []string{"GiftCardTransaction"}
 
 func (ec *executionContext) _GiftCardTransaction(ctx context.Context, sel ast.SelectionSet, obj *model.GiftCardTransaction) graphql.Marshaler {
@@ -198870,6 +199284,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "giftCardsPaged":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_giftCardsPaged(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "giftCard":
 			field := field
 
@@ -201146,6 +201582,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_subscriptions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "subscriptionsPaged":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_subscriptionsPaged(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -206025,6 +206483,49 @@ func (ec *executionContext) _SubscriptionInvoice(ctx context.Context, sel ast.Se
 			}
 		case "createdAt":
 			out.Values[i] = ec._SubscriptionInvoice_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var subscriptionPageImplementors = []string{"SubscriptionPage"}
+
+func (ec *executionContext) _SubscriptionPage(ctx context.Context, sel ast.SelectionSet, obj *model.SubscriptionPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubscriptionPage")
+		case "totalCount":
+			out.Values[i] = ec._SubscriptionPage_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._SubscriptionPage_items(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -213814,6 +214315,20 @@ func (ec *executionContext) marshalNGiftCard2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._GiftCard(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNGiftCardPage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGiftCardPage(ctx context.Context, sel ast.SelectionSet, v model.GiftCardPage) graphql.Marshaler {
+	return ec._GiftCardPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGiftCardPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGiftCardPage(ctx context.Context, sel ast.SelectionSet, v *model.GiftCardPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GiftCardPage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNGiftCardTransaction2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐGiftCardTransactionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GiftCardTransaction) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -218925,6 +219440,20 @@ func (ec *executionContext) unmarshalNSubscriptionInvoiceStatus2githubᚗcomᚋs
 
 func (ec *executionContext) marshalNSubscriptionInvoiceStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionInvoiceStatus(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionInvoiceStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNSubscriptionPage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionPage(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionPage) graphql.Marshaler {
+	return ec._SubscriptionPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSubscriptionPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionPage(ctx context.Context, sel ast.SelectionSet, v *model.SubscriptionPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SubscriptionPage(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx context.Context, v any) (model.SubscriptionStatus, error) {

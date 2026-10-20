@@ -47,7 +47,7 @@ export function ProductTypesList() {
   const [confirmingDelete, setConfirmingDelete] = useState<ProductTypeRow | null>(null)
 
   const [deleteProductType] = useMutation(DeleteProductTypeDocument, {
-    refetchQueries: [{ query: ProductTypesDocument }],
+    refetchQueries: [ProductTypesDocument],
   })
 
   async function onConfirmDelete() {

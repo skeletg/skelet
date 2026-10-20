@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useId } from 'react'
 import { useQuery } from '@apollo/client/react'
 import {
   DndContext,
@@ -501,6 +501,7 @@ function BlockCard({
   onDelete: () => void
   disabled: boolean
 }) {
+  const fid = useId()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id })
   const desc = blockDescriptor(block.type)
   const Icon = desc?.icon ?? GripVerticalIcon
@@ -610,8 +611,8 @@ function BlockCard({
           )}
           {/* Universal: fire a custom Lens event when this block is first seen */}
           <div className="grid gap-1.5 border-t pt-3">
-            <Label className="text-xs text-muted-foreground">Analytics - view event</Label>
-            <Input
+            <Label htmlFor={`${fid}-analytics-view-event`} className="text-xs text-muted-foreground">Analytics - view event</Label>
+            <Input id={`${fid}-analytics-view-event`}
               value={typeof block.props.viewEvent === 'string' ? block.props.viewEvent : ''}
               onChange={(e) => setProp('viewEvent', e.target.value)}
               placeholder="e.g. hero_viewed"

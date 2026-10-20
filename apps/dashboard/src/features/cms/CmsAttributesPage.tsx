@@ -53,7 +53,7 @@ export function CmsAttributesPage() {
 
   const [confirmingDelete, setConfirmingDelete] = useState<CmsAttributeRowFragment | null>(null)
   const [deleteAttr] = useMutation(DeleteCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+    refetchQueries: [CmsAttributesDocument],
   })
 
   async function onConfirmDelete() {

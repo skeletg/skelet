@@ -141,7 +141,7 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   const [assignAttribute, { loading: assigning }] = useMutation(AssignAttributeDocument, { refetchQueries: refetch })
   const [unassignAttribute, { loading: unassigning }] = useMutation(UnassignAttributeDocument, { refetchQueries: refetch })
   const [deleteProductType, { loading: deleting }] = useMutation(DeleteProductTypeDocument, {
-    refetchQueries: [{ query: ProductTypesDocument }],
+    refetchQueries: [ProductTypesDocument],
   })
   const [createAttributeGroup, { loading: creatingGroup }] = useMutation(CreateAttributeGroupDocument, { refetchQueries: refetch })
   const [updateAttributeGroup, { loading: updatingGroup }] = useMutation(UpdateAttributeGroupDocument, { refetchQueries: refetch })

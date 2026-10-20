@@ -38,7 +38,7 @@ export function MenusList() {
 
   const [confirmingDelete, setConfirmingDelete] = useState<MenuRow | null>(null)
   const [deleteMenu] = useMutation(DeleteMenuDocument, {
-    refetchQueries: [{ query: MenusListDocument }],
+    refetchQueries: [MenusListDocument],
   })
 
   async function onConfirmDelete() {

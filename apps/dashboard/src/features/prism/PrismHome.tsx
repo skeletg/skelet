@@ -20,6 +20,7 @@ import { ExperimentsOverviewDocument } from './Prism.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { Panel, Tile } from '@/components/layout/panels'
 import { formatNumber } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
 
@@ -46,7 +47,7 @@ export function PrismHome() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
-  const { data, loading } = useQuery(ExperimentsOverviewDocument, {
+  const { data, loading, error, refetch } = useQuery(ExperimentsOverviewDocument, {
     variables: { channelId: effectiveChannelId ?? '', sinceDays: 30 },
     skip: !isChannel,
     fetchPolicy: 'cache-and-network',
@@ -158,6 +159,10 @@ export function PrismHome() {
     ],
     [],
   )
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load experiments" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>

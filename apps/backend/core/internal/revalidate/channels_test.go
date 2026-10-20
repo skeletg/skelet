@@ -91,7 +91,7 @@ func TestAPurgeIsSentOncePerStorefrontWithTheChannelsItServes(t *testing.T) {
 		{ID: us, PublicURL: "http://shops.test", IsActive: true},
 		{ID: eu, PublicURL: "http://shops.test/eu", IsActive: true},
 	})
-	if err := c.warmPath(context.Background(), nil, "/shoes"); err != nil {
+	if err := c.warmPath(context.Background(), "", nil, "/shoes"); err != nil {
 		t.Fatalf("warm: %v", err)
 	}
 	if len(*got) != 2 {
@@ -187,7 +187,7 @@ func TestAHangingStorefrontCannotOutlastTheSendBudget(t *testing.T) {
 	t.Cleanup(func() { sendBudget = old })
 	c := New(srv.URL, "secret", nil)
 	start := time.Now()
-	if err := c.warmPath(context.Background(), nil, "/slow"); err == nil {
+	if err := c.warmPath(context.Background(), "", nil, "/slow"); err == nil {
 		t.Fatal("a hung warm reported success")
 	}
 	if d := time.Since(start); d > 2*time.Second {

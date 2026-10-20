@@ -63,13 +63,13 @@ export function IntegrationsList() {
   const [confirmingRegenerate, setConfirmingRegenerate] = useState<IntegrationRow | null>(null)
 
   const [setActive, { loading: toggling }] = useMutation(SetIntegrationActiveDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+    refetchQueries: [IntegrationsDocument],
   })
   const [regenerate] = useMutation(RegenerateIntegrationTokenDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+    refetchQueries: [IntegrationsDocument],
   })
   const [deleteIntegration] = useMutation(DeleteIntegrationDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+    refetchQueries: [IntegrationsDocument],
   })
 
   const onToggleActive = useCallback(

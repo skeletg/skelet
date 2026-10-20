@@ -31,7 +31,7 @@ export function CmsPageTypesPage() {
 
   const [confirmingDelete, setConfirmingDelete] = useState<CmsPageTypeRowFragment | null>(null)
   const [deleteType] = useMutation(DeleteCmsPageTypeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }],
+    refetchQueries: [CmsPageTypesDocument],
   })
 
   async function onConfirmDelete() {

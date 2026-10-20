@@ -51,7 +51,7 @@ export function ReviewCategoriesContent() {
     useState<ReviewCategoryFieldsFragment | null>(null)
 
   const [deleteCategory] = useMutation(DeleteReviewCategoryDocument, {
-    refetchQueries: [{ query: ReviewCategoriesDocument }],
+    refetchQueries: [ReviewCategoriesDocument],
   })
 
   function openCreate() {

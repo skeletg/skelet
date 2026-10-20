@@ -59,13 +59,13 @@ export function AdminsList() {
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<AdminRow | null>(null)
 
   const [deleteAdmin] = useMutation(DeleteAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
   const [updateAdmin] = useMutation(UpdateAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
   const [deleteAdminBulk] = useMutation(DeleteAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+    refetchQueries: [AdminsDocument],
   })
 
   async function onConfirmRowDelete() {

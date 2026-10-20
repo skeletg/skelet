@@ -41,7 +41,7 @@ export function AttributesList() {
   const [confirmingDelete, setConfirmingDelete] = useState<AttributeRow | null>(null)
 
   const [deleteAttribute] = useMutation(DeleteAttributeDocument, {
-    refetchQueries: [{ query: AttributesDocument }],
+    refetchQueries: [AttributesDocument],
   })
 
   async function onConfirmDelete() {

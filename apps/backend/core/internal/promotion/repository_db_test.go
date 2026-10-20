@@ -172,3 +172,31 @@ func TestCodeWritesStoreTheRedeemableForm(t *testing.T) {
 		t.Errorf("import errors %+v, want one for line 2, the taken code", errs)
 	}
 }
+
+// The codes table pages on the server, so its search and Active filter must narrow the total too - not just the page
+func TestCodeSearchNarrowsTheTotal(t *testing.T) {
+	conn := testdb.Require(t)
+	ctx := context.Background()
+	repo := NewRepository(db.New(conn))
+	rule := seedRule(t, repo, nil)
+	for _, c := range []Code{{Code: "SPRING-1", IsActive: true}, {Code: "SPRING-2", IsActive: false}, {Code: "AUTUMN-1", IsActive: true}} {
+		c.RuleID = rule.ID
+		if _, err := repo.CreateCode(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	active := true
+	for _, tc := range []struct {
+		search string
+		active *bool
+		want   int32
+	}{{"", nil, 3}, {"spring", nil, 2}, {"spring", &active, 1}, {"", &active, 2}, {"winter", nil, 0}} {
+		codes, total, err := repo.ListCodesByRule(ctx, rule.ID, tc.search, tc.active, 1, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != tc.want || len(codes) != min(1, int(tc.want)) {
+			t.Errorf("search %q active %v: %d rows of %d total, want %d total", tc.search, tc.active, len(codes), total, tc.want)
+		}
+	}
+}

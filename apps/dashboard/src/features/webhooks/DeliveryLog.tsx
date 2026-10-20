@@ -16,6 +16,7 @@ import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { RedeliverWebhookDeliveryDocument, WebhookDeliveriesDocument } from './Webhooks.gql'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 // Headers the operator will almost always want at a glance - Rendered first
 // and bolded in the key/value list
@@ -153,10 +154,11 @@ function buildCurl(row: DeliveryRow): string {
 }
 
 export function DeliveryLog({ webhookId }: { webhookId: string }) {
-  const { data, loading, error } = useQuery(WebhookDeliveriesDocument, {
+  const { data, loading, error, refetch } = useQuery(WebhookDeliveriesDocument, {
     variables: { webhookId, limit: 50 },
-    pollInterval: 10000, // Refresh every 10s for debugging
+    pollInterval: useVisiblePollInterval(10000), // Refresh every 10s for debugging
   })
+  useRefetchWhenShown(refetch)
 
   const columns = useMemo<ColumnDef<DeliveryRow>[]>(
     () => [

@@ -63,7 +63,7 @@ const columns: ColumnDef<PointsEntry>[] = [
 
 export function LoyaltySection({ customerId }: { customerId: string }) {
   const { canManage } = useCustomerAccess()
-  const { data, loading, refetch } = useQuery(LoyaltyDocument, {
+  const { data, loading, error, refetch } = useQuery(LoyaltyDocument, {
     variables: { customerId },
   })
   const [adjusting, setAdjusting] = useState(false)
@@ -71,6 +71,15 @@ export function LoyaltySection({ customerId }: { customerId: string }) {
   const loyalty = data?.loyalty
   if (loading && !loyalty) {
     return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+  // A failed load used to return null too, so the section vanished as if the customer had none
+  if (error && !loyalty) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Couldn&apos;t load loyalty</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
+    )
   }
   if (!loyalty) return null
 

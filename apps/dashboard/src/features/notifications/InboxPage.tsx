@@ -34,7 +34,7 @@ const SEVERITY: Record<string, { label: string; cls: string }> = {
 // everything the operator may see, filterable by severity and category
 export function InboxPage() {
   const navigate = useNavigate()
-  const { data, loading, refetch } = useQuery(NotificationsDocument, {
+  const { data, loading, error, refetch } = useQuery(NotificationsDocument, {
     variables: { limit: 200 },
     fetchPolicy: 'cache-and-network',
   })
@@ -123,6 +123,7 @@ export function InboxPage() {
             columns={columns}
             data={rows}
             loading={loading}
+            error={error}
             getRowId={(n) => n.id}
             searchPlaceholder="Search notifications…"
             filters={[

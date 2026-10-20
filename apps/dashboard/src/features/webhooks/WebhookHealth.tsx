@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import { WebhookDeliveryStatsDocument } from './Webhooks.gql'
 import { timeAgo } from '@/lib/format'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 // Traffic-light class for the success-rate figure - Only meaningful once at
 // least one delivery has been recorded (callers gate on total > 0)
@@ -20,10 +21,11 @@ function rateClass(rate: number): string {
 // WebhookHealth renders the aggregate delivery scorecard for one webhook: success rate, attempt counts, average response time, and the last
 // delivery / success / failure timestamps - Polls so it stays fresh next to the (also-polling) delivery log
 export function WebhookHealth({ webhookId }: { webhookId: string }) {
-  const { data, loading, error } = useQuery(WebhookDeliveryStatsDocument, {
+  const { data, loading, error, refetch } = useQuery(WebhookDeliveryStatsDocument, {
     variables: { webhookId },
-    pollInterval: 15000,
+    pollInterval: useVisiblePollInterval(15000),
   })
+  useRefetchWhenShown(refetch)
 
   const stats = data?.webhookDeliveryStats
 

@@ -35,7 +35,7 @@ describe('NewCartDialog', () => {
               return true
             },
           },
-          result: { data: { adminCreateCart: { __typename: 'Cart', id: 'cart-9' } } },
+          result: { data: { adminCreateCart: { __typename: 'AdminCart', id: 'cart-9' } } },
         },
         { request: { query: CartsDocument, variables: () => true }, result: { data: { carts: [] } }, maxUsageCount: 3 },
       ],

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
@@ -102,7 +102,7 @@ function AttributeForm({ attribute }: { attribute: Attribute }) {
 
   const refetch = [{ query: AttributeDocument, variables: { id } }, { query: AttributesDocument }]
   const [deleteAttribute, { loading: deleting }] = useMutation(DeleteAttributeDocument, {
-    refetchQueries: [{ query: AttributesDocument }],
+    refetchQueries: [AttributesDocument],
   })
   const [updateAttribute] = useMutation(UpdateAttributeDocument, { refetchQueries: refetch })
   const [addValue] = useMutation(AddAttributeValueDocument, { refetchQueries: refetch })
@@ -837,6 +837,7 @@ function ValueEditRow({
   onCancel: () => void
   isNew?: boolean
 }) {
+  const fid = useId()
   const [name, setName] = useState(draft?.name ?? initial?.name ?? '')
   const [slug, setSlug] = useState(draft?.slug ?? initial?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(!isNew || !!draft)
@@ -868,8 +869,8 @@ function ValueEditRow({
     <form onSubmit={onSubmit} className="px-6 py-3 grid gap-3 bg-muted/30">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_1fr_80px]">
         <div className="grid gap-1.5">
-          <Label className="text-xs">Name</Label>
-          <Input
+          <Label htmlFor={`${fid}-name`} className="text-xs">Name</Label>
+          <Input id={`${fid}-name`}
             className="h-8 text-sm"
             required
             placeholder="Red"
@@ -879,8 +880,8 @@ function ValueEditRow({
           />
         </div>
         <div className="grid gap-1.5">
-          <Label className="text-xs">Slug</Label>
-          <Input
+          <Label htmlFor={`${fid}-slug`} className="text-xs">Slug</Label>
+          <Input id={`${fid}-slug`}
             className="h-8 font-mono text-xs"
             required
             placeholder="red"
@@ -893,12 +894,12 @@ function ValueEditRow({
           />
         </div>
         <div className="grid gap-1.5">
-          <Label className="text-xs">{isSwatch ? 'Hex colour' : 'Value'}</Label>
+          <Label htmlFor={`${fid}-value`} className="text-xs">{isSwatch ? 'Hex colour' : 'Value'}</Label>
           <div className="flex items-center gap-1.5">
             {isSwatch && rawValue && (
               <span className="size-7 shrink-0 rounded border" style={{ backgroundColor: rawValue }} />
             )}
-            <Input
+            <Input id={`${fid}-value`}
               className="h-8 font-mono text-xs"
               placeholder={isSwatch ? '#ff0000' : 'optional'}
               value={rawValue}
@@ -907,8 +908,8 @@ function ValueEditRow({
           </div>
         </div>
         <div className="grid gap-1.5">
-          <Label className="text-xs">Order</Label>
-          <Input
+          <Label htmlFor={`${fid}-order`} className="text-xs">Order</Label>
+          <Input id={`${fid}-order`}
             className="h-8 text-sm"
             type="number"
             inputMode="numeric"

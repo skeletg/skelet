@@ -3038,6 +3038,12 @@ export type GiftCard = {
   transactions: Array<GiftCardTransaction>;
 };
 
+export type GiftCardPage = {
+  __typename?: 'GiftCardPage';
+  items: Array<GiftCard>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type GiftCardTransaction = {
   __typename?: 'GiftCardTransaction';
   amount: Scalars['Int']['output'];
@@ -7577,8 +7583,10 @@ export type PromotionRule = {
 
 
 export type PromotionRuleCodesArgs = {
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type PromotionRuleAnalytics = {
@@ -7783,6 +7791,7 @@ export type Query = {
   flows: Array<Flow>;
   giftCard?: Maybe<GiftCard>;
   giftCards: Array<GiftCard>;
+  giftCardsPaged: GiftCardPage;
   integrations: Array<Integration>;
   inventoryLocation: InventoryLocation;
   inventoryLocations: Array<InventoryLocation>;
@@ -7887,6 +7896,7 @@ export type Query = {
   storeCredit: StoreCreditSummary;
   subscription?: Maybe<CustomerSubscription>;
   subscriptions: Array<CustomerSubscription>;
+  subscriptionsPaged: SubscriptionPage;
   synapseFlow: SynapseFlow;
   synapseFunnel: SynapseFunnel;
   synapseInsights: SynapseInsights;
@@ -8382,6 +8392,13 @@ export type QueryGiftCardArgs = {
 export type QueryGiftCardsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryGiftCardsPagedArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -8903,6 +8920,13 @@ export type QuerySubscriptionArgs = {
 
 
 export type QuerySubscriptionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  status?: InputMaybe<SubscriptionStatus>;
+};
+
+
+export type QuerySubscriptionsPagedArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   status?: InputMaybe<SubscriptionStatus>;
@@ -10165,6 +10189,12 @@ export type SubscriptionInvoiceStatus =
   | 'DUE'
   | 'PAID'
   | 'VOID';
+
+export type SubscriptionPage = {
+  __typename?: 'SubscriptionPage';
+  items: Array<CustomerSubscription>;
+  totalCount: Scalars['Int']['output'];
+};
 
 export type SubscriptionStatus =
   | 'ACTIVE'

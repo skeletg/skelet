@@ -81,6 +81,8 @@ type Resolver struct {
 	MenuSvc              *menu.Service
 	ProductSearch        search.Engine           // the Engine interface, not the OpenSearch indexer - main wires a tier that falls back to Postgres, so the resolver never branches on availability
 	BlogPostSearch       *search.BlogPostIndexer // the indexer doubles as the read handle; optional - nil means the search resolvers return empty results because the cluster is off or was unavailable at boot
+	AttributeCache       *search.AttributeCache
+	Metadata             *MetadataCache
 	PromotionSvc         *promotion.Service
 	SegmentSvc           CustomerSegments
 	ShippingSvc          *shipping.Service

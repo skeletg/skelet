@@ -70,8 +70,9 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { slugify } from '@/lib/slug'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
-import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
+import { SaveRegistryContext, useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { changed } from '@/shared/saving/diff'
 import { BlogPreviewPanel } from './BlogPreviewPanel'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
 import { readImageDimensions } from '@/lib/image'
@@ -728,6 +729,27 @@ function PostStoresSection({
   const byStore = new Map(listings.map((l) => [l.channelId, l]))
   const active = stores.filter((s) => s.isActive)
 
+  // Noindex is an SEO field, so it stages for the header Save - Published stays immediate, it's the post's lifecycle
+  const [noindexEdits, setNoindexEdits] = useState<Map<string, boolean>>(new Map())
+  const noindexDiff = active
+    .map((sv) =>
+      noindexEdits.has(sv.id) ? changed(`Store · ${sv.name} · noindex`, !!byStore.get(sv.id)?.seoNoindex, noindexEdits.get(sv.id)) : null,
+    )
+    .filter((e): e is SectionDiffEntry => e !== null)
+  useSaveSection({
+    id: 'store-noindex',
+    title: 'Available on stores',
+    diff: noindexDiff,
+    save: async () => {
+      for (const [channelId, seoNoindex] of noindexEdits) {
+        const listing = byStore.get(channelId)
+        if (!listing || listing.seoNoindex === seoNoindex) continue
+        await setListing({ variables: { input: { postId, channelId, isPublished: listing.isPublished, seoNoindex } } })
+      }
+      setNoindexEdits(new Map())
+    },
+  })
+
   return (
     <section className="px-6 py-6">
       <div className="mb-3">
@@ -778,19 +800,8 @@ function PostStoresSection({
                   <div className="flex items-center gap-1.5">
                     <Switch
                       id={`ni-${sv.id}`}
-                      checked={noindex}
-                      onCheckedChange={(v) =>
-                        setListing({
-                          variables: {
-                            input: {
-                              postId,
-                              channelId: sv.id,
-                              isPublished: enabled,
-                              seoNoindex: v,
-                            },
-                          },
-                        })
-                      }
+                      checked={noindexEdits.get(sv.id) ?? noindex}
+                      onCheckedChange={(v) => setNoindexEdits((prev) => new Map(prev).set(sv.id, v))}
                       disabled={!canManage || saving || !listing}
                     />
                     <Label htmlFor={`ni-${sv.id}`} className="text-xs">

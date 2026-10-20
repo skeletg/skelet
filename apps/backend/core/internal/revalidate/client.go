@@ -52,6 +52,8 @@ type Client struct {
 	mu      sync.Mutex
 	targets []target
 	at      time.Time
+
+	beforePurge func(ctx context.Context, surface string)
 }
 
 type StorefrontChannel struct {
@@ -85,6 +87,15 @@ func New(url, secret string, store Store) *Client {
 
 // With a configured URL that one storefront pool serves every active channel; without one each channel is reached at its public URL
 func (c *Client) SetChannels(l ChannelLister) { c.channels = l }
+
+// Runs before every purge or rebuild reaches a storefront, with the purge's surface - "" means every surface
+func (c *Client) SetBeforePurge(fn func(ctx context.Context, surface string)) { c.beforePurge = fn }
+
+func (c *Client) notePurge(ctx context.Context, surface string) {
+	if c.beforePurge != nil {
+		c.beforePurge(ctx, surface)
+	}
+}
 
 func storefrontEndpoint(publicURL string) string {
 	u, err := url.Parse(publicURL)
@@ -186,6 +197,7 @@ func (c *Client) send(ctx context.Context, surface string, tags, paths, warm []s
 			log.Printf("[revalidate] record: %v", err)
 		}
 	}
+	c.notePurge(ctx, surface)
 	if _, err := c.purgeThenWarm(ctx, tags, paths, warm); err != nil {
 		log.Printf("[revalidate] %v", err)
 	}
@@ -282,10 +294,11 @@ func (c *Client) post(ctx context.Context, t target, tags, paths, warm []string)
 }
 
 // Invalidates the tags and path then warms the path, returning an error when it didn't complete so the queue worker can retry - a nil client or no storefront is a no-op success
-func (c *Client) warmPath(ctx context.Context, tags []string, path string) error {
+func (c *Client) warmPath(ctx context.Context, surface string, tags []string, path string) error {
 	if c == nil || len(c.resolveTargets(ctx)) == 0 {
 		return nil
 	}
+	c.notePurge(ctx, surface)
 	warmed, err := c.purgeThenWarm(ctx, tags, []string{path}, []string{path})
 	if err != nil {
 		return err
