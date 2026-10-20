@@ -46,6 +46,8 @@ import {
 } from './flowTypes'
 import { CreateFlowDocument, FlowDocument, FlowSegmentsDocument, FlowTriggerTypesDocument, SetFlowStatusDocument, UpdateFlowDocument } from './Flows.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -74,7 +76,7 @@ export function FlowBuilder() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(FlowDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(FlowDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
 
   if (isNew && !isChannel) {
     return (
@@ -89,6 +91,11 @@ export function FlowBuilder() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.flow && error) {
+    return <LoadError title="Couldn't load this flow" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.flow && !loading) return <NotFound />
   if (!isNew && !data?.flow) {
     return (
       <DetailPageLayout>

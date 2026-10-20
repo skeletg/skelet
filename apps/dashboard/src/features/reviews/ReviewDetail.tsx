@@ -45,6 +45,7 @@ import {
 
 import { ReviewModerationBadge, ReviewStatusBadge } from './ReviewsList'
 import { PluginSections } from '@/plugins/detail-sections'
+import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 
 // Per-review moderation page - Uses the shared DetailPage template: sticky header with title + status badges +
 // Approve/Reject actions, body sections for the review text, answers, media, and moderator note
@@ -109,6 +110,8 @@ export function ReviewDetail() {
   const [reply, setReply] = useState('')
   const [summary, setSummary] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  // The reply box is re-seeded from the saved reply after load, so dirt is computed against it rather than a mount snapshot
+  useUnsavedChangesGuard(!!review && reply.trim() !== (review.merchantReply ?? ''), 'Review reply')
 
   // Seed the reply box from the saved merchant reply when the review loads
   useEffect(() => {

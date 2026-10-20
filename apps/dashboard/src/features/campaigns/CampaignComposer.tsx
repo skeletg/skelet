@@ -44,6 +44,8 @@ import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/E
 import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, EmailCampaignStatsDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 type Draft = {
@@ -81,7 +83,7 @@ export function CampaignComposer() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(EmailCampaignDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(EmailCampaignDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
 
   if (isNew && !isChannel) {
     return (
@@ -98,6 +100,11 @@ export function CampaignComposer() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.emailCampaign && error) {
+    return <LoadError title="Couldn't load this campaign" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.emailCampaign && !loading) return <NotFound />
   if (!isNew && !data?.emailCampaign) {
     return (
       <DetailPageLayout>

@@ -7,6 +7,7 @@ import {
   BlogCategoriesDocument,
   BlogPostDocument,
   BlogTagsDocument,
+  SetBlogPostChannelListingDocument,
   SetBlogPostTagsDocument,
   UpdateBlogPostDocument,
   UpsertBlogPostContentDocument,
@@ -105,5 +106,57 @@ describe('BlogPostDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/A translation needs a title/)).toBeDefined()
     expect(writes.content).not.toHaveBeenCalled()
+  })
+})
+
+// The per-store Noindex switch used to write on toggle - it now stages for the header Save like the post's other SEO fields
+describe('BlogPostDetail store noindex', () => {
+  it('stages a noindex toggle until Save, keeping the store published', async () => {
+    const listed = vi.fn()
+    const channel = {
+      __typename: 'Channel' as const,
+      id: 'c1',
+      slug: 'main',
+      name: 'Main',
+      defaultLocale: 'en',
+      locales: [],
+      isActive: true,
+      isDefault: true,
+      currencyCode: 'USD',
+      publicUrl: '',
+      metadata: [],
+      createdAt: '2026-01-01T00:00:00Z',
+    }
+    const listedPost = {
+      ...post,
+      channelListings: [{ __typename: 'BlogPostChannelListing' as const, channelId: 'c1', isPublished: true, seoNoindex: false, updatedAt: '2026-01-01T00:00:00Z' }],
+    }
+    renderPage({
+      path: '/blog/posts/p1',
+      adminId: 'admin-1',
+      scope: { ...globalScope, effectiveLocale: 'en' },
+      routes: { '/blog/posts/:id': <BlogPostDetail /> },
+      mocks: [
+        meMock(),
+        { request: { query: BlogPostDocument, variables: () => true }, result: { data: { blogPost: listedPost } }, maxUsageCount: 5 },
+        { request: { query: BlogCategoriesDocument, variables: () => true }, result: { data: { blogCategories: [] } }, maxUsageCount: 3 },
+        { request: { query: BlogTagsDocument }, result: { data: { blogTags: [] } }, maxUsageCount: 3 },
+        { request: { query: ChannelsDocument }, result: { data: { channels: [channel] } }, maxUsageCount: 3 },
+        { request: { query: SetBlogPostChannelListingDocument, variables: recorder(listed) }, result: { data: { setBlogPostChannelListing: listedPost } } },
+      ],
+    })
+    const noindex = await screen.findByRole('switch', { name: 'Noindex' }, SLOW)
+    await vi.waitFor(() => expect((noindex as HTMLButtonElement).disabled).toBe(false), SLOW)
+    fireEvent.click(noindex)
+    expect(listed).not.toHaveBeenCalled()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Save changes/ }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Store · Main · noindex')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
+    await vi.waitFor(
+      () => expect(listed).toHaveBeenCalledWith({ input: { postId: 'p1', channelId: 'c1', isPublished: true, seoNoindex: true } }),
+      SLOW,
+    )
   })
 })

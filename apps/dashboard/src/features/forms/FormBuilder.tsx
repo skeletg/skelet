@@ -39,6 +39,8 @@ import { useConfigScope } from '@/lib/config-scope'
 import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { formatDateTime } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -106,7 +108,7 @@ export function FormBuilder() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(SignupFormDocument, {
+  const { data, loading, error, refetch } = useQuery(SignupFormDocument, {
     variables: { id: id ?? '' },
     skip: isNew,
     fetchPolicy: 'cache-and-network',
@@ -127,6 +129,11 @@ export function FormBuilder() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.signupForm && error) {
+    return <LoadError title="Couldn't load this form" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.signupForm && !loading) return <NotFound />
   if (!isNew && !data?.signupForm) {
     return (
       <DetailPageLayout>

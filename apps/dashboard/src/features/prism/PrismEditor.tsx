@@ -32,6 +32,8 @@ import { useConfigScope } from '@/lib/config-scope'
 import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, PrismSegmentsDocument, UpdateExperimentDocument } from './Prism.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { Panel } from '@/components/layout/panels'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 type Variation = { key: string; name: string; weight: number; value: string }
 type Draft = {
@@ -51,7 +53,7 @@ export function PrismEditor() {
   const navigate = useNavigate()
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
-  const { data, loading } = useQuery(ExperimentDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(ExperimentDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
 
   if (isNew && !isChannel) {
     return (
@@ -68,6 +70,11 @@ export function PrismEditor() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.experiment && error) {
+    return <LoadError title="Couldn't load this experiment" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.experiment && !loading) return <NotFound />
   if (!isNew && !data?.experiment) {
     return (
       <DetailPageLayout>

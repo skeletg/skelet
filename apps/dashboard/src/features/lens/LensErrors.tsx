@@ -15,6 +15,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensErrorsQuery, LensErrorsDocument } from './Lens.gql'
 import { formatDateTime } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
 
 type Row = LensErrorsQuery['lensErrors'][number]
 
@@ -23,7 +24,7 @@ type Row = LensErrorsQuery['lensErrors'][number]
 export function LensErrors() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
-  const { data, loading } = useQuery(LensErrorsDocument, {
+  const { data, loading, error, refetch } = useQuery(LensErrorsDocument, {
     variables: { channelId, sinceDays: 30, limit: 100 },
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
@@ -59,6 +60,10 @@ export function LensErrors() {
     ],
     [],
   )
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load errors" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>
