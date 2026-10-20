@@ -82,6 +82,10 @@ being optional - the browser starts talking to the API origin directly instead o
 being proxied to it by the dashboard's own nginx - and `TRUSTED_PROXIES` has to
 name whatever sits in front of the API, or forwarded client IPs are wrong.
 
+Uploads go from the browser straight to object storage, so whichever host that
+is has to be in `UPLOAD_ORIGINS`, or every CSP on the stack blocks the upload -
+see [env.md](env.md#object-storage).
+
 ## Putting an edge in front
 
 Three hostnames, whoever terminates TLS. The upstream ports are the same in both

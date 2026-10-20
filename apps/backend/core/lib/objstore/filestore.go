@@ -314,11 +314,11 @@ func (s *FileStore) ListObjects(_ context.Context, prefix string) ([]StorageObje
 }
 
 func splitPrefix(prefix string) (dir, name string) {
-	i := strings.LastIndex(prefix, "/")
-	if i < 0 {
+	dir, name, ok := strings.CutLast(prefix, "/")
+	if !ok {
 		return ".", prefix
 	}
-	return prefix[:i], prefix[i+1:]
+	return dir, name
 }
 
 func (s *FileStore) ListImmediatePrefixes(ctx context.Context, prefix string) ([]string, error) {
