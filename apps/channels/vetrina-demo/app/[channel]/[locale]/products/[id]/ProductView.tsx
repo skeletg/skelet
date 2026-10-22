@@ -12,6 +12,8 @@ import {
 } from "@/app/lib/catalog/read";
 import { absUrl } from "@/app/lib/sitemap/read";
 import { displayName } from "@/app/lib/display";
+import { getChannel } from "@/app/lib/channel/read";
+import { priceCurrency, toMajor } from "@/app/lib/format";
 import { categoryHref, productHref } from "@/app/lib/entity-href";
 import { getSignalsEnabled, getVariantOwnUrl } from "@/app/lib/config/read";
 import { productJsonLd, breadcrumbJsonLd } from "@/app/lib/json-ld";
@@ -126,7 +128,8 @@ export default async function ProductPage(
 
   // JSON-LD names the same URL the canonical tag does: the pretty rewrite path with the
   // locale prefix - never the typed /products/<id> route this page also serves
-  const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
+  const [canonical, base, channel] = await Promise.all([canonicalPathMapper(), getSiteUrl(), getChannel()]);
+  const money = priceCurrency(product.defaultCurrencyCode, channel?.currency);
   const href = canonical(productHref(product));
   const breadcrumbItems = productBreadcrumbs(product, heading, tc("home"));
   const breadcrumbJsonLdItems = breadcrumbItems.map((it) => ({
@@ -148,6 +151,7 @@ export default async function ProductPage(
               }
             : undefined,
           base,
+          money,
         )}
       />
       <JsonLd data={breadcrumbJsonLd(breadcrumbJsonLdItems, base)} />
@@ -156,13 +160,13 @@ export default async function ProductPage(
         payload={{
           ecommerce: {
             currency: product.defaultCurrencyCode,
-            value: product.defaultPrice / 100,
+            value: toMajor(product.defaultPrice, money),
             items: [
               {
                 item_id: product.id,
                 item_name: heading,
                 item_sku: product.sku,
-                price: product.defaultPrice / 100,
+                price: toMajor(product.defaultPrice, money),
                 currency: product.defaultCurrencyCode,
               },
             ],

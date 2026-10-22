@@ -48,6 +48,13 @@ describe("productJsonLd", () => {
     expect(offers(productJsonLd(product({ defaultPrice: 5 }), "/p")).price).toBe("0.05");
   });
 
+  it("uses the currency's precision, not a fixed hundred", () => {
+    expect(offers(productJsonLd(product({ defaultPrice: 1500, defaultCurrencyCode: "JPY" }), "/p")).price).toBe("1500");
+    expect(offers(productJsonLd(product({ defaultPrice: 1500, defaultCurrencyCode: "BHD" }), "/p")).price).toBe("1.500");
+    const configured = { code: "USD", symbol: "$", symbolPosition: "prefix", decimals: 3 };
+    expect(offers(productJsonLd(product(), "/p", undefined, undefined, configured)).price).toBe("12.995");
+  });
+
   it("maps stock onto the schema.org enumeration", () => {
     expect(offers(productJsonLd(product(), "/p")).availability).toBe("https://schema.org/InStock");
     expect(offers(productJsonLd(product({ inStock: false }), "/p")).availability).toBe("https://schema.org/OutOfStock");
