@@ -13,7 +13,6 @@ import { getCheckoutCart } from "@/app/lib/cart/offer";
 import { decodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE } from "@/app/lib/cart/offer-cookie";
 import {
   ApplyCheckoutGiftCardDocument,
-  FinalizeOrderPaymentDocument,
   PlaceOrderDocument,
   RemoveCheckoutGiftCardDocument,
   SetCheckoutDeliveryDocument,
@@ -26,7 +25,7 @@ import {
   type AddressInput,
 } from "@/app/lib/checkout/operations.gql";
 import type { CheckoutDetailsInput } from "@/app/graphql/schema.types";
-import { getCheckoutState } from "@/app/lib/checkout/read";
+import { checkoutPaymentMethods, getCheckoutState } from "@/app/lib/checkout/read";
 import { detailsAsks } from "@/app/lib/checkout/asks";
 import {
   deliveryPointSchema,
@@ -325,15 +324,10 @@ export async function setStoreCreditAction(formData: FormData): Promise<void> {
   refresh();
 }
 
-export type PlaceOrderResult = FormResult & {
-  // The order exists but the gateway wants a client-side challenge before it settles
-  requiresAction?: { orderId: string; redirectTo: string };
-};
-
 export async function placeOrderAction(
-  _prev: PlaceOrderResult | undefined,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<PlaceOrderResult> {
+): Promise<FormResult> {
   const cart = await submittedCart(formData);
   const cartId = cart?.id ?? null;
   const offer = cart?.offer ?? null;
@@ -348,6 +342,14 @@ export async function placeOrderAction(
   const v = submission.value;
   const locale = String(formData.get("locale") ?? "");
   if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
+  // The list the shopper picked from may be stale (country, offer or store settings changed) or the post forged - only a
+  // method this checkout can still pay with may place an order
+  if (requireMethod) {
+    const methods = await checkoutPaymentMethods(checkout, cartId, offer?.paymentMethods);
+    if (!methods.some((m) => m.providerSlug === v.providerSlug)) {
+      return submission.reply({ formErrors: ["paymentMethodUnavailable"] });
+    }
+  }
 
   let orderId: string;
   let needsAction: boolean;
@@ -384,25 +386,12 @@ export async function placeOrderAction(
 
   // A guest offer places a guest order for its recipient, whoever is signed in on this browser
   const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
-  const redirectTo = await withLocalePrefix(
-    signedIn
-      ? `/account/orders/${orderId}?just_placed=1`
-      : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&just_placed=1`,
-    locale,
-  );
-  if (needsAction) {
-    return { ...submission.reply(), requiresAction: { orderId, redirectTo } };
-  }
-  redirect(redirectTo);
-}
-
-export async function finalizeOrderPaymentAction(orderId: string): Promise<boolean> {
-  try {
-    const res = await gqlFetch(FinalizeOrderPaymentDocument, { orderId });
-    return res.data.finalizeOrderPayment;
-  } catch {
-    return false;
-  }
+  const orderPath = signedIn
+    ? `/account/orders/${orderId}?`
+    : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&`;
+  // A payment action needs a gateway SDK this demo doesn't ship, so nothing finalizes it here: the order is shown as
+  // created but unpaid, without the purchase event or thank-you a just-placed order gets
+  redirect(await withLocalePrefix(`${orderPath}${needsAction ? "payment=incomplete" : "just_placed=1"}`, locale));
 }
 
 
