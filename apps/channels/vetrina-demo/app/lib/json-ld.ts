@@ -5,6 +5,7 @@
 // structured data names the same URL the <link rel=canonical> does. abs() only adds the origin
 
 import { displayName } from "@/app/lib/display";
+import { currencyDecimals, toMajor, type CurrencyInfo } from "@/app/lib/format";
 import { lexicalPlainText } from "@/app/lib/lexical-render";
 import { SITE_URL, absUrl as abs } from "@/app/lib/site-url";
 
@@ -80,6 +81,8 @@ export function productJsonLd(
   href: string,
   reviewsData?: ReviewsForJsonLd,
   base: string = SITE_URL,
+  // The store's configured currency (priceCurrency) - the bare code formats at ISO precision
+  currency: string | CurrencyInfo = product.defaultCurrencyCode,
 ): Record<string, unknown> {
   // Media URLs come back host-relative - a relative image is invisible to a crawler
   // reading the JSON out of context
@@ -98,7 +101,8 @@ export function productJsonLd(
     lexicalPlainText(product.description) ||
     undefined;
 
-  const price = (product.defaultPrice / 100).toFixed(2);
+  const amount = (minor: number) => toMajor(minor, currency).toFixed(currencyDecimals(currency));
+  const price = amount(product.defaultPrice);
 
   // A configurable's own defaultPrice is just the anchor - what a shopper can buy are the
   // variants, so the offer is the aggregate of their prices, in stock if any of them is
@@ -109,8 +113,8 @@ export function productJsonLd(
           "@type": "AggregateOffer",
           url: abs(href, base),
           priceCurrency: product.defaultCurrencyCode,
-          lowPrice: (Math.min(...variants.map((c) => c.defaultPrice)) / 100).toFixed(2),
-          highPrice: (Math.max(...variants.map((c) => c.defaultPrice)) / 100).toFixed(2),
+          lowPrice: amount(Math.min(...variants.map((c) => c.defaultPrice))),
+          highPrice: amount(Math.max(...variants.map((c) => c.defaultPrice))),
           offerCount: variants.length,
           availability: availability(variants.some((c) => c.inStock)),
           itemCondition: "https://schema.org/NewCondition",
