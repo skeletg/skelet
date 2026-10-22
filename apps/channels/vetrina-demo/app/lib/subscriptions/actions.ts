@@ -2,6 +2,8 @@
 
 import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 
 import { gqlFetch } from "@/app/lib/graphql";
 import {
@@ -24,7 +26,7 @@ export async function cancelSubscriptionAction(formData: FormData): Promise<void
     ok = false;
   }
   revalidateAccount();
-  redirect(ok ? `${PAGE}?done=canceled` : `${PAGE}?error=cancel`);
+  redirect(await withLocalePrefix(ok ? `${PAGE}?done=canceled` : `${PAGE}?error=cancel`, await getCurrentLocale()));
 }
 
 export async function setSubscriptionPaymentMethodAction(
@@ -45,5 +47,5 @@ export async function setSubscriptionPaymentMethodAction(
     ok = false;
   }
   revalidateAccount();
-  redirect(ok ? `${PAGE}?done=card` : `${PAGE}?error=card`);
+  redirect(await withLocalePrefix(ok ? `${PAGE}?done=card` : `${PAGE}?error=card`, await getCurrentLocale()));
 }
