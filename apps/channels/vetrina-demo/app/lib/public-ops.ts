@@ -1,5 +1,5 @@
 // SYNC: mirrors frontCacheableOps in apps/backend/core/internal/wiring/response_cache.go - a name here that is not there means one side caches what the other does not
-// Opt-out on purpose: a query missing from this list keeps its token, so forgetting one costs performance, never correctness
+// Cacheable for an anonymous caller only - gqlFetch still sends the session with these, and a credentialed request bypasses every cache. A query missing from this list just never sends the offer link token
 export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Product",
   "ProductWithReviews",
