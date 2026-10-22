@@ -74,6 +74,8 @@ export function AuthSidebar() {
       side="right"
       title={t(TITLES[view])}
       hideTitle
+      // Sign-in, registration and reset forms stay out of replay and heatmap snapshots
+      className="lens-block"
     >
       {opened ? (
         <>

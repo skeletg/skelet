@@ -27,7 +27,7 @@ export function MasqueradeBanner() {
   const t = useTranslations("masquerade");
   if (!masquerading || !identity) return null;
   return (
-    <div className="bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
+    <div className="lens-block bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
       {t("banner", {
         name: `${identity.firstName} ${identity.lastName}`,
         email: identity.email,
