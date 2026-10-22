@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -22,16 +22,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
@@ -41,9 +31,13 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
 import type { EmailBlock, EmailStyles } from '@/features/email/blocks'
 import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/Emails.gql'
-import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
+import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignSegmentsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, EmailCampaignStatsDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
+import { useRefetchWhenShown, useVisiblePollInterval } from '@/lib/visible-poll'
 
 type Draft = {
   id: string | null
@@ -80,7 +74,7 @@ export function CampaignComposer() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(EmailCampaignDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
+  const { data, loading, error, refetch } = useQuery(EmailCampaignDocument, { variables: { id: id ?? '' }, skip: isNew, fetchPolicy: 'cache-and-network' })
 
   if (isNew && !isChannel) {
     return (
@@ -97,6 +91,11 @@ export function CampaignComposer() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.emailCampaign && error) {
+    return <LoadError title="Couldn't load this campaign" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.emailCampaign && !loading) return <NotFound />
   if (!isNew && !data?.emailCampaign) {
     return (
       <DetailPageLayout>
@@ -131,6 +130,7 @@ export function CampaignComposer() {
 }
 
 function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id: string) => void }) {
+  const fid = useId()
   // A new email needs emails.manage - editing a campaign or flow doesn't bring it
   const canCreateEmail = usePermissions().has('emails.manage')
   const editable = initial.status === 'draft'
@@ -291,7 +291,6 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
   async function onConfirmCancel() {
     if (!campaignId) return
     await cancelCampaign({ variables: { id: campaignId } })
-    setConfirmCancel(false)
     onCreated(campaignId)
   }
 
@@ -468,9 +467,9 @@ function ComposerInner({ initial, onCreated }: { initial: Draft; onCreated: (id:
                       <Input id="abmin" type="number" min={1} value={abTestMinutes} onChange={(e) => setAbTestMinutes(Number(e.target.value))} className="w-32" />
                     </div>
                     <div className="grid gap-1.5">
-                      <Label>Winner by</Label>
+                      <Label htmlFor={`${fid}-winner-by`}>Winner by</Label>
                       <Select value={abWinnerMetric} onValueChange={setAbWinnerMetric}>
-                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`${fid}-winner-by`} className="w-32"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="open">Open rate</SelectItem>
                           <SelectItem value="click">Click rate</SelectItem>
@@ -618,26 +617,29 @@ function ReadOnlyCampaign({
         <PluginSections target="campaign" entity={initial} mode={initial.id ? 'edit' : 'create'} />
       </DetailPageBody>
 
-      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this send?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The campaign stops sending. Recipients already emailed have been sent; the rest will not be.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmCancel}>Cancel send</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmCancel}
+        onOpenChange={setConfirmCancel}
+        title="Cancel this send?"
+        description="The campaign stops sending. Recipients already emailed have been sent; the rest will not be."
+        confirmLabel="Cancel send"
+        cancelLabel="Keep"
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => void onConfirmCancel()}
+      />
     </DetailPageLayout>
   )
 }
 
-function CampaignStats({ initial }: { initial: Draft }) {
-  const { data } = useQuery(EmailCampaignDocument, { variables: { id: initial.id ?? '' }, skip: !initial.id, pollInterval: 5000 })
+// Counters only move while a send is in flight, so only then does this poll - and it polls the counters alone, not
+// the full campaign with its email design. The polled status lands in the same cached campaign the page builds
+// `initial` from, so a finished send ends the polling by itself
+const IN_FLIGHT = new Set(['scheduled', 'sending', 'testing'])
+
+export function CampaignStats({ initial }: { initial: Draft }) {
+  const pollInterval = useVisiblePollInterval(IN_FLIGHT.has(initial.status) ? 5000 : 0)
+  const { data, refetch } = useQuery(EmailCampaignStatsDocument, { variables: { id: initial.id ?? '' }, skip: !initial.id, pollInterval })
+  useRefetchWhenShown(refetch)
   const c = data?.emailCampaign
   const cells: Array<[string, string | number]> = [
     ['Total', c?.totalRecipients ?? 0],

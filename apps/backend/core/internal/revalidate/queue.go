@@ -121,7 +121,7 @@ func (qu *Queue) ProcessDue(ctx context.Context, batch, concurrency int) (int, e
 				// Left claimed past the budget, so the lapsed lease re-offers it without spending an attempt
 				return
 			}
-			if warmErr := qu.client.warmPath(warmCtx, t.Tags, t.Path); warmErr != nil {
+			if warmErr := qu.client.warmPath(warmCtx, t.Surface, t.Tags, t.Path); warmErr != nil {
 				status := "pending" // retry with backoff …
 				if int(t.Attempts) >= rebuildMaxAttempts {
 					status = "failed" // … unless attempts are exhausted → dead-letter

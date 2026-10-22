@@ -15,17 +15,6 @@ import {
   PowerOffIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +49,7 @@ import {
   SetCustomerActiveDocument,
 } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CustomerRow = ExistingCustomer & { createdAt: string }
 
@@ -125,22 +115,15 @@ export function CustomersList() {
   )
 
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<CustomerRow | null>(null)
-  const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
 
   const refetchQueries = [{ query: CustomersPagedDocument, variables }]
   const [setActive] = useMutation(SetCustomerActiveDocument, { refetchQueries })
-  const [deleteCustomer, { loading: deletingRow }] = useMutation(DeleteCustomerDocument, { refetchQueries })
+  const [deleteCustomer] = useMutation(DeleteCustomerDocument, { refetchQueries })
   const [deleteCustomerBulk] = useMutation(DeleteCustomerDocument, { refetchQueries })
 
   async function onConfirmRowDelete() {
     if (!confirmingRowDelete) return
-    setRowDeleteError(null)
-    try {
-      await deleteCustomer({ variables: { id: confirmingRowDelete.id } })
-      setConfirmingRowDelete(null)
-    } catch (err) {
-      setRowDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteCustomer({ variables: { id: confirmingRowDelete.id } })
   }
 
   const bulkActions = useMemo<BulkAction<CustomerRow>[]>(
@@ -304,7 +287,6 @@ export function CustomersList() {
                     <DropdownMenuItem
                       variant="destructive"
                       onSelect={() => {
-                        setRowDeleteError(null)
                         setConfirmingRowDelete(row.original)
                       }}
                     >
@@ -394,45 +376,15 @@ export function CustomersList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRowDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingRowDelete(null)
-            setRowDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingRowDelete?.firstName} {confirmingRowDelete?.lastName}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Addresses and carts cascade. Customers with orders can't be deleted - the backend
-              rejects the request to preserve order history.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {rowDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{rowDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingRow}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deletingRow}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmRowDelete()
-              }}
-            >
-              {deletingRow ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingRowDelete(null)}
+        title={<>Delete {confirmingRowDelete?.firstName} {confirmingRowDelete?.lastName}?</>}
+        description="Addresses and carts cascade. Customers with orders can't be deleted - the backend rejects the request to preserve order history."
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        onConfirm={onConfirmRowDelete}
+      />
     </>
   )
 }

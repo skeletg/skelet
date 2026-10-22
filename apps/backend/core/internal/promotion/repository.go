@@ -46,7 +46,8 @@ type Repository interface {
 	DeleteCode(ctx context.Context, id uuid.UUID) error
 	GetCode(ctx context.Context, id uuid.UUID) (Code, error)
 	GetCodeByCode(ctx context.Context, code string) (Code, error)
-	ListCodesByRule(ctx context.Context, ruleID uuid.UUID, limit, offset int32) ([]Code, int32, error)
+	// search matches the code and a nil active keeps both; the total counts every match, not just this page
+	ListCodesByRule(ctx context.Context, ruleID uuid.UUID, search string, active *bool, limit, offset int32) ([]Code, int32, error)
 	// The codes actually inserted - a collision with an existing code is skipped, so this can be fewer and in any order
 	BulkInsertCodes(ctx context.Context, ruleID uuid.UUID, codes []string) ([]string, error)
 	IncrementCodeUsage(ctx context.Context, id uuid.UUID) error
@@ -382,16 +383,22 @@ func (r *postgresRepository) GetCodeByCode(ctx context.Context, code string) (Co
 	return toCode(row), nil
 }
 
-func (r *postgresRepository) ListCodesByRule(ctx context.Context, ruleID uuid.UUID, limit, offset int32) ([]Code, int32, error) {
+func (r *postgresRepository) ListCodesByRule(ctx context.Context, ruleID uuid.UUID, search string, active *bool, limit, offset int32) ([]Code, int32, error) {
+	var isActive sql.NullBool
+	if active != nil {
+		isActive = sql.NullBool{Bool: *active, Valid: true}
+	}
 	rows, err := r.queries.ListPromotionCodesByRule(ctx, db.ListPromotionCodesByRuleParams{
-		RuleID: ruleID,
-		Limit:  limit,
-		Offset: offset,
+		RuleID:   ruleID,
+		Search:   search,
+		IsActive: isActive,
+		Lim:      limit,
+		Off:      offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list codes by rule: %w", err)
 	}
-	count, err := r.queries.CountPromotionCodesByRule(ctx, ruleID)
+	count, err := r.queries.CountPromotionCodesByRule(ctx, db.CountPromotionCodesByRuleParams{RuleID: ruleID, Search: search, IsActive: isActive})
 	if err != nil {
 		return nil, 0, fmt.Errorf("count codes by rule: %w", err)
 	}

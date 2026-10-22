@@ -20,6 +20,7 @@ import { VITAL_ORDER, isVitalMetric } from './vitals'
 import { VitalGauge } from './VitalGauge'
 import { Empty, Panel, Tile } from '@/components/layout/panels'
 import { formatNumber } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
 
 type PageRow = LensOverviewQuery['lensOverview']['topPages'][number]
 
@@ -28,7 +29,7 @@ export function LensHome() {
   const channelId = effectiveChannelId ?? ''
   const skip = !effectiveChannelId
 
-  const { data } = useQuery(LensOverviewDocument, {
+  const { data, loading, error, refetch } = useQuery(LensOverviewDocument, {
     variables: { channelId, sinceDays: 30 },
     skip,
     fetchPolicy: 'cache-and-network',
@@ -85,6 +86,10 @@ export function LensHome() {
     ],
     [totalViews],
   )
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load Lens" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>

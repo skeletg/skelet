@@ -1,8 +1,12 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { toastSuccess } = vi.hoisted(() => ({ toastSuccess: vi.fn() }))
+vi.mock('sonner', () => ({ toast: { success: toastSuccess, error: vi.fn() } }))
 import { SLOW, captureInput, renderPage } from '@/test/page-harness'
 import { SegmentDetailPage } from './SegmentDetailPage'
-import { SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.gql'
+import { ClearSegmentMembershipDocument, SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.gql'
 
 // What these pin: settings and rules are reviewed together, each mutation goes only when its part
 // changed, and switching dynamic membership off clears the rules
@@ -70,5 +74,34 @@ describe('SegmentDetailPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
     await vi.waitFor(() => expect(writes.update).toHaveBeenCalledWith(expect.objectContaining({ isActive: false })), SLOW)
     expect(writes.rules).not.toHaveBeenCalled()
+  })
+})
+
+// Clearing the membership confirms through the shared ConfirmDialog: a refused clear keeps it open with the server's
+// message (it used to be a toast), a successful one closes it and still toasts
+describe('SegmentDetailPage clear membership', () => {
+  async function confirmClear(mock: MockLink.MockedResponse) {
+    renderPage({
+      path: '/segments/s1',
+      adminId: 'admin-1',
+      routes: { '/segments/:id': <SegmentDetailPage /> },
+      mocks: [{ request: { query: SegmentDetailDocument, variables: { id: 's1' } }, result: { data: { customerSegment: { ...segment, memberCount: 2 } } }, maxUsageCount: 5 }, mock],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear all' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear membership' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused clear', async () => {
+    const dialog = await confirmClear({ request: { query: ClearSegmentMembershipDocument, variables: { segmentId: 's1' } }, result: { errors: [{ message: 'segment is locked' }] } })
+    expect(await within(dialog).findByText('segment is locked')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('closes and toasts once the clear goes through', async () => {
+    await confirmClear({ request: { query: ClearSegmentMembershipDocument, variables: { segmentId: 's1' } }, result: { data: { clearSegmentMembership: 2 } } })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(toastSuccess).toHaveBeenCalledWith('Membership cleared')
   })
 })

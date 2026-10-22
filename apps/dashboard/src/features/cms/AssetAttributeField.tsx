@@ -19,6 +19,9 @@ function AssetThumb({ id, className = 'size-16' }: { id: string; className?: str
   const { data } = useQuery<MediaAssetByIdQuery, MediaAssetByIdQueryVariables>(MediaAssetByIdDocument, {
     variables: { id },
     skip: !id,
+    // A thumbnail's url and alt barely change, and the app default (network-only) refetched every image each time a
+    // block or gallery field remounted - cache-first fetches each asset once
+    fetchPolicy: 'cache-first',
   })
   const a = data?.mediaAsset
   return (

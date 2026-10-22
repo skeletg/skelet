@@ -314,3 +314,31 @@ func TestAGroupGenerationOutlivesItsLongestEntry(t *testing.T) {
 		t.Fatalf("group generation TTL %v, want at least the entry's %v and bounded by it", gen, entry)
 	}
 }
+
+func TestRawValuesComeBackByteForByte(t *testing.T) {
+	ctx := context.Background()
+	if _, ok := New(nil, "test-raw").GetRaw(ctx, "k"); ok {
+		t.Fatal("a nil cache returned a hit")
+	}
+	if _, ok := New(deadClient(), "test-raw").GetRaw(ctx, "k"); ok {
+		t.Fatal("an outage read as a hit")
+	}
+	client := liveClient(t)
+	c := New(client, "test-raw")
+	suffix := "k-" + t.Name()
+	t.Cleanup(func() { c.Del(ctx, suffix) })
+
+	want := []byte("{\"data\":{\"html\":\"<p>Fish & chips</p>\",\"name\":\"Bridgestone Ñ\"}} \n")
+	c.SetRaw(ctx, suffix, want, 90*time.Second)
+	got, ok := c.GetRaw(ctx, suffix)
+	if !ok || string(got) != string(want) {
+		t.Fatalf("read back %q (%v), want %q unchanged", got, ok, want)
+	}
+	if ttl, err := client.PTTL(ctx, c.resolvedKey(ctx, "", suffix)).Result(); err != nil || ttl <= 0 || ttl > 90*time.Second {
+		t.Errorf("ttl = %v (%v), want it inside the 90s window", ttl, err)
+	}
+	c.Flush(ctx)
+	if _, ok := c.GetRaw(ctx, suffix); ok {
+		t.Error("the raw entry survived Flush")
+	}
+}

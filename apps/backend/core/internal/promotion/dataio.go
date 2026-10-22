@@ -99,7 +99,7 @@ func (e *codeExporter) Stream(ctx context.Context, emit func(*dataio.Row) error)
 	const pageSize = int32(5000)
 	var offset int32
 	for {
-		codes, _, err := e.svc.Repo().ListCodesByRule(ctx, e.rule.ID, pageSize, offset)
+		codes, _, err := e.svc.Repo().ListCodesByRule(ctx, e.rule.ID, "", nil, pageSize, offset)
 		if err != nil {
 			return err
 		}

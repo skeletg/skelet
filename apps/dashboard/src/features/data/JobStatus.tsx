@@ -8,11 +8,7 @@ export function JobStatusBadge({ status, dryRun }: { status: string; dryRun?: bo
   const label = dryRun && status === 'succeeded' ? 'validated' : status.replace('_', ' ')
   switch (status) {
     case 'succeeded':
-      return (
-        <Badge className="bg-success-soft text-success">
-          {label}
-        </Badge>
-      )
+      return <Badge variant="success">{label}</Badge>
     case 'failed':
       return <Badge variant="destructive">{label}</Badge>
     case 'cancelled':

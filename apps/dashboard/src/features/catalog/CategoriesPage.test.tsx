@@ -1,5 +1,6 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, globalScope, meMock, renderPage } from '@/test/page-harness'
 import type { ChannelScopeOption, ConfigScopeContextValue } from '@/lib/config-scope'
 import { CategoriesPage } from './CategoriesPage'
@@ -13,6 +14,7 @@ import {
 import {
   CategoryDocument,
   CreateCategoryDocument,
+  DeleteCategoryDocument,
   RootCategoriesDocument,
   SetCategoryListingDocument,
   UpdateCategoryDocument,
@@ -117,7 +119,7 @@ const option = (id: string, name: string, parentId: string | null = null) => ({
 // Shoes (cat1) has a child of its own - neither may become its parent
 const options = [option('cat1', 'Shoes'), option('cat1-kid', 'Running', 'cat1'), option('cat3', 'Apparel')]
 
-function renderCategories(path: string, opts: { scope?: ConfigScopeContextValue; failListingOn?: string } = {}) {
+function renderCategories(path: string, opts: { scope?: ConfigScopeContextValue; failListingOn?: string; extra?: MockLink.MockedResponse[] } = {}) {
   const writes = { create: vi.fn(), update: vi.fn(), content: vi.fn(), listing: vi.fn(), add: vi.fn(), remove: vi.fn() }
   const membership = (productId: string) => ({
     __typename: 'Product' as const,
@@ -129,8 +131,9 @@ function renderCategories(path: string, opts: { scope?: ConfigScopeContextValue;
     path,
     adminId: 'admin-1',
     scope: opts.scope,
-    routes: { '/categories/:id': <CategoriesPage /> },
+    routes: { '/categories/:id': <CategoriesPage />, '/categories': <p>Categories list</p> },
     mocks: [
+      ...(opts.extra ?? []),
       meMock(),
       { request: { query: RootCategoriesDocument }, result: { data: { rootCategories: [] } }, maxUsageCount: 50 },
       { request: { query: CategoryOptionsDocument }, result: { data: { categoryOptions: options } }, maxUsageCount: 50 },
@@ -401,5 +404,29 @@ describe('CategoriesPage', () => {
       await screen.findByRole('checkbox', { name: /US store/ }, SLOW)
       expect(screen.queryByLabelText('Search stores')).toBeNull()
     })
+  })
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the category list
+describe('CategoriesPage delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderCategories('/categories/cat1', { extra: [mock] })
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete category' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteCategoryDocument, variables: { id: 'cat1' } }, result: { errors: [{ message: 'category has products' }] } })
+    expect(await within(dialog).findByText('category has products')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteCategoryDocument, variables: { id: 'cat1' } }, result: { data: { deleteCategory: true } } })
+    expect(await screen.findByText('Categories list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   })
 })

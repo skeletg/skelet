@@ -147,14 +147,20 @@ func (s *Service) List(ctx context.Context, limit, offset int32) ([]GiftCard, er
 }
 
 func (s *Service) ListForChannels(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error) {
+	cards, _, err := s.Page(ctx, channelIDs, "", limit, offset)
+	return cards, err
+}
+
+// Page is one page of the cards in channelIDs (nil is every channel) matching search, with the total across all pages
+func (s *Service) Page(ctx context.Context, channelIDs []uuid.UUID, search string, limit, offset int32) ([]GiftCard, int32, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	limit = min(limit, 200)
 	if channelIDs != nil && len(channelIDs) == 0 {
-		return []GiftCard{}, nil
+		return []GiftCard{}, 0, nil
 	}
-	return s.repo.List(ctx, channelIDs, limit, offset)
+	return s.repo.List(ctx, channelIDs, strings.TrimSpace(search), limit, offset)
 }
 
 func (s *Service) Transactions(ctx context.Context, id uuid.UUID) ([]Transaction, error) {

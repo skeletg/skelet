@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { ShieldOffIcon, PlusIcon } from 'lucide-react'
@@ -26,6 +26,7 @@ import {
   UnsuppressEmailDocument,
 } from './Deliverability.gql'
 import { formatDate } from '@/lib/format'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // Suppression is account-wide (not channel-scoped): a hard bounce or complaint
 // blocks an address everywhere, so this page has no channel picker
@@ -60,6 +61,7 @@ export function SuppressionList() {
   const [reason, setReason] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
 
   const { data, loading, error, refetch } = useQuery(EmailSuppressionsDocument, {
     variables: { reason: reason || null, limit: 100, offset: 0 },
@@ -84,18 +86,12 @@ export function SuppressionList() {
     }
   }
 
-  const remove = useCallback(
-    async (email: string) => {
-      setErr(null)
-      try {
-        await unsuppress({ variables: { email } })
-        await refetch()
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : 'Failed to remove')
-      }
-    },
-    [unsuppress, refetch],
-  )
+  // Removing an entry lets marketing mail reach an address that bounced, complained or opted out - so it asks first
+  async function onConfirmRemove() {
+    if (!confirmingRemove) return
+    await unsuppress({ variables: { email: confirmingRemove } })
+    await refetch()
+  }
 
   const columns = useMemo<ColumnDef<SuppressionRow>[]>(
     () => [
@@ -143,14 +139,14 @@ export function SuppressionList() {
         enableHiding: false,
         cell: ({ row }) => (
           <div className="text-right">
-            <Button variant="ghost" size="sm" onClick={() => void remove(row.original.email)}>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(row.original.email)}>
               Remove
             </Button>
           </div>
         ),
       },
     ],
-    [remove],
+    [],
   )
 
   return (
@@ -225,6 +221,15 @@ export function SuppressionList() {
             }
           />
         </DetailPageSection>
+        <ConfirmDialog
+          open={!!confirmingRemove}
+          onOpenChange={(open) => !open && setConfirmingRemove(null)}
+          title={`Remove ${confirmingRemove ?? 'this address'} from the suppression list?`}
+          description="Marketing email can reach this address again. If it bounced, complained or unsubscribed, sending to it can hurt your sender reputation or break consent rules."
+          confirmLabel="Remove from list"
+          destructive
+          onConfirm={onConfirmRemove}
+        />
       </DetailPageBody>
     </DetailPageLayout>
   )

@@ -27,16 +27,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,6 +55,8 @@ import {
 import { type ProductMediaSummary } from './shared'
 import { readImageDimensions } from '@/lib/image'
 import { effectiveMediaRoles } from './media-utils'
+import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string; Icon: LucideIcon; fallbackHint: string }> = [
   { role: 'MAIN', label: 'Main', Icon: StarIcon, fallbackHint: 'Uses the first image until one is chosen' },
@@ -257,12 +249,7 @@ export function ProductMediaPanel({
       ])
       const payload = upload.data?.requestProductMediaUpload
       if (!payload) throw new Error('Upload request did not return a signed URL.')
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Image upload failed with HTTP ${uploaded.status}.`)
+      await putToSignedUrl(payload.uploadUrl, file, 'Image upload')
       await confirmUpload({ variables: { mediaId: payload.media.id, width, height } })
       // If the user picked a target role, queue the assignment in the draft
       // (it'll be applied by the global Save)
@@ -304,10 +291,9 @@ export function ProductMediaPanel({
           variables: { productId, ids: deleteIntent.ids, deleteFromStorage: deleteIntent.deleteFromStorage },
         })
       }
-      setDeleteIntent(null)
       exitSelectMode()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Image removal failed.')
+      throw new Error(err instanceof Error ? err.message : 'Image removal failed.', { cause: err })
     }
   }
 
@@ -611,39 +597,24 @@ export function ProductMediaPanel({
       )}
 
       {/* Unified delete confirmation */}
-      <AlertDialog open={Boolean(deleteIntent)} onOpenChange={(open) => { if (!open) setDeleteIntent(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {deleteIntent?.deleteFromStorage
-                ? `Delete ${deleteIntent.ids.length > 1 ? `${deleteIntent.ids.length} images` : 'image'}?`
-                : `Remove ${deleteIntent?.ids.length ?? 1 > 1 ? `${deleteIntent?.ids.length} images` : 'image'} from gallery?`
-              }
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteIntent?.deleteFromStorage
-                ? 'The image file will be permanently deleted from storage. This cannot be undone.'
-                : 'The image will be removed from this product. The file stays in storage and can be re-used.'
-              }
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeleting}
-              onClick={(event) => { event.preventDefault(); confirmDelete() }}
-              className={deleteIntent?.deleteFromStorage ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
-            >
-              {isDeleting
-                ? 'Removing…'
-                : deleteIntent?.deleteFromStorage
-                  ? 'Delete permanently'
-                  : 'Remove from gallery'
-              }
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={Boolean(deleteIntent)}
+        onOpenChange={(open) => { if (!open) setDeleteIntent(null) }}
+        title={
+          deleteIntent?.deleteFromStorage
+            ? `Delete ${deleteIntent.ids.length > 1 ? `${deleteIntent.ids.length} images` : 'image'}?`
+            : `Remove ${deleteIntent?.ids.length ?? 1 > 1 ? `${deleteIntent?.ids.length} images` : 'image'} from gallery?`
+        }
+        description={
+          deleteIntent?.deleteFromStorage
+            ? 'The image file will be permanently deleted from storage. This cannot be undone.'
+            : 'The image will be removed from this product. The file stays in storage and can be re-used.'
+        }
+        confirmLabel={deleteIntent?.deleteFromStorage ? 'Delete permanently' : 'Remove from gallery'}
+        busyLabel="Removing…"
+        destructive={deleteIntent?.deleteFromStorage}
+        onConfirm={confirmDelete}
+      />
     </section>
   )
 }

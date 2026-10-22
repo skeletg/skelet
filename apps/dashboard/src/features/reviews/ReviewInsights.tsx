@@ -12,7 +12,7 @@ import { DetailPageBody, DetailPageSection } from '@/components/layout/detail-pa
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { ReviewInsightsDocument } from './Reviews.gql'
-import { formatNumber } from '@/lib/format'
+import { dayEndISO, dayStartISO, formatNumber, localDay } from '@/lib/format'
 
 type Bucket = 'day' | 'week' | 'month'
 
@@ -27,13 +27,10 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   REJECTED: { label: 'Rejected', color: CHART_DESTRUCTIVE },
 }
 
-function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
 function daysAgo(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() - n)
-  return isoDay(d)
+  return localDay(d)
 }
 function formatPeriod(iso: string, bucket: Bucket): string {
   const d = new Date(iso)
@@ -54,14 +51,14 @@ export function ReviewInsightsContent() {
   const { effectiveChannelId, selectedChannel } = useConfigScope()
 
   const [start, setStart] = useState(() => daysAgo(30))
-  const [end, setEnd] = useState(() => isoDay(new Date()))
+  const [end, setEnd] = useState(() => localDay())
   const [bucket, setBucket] = useState<Bucket>('day')
 
   const variables = useMemo(
     () => ({
       channelId: effectiveChannelId ?? null,
-      startDate: start ? new Date(`${start}T00:00:00.000Z`).toISOString() : null,
-      endDate: end ? new Date(`${end}T23:59:59.999Z`).toISOString() : null,
+      startDate: start ? dayStartISO(start) : null,
+      endDate: end ? dayEndISO(end) : null,
       bucket,
     }),
     [effectiveChannelId, start, end, bucket],
@@ -193,16 +190,16 @@ export function ReviewInsightsContent() {
             <Input id="ri-end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
           <div className="flex gap-1.5">
-            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(7)); setEnd(isoDay(new Date())) }}>7d</Button>
-            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(30)); setEnd(isoDay(new Date())) }}>30d</Button>
-            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(90)); setEnd(isoDay(new Date())) }}>90d</Button>
+            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(7)); setEnd(localDay()) }}>7d</Button>
+            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(30)); setEnd(localDay()) }}>30d</Button>
+            <Button variant="outline" size="sm" onClick={() => { setStart(daysAgo(90)); setEnd(localDay()) }}>90d</Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 const now = new Date()
                 setStart(`${now.getFullYear()}-01-01`)
-                setEnd(isoDay(now))
+                setEnd(localDay(now))
               }}
             >
               YTD

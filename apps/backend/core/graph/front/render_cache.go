@@ -118,12 +118,15 @@ func renderMemo[T any](c *renderCache, key string, hit func() (T, bool), fetch f
 	return v.(T), nil
 }
 
-// Primes id's whole group on the first miss - false outside any group
+// Primes id's whole group on the first miss - a product outside any group primes alone, so its concurrent field resolvers share one fetch
 func (r *Resolver) primeGroupOnce(ctx context.Context, what string, id uuid.UUID, prime func([]uuid.UUID) error) bool {
 	c := getRenderCache(ctx)
-	members := dataloaders.For(ctx).GroupMembers(id)
-	if c == nil || len(members) == 0 {
+	if c == nil {
 		return false
+	}
+	members := dataloaders.For(ctx).GroupMembers(id)
+	if len(members) == 0 {
+		members = []uuid.UUID{id}
 	}
 	key := what + ":" + members[0].String()
 	_, err := renderMemo(c, "group:"+key,
@@ -231,7 +234,12 @@ func (r *Resolver) getAttributesCached(ctx context.Context) ([]catalog.Attribute
 			defer c.mu.RUnlock()
 			return c.attributes, c.attributesLoaded
 		},
-		func() ([]catalog.Attribute, error) { return r.CatalogSvc.ListAttributes(ctx) },
+		func() ([]catalog.Attribute, error) {
+			if r.AttributeCache != nil {
+				return r.AttributeCache.List(ctx)
+			}
+			return r.CatalogSvc.ListAttributes(ctx)
+		},
 		func(attrs []catalog.Attribute) {
 			c.mu.Lock()
 			c.attributes = attrs
@@ -292,7 +300,9 @@ func (r *Resolver) getProductType(ctx context.Context, id uuid.UUID) (catalog.Pr
 			pt, ok := c.productTypes[id]
 			return pt, ok
 		},
-		func() (catalog.ProductType, error) { return r.CatalogSvc.GetProductType(ctx, id) },
+		func() (catalog.ProductType, error) {
+			return r.Metadata.productType(ctx, id, func(ctx context.Context) (catalog.ProductType, error) { return r.CatalogSvc.GetProductType(ctx, id) })
+		},
 		func(pt catalog.ProductType) {
 			c.mu.Lock()
 			c.productTypes[id] = pt
@@ -346,17 +356,23 @@ func (r *Resolver) primeListings(ctx context.Context, productIDs []uuid.UUID) er
 	return nil
 }
 
-func (r *Resolver) primeSalable(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) error { // one pass so later InStock / SalableQuantity field resolvers just read the map
+func (r *Resolver) primeStock(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) error { // one inventory read so later InStock / SalableQuantity / Backorderable resolvers just read the maps - no channel primes backorderable alone
 	c := getRenderCache(ctx)
-	if c == nil || len(productIDs) == 0 || channelID == uuid.Nil || r.InventorySvc == nil {
+	if c == nil || len(productIDs) == 0 || r.InventorySvc == nil {
 		return nil
 	}
-	bySalable, err := r.InventorySvc.SalableByProductIDs(ctx, productIDs, channelID)
+	if channelID == uuid.Nil {
+		return r.primeBackorderable(ctx, productIDs)
+	}
+	salable, backorderable, err := r.InventorySvc.StockByProductIDs(ctx, productIDs, channelID)
 	if err != nil {
 		return err
 	}
 	c.mu.Lock()
-	maps.Copy(c.salable, bySalable)
+	maps.Copy(c.salable, salable)
+	for _, pid := range productIDs {
+		c.backorderable[pid] = backorderable[pid]
+	}
 	c.mu.Unlock()
 	return nil
 }
@@ -410,10 +426,7 @@ func (r *Resolver) primeProductCards(ctx context.Context, productIDs []uuid.UUID
 	_ = r.primeListings(ctx, productIDs)
 	_ = r.primeReviewAggregates(ctx, productIDs)
 	r.primeProductAttributeLocaleValues(ctx, productIDs)
-	_ = r.primeBackorderable(ctx, productIDs)
-	if channelID != uuid.Nil {
-		_ = r.primeSalable(ctx, productIDs, channelID)
-	}
+	_ = r.primeStock(ctx, productIDs, channelID)
 }
 
 func (r *Resolver) primeReviewAggregates(ctx context.Context, productIDs []uuid.UUID) error {
@@ -421,7 +434,7 @@ func (r *Resolver) primeReviewAggregates(ctx context.Context, productIDs []uuid.
 	if c == nil || len(productIDs) == 0 || r.ReviewSvc == nil {
 		return nil
 	}
-	byID, err := r.ReviewSvc.GetAggregatesByProductIDs(ctx, productIDs)
+	byID, err := r.ReviewSvc.GetOverallAggregatesByProductIDs(ctx, productIDs)
 	if err != nil {
 		return err
 	}
@@ -539,9 +552,18 @@ func (r *Resolver) cachedAggregates(ctx context.Context, productID uuid.UUID) (r
 		}
 	}
 	if loaders := dataloaders.For(ctx); loaders != nil {
-		return loaders.ReviewAggregates.Load(ctx, productID)()
+		return loaders.ReviewOverall.Load(ctx, productID)()
 	}
 	return r.ReviewSvc.GetAggregates(ctx, productID)
+}
+
+func (r *Resolver) perQuestionAggregates(ctx context.Context, productID uuid.UUID) ([]review.QuestionAverage, error) {
+	if loaders := dataloaders.For(ctx); loaders != nil {
+		agg, err := loaders.ReviewAggregates.Load(ctx, productID)()
+		return agg.PerQuestion, err
+	}
+	agg, err := r.ReviewSvc.GetAggregates(ctx, productID)
+	return agg.PerQuestion, err
 }
 
 func (r *Resolver) getAssignedQuestionsLocalized(ctx context.Context, productTypeID uuid.UUID, locale string) ([]review.Question, error) { // memoized per (product type, locale) so a PLP of 24 same-type cards costs exactly one round-trip

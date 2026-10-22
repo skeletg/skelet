@@ -37,16 +37,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -101,20 +91,15 @@ import {
   toCategoryCreateInput,
   toCategoryValues,
 } from './schemas/category'
+import { slugify } from '@/lib/slug'
+import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { onTreeItemKeyDown } from '@/lib/tree-keys'
 
 type CategoryDetail = CategoryDetailFieldsFragment
 type CategoryFacetOverride = CategoryDetail['facetOverrides'][number]
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-}
 
 function countCategories(cats: CategorySummary[]): number {
   let n = 0
@@ -419,7 +404,7 @@ export function CategoriesPage() {
             onDragEnd={onDragEnd}
             onDragCancel={() => { setDragActiveId(null); setDropTarget(null) }}
           >
-            <div className="scrollbar-accent flex-1 overflow-y-auto py-1">
+            <div role="tree" aria-label="Category tree" className="scrollbar-accent flex-1 overflow-y-auto py-1">
               {visibleFlat.length === 0 ? (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">
                   No matches for &ldquo;{search}&rdquo;
@@ -429,6 +414,8 @@ export function CategoriesPage() {
                   <TreeNode
                     key={node.id}
                     node={node}
+                    // One tab stop for the whole tree - the selected row when it's showing, else the first; arrows move within
+                    tabbable={node.id === (visibleFlat.some((n) => n.id === selectedId) ? selectedId : visibleFlat[0]?.id)}
                     isSelected={node.id === selectedId}
                     dropTarget={dropTarget}
                     onSelect={() => navigate(`/categories/${node.id}`)}
@@ -499,6 +486,7 @@ function EmptyState({ canManage, onNew }: { canManage: boolean; onNew: () => voi
 
 function TreeNode({
   node,
+  tabbable,
   isSelected,
   dropTarget,
   onSelect,
@@ -506,6 +494,7 @@ function TreeNode({
   canDrag,
 }: {
   node: FlatNode
+  tabbable: boolean
   isSelected: boolean
   dropTarget: { id: string; zone: DropZone } | null
   onSelect: () => void
@@ -528,8 +517,14 @@ function TreeNode({
       <div
         ref={setDropRef}
         data-node-id={node.id}
+        role="treeitem"
+        tabIndex={tabbable ? 0 : -1}
+        aria-level={node.depth + 1}
+        aria-selected={isSelected}
+        aria-expanded={node.hasChildren ? node.expanded : undefined}
+        onKeyDown={(e) => onTreeItemKeyDown(e, { expanded: node.expanded, hasChildren: node.hasChildren, onToggle, onOpen: onSelect })}
         style={{ paddingLeft: `${node.depth * 1.125 + 0.5}rem` }}
-        className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors
+        className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring
           ${isSelected
             ? 'bg-primary/10 text-foreground'
             : 'text-foreground/90 hover:bg-muted/60'
@@ -566,11 +561,13 @@ function TreeNode({
         ) : (
           <span className="size-3.5" />
         )}
+        {/* The row's arrow keys expand and collapse, so this stays a mouse target out of the tab order */}
         <button
           type="button"
+          tabIndex={-1}
           className="grid size-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
           onClick={(e) => { e.stopPropagation(); onToggle() }}
-          aria-label={node.expanded ? 'Collapse' : 'Expand'}
+          aria-label={node.expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
         >
           {node.hasChildren
             ? node.expanded
@@ -682,9 +679,7 @@ function CategoryRecordForm({
   // loses the removed locale too
   const [deleteContent] = useMutation(DeleteCategoryContentDocument, { refetchQueries: detailRefetch, awaitRefetchQueries: true })
 
-  const [deleting, setDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   // UI state, not the admin's work - an existing slug is never re-derived from the name
   const [slugTouched, setSlugTouched] = useState(!isNew)
   const createdId = useRef('')
@@ -747,17 +742,8 @@ function CategoryRecordForm({
 
   async function onDelete() {
     if (!categoryId) return
-    setDeleting(true)
-    setDeleteError(null)
-    try {
-      await deleteCategory({ variables: { id: categoryId } })
-      setConfirmingDelete(false)
-      onDeleted?.()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    } finally {
-      setDeleting(false)
-    }
+    await deleteCategory({ variables: { id: categoryId } })
+    onDeleted?.()
   }
 
   const headerTitle = isNew ? 'New category' : values.name || category.slug || 'Category'
@@ -809,11 +795,7 @@ function CategoryRecordForm({
                     variant="outline"
                     size="sm"
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      setDeleteError(null)
-                      setConfirmingDelete(true)
-                    }}
-                    disabled={deleting}
+                    onClick={() => setConfirmingDelete(true)}
                   >
                     <Trash2Icon className="size-4" />
                     Delete
@@ -1005,41 +987,16 @@ function CategoryRecordForm({
         </div>
 
         {/* ── Delete confirmation ─────────────────────────────── */}
-        <AlertDialog
+        <ConfirmDialog
           open={confirmingDelete}
-          onOpenChange={(v) => {
-            if (!v) {
-              setConfirmingDelete(false)
-              setDeleteError(null)
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {values.name || category?.slug || 'this category'}?</AlertDialogTitle>
-              <AlertDialogDescription>This permanently removes the category. Child categories will be detached from it.</AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Delete failed</AlertTitle>
-                <AlertDescription>{deleteError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={deleting}
-                onClick={(e) => {
-                  e.preventDefault()
-                  void onDelete()
-                }}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleting ? 'Deleting…' : 'Delete category'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          onOpenChange={setConfirmingDelete}
+          title={<>Delete {values.name || category?.slug || 'this category'}?</>}
+          description="This permanently removes the category. Child categories will be detached from it."
+          confirmLabel="Delete category"
+          busyLabel="Deleting…"
+          destructive
+          onConfirm={onDelete}
+        />
 
         <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={scopeLabel} sections={registry.dirtySections} />
       </div>
@@ -1123,12 +1080,7 @@ function CategoryCoverSection({
     ])
     const payload = upload.data?.requestCategoryCoverUpload
     if (!payload) throw new Error('Upload request did not return a signed URL.')
-    const uploaded = await fetch(payload.uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file,
-    })
-    if (!uploaded.ok) throw new Error(`Banner upload failed with HTTP ${uploaded.status}.`)
+    await putToSignedUrl(payload.uploadUrl, file, 'Banner upload')
     await confirmUpload({ variables: { categoryId: category.id, width, height } })
     setPendingFile(null)
   }, [pendingClear, pendingFile, altText, category.id, clearCover, requestUpload, confirmUpload])
@@ -1431,7 +1383,7 @@ function NewCategoryStores({
         </div>
       )}
       {currentChannelId && !selected.has(currentChannelId) ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           It won&rsquo;t appear in this store&rsquo;s category list - you&rsquo;ll find it under Global default.
         </p>
       ) : null}

@@ -10,18 +10,9 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from 'lucide-react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -73,7 +64,7 @@ type ScheduleEdit = {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'success') return <Badge className="bg-success-soft text-success">success</Badge>
+  if (status === 'success') return <Badge variant="success">success</Badge>
   if (status === 'error') return <Badge variant="destructive">error</Badge>
   return <span className="text-muted-foreground">-</span>
 }
@@ -93,7 +84,7 @@ export function ScheduledJobsList() {
   const [runNow] = useMutation(RunScheduledJobNowDocument, { refetchQueries: refetch })
   const [createWebhook] = useMutation(CreateWebhookJobDocument, { refetchQueries: refetch })
   const [updateWebhook] = useMutation(UpdateWebhookJobDocument, { refetchQueries: refetch })
-  const [deleteJob, { loading: deleting }] = useMutation(DeleteScheduledJobDocument, { refetchQueries: refetch })
+  const [deleteJob] = useMutation(DeleteScheduledJobDocument, { refetchQueries: refetch })
 
   const [editing, setEditing] = useState<Job | null>(null)
   const [editingWebhook, setEditingWebhook] = useState<Job | null>(null)
@@ -120,7 +111,6 @@ export function ScheduledJobsList() {
     setActionError(null)
     try {
       await deleteJob({ variables: { id: confirmDelete.id } })
-      setConfirmDelete(null)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Delete failed.')
     }
@@ -387,20 +377,15 @@ export function ScheduledJobsList() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{confirmDelete?.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>This removes the webhook job permanently.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete} disabled={deleting}>
-              {deleting ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(o) => { if (!o) setConfirmDelete(null) }}
+        title={<>Delete “{confirmDelete?.name}”?</>}
+        description="This removes the webhook job permanently."
+        confirmLabel="Delete"
+        // Not awaited: the dialog closes at once and a failure shows on the page, as it always has
+        onConfirm={() => void onConfirmDelete()}
+      />
     </DetailPageLayout>
   )
 }

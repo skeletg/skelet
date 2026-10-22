@@ -21,6 +21,7 @@ import { CartsDocument } from './Carts.gql'
 import { NewCartDialog } from './NewCartDialog'
 import { OfferStateBadge } from './offer/OfferStateBadge'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 
 type CartRow = {
   id: string
@@ -75,16 +76,23 @@ function CartListPage({ kind }: { kind: CartKind }) {
   const [offerFilter, setOfferFilter] = useState<OfferFilter>('open')
   const [newOpen, setNewOpen] = useState(false)
 
-  // An offer's state reads off several columns, so the list loads every offer and narrows by state here
+  const { pagination, setPagination, globalFilter: search } = urlState
+  const debouncedSearch = useDebounced(search.trim(), 300)
+
+  // Shopper carts grow forever, so the server pages and searches them. An offer's state reads off several
+  // columns the server can't filter on, so the offers list loads every offer and narrows by state here
+  // shortcut: offers cap at 200, upgrade with a server offerState filter once a channel sends that many
   const variables = useMemo(
     () => ({
       channelId: effectiveChannelId ?? '',
       kind,
       status: isOffer || status === 'all' || status === 'abandoned' ? null : status,
       abandoned: !isOffer && status === 'abandoned' ? true : null,
-      limit: isOffer ? 200 : 100,
+      search: isOffer ? null : debouncedSearch || null,
+      limit: isOffer ? 200 : pagination.pageSize,
+      offset: isOffer ? 0 : pagination.pageIndex * pagination.pageSize,
     }),
-    [effectiveChannelId, kind, isOffer, status],
+    [effectiveChannelId, kind, isOffer, status, debouncedSearch, pagination],
   )
 
   const { data, loading, error } = useQuery(CartsDocument, {
@@ -182,14 +190,27 @@ function CartListPage({ kind }: { kind: CartKind }) {
   return (
     <>
       <DataTable
-        urlState={urlState}
+        urlState={isOffer ? urlState : undefined}
+        manual={
+          isOffer
+            ? undefined
+            : {
+                rowCount: data?.carts.totalCount ?? 0,
+                pagination,
+                onPaginationChange: setPagination,
+                globalFilter: search,
+                onGlobalFilterChange: urlState.setGlobalFilter,
+                columnFilters: urlState.columnFilters,
+                onColumnFiltersChange: urlState.setColumnFilters,
+              }
+        }
         prefsKey={isOffer ? 'offers.list' : 'carts.list'}
         enableColumnControls
         enableDensityToggle
         key={isOffer ? offerFilter : status}
         columns={columns}
         data={rows}
-        loading={loading}
+        loading={loading && rows.length === 0}
         error={error ? { message: error.message } : null}
         getRowId={(r) => r.id}
         emptyState={isOffer ? 'No offers for this filter.' : 'No carts for this filter.'}
@@ -210,7 +231,13 @@ function CartListPage({ kind }: { kind: CartKind }) {
                 </SelectContent>
               </Select>
             ) : (
-              <Select value={status} onValueChange={(v) => setStatus(v as CartStatus)}>
+              <Select
+                value={status}
+                onValueChange={(v) => {
+                  setStatus(v as CartStatus)
+                  setPagination({ ...pagination, pageIndex: 0 })
+                }}
+              >
                 <SelectTrigger size="sm" className="w-36" aria-label="Status">
                   <SelectValue />
                 </SelectTrigger>

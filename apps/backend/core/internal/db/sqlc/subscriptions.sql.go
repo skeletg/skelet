@@ -75,6 +75,25 @@ func (q *Queries) CountSubscriptionInvoices(ctx context.Context, subscriptionID 
 	return count, err
 }
 
+const countSubscriptions = `-- name: CountSubscriptions :one
+SELECT COUNT(*)::INTEGER FROM subscriptions
+WHERE ($1::text IS NULL OR status = $1::text)
+  AND ($2::uuid[] IS NULL OR channel_id = ANY($2::uuid[]))
+`
+
+type CountSubscriptionsParams struct {
+	Status     sql.NullString `json:"status"`
+	ChannelIds []uuid.UUID    `json:"channel_ids"`
+}
+
+// The total behind ListSubscriptions / ListSubscriptionsForChannels - a nil channel_ids is every channel
+func (q *Queries) CountSubscriptions(ctx context.Context, arg CountSubscriptionsParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countSubscriptions, arg.Status, pq.Array(arg.ChannelIds))
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 
 INSERT INTO subscriptions (

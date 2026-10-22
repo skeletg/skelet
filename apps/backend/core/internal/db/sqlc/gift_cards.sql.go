@@ -13,6 +13,24 @@ import (
 	"github.com/lib/pq"
 )
 
+const countGiftCards = `-- name: CountGiftCards :one
+SELECT COUNT(*)::INTEGER FROM gift_cards
+WHERE ($1::uuid[] IS NULL OR channel_id = ANY($1::uuid[]))
+  AND ($2::text = '' OR code ILIKE '%' || $2::text || '%' OR recipient_email ILIKE '%' || $2::text || '%')
+`
+
+type CountGiftCardsParams struct {
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+	Search     string      `json:"search"`
+}
+
+func (q *Queries) CountGiftCards(ctx context.Context, arg CountGiftCardsParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countGiftCards, pq.Array(arg.ChannelIds), arg.Search)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createGiftCard = `-- name: CreateGiftCard :one
 INSERT INTO gift_cards (
     code, currency_code, initial_balance, balance, status,
@@ -326,18 +344,26 @@ func (q *Queries) ListGiftCardTransactionsByOrder(ctx context.Context, orderID u
 
 const listGiftCards = `-- name: ListGiftCards :many
 SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards
-WHERE $1::uuid[] IS NULL OR channel_id = ANY($1::uuid[])
-ORDER BY created_at DESC LIMIT $3 OFFSET $2
+WHERE ($1::uuid[] IS NULL OR channel_id = ANY($1::uuid[]))
+  AND ($2::text = '' OR code ILIKE '%' || $2::text || '%' OR recipient_email ILIKE '%' || $2::text || '%')
+ORDER BY created_at DESC LIMIT $4 OFFSET $3
 `
 
 type ListGiftCardsParams struct {
 	ChannelIds []uuid.UUID `json:"channel_ids"`
+	Search     string      `json:"search"`
 	Off        int32       `json:"off"`
 	Lim        int32       `json:"lim"`
 }
 
+// search matches the code or the recipient's email; CountGiftCards keeps the same WHERE so a page's total agrees with its rows
 func (q *Queries) ListGiftCards(ctx context.Context, arg ListGiftCardsParams) ([]GiftCard, error) {
-	rows, err := q.db.QueryContext(ctx, listGiftCards, pq.Array(arg.ChannelIds), arg.Off, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, listGiftCards,
+		pq.Array(arg.ChannelIds),
+		arg.Search,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}

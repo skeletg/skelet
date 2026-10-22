@@ -126,7 +126,7 @@ export function SynapseSegments() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        title="Segments"
+        title="Behavioural segments"
         badges={isChannel ? <Badge variant="secondary">{selectedChannel?.name}</Badge> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">

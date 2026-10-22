@@ -41,10 +41,16 @@ export function StoreClock() {
     }
   }, [timezone])
 
+  // The clock shows minutes, so it ticks on each minute boundary - every zone's offset is whole minutes - instead of
+  // re-rendering the sidebar every second
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
+    const untilNextMinute = () => 60_000 - (Date.now() % 60_000)
+    let id = setTimeout(function tick() {
+      setNow(new Date())
+      id = setTimeout(tick, untilNextMinute())
+    }, untilNextMinute())
+    return () => clearTimeout(id)
   }, [])
 
   if (!formatter) return null

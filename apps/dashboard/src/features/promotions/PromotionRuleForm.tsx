@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '@tanstack/react-form'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -43,7 +43,8 @@ import {
   DetailPageBody,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { Badge } from '@/components/ui/badge'
 import { ColorPicker } from '@/components/ColorPicker'
 import { MediaPicker } from '@/components/MediaPicker'
@@ -59,6 +60,7 @@ import {
   DeletePromotionRuleContentDocument,
   PromotionActionTypesDocument,
   PromotionConditionTypesDocument,
+  PromotionRuleCodesDocument,
   PromotionRuleDocument,
   UpdatePromotionCodeDocument,
   UpdatePromotionRuleDocument,
@@ -80,19 +82,10 @@ import {
 } from './typeCategory'
 import { PluginSections } from '@/plugins/detail-sections'
 import { FORM_WIDGETS } from './widgets/registry'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { slugify } from '@/lib/slug'
 
 // ---- Types ----
-
-// slugify turns "Free Shipping (DACH)!" into "free-shipping-dach" - Used by the create flow to derive a slug from the name as the operator
-// types, so they don't have to repeat themselves - Edit pages keep the existing slug - URL stability matters more than re-derivation
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 type ConditionRow = {
   type: string
@@ -101,7 +94,6 @@ type ConditionRow = {
   paramsVersion?: number
   sortOrder?: number
 }
-
 
 type CodeRow = PromotionCodeFieldsFragment
 
@@ -380,14 +372,12 @@ function RuleEditor({
                 onChange={(id) => form.setFieldValue('labelMediaId', id ?? '')}
                 label="Label image (PLP corner sticker)"
                 description="Overlaid on product listing cards. Use a transparent PNG / SVG so it sits cleanly over the product photo."
-                mimeGroup="IMAGE"
               />
               <MediaPicker
                 value={values.bannerMediaId || null}
                 onChange={(id) => form.setFieldValue('bannerMediaId', id ?? '')}
                 label="Banner image (PDP hero strip)"
                 description="Rendered between the gallery and the price on product detail pages. Landscape orientation works best."
-                mimeGroup="IMAGE"
                 previewClassName="size-24 w-40"
               />
             </div>
@@ -498,7 +488,7 @@ function RuleEditor({
           </DetailPageSection>
         </fieldset>
 
-        {isEdit ? <CodesSection ruleId={rule.id} codes={rule.codes.items} onChanged={onSaved} /> : null}
+        {isEdit ? <CodesSection ruleId={rule.id} /> : null}
         <PluginSections target="promotion" entity={rule ?? null} mode={isEdit ? 'edit' : 'create'} />
       </DetailPageBody>
       <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={record.label} sections={registry.dirtySections} />
@@ -658,6 +648,7 @@ function RuleSubrow({
   onMoveUp?: () => void
   onMoveDown?: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const current = types.find((t) => t.slug === row.type)
   const schema = current?.paramsSchema as JSONSchema | undefined
   const cat = row.type ? categorize(row.type, kind) : null
@@ -708,11 +699,14 @@ function RuleSubrow({
             variant="ghost"
             size="icon"
             className="size-7"
-            onClick={() => {
-              if (window.confirm(`Change ${kind} type? This will clear the current parameters.`)) {
-                onChange({ ...row, type: '', params: {} })
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: `Change ${kind} type?`,
+                description: 'This will clear the current parameters.',
+                confirmLabel: 'Change type',
+                onConfirm: () => onChange({ ...row, type: '', params: {} }),
+              })
+            }
             aria-label="Change type"
           >
             <PencilIcon className="size-4" />
@@ -744,6 +738,7 @@ function RuleSubrow({
           </p>
         )}
       </div>
+      {confirmDialog}
     </div>
   )
 }
@@ -833,16 +828,26 @@ function TypePicker({
 
 // ---- Codes ----
 
-function CodesSection({
-  ruleId,
-  codes,
-  onChanged,
-}: {
-  ruleId: string
-  codes: CodeRow[]
-  onChanged?: () => void
-}) {
+function CodesSection({ ruleId }: { ruleId: string }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [openGen, setOpenGen] = useState(false)
+  // Server-paged and searched - its own URL keys, so the page's other params stay clear
+  const urlState = useListUrlState({ key: 'codes' })
+  const { pagination, globalFilter: search, columnFilters } = urlState
+  const debouncedSearch = useDebounced(search.trim(), 300)
+  // Both statuses ticked, or neither, is no filter at all
+  const active = columnFilters.find((f) => f.id === 'isActive')?.value as string[] | undefined
+  const { data, loading, error, refetch } = useQuery(PromotionRuleCodesDocument, {
+    variables: {
+      id: ruleId,
+      search: debouncedSearch || null,
+      isActive: active?.length === 1 ? active[0] === 'true' : null,
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+    },
+  })
+  const codes: CodeRow[] = data?.promotionRule?.codes.items ?? []
+  const onChanged = useCallback(() => void refetch(), [refetch])
   const [deleteCode] = useMutation(DeletePromotionCodeDocument)
   const [updateCode] = useMutation(UpdatePromotionCodeDocument)
   // Codes use the shared DataTable so search / sort / pagination /
@@ -908,11 +913,17 @@ function CodesSection({
             variant="ghost"
             size="icon"
             className="size-8"
-            onClick={async () => {
-              if (!window.confirm(`Delete code ${row.original.code}?`)) return
-              await deleteCode({ variables: { id: row.original.id } })
-              onChanged?.()
-            }}
+            onClick={() =>
+              confirm({
+                title: `Delete code ${row.original.code}?`,
+                confirmLabel: 'Delete code',
+                destructive: true,
+                onConfirm: async () => {
+                  await deleteCode({ variables: { id: row.original.id } })
+                  onChanged?.()
+                },
+              })
+            }
             aria-label="Delete code"
           >
             <Trash2Icon className="size-4" />
@@ -920,7 +931,7 @@ function CodesSection({
         ),
       },
     ],
-    [deleteCode, updateCode, onChanged],
+    [deleteCode, updateCode, onChanged, confirm],
   )
 
   return (
@@ -931,10 +942,20 @@ function CodesSection({
       <DataTable
         columns={columns}
         data={codes}
+        loading={loading && codes.length === 0}
+        error={error ? { message: error.message } : null}
+        manual={{
+          rowCount: data?.promotionRule?.codes.totalCount ?? 0,
+          pagination,
+          onPaginationChange: urlState.setPagination,
+          globalFilter: search,
+          onGlobalFilterChange: urlState.setGlobalFilter,
+          columnFilters,
+          onColumnFiltersChange: urlState.setColumnFilters,
+        }}
         getRowId={(row) => row.id}
         emptyState="No codes yet. Generate a batch to get started."
         searchPlaceholder="Search code…"
-        initialSorting={[{ id: 'code', desc: false }]}
         filters={[
           {
             column: 'isActive',
@@ -959,6 +980,7 @@ function CodesSection({
         onOpenChange={setOpenGen}
         onGenerated={onChanged}
       />
+      {confirmDialog}
     </DetailPageSection>
   )
 }

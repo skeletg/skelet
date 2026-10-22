@@ -3,25 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { CheckCircle2Icon, CircleOffIcon, PlusIcon, Trash2Icon } from 'lucide-react'
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import {
   BlogAuthorsDocument,
   BlogCategoriesDocument,
@@ -111,21 +97,14 @@ function useTaxonomyDelete<T extends { id: string }>(
   refetch: any,
 ) {
   const [target, setTarget] = useState<T | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [run, { loading }] = useMutation(document, {
+  const [run] = useMutation(document, {
     refetchQueries: [{ query: refetch }],
   })
   async function confirm() {
     if (!target) return
-    setError(null)
-    try {
-      await run({ variables: { id: target.id } })
-      setTarget(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await run({ variables: { id: target.id } })
   }
-  return { target, setTarget, error, setError, loading, confirm }
+  return { target, setTarget, confirm }
 }
 
 // ---------- Categories ----------
@@ -198,10 +177,7 @@ function CategoriesTable() {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
-              onClick={() => {
-                del.setError(null)
-                del.setTarget(row.original)
-              }}
+              onClick={() => del.setTarget(row.original)}
             >
               <Trash2Icon className="size-3.5" />
             </Button>
@@ -243,16 +219,14 @@ function CategoriesTable() {
           )
         }
       />
-      <DeleteDialog
-        target={del.target}
+      <ConfirmDialog
+        open={!!del.target}
+        onOpenChange={(o) => !o && del.setTarget(null)}
         title={del.target ? `Delete ${localizedName(del.target, del.target.slug)}?` : ''}
         description="This category must have no children. This action cannot be undone."
-        error={del.error}
-        loading={del.loading}
-        onCancel={() => {
-          del.setTarget(null)
-          del.setError(null)
-        }}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
         onConfirm={del.confirm}
       />
     </>
@@ -304,10 +278,7 @@ function TagsTable() {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
-              onClick={() => {
-                del.setError(null)
-                del.setTarget(row.original)
-              }}
+              onClick={() => del.setTarget(row.original)}
             >
               <Trash2Icon className="size-3.5" />
             </Button>
@@ -349,16 +320,14 @@ function TagsTable() {
           )
         }
       />
-      <DeleteDialog
-        target={del.target}
+      <ConfirmDialog
+        open={!!del.target}
+        onOpenChange={(o) => !o && del.setTarget(null)}
         title={del.target ? `Delete #${localizedName(del.target, del.target.slug)}?` : ''}
         description="This removes the tag from every post it's attached to. This action cannot be undone."
-        error={del.error}
-        loading={del.loading}
-        onCancel={() => {
-          del.setTarget(null)
-          del.setError(null)
-        }}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
         onConfirm={del.confirm}
       />
     </>
@@ -410,10 +379,7 @@ function AuthorsTable() {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
-              onClick={() => {
-                del.setError(null)
-                del.setTarget(row.original)
-              }}
+              onClick={() => del.setTarget(row.original)}
             >
               <Trash2Icon className="size-3.5" />
             </Button>
@@ -445,68 +411,16 @@ function AuthorsTable() {
           )
         }
       />
-      <DeleteDialog
-        target={del.target}
+      <ConfirmDialog
+        open={!!del.target}
+        onOpenChange={(o) => !o && del.setTarget(null)}
         title={del.target ? `Delete ${del.target.displayName}?` : ''}
         description="This removes the author. Posts referencing it lose their byline. This action cannot be undone."
-        error={del.error}
-        loading={del.loading}
-        onCancel={() => {
-          del.setTarget(null)
-          del.setError(null)
-        }}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
         onConfirm={del.confirm}
       />
     </>
-  )
-}
-
-// ---------- shared delete dialog ----------
-
-function DeleteDialog({
-  target,
-  title,
-  description,
-  error,
-  loading,
-  onCancel,
-  onConfirm,
-}: {
-  target: unknown
-  title: string
-  description: string
-  error: string | null
-  loading: boolean
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  return (
-    <AlertDialog open={!!target} onOpenChange={(o) => !o && onCancel()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>Delete failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={loading}
-            onClick={(e) => {
-              e.preventDefault()
-              onConfirm()
-            }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {loading ? 'Deleting…' : 'Delete'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   )
 }

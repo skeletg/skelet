@@ -1,4 +1,5 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, meMock, renderPage } from '@/test/page-harness'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
@@ -11,6 +12,8 @@ import {
   UpdateMenuDocument,
   UpdateMenuItemDocument,
   UpsertMenuItemTranslationDocument,
+  DeleteMenuDocument,
+  DeleteMenuItemDocument,
 } from './Menus.gql'
 
 // What these pin: the menu's name and channels go through the one header Save (they had a Save
@@ -63,13 +66,14 @@ const recorder = (fn: (v: Record<string, unknown>) => void) => (vars: Record<str
   return true
 }
 
-function renderMenu() {
+function renderMenu(extra: MockLink.MockedResponse[] = []) {
   const writes = { menu: vi.fn(), stores: vi.fn(), item: vi.fn(), upsert: vi.fn(), remove: vi.fn() }
   renderPage({
     path: '/menus/m1',
     adminId: 'admin-1',
     routes: { '/menus/:id': <MenuDetail /> },
     mocks: [
+      ...extra,
       meMock(),
       { request: { query: MenuDetailDocument, variables: { id: 'm1' } }, result: { data: { menu } }, maxUsageCount: 5 },
       { request: { query: ChannelsDocument }, result: { data: { channels: [channel('c1', 'Wheels')] } }, maxUsageCount: 3 },
@@ -119,5 +123,31 @@ describe('MenuDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     expect(await within(dialog).findByText('URL is required')).toBeDefined()
     expect(writes.item).not.toHaveBeenCalled()
+  })
+})
+
+// Both deletes confirm through the shared ConfirmDialog without waiting on the server: the dialog closes as soon as
+// it is confirmed, and a refused menu delete still reports on the page
+describe('MenuDetail deletes', () => {
+  it('closes the menu delete at once and reports a refusal on the page', async () => {
+    renderMenu([{ request: { query: DeleteMenuDocument, variables: { id: 'm1' } }, result: { errors: [{ message: 'menu is in use' }] }, delay: 500 }])
+    // The header's Delete comes before the tree row's (both are named Delete)
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete' }, SLOW))[0])
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete menu' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), { timeout: 200 })
+    expect(await screen.findByText('menu is in use', {}, SLOW)).toBeDefined()
+  })
+
+  it('closes an item delete at once and sends it', async () => {
+    const deleted = vi.fn(() => ({ data: { deleteMenuItem: true } }))
+    renderMenu([{ request: { query: DeleteMenuItemDocument, variables: { id: 'i1' } }, result: deleted, delay: 500 }])
+    await screen.findByText('Shop', {}, SLOW)
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete' }, SLOW)).at(-1)!)
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    // Well inside the server's 500ms - an awaited delete would still be open
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), { timeout: 200 })
+    await waitFor(() => expect(deleted).toHaveBeenCalled(), SLOW)
   })
 })

@@ -2,16 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { DownloadIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +20,7 @@ import {
   UpdateProductDownloadDocument,
   type ProductDownloadFieldsFragment,
 } from './Catalog.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type WithDownloads = {
   id: string
@@ -55,7 +46,7 @@ export function ProductDownloadsSection({
   const refetchQueries = [{ query: ProductDocument, variables: { id: product.id } }]
   const [addDownload, { loading: creating }] = useMutation(AddProductDownloadDocument, { refetchQueries })
   const [updateDownload, { loading: updating }] = useMutation(UpdateProductDownloadDocument, { refetchQueries })
-  const [removeDownload, { loading: deleting }] = useMutation(RemoveProductDownloadDocument, { refetchQueries })
+  const [removeDownload] = useMutation(RemoveProductDownloadDocument, { refetchQueries })
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ProductDownloadFieldsFragment | null>(null)
@@ -112,13 +103,7 @@ export function ProductDownloadsSection({
 
   async function handleDelete() {
     if (!toDelete) return
-    setMutationError(null)
-    try {
-      await removeDownload({ variables: { id: toDelete.id } })
-      setToDelete(null)
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await removeDownload({ variables: { id: toDelete.id } })
   }
 
   return (
@@ -156,7 +141,7 @@ export function ProductDownloadsSection({
                 </Badge>
                 {canManage && (
                   <>
-                    <Button
+                    <Button aria-label="Edit download"
                       type="button"
                       variant="ghost"
                       size="icon"
@@ -165,7 +150,7 @@ export function ProductDownloadsSection({
                     >
                       <PencilIcon className="size-3.5" />
                     </Button>
-                    <Button
+                    <Button aria-label="Delete download"
                       type="button"
                       variant="ghost"
                       size="icon"
@@ -207,27 +192,21 @@ export function ProductDownloadsSection({
         onSubmit={handleFormSubmit}
       />
 
-      <AlertDialog open={Boolean(toDelete)} onOpenChange={(v) => { if (!v) setToDelete(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove download?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Removes <span className="font-medium">{toDelete?.title}</span> from this product.
-              Existing grants already issued to customers keep working.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); handleDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Removing…' : 'Remove download'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onOpenChange={(v) => { if (!v) setToDelete(null) }}
+        title="Remove download?"
+        description={
+          <>
+            Removes <span className="font-medium">{toDelete?.title}</span> from this product.
+            Existing grants already issued to customers keep working.
+          </>
+        }
+        confirmLabel="Remove download"
+        busyLabel="Removing…"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

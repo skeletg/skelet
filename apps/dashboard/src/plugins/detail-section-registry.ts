@@ -37,7 +37,3 @@ export function getDetailSections(
     .slice()
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
 }
-
-export function __resetDetailSectionsForTests() {
-  sections.length = 0
-}

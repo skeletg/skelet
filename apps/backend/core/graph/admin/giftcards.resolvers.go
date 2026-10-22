@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -78,23 +77,22 @@ func (r *queryResolver) GiftCards(ctx context.Context, limit *int32, offset *int
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "giftcards.view"); err != nil {
 		return nil, err
 	}
-	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "giftcards.view")
+	page, err := r.giftCardPage(ctx, "", limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	var scope []uuid.UUID
-	if !permitted.Bypass() {
-		scope = append([]uuid.UUID{}, permitted.IDs()...)
-	}
-	cards, err := r.GiftcardSvc.ListForChannels(ctx, scope, int32Or(limit, 50), int32Or(offset, 0))
-	if err != nil {
+	return page.Items, nil
+}
+
+func (r *queryResolver) GiftCardsPaged(ctx context.Context, search *string, limit *int32, offset *int32) (*model.GiftCardPage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "giftcards.view"); err != nil {
 		return nil, err
 	}
-	out := make([]*model.GiftCard, len(cards))
-	for i, c := range cards {
-		out[i] = toGiftCardModel(c, nil)
+	s := ""
+	if search != nil {
+		s = *search
 	}
-	return out, nil
+	return r.giftCardPage(ctx, s, limit, offset)
 }
 
 func (r *queryResolver) GiftCard(ctx context.Context, code string) (*model.GiftCard, error) {

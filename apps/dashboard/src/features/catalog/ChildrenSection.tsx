@@ -8,16 +8,6 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +40,7 @@ import {
   ProductDocument,
   RemoveProductChildDocument,
 } from './Catalog.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type ChildProduct = {
   id: string
@@ -109,22 +100,15 @@ export function ChildrenSection({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState<ChildProduct | null>(null)
-  const [removeError, setRemoveError] = useState<string | null>(null)
 
   const refetch = [{ query: ProductDocument, variables: { id: product.id } }]
-  const [removeChild, { loading: removing }] = useMutation(RemoveProductChildDocument, {
+  const [removeChild] = useMutation(RemoveProductChildDocument, {
     refetchQueries: refetch,
   })
 
   async function onConfirmRemove() {
     if (!confirmingRemove) return
-    setRemoveError(null)
-    try {
-      await removeChild({ variables: { parentId: product.id, childId: confirmingRemove.id } })
-      setConfirmingRemove(null)
-    } catch (e) {
-      setRemoveError(e instanceof Error ? e.message : 'Remove failed.')
-    }
+    await removeChild({ variables: { parentId: product.id, childId: confirmingRemove.id } })
   }
 
   // Look up each option attribute's full value set from the product type's attribute list (configurableOptions only
@@ -234,7 +218,7 @@ export function ChildrenSection({
                           variant="ghost"
                           size="icon"
                           className="size-7"
-                          onClick={() => { setRemoveError(null); setConfirmingRemove(c) }}
+                          onClick={() => setConfirmingRemove(c)}
                           aria-label={`Remove ${c.name ?? c.sku ?? ''}`}
                         >
                           <Trash2Icon className="size-3.5" />
@@ -259,35 +243,16 @@ export function ChildrenSection({
         />
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRemove}
-        onOpenChange={(v) => { if (!v) { setConfirmingRemove(null); setRemoveError(null) } }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove {confirmingRemove?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This unlinks the child from this configurable product. The child product itself is not deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {removeError && (
-            <Alert variant="destructive">
-              <AlertTitle>Remove failed</AlertTitle>
-              <AlertDescription>{removeError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={removing}
-              onClick={(e) => { e.preventDefault(); onConfirmRemove() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {removing ? 'Removing…' : 'Remove child'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(v) => { if (!v) setConfirmingRemove(null) }}
+        title={<>Remove {confirmingRemove?.name}?</>}
+        description="This unlinks the child from this configurable product. The child product itself is not deleted."
+        confirmLabel="Remove child"
+        busyLabel="Removing…"
+        destructive
+        onConfirm={onConfirmRemove}
+      />
     </>
   )
 

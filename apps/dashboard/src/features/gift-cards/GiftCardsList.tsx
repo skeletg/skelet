@@ -5,8 +5,10 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -14,16 +16,6 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCents } from '@/lib/format'
+import { currencyDecimals, formatCents, toMinor } from '@/lib/format'
 import {
   AdjustGiftCardDocument,
   DisableGiftCardDocument,
@@ -60,9 +52,8 @@ import {
   type GiftCardsAdminListQuery,
 } from './GiftCards.gql'
 
-type GiftCardRow = GiftCardsAdminListQuery['giftCards'][number]
+type GiftCardRow = GiftCardsAdminListQuery['giftCardsPaged']['items'][number]
 
-const LIST_VARS = { limit: 100, offset: 0 }
 
 function statusVariant(
   status: string,
@@ -78,21 +69,20 @@ function statusVariant(
   }
 }
 
-// majorToCents converts a user-entered amount in major units (e.g. "50.00") to integer minor units - Assumes 2-decimal
-// currencies, which covers the common case; cent-exact entry is also accepted via the same field
-function majorToCents(v: string): number | null {
-  const n = Number(v)
-  if (!Number.isFinite(n)) return null
-  return Math.round(n * 100)
-}
 
 export function GiftCardsList() {
-  // URL-backed, so a filtered view survives navigation and can be pasted to someone else
+  // Server-paged and searched, URL-backed so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
+  const { pagination, globalFilter: search } = urlState
+  const debouncedSearch = useDebounced(search.trim(), 300)
   const { data, loading, error } = useQuery(GiftCardsAdminListDocument, {
-    variables: LIST_VARS,
+    variables: {
+      search: debouncedSearch || null,
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pagination.pageSize,
+    },
   })
-  const rows = useMemo(() => data?.giftCards ?? [], [data])
+  const rows = useMemo(() => data?.giftCardsPaged.items ?? [], [data])
 
   const [issueOpen, setIssueOpen] = useState(false)
   const [adjusting, setAdjusting] = useState<GiftCardRow | null>(null)
@@ -161,7 +151,7 @@ export function GiftCardsList() {
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button aria-label="Gift card actions" variant="ghost" size="icon" className="size-8">
                 <MoreHorizontalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -197,13 +187,21 @@ export function GiftCardsList() {
       <DetailPageBody>
         <DetailPageSection>
           <DataTable
-            urlState={urlState}
+            manual={{
+              rowCount: data?.giftCardsPaged.totalCount ?? 0,
+              pagination,
+              onPaginationChange: urlState.setPagination,
+              globalFilter: search,
+              onGlobalFilterChange: urlState.setGlobalFilter,
+              columnFilters: urlState.columnFilters,
+              onColumnFiltersChange: urlState.setColumnFilters,
+            }}
             columns={columns}
             data={rows}
-            loading={loading}
+            loading={loading && rows.length === 0}
             error={error ? { message: error.message } : null}
             getRowId={(row) => row.id}
-            searchPlaceholder="Search…"
+            searchPlaceholder="Search code or recipient…"
             emptyState="No gift cards yet."
             toolbarRightSlot={
               <Button size="sm" onClick={() => setIssueOpen(true)}>
@@ -246,7 +244,7 @@ function IssueGiftCardDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [issue, { loading }] = useMutation(IssueGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   function reset() {
@@ -261,7 +259,7 @@ function IssueGiftCardDialog({
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setSubmitError(null)
-    const cents = majorToCents(amount)
+    const cents = toMinor(amount, currencyCode.trim().toUpperCase())
     if (cents == null || cents <= 0) {
       setSubmitError('Enter a positive amount.')
       return
@@ -323,7 +321,7 @@ function IssueGiftCardDialog({
                 required
                 type="number"
                 min="0"
-                step="0.01"
+                step={currencyCode ? 10 ** -currencyDecimals(currencyCode.trim().toUpperCase()) : 0.01}
                 placeholder="50.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -395,7 +393,7 @@ function IssueGiftCardDialog({
   )
 }
 
-function AdjustGiftCardDialog({
+export function AdjustGiftCardDialog({
   card,
   onClose,
 }: {
@@ -407,14 +405,14 @@ function AdjustGiftCardDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [adjust, { loading }] = useMutation(AdjustGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!card) return
     setSubmitError(null)
-    const cents = majorToCents(amount)
+    const cents = toMinor(amount, card.currencyCode)
     if (cents == null || cents === 0) {
       setSubmitError('Enter a non-zero amount (negative to deduct).')
       return
@@ -457,7 +455,7 @@ function AdjustGiftCardDialog({
               id="gc-adjust-amount"
               required
               type="number"
-              step="0.01"
+              step={card ? 10 ** -currencyDecimals(card.currencyCode) : 0.01}
               placeholder="-10.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -499,63 +497,26 @@ function DisableGiftCardConfirm({
   card: GiftCardRow | null
   onClose: () => void
 }) {
-  const [err, setErr] = useState<string | null>(null)
-  const [disable, { loading }] = useMutation(DisableGiftCardDocument, {
-    refetchQueries: [{ query: GiftCardsAdminListDocument, variables: LIST_VARS }],
+  const [disable] = useMutation(DisableGiftCardDocument, {
+    refetchQueries: [GiftCardsAdminListDocument],
   })
 
   async function onConfirm() {
     if (!card) return
-    setErr(null)
-    try {
-      await disable({ variables: { id: card.id } })
-      onClose()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Disable failed.')
-    }
+    await disable({ variables: { id: card.id } })
   }
 
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={!!card}
-      onOpenChange={(v) => {
-        if (!v) {
-          setErr(null)
-          onClose()
-        }
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Disable {card?.code}?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            The card can no longer be redeemed. Its remaining balance is kept on
-            record but becomes unusable. This can&apos;t be undone from here.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {err && (
-          <Alert variant="destructive">
-            <AlertTitle>Disable failed</AlertTitle>
-            <AlertDescription>{err}</AlertDescription>
-          </Alert>
-        )}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={loading}
-            onClick={(e) => {
-              e.preventDefault()
-              onConfirm()
-            }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {loading ? 'Disabling…' : 'Disable card'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      onOpenChange={(v) => !v && onClose()}
+      title={<>Disable {card?.code}?</>}
+      description="The card can no longer be redeemed. Its remaining balance is kept on record but becomes unusable. This can't be undone from here."
+      confirmLabel="Disable card"
+      busyLabel="Disabling…"
+      destructive
+      onConfirm={onConfirm}
+    />
   )
 }
 

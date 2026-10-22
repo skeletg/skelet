@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { LayersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -40,6 +40,7 @@ export function ApplyScopePopover({
   disabled?: boolean
   onApply: (channelId: string | null, locale: string | null) => void
 }) {
+  const fid = useId()
   const [open, setOpen] = useState(false)
   const [channelId, setChannelId] = useState<string>('')
   const [locale, setLocale] = useState<string>('')
@@ -84,7 +85,7 @@ export function ApplyScopePopover({
             Appends one scope to every permission already granted in this group. Doesn't replace existing scopes.
           </p>
           <div className="grid gap-1.5">
-            <Label className="text-xs">Channel</Label>
+            <Label htmlFor={`${fid}-channel`} className="text-xs">Channel</Label>
             <Select
               value={channelId === '' ? ANY : channelId}
               onValueChange={(v) => {
@@ -92,7 +93,7 @@ export function ApplyScopePopover({
                 setLocale('')
               }}
             >
-              <SelectTrigger className="h-8">
+              <SelectTrigger id={`${fid}-channel`} className="h-8">
                 <SelectValue placeholder="Any channel" />
               </SelectTrigger>
               <SelectContent>
@@ -106,12 +107,12 @@ export function ApplyScopePopover({
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs">Locale</Label>
+            <Label htmlFor={`${fid}-locale`} className="text-xs">Locale</Label>
             <Select
               value={locale === '' ? ANY : locale}
               onValueChange={(v) => setLocale(v === ANY ? '' : v)}
             >
-              <SelectTrigger className="h-8">
+              <SelectTrigger id={`${fid}-locale`} className="h-8">
                 <SelectValue placeholder="Any locale" />
               </SelectTrigger>
               <SelectContent>

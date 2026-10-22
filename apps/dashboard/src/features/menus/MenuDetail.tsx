@@ -3,17 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -135,10 +126,10 @@ function MenuForm({ menu }: { menu: Menu }) {
   // updateMenu in the same save, and updateMenu's bare-row answer (no channels) can otherwise land
   // last through its own refetch
   const [setMenuStores] = useMutation(SetMenuStoresDocument, { refetchQueries: listRefetch })
-  const [deleteMenu, { loading: deletingMenu }] = useMutation(DeleteMenuDocument, { refetchQueries: [{ query: MenusListDocument }] })
+  const [deleteMenu, { loading: deletingMenu }] = useMutation(DeleteMenuDocument, { refetchQueries: [MenusListDocument] })
   const [createMenuItem] = useMutation(CreateMenuItemDocument, { refetchQueries })
   const [updateMenuItem] = useMutation(UpdateMenuItemDocument, { refetchQueries })
-  const [deleteMenuItem, { loading: deletingItem }] = useMutation(DeleteMenuItemDocument, { refetchQueries })
+  const [deleteMenuItem] = useMutation(DeleteMenuItemDocument, { refetchQueries })
   // Answers with the whole hydrated menu, the same one the detail query reads
   const [reorderMenuItems] = useMutation(ReorderMenuItemsDocument)
   const [upsertTranslation] = useMutation(UpsertMenuItemTranslationDocument, { refetchQueries })
@@ -367,56 +358,29 @@ function MenuForm({ menu }: { menu: Menu }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmingDelete !== null} onOpenChange={(open) => !open && setConfirmingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete menu item?</AlertDialogTitle>
-            <AlertDialogDescription>Children of this item are deleted along with it.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingItem}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (!confirmingDelete) return
-                await deleteMenuItem({ variables: { id: confirmingDelete.id } })
-                setConfirmingDelete(null)
-              }}
-              disabled={deletingItem}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={confirmingMenuDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingMenuDelete(false)
-            setDeleteMenuError(null)
-          }
+      <ConfirmDialog
+        open={confirmingDelete !== null}
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title="Delete menu item?"
+        description="Children of this item are deleted along with it."
+        confirmLabel="Delete"
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => {
+          if (confirmingDelete) void deleteMenuItem({ variables: { id: confirmingDelete.id } })
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {menu.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the menu and every item inside it. Channels referencing the slug fall back to their empty state.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingMenu}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onConfirmMenuDelete}
-              disabled={deletingMenu}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deletingMenu ? 'Deleting…' : 'Delete menu'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
+
+      <ConfirmDialog
+        open={confirmingMenuDelete}
+        onOpenChange={setConfirmingMenuDelete}
+        title={<>Delete {menu.name}?</>}
+        description="This removes the menu and every item inside it. Channels referencing the slug fall back to their empty state."
+        confirmLabel="Delete menu"
+        busyLabel="Deleting…"
+        destructive
+        // Not awaited: the dialog closes at once and a failure shows on the page, as it always has
+        onConfirm={() => void onConfirmMenuDelete()}
+      />
     </RecordFormPage>
   )
 }

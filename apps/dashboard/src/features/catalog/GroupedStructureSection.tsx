@@ -7,16 +7,6 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -59,6 +49,7 @@ import {
 import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
 import { quantityColumn } from './product-picker-columns'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Grouped = {
   id: string
@@ -146,7 +137,6 @@ export function GroupedStructureSection({
 
   function onRemoveMember(member: GroupedMember) {
     stage({ kind: 'remove-member', id: member.id })
-    setConfirmingRemove(null)
   }
 
   return (
@@ -265,36 +255,19 @@ export function GroupedStructureSection({
         />
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRemove}
         onOpenChange={(v) => {
           if (!v) setConfirmingRemove(null)
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Remove {confirmingRemove?.member.name ?? confirmingRemove?.member.sku ?? ''} from this group?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Stages the member for removal. The product itself isn't deleted - only the link to this
-              group is removed when you confirm the page-level save.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                if (confirmingRemove) onRemoveMember(confirmingRemove)
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Stage remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={<>Remove {confirmingRemove?.member.name ?? confirmingRemove?.member.sku ?? ''} from this group?</>}
+        description="Stages the member for removal. The product itself isn't deleted - only the link to this group is removed when you confirm the page-level save."
+        confirmLabel="Stage remove"
+        destructive
+        onConfirm={() => {
+          if (confirmingRemove) onRemoveMember(confirmingRemove)
+        }}
+      />
     </div>
   )
 }

@@ -23,7 +23,9 @@ import (
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -279,6 +281,8 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		URLRewriteSvc:        s.URLRewrite,
 		MenuSvc:              s.Menu,
 		ProductSearch:        s.SearchTier.Engine,
+		AttributeCache:       s.SearchTier.Attributes,
+		Metadata:             newFrontMetadataCache(s.Bus),
 		BlogPostSearch:       s.SearchTier.Posts,
 		ReviewSvc:            s.Review,
 		WebFormSvc:           s.WebForm,
@@ -444,3 +448,18 @@ func selectionDepth(sels ast.SelectionSet, frags ast.FragmentDefinitionList, dep
 
 // maxQueryDepth caps how deeply a storefront GraphQL query may nest - guards the recursive catalog edges against depth-amplification DoS (see the AroundOperations hook on frontSrv) - 15 clears the deepest legitimate fetch with headroom
 const maxQueryDepth = 15
+
+// Same TTL and events as the search tier's attribute cache, so storefront attribute metadata goes stale on one schedule
+func newFrontMetadataCache(bus *events.Bus) *graphfront.MetadataCache {
+	c := graphfront.NewMetadataCache(30 * time.Second)
+	if bus == nil {
+		return c
+	}
+	for _, ev := range []string{catalog.EventAttributeUpdated, catalog.EventAttributeDeleted, catalog.EventAttributeValueSlugChanged, catalog.EventProductTypeURLTemplateChanged} {
+		bus.Subscribe(ev, func(context.Context, events.Event) error {
+			c.Invalidate()
+			return nil
+		})
+	}
+	return c
+}

@@ -57,6 +57,7 @@ import {
   type AllUrlRewritesQuery,
 } from './Catalog.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type UrlRewrite = AllUrlRewritesQuery['urlRewrites']['items'][number]
 type UrlEntityType = UrlRewrite['entityType']
@@ -142,7 +143,7 @@ export function UrlRewritesListPage() {
   const refetchQueries = ['AllUrlRewrites']
   const [createRewrite, { loading: creating }] = useMutation(CreateUrlRewriteDocument, { refetchQueries })
   const [updateRewrite, { loading: updating }] = useMutation(UpdateUrlRewriteDocument, { refetchQueries })
-  const [deleteRewrite, { loading: deleting }] = useMutation(DeleteUrlRewriteDocument, { refetchQueries })
+  const [deleteRewrite] = useMutation(DeleteUrlRewriteDocument, { refetchQueries })
   const [createRedirect, { loading: redirecting }] = useMutation(CreateUrlRewriteRedirectDocument, { refetchQueries })
   const [syncCanonical, { loading: syncing }] = useMutation(SyncCanonicalUrlRewriteDocument, { refetchQueries })
   const [purgeEntity, { loading: purging }] = useMutation(DeleteUrlRewritesForEntityDocument, { refetchQueries })
@@ -155,7 +156,6 @@ export function UrlRewritesListPage() {
   const [syncFor, setSyncFor] = useState<UrlRewrite | null>(null)
   const [toPurge, setToPurge] = useState<UrlRewrite | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [purgeError, setPurgeError] = useState<string | null>(null)
 
   // The dialogs need the entity's rows across every channel - fetched per entity, since the
@@ -248,13 +248,7 @@ export function UrlRewritesListPage() {
 
   async function handleDelete() {
     if (!toDelete) return
-    setDeleteError(null)
-    try {
-      await deleteRewrite({ variables: { id: toDelete.id } })
-      setToDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteRewrite({ variables: { id: toDelete.id } })
   }
 
   async function handleCreateRedirect(values: { fromPath: string; redirectType: number }) {
@@ -487,10 +481,7 @@ export function UrlRewritesListPage() {
                 <DropdownMenuItem
                   variant="destructive"
                   disabled={isProtected}
-                  onSelect={() => {
-                    setDeleteError(null)
-                    setToDelete(rewrite)
-                  }}
+                  onSelect={() => setToDelete(rewrite)}
                 >
                   Delete
                 </DropdownMenuItem>
@@ -687,36 +678,21 @@ export function UrlRewritesListPage() {
       </AlertDialog>
 
       {/* Delete confirmation */}
-      <AlertDialog
+      <ConfirmDialog
         open={Boolean(toDelete)}
-        onOpenChange={(v) => { if (!v) { setToDelete(null); setDeleteError(null) } }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete redirect?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes the redirect for{' '}
-              <code className="font-mono text-xs">{toDelete?.requestPath}</code>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); handleDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete redirect'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(v) => { if (!v) setToDelete(null) }}
+        title="Delete redirect?"
+        description={
+          <>
+            Permanently removes the redirect for{' '}
+            <code className="font-mono text-xs">{toDelete?.requestPath}</code>.
+          </>
+        }
+        confirmLabel="Delete redirect"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={handleDelete}
+      />
     </>
   )
 }

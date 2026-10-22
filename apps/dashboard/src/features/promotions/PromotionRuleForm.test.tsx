@@ -2,12 +2,12 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { PromotionRuleCreatePage, PromotionRuleEditPage } from './PromotionRuleForm'
-import { CreatePromotionRuleDocument, PromotionRuleDocument, UpdatePromotionRuleDocument } from './Promotions.gql'
+import { CreatePromotionRuleDocument, PromotionRuleCodesDocument, PromotionRuleDocument, UpdatePromotionRuleDocument } from './Promotions.gql'
 
 // What these pin: a condition row with no type is refused before the rule is created, and an edit now
 // goes through the review dialog (it used to write straight away) with the dates round-tripping intact
 
-// What every rule write answers with - the detail query adds contents and codes
+// What every rule write answers with - the detail query adds contents, and the codes table asks for its own page
 const ruleFields = {
   __typename: 'PromotionRule',
   id: 'r1',
@@ -41,7 +41,6 @@ const ruleFields = {
 const rule = {
   ...ruleFields,
   contents: [],
-  codes: { __typename: 'PromotionCodePage', items: [], totalCount: 0 },
 }
 
 afterEach(() => localStorage.clear())
@@ -80,6 +79,7 @@ describe('PromotionRuleForm', () => {
         meMock(),
         { request: { query: PromotionRuleDocument, variables: { id: 'r1' } }, result: { data: { promotionRule: rule } }, maxUsageCount: 3 },
         { request: { query: UpdatePromotionRuleDocument, variables: captureInput(onUpdate) }, result: { data: { updatePromotionRule: ruleFields } } },
+        codesMock(),
       ],
     })
 
@@ -92,4 +92,36 @@ describe('PromotionRuleForm', () => {
       expect.objectContaining({ id: 'r1', exclusivityGroup: 'summer', validFrom: '2026-03-01T09:30:00.000Z', actions: [{ type: 'percent_off', params: { percent: 10 }, sortOrder: 0 }] }),
     )
   })
+
+  // A rule can hold thousands of generated codes - the table used to load the first 1000 and search those in the
+  // browser, so the rest could never be found. Search, the Active filter and the page now reach the server
+  it('asks the server for the searched, filtered page of codes', async () => {
+    const asked = vi.fn()
+    const filter = encodeURIComponent(JSON.stringify([{ id: 'isActive', value: ['true'] }]))
+    renderPage({
+      path: `/promotions/r1?codes_q=spring&codes_f=${filter}&codes_size=10`,
+      adminId: 'admin-1',
+      routes: { '/promotions/:id': <PromotionRuleEditPage ruleId="r1" /> },
+      mocks: [
+        meMock(),
+        { request: { query: PromotionRuleDocument, variables: { id: 'r1' } }, result: { data: { promotionRule: rule } }, maxUsageCount: 3 },
+        codesMock(asked, 45),
+      ],
+    })
+    expect(await screen.findByText('SPRING-1', {}, SLOW)).toBeDefined()
+    expect(asked).toHaveBeenCalledWith({ id: 'r1', search: 'spring', isActive: true, limit: 10, offset: 0 })
+    expect(screen.getByText('45 rows')).toBeDefined()
+  })
 })
+
+function codesMock(asked = vi.fn(), totalCount = 0) {
+  const code = {
+    __typename: 'PromotionCode', id: 'c1', ruleId: 'r1', code: 'SPRING-1', maxUses: null, perCustomerLimit: null, validFrom: null,
+    validTo: null, restrictedToEmail: '', usedCount: 0, isActive: true, createdAt: '2026-03-01T00:00:00Z', updatedAt: '2026-03-01T00:00:00Z',
+  }
+  return {
+    request: { query: PromotionRuleCodesDocument, variables: captureInput(asked) },
+    result: { data: { promotionRule: { __typename: 'PromotionRule', id: 'r1', codes: { __typename: 'PromotionCodeList', items: totalCount ? [code] : [], totalCount } } } },
+    maxUsageCount: 3,
+  }
+}

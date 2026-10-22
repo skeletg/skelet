@@ -31,7 +31,7 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 		if v, ok := r.cachedSalable(ctx, productID); ok {
 			return v, nil
 		}
-		if r.primeGroupOnce(ctx, "salable", productID, func(ids []uuid.UUID) error { return r.primeSalable(ctx, ids, channelID) }) {
+		if r.primeGroupOnce(ctx, "stock", productID, func(ids []uuid.UUID) error { return r.primeStock(ctx, ids, channelID) }) {
 			if v, ok := r.cachedSalable(ctx, productID); ok {
 				return v, nil
 			}
@@ -132,7 +132,7 @@ func (r *productResolver) sellableByIDs(ctx context.Context, ids []uuid.UUID, ch
 	if len(ids) == 0 {
 		return out, nil
 	}
-	bySalable, err := r.InventorySvc.SalableByProductIDs(ctx, ids, channelID)
+	bySalable, backorderable, err := r.InventorySvc.StockByProductIDs(ctx, ids, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,12 +145,7 @@ func (r *productResolver) sellableByIDs(ctx context.Context, ids []uuid.UUID, ch
 			out[id] = true // missing key (untracked sentinel), unbounded, or positive
 			continue
 		}
-		item, err := r.InventorySvc.GetItemByProduct(ctx, id) // s == 0, so sellable only if the item is backorderable
-		if err != nil {
-			out[id] = false
-			continue
-		}
-		out[id] = item.Backorderable
+		out[id] = backorderable[id]
 	}
 	return out, nil
 }

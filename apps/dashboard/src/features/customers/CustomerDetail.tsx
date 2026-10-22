@@ -5,16 +5,6 @@ import { useStore } from '@tanstack/react-form'
 import { usePageTitle } from '@/lib/page-title'
 import { MailCheckIcon, MailXIcon, PlusIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -59,6 +49,7 @@ import {
   toCustomerValues,
   type CustomerValues,
 } from './schemas/customer'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type Customer = NonNullable<CustomerQuery['customer']>
 
@@ -127,10 +118,9 @@ function CustomerForm({ customer }: { customer: Customer }) {
   })
   const [addAddress] = useMutation(AdminAddAddressDocument, { refetchQueries: refetch })
   const [deleteAddress] = useMutation(AdminDeleteAddressDocument, { refetchQueries: refetch })
-  const [deleteCustomer, deleteState] = useMutation(DeleteCustomerDocument)
+  const [deleteCustomer] = useMutation(DeleteCustomerDocument)
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groupsQuery = useQuery(CustomerGroupsDocument)
   const groups = useMemo(() => groupsQuery.data?.customerGroups ?? [], [groupsQuery.data])
@@ -174,13 +164,8 @@ function CustomerForm({ customer }: { customer: Customer }) {
   const { form } = record
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteCustomer({ variables: { id } })
-      navigate('/customers', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteCustomer({ variables: { id } })
+    navigate('/customers', { replace: true })
   }
 
   return (
@@ -271,10 +256,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
               <Button
                 variant="destructive"
                 disabled={!canManage}
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
+                onClick={() => setConfirmingDelete(true)}
               >
                 <Trash2Icon className="size-4" />
                 Delete customer
@@ -404,40 +386,15 @@ function CustomerForm({ customer }: { customer: Customer }) {
         </EditGate>
       </DetailPageSection>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(false)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
-            <AlertDialogDescription>Addresses and carts will be removed. Customers with orders can't be deleted.</AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteState.loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteState.loading}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-            >
-              {deleteState.loading ? 'Deleting…' : 'Delete customer'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {name}?</>}
+        description="Addresses and carts will be removed. Customers with orders can't be deleted."
+        confirmLabel="Delete customer"
+        busyLabel="Deleting…"
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }

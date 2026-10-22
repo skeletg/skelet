@@ -20,8 +20,3 @@ export const TabPanelContext = createContext<{
 export function useTabPanelActive(): boolean {
   return useContext(TabPanelContext).active
 }
-
-/** The pane a page is rendered in - null outside any panel, e.g. a bare render in tests */
-export function useTabPaneId(): string | null {
-  return useContext(TabPanelContext).paneId
-}

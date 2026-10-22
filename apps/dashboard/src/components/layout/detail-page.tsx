@@ -1,12 +1,12 @@
-import { useCallback, useState, type ReactNode, type Ref } from 'react'
+import { useCallback, useEffect, useState, type ReactNode, type Ref, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { BackLink } from '@/components/ui/back-link'
 import { cn } from '@/lib/utils'
 import { useScrollHideHeader } from '@/lib/use-scroll-hide-header'
 import { useParentPage } from '@/nav/active-path'
 import { useOptionalPreference } from '@/lib/admin-prefs'
+import { useTabPanelActive } from '@/lib/tab-panel-context'
 import { DetailPageToc } from './DetailPageToc'
 import { TocContext, useSectionHash, useSectionLink, useTocSection, type TocEntry } from './toc'
 
@@ -80,6 +80,25 @@ export function DetailPageLayout({
   )
 }
 
+// ⌘S / Ctrl+S presses the header's Save, so it opens the same review dialog and does nothing while Save is disabled -
+// only in the focused tab, never on top of an open dialog, and the browser's own save-page never shows
+// shortcut: finds Save by its English label, upgrade to a marker on the button if headers get translated
+function useSaveShortcut(headerRef: RefObject<HTMLElement | null>, active: boolean) {
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header || !active) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 's' || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      e.preventDefault()
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      const save = [...header.querySelectorAll<HTMLButtonElement>('button')].find((b) => /^save\b/i.test(b.textContent?.trim() ?? ''))
+      if (save && !save.disabled) save.click()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [headerRef, active])
+}
+
 // Sits inside the scroll container, so content slides under the backdrop blur
 //
 // The back link is derived, not declared: any URL below a registered nav page gets one pointing at
@@ -103,6 +122,7 @@ export function DetailPageHeader({
 }) {
   const { ref, hidden } = useScrollHideHeader<HTMLDivElement>()
   const parent = useParentPage()
+  useSaveShortcut(ref, useTabPanelActive())
   // undefined means "work it out"; an explicit null means "no back link here"
   const target = backTo === undefined ? (parent?.path ?? null) : backTo
   const label = backLabel ?? (parent ? `Back to ${parent.title}` : 'Back')
@@ -146,14 +166,6 @@ export function DetailPageHeader({
       </div>
     </div>
   )
-}
-
-// The derived back link on its own, for the handful of subpages that predate DetailPageHeader and
-// render a plain form instead - same target and label, without restructuring the page around it
-export function PageBackLink({ className }: { className?: string }) {
-  const parent = useParentPage()
-  if (!parent) return null
-  return <BackLink to={parent.path} label={`Back to ${parent.title}`} className={className} />
 }
 
 // `divide-y` rules between sibling sections, `pb-16` keeps the last one clear of the scroll edge

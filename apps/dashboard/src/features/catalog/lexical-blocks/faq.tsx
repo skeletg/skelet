@@ -176,7 +176,7 @@ function FAQBlockComponent({ nodeKey, items }: { nodeKey: NodeKey; items: FAQIte
           <div key={index} className="grid gap-2 rounded-md border bg-background p-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Question {index + 1}</span>
-              <Button type="button" size="icon" variant="ghost" className="size-8" onClick={() => removeItem(index)}>
+              <Button aria-label={`Remove question ${index + 1}`} type="button" size="icon" variant="ghost" className="size-8" onClick={() => removeItem(index)}>
                 <Trash2Icon className="size-4" />
               </Button>
             </div>

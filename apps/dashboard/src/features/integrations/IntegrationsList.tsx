@@ -12,17 +12,6 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,6 +30,7 @@ import {
   useListUrlState,
 } from '@/components/data-table'
 import { IntegrationFormDialog, type ExistingIntegration } from './IntegrationFormDialog'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 import { NewTokenDialog } from './NewTokenDialog'
 import {
   DeleteIntegrationDocument,
@@ -69,17 +59,17 @@ export function IntegrationsList() {
   const { data, loading, error } = useQuery(IntegrationsDocument)
 
   const [confirmingRowDelete, setConfirmingRowDelete] = useState<IntegrationRow | null>(null)
-  const [rowDeleteError, setRowDeleteError] = useState<string | null>(null)
   const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null)
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState<IntegrationRow | null>(null)
 
   const [setActive, { loading: toggling }] = useMutation(SetIntegrationActiveDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+    refetchQueries: [IntegrationsDocument],
   })
   const [regenerate] = useMutation(RegenerateIntegrationTokenDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+    refetchQueries: [IntegrationsDocument],
   })
-  const [deleteIntegration, { loading: deletingRow }] = useMutation(DeleteIntegrationDocument, {
-    refetchQueries: [{ query: IntegrationsDocument }],
+  const [deleteIntegration] = useMutation(DeleteIntegrationDocument, {
+    refetchQueries: [IntegrationsDocument],
   })
 
   const onToggleActive = useCallback(
@@ -93,32 +83,21 @@ export function IntegrationsList() {
     [setActive],
   )
 
-  const onRegenerate = useCallback(
-    async (row: IntegrationRow) => {
-      try {
-        const { data } = await regenerate({ variables: { id: row.id } })
-        if (data) {
-          setNewToken({
-            token: data.regenerateIntegrationToken.rawToken,
-            name: data.regenerateIntegrationToken.integration.name,
-          })
-        }
-      } catch {
-        /* noop */
-      }
-    },
-    [regenerate],
-  )
+  // The old token dies the moment this runs, so it goes through a confirm - and a failure stays in that dialog instead of vanishing
+  async function onConfirmRegenerate() {
+    if (!confirmingRegenerate) return
+    const { data } = await regenerate({ variables: { id: confirmingRegenerate.id } })
+    if (data) {
+      setNewToken({
+        token: data.regenerateIntegrationToken.rawToken,
+        name: data.regenerateIntegrationToken.integration.name,
+      })
+    }
+  }
 
   async function onConfirmRowDelete() {
     if (!confirmingRowDelete) return
-    setRowDeleteError(null)
-    try {
-      await deleteIntegration({ variables: { id: confirmingRowDelete.id } })
-      setConfirmingRowDelete(null)
-    } catch (err) {
-      setRowDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteIntegration({ variables: { id: confirmingRowDelete.id } })
   }
 
   const bulkActions = useMemo<BulkAction<IntegrationRow>[]>(
@@ -270,7 +249,7 @@ export function IntegrationsList() {
               <DropdownMenuItem asChild>
                 <Link to={`/integrations/${row.original.id}`}>View</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onRegenerate(row.original)}>
+              <DropdownMenuItem onSelect={() => setConfirmingRegenerate(row.original)}>
                 <RefreshCwIcon className="size-4" />
                 Regenerate token
               </DropdownMenuItem>
@@ -278,7 +257,6 @@ export function IntegrationsList() {
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => {
-                  setRowDeleteError(null)
                   setConfirmingRowDelete(row.original)
                 }}
               >
@@ -289,7 +267,7 @@ export function IntegrationsList() {
         ),
       },
     ],
-    [toggling, onRegenerate, onToggleActive],
+    [toggling, onToggleActive],
   )
 
   const rows = (data?.integrations ?? []) as IntegrationRow[]
@@ -329,6 +307,15 @@ export function IntegrationsList() {
         }
       />
 
+      <ConfirmDialog
+        open={!!confirmingRegenerate}
+        onOpenChange={(open) => !open && setConfirmingRegenerate(null)}
+        title={`Regenerate the token for ${confirmingRegenerate?.name ?? 'this integration'}?`}
+        description="The current token stops working immediately. Anything still using it fails until you give it the new one."
+        confirmLabel="Regenerate token"
+        destructive
+        onConfirm={onConfirmRegenerate}
+      />
       <NewTokenDialog
         token={newToken?.token ?? null}
         integrationName={newToken?.name ?? null}
@@ -336,43 +323,15 @@ export function IntegrationsList() {
         onClose={() => setNewToken(null)}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingRowDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingRowDelete(null)
-            setRowDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingRowDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Any client calling the API with this integration's token will receive 401 responses
-              immediately. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {rowDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{rowDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingRow}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deletingRow}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmRowDelete()
-              }}
-            >
-              {deletingRow ? 'Deleting…' : 'Delete integration'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingRowDelete(null)}
+        title={<>Delete {confirmingRowDelete?.name}?</>}
+        description="Any client calling the API with this integration's token will receive 401 responses immediately. This cannot be undone."
+        confirmLabel="Delete integration"
+        busyLabel="Deleting…"
+        onConfirm={onConfirmRowDelete}
+      />
     </>
   )
 }

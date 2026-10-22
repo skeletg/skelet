@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -32,7 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DetailPageSection } from '@/components/layout/detail-page'
-import { formatCents } from '@/lib/format'
+import { dayStartISO, formatCents, fromMinor, toMinor } from '@/lib/format'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   OfflinePaymentMethodsDocument,
@@ -44,6 +35,7 @@ import {
   type OrderQuery,
   OrdersPagedDocument,
 } from './Orders.gql'
+import { paymentRemaining } from './payment-remaining'
 
 type OrderData = OrderQuery['order']
 
@@ -96,8 +88,9 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
   const canRecordOffline = canManage && ps === 'UNPAID'
   const busy = captureState.loading || refundState.loading || voidState.loading || recordState.loading
 
-  const amountCents = amount.trim() === '' ? null : Number.parseInt(amount.trim(), 10)
-  const amountValid = amount.trim() === '' || (Number.isInteger(amountCents) && (amountCents as number) > 0)
+  // Typed in major units like every other money field - "12.50" is 1250 cents, never truncated to 12
+  const amountCents = toMinor(amount, order.currencyCode)
+  const amountValid = amount.trim() === '' || (amountCents !== null && amountCents > 0)
 
   function openDialog(kind: 'capture' | 'refund') {
     setError(null)
@@ -108,7 +101,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
 
   async function onSubmit() {
     if (!amountValid) {
-      setError('Amount must be a whole number of minor units (cents), or blank for the full amount.')
+      setError('Enter a positive amount, or leave it blank for the full remaining.')
       return
     }
     setError(null)
@@ -128,17 +121,18 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
     setError(null)
     try {
       await voidPayment({ variables: { orderId: order.id } })
-      setConfirmVoid(false)
     } catch (e) {
+      // Kept as well as thrown: once the dialog is dismissed the section's own alert still reports it
       setError(e instanceof Error ? e.message : 'Void failed.')
+      throw new Error(e instanceof Error ? e.message : 'Void failed.', { cause: e })
     }
   }
 
   async function onRecord() {
     setError(null)
     try {
-      const cents = recordAmount.trim() === '' ? null : Math.round(parseFloat(recordAmount) * 100)
-      if (cents !== null && (!Number.isFinite(cents) || cents <= 0)) {
+      const cents = toMinor(recordAmount, order.currencyCode)
+      if (recordAmount.trim() !== '' && (cents === null || cents <= 0)) {
         setError('Enter a positive amount, or leave it blank for the full balance.')
         return
       }
@@ -149,7 +143,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             amount: cents,
             method: method || offlineDefault || 'other',
             reference: reference.trim() || null,
-            receivedAt: receivedAt ? new Date(receivedAt).toISOString() : null,
+            receivedAt: receivedAt ? dayStartISO(receivedAt) : null,
             note: payNote.trim() || null,
           },
         },
@@ -276,7 +270,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             <DialogDescription>
               {dialog === 'record'
                 ? `Money taken outside a gateway - cash on delivery, bank transfer, cheque, pay on pickup. Record part of the balance and the order stays partially paid until the rest lands.`
-                : `Leave the amount blank to ${dialog === 'capture' ? 'capture the full authorized remaining' : 'refund the full captured remaining'}. Amount is in minor units (cents). Amount due: ${formatCents(amountDue, order.currencyCode)}.`}
+                : `Leave the amount blank to ${dialog === 'capture' ? 'capture the full authorized remaining' : 'refund the full captured remaining'}. Amount due: ${formatCents(amountDue, order.currencyCode)}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -290,7 +284,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
                       inputMode="decimal"
                       value={recordAmount}
                       onChange={(e) => setRecordAmount(e.target.value)}
-                      placeholder={(amountDue / 100).toFixed(2)}
+                      placeholder={fromMinor(amountDue, order.currencyCode)}
                     />
                     <p className="text-xs text-muted-foreground">
                       Blank records the full {formatCents(amountDue, order.currencyCode)} owed
@@ -355,13 +349,13 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
             ) : (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor="pay-amount">Amount (cents)</Label>
+                  <Label htmlFor="pay-amount">Amount</Label>
                   <Input
                     id="pay-amount"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="blank = full"
+                    placeholder={fromMinor(paymentRemaining(dialog === 'refund' ? 'refund' : 'capture', txns), order.currencyCode)}
                   />
                   {amount.trim() !== '' && amountValid && (
                     <p className="text-xs text-muted-foreground">
@@ -406,29 +400,16 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmVoid} onOpenChange={(v) => { if (!v) setConfirmVoid(false) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Void authorization?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This releases the uncaptured authorization with the gateway. It can't be undone - the
-              customer would need to be re-charged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Void failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={voidState.loading}>Keep authorization</AlertDialogCancel>
-            <AlertDialogAction disabled={voidState.loading} onClick={(e) => { e.preventDefault(); onVoid() }}>
-              {voidState.loading ? 'Voiding…' : 'Void'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmVoid}
+        onOpenChange={setConfirmVoid}
+        title="Void authorization?"
+        description="This releases the uncaptured authorization with the gateway. It can't be undone - the customer would need to be re-charged."
+        confirmLabel="Void"
+        cancelLabel="Keep authorization"
+        busyLabel="Voiding…"
+        onConfirm={onVoid}
+      />
     </DetailPageSection>
   )
 }

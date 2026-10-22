@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/google/uuid"
@@ -93,5 +94,47 @@ func TestClampReserved(t *testing.T) {
 	}
 	if clampReserved(3) != 3 {
 		t.Fatal("non-negative reserved must pass through")
+	}
+}
+
+type countingReadRepo struct {
+	fakeReadRepo
+	itemReads *int
+}
+
+func (c countingReadRepo) ListItemsByProductIDs(ctx context.Context, pids []uuid.UUID) (map[uuid.UUID]Item, error) {
+	*c.itemReads++
+	return c.fakeReadRepo.ListItemsByProductIDs(ctx, pids)
+}
+
+func TestStockByProductIDsReadsItemsOnceAndMatchesTheSeparateReads(t *testing.T) {
+	ctx := context.Background()
+	locA := loc("a")
+	plain, backorder := tracked(false), tracked(true)
+	reads := 0
+	s := &Service{repo: countingReadRepo{
+		fakeReadRepo: fakeReadRepo{
+			items:     map[uuid.UUID]Item{plain.ProductID: plain, backorder.ProductID: backorder},
+			locations: []Location{locA},
+			levels:    []Level{{InventoryItemID: plain.ID, LocationID: locA.ID, Quantity: 4}},
+		},
+		itemReads: &reads,
+	}}
+	ids, ch := []uuid.UUID{plain.ProductID, backorder.ProductID, uuid.New()}, uuid.New()
+
+	salable, backorderable, err := s.StockByProductIDs(ctx, ids, ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads != 1 {
+		t.Fatalf("read items %d times, want once", reads)
+	}
+	wantSalable, _ := s.SalableByProductIDs(ctx, ids, ch)
+	wantBackorderable, _ := s.BackorderableByProductIDs(ctx, ids)
+	if !maps.Equal(salable, wantSalable) || !maps.Equal(backorderable, wantBackorderable) {
+		t.Fatalf("got salable %v backorderable %v, want %v and %v", salable, backorderable, wantSalable, wantBackorderable)
+	}
+	if !backorderable[backorder.ProductID] || salable[plain.ProductID] != 4 {
+		t.Fatalf("fixture didn't exercise both maps: salable %v backorderable %v", salable, backorderable)
 	}
 }

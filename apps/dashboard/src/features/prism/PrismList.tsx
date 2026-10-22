@@ -4,16 +4,6 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +23,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { DeleteExperimentDocument, ExperimentsDocument } from './Prism.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -66,20 +57,13 @@ export function PrismList() {
   const rows = useMemo(() => (data?.experiments ?? []) as Row[], [data?.experiments])
 
   const [confirmingDelete, setConfirmingDelete] = useState<Row | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteExp, { loading: deleting }] = useMutation(DeleteExperimentDocument, {
+  const [deleteExp] = useMutation(DeleteExperimentDocument, {
     refetchQueries: [{ query: ExperimentsDocument, variables: { channelId: effectiveChannelId ?? '' } }],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteExp({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteExp({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<Row>[]>(
@@ -158,7 +142,6 @@ export function PrismList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -232,44 +215,16 @@ export function PrismList() {
         )}
       </DetailPageBody>
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name || confirmingDelete?.key || 'experiment'}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes the experiment and its configuration. Recorded exposures and conversions stay on the
-              analytics spine but will no longer be attributed to this experiment.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete experiment'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name || confirmingDelete?.key || 'experiment'}?</>}
+        description="Permanently removes the experiment and its configuration. Recorded exposures and conversions stay on the analytics spine but will no longer be attributed to this experiment."
+        confirmLabel="Delete experiment"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageLayout>
   )
 }

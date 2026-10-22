@@ -25,6 +25,10 @@
     "labels": ["dependencies", "security"]
   },
 
+  // Re-resolves every transitive dep within its parent's range, one PR per lockfile - a patched
+  // release the parent already allows lands here instead of as a pnpm audit failure
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on monday"] },
+
   "packageRules": [
     {
       // Everything both frontends depend on, in one PR or they drift - which is how the tree ended

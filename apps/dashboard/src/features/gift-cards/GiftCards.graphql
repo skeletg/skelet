@@ -1,15 +1,18 @@
-query GiftCardsAdminList($limit: Int, $offset: Int) {
-  giftCards(limit: $limit, offset: $offset) {
-    id
-    code
-    currencyCode
-    initialBalance
-    balance
-    status
-    recipientEmail
-    channelId
-    expiresAt
-    createdAt
+query GiftCardsAdminList($search: String, $limit: Int, $offset: Int) {
+  giftCardsPaged(search: $search, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      code
+      currencyCode
+      initialBalance
+      balance
+      status
+      recipientEmail
+      channelId
+      expiresAt
+      createdAt
+    }
   }
 }
 

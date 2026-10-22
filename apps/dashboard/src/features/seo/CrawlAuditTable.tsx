@@ -52,7 +52,7 @@ export function CrawlAuditTable({ channelId }: { channelId: string }) {
   const [kind, setKind] = useState<CrawlPageKind | 'ALL'>('ALL')
   const [search, setSearch] = useState('')
 
-  const { data, loading } = useQuery(CrawlAuditDocument, {
+  const { data, loading, error } = useQuery(CrawlAuditDocument, {
     variables: {
       channelId,
       issue,
@@ -222,6 +222,7 @@ export function CrawlAuditTable({ channelId }: { channelId: string }) {
       </div>
 
       <DataTable
+        error={error}
         columns={columns}
         data={audit?.pages ?? []}
         loading={loading && !audit}

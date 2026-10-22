@@ -11,17 +11,6 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -56,6 +45,7 @@ import {
   EventDestinationsDocument,
   SyncAudienceDocument,
 } from './Destinations.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type DestinationRow = ExistingDestination & {
   lastError: string
@@ -80,20 +70,13 @@ export function DestinationsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<DestinationRow | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<DestinationRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteDestination, { loading: deleting }] = useMutation(DeleteEventDestinationDocument)
+  const [deleteDestination] = useMutation(DeleteEventDestinationDocument)
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteDestination({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-      void refetch()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteDestination({ variables: { id: confirmingDelete.id } })
+    void refetch()
   }
 
   function openEdit(row: DestinationRow) {
@@ -224,7 +207,6 @@ export function DestinationsPage() {
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => {
-                  setDeleteError(null)
                   setConfirmingDelete(row.original)
                 }}
               >
@@ -316,44 +298,16 @@ export function DestinationsPage() {
         onSaved={() => void refetch()}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Forwarding stops immediately and the delivery cursor is lost - re-creating the
-              destination later starts from that moment, not from where this one stopped.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete destination'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description="Forwarding stops immediately and the delivery cursor is lost - re-creating the destination later starts from that moment, not from where this one stopped."
+        confirmLabel="Delete destination"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageLayout>
   )
 }

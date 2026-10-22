@@ -2,6 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { useQuery } from '@apollo/client/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, meMock, renderPage } from '@/test/page-harness'
+import { hasUnsavedChanges, unsavedLabels } from '@/lib/unsaved-changes'
 import { ReviewDetail } from './ReviewDetail'
 import {
   ApproveReviewDocument,
@@ -110,5 +111,21 @@ describe('ReviewDetail', () => {
     expect(listRequests[1]).toEqual(listVariables)
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), SLOW)
     expect(detailRequests).toEqual([{ id: 'rv1' }])
+  })
+})
+
+// A half-written reply used to vanish on navigation without a prompt - it now registers as unsaved work
+describe('ReviewDetail reply draft', () => {
+  it('counts as unsaved work until it matches the saved reply', async () => {
+    renderReview()
+    const box = await screen.findByPlaceholderText('Write a reply…', {}, SLOW)
+    expect(hasUnsavedChanges()).toBe(false)
+
+    fireEvent.change(box, { target: { value: 'Thanks for the feedback!' } })
+    expect(hasUnsavedChanges()).toBe(true)
+    expect(unsavedLabels()).toContain('Review reply')
+
+    fireEvent.change(box, { target: { value: '' } })
+    expect(hasUnsavedChanges()).toBe(false)
   })
 })
