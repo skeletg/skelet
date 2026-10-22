@@ -1,6 +1,6 @@
 module github.com/skeletg/skelet/apps/backend/core
 
-go 1.27.2
+go 1.27.3
 
 require (
 	buf.build/gen/go/bufbuild/bufplugin/protocolbuffers/go v1.36.12-20260722160903-4d94f3df3a7b.2 // indirect
