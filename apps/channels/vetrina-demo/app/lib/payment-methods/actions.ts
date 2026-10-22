@@ -2,6 +2,8 @@
 
 import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 
 import { gqlFetch } from "@/app/lib/graphql";
 import {
@@ -46,5 +48,5 @@ export async function deletePaymentMethodAction(
     ok = false;
   }
   revalidateAccount();
-  redirect(ok ? PAYMENT_METHODS_PAGE : `${PAYMENT_METHODS_PAGE}?error=delete`);
+  redirect(await withLocalePrefix(ok ? PAYMENT_METHODS_PAGE : `${PAYMENT_METHODS_PAGE}?error=delete`, await getCurrentLocale()));
 }
