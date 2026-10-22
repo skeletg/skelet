@@ -31,6 +31,33 @@ test.describe("cart", () => {
     await expect(code).toHaveAccessibleDescription("That code isn't valid.");
     await expect(code).toHaveValue("NO-SUCH-CODE-E2E");
   });
+
+  test("a guest cart merged at sign-in stays editable without a cart cookie", async ({ browser }) => {
+    const setup = await browser.newContext();
+    const { email, password } = await registerCustomer(await setup.newPage());
+    await setup.close();
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await addToCart(page);
+    await open(page, "/account/login");
+    const form = main(page);
+    await form.getByLabel("Email").fill(email);
+    await form.getByLabel("Password", { exact: true }).fill(password);
+    await form.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/account(\?|$)/);
+    // The merge drops the guest cookie, and the header shows the customer's cart without a reload
+    expect((await context.cookies()).some((c) => c.name === "storefront_cart")).toBe(false);
+    await expect(page.getByRole("button", { name: "Open cart (1" })).toBeVisible();
+
+    await open(page, "/cart");
+    await main(page).getByRole("button", { name: "Increase quantity" }).first().click();
+    await expect(main(page).getByRole("spinbutton", { name: "Quantity", exact: true }).first()).toHaveValue("2");
+    await expect(page.getByRole("button", { name: "Open cart (2" })).toBeVisible();
+    await page.reload();
+    await expect(main(page).getByRole("spinbutton", { name: "Quantity", exact: true }).first()).toHaveValue("2");
+    await context.close();
+  });
 });
 
 test.describe("questions", () => {

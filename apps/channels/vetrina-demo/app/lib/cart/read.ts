@@ -23,19 +23,27 @@ export type {
 } from "@/app/lib/cart/types";
 
 export const CART_COOKIE = "storefront_cart";
+// A code that arrived before there was a cart to apply it to - the next addition applies it
+export const PROMO_PENDING_COOKIE = "storefront_pending_promo";
 
-// Returns the guest cart pointed to by the cookie, or null if no cookie is set (no cart created yet) or the backend
-// says it's gone (cleared, expired, never existed under that ID)
+// The shopper's own cart id: the session's when signed in (the cart cookie is ignored), else the guest cookie's, else
+// null. Never an offer, and a failed backend read throws rather than handing back some other cart
+export async function getOwnCartId(): Promise<string | null> {
+  if (await getAccessToken()) return (await gqlFetch(MyCartDocument)).data.myCart.id;
+  return (await cookies()).get(CART_COOKIE)?.value ?? null;
+}
+
+// Returns the shopper's own cart, or null when a guest has none yet or the backend can't read it (cleared, expired,
+// never existed under that ID)
 export const getCart = cache(async (): Promise<Cart | null> => {
   // Signed in: the cart hangs off the session, not the cookie, so it's the same cart on
-  // every device the customer opens
+  // every device the customer opens. A failed read is no cart, never the guest cookie's
   if (await getAccessToken()) {
     try {
       const res = await gqlFetch(MyCartDocument);
       return res.data.myCart;
     } catch {
-      // Token expired / store mismatch - fall through to the guest cookie rather than
-      // showing an empty cart
+      return null;
     }
   }
   const store = await cookies();
