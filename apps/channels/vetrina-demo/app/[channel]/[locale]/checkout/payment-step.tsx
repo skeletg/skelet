@@ -3,17 +3,15 @@
 import { CheckoutCartFields } from "@/app/components/offer/CheckoutCartContext";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { FieldErrors, FormErrors, inputClass } from "@/app/components/account/AccountUI";
 import { Link } from "@/app/components/LocaleLink";
 import {
   applyGiftCardAction,
-  finalizeOrderPaymentAction,
   placeOrderAction,
   removeGiftCardAction,
   setStoreCreditAction,
-  type PlaceOrderResult,
 } from "@/app/lib/checkout/actions";
 import type { CheckoutState, PaymentMethodOption } from "@/app/lib/checkout/read";
 import { giftCardSchema, paymentStepSchema } from "@/app/lib/checkout/schemas";
@@ -97,14 +95,10 @@ function PlaceOrderForm({
   const covered = checkout.totals.amountDueCents <= 0;
   const provider = covered ? "" : (checkout.paymentProviderSlug ?? methods[0]?.providerSlug ?? "");
   const schema = useMemo(() => paymentStepSchema({ requireMethod: !covered, consent }), [covered, consent]);
-  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm<
-    typeof schema,
-    PlaceOrderResult
-  >(placeOrderAction, schema, {
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(placeOrderAction, schema, {
     defaultValue: { providerSlug: provider, savedPaymentMethodId: "", note },
   });
   const picked = typeof fields.providerSlug.value === "string" ? fields.providerSlug.value : provider;
-  const confirming = useFinalizeChallenge(lastResult?.requiresAction);
 
   if (!covered && methods.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("none")}</p>;
@@ -132,7 +126,7 @@ function PlaceOrderForm({
       <Consent consent={consent} field={fields.tos} />
       <button
         type="submit"
-        disabled={pending || confirming}
+        disabled={pending}
         className="inline-flex h-12 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
       >
         {pending
@@ -149,11 +143,6 @@ function PlaceOrderForm({
         <CheckoutCartFields />
       <input type="hidden" name="locale" value={locale} />
       <FormErrors errors={form.errors} />
-      {confirming ? (
-        <p role="status" className="glass-soft rounded-lg p-3 text-sm">
-          {t("confirming")}
-        </p>
-      ) : null}
 
       {covered ? (
         <>
@@ -271,21 +260,6 @@ function Consent({
       {field.errors ? <FieldErrors id={field.errorId} errors={field.errors} /> : null}
     </div>
   );
-}
-
-// 3DS/SCA follow-through: the order exists but the gateway wanted a client-side challenge. Running it needs the
-// gateway's browser SDK, which lived in the payment plugins - with none installed we can only ask the gateway whether
-// it settled, then show the order
-function useFinalizeChallenge(action: PlaceOrderResult["requiresAction"]): boolean {
-  const handled = useRef<string | null>(null);
-  useEffect(() => {
-    if (!action || handled.current === action.orderId) return;
-    handled.current = action.orderId;
-    void finalizeOrderPaymentAction(action.orderId).then(() => {
-      window.location.assign(action.redirectTo);
-    });
-  }, [action]);
-  return !!action;
 }
 
 function GiftCards({ giftCards, currency }: { giftCards: CheckoutState["giftCards"]; currency: Currency }) {
