@@ -1593,6 +1593,7 @@ export type PaymentMethodOption = {
   __typename?: 'PaymentMethodOption';
   displayName: Scalars['String']['output'];
   instructions: Scalars['String']['output'];
+  isOffline: Scalars['Boolean']['output'];
   providerSlug: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
 };
