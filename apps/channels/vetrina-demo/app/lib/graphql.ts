@@ -125,9 +125,17 @@ export async function gqlFetch<TData, TVariables>(
 ): Promise<GqlResult<TData>> {
   const variables = args[0];
   const options = (args[1] as FetchOptions | undefined) ?? {};
-  const opName = extractOpName(document); // resolved first so a public op never touches the auth cookie - reading one forces the route dynamic
+  const opName = extractOpName(document);
   const [locale, channelId] = await Promise.all([getCurrentLocale(), getCurrentChannelId()]);
-  const accessToken = isPublicOp(opName) ? null : await getAccessToken();
+  // Every op carries the shopper's session, public ones included - Product's tier prices, review eligibility and
+  // segment-personalized CMS blocks all answer per customer. The force-static catch-all reads an empty jar, so it stays static
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getAccessToken();
+  } catch (err) {
+    rethrowIfDynamicBailout(err);
+    // not in a request scope - nobody to authenticate
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Locale: options.locale ?? locale,
@@ -154,9 +162,11 @@ export async function gqlFetch<TData, TVariables>(
       if (v) headers[k] = v;
     }
   }
-  // Default: never cache (every request hits the backend fresh)
+  // Default: never cache (every request hits the backend fresh). Anything carrying a credential is personal, so it
+  // never lands in the shared data cache whatever the caller asked - the same headers the backend's response cache bypasses on
+  const credentialed = Boolean(headers.Authorization || headers[OFFER_HEADER] || headers["X-Review-Voter-Token"]);
   const cacheInit: RequestInit =
-    options.cache === "force-cache"
+    options.cache === "force-cache" && !credentialed
       ? { cache: "force-cache", next: { tags: options.tags, revalidate: options.revalidate } }
       : { cache: "no-store" };
 
