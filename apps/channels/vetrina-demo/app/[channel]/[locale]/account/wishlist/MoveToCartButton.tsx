@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { useErrorText } from "@/app/components/account/AccountUI";
 import { useCartUI } from "@/app/components/CartUIProvider";
+import { removeLocalWishlistItem } from "@/app/components/WishlistButton";
 import { useCartStore } from "@/app/lib/cart/store";
 import { moveToCartAction } from "@/app/lib/wishlist/actions";
 
@@ -15,6 +17,7 @@ export function MoveToCartButton({ productId }: { productId: string }) {
   const { open } = useCartUI();
   const { applyServerCart } = useCartStore();
   const errorText = useErrorText();
+  const router = useRouter();
 
   return (
     <div>
@@ -26,7 +29,10 @@ export function MoveToCartButton({ productId }: { productId: string }) {
             setError(null);
             const res = await moveToCartAction(productId);
             if (res.ok) {
+              // Local entry first: the refreshed page's WishlistMerge would otherwise see it missing server-side and re-add it
+              removeLocalWishlistItem(productId);
               if (res.cart !== undefined) applyServerCart(res.cart);
+              router.refresh();
               open();
             } else setError(res.error ?? "moveFailed");
           })
