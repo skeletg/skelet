@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { useQuery } from '@apollo/client/react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -24,11 +25,7 @@ export function LinkField({
   const ref = isLinkRef(value) ? value : null
   const [mode, setMode] = useState<'internal' | 'custom'>(ref ? 'internal' : 'custom')
   const [search, setSearch] = useState('')
-  const [debounced, setDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 250)
-    return () => clearTimeout(t)
-  }, [search])
+  const debounced = useDebounced(search, 250)
 
   const { data, loading } = useQuery(LinkablesDocument, {
     variables: { search: debounced, limit: 30 },

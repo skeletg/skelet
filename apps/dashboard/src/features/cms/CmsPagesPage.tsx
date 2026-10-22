@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -106,11 +107,7 @@ export function CmsPagesPage() {
 
   // Debounce the search box so each keystroke doesn't refetch
   const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setSearch(searchInput.trim()), 300)
-    return () => clearTimeout(t)
-  }, [searchInput])
+  const search = useDebounced(searchInput, 300).trim()
 
   const variables = useMemo(
     () => ({

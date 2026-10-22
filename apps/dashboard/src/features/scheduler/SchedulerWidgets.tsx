@@ -1,4 +1,5 @@
-import { useEffect, useState, useId } from 'react'
+import { useId } from 'react'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { useQuery } from '@apollo/client/react'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { CRON_PRESETS, SERVER_TZ, TIMEZONES } from './scheduler-options'
@@ -46,11 +47,7 @@ export function SchedulePicker({
   const presetValue = presetMatch ? presetMatch.value : CUSTOM_PRESET
 
   // Debounce the schedule string feeding the preview query
-  const [debounced, setDebounced] = useState(schedule)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(schedule), 350)
-    return () => clearTimeout(t)
-  }, [schedule])
+  const debounced = useDebounced(schedule, 350)
 
   const { data, loading } = useQuery(PreviewScheduleDocument, {
     variables: { schedule: debounced, timezone, count: 5 },
