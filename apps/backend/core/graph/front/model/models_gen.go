@@ -394,6 +394,7 @@ type PaymentMethodOption struct {
 	DisplayName  string `json:"displayName"`
 	SortOrder    int32  `json:"sortOrder"`
 	Instructions string `json:"instructions"`
+	IsOffline    bool   `json:"isOffline"`
 }
 
 type PhoneCountryFormat struct {
