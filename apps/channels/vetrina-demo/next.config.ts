@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
+import { VIDEO_EMBED_ORIGINS } from "@/app/lib/video-embed";
 
 // App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
 // SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: no gateway SDK runs here, so no host earns a slot
@@ -28,13 +29,22 @@ const connectSrc = [
   .filter(Boolean)
   .join(" ");
 
-// Same-origin only - a payment plugin's browser SDK is what earns a gateway host a slot here
+// Video files play from this origin, upload previews (blob:) or https media storage - dev media is plain http on localhost
+const mediaSrc =
+  process.env.NODE_ENV === "production"
+    ? "media-src 'self' blob: https:"
+    : "media-src 'self' blob: https: http:";
+
+// Same-origin only - a payment plugin's browser SDK is what earns a gateway host a slot here. The one framed exception is the
+// two video players video-embed.ts builds URLs for; who may frame the storefront is frame-ancestors, below
 const CSP_BASE = [
   "default-src 'self'",
   scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   imgSrc,
   "font-src 'self' data:",
+  mediaSrc,
+  `frame-src ${VIDEO_EMBED_ORIGINS.join(" ")}`,
   connectSrc,
   "base-uri 'self'",
   "form-action 'self'",
