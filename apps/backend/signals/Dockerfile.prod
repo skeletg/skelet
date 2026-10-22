@@ -2,7 +2,7 @@
 # Build from apps/backend, since this module replaces core's by relative path: docker build -f apps/backend/signals/Dockerfile.prod -t skelet-signals:prod apps/backend
 
 # The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
-FROM golang:1.27.2-alpine3.24 AS build
+FROM golang:1.27.3-alpine3.24 AS build
 WORKDIR /src
 RUN apk add --no-cache git
 # Module downloads keyed on the lockfiles - go mod download in the Signals module reads the other two
