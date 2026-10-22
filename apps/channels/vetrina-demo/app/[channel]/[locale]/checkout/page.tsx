@@ -16,7 +16,7 @@ import { choiceKey, choiceLabel } from "@/app/lib/checkout/choice";
 import {
   getCheckoutState,
   getDeliveryPoints,
-  getPaymentMethods,
+  checkoutPaymentMethods,
   type CheckoutState,
   type DeliveryPointsResult,
 } from "@/app/lib/checkout/read";
@@ -127,17 +127,12 @@ export default async function CheckoutPage({
   // What a group's chosen delivery asks next - its points - only while the delivery step is open
   const asked = (key: string, type: string) => checkout.requirements.some((r) => r.scope === key && r.type === type);
   const pointGroups = active === "delivery" ? checkout.deliveryGroups.filter((g) => g.selection && asked(g.key, "point")) : [];
-  // Payment eligibility follows the destination, or the billing address of a cart with nothing to ship
-  const paymentCountry = checkout.destination?.countryCode ?? checkout.billingAddress?.countryCode ?? null;
-  const [regionsByCountry, pointLists, availablePaymentMethods, savedCards] = await Promise.all([
+  const [regionsByCountry, pointLists, paymentMethods, savedCards] = await Promise.all([
     active === "details" ? getRegionsByCountry(countries.map((c) => c.code)) : {},
     Promise.all(pointGroups.map((g) => getDeliveryPoints(cart.id, g.key, pointGroup === g.key && typeof pointSearch === "string" ? pointSearch : undefined))),
-    active === "payment" && paymentCountry ? getPaymentMethods(paymentCountry, cart.id) : [],
+    active === "payment" ? checkoutPaymentMethods(checkout, cart.id, offer?.paymentMethods) : [],
     active === "payment" && customer ? getMyPaymentMethods() : [],
   ]);
-  const paymentMethods = offer?.paymentMethods.length
-    ? availablePaymentMethods.filter((method) => offer.paymentMethods.includes(method.providerSlug))
-    : availablePaymentMethods;
   const points: Record<string, DeliveryPointsResult> = Object.fromEntries(pointGroups.map((g, i) => [g.key, pointLists[i]]));
   // Where each pickup is collected from, for the details step's "who collects" block
   const collectFrom = checkout.deliveryGroups.flatMap((g) =>
