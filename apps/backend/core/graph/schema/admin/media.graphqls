@@ -8,6 +8,14 @@ enum MediaMimeGroup {
   DOCUMENT
 }
 
+# Newest is recently changed first, the default
+enum MediaAssetSort {
+  NEWEST
+  OLDEST
+  NAME
+  LARGEST
+}
+
 type MediaAsset {
   id: ID!
   path: String!
@@ -87,7 +95,7 @@ input UpdateMediaAssetInput {
 extend type Query {
   mediaDirectory(path: String!): MediaDirectory!
   mediaAsset(id: ID!): MediaAsset!
-  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, limit: Int, offset: Int): MediaAssetSearchResult!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
   allMediaDirectories: [MediaDirectoryChild!]!
 }
 

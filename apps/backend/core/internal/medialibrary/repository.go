@@ -116,6 +116,7 @@ func (r *postgresRepository) SearchAssets(ctx context.Context, input SearchInput
 		Column1: path,
 		Column2: mimePrefix,
 		Column3: query,
+		Column6: input.Sort,
 		Limit:   input.Limit,
 		Offset:  input.Offset,
 	})

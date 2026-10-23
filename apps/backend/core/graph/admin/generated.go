@@ -3659,7 +3659,7 @@ type ComplexityRoot struct {
 		SalesReport                  func(childComplexity int, channelID *string, startDate *time.Time, endDate *time.Time, bucket *string, topProductsLimit *int32) int
 		ScheduledJobRuns             func(childComplexity int, jobID string, limit *int32) int
 		ScheduledJobs                func(childComplexity int) int
-		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, limit *int32, offset *int32) int
+		SearchMediaAssets            func(childComplexity int, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) int
 		SearchMerchandising          func(childComplexity int, channelID string) int
 		ServerFeatures               func(childComplexity int) int
 		ShippingBoxes                func(childComplexity int, channelID string) int
@@ -5390,7 +5390,7 @@ type QueryResolver interface {
 	Locale(ctx context.Context, code string) (*model.Locale, error)
 	MediaDirectory(ctx context.Context, path string) (*model.MediaDirectory, error)
 	MediaAsset(ctx context.Context, id string) (*model.MediaAsset, error)
-	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error)
+	SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error)
 	AllMediaDirectories(ctx context.Context) ([]*model.MediaDirectoryChild, error)
 	Menus(ctx context.Context) ([]*model.Menu, error)
 	Menu(ctx context.Context, id string) (*model.Menu, error)
@@ -25384,7 +25384,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.SearchMediaAssets(childComplexity, args["query"].(*string), args["path"].(*string), args["mimeGroup"].(*model.MediaMimeGroup), args["sort"].(*model.MediaAssetSort), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.searchMerchandising":
 		if e.ComplexityRoot.Query.SearchMerchandising == nil {
 			break
@@ -35564,6 +35564,14 @@ enum MediaMimeGroup {
   DOCUMENT
 }
 
+# Newest is recently changed first, the default
+enum MediaAssetSort {
+  NEWEST
+  OLDEST
+  NAME
+  LARGEST
+}
+
 type MediaAsset {
   id: ID!
   path: String!
@@ -35643,7 +35651,7 @@ input UpdateMediaAssetInput {
 extend type Query {
   mediaDirectory(path: String!): MediaDirectory!
   mediaAsset(id: ID!): MediaAsset!
-  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, limit: Int, offset: Int): MediaAssetSearchResult!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, sort: MediaAssetSort, limit: Int, offset: Int): MediaAssetSearchResult!
   allMediaDirectories: [MediaDirectoryChild!]!
 }
 
@@ -59376,22 +59384,30 @@ func (ec *executionContext) field_Query_searchMediaAssets_args(ctx context.Conte
 		return nil, err
 	}
 	args["mimeGroup"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "sort",
+		func(ctx context.Context, v any) (*model.MediaAssetSort, error) {
+			return ec.unmarshalOMediaAssetSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaAssetSort(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sort"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+	args["limit"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg4
+	args["offset"] = arg5
 	return args, nil
 }
 
@@ -136985,7 +137001,7 @@ func (ec *executionContext) _Query_searchMediaAssets(ctx context.Context, field 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().SearchMediaAssets(ctx, fc.Args["query"].(*string), fc.Args["path"].(*string), fc.Args["mimeGroup"].(*model.MediaMimeGroup), fc.Args["sort"].(*model.MediaAssetSort), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MediaAssetSearchResult) graphql.Marshaler {
@@ -221849,6 +221865,22 @@ func (ec *executionContext) marshalOMediaAsset2ᚖgithubᚗcomᚋskeletgᚋskele
 		return graphql.Null
 	}
 	return ec._MediaAsset(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOMediaAssetSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaAssetSort(ctx context.Context, v any) (*model.MediaAssetSort, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.MediaAssetSort)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMediaAssetSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaAssetSort(ctx context.Context, sel ast.SelectionSet, v *model.MediaAssetSort) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOMediaMimeGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMediaMimeGroup(ctx context.Context, v any) (*model.MediaMimeGroup, error) {

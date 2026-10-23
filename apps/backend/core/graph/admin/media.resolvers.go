@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
@@ -178,7 +179,7 @@ func (r *queryResolver) MediaAsset(ctx context.Context, id string) (*model.Media
 	return toMediaAssetModel(asset), nil
 }
 
-func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error) {
+func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, path *string, mimeGroup *model.MediaMimeGroup, sort *model.MediaAssetSort, limit *int32, offset *int32) (*model.MediaAssetSearchResult, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.view"); err != nil {
 		return nil, err
 	}
@@ -187,10 +188,15 @@ func (r *queryResolver) SearchMediaAssets(ctx context.Context, query *string, pa
 		g := mediaMimeGroupFromGQL(*mimeGroup)
 		group = &g
 	}
+	var order string
+	if sort != nil {
+		order = strings.ToLower(string(*sort))
+	}
 	result, err := r.MediaLibrarySvc.SearchAssets(ctx, medialibrary.SearchInput{
 		Query:     query,
 		Path:      path,
 		MimeGroup: group,
+		Sort:      order,
 		Limit:     int32Or(limit, 50),
 		Offset:    int32Or(offset, 0),
 	})

@@ -40,7 +40,12 @@ WHERE
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
-ORDER BY updated_at DESC, filename
+-- $6 picks the order: '' or newest, oldest, name, largest. The picker pages by offset, so id settles every tie
+ORDER BY
+    CASE WHEN $6::text = 'name' THEN lower(filename) END ASC,
+    CASE WHEN $6::text = 'largest' THEN size_bytes END DESC,
+    CASE WHEN $6::text = 'oldest' THEN created_at END ASC,
+    updated_at DESC, filename, id
 LIMIT $4 OFFSET $5;
 
 -- name: CountSearchMediaAssets :one
