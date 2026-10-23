@@ -1,0 +1,176 @@
+@import "tailwindcss";
+@import "./fonts.css";
+
+/* js:flex and friends - Base.astro's head marks <html class="js"> before first paint, so controls that only work
+   with scripts (the cart's +/-) show without a flash, and their no-script fallbacks hide */
+@custom-variant js (&:where(.js *));
+
+/* Theme: <html data-theme> is the shopper's pick (Base.astro's head script, before first paint). Without one - no
+   pick yet, or scripts off - the system setting decides, so the page never waits on a script to show */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
+/* Semantic colour tokens - each light-dark() pair is the light and dark value of one role, picked by color-scheme,
+   so the two themes can't drift apart. A fill's *-foreground is the text that reads on it */
+:root {
+  color-scheme: light dark;
+  --background: light-dark(#f7f5f2, #121211);
+  --foreground: light-dark(#1a1917, #eeece8);
+  --card: light-dark(#ffffff, #1b1a19);
+  --muted: light-dark(#efece7, #242321);
+  --muted-foreground: light-dark(#6b6760, #a29e96);
+  --border: light-dark(#e4e0da, #2d2b29);
+  --ring: var(--foreground);
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --accent: light-dark(#c2410c, #fb923c);
+  --accent-foreground: light-dark(#ffffff, #121211);
+  --destructive: light-dark(#b42318, #f97066);
+  --destructive-foreground: light-dark(#ffffff, #121211);
+  --success: light-dark(#15803d, #4ade80);
+  /* The bands that stay dark in both themes - header, footer, hero. Each also carries scheme-dark, so every token
+     inside it (accent text, focus ring, form controls) takes its dark value and reads on the band */
+  --inverse: #0e0d0c;
+  --inverse-foreground: #f2efea;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Font: <html data-font> switches the whole site - ?font=<name> on any URL sets and remembers it, and dev builds
+   show a picker in the footer. The default is the bare :root line */
+:root {
+  --font-active: "Poppins";
+}
+:root[data-font="montserrat"] {
+  --font-active: "Montserrat";
+}
+:root[data-font="system"] {
+  --font-active: system-ui;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --font-sans: var(--font-active), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+@theme {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow-soft: 0 1px 2px rgb(22 20 18 / 0.04), 0 12px 40px -16px rgb(22 20 18 / 0.14);
+}
+
+/* The page column every band lines up on */
+@utility container-page {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  @media (width >= 40rem) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* The small spaced capitals over a heading */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  input,
+  select {
+    @apply min-h-11 w-full rounded-lg border border-border bg-card px-3 py-2 text-base text-foreground transition-colors focus:border-foreground focus:outline-none;
+  }
+  /* The native arrow sat against the edge - drawn instead, with the same inset as the text. A mid grey reads on
+     both themes, since a background image can't take currentColor */
+  select {
+    @apply appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a857d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.875rem center;
+    background-size: 1rem;
+  }
+  /* No up/down arrows on number boxes unless one opts in with data-arrows - the quantity control has its own
+     - and +, and keyboard arrows still step. Opted in, they stay in view rather than only on hover */
+  input[type="number"]:not([data-arrows]) {
+    appearance: textfield;
+  }
+  input[type="number"]:not([data-arrows])::-webkit-inner-spin-button,
+  input[type="number"]:not([data-arrows])::-webkit-outer-spin-button {
+    @apply m-0 appearance-none;
+  }
+  input[type="number"][data-arrows]::-webkit-inner-spin-button {
+    @apply ml-1 cursor-pointer opacity-100;
+  }
+  /* Tailwind 4 leaves buttons on the default arrow - everything that acts on a click says so */
+  button:not(:disabled),
+  select,
+  input[type="radio"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  label:has(> input[type="checkbox"]) {
+    @apply cursor-pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+/* A region waiting on a background post (enhance.ts) - dimmed after a beat, so a quick answer doesn't flicker,
+   and not clickable meanwhile. The form that posted stays live, so a shopper still pressing + isn't cut off */
+[aria-busy="true"] {
+  @apply pointer-events-none opacity-60 transition-opacity delay-150;
+}
+form[aria-busy="true"] {
+  @apply pointer-events-auto;
+}
+
+/* Page loads cross-fade natively, with no router script - Base.astro opts browsing pages in. A product's
+   image keeps its view-transition-name from the grid to its page, so it morphs into place */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease-out-soft);
+}
+::view-transition-group(*) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-out-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
