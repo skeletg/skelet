@@ -1850,13 +1850,3 @@ query RecommendationProducts($ids: [ID!]!) {
     displayImage { id url altText status }
   }
 }
-
-query RecommendationSearch($search: String, $limit: Int) {
-  productsPaged(search: $search, limit: $limit) {
-    items {
-      id name sku
-      thumbnail { id url altText status }
-      displayImage { id url altText status }
-    }
-  }
-}

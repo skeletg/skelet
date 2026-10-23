@@ -858,7 +858,7 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 		}
 		parsed = append(parsed, id)
 	}
-	products, err := r.CatalogSvc.ListProductsWithAttributesByIDs(ctx, parsed)
+	products, err := r.CatalogSvc.ListProductsWithGraphByIDs(ctx, parsed, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
