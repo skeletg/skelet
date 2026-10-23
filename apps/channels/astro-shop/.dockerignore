@@ -1,0 +1,9 @@
+# Keep the prod build context lean - node_modules and dist are rebuilt inside the image, and a host
+# install copied over the image's musl one would break its native packages
+node_modules
+dist
+.astro
+test-results
+playwright-report
+*.log
+.DS_Store
