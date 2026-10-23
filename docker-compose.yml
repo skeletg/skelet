@@ -346,6 +346,39 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  astro-shop:
+    profiles: ["astro-shop"]
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    build:
+      context: .
+      dockerfile: apps/channels/astro-shop/Dockerfile
+      # Same uid story as the dashboard's install
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./apps/channels/astro-shop:/var/www/storefront
+      - astro-shop-node-modules:/var/www/storefront/node_modules
+    environment:
+      - HOME=/tmp
+      - BACKEND_INTERNAL_URL=http://app:8080
+      # Its own variable, as for vetrina-demo - the root .env's GRAPHQL_CODEGEN_URL may point at the admin schema
+      - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
+      - FRONT_API_SLUG=${FRONT_API_SLUG:-}
+      # The uuid the baseline migration seeds - override in the root .env if your channels differ
+      - STOREFRONT_CHANNEL_ID=${STOREFRONT_CHANNEL_ID:-56d051bc-0131-4476-bc0b-121d80290684}
+      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - dev-only value
+      - STOREFRONT_REVALIDATE_SECRET=dev-revalidate-secret-change-me
+      # Vite's watcher, polled because a Windows bind mount delivers no file events
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging: *logging
+
   # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/ skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding them to every interface put a live database on whatever network you were on - WSL2 still forwards localhost, so Windows-side tools keep working
   db:
     image: postgres:18-alpine
@@ -714,3 +747,4 @@ volumes:
   dashboard-vite-cache:
   vetrina-demo-node-modules:
   vetrina-demo-next-cache:
+  astro-shop-node-modules:
