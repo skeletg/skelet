@@ -1,0 +1,163 @@
+---
+import type { ComponentProps } from "astro/types";
+
+import "../styles/global.css";
+import fontRegular from "../assets/fonts/poppins-latin-400.woff2?url";
+import Seo from "../components/Seo.astro";
+import { getChannel } from "../lib/channel";
+
+interface Props extends ComponentProps<typeof Seo> {
+  // Browsing pages only: in Chrome with scripts off, a transition across a form's POST-redirect never finished and
+  // left its overlay over the next page, so the cart and checkout flows opt out
+  transitions?: boolean;
+  // Full-bleed pages (the home page's hero and bands) lay out their own columns
+  full?: boolean;
+}
+
+const channel = await getChannel();
+const { transitions = true, full = false, ...seo } = Astro.props;
+
+const strip = ["Free returns within 30 days", "Secure checkout, no account needed", "Small batches, shipped with care"];
+const links = [
+  { href: "/#products", label: "Shop" },
+  { href: "/#story", label: "Our story" },
+  { href: "/#promise", label: "Our promise" },
+];
+---
+
+<!doctype html>
+<html lang={channel.defaultLocale}>
+  <head>
+    <meta charset="utf-8" />
+    <!-- Before first paint: the js marker, then the shopper's theme and font picks (theme.ts) so neither flashes.
+         ?font=<name> on any URL picks a font for testing, ?font=default drops the pick -->
+    <script is:inline>
+      {
+        const d = document.documentElement;
+        d.classList.add("js");
+        try {
+          const asked = new URLSearchParams(location.search).get("font");
+          if (asked === "default") localStorage.removeItem("font");
+          else if (asked) localStorage.setItem("font", asked);
+          const font = localStorage.getItem("font"), theme = localStorage.getItem("theme");
+          if (font) d.dataset.font = font;
+          if (theme === "light" || theme === "dark") d.dataset.theme = theme;
+        } catch {}
+      }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="preload" href={fontRegular} as="font" type="font/woff2" crossorigin />
+    <!-- The browser bar matches the header, which is dark in both themes -->
+    <meta name="theme-color" content="#0e0d0c" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231a1917'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fb923c'/%3E%3C/svg%3E" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <Seo {...seo} />
+    {transitions && <style is:inline>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }</style>}
+  </head>
+  <body class="flex min-h-dvh flex-col font-sans">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground">Skip to content</a>
+    <header class="sticky top-0 z-40 scheme-dark bg-inverse/95 text-inverse-foreground backdrop-blur-md [view-transition-name:site-header]">
+      <div class="border-b border-inverse-foreground/10">
+        <ul class="container-page flex h-9 items-center justify-center gap-4 text-[0.7rem] tracking-wide text-inverse-foreground/70">
+          {strip.map((item, i) => <li class:list={["items-center gap-4", i === 0 ? "flex" : "hidden sm:flex"]}>{i > 0 && <span aria-hidden="true" class="text-inverse-foreground/25">|</span>}{item}</li>)}
+        </ul>
+      </div>
+      <div class="container-page flex h-16 items-center justify-between gap-4 sm:h-[4.5rem]">
+        <a href="/" class="flex items-center gap-2.5 text-[1.05rem] font-semibold tracking-tight">
+          <span aria-hidden="true" class="grid size-8 place-items-center rounded-lg bg-inverse-foreground"><span class="size-3 rounded-full bg-accent"></span></span>
+          {channel.name}
+        </a>
+        <nav aria-label="Main" class="hidden items-center gap-7 text-[0.8125rem] font-medium md:flex">
+          {links.map((l) => <a href={l.href} class="text-inverse-foreground/80 transition-colors hover:text-inverse-foreground">{l.label}</a>)}
+        </nav>
+        <div class="flex items-center gap-1">
+          <a href="/#products" class="mr-2 hidden rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-wide text-accent-foreground transition-opacity hover:opacity-90 sm:inline-flex">Shop now</a>
+          <a href="/cart" data-astro-prefetch="false" class="relative grid size-10 place-items-center rounded-full transition-colors hover:bg-inverse-foreground/10">
+            <span class="sr-only">Cart</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 7h12l-1 13H7L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" />
+            </svg>
+            <span data-cart-count hidden class="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[0.7rem] font-bold text-accent-foreground"></span>
+          </a>
+          <!-- Scripts off, the system theme applies and there's nothing to toggle -->
+          <button type="button" data-theme-toggle aria-pressed="false" class="hidden size-10 place-items-center rounded-full text-inverse-foreground/80 transition-colors hover:bg-inverse-foreground/10 hover:text-inverse-foreground js:grid">
+            <span class="sr-only">Dark theme</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+            </svg>
+            <svg aria-hidden="true" viewBox="0 0 24 24" class="hidden size-5 dark:block" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" class:list={["flex-1", !full && "container-page pb-20 pt-8 sm:pt-12"]}>
+      <slot />
+    </main>
+
+    <footer class="scheme-dark bg-inverse text-inverse-foreground">
+      <div class="container-page grid gap-12 py-16 sm:grid-cols-2 sm:py-20 lg:grid-cols-4">
+        <div class="lg:col-span-2">
+          <a href="/" class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+            <span aria-hidden="true" class="grid size-8 place-items-center rounded-lg bg-inverse-foreground"><span class="size-3 rounded-full bg-accent"></span></span>
+            {channel.name}
+          </a>
+          <p class="mt-5 max-w-sm text-sm leading-relaxed text-inverse-foreground/70">
+            A small, considered collection - picked to be used every day and kept for years. Small batches, shipped with care.
+          </p>
+        </div>
+        <nav aria-label="Shop">
+          <h2 class="eyebrow text-inverse-foreground">Shop</h2>
+          <ul class="mt-5 space-y-3 text-sm text-inverse-foreground/70">
+            <li><a href="/#products" class="hover:text-inverse-foreground">All products</a></li>
+            <li><a href="/cart" class="hover:text-inverse-foreground">Cart</a></li>
+            <li><a href="/checkout" class="hover:text-inverse-foreground">Checkout</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Information">
+          <h2 class="eyebrow text-inverse-foreground">Information</h2>
+          <ul class="mt-5 space-y-3 text-sm text-inverse-foreground/70">
+            <li><a href="/#story" class="hover:text-inverse-foreground">Our story</a></li>
+            <li><a href="/#promise" class="hover:text-inverse-foreground">Our promise</a></li>
+            <li><a href="/sitemap.xml" class="hover:text-inverse-foreground">Sitemap</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="border-t border-inverse-foreground/10">
+        <div class="container-page flex flex-col gap-4 py-6 text-xs text-inverse-foreground/60 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} {channel.name}. All rights reserved.</p>
+          {import.meta.env.DEV && (
+            <label class="flex items-center gap-2">
+              Font
+              <select data-font-picker class="min-h-8 w-auto py-1 text-xs">
+                <option value="default">Poppins</option>
+                <option value="montserrat">Montserrat</option>
+                <option value="system">System</option>
+              </select>
+            </label>
+          )}
+        </div>
+      </div>
+    </footer>
+
+    <!-- Cached HTML is the same for everyone - the badge reads the shopper's own count from a cookie, before first paint -->
+    <script is:inline>
+      {
+        const n = document.cookie.match(/(?:^|; )cart_count=(\d+)/)?.[1];
+        const el = document.querySelector("[data-cart-count]");
+        if (n && n !== "0" && el) { el.textContent = n; el.hidden = false; }
+      }
+    </script>
+    <script>
+      import { initEnhance } from "../scripts/enhance";
+      import { initMotion } from "../scripts/motion";
+      import { initTheme } from "../scripts/theme";
+      initTheme();
+      initMotion();
+      initEnhance();
+    </script>
+  </body>
+</html>
