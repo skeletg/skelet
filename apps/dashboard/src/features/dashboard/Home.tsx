@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client/react'
 import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, SlidersHorizontalIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DetailPageBody, DetailPageHeader, DetailPageLayout } from '@/components/layout/detail-page'
 import { usePreference } from '@/lib/admin-prefs'
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/lib/layout-pref'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useFeatures } from '@/shared/features/useFeatures'
+import { useShellReady } from '@/lib/shell-ready'
 import { MeDocument } from '@/shared/auth/Me.gql'
 import {
   HOME_LAYOUT_PREF_KEY,
@@ -31,6 +33,7 @@ export function Home() {
   const { enabled: featureEnabled, loading: featuresLoading } = useFeatures()
   const [layout, setLayout] = usePreference<OrderedLayout>(HOME_LAYOUT_PREF_KEY, EMPTY_LAYOUT)
   const [customizing, setCustomizing] = useState(false)
+  const ready = useShellReady()
 
   // the same gating rules the sidebar uses - hidden while grants load rather than flashing in
   const available = visibleWidgets(HOME_WIDGETS, {
@@ -48,7 +51,7 @@ export function Home() {
     <DetailPageLayout>
       <DetailPageHeader
         title="Dashboard"
-        badges={me?.isSuperuser ? <Badge variant="secondary">Superuser</Badge> : undefined}
+        badges={me?.isSuperuser ? <Badge variant="secondary" data-arrive="">Superuser</Badge> : undefined}
         meta={
           <span className="text-xs text-muted-foreground">
             {customizing
@@ -75,7 +78,8 @@ export function Home() {
         }
       />
       <DetailPageBody>
-        {ordered.map((w, i) => {
+        {!ready && <SectionsSkeleton />}
+        {ready && ordered.map((w, i) => {
           const hidden = isHiddenInLayout(layout, w.id, w.defaultHidden)
           if (!customizing) {
             return hidden ? null : (
@@ -129,5 +133,22 @@ export function Home() {
         })}
       </DetailPageBody>
     </DetailPageLayout>
+  )
+}
+
+// Sections laid out from defaults would reorder under the admin the moment grants and the saved arrangement land
+function SectionsSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <section key={i} className="grid gap-4 px-6 py-6" aria-hidden>
+          <div className="grid gap-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <Skeleton className="h-28 w-full" />
+        </section>
+      ))}
+    </>
   )
 }
