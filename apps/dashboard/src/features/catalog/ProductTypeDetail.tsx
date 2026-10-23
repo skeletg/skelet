@@ -93,6 +93,7 @@ import {
 } from './Catalog.gql'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
 import { ProductTypeReviewsCard } from './ProductTypeReviewsCard'
+import { ProductTypeTemplatesSection } from './ProductTypeTemplatesSection'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type AttributeRow = {
@@ -113,8 +114,10 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   const params = useParams<{ id?: string }>()
   const id = productTypeId ?? params.id ?? ''
   const navigate = useNavigate()
-  const { has } = usePermissions()
+  const { has, allowedChannelScopes } = usePermissions()
   const canManage = has('catalog.manage')
+  // A type's templates reach products on every store, so only a store-wide catalog manager changes them
+  const canManageTemplates = canManage && allowedChannelScopes('catalog.manage').allChannels
 
   const ptQuery = useQuery(ProductTypeDocument, {
     variables: { id },
@@ -548,6 +551,8 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
             </DndContext>
           )}
       </DetailPageSection>
+
+      <ProductTypeTemplatesSection productType={productType} canManage={canManageTemplates} />
 
       <ProductTypeReviewsCard
         productTypeId={productType.id}

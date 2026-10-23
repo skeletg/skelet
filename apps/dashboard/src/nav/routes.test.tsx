@@ -65,3 +65,11 @@ describe('page titles', () => {
     flags.on = false
   })
 })
+
+// Templates are found from a product's Configurator and a product type now - the menu entry went, the pages stay
+describe('configurator templates', () => {
+  it('are no menu entry but still open by link', () => {
+    expect(visibleSidebarPaths().filter((p) => p.startsWith('/catalog/configurator-templates'))).toEqual([])
+    expect(allRouterRoutes().map((r) => r.path)).toEqual(expect.arrayContaining(['/catalog/configurator-templates', '/catalog/configurator-templates/:id']))
+  })
+})

@@ -108,6 +108,11 @@ query CartAddProductOptions($id: ID!) {
         isDefault
       }
     }
+    optionRules {
+      id
+      condition
+      actions { type optionId quantity }
+    }
   }
 }
 
