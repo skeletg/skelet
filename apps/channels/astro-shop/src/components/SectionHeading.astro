@@ -1,0 +1,17 @@
+---
+// A band's eyebrow, title and optional intro (the slot) - centred over a grid, or left beside an image
+interface Props {
+  eyebrow: string;
+  title: string;
+  id?: string;
+  center?: boolean;
+}
+
+const { eyebrow, title, id, center = false } = Astro.props;
+---
+
+<div class:list={[center ? "mx-auto max-w-2xl text-center" : "max-w-xl"]}>
+  <p class:list={["eyebrow flex items-center gap-3 text-accent before:h-px before:w-8 before:bg-current", center && "justify-center"]}>{eyebrow}</p>
+  <h2 id={id} class="mt-4 text-3xl font-semibold leading-[1.1] tracking-tight text-balance sm:text-[2.75rem]">{title}</h2>
+  {Astro.slots.has("default") && <div class="mt-5 text-base leading-relaxed text-pretty text-muted-foreground"><slot /></div>}
+</div>
