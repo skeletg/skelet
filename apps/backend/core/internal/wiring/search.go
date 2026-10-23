@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -184,7 +185,9 @@ func registerSearchSubscribers(root context.Context, bus *events.Bus, products p
 		return nil
 	})
 	bus.Subscribe(catalog.EventProductUpdated, func(ctx context.Context, e events.Event) error {
-		upsertProduct(ctx, e.(*catalog.ProductUpdated).ProductID)
+		if updated := e.(*catalog.ProductUpdated); indexedChange(updated.ChangedFields) {
+			upsertProduct(ctx, updated.ProductID)
+		}
 		return nil
 	})
 	bus.Subscribe(catalog.EventProductDeleted, func(ctx context.Context, e events.Event) error {
@@ -330,4 +333,11 @@ func (c *stockCoalescer) run(ctx context.Context) {
 			c.upsert(ctx, id)
 		}
 	}
+}
+
+// The index holds nothing of a product's configurator, and one template or product type edit can announce thousands
+// of products - an update that touched only that skips the ~dozen-query upsert. No changed fields means unknown, so
+// it indexes
+func indexedChange(changed []string) bool {
+	return len(changed) == 0 || slices.ContainsFunc(changed, func(f string) bool { return f != catalog.ProductFieldOptions })
 }
