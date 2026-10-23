@@ -103,7 +103,7 @@ export function SidebarResizeRail({ className }: { className?: string }) {
       onDoubleClick={() => !collapsed && resetWidth()}
       onClick={() => collapsed && toggleSidebar()}
       className={cn(
-        'absolute inset-y-0 z-20 hidden w-4 group-data-[side=left]:-right-4 group-data-[side=right]:-left-4 sm:flex',
+        'absolute inset-y-0 z-20 hidden w-4 group-data-[side=left]:-right-4 group-data-[side=left]:-translate-x-1/2 group-data-[side=right]:-left-4 group-data-[side=right]:translate-x-1/2 sm:flex',
         'after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] after:transition-colors hover:after:bg-sidebar-border',
         'focus-visible:outline-none focus-visible:after:bg-primary',
         collapsed ? (dir < 0 ? 'cursor-w-resize' : 'cursor-e-resize') : 'cursor-col-resize',
