@@ -7,6 +7,9 @@ type PaymentMethodOption {
   # Customer-facing payment instructions (offline methods only - e.g. bank
   # transfer details, "pay the courier on delivery"). Empty for gateway methods.
   instructions: String!
+  # No third party behind it (cash on delivery, bank transfer, pickup, purchase order) - placing the
+  # order is the whole checkout, with no payment action to complete
+  isOffline:    Boolean!
 }
 
 extend type Query {

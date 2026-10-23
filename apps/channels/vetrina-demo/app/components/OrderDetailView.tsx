@@ -24,10 +24,13 @@ export function OrderDetailView({
   order,
   headerAction,
   extraSections,
+  paymentIncomplete = false,
 }: {
   order: OrderDetailOrder;
   headerAction?: ReactNode;
   extraSections?: ReactNode;
+  // Checkout placed the order but its payment wanted an action the storefront can't run
+  paymentIncomplete?: boolean;
 }) {
   const t = useTranslations("order");
   const tc = useTranslations("common");
@@ -52,6 +55,13 @@ export function OrderDetailView({
         </div>
         {headerAction}
       </header>
+
+      {paymentIncomplete ? (
+        <section role="status" className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm">
+          <p className="font-semibold">{t("paymentIncompleteTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{t("paymentIncompleteBody")}</p>
+        </section>
+      ) : null}
 
       {order.paymentInstructions ? (
         <section className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm">

@@ -38,6 +38,7 @@ export default async function OrderDetailPage({
     ? sp.just_placed[0]
     : sp.just_placed;
   const justPlaced = justPlacedRaw === "1";
+  const paymentIncomplete = (Array.isArray(sp.payment) ? sp.payment[0] : sp.payment) === "incomplete";
 
   let order: Awaited<ReturnType<typeof loadOrder>>;
   try {
@@ -101,6 +102,7 @@ export default async function OrderDetailPage({
 
       <OrderDetailView
         order={order}
+        paymentIncomplete={paymentIncomplete}
         headerAction={<ReorderButton orderId={order.id} />}
         extraSections={
           <>

@@ -33,11 +33,13 @@ func (r *queryResolver) PaymentMethods(ctx context.Context, countryCode string, 
 	}
 	out := make([]*model.PaymentMethodOption, len(methods))
 	for i, m := range methods {
+		reg, regErr := payment.GetProvider(m.ProviderSlug)
 		out[i] = &model.PaymentMethodOption{
 			ProviderSlug: m.ProviderSlug,
 			DisplayName:  m.DisplayName,
 			SortOrder:    m.SortOrder,
 			Instructions: r.paymentInstructions(ctx, m.ProviderSlug, requestConfigScope(ctx)),
+			IsOffline:    regErr == nil && reg.IsOffline,
 		}
 	}
 	return out, nil

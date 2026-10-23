@@ -987,6 +987,7 @@ type ComplexityRoot struct {
 	PaymentMethodOption struct {
 		DisplayName  func(childComplexity int) int
 		Instructions func(childComplexity int) int
+		IsOffline    func(childComplexity int) int
 		ProviderSlug func(childComplexity int) int
 		SortOrder    func(childComplexity int) int
 	}
@@ -6247,6 +6248,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PaymentMethodOption.Instructions(childComplexity), true
+	case "PaymentMethodOption.isOffline":
+		if e.ComplexityRoot.PaymentMethodOption.IsOffline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PaymentMethodOption.IsOffline(childComplexity), true
 	case "PaymentMethodOption.providerSlug":
 		if e.ComplexityRoot.PaymentMethodOption.ProviderSlug == nil {
 			break
@@ -10875,6 +10882,9 @@ type PaymentMethodOption {
   # Customer-facing payment instructions (offline methods only - e.g. bank
   # transfer details, "pay the courier on delivery"). Empty for gateway methods.
   instructions: String!
+  # No third party behind it (cash on delivery, bank transfer, pickup, purchase order) - placing the
+  # order is the whole checkout, with no payment action to complete
+  isOffline:    Boolean!
 }
 
 extend type Query {
@@ -13082,6 +13092,8 @@ func (ec *executionContext) childFields_PaymentMethodOption(ctx context.Context,
 		return ec.fieldContext_PaymentMethodOption_sortOrder(ctx, field)
 	case "instructions":
 		return ec.fieldContext_PaymentMethodOption_instructions(ctx, field)
+	case "isOffline":
+		return ec.fieldContext_PaymentMethodOption_isOffline(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PaymentMethodOption", field.Name)
 }
@@ -34220,6 +34232,29 @@ func (ec *executionContext) fieldContext_PaymentMethodOption_instructions(_ cont
 	return graphql.NewScalarFieldContext("PaymentMethodOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _PaymentMethodOption_isOffline(ctx context.Context, field graphql.CollectedField, obj *model1.PaymentMethodOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PaymentMethodOption_isOffline(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsOffline, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PaymentMethodOption_isOffline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PaymentMethodOption", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _PhoneCountryFormat_countryCode(ctx context.Context, field graphql.CollectedField, obj *model1.PhoneCountryFormat) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -53848,6 +53883,11 @@ func (ec *executionContext) _PaymentMethodOption(ctx context.Context, sel ast.Se
 			}
 		case "instructions":
 			out.Values[i] = ec._PaymentMethodOption_instructions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isOffline":
+			out.Values[i] = ec._PaymentMethodOption_isOffline(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

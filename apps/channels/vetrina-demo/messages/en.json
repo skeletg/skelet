@@ -403,6 +403,8 @@
     "label": "Order",
     "placed": "Placed {date}",
     "paymentPending": "Payment pending",
+    "paymentIncompleteTitle": "Your order was created, but payment is not complete",
+    "paymentIncompleteBody": "The payment provider asked for a step this store can't complete online. Nothing more will be charged here - contact us to finish paying for this order.",
     "shippedVia": "Shipped via {carrier}",
     "carrierFallback": "carrier",
     "trackingDelay": "Tracking details from your carrier may take a few hours to appear.",
@@ -918,7 +920,6 @@
     },
     "payment": {
       "none": "No payment method is available for this country.",
-      "confirming": "Confirming your payment…",
       "method": "Payment method",
       "card": "Card",
       "cardFallback": "Card",
