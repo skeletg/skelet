@@ -1,0 +1,122 @@
+---
+import { Price } from "../components/Price";
+import { ProductImage } from "../components/ProductImage";
+import QuantityInput from "../components/QuantityInput.astro";
+import Choice from "../components/Choice.astro";
+import { Button } from "../components/ui";
+import Base from "../layouts/Base.astro";
+import { cacheCatalog } from "../lib/cache";
+import { getSite } from "../lib/channel";
+import { paragraphs } from "../lib/format";
+import { gql } from "../lib/gql";
+import { ProductPageDocument, RouteDocument } from "../graphql/product.gql";
+import { absolute, breadcrumbLd, clip, productLd } from "../lib/seo";
+
+// Routing is the backend's, as in vetrina: the URL-rewrite resolver decides what a path is
+const path = Astro.params.slug ?? "";
+const { route } = await gql(RouteDocument, { path });
+if (route?.redirectTo) return Astro.redirect(route.redirectTo, route.redirectStatusCode === 302 ? 302 : 301);
+
+const product = route?.kind === "PRODUCT" && route.entityId ? (await gql(ProductPageDocument, { id: route.entityId })).product : null;
+// Not cached when missing - a product published a minute from now should appear without waiting out a TTL
+if (!product) return Astro.rewrite("/404");
+// A stock change purges the variant's own id, so each variant's tag is on its parent's page too
+cacheCatalog(Astro.cache, [`product:${product.id}`, ...product.children.map((v) => `product:${v.id}`)]);
+
+const { channel, origin } = await getSite(Astro.url.origin);
+// A configurable product is bought as one of its variants, a simple one as itself
+// shortcut: bundles and products with custom options aren't sold here, add their forms if the catalog needs them
+const variants = product.kind === "CONFIGURABLE" ? product.children : [];
+const firstInStock = variants.find((v) => v.inStock);
+const sellable = product.kind === "SIMPLE" || variants.length > 0;
+const canBuy = product.inStock && (variants.length === 0 || !!firstInStock);
+const body = paragraphs(product.description);
+const name = product.name ?? "";
+
+const url = product.url ? absolute(origin, product.url) : "";
+const description = product.metaDescription || clip(body.join(" ") || `${name} from ${channel.name}.`);
+const structured = [
+  productLd(
+    { name, sku: product.sku, url, description: body.join(" ") || undefined, image: product.mainImage?.url, price: product.price, inStock: product.inStock },
+    channel.currency,
+    channel.name,
+  ),
+  breadcrumbLd([
+    { name: channel.name, url: absolute(origin, "/") },
+    { name, url },
+  ]),
+];
+---
+
+<Base title={product.metaTitle || name} description={description} image={product.mainImage?.url} type="product" structured={structured}>
+  <nav aria-label="Breadcrumb" class="mb-6 text-sm text-muted-foreground">
+    <ol class="flex items-center gap-2">
+      <li><a href="/" class="hover:text-foreground">Shop</a></li>
+      <li aria-hidden="true">/</li>
+      <li aria-current="page" class="truncate text-foreground">{name}</li>
+    </ol>
+  </nav>
+  <article class="grid gap-10 md:grid-cols-[1.1fr_1fr] md:gap-14 lg:gap-20">
+    <ProductImage name={name} image={product.mainImage} priority transitionName={`product-${product.id}`} sizes="(min-width: 768px) 55vw, 100vw" />
+    <div class="md:sticky md:top-24 md:self-start">
+      <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{name}</h1>
+      <p class="mt-3 text-2xl font-semibold">
+        <Price amount={product.price} compareAt={product.compareAtPrice} onSale={product.onSale} currency={channel.currency} />
+      </p>
+      <p class:list={["mt-2 inline-flex items-center gap-2 text-sm", product.inStock ? "text-success" : "text-muted-foreground"]}>
+        <span class:list={["size-2 rounded-full", product.inStock ? "bg-success" : "bg-muted-foreground"]} />
+        {product.inStock ? "In stock" : "Sold out"}
+      </p>
+
+      {sellable ? (
+        // With scripts the add posts in the background and the shopper stays here; without, it lands on the cart
+        <form method="post" action="/cart" class="mt-8 grid max-w-md gap-6" data-enhance="" data-done="Added to your cart.">
+          <input type="hidden" name="intent" value="add" />
+          {variants.length > 0 ? (
+            <fieldset class="grid gap-2">
+              <legend class="mb-2 text-sm font-medium">Choose an option</legend>
+              {variants.map((v) => (
+                <Choice name="sku" value={v.sku} disabled={!v.inStock} checked={v.sku === firstInStock?.sku}>
+                  <span class="flex-1">{(v.name ?? v.sku).replace(`${name} / `, "")}</span>
+                  <span class="text-sm text-muted-foreground">{v.inStock ? <Price amount={v.price} currency={channel.currency} /> : "Sold out"}</span>
+                </Choice>
+              ))}
+            </fieldset>
+          ) : (
+            <input type="hidden" name="sku" value={product.sku} />
+          )}
+          <div class="flex items-end gap-3">
+            <div class="grid gap-1 text-sm font-medium">
+              <span aria-hidden="true">Quantity</span>
+              <QuantityInput
+                id="quantity"
+                label="Quantity"
+                value={product.minOrderQty ?? 1}
+                min={product.minOrderQty ?? 1}
+                max={product.maxOrderQty}
+                step={product.quantityStep ?? 1}
+              />
+            </div>
+            <Button type="submit" disabled={!canBuy} className="flex-1">
+              {canBuy ? "Add to cart" : "Sold out"}
+            </Button>
+          </div>
+          <p data-status role="status" class="-mt-3 min-h-5 text-sm text-muted-foreground empty:hidden"></p>
+        </form>
+      ) : (
+        <p class="mt-8 text-muted-foreground">This product can't be ordered from this shop yet.</p>
+      )}
+
+      <ul class="mt-8 grid gap-2 border-t border-border pt-6 text-sm text-muted-foreground">
+        <li>Free returns within 30 days</li>
+        <li>Secure checkout, no account needed</li>
+      </ul>
+
+      {body.length > 0 && (
+        <div class="mt-8 grid gap-4 border-t border-border pt-6 leading-relaxed text-muted-foreground">
+          {body.map((p) => <p>{p}</p>)}
+        </div>
+      )}
+    </div>
+  </article>
+</Base>
