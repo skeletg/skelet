@@ -308,6 +308,35 @@ services:
         limits: { memory: 512m, cpus: "1" }
     logging: *logging
 
+  # Opt-in - `--profile astro-shop` - so a deployment without its env file still starts
+  astro-shop:
+    profiles: ["astro-shop"]
+    image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
+    build:
+      context: ./apps/channels/astro-shop
+      dockerfile: Dockerfile.prod
+    # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
+    env_file: [env/prod-astro-shop.env]
+    ports: ["127.0.0.1:3001:3000"]
+    environment:
+      BACKEND_INTERNAL_URL: http://app:8080
+      # Shared with the backend, from the same root .env it reads
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        # The route cache lives in this process's memory
+        limits: { memory: 384m, cpus: "1" }
+    logging: *logging
+
   # Opt-in TLS edge - `--profile edge` - everything else here binds to 127.0.0.1 and expects your own proxy; this is for the deployments that don't have one already
   caddy:
     profiles: ["edge"]
