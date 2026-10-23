@@ -1,0 +1,15 @@
+# pnpm settings for this app alone - no packages: key, so this is a single project, not a
+# workspace. The Dockerfile copies this file next to the lockfile or a frozen install refuses to run
+
+# Dependency install scripts run only when listed true - esbuild and sharp load a prebuilt
+# platform package, and this app does no build-time image processing
+allowBuilds:
+  esbuild: false
+  sharp: false
+
+# Same floor as vetrina-demo: near-operation-file-preset still asks for ^11, and
+# GHSA-7mx3-vvmw-hjmv is fixed only in 12.0.1
+overrides:
+  "@graphql-tools/utils@<12.0.1": "^12.0.1"
+
+verifyDepsBeforeRun: install
