@@ -1,5 +1,6 @@
 // Storefront catalog queries + the trimmed TS shapes for the fields we actually render
 
+import type { ProductOptionRule } from "@/app/lib/optionRules";
 import { cache } from "react";
 
 import {
@@ -13,6 +14,8 @@ import {
   CollectionDocument,
   CollectionsDocument,
   ProductDocument,
+  ProductConfiguratorDocument,
+  type ProductConfiguratorPicturesFragment,
   ProductSortOptionsDocument,
   type ProductSortOptionsQuery,
   SynapseAttributesDocument,
@@ -129,6 +132,7 @@ export type ProductVariant = {
   description: unknown;
   metaTitle: string | null;
   options: ProductCustomOption[];
+  optionRules: ProductOptionRule[];
 };
 
 export type ConfigurableOption = {
@@ -190,12 +194,17 @@ export type GroupedMember = {
     quantityDecimals?: number | null;
     mainImage: ProductMedia | null;
     options: ProductCustomOption[];
+    optionRules: ProductOptionRule[];
   };
 };
+
+export type ProductCustomOptionImage = { url: string; altText: string; width: number | null; height: number | null };
 
 export type ProductCustomOptionValue = {
   id: string;
   title: string;
+  // Filled from the configurator query - shown as a tile to pick rather than a plain label
+  image?: ProductCustomOptionImage | null;
   priceValue: number;
   priceType: string;
   quantity: number;
@@ -227,6 +236,8 @@ export type ProductCustomOption = {
 // the server re-evaluates on add-to-cart, optionVisibility.ts mirrors it for live show/hide
   visibleIf: unknown;
   values: ProductCustomOptionValue[];
+  // Filled from the configurator query - shown beside the option
+  image?: ProductCustomOptionImage | null;
 };
 
 export type ProductDetail = ProductSummary & {
@@ -251,6 +262,9 @@ export type ProductDetail = ProductSummary & {
   bundleOptions: BundleOption[];
   groupedMembers: GroupedMember[];
   options: ProductCustomOption[];
+  optionRules: ProductOptionRule[];
+  // Every option at once, or one step at a time - from the configurator query, LIST without options
+  configuratorLayout: "LIST" | "STEPS";
   // Recurring terms for SUBSCRIPTION products (null otherwise); drives the PDP's "$X /
   // month" display
   subscriptionTerms: {
@@ -401,7 +415,8 @@ export const getProduct = cache(async (id: string): Promise<{
       tags: [`product:${id}`],
     });
     const res = await gqlFetch(ProductDocument, { id }, cacheOpts);
-    return { product: res.data.product as unknown as ProductDetail | null };
+    const product = res.data.product as unknown as ProductDetail | null;
+    return { product: product ? await withConfigurator(product, cacheOpts) : null };
   } catch (err) {
     // The backend returns a GraphQL error (not a null product) when the ID doesn't
     // exist or isn't visible to the storefront
@@ -414,6 +429,54 @@ export const getProduct = cache(async (id: string): Promise<{
     throw err;
   }
 });
+
+// The Product query sits at the front surface's complexity cap, so option rules and pictures come in a query of their
+// own - and only when the product, a variant or a grouped member has options for them to belong to
+async function withConfigurator(
+  product: ProductDetail,
+  cacheOpts: Parameters<typeof gqlFetch>[2],
+): Promise<ProductDetail> {
+  const empty = { ...product, optionRules: [] as ProductOptionRule[], configuratorLayout: "LIST" as const };
+  const hasOptions =
+    product.options.length > 0 ||
+    product.children.some((c) => c.options.length > 0) ||
+    product.groupedMembers.some((m) => m.member.options.length > 0);
+  if (!hasOptions) return empty;
+  const res = await gqlFetch(ProductConfiguratorDocument, { id: product.id }, cacheOpts);
+  const extra = res.data.product;
+  if (!extra) return empty;
+  const byChild = new Map(extra.children.map((c) => [c.id, c]));
+  const byMember = new Map(extra.groupedMembers.map((m) => [m.member.id, m.member]));
+  return {
+    ...product,
+    configuratorLayout: extra.configuratorLayout,
+    options: withPictures(product.options, extra.options),
+    optionRules: extra.optionRules as ProductOptionRule[],
+    children: product.children.map((c) => ({
+      ...c,
+      options: withPictures(c.options, byChild.get(c.id)?.options ?? []),
+      optionRules: (byChild.get(c.id)?.optionRules ?? []) as ProductOptionRule[],
+    })),
+    groupedMembers: product.groupedMembers.map((m) => ({
+      ...m,
+      member: {
+        ...m.member,
+        options: withPictures(m.member.options, byMember.get(m.member.id)?.options ?? []),
+        optionRules: (byMember.get(m.member.id)?.optionRules ?? []) as ProductOptionRule[],
+      },
+    })),
+  };
+}
+
+function withPictures(options: ProductCustomOption[], pictures: readonly ProductConfiguratorPicturesFragment[]): ProductCustomOption[] {
+  const byId = new Map(pictures.map((p) => [p.id, p]));
+  return options.map((o) => {
+    const p = byId.get(o.id);
+    if (!p) return o;
+    const values = new Map(p.values.map((v) => [v.id, v.image ?? null]));
+    return { ...o, image: p.image ?? null, values: o.values.map((v) => ({ ...v, image: values.get(v.id) ?? null })) };
+  });
+}
 
 export type BrowseProductsResult = BrowseProductsQuery["browseProducts"];
 export type BrowseProductsItem = BrowseProductsResult["items"][number];

@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { requestProductOptionFileUploadAction } from "@/app/lib/cart/actions";
 import { roundHalfAwayFromZero } from "@/app/lib/format";
 import type { ProductCustomOption } from "@/app/lib/catalog/read";
-import { visibleOptionIds } from "@/app/lib/optionVisibility";
+import { evaluateOptionRules, type ProductOptionRule } from "@/app/lib/optionRules";
+import { visibleOptionPicks } from "@/app/lib/optionVisibility";
 import { validateFile, type FileEntry } from "./option-files";
 import {
   isSelect,
@@ -53,11 +54,18 @@ export type UseConfiguredOptions = {
   forcedQtyConflict: boolean;
   configuredTotal: number;
   optionsDelta: number;
+  // Whether an option is required right now - its own setting, as the product's option rules change it
+  isRequired: (option: ProductCustomOption) => boolean;
+  // The price changes the fired rules add, as the cart line will list them
+  ruleAdjustments: { id: string; label: string; amount: number }[];
+  // A fired rule charges an amount this store has none of, so the cart would refuse this configuration
+  rulePriceUnavailable: boolean;
 };
 
 export function useConfiguredOptions(
   options: ProductCustomOption[],
   cfg: { defaultPrice: number; effectivePrice: number; productSku: string },
+  rules: ProductOptionRule[] = [],
 ): UseConfiguredOptions {
   const sorted = useMemo(
     () => [...options].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -165,7 +173,7 @@ export function useConfiguredOptions(
 
   // Conditional visibility: one ordered pass mirroring the server's evaluator
   const byId = useMemo(() => new Map(sorted.map((o) => [o.id, o])), [sorted]);
-  const visibleIds = visibleOptionIds(
+  const { visible: visibleIds, picks } = visibleOptionPicks(
     sorted,
     (id) => {
       const o = byId.get(id);
@@ -176,10 +184,17 @@ export function useConfiguredOptions(
       return o ? isSatisfied(o) : false;
     },
   );
-  const visibleOptions = sorted.filter((o) => visibleIds.has(o.id));
+  const effects = evaluateOptionRules(rules, picks, cfg.defaultPrice);
+  // Handed back already carrying what the rules make of isRequired, so every renderer marks and gates on it
+  const visibleOptions = sorted
+    .filter((o) => visibleIds.has(o.id))
+    .map((o) => {
+      const required = effects.isRequired(o);
+      return required === o.isRequired ? o : { ...o, isRequired: required };
+    });
 
   const unsatisfiedRequired = visibleOptions.filter(
-    (o) => o.isRequired && !isSatisfied(o),
+    (o) => effects.isRequired(o) && !isSatisfied(o),
   );
   const missingRequired = unsatisfiedRequired.map((o) => o.title);
   const missingRequiredIds = unsatisfiedRequired.map((o) => o.id);
@@ -228,6 +243,13 @@ export function useConfiguredOptions(
       }
     }
   }
+  if (effects.forcedQty != null) {
+    if (effects.qtyConflict || (forcedQty != null && forcedQty !== effects.forcedQty)) {
+      forcedQtyConflict = true;
+    }
+    forcedQty = effects.forcedQty;
+  }
+  const ruleTotal = effects.adjustments.reduce((sum, a) => sum + a.amount, 0);
 
   const configuredTotal = useMemo(() => {
     let total = cfg.effectivePrice;
@@ -246,8 +268,8 @@ export function useConfiguredOptions(
         total += optionContribution(cfg.defaultPrice, opt);
       }
     }
-    return total;
-  }, [visibleOptions, sel, text, files, cfg.defaultPrice, cfg.effectivePrice]);
+    return total + ruleTotal;
+  }, [visibleOptions, sel, text, files, cfg.defaultPrice, cfg.effectivePrice, ruleTotal]);
   const optionsDelta = configuredTotal - cfg.effectivePrice;
 
   return {
@@ -267,5 +289,8 @@ export function useConfiguredOptions(
     forcedQtyConflict,
     configuredTotal,
     optionsDelta,
+    isRequired: effects.isRequired,
+    ruleAdjustments: effects.adjustments,
+    rulePriceUnavailable: effects.priceUnavailable,
   };
 }

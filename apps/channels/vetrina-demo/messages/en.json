@@ -730,7 +730,22 @@
       "pickForItem": "Pick <links></links> for this item",
       "requiredList": "{count, plural, one {Required option} other {Required options}}: <names></names>",
       "basePlusOptions": "{base} base + {options} options",
-      "qtyLockedTotal": "Quantity {qty} - set by your selection · <total></total> total"
+      "qtyLockedTotal": "Quantity {qty} - set by your selection · <total></total> total",
+      "ruleAdjustment": "Adjustment",
+      "ruleUnavailable": "This combination can't be bought in this store.",
+      "ruleBlocked": "Not available here"
+    },
+    "steps": {
+      "progress": "Step {current} of {total}",
+      "next": "Next",
+      "skip": "Skip",
+      "back": "Back",
+      "change": "Change",
+      "review": "Review your choices",
+      "done": "All set - add it to your cart below.",
+      "pickToContinue": "Answer this one to continue.",
+      "skipped": "Skipped",
+      "yourPicks": "Your choices so far"
     }
   },
   "listing": {

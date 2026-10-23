@@ -99,7 +99,7 @@ export default async function OfferPage({ params, searchParams }: PageProps<"/[c
                 <ul className="mt-1 text-xs text-muted-foreground">
                   {line.options.map((o) => (
                     <li key={o.id}>
-                      {o.optionTitle}: {o.valueLabel || o.textValue}
+                      {o.inputType === "rule" ? o.optionTitle : `${o.optionTitle}: ${o.valueLabel || o.textValue}`}
                     </li>
                   ))}
                 </ul>

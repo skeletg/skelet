@@ -18,6 +18,7 @@ import { AddToCartButton } from "@/app/components/product/AddToCartButton";
 import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
 import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { OptionControl } from "./ProductOptions";
+import { OptionsLayout } from "./OptionsLayout";
 import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
@@ -28,6 +29,7 @@ import {
 } from "./parts";
 import {
   OptionsAddLabel,
+  RuleAdjustments,
   PdpBuyBox,
   PdpMetaRow,
   PdpQty,
@@ -38,11 +40,15 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addConfiguredToCart, null);
   const t = useTranslations("product.pdp");
   const tp = useTranslations("product");
-  const opts = useConfiguredOptions(product.options, {
-    defaultPrice: product.defaultPrice,
-    effectivePrice: product.price ?? product.defaultPrice,
-    productSku: product.sku,
-  });
+  const opts = useConfiguredOptions(
+    product.options,
+    {
+      defaultPrice: product.defaultPrice,
+      effectivePrice: product.price ?? product.defaultPrice,
+      productSku: product.sku,
+    },
+    product.optionRules,
+  );
   const effectiveBase = product.price ?? product.defaultPrice;
   const qtyBounds = deriveQtyBounds(product);
   const heading = displayName(product.name, product.sku);
@@ -76,6 +82,11 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             })}
           </p>
         ) : null}
+        <RuleAdjustments
+          adjustments={opts.ruleAdjustments}
+          unavailable={opts.rulePriceUnavailable}
+          currency={product.defaultCurrencyCode}
+        />
         {opts.forcedQty != null ? (
           <p className="mt-1 text-xs text-muted-foreground">
             {t.rich("qtyLockedTotal", {
@@ -102,8 +113,12 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
           salableQuantity={product.salableQuantity}
         />
 
-        <section className="mt-8 space-y-6">
-          {opts.visibleOptions.map((opt) => (
+        <OptionsLayout
+          layout={product.configuratorLayout}
+          options={opts.visibleOptions}
+          answers={opts}
+          missingRequiredIds={opts.missingRequiredIds}
+          renderOption={(opt) => (
             // Stable key (no remount) so a required text option doesn't lose focus the
             // moment it's satisfied; the flag toggles via props
             <RequiredFlag
@@ -126,8 +141,8 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
                 />
               )}
             </RequiredFlag>
-          ))}
-        </section>
+          )}
+        />
 
         <StickyBuyRow className="mt-8">
           <form action={formAction} className="flex items-center gap-3">
@@ -145,7 +160,7 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
           <AddToCartButton
             stickyPrice={formatPrice(opts.configuredTotal, product.defaultCurrencyCode)}
             disabled={!product.inStock || opts.uploading}
-            blocked={opts.missingRequired.length > 0 || opts.forcedQtyConflict}
+            blocked={opts.missingRequired.length > 0 || opts.forcedQtyConflict || opts.rulePriceUnavailable}
             onBlockedClick={() => {
               setAttemptSeq((n) => n + 1);
               const first = opts.missingRequiredItems[0]?.id;
@@ -157,6 +172,7 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
               uploading={opts.uploading}
               missingRequired={opts.missingRequired.length > 0}
               forcedQtyConflict={opts.forcedQtyConflict}
+              unavailable={opts.rulePriceUnavailable}
             />
           </AddToCartButton>
         </form>

@@ -47,6 +47,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
   if (line.options.length > 0) {
     const byOption = new Map<string, { valueIds: string[]; textValue: string }>();
     for (const o of line.options) {
+      if (o.inputType === "rule") continue; // a rule's price row is an effect of the picks, not one
       const cur = byOption.get(o.productOptionId) ?? { valueIds: [], textValue: "" };
       if (o.optionValueId) cur.valueIds.push(o.optionValueId);
       // Carry free-text for text-type options; select options snapshot an empty
