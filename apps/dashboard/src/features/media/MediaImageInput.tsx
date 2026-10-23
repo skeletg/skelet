@@ -1,22 +1,10 @@
 import { useRef, useState } from 'react'
-import { useMutation } from '@apollo/client/react'
 import { ImageIcon, LibraryIcon, UploadIcon, XIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import {
-  ConfirmMediaAssetUploadDocument,
-  RequestMediaAssetUploadDocument,
-  type ConfirmMediaAssetUploadMutation,
-  type ConfirmMediaAssetUploadMutationVariables,
-  type RequestMediaAssetUploadMutation,
-  type RequestMediaAssetUploadMutationVariables,
-} from './MediaLibrary.gql'
-import { ADMIN_MEDIA_SVG_ENDPOINT } from '@/lib/api-endpoint'
-import { getAuthStoredState } from '@/shared/auth/auth'
 import { MediaAssetPicker } from './MediaAssetPicker'
 import { type AssetRef, assetPreviewUrl, isAssetRef } from './asset-ref'
-import { readImageDimensions } from '@/lib/image'
-import { putToSignedUrl } from '@/lib/upload'
+import { useImageUpload } from './useImageUpload'
 
 type ImageValue = string | AssetRef | undefined
 
@@ -46,64 +34,18 @@ export function MediaImageInput({
   const [error, setError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const [requestUpload] = useMutation<RequestMediaAssetUploadMutation, RequestMediaAssetUploadMutationVariables>(
-    RequestMediaAssetUploadDocument,
-  )
-  const [confirmUpload] = useMutation<ConfirmMediaAssetUploadMutation, ConfirmMediaAssetUploadMutationVariables>(
-    ConfirmMediaAssetUploadDocument,
-  )
+  const upload = useImageUpload(path)
 
   const ref = isAssetRef(value) ? value : null
   const urlStr = typeof value === 'string' ? value : ''
   const preview = assetPreviewUrl(value)
 
-  // SVG takes its own route: the server sanitizes the markup before storing it, which it can only do
-  // if the bytes come through it rather than straight to S3 on a presigned URL
-  async function uploadSvg(file: File) {
-    const body = new FormData()
-    body.append('file', file)
-    body.append('path', path)
-    const token = getAuthStoredState()?.accessToken
-    const res = await fetch(ADMIN_MEDIA_SVG_ENDPOINT, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body,
-    })
-    const payload = (await res.json().catch(() => null)) as { id?: string; url?: string; error?: string } | null
-    if (!res.ok || !payload?.id || !payload.url) {
-      throw new Error(payload?.error ?? `Upload failed (HTTP ${res.status}).`)
-    }
-    onChange({ type: 'asset', assetId: payload.id, url: payload.url, alt: '' })
-  }
-
   async function handleFile(file: File) {
     setError(null)
-    if (!file.type.startsWith('image/')) {
-      setError('Only image files can be uploaded.')
-      return
-    }
     setUploading(true)
     try {
-      if (file.type === 'image/svg+xml') {
-        await uploadSvg(file)
-        return
-      }
-      // Best-effort: an image the browser can't decode still uploads, just without stamped dimensions
-      const dims = await readImageDimensions(file).catch(() => ({ width: 0, height: 0 }))
-      const req = await requestUpload({
-        variables: {
-          input: { path, filename: file.name, mimeType: file.type, sizeBytes: file.size, altText: '' },
-        },
-      })
-      const payload = req.data?.requestMediaAssetUpload
-      if (!payload) throw new Error('Upload request did not return a signed URL.')
-      await putToSignedUrl(payload.uploadUrl, file)
-      const conf = await confirmUpload({
-        variables: { assetId: payload.asset.id, width: dims.width, height: dims.height },
-      })
-      const asset = conf.data?.confirmMediaAssetUpload
-      if (!asset) throw new Error('Upload confirmation failed.')
-      onChange({ type: 'asset', assetId: payload.asset.id, url: asset.url, alt: '' })
+      const asset = await upload(file)
+      onChange({ type: 'asset', ...asset, alt: '' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed.')
     } finally {
@@ -196,6 +138,8 @@ export function MediaImageInput({
       <MediaAssetPicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
+        uploadPath={path}
+        selectedIds={ref ? [ref.assetId] : []}
         onSelect={(a) => onChange({ type: 'asset', assetId: a.id, url: a.url, alt: a.altText || '' })}
       />
     </div>

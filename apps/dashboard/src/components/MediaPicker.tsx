@@ -103,7 +103,7 @@ export function MediaPicker({
         </div>
       </div>
 
-      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(asset) => onChange(asset.id)} />
+      <MediaAssetPicker open={open} onOpenChange={setOpen} selectedIds={current ? [current.id] : []} onSelect={(asset) => onChange(asset.id)} />
     </div>
   )
 }
