@@ -1,0 +1,16 @@
+---
+// A labelled form control - the control itself is the slot
+interface Props {
+  label: string;
+  optional?: boolean;
+  // Spans both columns of a two-column form grid
+  wide?: boolean;
+}
+
+const { label, optional = false, wide = false } = Astro.props;
+---
+
+<label class:list={["grid gap-1 text-sm font-medium", wide && "sm:col-span-2"]}>
+  <span>{label}{optional && <span class="font-normal text-muted-foreground"> (optional)</span>}</span>
+  <slot />
+</label>
