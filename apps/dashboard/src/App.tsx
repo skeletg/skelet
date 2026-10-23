@@ -22,6 +22,7 @@ import { ResetPassword } from '@/shared/auth/ResetPassword'
 import '@/nav/routes'
 import '@/plugins/loader'
 import { SignalsBanner } from '@/shared/signals/SignalsBanner'
+import { BootSilhouette } from '@/components/layout/boot-silhouette'
 
 // Everything the router hosts - the unsaved-changes navigation guard has to live INSIDE the data
 // router to see navigations at all, and page titles need a location to resolve against
@@ -66,7 +67,7 @@ const router = createBrowserRouter([
           <ProtectedRoute>
             <CurrencyRegistryProvider>
               {/* Lazy so /login never downloads the signed-in shell - sidebar, chat, workspace tabs and what they import */}
-              <Suspense fallback={null}>{dashboardLayout}</Suspense>
+              <Suspense fallback={<BootSilhouette />}>{dashboardLayout}</Suspense>
             </CurrencyRegistryProvider>
           </ProtectedRoute>
         ),

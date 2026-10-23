@@ -4,6 +4,7 @@ import { ArrowRightIcon } from 'lucide-react'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { cn } from '@/lib/utils'
 import { Empty } from '@/components/layout/panels'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // The pieces every dashboard section is built from, so twenty sections don't each invent a panel,
 // an empty state and a loading row - the tile, panel and empty state are shared with the analytics pages
@@ -54,11 +55,13 @@ export function WidgetSection({
       {error ? (
         <p className="text-sm text-destructive">{error.message}</p>
       ) : loading ? (
-        <Empty>Loading…</Empty>
-      ) : empty ? (
-        <Empty>Nothing here right now.</Empty>
+        <div className="grid gap-2" aria-busy>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-2/3" />
+        </div>
       ) : (
-        children
+        <div data-arrive="">{empty ? <Empty>Nothing here right now.</Empty> : children}</div>
       )}
     </DetailPageSection>
   )

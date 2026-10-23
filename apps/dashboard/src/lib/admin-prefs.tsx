@@ -21,6 +21,7 @@ type Store = {
   dirty: Set<string> // keys written locally since mount - the server hydrate must not clobber them
   timers: Map<string, ReturnType<typeof setTimeout>>
   loaded: boolean
+  mirrored: boolean
   version: number // bumped on every key add/remove so key lists know to recompute
   keyCache: Map<string, { version: number; keys: string[] }> // useSyncExternalStore loops on a fresh array every call
 }
@@ -42,6 +43,7 @@ export function getStore(adminID: string): Store {
     dirty: new Set(),
     timers: new Map(),
     loaded: false,
+    mirrored: false,
     version: 0,
     keyCache: new Map(),
   }
@@ -54,6 +56,7 @@ export function getStore(adminID: string): Store {
         const raw = localStorage.getItem(k)
         if (raw) store.values.set(k.slice(prefix.length), JSON.parse(raw))
       }
+      store.mirrored = store.values.size > 0
     } catch {
       /* corrupt mirror or private mode - the server copy still arrives */
     }
@@ -199,6 +202,18 @@ export function usePrefsLoaded(): boolean {
   return useSyncExternalStore(
     useCallback((cb) => subscribeKey(adminID, LOADED_KEY, cb), [adminID]),
     () => getStore(adminID).loaded,
+  )
+}
+
+// For rendering, where this device's mirror is as good as the roaming copy - writes still wait on usePrefsLoaded
+export function usePrefsSettled(): boolean {
+  const adminID = useAdminID()
+  return useSyncExternalStore(
+    useCallback((cb) => subscribeKey(adminID, LOADED_KEY, cb), [adminID]),
+    () => {
+      const store = getStore(adminID)
+      return store.loaded || store.mirrored
+    },
   )
 }
 

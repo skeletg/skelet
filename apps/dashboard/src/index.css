@@ -255,6 +255,27 @@
   }
 }
 
+/* A skeleton hands over to its content with a fade, and a page loader that would only flash stays hidden for its first beat */
+@keyframes shell-arrive {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+[data-arrive] {
+  animation: shell-arrive 180ms ease-out both;
+}
+
+[data-slot="page-loading"] {
+  animation: shell-arrive 160ms ease-out 300ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-arrive],
+  [data-slot="page-loading"] {
+    animation-duration: 1ms;
+  }
+}
+
 /* Workspace motion. The rule everything here obeys: the page inside a pane must never move, because
    it is a live mounted tree that survives splits and tab drags - so panes fade rather than
    transform, which would drag their sticky pagination bar around with them */

@@ -42,23 +42,33 @@ export function StatsWidget() {
   const money = (cents: number | undefined) =>
     sales.currency && cents && cents > 0 ? formatCents(cents, sales.currency) : '-'
 
-  const values: Record<string, { value: string; sub: string }> = {
-    revenue: { value: money(summary?.grossRevenue), sub: window },
-    orders: { value: formatNumber(summary?.orderCount ?? 0), sub: `placed in the ${window}` },
-    aov: { value: money(summary?.averageOrderValue), sub: `${formatNumber(summary?.orderCount ?? 0)} orders` },
-    margin: { value: money(summary?.marginTotal), sub: `cost ${money(summary?.costTotal)}` },
-    refunds: { value: money(summary?.refundedAmount), sub: `${formatNumber(summary?.refundCount ?? 0)} refunded` },
-    'ordering-customers': { value: formatNumber(summary?.uniqueCustomers ?? 0), sub: `ordered in the ${window}` },
+  const values: Record<string, { value: string; sub: string; loading: boolean }> = {
+    revenue: { value: money(summary?.grossRevenue), sub: window, loading: sales.loading },
+    orders: { value: formatNumber(summary?.orderCount ?? 0), sub: `placed in the ${window}`, loading: sales.loading },
+    aov: { value: money(summary?.averageOrderValue), sub: `${formatNumber(summary?.orderCount ?? 0)} orders`, loading: sales.loading },
+    margin: { value: money(summary?.marginTotal), sub: `cost ${money(summary?.costTotal)}`, loading: sales.loading },
+    refunds: { value: money(summary?.refundedAmount), sub: `${formatNumber(summary?.refundCount ?? 0)} refunded`, loading: sales.loading },
+    'ordering-customers': { value: formatNumber(summary?.uniqueCustomers ?? 0), sub: `ordered in the ${window}`, loading: sales.loading },
     pending: {
       value: formatNumber(queuesQuery.data?.pending.totalCount ?? 0),
       sub: 'awaiting confirmation',
+      loading: queuesQuery.loading,
     },
     customers: {
       value: formatNumber(customerCountQuery.data?.customersPaged.totalCount ?? 0),
       sub: 'registered accounts',
+      loading: customerCountQuery.loading,
     },
-    products: { value: formatNumber(productCountQuery.data?.productsPaged.totalCount ?? 0), sub: 'in the catalog' },
-    collections: { value: formatNumber(collectionsQuery.data?.collections.length ?? 0), sub: 'curated groupings' },
+    products: {
+      value: formatNumber(productCountQuery.data?.productsPaged.totalCount ?? 0),
+      sub: 'in the catalog',
+      loading: productCountQuery.loading,
+    },
+    collections: {
+      value: formatNumber(collectionsQuery.data?.collections.length ?? 0),
+      sub: 'curated groupings',
+      loading: collectionsQuery.loading,
+    },
   }
 
   const [layout] = usePreference<OrderedLayout>(TILES_PREF_KEY, EMPTY_LAYOUT)
@@ -75,7 +85,7 @@ export function StatsWidget() {
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
-          <Tile key={t.id} label={t.label} value={t.value ?? '-'} sub={t.sub} />
+          <Tile key={t.id} label={t.label} value={t.value ?? '-'} sub={t.sub} loading={t.loading} />
         ))}
       </div>
     </WidgetSection>
