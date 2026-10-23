@@ -71,6 +71,8 @@ export function OptionControl({
     // Values arrive ordered by sort_order from the backend
     const sorted = option.values;
     const multi = !isSingleSelect(option.inputType);
+    // One choice with a picture turns the whole option into tiles, so they line up
+    const tiles = sorted.some((v) => v.image);
     return (
       <fieldset>
         <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -80,19 +82,23 @@ export function OptionControl({
         {option.helpText ? (
           <p className="mt-1 text-xs text-muted-foreground">{option.helpText}</p>
         ) : null}
-        <ul className="mt-2 space-y-2">
-          {sorted.map((v) => (
-            <ValueRow
-              key={v.id}
-              value={v}
-              currency={currency}
-              multi={multi}
-              optionId={option.id}
-              checked={picked.has(v.id)}
-              onToggle={() => onToggle(v.id)}
-              invalid={invalid}
-            />
-          ))}
+        <OptionPicture option={option} />
+        <ul className={tiles ? "mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3" : "mt-2 space-y-2"}>
+          {sorted.map((v) => {
+            const Row = tiles ? ValueTile : ValueRow;
+            return (
+              <Row
+                key={v.id}
+                value={v}
+                currency={currency}
+                multi={multi}
+                optionId={option.id}
+                checked={picked.has(v.id)}
+                onToggle={() => onToggle(v.id)}
+                invalid={invalid}
+              />
+            );
+          })}
         </ul>
       </fieldset>
     );
@@ -120,6 +126,7 @@ export function OptionControl({
       {option.helpText ? (
         <p className="mt-1 text-xs text-muted-foreground">{option.helpText}</p>
       ) : null}
+      <OptionPicture option={option} />
       {isArea ? (
         <textarea
           id={`opt-${option.id}`}
@@ -190,6 +197,7 @@ function FileControl({
       {option.helpText ? (
         <p className="mt-1 text-xs text-muted-foreground">{option.helpText}</p>
       ) : null}
+      <OptionPicture option={option} />
       <input
         id={`opt-${option.id}`}
         type="file"
@@ -223,23 +231,7 @@ function FileControl({
   );
 }
 
-function ValueRow({
-  value,
-  currency,
-  multi,
-  optionId,
-  checked,
-  onToggle,
-  invalid = false,
-}: {
-  value: ProductCustomOptionValue;
-  currency: string;
-  multi: boolean;
-  optionId: string;
-  checked: boolean;
-  onToggle: () => void;
-  invalid?: boolean;
-}) {
+function ValueRow({ value, currency, multi, optionId, checked, onToggle, invalid = false }: ValueProps) {
   const price = priceLabel(value.priceValue, value.priceType, currency);
   return (
     <li>
@@ -279,3 +271,70 @@ function ValueRow({
     </li>
   );
 }
+
+// An illustration for the question itself - where an engraving goes, what a fitting looks like
+function OptionPicture({ option }: { option: ProductCustomOption }) {
+  if (!option.image) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={option.image.url}
+      alt={option.image.altText || option.title}
+      width={option.image.width ?? undefined}
+      height={option.image.height ?? undefined}
+      loading="lazy"
+      className="mt-2 max-h-40 w-auto max-w-full rounded-lg border object-contain"
+    />
+  );
+}
+
+type ValueProps = {
+  value: ProductCustomOptionValue;
+  currency: string;
+  multi: boolean;
+  optionId: string;
+  checked: boolean;
+  onToggle: () => void;
+  invalid?: boolean;
+};
+
+// A choice shown as its picture - a choice without one gets a plain square so the grid stays even
+function ValueTile({ value, currency, multi, optionId, checked, onToggle, invalid = false }: ValueProps) {
+  const price = priceLabel(value.priceValue, value.priceType, currency);
+  return (
+    <li>
+      <label className={`${optionCardClass(checked, invalid)} h-full cursor-pointer flex-col items-stretch gap-2 p-2`}>
+        <input
+          type={multi ? "checkbox" : "radio"}
+          name={`opt-${optionId}`}
+          checked={checked}
+          onChange={onToggle}
+          className="sr-only"
+        />
+        <span className="relative block aspect-square overflow-hidden rounded-lg bg-muted">
+          {value.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={value.image.url}
+              alt={value.image.altText || value.title}
+              loading="lazy"
+              className="size-full object-cover"
+            />
+          ) : null}
+          <span className={`absolute left-1.5 top-1.5 bg-background/90 p-0.5 ${multi ? "rounded-lg" : "rounded-full"}`}>
+            <ChoiceIndicator checked={checked} multi={multi} />
+          </span>
+        </span>
+        <span className="grid gap-0.5 px-1 pb-1">
+          <span className="text-sm leading-tight">{value.title}</span>
+          {price || value.forcedLineQty != null ? (
+            <span className="text-xs text-muted-foreground">
+              {[price, value.forcedLineQty != null ? `qty ${value.forcedLineQty}` : null].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
+        </span>
+      </label>
+    </li>
+  );
+}
+

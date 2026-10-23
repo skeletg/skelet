@@ -4,6 +4,7 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Product",
   "ProductWithReviews",
   "ProductsByIds",
+  "ProductConfigurator",
   "BrowseProducts",
   "SearchProducts",
   "ProductRecommendations",

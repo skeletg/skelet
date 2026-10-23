@@ -183,7 +183,7 @@ behaviour.
 ### 7. Product-global rows shared across listing channels
 
 Content translations, attribute values, media, downloads, subscription
-terms, product options and their values, bundle options and selections,
+terms, product options, their values and option rules, bundle options and selections,
 grouped members, kit components, variant structure - one row, rendered by every channel that lists
 the product. A plain `RequirePermission` here would let a Channel-A-scoped
 admin edit data that shows on Channel B. Gate these with
@@ -208,6 +208,16 @@ Per-channel option surcharges (`setProductOptionChannelPrice`,
 `setProductOptionValueChannelPrice`) take the same gate, and the channel they
 name has to be one the product is listed on - so a channel-scoped admin can
 only ever price a channel they already hold.
+
+Configurator templates sit on both sides of this line. A template is shared
+config like a product type - one edit reaches every product using it, on any
+channel - so editing it, its options, values and rules takes a global
+`catalog.manage` (`requireGlobal`); the option child-row helpers branch on
+whether the row belongs to a template. Using a template on a product,
+dropping it or detaching it is a product edit, so those take the product
+gate above, once per product named. A product type's template list
+(`setProductTypeOptionTemplates`) reaches every simple and configurable
+product of the type on every channel, so it takes the global gate too.
 
 `graph/admin/catalog_product_scope_test.go` enforces this: every mutation in
 the product-row resolver files has to reach a channel-aware gate, so a bare

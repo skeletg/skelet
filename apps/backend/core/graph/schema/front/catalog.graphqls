@@ -147,6 +147,12 @@ type Product {
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
   # Pass the customer's picks to addConfiguredToCart. Empty when none.
   options:             [ProductCustomOption!]!
+  # "When these answers, then these effects" across options (a variant's include its configurable parent's). The cart
+  # applies them on addConfiguredToCart; evaluate the same rules on the PDP to show what's required, the quantity a
+  # rule fixes and the price it adds.
+  optionRules:         [ProductCustomOptionRule!]!
+  # Every option at once, or one step at a time with the earlier picks above - the PDP's choice of layout
+  configuratorLayout:  ConfiguratorLayout!
   # Recurring billing terms when kind=SUBSCRIPTION (null otherwise). Lets the
   # PDP render the price as "$X / month" and show any trial.
   subscriptionTerms:   SubscriptionTerms
@@ -222,6 +228,8 @@ type ProductCustomOption {
   fileExtensions: String
   priceValue: Int
   priceType:  String!
+  # A picture shown beside the option - loaded only when selected
+  image:      ProductCustomOptionImage
   values:     [ProductCustomOptionValue!]!
   # Visibility condition group gating this option on EARLIER options' picks (null = always visible): { logic: "and"|"or", rules: [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }], groups: [...] }. The server re-evaluates on addConfiguredToCart - picks for hidden options are rejected (PRODUCT_OPTION_HIDDEN) and hidden required options are not enforced.
   visibleIf:  JSON
@@ -231,6 +239,8 @@ type ProductCustomOption {
 type ProductCustomOptionValue {
   id:         ID!
   title:      String!
+  # A picture to show the choice as, a tile rather than a plain label - loaded only when selected
+  image:      ProductCustomOptionImage
   priceValue: Int!
   priceType:  String!
   quantity:   Float!
@@ -239,6 +249,42 @@ type ProductCustomOptionValue {
   forcedLineQty: Float
   # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values and for sources this channel doesn't sell. priceValue stays a markup on top of the source product's channel price.
   sourceProduct: Product
+}
+
+enum ConfiguratorLayout {
+  LIST
+  STEPS
+}
+
+type ProductCustomOptionImage {
+  url:     String!
+  altText: String!
+  width:   Int
+  height:  Int
+}
+
+# A rule across a product's custom options. condition has the visibleIf shape but may read any option; actions apply
+# when it matches the customer's visible picks. A rule requiring an option beats one making it optional, and a hidden
+# option is never required.
+type ProductCustomOptionRule {
+  id:        ID!
+  # Names the cart line row a price change adds - empty for an unnamed rule
+  label:     String!
+  condition: JSON!
+  actions:   [ProductCustomOptionRuleAction!]!
+}
+
+# type is require | optional | set_quantity | adjust_price. optionId names the option for require and optional,
+# quantity is what set_quantity fixes and locks the line at, priceType ("fixed" | "percent") and priceValue (this
+# channel's minor units, or percent points of the price) are what adjust_price adds, either sign. priceUnavailable
+# marks a fixed amount with nothing set in this channel's currency - the cart refuses a configuration that fires it.
+type ProductCustomOptionRuleAction {
+  type:             String!
+  optionId:         ID
+  quantity:         Float
+  priceType:        String
+  priceValue:       Int
+  priceUnavailable: Boolean!
 }
 
 enum ProductMediaStatus {

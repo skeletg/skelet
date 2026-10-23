@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -507,6 +508,20 @@ func (s *productService) ListPageWithGraph(ctx context.Context, f ProductPageFil
 	return hydrated, total, nil
 }
 
+// ListProductsWithGraphByIDs is ListPageWithGraph for ids the caller already holds, with the same content hydration - without it a
+// by-id read came back nameless, and the admin cache spread that blank over names other queries had fetched
+func (s *productService) ListProductsWithGraphByIDs(ctx context.Context, ids []uuid.UUID, locale string) ([]Product, error) {
+	const op = "catalog.Service.ListProductsWithGraphByIDs"
+	products, err := s.repo.ListProductsWithAttributesByIDs(ctx, ids)
+	if err != nil {
+		return nil, apperr.WrapClass(err, apperr.ClassInternal, op)
+	}
+	if len(products) == 0 {
+		return products, nil
+	}
+	return s.hydrateContent(ctx, products, locale)
+}
+
 func (s *productService) ListProducts(ctx context.Context, locale string, rowLimit int32) ([]Product, error) {
 	products, err := s.repo.ListProducts(ctx, rowLimit)
 	if err != nil {
@@ -583,6 +598,29 @@ func (s *core) publishProductUpdated(ctx context.Context, p Product, changed ...
 func (s *core) ProductChanged(ctx context.Context, productID uuid.UUID, changed ...string) {
 	s.publishProductUpdatedByID(ctx, productID, changed...)
 }
+
+// publishProductsUpdated announces many products off batched reads - a template or a product type change can reach
+// thousands, and a lookup each would cost a round trip per product
+func (s *core) publishProductsUpdated(ctx context.Context, ids []uuid.UUID, changed ...string) {
+	if s.bus == nil {
+		return
+	}
+	for chunk := range slices.Chunk(ids, announceBatch) {
+		rows, err := s.repo.ListProductRowsByIDs(ctx, chunk)
+		if err != nil {
+			applog.From(ctx).Warn("load products to announce", "count", len(chunk), "err", err) // announced bare - subscribers key on the id
+		}
+		for _, id := range chunk {
+			p, ok := rows[id]
+			if !ok {
+				p = Product{ID: id}
+			}
+			s.publishProductUpdated(ctx, p, changed...)
+		}
+	}
+}
+
+const announceBatch = 500
 
 func (s *core) publishProductUpdatedByID(ctx context.Context, productID uuid.UUID, changed ...string) {
 	if s.bus == nil {

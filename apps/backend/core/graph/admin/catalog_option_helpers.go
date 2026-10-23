@@ -2,13 +2,72 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
+
+// An image id from an input - nil leaves it, and on an update an empty string clears it (the zero id)
+func optionImageInput(raw *string, clearable bool) (*uuid.UUID, error) {
+	if raw == nil || (*raw == "" && !clearable) {
+		return nil, nil
+	}
+	if *raw == "" {
+		zero := uuid.UUID{}
+		return &zero, nil
+	}
+	id, err := parseID(*raw, "image")
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+// Pictures come from the media library, one batch per list - a lookup failure drops them rather than the options
+func (r *Resolver) attachOptionImages(ctx context.Context, models []*model.ProductOption, opts []catalog.ProductOption) {
+	var ids []uuid.UUID
+	for _, o := range opts {
+		if o.ImageAssetID != nil {
+			ids = append(ids, *o.ImageAssetID)
+		}
+		for _, v := range o.Values {
+			if v.ImageAssetID != nil {
+				ids = append(ids, *v.ImageAssetID)
+			}
+		}
+	}
+	if len(ids) == 0 || r.MediaLibrarySvc == nil {
+		return
+	}
+	assets, err := r.MediaLibrarySvc.GetAssetsByIDs(ctx, ids)
+	if err != nil {
+		applog.From(ctx).Warn("load option pictures", "err", err)
+		return
+	}
+	image := func(id *uuid.UUID) *model.OptionImage {
+		if id == nil {
+			return nil
+		}
+		a, ok := assets[*id]
+		if !ok {
+			return nil
+		}
+		return &model.OptionImage{AssetID: id.String(), URL: a.URL, AltText: a.AltText, Width: a.Width, Height: a.Height}
+	}
+	for i, o := range opts {
+		models[i].Image = image(o.ImageAssetID)
+		for j, v := range o.Values {
+			models[i].Values[j].Image = image(v.ImageAssetID)
+		}
+	}
+}
 
 // Values only exist for the select family - for text/date/file the option's own priceValue/priceType carry the adjustment
 func toProductOptionModels(opts []catalog.ProductOption, perm auth.PermittedChannels) []*model.ProductOption {
@@ -48,6 +107,7 @@ func toProductOptionModel(o catalog.ProductOption, perm auth.PermittedChannels) 
 		Content:       content,
 		Values:        values,
 		ChannelPrices: toOptionChannelPriceModels(o.ChannelPrices, perm),
+		CurrencyCode:  o.Currency,
 		CreatedAt:     o.CreatedAt,
 		UpdatedAt:     o.UpdatedAt,
 	}
@@ -73,6 +133,10 @@ func toProductOptionModel(o catalog.ProductOption, perm auth.PermittedChannels) 
 	}
 	if o.VisibleIf != nil {
 		m.VisibleIf = visibleIfToAny(o.VisibleIf)
+	}
+	if o.TemplateID != uuid.Nil {
+		id, name := o.TemplateID.String(), o.TemplateName
+		m.TemplateID, m.TemplateName = &id, &name
 	}
 	return m
 }

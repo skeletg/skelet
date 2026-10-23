@@ -331,13 +331,41 @@ type OptionRepository interface {
 	ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductOption, error)
 	ListProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductOption, error)
 	UpdateProductOption(ctx context.Context, id uuid.UUID, params UpdateProductOptionFields) (ProductOption, error)
-	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error)
+	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID) (ProductOptionValue, error)
+	MediaAssetReady(ctx context.Context, id uuid.UUID) (bool, error)
 	UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error)
 	UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error)
 	SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) error
 	SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) error
 	ListProductOptionChannelPricesByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error)
 	ListProductOptionValueChannelPricesByValueIDs(ctx context.Context, valueIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error)
+	ListProductOptionRulesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductOptionRule, error)
+	ListProductOptionRulesByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) (map[uuid.UUID][]ProductOptionRule, error)
+	CreateProductOptionRule(ctx context.Context, owner OptionOwner, sortOrder int32, in ProductOptionRuleInput) (ProductOptionRule, error)
+	UpdateProductOptionRule(ctx context.Context, id uuid.UUID, owner OptionOwner, sortOrder int32, in ProductOptionRuleInput) (ProductOptionRule, error)
+	DeleteProductOptionRule(ctx context.Context, id uuid.UUID, owner OptionOwner) error
+	CreateOptionTemplate(ctx context.Context, in OptionTemplateInput) (OptionTemplate, error)
+	GetOptionTemplate(ctx context.Context, id uuid.UUID) (OptionTemplate, error)
+	UpdateOptionTemplate(ctx context.Context, id uuid.UUID, in OptionTemplateInput) (OptionTemplate, error)
+	DeleteOptionTemplate(ctx context.Context, id uuid.UUID) error
+	ListOptionTemplates(ctx context.Context) ([]OptionTemplate, error)
+	ListOptionTemplatesByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]OptionTemplate, error)
+	ListOptionTemplateAssignments(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	ReplaceOptionTemplateAssignments(ctx context.Context, productID uuid.UUID, templateIDs []uuid.UUID) error
+	AppendOptionTemplateAssignment(ctx context.Context, productID, templateID uuid.UUID) error
+	DeleteOptionTemplateAssignment(ctx context.Context, productID, templateID uuid.UUID) error
+	ListProductIDsUsingOptionTemplate(ctx context.Context, templateID uuid.UUID, limit, offset int32) ([]uuid.UUID, error)
+	ListAllProductIDsUsingOptionTemplate(ctx context.Context, templateID uuid.UUID) ([]uuid.UUID, error)
+	CountProductsUsingOptionTemplate(ctx context.Context, templateID uuid.UUID) (int64, error)
+	ListEffectiveOptionTemplates(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]OptionTemplateUse, error)
+	ListOptionTemplateIDsByProductTypeIDs(ctx context.Context, productTypeIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	ReplaceProductTypeOptionTemplates(ctx context.Context, productTypeID uuid.UUID, templateIDs []uuid.UUID) error
+	ListProductTypeIDsUsingOptionTemplate(ctx context.Context, templateID uuid.UUID) ([]uuid.UUID, error)
+	CountProductTypesUsingOptionTemplate(ctx context.Context, templateID uuid.UUID) (int64, error)
+	ListOptionCarryingProductIDsByType(ctx context.Context, productTypeID uuid.UUID) ([]uuid.UUID, error)
+	ListProductOptionsByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) (map[uuid.UUID][]ProductOption, error)
+	GetProductConfiguratorLayout(ctx context.Context, productID uuid.UUID) (ConfiguratorLayout, error)
+	SetProductConfiguratorLayout(ctx context.Context, productID uuid.UUID, layout ConfiguratorLayout) error
 }
 
 // Bundle options and selections, including localized content

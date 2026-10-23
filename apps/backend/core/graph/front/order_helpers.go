@@ -96,7 +96,7 @@ func reorderConfiguredInput(line order.OrderLine) cart.AddConfiguredToCartInput 
 	// multiselect picks snapshot one row per value - fold them back into one input per option or the add trips the supplied-twice guard
 	byOption := make(map[uuid.UUID]int, len(line.Options))
 	for _, o := range line.Options {
-		if strings.EqualFold(o.InputType, "file") {
+		if strings.EqualFold(o.InputType, "file") || o.InputType == cart.OptionRuleInputType { // a rule row is an effect of the picks, not one
 			continue
 		}
 		if i, ok := byOption[o.ProductOptionID]; ok {

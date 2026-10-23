@@ -6,7 +6,7 @@
 // Same shape as bundleStaging.ts (reduce/apply/diff/commit, tempId resolution) but with two
 // entity types - options AND values, values belonging to a parent option
 
-import type { ProductOptionInputType, ProductOptionPriceType } from '@/graphql/schema.types'
+import type { ProductOptionInputType, ProductOptionPriceType, ProductOptionRuleInput } from '@/graphql/schema.types'
 import { added, removed } from '@/shared/saving/diff'
 import { collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
@@ -86,7 +86,11 @@ export type OptionValue = {
   // cart contribution is (sourceProduct.defaultPrice * quantity) + priceValue
   sourceProduct?: SourceProduct | null
   channelPrices?: ChannelPrice[]
+  image?: OptionImageRef | null
 }
+
+// A media-library picture - the url is only for showing it here, the save sends the asset id
+export type OptionImageRef = { assetId: string; url: string; altText?: string }
 
 export type ProductOption = {
   id: string
@@ -105,6 +109,11 @@ export type ProductOption = {
   visibleIf?: unknown
   channelPrices?: ChannelPrice[]
   values: OptionValue[]
+  image?: OptionImageRef | null
+  // Set on a product's list when the option comes from one of its configurator templates - read-only there
+  templateId?: string | null
+  templateName?: string | null
+  currencyCode?: string
 }
 
 // contentTitleFor / contentHelpFor resolve the copy for a specific locale from the per-locale content rows, falling
@@ -171,6 +180,7 @@ export type AddOptionOp = {
   // Carried when an update folds into this add - null/absent = always visible
   visibleIf?: VisibilityGroup | null
   channelPrices?: ChannelPriceEdits
+  image?: OptionImageRef | null
 }
 
 export type UpdateOptionOp = {
@@ -191,6 +201,8 @@ export type UpdateOptionOp = {
   // null = clear the condition (always visible) - Undefined = no change
   visibleIf?: VisibilityGroup | null
   channelPrices?: ChannelPriceEdits
+  // null = remove the picture - Undefined = no change
+  image?: OptionImageRef | null
 }
 
 export type DeleteOptionOp = {
@@ -215,6 +227,7 @@ export type AddValueOp = {
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
   channelPrices?: ChannelPriceEdits
+  image?: OptionImageRef | null
 }
 
 export type UpdateValueOp = {
@@ -233,11 +246,19 @@ export type UpdateValueOp = {
   sourceProductId?: string | null
   sourceProduct?: SourceProduct | null
   channelPrices?: ChannelPriceEdits
+  // null = remove the picture - Undefined = no change
+  image?: OptionImageRef | null
 }
 
 export type DeleteValueOp = {
   kind: 'delete-value'
   id: string
+}
+
+// The product's whole rule list, written in one go - the section builds it at save time from its own draft
+export type SetRulesOp = {
+  kind: 'set-rules'
+  rules: ProductOptionRuleInput[]
 }
 
 export type PendingOp =
@@ -247,11 +268,13 @@ export type PendingOp =
   | AddValueOp
   | UpdateValueOp
   | DeleteValueOp
+  | SetRulesOp
 
 // ─── Coalescing ─────────────────────────────────────────────────────
 
 // What the shared collapser needs to know about an option op - see stagingOps
 const view = (op: PendingOp): OpView => {
+  if (op.kind === 'set-rules') return { role: 'update', entity: 'rules', id: 'rules' }
   const [role, entity] = op.kind.split('-') as ['add' | 'update' | 'delete', string]
   return { role, entity, id: op.kind === 'add-option' || op.kind === 'add-value' ? op.tempId : op.id }
 }
@@ -281,6 +304,8 @@ export function reduceOps(ops: PendingOp[]): PendingOp[] {
         return !cancelled.has(op.tempId)
       case 'add-value':
         return !cancelled.has(op.tempId) && !cancelled.has(op.optionRef)
+      case 'set-rules':
+        return true
       default:
         return !cancelled.has(op.id)
     }
@@ -314,6 +339,7 @@ function mergeAddWithUpdate(add: AddOptionOp | AddValueOp, upd: UpdateOptionOp |
       fileExtensions: upd.fileExtensions !== undefined ? upd.fileExtensions : add.fileExtensions,
       visibleIf: upd.visibleIf !== undefined ? upd.visibleIf : add.visibleIf,
       channelPrices: mergeChannelEdits(add.channelPrices, upd.channelPrices),
+      image: upd.image !== undefined ? upd.image : add.image,
     }
   }
   if (add.kind === 'add-value' && upd.kind === 'update-value') {
@@ -330,6 +356,7 @@ function mergeAddWithUpdate(add: AddOptionOp | AddValueOp, upd: UpdateOptionOp |
       sourceProductId: upd.sourceProductId !== undefined ? upd.sourceProductId : add.sourceProductId,
       sourceProduct: upd.sourceProductId !== undefined ? upd.sourceProduct ?? null : add.sourceProduct,
       channelPrices: mergeChannelEdits(add.channelPrices, upd.channelPrices),
+      image: upd.image !== undefined ? upd.image : add.image,
     }
   }
   return add
@@ -362,6 +389,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
           visibleIf: op.visibleIf ?? null,
           channelPrices: applyChannelEdits([], op.channelPrices),
           values: [],
+          image: op.image ?? null,
         })
         break
       case 'update-option':
@@ -378,6 +406,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
           if (op.fileExtensions !== undefined) next.fileExtensions = op.fileExtensions
           if (op.visibleIf !== undefined) next.visibleIf = op.visibleIf
           if (op.channelPrices !== undefined) next.channelPrices = applyChannelEdits(o.channelPrices, op.channelPrices)
+          if (op.image !== undefined) next.image = op.image
           // Title/help text edits land on the targeted locale's content row,
           // not the request-locale scalar - so editing a translation doesn't
           // clobber the fallback shown for other locales - The UI reads copy
@@ -410,6 +439,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
                 content: [{ locale: op.locale, title: op.title }],
                 sourceProduct: op.sourceProduct ?? null,
                 channelPrices: applyChannelEdits([], op.channelPrices),
+                image: op.image ?? null,
               },
             ],
           }
@@ -428,6 +458,7 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
             if (op.quantity !== undefined) next.quantity = op.quantity
             if (op.forcedLineQty !== undefined) next.forcedLineQty = op.forcedLineQty
             if (op.channelPrices !== undefined) next.channelPrices = applyChannelEdits(v.channelPrices, op.channelPrices)
+            if (op.image !== undefined) next.image = op.image
             if (op.sourceProductId !== undefined) {
               next.sourceProduct = op.sourceProductId === null ? null : op.sourceProduct ?? v.sourceProduct ?? null
             }
@@ -446,12 +477,26 @@ export function applyOps(original: readonly ProductOption[], ops: readonly Pendi
           values: o.values.filter((v) => v.id !== op.id),
         }))
         break
+      case 'set-rules':
+        break
     }
   }
   return opts
 }
 
 // ─── Diff for the save-registry ─────────────────────────────────────
+
+// 1-based places by sortOrder, ties in list order - values rank within their own option
+function ranks(groups: readonly (readonly { id: string; sortOrder: number }[])[]): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const group of groups) {
+    group
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => a.r.sortOrder - b.r.sortOrder || a.i - b.i)
+      .forEach(({ r }, n) => out.set(r.id, n + 1))
+  }
+  return out
+}
 
 export type ChannelLabel = (channelId: string) => string
 
@@ -490,11 +535,15 @@ export function opsToDiff(
   for (const o of original) {
     for (const v of o.values) valById.set(v.id, { option: o, value: v })
   }
+  // Order reads as a position: a move renumbers every option, and only the ones that changed place are news
+  const final = applyOps(original, ops)
+  const optionRank = { before: ranks([original]), after: ranks([final]) }
+  const valueRank = { before: ranks(original.map((o) => o.values)), after: ranks(final.map((o) => o.values)) }
 
   return ops.flatMap((op): SectionDiffEntry[] => {
     switch (op.kind) {
       case 'add-option':
-        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}${channelPriceSummary(op.channelPrices, channelLabel)}`)]
+        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}${op.visibleIf ? ' · conditional' : ''}${op.image ? ' · picture' : ''}${channelPriceSummary(op.channelPrices, channelLabel)}`)]
       case 'update-option': {
         const prev = byId.get(op.id)
         const label = `Option · ${prev?.title ?? op.id}`
@@ -507,11 +556,16 @@ export function opsToDiff(
             after: after === undefined || after === null ? '' : String(after),
           })
         }
-        if (op.title !== undefined) push('title', prev?.title, op.title)
-        if (op.helpText !== undefined) push('help text', prev?.helpText, op.helpText)
+        // Copy compares against the language it was written in, and only what moved - the form sends both together
+        const copy = prev && op.titleLocale ? optionContentFor(prev, op.titleLocale) : { title: prev?.title, helpText: prev?.helpText }
+        const tag = op.titleLocale ? ` (${op.titleLocale})` : ''
+        if (op.title !== undefined && op.title !== copy.title) push(`title${tag}`, copy.title, op.title)
+        if (op.helpText !== undefined && op.helpText !== (copy.helpText ?? '')) push(`help text${tag}`, copy.helpText, op.helpText)
         if (op.inputType !== undefined) push('type', prev?.inputType.toLowerCase(), op.inputType.toLowerCase())
         if (op.isRequired !== undefined) push('required', prev ? (prev.isRequired ? 'yes' : 'no') : undefined, op.isRequired ? 'yes' : 'no')
-        if (op.sortOrder !== undefined) push('order', prev?.sortOrder, op.sortOrder)
+        if (op.sortOrder !== undefined && optionRank.before.get(op.id) !== optionRank.after.get(op.id)) {
+          push('position', optionRank.before.get(op.id), optionRank.after.get(op.id))
+        }
         if (op.priceValue !== undefined) push('price', prev?.priceValue, op.priceValue)
         if (op.priceType !== undefined) push('price type', prev?.priceType?.toLowerCase(), op.priceType?.toLowerCase())
         if (op.maxChars !== undefined) push('max chars', prev?.maxChars, op.maxChars)
@@ -524,6 +578,9 @@ export function opsToDiff(
             op.visibleIf === null ? 'always shown' : 'conditional',
           )
         }
+        if (op.image !== undefined && (prev?.image?.assetId ?? null) !== (op.image?.assetId ?? null)) {
+          push('picture', prev?.image ? 'a picture' : 'none', op.image ? (prev?.image ? 'another picture' : 'a picture') : 'none')
+        }
         rows.push(...channelPriceRows(label, prev?.channelPrices, op.channelPrices, channelLabel))
         return rows
       }
@@ -532,7 +589,7 @@ export function opsToDiff(
         return [removed(`Option · ${prev?.title ?? op.id}`, prev ? `${prev.values.length} value(s)` : undefined)]
       }
       case 'add-value':
-        return [added(`Value · ${op.title}`, `${op.priceType.toLowerCase()} ${op.priceValue}${channelPriceSummary(op.channelPrices, channelLabel)}${op.isDefault ? ' · default' : ''}${op.forcedLineQty ? ` · locks qty ${op.forcedLineQty}` : ''}`)]
+        return [added(`Value · ${op.title}`, `${op.priceType.toLowerCase()} ${op.priceValue}${channelPriceSummary(op.channelPrices, channelLabel)}${op.isDefault ? ' · default' : ''}${op.forcedLineQty ? ` · locks qty ${op.forcedLineQty}` : ''}${op.image ? ' · picture' : ''}`)]
       case 'update-value': {
         const prev = valById.get(op.id)
         const label = `Value · ${prev?.value.title ?? op.id}`
@@ -545,11 +602,16 @@ export function opsToDiff(
             after: after === undefined || after === null ? '' : String(after),
           })
         }
-        if (op.title !== undefined) push('title', prev?.value.title, op.title)
+        if (op.title !== undefined) {
+          const before = prev && op.titleLocale ? valueContentFor(prev.value, op.titleLocale) : prev?.value.title
+          if (op.title !== before) push(`title${op.titleLocale ? ` (${op.titleLocale})` : ''}`, before, op.title)
+        }
         if (op.priceValue !== undefined) push('price', prev?.value.priceValue, op.priceValue)
         if (op.priceType !== undefined) push('type', prev?.value.priceType.toLowerCase(), op.priceType.toLowerCase())
         if (op.isDefault !== undefined) push('default', prev ? (prev.value.isDefault ? 'yes' : 'no') : undefined, op.isDefault ? 'yes' : 'no')
-        if (op.sortOrder !== undefined) push('order', prev?.value.sortOrder, op.sortOrder)
+        if (op.sortOrder !== undefined && valueRank.before.get(op.id) !== valueRank.after.get(op.id)) {
+          push('position', valueRank.before.get(op.id), valueRank.after.get(op.id))
+        }
         if (op.quantity !== undefined) push('quantity', prev?.value.quantity, op.quantity)
         if (op.sourceProductId !== undefined) {
           const prevSrc = prev?.value.sourceProduct
@@ -562,6 +624,9 @@ export function opsToDiff(
         if (op.forcedLineQty !== undefined) {
           push('line qty', prev?.value.forcedLineQty != null ? `locked at ${prev.value.forcedLineQty}` : 'free', op.forcedLineQty === null ? 'free' : `locked at ${op.forcedLineQty}`)
         }
+        if (op.image !== undefined && (prev?.value.image?.assetId ?? null) !== (op.image?.assetId ?? null)) {
+          push('picture', prev?.value.image ? 'a picture' : 'none', op.image ? (prev?.value.image ? 'another picture' : 'a picture') : 'none')
+        }
         rows.push(...channelPriceRows(label, prev?.value.channelPrices, op.channelPrices, channelLabel))
         return rows
       }
@@ -569,6 +634,8 @@ export function opsToDiff(
         const prev = valById.get(op.id)
         return [removed(`Value · ${prev?.value.title ?? op.id}`)]
       }
+      case 'set-rules':
+        return [] // the section words rule changes itself - see rulesDiff
     }
   })
 }
@@ -586,6 +653,7 @@ export type Committers = {
   deleteValue: (op: { id: string }) => Promise<void>
   setOptionChannelPrice: (op: { optionId: string; channelId: string; priceValue: number | null }) => Promise<void>
   setValueChannelPrice: (op: { valueId: string; channelId: string; priceValue: number | null }) => Promise<void>
+  setRules: (rules: ProductOptionRuleInput[]) => Promise<void>
 }
 
 // An add carrying channel prices commits as the add and then a prices-only update of the same temp id, so a failed
@@ -602,18 +670,100 @@ function splitChannelPrices(ops: readonly PendingOp[]): PendingOp[] {
   })
 }
 
-const onlyChannelPrices = (op: UpdateOptionOp | UpdateValueOp) =>
-  Object.keys(op).every((k) => k === 'kind' || k === 'id' || k === 'channelPrices')
+// Copy and store prices have writes of their own - an update carrying nothing else needs no row write
+const NOT_ROW_FIELDS = new Set(['kind', 'id', 'channelPrices', 'title', 'helpText', 'titleLocale', 'sourceProduct'])
+const touchesRow = (op: UpdateOptionOp | UpdateValueOp) => Object.keys(op).some((k) => !NOT_ROW_FIELDS.has(k))
+
+// Whether a condition anywhere in the group points at the option or the value - the backend refuses to delete either while one does
+export function conditionReferences(raw: unknown, ref: { optionId?: string; valueId?: string }): boolean {
+  const g = parseVisibleIfGroup(raw)
+  if (!g) return false
+  const hit = (r: VisibilityRule) =>
+    (ref.optionId !== undefined && r.option_id === ref.optionId) || (ref.valueId !== undefined && !!r.value_ids?.includes(ref.valueId))
+  return (g.rules ?? []).some(hit) || (g.groups ?? []).some((sub) => conditionReferences(sub, ref))
+}
+
+// The backend checks every write against the rows as they stand at that moment: a condition may only point at an option
+// ordered strictly before it, and nothing a condition points at can be deleted. Committed in queue order, a reorder
+// plus a new condition trips that midway even when the end state is valid, so the writes go in phases:
+//   1. adds and field edits, minus order and conditions
+//   2. clear every condition that is changing
+//   3. the rules, which may name what was just added and must let go of what is about to be deleted
+//   4. deletes, now that nothing points at them
+//   5. order moves, last position first - the editor moves into fresh numbers above every current one, so no
+//      condition ever sees its parent at or after it
+//   6. the new conditions, against the final order - a new option's too, so it can read options and choices
+//      added in the same save, which only have ids by then
+export function phaseWrites(ops: readonly PendingOp[]): PendingOp[] {
+  const fields: PendingOp[] = []
+  const clears: PendingOp[] = []
+  const rules: PendingOp[] = []
+  const deletes: PendingOp[] = []
+  const moves: UpdateOptionOp[] = []
+  const conditions: PendingOp[] = []
+  for (const op of ops) {
+    if (op.kind === 'set-rules') {
+      rules.push(op)
+      continue
+    }
+    if (op.kind === 'delete-option' || op.kind === 'delete-value') {
+      deletes.push(op)
+      continue
+    }
+    if (op.kind === 'add-option' && op.visibleIf) {
+      const { visibleIf, ...add } = op
+      fields.push(add)
+      conditions.push({ kind: 'update-option', id: op.tempId, visibleIf })
+      continue
+    }
+    if (op.kind !== 'update-option') {
+      fields.push(op)
+      continue
+    }
+    const { sortOrder, visibleIf, ...rest } = op
+    if (Object.keys(rest).length > 2) fields.push(rest)
+    if (visibleIf !== undefined) {
+      clears.push({ kind: 'update-option', id: op.id, visibleIf: null })
+      if (visibleIf !== null) conditions.push({ kind: 'update-option', id: op.id, visibleIf })
+    }
+    if (sortOrder !== undefined) moves.push({ kind: 'update-option', id: op.id, sortOrder })
+  }
+  moves.sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))
+  return [...fields, ...clears, ...rules, ...deletes, ...moves, ...conditions]
+}
+
+// A condition naming options or choices staged in the same save points at their real ids once they exist
+export function resolveCondition(g: VisibilityGroup, resolve: (id: string) => string): VisibilityGroup {
+  return {
+    ...g,
+    ...(g.rules ? { rules: g.rules.map((r) => ({ ...r, option_id: resolve(r.option_id), ...(r.value_ids ? { value_ids: r.value_ids.map(resolve) } : {}) })) } : {}),
+    ...(g.groups ? { groups: g.groups.map((sub) => resolveCondition(sub, resolve)) } : {}),
+  }
+}
+
+function resolveRules(rules: ProductOptionRuleInput[], resolve: (id: string) => string): ProductOptionRuleInput[] {
+  return rules.map((r) => {
+    const g = parseVisibleIfGroup(r.condition)
+    return {
+      ...r,
+      condition: g ? resolveCondition(g, resolve) : r.condition,
+      actions: r.actions.map((a) => (a.optionId ? { ...a, optionId: resolve(a.optionId) } : a)),
+    }
+  })
+}
 
 // Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
 // can keep just that and a retry resumes instead of re-running committed adds and duplicating rows
 export class CommitError extends Error {
   remaining: PendingOp[]
-  constructor(cause: unknown, remaining: PendingOp[]) {
+  // Temp ids that became real before the failure - anything else still naming them has to follow
+  idMap: Map<string, string>
+  constructor(cause: unknown, remaining: PendingOp[], idMap: Map<string, string> = new Map()) {
     super(cause instanceof Error ? cause.message : String(cause))
     this.name = 'CommitError'
     this.cause = cause
     this.remaining = remaining
+    this.idMap = idMap
   }
 }
 
@@ -622,7 +772,7 @@ export async function commitOps(
   productId: string,
   committers: Committers,
 ): Promise<{ idMap: Map<string, string> }> {
-  const ops = splitChannelPrices(staged)
+  const ops = phaseWrites(splitChannelPrices(staged))
   const idMap = new Map<string, string>()
   const resolve = (id: string) => idMap.get(id) ?? id
 
@@ -633,9 +783,11 @@ export async function commitOps(
       const remaining = ops.slice(i).map((o): PendingOp => {
         if (o.kind === 'add-option') return o
         if (o.kind === 'add-value') return { ...o, optionRef: resolve(o.optionRef) }
+        if (o.kind === 'update-option' && o.visibleIf) return { ...o, id: resolve(o.id), visibleIf: resolveCondition(o.visibleIf, resolve) }
+        if (o.kind === 'set-rules') return { ...o, rules: resolveRules(o.rules, resolve) }
         return { ...o, id: resolve(o.id) }
       })
-      throw new CommitError(err, remaining)
+      throw new CommitError(err, remaining, idMap)
     }
   }
 
@@ -657,7 +809,7 @@ async function commitOne(
     }
     case 'update-option': {
       const id = resolve(op.id)
-      if (!onlyChannelPrices(op)) await committers.updateOption({ ...op, id })
+      if (touchesRow(op)) await committers.updateOption({ ...op, id, ...(op.visibleIf ? { visibleIf: resolveCondition(op.visibleIf, resolve) } : {}) })
       // Title + help text are per-locale content - The form sends both whenever either changes (a content upsert
       // replaces the row), so editing help text alone cannot drop the title
       if (op.titleLocale && (op.title !== undefined || op.helpText !== undefined)) {
@@ -687,7 +839,7 @@ async function commitOne(
     }
     case 'update-value': {
       const id = resolve(op.id)
-      if (!onlyChannelPrices(op)) await committers.updateValue({ ...op, id })
+      if (touchesRow(op)) await committers.updateValue({ ...op, id })
       if (op.title !== undefined && op.titleLocale) {
         await committers.upsertValueContent({ valueId: id, locale: op.titleLocale, title: op.title })
       }
@@ -702,5 +854,8 @@ async function commitOne(
       await committers.deleteValue({ id })
       break
     }
+    case 'set-rules':
+      await committers.setRules(resolveRules(op.rules, resolve))
+      break
   }
 }
