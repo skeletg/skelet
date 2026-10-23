@@ -245,7 +245,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 	if obj.Kind == model.ProductKindSimple {
 		if link, perr := r.loadConfigurableParentLink(ctx, pid); perr == nil && link.ParentID != uuid.Nil {
 			if parentOpts, poerr := r.loadProductOptions(ctx, link.ParentID); poerr == nil {
-				opts = append(slices.Clone(opts), parentOpts...) // the loader's slice is shared across the request
+				opts = append(slices.Clone(opts), catalog.ParentOptionsNotOn(opts, parentOpts)...) // the loader's slice is shared across the request
 				sort.SliceStable(opts, func(i, j int) bool { return opts[i].SortOrder < opts[j].SortOrder })
 			}
 		}
@@ -256,6 +256,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 	}
 	// The same per-channel surcharge the cart charges - a choice the cart would refuse here isn't offered
 	chID, chCur, perChannel := optionPricingChannel(ctx)
+	pictures := newOptionPictures(ctx)
 	out := make([]*model1.ProductCustomOption, 0, len(opts))
 	for _, o := range opts {
 		priceValue := o.PriceValue
@@ -290,6 +291,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 		if o.VisibleIf != nil {
 			mo.VisibleIf = visibleIfToAny(o.VisibleIf)
 		}
+		pictures.option(mo, o.ImageAssetID)
 		for _, v := range o.Values {
 			vp := v.PriceValue
 			if perChannel {
@@ -311,6 +313,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 				q := *v.ForcedLineQty
 				mv.ForcedLineQty = &q
 			}
+			pictures.value(mv, v.ImageAssetID)
 			// Slim stand-in built from what GetProductOptions already hydrated - no extra fetch, mirroring the admin toProductOptionValueModel mapping
 			if v.SourceProductID != nil && hasKey(visibleSources, *v.SourceProductID) {
 				prod := &model.Product{
@@ -332,7 +335,47 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 		}
 		out = append(out, mo)
 	}
+	pictures.load(ctx)
 	return out, nil
+}
+
+func (r *productResolver) OptionRules(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOptionRule, error) {
+	if r.CatalogSvc == nil || obj == nil {
+		return []*model1.ProductCustomOptionRule{}, nil
+	}
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	loc := r.activeLocale(ctx)
+	rules, err := r.CatalogSvc.GetProductOptionRules(ctx, pid, loc)
+	if err != nil {
+		return nil, err
+	}
+	// The same parent merge as Options - the cart applies a configurable parent's rules to its variants
+	if obj.Kind == model.ProductKindSimple {
+		if link, perr := r.loadConfigurableParentLink(ctx, pid); perr == nil && link.ParentID != uuid.Nil {
+			if parentRules, prerr := r.CatalogSvc.GetProductOptionRules(ctx, link.ParentID, loc); prerr == nil {
+				rules = append(rules, catalog.ParentRulesNotOn(rules, parentRules)...)
+			}
+		}
+	}
+	return toCustomOptionRuleModels(ctx, rules), nil
+}
+
+func (r *productResolver) ConfiguratorLayout(ctx context.Context, obj *model.Product) (model.ConfiguratorLayout, error) {
+	if r.CatalogSvc == nil || obj == nil {
+		return model.ConfiguratorLayoutList, nil
+	}
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return "", err
+	}
+	layout, err := r.CatalogSvc.GetProductConfiguratorLayout(ctx, pid)
+	if err != nil {
+		return "", err
+	}
+	return model.ConfiguratorLayout(strings.ToUpper(string(layout))), nil
 }
 
 // null for non-SUBSCRIPTION kinds and for subscriptions with no terms configured

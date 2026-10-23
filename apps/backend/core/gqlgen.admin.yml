@@ -25,6 +25,8 @@ resolver:
   omit_template_comment: true
 
 omit_gqlgen_file_notice: true
+# No interface getters - a resolver-backed field (Product.productOptions) has no struct field to return
+omit_getters: true
 
 call_argument_directives_with_null: true
 
@@ -128,6 +130,16 @@ models:
       # (used by the create form to disable already-used singleton types).
       pageCount:
         resolver: true
+  OptionTemplate:
+    fields:
+      productOptions:
+        resolver: true
+      optionRules:
+        resolver: true
+      products:
+        resolver: true
+      productTypes:
+        resolver: true
   Product:
     fields:
       # partOf is a resolver (not a struct field) so the shared admin Product model stays free of a ProductMemberships
@@ -141,6 +153,14 @@ models:
       # Lazy per-product loads: the products LIST page renders neither, and eagerly hydrating them cost two queries per
       # row. The detail page (which selects them) pays the two queries on demand
       productOptions:
+        resolver: true
+      optionRules:
+        resolver: true
+      optionTemplates:
+        resolver: true
+      typeOptionTemplates:
+        resolver: true
+      configuratorLayout:
         resolver: true
       downloads:
         resolver: true
@@ -162,6 +182,8 @@ models:
   ProductType:
     fields:
       reviewQuestions:
+        resolver: true
+      optionTemplates:
         resolver: true
   InventoryLocation:
     fields:

@@ -69,7 +69,7 @@ type Loaders struct {
 	ReviewQuestion       *dataloader.Loader[uuid.UUID, review.Question]
 	PromotionConditions  *dataloader.Loader[uuid.UUID, []promotion.Condition]
 	PromotionRuleContent *dataloader.Loader[uuid.UUID, promotion.RuleContent]
-	PromotionAsset       *dataloader.Loader[uuid.UUID, medialibrary.Asset]
+	MediaAsset           *dataloader.Loader[uuid.UUID, medialibrary.Asset]
 
 	productFieldLoaders
 
@@ -163,8 +163,8 @@ func New(d Deps) *Loaders {
 			dataloader.WithWait[uuid.UUID, promotion.RuleContent](loaderWait),
 			dataloader.WithCache[uuid.UUID, promotion.RuleContent](dataloader.NewCache[uuid.UUID, promotion.RuleContent]()),
 		),
-		PromotionAsset: dataloader.NewBatchedLoader(
-			promotionAssetBatchFn(d.MediaLibrary),
+		MediaAsset: dataloader.NewBatchedLoader(
+			mediaAssetBatchFn(d.MediaLibrary),
 			dataloader.WithWait[uuid.UUID, medialibrary.Asset](loaderWait),
 			dataloader.WithCache[uuid.UUID, medialibrary.Asset](dataloader.NewCache[uuid.UUID, medialibrary.Asset]()),
 		),
@@ -526,8 +526,8 @@ func promotionRuleContentBatchFn(svc *promotion.Service) dataloader.BatchFunc[uu
 	}
 }
 
-// A missing id resolves to a zero Asset, not an error - promotional displays render without their badge/banner when it's gone, matching loadPromotionMedia
-func promotionAssetBatchFn(svc *medialibrary.Service) dataloader.BatchFunc[uuid.UUID, medialibrary.Asset] {
+// A missing id resolves to a zero Asset, not an error - a promotion badge or an option picture renders without it when it's gone
+func mediaAssetBatchFn(svc *medialibrary.Service) dataloader.BatchFunc[uuid.UUID, medialibrary.Asset] {
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[medialibrary.Asset] {
 		out := make([]*dataloader.Result[medialibrary.Asset], len(keys))
 		byID, err := svc.GetAssetsByIDs(ctx, keys)

@@ -312,8 +312,13 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 	if err := a.appendCartOptions(ctx, ch, &res, opts); err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
+	rules, err := a.svc.GetProductOptionRules(ctx, p.ID, loc)
+	if err != nil {
+		return cart.ProductOptionsResolution{}, err
+	}
+	appendCartRules(ch, &res, rules)
 
-	// A variant of a configurable also carries its parent's product-wide options (e.g. a gift message that applies to every variant) - merge them in so buildConfiguredLineOptions accepts and prices both sets - a variant belongs to at most one configurable (UNIQUE(child_id)) so this is a single extra lookup, and option IDs are globally unique so appending never collides with the variant's own
+	// A variant of a configurable also carries its parent's product-wide options (e.g. a gift message that applies to every variant) - merge them in so buildConfiguredLineOptions accepts and prices both sets - a variant belongs to at most one configurable (UNIQUE(child_id)) so this is a single extra lookup. A template on both, or on their shared product type, puts the same option on each, so the parent's copy is dropped
 	parents, err := a.svc.ListConfigurableParentByChildIDs(ctx, []uuid.UUID{p.ID})
 	if err != nil {
 		return cart.ProductOptionsResolution{}, err
@@ -323,9 +328,14 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		if err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
-		if err := a.appendCartOptions(ctx, ch, &res, parentOpts); err != nil {
+		if err := a.appendCartOptions(ctx, ch, &res, catalog.ParentOptionsNotOn(opts, parentOpts)); err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
+		parentRules, err := a.svc.GetProductOptionRules(ctx, link.ParentID, loc)
+		if err != nil {
+			return cart.ProductOptionsResolution{}, err
+		}
+		appendCartRules(ch, &res, catalog.ParentRulesNotOn(rules, parentRules))
 		// The merged set displays and snapshots in walk order - stable-sort so parent and variant options interleave by their authored sort_order like the PDP shows them, while same-product relative order (the visible_if evaluation invariant) is preserved
 		sort.SliceStable(res.Options, func(i, j int) bool {
 			return res.Options[i].SortOrder < res.Options[j].SortOrder
@@ -400,6 +410,29 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, ch channel.Ch
 		res.Options = append(res.Options, cfg)
 	}
 	return nil
+}
+
+// A price action resolves to this channel's amount like an option surcharge does, and one it can't charge here is marked
+func appendCartRules(ch channel.Channel, res *cart.ProductOptionsResolution, rules []catalog.ProductOptionRule) {
+	for _, r := range rules {
+		cr := cart.ProductOptionRuleConfig{ID: r.ID, Label: r.Label, Condition: *toCartVisibilityGroup(&r.Condition)}
+		for _, a := range r.Actions {
+			ca := cart.OptionRuleActionConfig{Type: string(a.Type)}
+			if a.OptionID != nil {
+				ca.OptionID = *a.OptionID
+			}
+			if a.Quantity != nil {
+				ca.Quantity = *a.Quantity
+			}
+			if a.Type == catalog.RuleActionAdjustPrice {
+				ca.PriceType = string(a.PriceType)
+				v, ok := a.ChannelPriceValue(ch.ID, ch.CurrencyCode, r.Currency)
+				ca.PriceValue, ca.PriceUnavailable = v, !ok
+			}
+			cr.Actions = append(cr.Actions, ca)
+		}
+		res.Rules = append(res.Rules, cr)
+	}
 }
 
 func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibilityGroup {

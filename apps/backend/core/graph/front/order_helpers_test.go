@@ -24,6 +24,7 @@ func TestReorderConfiguredInputGroupsMultiselectRows(t *testing.T) {
 			{ProductOptionID: toppings, OptionValueID: &nuts, InputType: "multiselect"},
 			{ProductOptionID: engraving, InputType: "field", TextValue: "for mom"},
 			{ProductOptionID: upload, InputType: "file", FileURL: "https://cdn/x.png"},
+			{ProductOptionID: uuid.New(), InputType: "rule", OptionTitle: "Gift set", PriceDelta: -500},
 		},
 	}
 
@@ -32,7 +33,7 @@ func TestReorderConfiguredInputGroupsMultiselectRows(t *testing.T) {
 		t.Fatalf("line identity mangled: %+v", got)
 	}
 	if len(got.Options) != 2 {
-		t.Fatalf("want 2 grouped inputs (multiselect folded, file dropped), got %d: %+v", len(got.Options), got.Options)
+		t.Fatalf("want 2 grouped inputs (multiselect folded, file and rule rows dropped), got %d: %+v", len(got.Options), got.Options)
 	}
 	var multi, text int
 	for _, o := range got.Options {

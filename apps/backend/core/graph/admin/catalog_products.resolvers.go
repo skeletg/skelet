@@ -733,7 +733,9 @@ func (r *productResolver) ProductOptions(ctx context.Context, obj *model.Product
 	if err != nil {
 		return nil, err
 	}
-	return toProductOptionModels(options, perm), nil
+	out := toProductOptionModels(options, perm)
+	r.attachOptionImages(ctx, out, options)
+	return out, nil
 }
 
 // Products is the resolver for the products field. When channelId is set, the result is restricted to products with a

@@ -1,0 +1,115 @@
+# ==================== Configurator templates ====================
+# A named set of options and rules kept once and assigned to many products - one by one, or to a product type so every
+# simple and configurable product of that type gets it. A product shows its type's templates first, then the ones it
+# picked, in order, then its own options - and an edit to a template reaches every product using it. Editing a template
+# or a type's list needs catalog.manage across every store, like product types; assigning one to a product is a
+# product edit, gated like the product's own options.
+
+# What options and rules hang off - a product or a configurator template. Option writes return the owner with its
+# refreshed options, so either one comes back from the same mutation
+interface ProductOptionOwner {
+  id: ID!
+  productOptions: [ProductOption!]!
+  optionRules: [ProductOptionRule!]!
+}
+
+extend type Product implements ProductOptionOwner {
+  # The templates the product picked itself, in the order their options show
+  optionTemplates: [OptionTemplate!]!
+  # The templates its product type hands it, shown ahead of its own picks - changed on the type, not here
+  typeOptionTemplates: [OptionTemplate!]!
+  configuratorLayout: ConfiguratorLayout!
+}
+
+# How the product page asks a product's options
+enum ConfiguratorLayout {
+  # Every option at once, in order
+  LIST
+  # One option at a time, with progress and the earlier picks above it
+  STEPS
+}
+
+type OptionTemplate implements ProductOptionOwner {
+  id: ID!
+  name: String!
+  description: String!
+  # What a bare FIXED amount on its options and rules is in - per-store amounts cover the other currencies
+  currencyCode: String!
+  productOptions: [ProductOption!]!
+  optionRules: [ProductOptionRule!]!
+  optionCount: Int!
+  ruleCount: Int!
+  # Products that picked it themselves - productTypeCount counts the types handing it to all of theirs
+  productCount: Int!
+  productTypeCount: Int!
+  # The products that picked it themselves, earliest assigned first
+  products(first: Int = 50, offset: Int = 0): [Product!]!
+  # The product types handing it to every simple and configurable product of theirs, by name
+  productTypes: [ProductType!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# On a product's list, an option or rule that comes from one of its templates names it - those are edited on the
+# template, not the product
+# A media-library picture on an option or one of its choices
+type OptionImage {
+  assetId: ID!
+  url:     String!
+  altText: String!
+  width:   Int
+  height:  Int
+}
+
+extend type ProductOptionValue {
+  image: OptionImage
+}
+
+extend type ProductOption {
+  image: OptionImage
+  templateId: ID
+  templateName: String
+  # What a bare FIXED amount on it is in - its product's currency, or its template's
+  currencyCode: String!
+}
+
+extend type ProductOptionRule {
+  templateId: ID
+  templateName: String
+}
+
+extend type ProductType {
+  # Handed to every simple and configurable product of this type, ahead of the templates a product picks itself
+  optionTemplates: [OptionTemplate!]!
+}
+
+input OptionTemplateInput {
+  name: String!
+  description: String
+  currencyCode: String!
+}
+
+extend type Query {
+  optionTemplates: [OptionTemplate!]!
+  optionTemplate(id: ID!): OptionTemplate
+}
+
+extend type Mutation {
+  createOptionTemplate(input: OptionTemplateInput!): OptionTemplate!
+  updateOptionTemplate(id: ID!, input: OptionTemplateInput!): OptionTemplate!
+  # Refused while products or product types still use it
+  deleteOptionTemplate(id: ID!): Boolean!
+  # Replaces the template's rules - they read and change only its own options
+  setOptionTemplateRules(templateId: ID!, rules: [ProductOptionRuleInput!]!): OptionTemplate!
+  # Replaces the templates a product uses, in order - one the product's own options or rules still read can't be dropped
+  setProductOptionTemplates(productId: ID!, templateIds: [ID!]!): Product!
+  # Adds the template to the end of each product's list
+  assignOptionTemplate(templateId: ID!, productIds: [ID!]!): OptionTemplate!
+  unassignOptionTemplate(templateId: ID!, productIds: [ID!]!): OptionTemplate!
+  # Copies the template's options and rules onto the product as its own and stops using the template
+  detachOptionTemplate(productId: ID!, templateId: ID!): Product!
+  setProductConfiguratorLayout(productId: ID!, layout: ConfiguratorLayout!): Product!
+  # Replaces the templates a product type hands its products, in order - one a product of the type still reads with
+  # its own options or rules can't be dropped, unless that product picked it itself too
+  setProductTypeOptionTemplates(productTypeId: ID!, templateIds: [ID!]!): ProductType!
+}
