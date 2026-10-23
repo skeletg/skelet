@@ -47,3 +47,52 @@ describe('translation rows in the cache', () => {
     expect(cache.readQuery<{ category: { content: { locale: string }[] } }>({ query: DETAIL })?.category.content.map((c) => c.locale)).toEqual(['en'])
   })
 })
+
+const PAGE = gql`
+  query Page {
+    productType(id: "t1") {
+      id
+      attributes {
+        sortOrder
+        groupId
+        attribute {
+          id
+          slug
+        }
+      }
+    }
+  }
+`
+const FILTER = gql`
+  query Filter {
+    productType(id: "t1") {
+      id
+      attributes {
+        sortOrder
+        attribute {
+          id
+          slug
+        }
+      }
+    }
+  }
+`
+
+const attr = (id: string, groupId?: string) => ({ __typename: 'ProductTypeAttribute', sortOrder: 0, ...(groupId !== undefined ? { groupId } : {}), attribute: { __typename: 'Attribute', id, slug: id } })
+const productType = (attributes: object[]) => ({ productType: { __typename: 'ProductType', id: 't1', attributes } })
+
+describe('product type attribute rows in the cache', () => {
+  it('keeps the group a narrower query did not select', () => {
+    const cache = new InMemoryCache({ typePolicies })
+    cache.writeQuery({ query: PAGE, data: productType([attr('a1', 'g1'), attr('a2', 'g2')]) })
+    cache.writeQuery({ query: FILTER, data: productType([attr('a1'), attr('a2')]) })
+    expect(cache.readQuery({ query: PAGE })).toEqual(productType([attr('a1', 'g1'), attr('a2', 'g2')]))
+  })
+
+  it('drops an attribute the incoming list no longer has', () => {
+    const cache = new InMemoryCache({ typePolicies })
+    cache.writeQuery({ query: PAGE, data: productType([attr('a1', 'g1'), attr('a2', 'g2')]) })
+    cache.writeQuery({ query: FILTER, data: productType([attr('a2')]) })
+    expect(cache.readQuery({ query: PAGE })).toEqual(productType([attr('a2', 'g2')]))
+  })
+})
