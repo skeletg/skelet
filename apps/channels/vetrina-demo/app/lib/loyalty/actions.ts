@@ -2,6 +2,8 @@
 
 import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 
 import { gqlFetch } from "@/app/lib/graphql";
 import {
@@ -31,7 +33,7 @@ export async function redeemLoyaltyPointsAction(
 ): Promise<void> {
   const points = Number.parseInt(String(formData.get("points") ?? ""), 10);
   if (Number.isNaN(points) || points <= 0) {
-    redirect("/account?error=redeem");
+    redirect(await withLocalePrefix("/account?error=redeem", await getCurrentLocale()));
   }
   let ok = true;
   try {
@@ -43,7 +45,7 @@ export async function redeemLoyaltyPointsAction(
     ok = false;
   }
   revalidateAccount();
-  redirect(ok ? "/account?done=redeem" : "/account?error=redeem");
+  redirect(await withLocalePrefix(ok ? "/account?done=redeem" : "/account?error=redeem", await getCurrentLocale()));
 }
 
 export type ReferralInfo = {
