@@ -20,6 +20,7 @@ import {
 import type { Cart, CartLine } from "@/app/lib/cart/types";
 import {
   clearCart as clearCartAction,
+  loadCartAction,
   removeCartLine,
   restoreCartLineAction,
   setCartLineQuantity,
@@ -210,12 +211,14 @@ export function CartStoreProvider({
       inflight.current += 1;
       setCart((prev) => (prev ? patch(prev) : prev));
       action()
-        .then((returned) => {
-          if (seq.current === mySeq && returned) setCart(returned);
+        .catch(() => null)
+        // No cart back means the edit failed - re-read the server's cart rather than leave the optimistic patch
+        .then((returned) => returned ?? loadCartAction())
+        .then((next) => {
+          if (seq.current === mySeq) setCart(next);
         })
         .catch(() => {
-          // Swallow: a failed mutation leaves the optimistic patch in place until the
-          // next successful op or navigation reconciles it
+          // The re-read failed too - the next successful op or navigation reconciles it
         })
         .finally(() => {
           inflight.current -= 1;

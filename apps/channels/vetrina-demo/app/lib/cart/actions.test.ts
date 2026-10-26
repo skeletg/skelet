@@ -1,84 +1,109 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Answers by operation name; AddToCart fails for any SKU in `failing`
-const failing = new Set<string>();
-const calls: string[] = [];
-const gqlFetch = vi.fn(async (doc: { definitions: { name?: { value: string } }[] }, vars: Record<string, unknown>) => {
-  const op = doc.definitions[0]?.name?.value ?? "";
-  calls.push(op);
-  const sku = (vars.sku ?? (vars.input as { sku?: string } | undefined)?.sku) as string | undefined;
-  if (sku && failing.has(sku)) throw new Error("out of stock");
-  const cart = { id: "cart-1", op };
-  if (op === "CartProbe") return { data: { cart: { id: "cart-1" } } };
-  if (op === "ApplyCoupon") return { data: { applyCoupon: { ...cart, coupon: vars.code } } };
-  return { data: { addToCart: cart, addBundleToCart: cart, addConfiguredToCart: cart, cart } };
-});
-vi.mock("@/app/lib/graphql", () => ({ gqlFetch, GraphQLRequestError: class extends Error {} }));
-
-const jar = new Map<string, string>();
+const mocks = vi.hoisted(() => ({
+  gqlFetch: vi.fn(),
+  token: null as string | null,
+  jar: new Map<string, string>(),
+}));
+vi.mock("@/app/lib/graphql", () => ({
+  gqlFetch: mocks.gqlFetch,
+  GraphQLRequestError: class extends Error { constructor(message: string, readonly errors: unknown[]) { super(message); } },
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
-    get: (name: string) => (jar.has(name) ? { value: jar.get(name) } : undefined),
-    set: (name: string, value: string) => jar.set(name, value),
-    delete: (name: string) => jar.delete(name),
+    get: (name: string) => (mocks.jar.has(name) ? { value: mocks.jar.get(name) } : undefined),
+    set: (name: string, value: string) => void mocks.jar.set(name, value),
+    delete: (name: string) => void mocks.jar.delete(name),
   }),
 }));
-vi.mock("@/app/lib/auth/session", () => ({ getAccessToken: async () => null }));
-vi.mock("@/app/lib/cart/read", () => ({ CART_COOKIE: "cart", getCart: vi.fn() }));
+vi.mock("@/app/lib/auth/session", () => ({ getAccessToken: async () => mocks.token }));
+vi.mock("@/app/lib/config/read", () => ({ surfaceCacheOpts: vi.fn(), NAV_SURFACE: "nav", NAV_TAG: "nav" }));
 vi.mock("@/app/lib/catalog/read", () => ({ getCartRecommendations: vi.fn() }));
 
-const { addBundleToCart, addGroupedToCart, addSimpleToCart, addConfiguredToCart, quickOrderAction } = await import("./actions");
+const { addSimpleToCart, applyCoupon, setCartLineQuantity, removeCartLine } = await import("./actions");
+const { CartByIdDocument, MyCartDocument } = await import("./queries.gql");
+const { AddToCartDocument, CartProbeDocument, CreateGuestCartDocument, UpdateCartLineDocument } = await import("./mutations.gql");
+
+const sent = (doc: unknown) => mocks.gqlFetch.mock.calls.filter(([d]) => d === doc).map(([, vars]) => vars);
+const add = (sku = "SKU-1") => {
+  const form = new FormData();
+  form.set("productSku", sku);
+  return addSimpleToCart(null, form);
+};
 
 beforeEach(() => {
-  failing.clear();
-  calls.length = 0;
-  jar.clear();
-  jar.set("cart", "cart-1");
-  jar.set("storefront_pending_promo", "WELCOME10");
+  vi.clearAllMocks();
+  mocks.token = null;
+  mocks.jar.clear();
+  mocks.gqlFetch.mockImplementation(async (doc: unknown) => {
+    if (doc === MyCartDocument) return { data: { myCart: { id: "customer-cart" } } };
+    if (doc === CartProbeDocument) return { data: { cart: { id: "guest-cart" } } };
+    if (doc === CreateGuestCartDocument) return { data: { createGuestCart: { id: "new-guest" } } };
+    if (doc === CartByIdDocument) return { data: { cart: { id: "reread" } } };
+    return { data: { updateCartLine: { id: "edited" }, removeFromCart: { id: "edited" }, addToCart: { id: "added" } } };
+  });
 });
 
-const form = (fields: Record<string, string | string[]>) => {
-  const data = new FormData();
-  for (const [k, v] of Object.entries(fields)) for (const one of [v].flat()) data.append(k, one);
-  return data;
-};
-const applied = () => calls.filter((c) => c === "ApplyCoupon").length;
-const line = (sku: string) => JSON.stringify({ productSku: sku, productName: sku, quantity: 1 });
+describe("signed in without a cart cookie", () => {
+  beforeEach(() => {
+    mocks.token = "jwt";
+  });
 
-it.each([
-  ["simple", () => addSimpleToCart(null, form({ productSku: "A" }))],
-  ["configured", () => addConfiguredToCart(null, form({ productSku: "A", options: "[]" }))],
-  ["bundle", () => addBundleToCart(null, form({ productSku: "A", selections: "[]" }))],
-  ["grouped", () => addGroupedToCart(null, form({ line: [line("A"), line("B")] }))],
-] as const)("applies the held code once after a %s addition", async (_kind, add) => {
-  const res = await add();
-  expect(res.ok).toBe(true);
-  expect(applied()).toBe(1);
-  expect(res.cart).toMatchObject({ coupon: "WELCOME10" });
-  expect(jar.has("storefront_pending_promo")).toBe(false);
+  it("edits the session's cart", async () => {
+    const res = await setCartLineQuantity("line-1", 3);
+    expect(res.cart).toEqual({ id: "edited" });
+    expect(sent(UpdateCartLineDocument)).toEqual([{ cartId: "customer-cart", lineId: "line-1", quantity: 3 }]);
+    expect(sent(CreateGuestCartDocument)).toEqual([]);
+  });
+
+  it("adds to the session's cart without writing a cart cookie", async () => {
+    await expect(add()).resolves.toMatchObject({ ok: true });
+    expect(sent(AddToCartDocument)).toEqual([{ cartId: "customer-cart", sku: "SKU-1", quantity: 1 }]);
+    expect(mocks.jar.size).toBe(0);
+  });
 });
 
-it("applies it once to a quick order, even when some rows fail", async () => {
-  failing.add("B");
-  const res = await quickOrderAction(null, form({ "sku:0": "A", "qty:0": "1", "sku:1": "B", "qty:1": "1", "sku:2": "C", "qty:2": "1" }));
-  expect(res.added).toBe(2);
-  expect(applied()).toBe(1);
-  expect(res.cart).toMatchObject({ coupon: "WELCOME10" });
+describe("a signed-in cart that can't be read", () => {
+  beforeEach(() => {
+    mocks.token = "jwt";
+    mocks.jar.set("storefront_cart", "stale-guest");
+    const ok = mocks.gqlFetch.getMockImplementation()!;
+    mocks.gqlFetch.mockImplementation(async (doc: unknown, vars: unknown) => {
+      if (doc === MyCartDocument) throw new Error("backend down");
+      return ok(doc, vars);
+    });
+  });
+
+  it("fails the add instead of using the guest cookie's cart", async () => {
+    await expect(add()).resolves.toMatchObject({ ok: false });
+    expect(sent(AddToCartDocument)).toEqual([]);
+    expect(sent(CreateGuestCartDocument)).toEqual([]);
+  });
+
+  it("edits nothing", async () => {
+    await expect(removeCartLine("line-1")).resolves.toBeNull();
+    expect(mocks.gqlFetch.mock.calls.map(([d]) => d)).toEqual([MyCartDocument]);
+  });
 });
 
-it("applies it to the grouped members that landed before one failed", async () => {
-  failing.add("B");
-  const res = await addGroupedToCart(null, form({ line: [line("A"), line("B")] }));
-  expect(res.ok).toBe(false);
-  expect(applied()).toBe(1);
-  expect(res.cart).toMatchObject({ coupon: "WELCOME10" });
-});
+describe("a guest", () => {
+  it("only creates a cart for an addition", async () => {
+    await expect(setCartLineQuantity("line-1", 2)).resolves.toEqual({ cart: null });
+    const form = new FormData();
+    form.set("code", "SAVE10");
+    await applyCoupon(undefined, form);
+    expect(sent(CreateGuestCartDocument)).toEqual([]);
 
-it("holds the code when nothing was added", async () => {
-  failing.add("A");
-  await addBundleToCart(null, form({ productSku: "A", selections: "[]" }));
-  await addGroupedToCart(null, form({ line: [line("A")] }));
-  await quickOrderAction(null, form({ "sku:0": "A", "qty:0": "1" }));
-  expect(applied()).toBe(0);
-  expect(jar.get("storefront_pending_promo")).toBe("WELCOME10");
+    await expect(add()).resolves.toMatchObject({ ok: true });
+    expect(sent(AddToCartDocument)).toEqual([{ cartId: "new-guest", sku: "SKU-1", quantity: 1 }]);
+    expect(mocks.jar.get("storefront_cart")).toBe("new-guest");
+  });
+
+  it("doesn't replace a cart the backend failed to probe", async () => {
+    mocks.jar.set("storefront_cart", "guest-cart");
+    mocks.gqlFetch.mockRejectedValueOnce(new Error("backend down"));
+    await expect(add()).resolves.toMatchObject({ ok: false });
+    expect(sent(CreateGuestCartDocument)).toEqual([]);
+    expect(mocks.jar.get("storefront_cart")).toBe("guest-cart");
+  });
 });

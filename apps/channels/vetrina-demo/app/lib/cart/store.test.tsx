@@ -15,6 +15,7 @@ const calls = {
   setQty: [] as Deferred<{ cart: Cart | null; error?: string }>[],
   remove: [] as Deferred<Cart | null>[],
   restore: [] as Deferred<{ cart: Cart | null; error?: string }>[],
+  load: async (): Promise<Cart | null> => null,
 };
 vi.mock("@/app/lib/cart/actions", () => ({
   setCartLineQuantity: () => {
@@ -33,6 +34,7 @@ vi.mock("@/app/lib/cart/actions", () => ({
     return d.promise;
   },
   clearCart: async () => null,
+  loadCartAction: () => calls.load(),
 }));
 
 const { CartStoreProvider, useCartStore } = await import("@/app/lib/cart/store");
@@ -132,5 +134,18 @@ describe("cart store", () => {
     });
     expect(adopted).toBe(false);
     expect(text()).toBe("ax5 | subtotal 5000 | discount 0 | count 5");
+  });
+
+  it("re-reads the server's cart when an edit comes back without one", async () => {
+    calls.load = async () => cart([line("a", 1000, 1)]);
+    renderWithIntl(
+      <CartStoreProvider initial={cart([line("a", 1000, 1)])}>
+        <Probe />
+      </CartStoreProvider>,
+    );
+    act(() => store.removeLine("a"));
+    expect(text()).toBe(" | subtotal 0 | discount 0 | count 0");
+    await act(async () => calls.remove[0].resolve(null));
+    expect(text()).toBe("ax1 | subtotal 1000 | discount 0 | count 1");
   });
 });
