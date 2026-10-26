@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -101,11 +102,14 @@ const (
 var OptionRuleOps = map[string]bool{OptionRuleAnyOf: true, OptionRuleNoneOf: true, OptionRuleFilled: true, OptionRuleEmpty: true}
 
 type ProductOption struct {
-	ID         uuid.UUID
-	ProductID  uuid.UUID
-	InputType  ProductOptionInputType
-	IsRequired bool
-	SortOrder  int32
+	ID        uuid.UUID
+	ProductID uuid.UUID
+	// Set instead of ProductID on a template's option - TemplateName is resolved only in a product's list
+	TemplateID   uuid.UUID
+	TemplateName string
+	InputType    ProductOptionInputType
+	IsRequired   bool
+	SortOrder    int32
 	// Title and HelpText are resolved to the active request locale with a default-locale fallback
 	Title      string
 	HelpText   string
@@ -119,6 +123,8 @@ type ProductOption struct {
 	Values         []ProductOptionValue
 	// Gates the option on choices made for EARLIER options (strictly lower sort_order) - nil = always visible
 	VisibleIf *OptionConditionGroup
+	// A media-library picture shown beside the option - nil for none
+	ImageAssetID *uuid.UUID
 	// The owning product's default currency, which a bare FIXED amount is in - resolved only by GetProductOptions, like ChannelPrices on the option and its values
 	Currency      string
 	ChannelPrices []OptionChannelPrice
@@ -148,10 +154,12 @@ type ProductOptionValue struct {
 	PriceValue int32
 	PriceType  ProductOptionPriceType
 	IsDefault  bool
-	// Units the value represents - multiplied into the cart contribution for linked values, metadata only otherwise, always >= 1
+	// Units the value represents - the cart multiplies its contribution by this, linked or not, always >= 1
 	Quantity float64
 	// Picking this value forces the cart LINE quantity ("Set of 4" -> 4) and locks it against manual edits, but only while the owning option is visible
-	ForcedLineQty   *float64
+	ForcedLineQty *float64
+	// A media-library picture the storefront shows the choice as - nil for none
+	ImageAssetID    *uuid.UUID
 	Title           string // resolved
 	AllContent      []ProductOptionValueContent
 	SourceProductID *uuid.UUID
@@ -172,7 +180,9 @@ type ProductOptionValueContent struct {
 }
 
 type AddProductOptionInput struct {
+	// Exactly one of the two
 	ProductID  uuid.UUID
+	TemplateID uuid.UUID
 	InputType  ProductOptionInputType
 	IsRequired bool
 	SortOrder  int32
@@ -183,10 +193,11 @@ type AddProductOptionInput struct {
 	MaxFileBytes   *int64
 	FileExtensions string
 	// Initial-content row - locale must equal the configured default
-	Locale    string
-	Title     string
-	HelpText  string
-	VisibleIf *OptionConditionGroup
+	Locale       string
+	Title        string
+	HelpText     string
+	VisibleIf    *OptionConditionGroup
+	ImageAssetID *uuid.UUID
 }
 
 type UpdateProductOptionInput struct {
@@ -207,6 +218,8 @@ type UpdateProductOptionInput struct {
 	ClearMaxChars       bool
 	ClearMaxFileBytes   bool
 	ClearFileExtensions bool
+	// Pointer-to-uuid sets, pointer-to-zero clears, nil is no change
+	ImageAssetID *uuid.UUID
 }
 
 type UpsertProductOptionContentInput struct {
@@ -226,6 +239,7 @@ type AddProductOptionValueInput struct {
 	Quantity        float64
 	SourceProductID *uuid.UUID
 	ForcedLineQty   *float64
+	ImageAssetID    *uuid.UUID
 	Locale          string
 	Title           string
 }
@@ -241,6 +255,8 @@ type UpdateProductOptionValueInput struct {
 	SourceProductID *uuid.UUID
 	// Pointer sets, pointer-to-zero-or-negative clears, nil is no change
 	ForcedLineQty *float64
+	// Pointer-to-uuid sets, pointer-to-zero clears, nil is no change
+	ImageAssetID *uuid.UUID
 }
 
 type UpsertProductOptionValueContentInput struct {
@@ -270,6 +286,7 @@ var (
 	ErrOptionChannelPriceNotFixed     = errors.New("only a FIXED surcharge takes a per-channel amount - a PERCENT one already follows the channel price")
 	ErrOptionChannelPriceRange        = errors.New("per-channel surcharge is out of range")
 	ErrOptionChannelNotListed         = errors.New("the product is not listed on this channel")
+	ErrOptionImageInvalid             = errors.New("an option picture must be an uploaded media-library image")
 )
 
 // Percent adjustments outside this range are typos, not prices - below -100 the line goes negative by definition
@@ -278,3 +295,22 @@ const (
 	MaxOptionPercent          = 1000
 	MaxOptionChannelSurcharge = 1_000_000_000
 )
+
+// ParentOptionsNotOn is the configurable parent's options a variant doesn't carry already - a template on both, or on
+// their shared product type, is asked once
+func ParentOptionsNotOn(variant, parent []ProductOption) []ProductOption {
+	have := make(map[uuid.UUID]bool, len(variant))
+	for _, o := range variant {
+		have[o.ID] = true
+	}
+	return slices.DeleteFunc(slices.Clone(parent), func(o ProductOption) bool { return have[o.ID] })
+}
+
+// ParentRulesNotOn is ParentOptionsNotOn for rules - a shared template's rule applies once, not twice
+func ParentRulesNotOn(variant, parent []ProductOptionRule) []ProductOptionRule {
+	have := make(map[uuid.UUID]bool, len(variant))
+	for _, r := range variant {
+		have[r.ID] = true
+	}
+	return slices.DeleteFunc(slices.Clone(parent), func(r ProductOptionRule) bool { return have[r.ID] })
+}

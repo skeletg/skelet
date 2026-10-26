@@ -456,19 +456,44 @@ type ProductCustomOption struct {
 	FileExtensions *string                     `json:"fileExtensions,omitempty"`
 	PriceValue     *int32                      `json:"priceValue,omitempty"`
 	PriceType      string                      `json:"priceType"`
+	Image          *ProductCustomOptionImage   `json:"image,omitempty"`
 	Values         []*ProductCustomOptionValue `json:"values"`
 	VisibleIf      any                         `json:"visibleIf,omitempty"`
 }
 
+type ProductCustomOptionImage struct {
+	URL     string `json:"url"`
+	AltText string `json:"altText"`
+	Width   *int32 `json:"width,omitempty"`
+	Height  *int32 `json:"height,omitempty"`
+}
+
+type ProductCustomOptionRule struct {
+	ID        string                           `json:"id"`
+	Label     string                           `json:"label"`
+	Condition any                              `json:"condition"`
+	Actions   []*ProductCustomOptionRuleAction `json:"actions"`
+}
+
+type ProductCustomOptionRuleAction struct {
+	Type             string   `json:"type"`
+	OptionID         *string  `json:"optionId,omitempty"`
+	Quantity         *float64 `json:"quantity,omitempty"`
+	PriceType        *string  `json:"priceType,omitempty"`
+	PriceValue       *int32   `json:"priceValue,omitempty"`
+	PriceUnavailable bool     `json:"priceUnavailable"`
+}
+
 type ProductCustomOptionValue struct {
-	ID            string         `json:"id"`
-	Title         string         `json:"title"`
-	PriceValue    int32          `json:"priceValue"`
-	PriceType     string         `json:"priceType"`
-	Quantity      float64        `json:"quantity"`
-	IsDefault     bool           `json:"isDefault"`
-	ForcedLineQty *float64       `json:"forcedLineQty,omitempty"`
-	SourceProduct *model.Product `json:"sourceProduct,omitempty"`
+	ID            string                    `json:"id"`
+	Title         string                    `json:"title"`
+	Image         *ProductCustomOptionImage `json:"image,omitempty"`
+	PriceValue    int32                     `json:"priceValue"`
+	PriceType     string                    `json:"priceType"`
+	Quantity      float64                   `json:"quantity"`
+	IsDefault     bool                      `json:"isDefault"`
+	ForcedLineQty *float64                  `json:"forcedLineQty,omitempty"`
+	SourceProduct *model.Product            `json:"sourceProduct,omitempty"`
 }
 
 type ProductOptionFileUpload struct {

@@ -1,0 +1,69 @@
+# ==================== Product option rules ==================== "When these answers, then these effects" across a product's options. The cart applies them at add-to-cart; actions never change answers, so a condition may read any option and the rules have no order to respect.
+
+enum ProductOptionRuleActionType {
+  REQUIRE        # optionId becomes required - never for a hidden option
+  OPTIONAL       # optionId becomes optional - a rule requiring it wins
+  SET_QUANTITY   # the cart line quantity is fixed at quantity and locked
+  ADJUST_PRICE   # the unit price moves by priceValue: FIXED minor units of the product's currency or PERCENT points of its price, either sign
+}
+
+type ProductOptionRule {
+  id:        ID!
+  # Resolved to the request locale, falling back to the default locale - names the cart line row a price change adds, empty for "Adjustment"
+  label:     String!
+  labels:    [ProductOptionRuleLabel!]!
+  # Same shape as ProductOption.visibleIf, minus the order restriction: { logic, rules: [{ option_id, op, value_ids }], groups }
+  condition: JSON!
+  actions:   [ProductOptionRuleAction!]!
+}
+
+type ProductOptionRuleLabel {
+  locale: String!
+  label:  String!
+}
+
+type ProductOptionRuleAction {
+  type:          ProductOptionRuleActionType!
+  optionId:      ID
+  quantity:      Float
+  priceType:     ProductOptionPriceType
+  priceValue:    Int
+  # FIXED amounts for channels selling in another currency, only for channels the caller can see - as on option surcharges
+  channelPrices: [OptionChannelPrice!]!
+}
+
+input ProductOptionRuleInput {
+  # Keeps the rule's identity across saves - omit it to add a rule
+  id:        ID
+  labels:    [ProductOptionRuleLabelInput!]
+  condition: JSON!
+  actions:   [ProductOptionRuleActionInput!]!
+}
+
+input ProductOptionRuleLabelInput {
+  locale: String!
+  label:  String!
+}
+
+input ProductOptionRuleActionInput {
+  type:          ProductOptionRuleActionType!
+  optionId:      ID
+  quantity:      Float
+  priceType:     ProductOptionPriceType
+  priceValue:    Int
+  channelPrices: [ProductOptionRuleChannelPriceInput!]
+}
+
+input ProductOptionRuleChannelPriceInput {
+  channelId:  ID!
+  priceValue: Int!
+}
+
+extend type Product {
+  optionRules: [ProductOptionRule!]!
+}
+
+extend type Mutation {
+  # Replaces the product's rules with this list, in order. Gated like every option write - on every channel the product is listed on.
+  setProductOptionRules(productId: ID!, rules: [ProductOptionRuleInput!]!): Product!
+}

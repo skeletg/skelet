@@ -131,8 +131,12 @@ export function OrderDetailView({
                   <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                     {line.options.map((o) => (
                       <li key={o.id}>
-                        {o.optionTitle}:{" "}
-                        {o.fileUrl ? (
+                        {o.inputType === "rule" ? (
+                          <span className="text-foreground">{o.optionTitle}</span>
+                        ) : (
+                          <>{o.optionTitle}:{" "}</>
+                        )}
+                        {o.inputType === "rule" ? null : o.fileUrl ? (
                           <a
                             href={o.fileUrl}
                             target="_blank"

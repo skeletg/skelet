@@ -4,6 +4,7 @@ import {
   CommitError,
   commitOps,
   opsToDiff,
+  phaseWrites,
   type Committers,
   isTemp,
   newTempId,
@@ -284,6 +285,7 @@ describe('per-channel surcharges', () => {
     deleteValue: vi.fn(async () => {}),
     setOptionChannelPrice: vi.fn(async () => {}),
     setValueChannelPrice: vi.fn(async () => {}),
+    setRules: vi.fn(async () => {}),
     ...over,
   })
 
@@ -311,5 +313,152 @@ describe('per-channel surcharges', () => {
     await commitOps([{ kind: 'update-option', id: 'o1', priceValue: 300, channelPrices: { 'c-eur': 280 } }], 'p1', c)
     expect(c.updateOption).toHaveBeenCalledTimes(1)
     expect(c.setOptionChannelPrice).toHaveBeenCalledWith({ optionId: 'o1', channelId: 'c-eur', priceValue: 280 })
+  })
+})
+
+describe('phaseWrites', () => {
+  it('clears changing conditions and deletes before moving, and sets conditions last', () => {
+    const ops: PendingOp[] = [
+      { kind: 'update-option', id: 'o1', sortOrder: 5, visibleIf: { rules: [{ option_id: 'o2', op: 'filled' }] } },
+      { kind: 'delete-value', id: 'v9' },
+      { kind: 'update-option', id: 'o2', sortOrder: 4, isRequired: true },
+      addValue({ optionRef: 'o2' }),
+      { kind: 'update-option', id: 'o3', visibleIf: null },
+    ]
+    expect(phaseWrites(ops)).toEqual([
+      { kind: 'update-option', id: 'o2', isRequired: true },
+      addValue({ optionRef: 'o2' }),
+      { kind: 'update-option', id: 'o1', visibleIf: null },
+      { kind: 'update-option', id: 'o3', visibleIf: null },
+      { kind: 'delete-value', id: 'v9' },
+      { kind: 'update-option', id: 'o1', sortOrder: 5 },
+      { kind: 'update-option', id: 'o2', sortOrder: 4 },
+      { kind: 'update-option', id: 'o1', visibleIf: { rules: [{ option_id: 'o2', op: 'filled' }] } },
+    ])
+  })
+
+  it('writes a new option\'s condition after everything it names exists, with their real ids', async () => {
+    const ids: Record<string, string> = { tmp_size: 'o-size', tmp_note: 'o-note' }
+    const created = vi.fn(async (op: AddOptionOp) => ids[op.tempId])
+    const updateOption = vi.fn(async () => {})
+    const noop = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: created, updateOption, upsertOptionContent: noop, deleteOption: noop, addValue: vi.fn(async () => 'v-large'),
+      updateValue: noop, upsertValueContent: noop, deleteValue: noop, setOptionChannelPrice: noop, setValueChannelPrice: noop, setRules: noop,
+    }
+    const condition = { rules: [{ option_id: 'tmp_size', op: 'anyOf' as const, value_ids: ['tmp_large'] }] }
+    await commitOps(
+      [
+        addOption({ tempId: 'tmp_size' }),
+        addValue({ tempId: 'tmp_large', optionRef: 'tmp_size' }),
+        addOption({ tempId: 'tmp_note', title: 'Note', inputType: 'AREA', sortOrder: 1, visibleIf: condition }),
+      ],
+      'p1',
+      c,
+    )
+    expect(created).toHaveBeenLastCalledWith(expect.not.objectContaining({ visibleIf: expect.anything() }))
+    expect(updateOption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'o-note', visibleIf: { rules: [{ option_id: 'o-size', op: 'anyOf', value_ids: ['v-large'] }] } }),
+    )
+  })
+
+  it('writes copy through its own upsert, without an empty row write', async () => {
+    const updateOption = vi.fn(async () => {})
+    const upsertOptionContent = vi.fn(async () => {})
+    const noop = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: vi.fn(async () => 'o-real'), updateOption, upsertOptionContent, deleteOption: noop, addValue: vi.fn(async () => 'v-real'),
+      updateValue: noop, upsertValueContent: noop, deleteValue: noop, setOptionChannelPrice: noop, setValueChannelPrice: noop, setRules: noop,
+    }
+    await commitOps([{ kind: 'update-option', id: 'o1', title: 'Poruka', helpText: '', titleLocale: 'sr' }], 'p1', c)
+    expect(updateOption).not.toHaveBeenCalled()
+    expect(upsertOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'sr', title: 'Poruka', helpText: '' })
+  })
+})
+
+describe('order in the diff', () => {
+  it('names positions, and only for the options that changed place', () => {
+    const original = [option({ id: 'a', title: 'A', sortOrder: 0 }), option({ id: 'b', title: 'B', sortOrder: 1 }), option({ id: 'c', title: 'C', sortOrder: 2 })]
+    const rows = opsToDiff(original, [
+      { kind: 'update-option', id: 'a', sortOrder: 3 },
+      { kind: 'update-option', id: 'c', sortOrder: 4 },
+      { kind: 'update-option', id: 'b', sortOrder: 5 },
+    ])
+    expect(rows.map((r) => [r.label, 'before' in r ? r.before : null, 'after' in r ? r.after : null])).toEqual([
+      ['Option · C · position', '3', '2'],
+      ['Option · B · position', '2', '3'],
+    ])
+  })
+})
+
+describe('rules in the save', () => {
+  it('writes the rules after conditions clear and before deletes, naming what was just added by its real id', async () => {
+    const order: string[] = []
+    const setRules = vi.fn(async () => {
+      order.push('rules')
+    })
+    const deleteOption = vi.fn(async () => {
+      order.push('delete')
+    })
+    const updateOption = vi.fn(async () => {
+      order.push('update')
+    })
+    const noop = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: vi.fn(async () => 'o-gift'), updateOption, upsertOptionContent: noop, deleteOption, addValue: vi.fn(async () => 'v-yes'),
+      updateValue: noop, upsertValueContent: noop, deleteValue: noop, setOptionChannelPrice: noop, setValueChannelPrice: noop, setRules,
+    }
+    await commitOps(
+      [
+        { kind: 'delete-option', id: 'o-old' },
+        { kind: 'set-rules', rules: [{ condition: { rules: [{ option_id: 'tmp_gift', op: 'anyOf', value_ids: ['tmp_yes'] }] }, actions: [{ type: 'REQUIRE', optionId: 'tmp_gift' }] }] },
+        addOption({ tempId: 'tmp_gift' }),
+        addValue({ tempId: 'tmp_yes', optionRef: 'tmp_gift' }),
+        { kind: 'update-option', id: 'o-note', visibleIf: null },
+      ],
+      'p1',
+      c,
+    )
+    expect(order).toEqual(['update', 'rules', 'delete'])
+    expect(setRules).toHaveBeenCalledWith([
+      { condition: { rules: [{ option_id: 'o-gift', op: 'anyOf', value_ids: ['v-yes'] }] }, actions: [{ type: 'REQUIRE', optionId: 'o-gift' }] },
+    ])
+  })
+
+  it('hands back the ids it made real when a later write fails', async () => {
+    const noop = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: vi.fn(async () => 'o-gift'), updateOption: noop, upsertOptionContent: noop, deleteOption: noop, addValue: vi.fn(async () => 'v-yes'),
+      updateValue: noop, upsertValueContent: noop, deleteValue: noop, setOptionChannelPrice: noop, setValueChannelPrice: noop,
+      setRules: vi.fn(async () => {
+        throw new Error('boom')
+      }),
+    }
+    const err = await commitOps(
+      [addOption({ tempId: 'tmp_gift' }), { kind: 'set-rules', rules: [{ condition: { rules: [{ option_id: 'tmp_gift', op: 'filled' }] }, actions: [{ type: 'REQUIRE', optionId: 'tmp_gift' }] }] }],
+      'p1',
+      c,
+    ).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CommitError)
+    expect((err as CommitError).idMap.get('tmp_gift')).toBe('o-gift')
+    expect((err as CommitError).remaining).toEqual([
+      { kind: 'set-rules', rules: [{ condition: { rules: [{ option_id: 'o-gift', op: 'filled' }] }, actions: [{ type: 'REQUIRE', optionId: 'o-gift' }] }] },
+    ])
+  })
+})
+
+describe('pictures', () => {
+  const pic = { assetId: 'a1', url: 'https://cdn/a1.png' }
+  const withPicture = option({ image: pic, values: [{ id: 'v1', sortOrder: 0, priceValue: 0, priceType: 'FIXED', isDefault: false, quantity: 1, title: 'Gift', image: pic }] })
+
+  it('shows a staged picture, folds one into an add, and words the change', () => {
+    const staged = applyOps([option()], [{ kind: 'update-option', id: 'o1', image: pic }])
+    expect(staged[0].image).toEqual(pic)
+    const folded = reduceOps([addOption(), { kind: 'update-option', id: 'tmp_o1', image: pic }])
+    expect(folded).toEqual([expect.objectContaining({ kind: 'add-option', image: pic })])
+    expect(opsToDiff([withPicture], [{ kind: 'update-value', id: 'v1', image: null }])).toEqual([
+      { kind: 'change', label: 'Value · Gift · picture', before: 'a picture', after: 'none' },
+    ])
+    expect(opsToDiff([withPicture], [{ kind: 'update-option', id: 'o1', image: pic }])).toEqual([])
   })
 })

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -597,6 +598,29 @@ func (s *core) publishProductUpdated(ctx context.Context, p Product, changed ...
 func (s *core) ProductChanged(ctx context.Context, productID uuid.UUID, changed ...string) {
 	s.publishProductUpdatedByID(ctx, productID, changed...)
 }
+
+// publishProductsUpdated announces many products off batched reads - a template or a product type change can reach
+// thousands, and a lookup each would cost a round trip per product
+func (s *core) publishProductsUpdated(ctx context.Context, ids []uuid.UUID, changed ...string) {
+	if s.bus == nil {
+		return
+	}
+	for chunk := range slices.Chunk(ids, announceBatch) {
+		rows, err := s.repo.ListProductRowsByIDs(ctx, chunk)
+		if err != nil {
+			applog.From(ctx).Warn("load products to announce", "count", len(chunk), "err", err) // announced bare - subscribers key on the id
+		}
+		for _, id := range chunk {
+			p, ok := rows[id]
+			if !ok {
+				p = Product{ID: id}
+			}
+			s.publishProductUpdated(ctx, p, changed...)
+		}
+	}
+}
+
+const announceBatch = 500
 
 func (s *core) publishProductUpdatedByID(ctx context.Context, productID uuid.UUID, changed ...string) {
 	if s.bus == nil {

@@ -107,6 +107,21 @@ fragment ProductCustomOptionFields on ProductCustomOption {
   }
 }
 
+# Rules across those options - the PDP evaluates them to show what's required, what quantity is fixed and the price
+fragment ProductCustomOptionRuleFields on ProductCustomOptionRule {
+  id
+  label
+  condition
+  actions {
+    type
+    optionId
+    quantity
+    priceType
+    priceValue
+    priceUnavailable
+  }
+}
+
 query Product($id: ID!) {
   product(id: $id) {
     ...ProductSummaryFields
@@ -477,5 +492,51 @@ query CompareProducts($ids: [ID!]!) {
 query CartRecommendations($cartId: ID!) {
   cartRecommendations(cartId: $cartId) {
     ...ProductSummaryFields
+  }
+}
+
+# A product's option rules - its own, each variant's and each grouped member's. Asked apart from Product, which sits at
+# the front surface's complexity cap, and only for a product with options to apply them to
+fragment ProductCustomOptionImageFields on ProductCustomOptionImage {
+  url
+  altText
+  width
+  height
+}
+
+fragment ProductConfiguratorPictures on ProductCustomOption {
+  id
+  image { ...ProductCustomOptionImageFields }
+  values {
+    id
+    image { ...ProductCustomOptionImageFields }
+  }
+}
+
+# What the PDP's options need beyond the Product query, which sits at the complexity cap - rules and pictures
+query ProductConfigurator($id: ID!) {
+  product(id: $id) {
+    id
+    configuratorLayout
+    optionRules {
+      ...ProductCustomOptionRuleFields
+    }
+    options { ...ProductConfiguratorPictures }
+    children {
+      id
+      optionRules {
+        ...ProductCustomOptionRuleFields
+      }
+      options { ...ProductConfiguratorPictures }
+    }
+    groupedMembers {
+      member {
+        id
+        optionRules {
+          ...ProductCustomOptionRuleFields
+        }
+        options { ...ProductConfiguratorPictures }
+      }
+    }
   }
 }

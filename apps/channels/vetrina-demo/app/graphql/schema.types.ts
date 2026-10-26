@@ -755,6 +755,10 @@ export type ConfigurableMembership = {
   variantMode?: Maybe<VariantMode>;
 };
 
+export type ConfiguratorLayout =
+  | 'LIST'
+  | 'STEPS';
+
 export type ConsentChannel =
   | 'EMAIL'
   | 'PUSH'
@@ -1669,6 +1673,7 @@ export type Product = {
   collections: Array<Collection>;
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
   configurableOptions: Array<Attribute>;
+  configuratorLayout: ConfiguratorLayout;
   customerCanReview: ReviewEligibility;
   defaultCurrencyCode: Scalars['String']['output'];
   defaultPrice: Scalars['Int']['output'];
@@ -1689,6 +1694,7 @@ export type Product = {
   name?: Maybe<Scalars['String']['output']>;
   ogImage?: Maybe<ProductMedia>;
   onSale: Scalars['Boolean']['output'];
+  optionRules: Array<ProductCustomOptionRule>;
   options: Array<ProductCustomOption>;
   partOf: ProductMemberships;
   price: Scalars['Int']['output'];
@@ -1773,6 +1779,7 @@ export type ProductCustomOption = {
   fileExtensions?: Maybe<Scalars['String']['output']>;
   helpText: Scalars['String']['output'];
   id: Scalars['ID']['output'];
+  image?: Maybe<ProductCustomOptionImage>;
   inputType: Scalars['String']['output'];
   isRequired: Scalars['Boolean']['output'];
   maxChars?: Maybe<Scalars['Int']['output']>;
@@ -1785,10 +1792,37 @@ export type ProductCustomOption = {
   visibleIf?: Maybe<Scalars['JSON']['output']>;
 };
 
+export type ProductCustomOptionImage = {
+  __typename?: 'ProductCustomOptionImage';
+  altText: Scalars['String']['output'];
+  height?: Maybe<Scalars['Int']['output']>;
+  url: Scalars['String']['output'];
+  width?: Maybe<Scalars['Int']['output']>;
+};
+
+export type ProductCustomOptionRule = {
+  __typename?: 'ProductCustomOptionRule';
+  actions: Array<ProductCustomOptionRuleAction>;
+  condition: Scalars['JSON']['output'];
+  id: Scalars['ID']['output'];
+  label: Scalars['String']['output'];
+};
+
+export type ProductCustomOptionRuleAction = {
+  __typename?: 'ProductCustomOptionRuleAction';
+  optionId?: Maybe<Scalars['ID']['output']>;
+  priceType?: Maybe<Scalars['String']['output']>;
+  priceUnavailable: Scalars['Boolean']['output'];
+  priceValue?: Maybe<Scalars['Int']['output']>;
+  quantity?: Maybe<Scalars['Float']['output']>;
+  type: Scalars['String']['output'];
+};
+
 export type ProductCustomOptionValue = {
   __typename?: 'ProductCustomOptionValue';
   forcedLineQty?: Maybe<Scalars['Float']['output']>;
   id: Scalars['ID']['output'];
+  image?: Maybe<ProductCustomOptionImage>;
   isDefault: Scalars['Boolean']['output'];
   priceType: Scalars['String']['output'];
   priceValue: Scalars['Int']['output'];

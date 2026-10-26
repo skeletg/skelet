@@ -24,9 +24,15 @@ export function optionAnchorId(optionId: string): string {
 
 // Scrolls a flagged option into view and parks focus on its first real control - shared by the
 // hint's jump links and by the blocked add-to-cart, so both land the shopper in the same place
+// A step picker shows one option at a time - it listens for this, brings the option up and jumps again
+export const OPTION_JUMP_EVENT = "pdp:jump-to-option";
+
 export function jumpToOption(optionId: string) {
   const el = document.getElementById(optionAnchorId(optionId));
-  if (!el) return;
+  if (!el) {
+    window.dispatchEvent(new CustomEvent<string>(OPTION_JUMP_EVENT, { detail: optionId }));
+    return;
+  }
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   // Radio/checkbox choices render their real input as .sr-only behind a styled label, so those
   // count as focusable here - landing on one lets a keyboard user arrow straight through the group

@@ -345,7 +345,7 @@ INSERT INTO catalog_products (
     kind
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type CreateProductParams struct {
@@ -421,6 +421,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -515,7 +516,7 @@ func (q *Queries) ExportProductParentSKUs(ctx context.Context) ([]ExportProductP
 }
 
 const getProductByID = `-- name: GetProductByID :one
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE id = $1
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE id = $1
 `
 
 func (q *Queries) GetProductByID(ctx context.Context, id uuid.UUID) (Product, error) {
@@ -554,12 +555,13 @@ func (q *Queries) GetProductByID(ctx context.Context, id uuid.UUID) (Product, er
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
 
 const getProductByIDForUpdate = `-- name: GetProductByIDForUpdate :one
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE id = $1 FOR UPDATE
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE id = $1 FOR UPDATE
 `
 
 // UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
@@ -599,12 +601,13 @@ func (q *Queries) GetProductByIDForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
 
 const getProductBySKU = `-- name: GetProductBySKU :one
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE sku = $1 LIMIT 1
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE sku = $1 LIMIT 1
 `
 
 func (q *Queries) GetProductBySKU(ctx context.Context, sku string) (Product, error) {
@@ -643,6 +646,7 @@ func (q *Queries) GetProductBySKU(ctx context.Context, sku string) (Product, err
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -791,7 +795,7 @@ func (q *Queries) GetProductTaxClassesBySKUs(ctx context.Context, skus []string)
 }
 
 const getProductsByIDs = `-- name: GetProductsByIDs :many
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE id = ANY($1::uuid[])
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE id = ANY($1::uuid[])
 `
 
 // Batched product loader for the storefront browse hydration - one query replaces N GetProductByID round-trips - order is restored Go-side from the caller's id slice
@@ -837,6 +841,7 @@ func (q *Queries) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]Prod
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -852,7 +857,7 @@ func (q *Queries) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]Prod
 }
 
 const getProductsBySKUs = `-- name: GetProductsBySKUs :many
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE sku = ANY($1::text[])
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE sku = ANY($1::text[])
 `
 
 // Batch form of GetProductBySKU: resolve many SKUs in one query - powers the cart-render hydration (names + images) with one query rather than a lookup per line + component
@@ -898,6 +903,7 @@ func (q *Queries) GetProductsBySKUs(ctx context.Context, skus []string) ([]Produ
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -913,7 +919,7 @@ func (q *Queries) GetProductsBySKUs(ctx context.Context, skus []string) ([]Produ
 }
 
 const getPublishedProductForChannel = `-- name: GetPublishedProductForChannel :one
-SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents FROM catalog_products p
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout FROM catalog_products p
 JOIN catalog_product_channel_listings l
   ON l.product_id = p.id
 WHERE p.id = $1
@@ -963,6 +969,7 @@ func (q *Queries) GetPublishedProductForChannel(ctx context.Context, arg GetPubl
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -1632,7 +1639,7 @@ func (q *Queries) ListProductIDsByAttributeValue(ctx context.Context, arg ListPr
 }
 
 const listProductParents = `-- name: ListProductParents :many
-SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout
 FROM catalog_product_children pc
 JOIN catalog_products p ON p.id = pc.parent_id
 WHERE pc.child_id = $1
@@ -1681,6 +1688,7 @@ func (q *Queries) ListProductParents(ctx context.Context, childID uuid.UUID) ([]
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -1728,7 +1736,7 @@ func (q *Queries) ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid
 }
 
 const listProducts = `-- name: ListProducts :many
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products ORDER BY created_at DESC LIMIT NULLIF($1::int, 0)
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products ORDER BY created_at DESC LIMIT NULLIF($1::int, 0)
 `
 
 // row_limit 0 means every row - only the CSV export needs that, and the GraphQL surface never does: an uncapped list is 101k rows and ~17MB on a real catalog, which pins a connection for ~20s and is reachable by any admin who can view the catalog
@@ -1774,6 +1782,7 @@ func (q *Queries) ListProducts(ctx context.Context, rowLimit int32) ([]Product, 
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -1789,7 +1798,7 @@ func (q *Queries) ListProducts(ctx context.Context, rowLimit int32) ([]Product, 
 }
 
 const listProductsByType = `-- name: ListProductsByType :many
-SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE product_type_id = $1 ORDER BY created_at DESC
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout FROM catalog_products WHERE product_type_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListProductsByType(ctx context.Context, productTypeID uuid.UUID) ([]Product, error) {
@@ -1834,6 +1843,7 @@ func (q *Queries) ListProductsByType(ctx context.Context, productTypeID uuid.UUI
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -1849,7 +1859,7 @@ func (q *Queries) ListProductsByType(ctx context.Context, productTypeID uuid.UUI
 }
 
 const listProductsForChannel = `-- name: ListProductsForChannel :many
-SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents FROM catalog_products p
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout FROM catalog_products p
 WHERE EXISTS (SELECT 1 FROM catalog_product_channel_listings l WHERE l.product_id = p.id AND l.channel_id = $1)
 ORDER BY p.created_at DESC LIMIT NULLIF($2::int, 0)
 `
@@ -1901,6 +1911,7 @@ func (q *Queries) ListProductsForChannel(ctx context.Context, arg ListProductsFo
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -2203,7 +2214,7 @@ const setProductVariantMode = `-- name: SetProductVariantMode :one
 UPDATE catalog_products
 SET variant_mode = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type SetProductVariantModeParams struct {
@@ -2248,6 +2259,7 @@ func (q *Queries) SetProductVariantMode(ctx context.Context, arg SetProductVaria
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -2280,7 +2292,7 @@ SET default_price              = $2,
     cost_cents                 = $25,
     updated_at                 = NOW()
 WHERE id = $1
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type UpdateProductParams struct {
@@ -2373,6 +2385,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -2382,7 +2395,7 @@ UPDATE catalog_products
 SET attributes = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type UpdateProductAttributesParams struct {
@@ -2426,6 +2439,7 @@ func (q *Queries) UpdateProductAttributes(ctx context.Context, arg UpdateProduct
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -2434,7 +2448,7 @@ const updateProductTaxClass = `-- name: UpdateProductTaxClass :one
 UPDATE catalog_products
 SET tax_class = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type UpdateProductTaxClassParams struct {
@@ -2478,6 +2492,7 @@ func (q *Queries) UpdateProductTaxClass(ctx context.Context, arg UpdateProductTa
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }
@@ -2487,7 +2502,7 @@ UPDATE catalog_products
 SET url        = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 `
 
 type UpdateProductURLParams struct {
@@ -2531,6 +2546,7 @@ func (q *Queries) UpdateProductURL(ctx context.Context, arg UpdateProductURLPara
 		&i.MinOrderQty,
 		&i.MaxOrderQty,
 		&i.CostCents,
+		&i.ConfiguratorLayout,
 	)
 	return i, err
 }

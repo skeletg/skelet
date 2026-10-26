@@ -32,6 +32,7 @@ query ProductType($id: ID!) {
     urlTemplate
     tracksInventory
     deliveryKinds
+    optionTemplates { id name description optionCount ruleCount }
 
     attributes {
       sortOrder
@@ -941,6 +942,12 @@ query Product($id: ID!) {
     productOptions {
       ...ProductOptionFields
     }
+    optionRules {
+      ...ProductOptionRuleFields
+    }
+    optionTemplates { id name optionCount ruleCount }
+    typeOptionTemplates { id name optionCount ruleCount }
+    configuratorLayout
     downloads {
       ...ProductDownloadFields
     }
@@ -1521,6 +1528,7 @@ mutation RemoveGroupedMember($id: ID!) {
 
 fragment ProductOptionValueFields on ProductOptionValue {
   id
+  image { assetId url altText }
   sortOrder
   priceValue
   priceType
@@ -1556,6 +1564,9 @@ fragment ProductOptionFields on ProductOption {
   sortOrder
   title
   helpText
+  templateId
+  templateName
+  currencyCode
   content {
     locale
     title
@@ -1567,6 +1578,7 @@ fragment ProductOptionFields on ProductOption {
   maxFileBytes
   fileExtensions
   visibleIf
+  image { assetId url altText }
   channelPrices {
     channelId
     priceValue
@@ -1596,6 +1608,130 @@ mutation UpsertProductOptionContent($optionId: ID!, $locale: String!, $title: St
   upsertProductOptionContent(optionId: $optionId, locale: $locale, title: $title, helpText: $helpText) {
     id
     productOptions { ...ProductOptionFields }
+  }
+}
+
+fragment ProductOptionRuleFields on ProductOptionRule {
+  id
+  templateId
+  templateName
+  label
+  labels { locale label }
+  condition
+  actions {
+    type
+    optionId
+    quantity
+    priceType
+    priceValue
+    channelPrices { channelId priceValue }
+  }
+}
+
+mutation SetProductOptionRules($productId: ID!, $rules: [ProductOptionRuleInput!]!) {
+  setProductOptionRules(productId: $productId, rules: $rules) {
+    id
+    optionRules { ...ProductOptionRuleFields }
+  }
+}
+
+# ---------- Configurator templates ----------
+
+fragment OptionTemplateSummary on OptionTemplate {
+  id
+  name
+  description
+  currencyCode
+  optionCount
+  ruleCount
+  productCount
+  productTypeCount
+  updatedAt
+}
+
+query OptionTemplates {
+  optionTemplates { ...OptionTemplateSummary }
+}
+
+query OptionTemplate($id: ID!) {
+  optionTemplate(id: $id) {
+    ...OptionTemplateSummary
+    productOptions { ...ProductOptionFields }
+    optionRules { ...ProductOptionRuleFields }
+    productTypes { id name }
+  }
+}
+
+query OptionTemplateProducts($id: ID!, $first: Int, $offset: Int) {
+  optionTemplate(id: $id) {
+    id
+    productCount
+    products(first: $first, offset: $offset) {
+      id name sku kind
+      thumbnail { id url altText status }
+    }
+  }
+}
+
+mutation CreateOptionTemplate($input: OptionTemplateInput!) {
+  createOptionTemplate(input: $input) { ...OptionTemplateSummary }
+}
+
+mutation UpdateOptionTemplate($id: ID!, $input: OptionTemplateInput!) {
+  updateOptionTemplate(id: $id, input: $input) { ...OptionTemplateSummary }
+}
+
+mutation DeleteOptionTemplate($id: ID!) {
+  deleteOptionTemplate(id: $id)
+}
+
+mutation SetOptionTemplateRules($templateId: ID!, $rules: [ProductOptionRuleInput!]!) {
+  setOptionTemplateRules(templateId: $templateId, rules: $rules) {
+    id
+    ruleCount
+    optionRules { ...ProductOptionRuleFields }
+  }
+}
+
+mutation SetProductOptionTemplates($productId: ID!, $templateIds: [ID!]!) {
+  setProductOptionTemplates(productId: $productId, templateIds: $templateIds) {
+    id
+    optionTemplates { id name optionCount ruleCount }
+    typeOptionTemplates { id name optionCount ruleCount }
+    productOptions { ...ProductOptionFields }
+    optionRules { ...ProductOptionRuleFields }
+  }
+}
+
+mutation AssignOptionTemplate($templateId: ID!, $productIds: [ID!]!) {
+  assignOptionTemplate(templateId: $templateId, productIds: $productIds) { ...OptionTemplateSummary }
+}
+
+mutation UnassignOptionTemplate($templateId: ID!, $productIds: [ID!]!) {
+  unassignOptionTemplate(templateId: $templateId, productIds: $productIds) { ...OptionTemplateSummary }
+}
+
+mutation SetProductTypeOptionTemplates($productTypeId: ID!, $templateIds: [ID!]!) {
+  setProductTypeOptionTemplates(productTypeId: $productTypeId, templateIds: $templateIds) {
+    id
+    optionTemplates { id name description optionCount ruleCount }
+  }
+}
+
+mutation DetachOptionTemplate($productId: ID!, $templateId: ID!) {
+  detachOptionTemplate(productId: $productId, templateId: $templateId) {
+    id
+    optionTemplates { id name optionCount ruleCount }
+    typeOptionTemplates { id name optionCount ruleCount }
+    productOptions { ...ProductOptionFields }
+    optionRules { ...ProductOptionRuleFields }
+  }
+}
+
+mutation SetProductConfiguratorLayout($productId: ID!, $layout: ConfiguratorLayout!) {
+  setProductConfiguratorLayout(productId: $productId, layout: $layout) {
+    id
+    configuratorLayout
   }
 }
 

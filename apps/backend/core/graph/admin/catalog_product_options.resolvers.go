@@ -11,16 +11,17 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-func (r *mutationResolver) AddProductOption(ctx context.Context, input model.AddProductOptionInput) (*model.Product, error) {
-	productID, err := parseID(input.ProductID, "product")
+func (r *mutationResolver) AddProductOption(ctx context.Context, input model.AddProductOptionInput) (model.ProductOptionOwner, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
+	owner, err := r.requireOptionOwnerManage(ctx, input.ProductID, input.TemplateID)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.requireCatalogManageOnAllListingChannels(ctx, productID); err != nil {
-		return nil, err
-	}
 	domain := catalog.AddProductOptionInput{
-		ProductID:  productID,
+		ProductID:  owner.ProductID,
+		TemplateID: owner.TemplateID,
 		InputType:  catalog.ProductOptionInputType(strings.ToLower(string(input.InputType))),
 		IsRequired: boolOrFalse(input.IsRequired),
 		SortOrder:  int32Or(input.SortOrder, 0),
@@ -50,14 +51,17 @@ func (r *mutationResolver) AddProductOption(ctx context.Context, input model.Add
 	if domain.VisibleIf, err = visibleIfFromInput(input.VisibleIf); err != nil {
 		return nil, err
 	}
+	if domain.ImageAssetID, err = optionImageInput(input.ImageAssetID, false); err != nil {
+		return nil, err
+	}
 	opt, err := r.CatalogSvc.AddProductOption(ctx, domain)
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) UpdateProductOption(ctx context.Context, input model.UpdateProductOptionInput) (*model.Product, error) {
+func (r *mutationResolver) UpdateProductOption(ctx context.Context, input model.UpdateProductOptionInput) (model.ProductOptionOwner, error) {
 	id, err := parseID(input.ID, "option")
 	if err != nil {
 		return nil, err
@@ -88,6 +92,9 @@ func (r *mutationResolver) UpdateProductOption(ctx context.Context, input model.
 	if domain.VisibleIf, err = visibleIfFromInput(input.VisibleIf); err != nil {
 		return nil, err
 	}
+	if domain.ImageAssetID, err = optionImageInput(input.ImageAssetID, true); err != nil {
+		return nil, err
+	}
 	if input.ClearVisibleIf != nil && *input.ClearVisibleIf {
 		domain.ClearVisibleIf = true
 	}
@@ -107,10 +114,10 @@ func (r *mutationResolver) UpdateProductOption(ctx context.Context, input model.
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) UpsertProductOptionContent(ctx context.Context, optionID string, locale string, title string, helpText *string) (*model.Product, error) {
+func (r *mutationResolver) UpsertProductOptionContent(ctx context.Context, optionID string, locale string, title string, helpText *string) (model.ProductOptionOwner, error) {
 	id, err := parseID(optionID, "option")
 	if err != nil {
 		return nil, err
@@ -130,10 +137,10 @@ func (r *mutationResolver) UpsertProductOptionContent(ctx context.Context, optio
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) DeleteProductOptionContent(ctx context.Context, optionID string, locale string) (*model.Product, error) {
+func (r *mutationResolver) DeleteProductOptionContent(ctx context.Context, optionID string, locale string) (model.ProductOptionOwner, error) {
 	id, err := parseID(optionID, "option")
 	if err != nil {
 		return nil, err
@@ -148,10 +155,10 @@ func (r *mutationResolver) DeleteProductOptionContent(ctx context.Context, optio
 	if err := r.CatalogSvc.DeleteProductOptionContent(ctx, id, locale); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) DeleteProductOption(ctx context.Context, id string) (*model.Product, error) {
+func (r *mutationResolver) DeleteProductOption(ctx context.Context, id string) (model.ProductOptionOwner, error) {
 	optID, err := parseID(id, "option")
 	if err != nil {
 		return nil, err
@@ -166,10 +173,10 @@ func (r *mutationResolver) DeleteProductOption(ctx context.Context, id string) (
 	if err := r.CatalogSvc.DeleteProductOption(ctx, optID); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) DuplicateProductOption(ctx context.Context, id string) (*model.Product, error) {
+func (r *mutationResolver) DuplicateProductOption(ctx context.Context, id string) (model.ProductOptionOwner, error) {
 	optID, err := parseID(id, "option")
 	if err != nil {
 		return nil, err
@@ -181,10 +188,10 @@ func (r *mutationResolver) DuplicateProductOption(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, created.ProductID)
+	return r.reloadOwner(ctx, created.Owner())
 }
 
-func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input model.AddProductOptionValueInput) (*model.Product, error) {
+func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input model.AddProductOptionValueInput) (model.ProductOptionOwner, error) {
 	optionID, err := parseID(input.OptionID, "option")
 	if err != nil {
 		return nil, err
@@ -214,6 +221,9 @@ func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input mode
 		}
 		domain.SourceProductID = &spid
 	}
+	if domain.ImageAssetID, err = optionImageInput(input.ImageAssetID, false); err != nil {
+		return nil, err
+	}
 	val, err := r.CatalogSvc.AddProductOptionValue(ctx, domain)
 	if err != nil {
 		return nil, err
@@ -222,10 +232,10 @@ func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input mode
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) UpdateProductOptionValue(ctx context.Context, input model.UpdateProductOptionValueInput) (*model.Product, error) {
+func (r *mutationResolver) UpdateProductOptionValue(ctx context.Context, input model.UpdateProductOptionValueInput) (model.ProductOptionOwner, error) {
 	id, err := parseID(input.ID, "value")
 	if err != nil {
 		return nil, err
@@ -259,6 +269,9 @@ func (r *mutationResolver) UpdateProductOptionValue(ctx context.Context, input m
 			domain.SourceProductID = &spid
 		}
 	}
+	if domain.ImageAssetID, err = optionImageInput(input.ImageAssetID, true); err != nil {
+		return nil, err
+	}
 	val, err := r.CatalogSvc.UpdateProductOptionValue(ctx, domain)
 	if err != nil {
 		return nil, err
@@ -267,10 +280,10 @@ func (r *mutationResolver) UpdateProductOptionValue(ctx context.Context, input m
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) UpsertProductOptionValueContent(ctx context.Context, valueID string, locale string, title string) (*model.Product, error) {
+func (r *mutationResolver) UpsertProductOptionValueContent(ctx context.Context, valueID string, locale string, title string) (model.ProductOptionOwner, error) {
 	id, err := parseID(valueID, "value")
 	if err != nil {
 		return nil, err
@@ -289,10 +302,10 @@ func (r *mutationResolver) UpsertProductOptionValueContent(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) DeleteProductOptionValueContent(ctx context.Context, valueID string, locale string) (*model.Product, error) {
+func (r *mutationResolver) DeleteProductOptionValueContent(ctx context.Context, valueID string, locale string) (model.ProductOptionOwner, error) {
 	id, err := parseID(valueID, "value")
 	if err != nil {
 		return nil, err
@@ -311,10 +324,10 @@ func (r *mutationResolver) DeleteProductOptionValueContent(ctx context.Context, 
 	if err := r.CatalogSvc.DeleteProductOptionValueContent(ctx, id, locale); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) DeleteProductOptionValue(ctx context.Context, id string) (*model.Product, error) {
+func (r *mutationResolver) DeleteProductOptionValue(ctx context.Context, id string) (model.ProductOptionOwner, error) {
 	valID, err := parseID(id, "value")
 	if err != nil {
 		return nil, err
@@ -333,10 +346,10 @@ func (r *mutationResolver) DeleteProductOptionValue(ctx context.Context, id stri
 	if err := r.CatalogSvc.DeleteProductOptionValue(ctx, valID); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) SetProductOptionChannelPrice(ctx context.Context, optionID string, channelID string, priceValue *int32) (*model.Product, error) {
+func (r *mutationResolver) SetProductOptionChannelPrice(ctx context.Context, optionID string, channelID string, priceValue *int32) (model.ProductOptionOwner, error) {
 	id, err := parseID(optionID, "option")
 	if err != nil {
 		return nil, err
@@ -352,10 +365,10 @@ func (r *mutationResolver) SetProductOptionChannelPrice(ctx context.Context, opt
 	if _, err := r.CatalogSvc.SetProductOptionChannelPrice(ctx, id, chID, priceValue); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }
 
-func (r *mutationResolver) SetProductOptionValueChannelPrice(ctx context.Context, valueID string, channelID string, priceValue *int32) (*model.Product, error) {
+func (r *mutationResolver) SetProductOptionValueChannelPrice(ctx context.Context, valueID string, channelID string, priceValue *int32) (model.ProductOptionOwner, error) {
 	id, err := parseID(valueID, "value")
 	if err != nil {
 		return nil, err
@@ -378,5 +391,5 @@ func (r *mutationResolver) SetProductOptionValueChannelPrice(ctx context.Context
 	if _, err := r.CatalogSvc.SetProductOptionValueChannelPrice(ctx, id, chID, priceValue); err != nil {
 		return nil, err
 	}
-	return r.reloadProduct(ctx, opt.ProductID)
+	return r.reloadOwner(ctx, opt.Owner())
 }

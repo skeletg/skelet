@@ -20,7 +20,7 @@ export function parseVisibleIf(raw: unknown): OptionVisibilityGroup | null {
   return g;
 }
 
-type Picks = {
+export type Picks = {
   filled: Set<string>;
   values: Map<string, Set<string>>;
 };
@@ -29,6 +29,15 @@ export function visibleOptionIds<T extends { id: string; visibleIf: unknown }>(
   pickedValueIds: (optionId: string) => string[],
   isFilled: (optionId: string) => boolean,
 ): Set<string> {
+  return visibleOptionPicks(options, pickedValueIds, isFilled).visible;
+}
+
+// The visible options and what they picked - the picks are what option rules read
+export function visibleOptionPicks<T extends { id: string; visibleIf: unknown }>(
+  options: T[],
+  pickedValueIds: (optionId: string) => string[],
+  isFilled: (optionId: string) => boolean,
+): { visible: Set<string>; picks: Picks } {
   const picks: Picks = { filled: new Set(), values: new Map() };
   const visible = new Set<string>();
   for (const opt of options) {
@@ -43,7 +52,12 @@ export function visibleOptionIds<T extends { id: string; visibleIf: unknown }>(
       picks.filled.add(opt.id);
     }
   }
-  return visible;
+  return { visible, picks };
+}
+
+export function conditionMatches(raw: unknown, picks: Picks): boolean {
+  const group = parseVisibleIf(raw);
+  return group ? evalGroup(group, picks) : false;
 }
 
 function evalGroup(g: OptionVisibilityGroup, picks: Picks): boolean {

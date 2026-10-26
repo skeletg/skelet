@@ -25,7 +25,13 @@ type optionPicks struct { // VISIBLE options' picks so far - which carry a value
 	values map[uuid.UUID]map[uuid.UUID]bool
 }
 
-func visibleOptionIDs(res ProductOptionsResolution, inputs []CartLineOptionInput) map[uuid.UUID]bool { // walks res.Options in canonical order
+func visibleOptionIDs(res ProductOptionsResolution, inputs []CartLineOptionInput) map[uuid.UUID]bool {
+	visible, _ := visibleOptionPicks(res, inputs)
+	return visible
+}
+
+// The visible options and what they picked - the picks are what option rules read
+func visibleOptionPicks(res ProductOptionsResolution, inputs []CartLineOptionInput) (map[uuid.UUID]bool, optionPicks) { // walks res.Options in canonical order
 	byOption := make(map[uuid.UUID]CartLineOptionInput, len(inputs))
 	for _, in := range inputs {
 		if _, dup := byOption[in.OptionID]; !dup {
@@ -60,7 +66,7 @@ func visibleOptionIDs(res ProductOptionsResolution, inputs []CartLineOptionInput
 		}
 		picks.filled[opt.ID] = pickCarriesValue(in)
 	}
-	return visible
+	return visible, picks
 }
 
 func pickCarriesValue(in CartLineOptionInput) bool { // drives "filled", and decides whether a pick on a hidden option is real and rejectable or an empty husk
@@ -126,7 +132,15 @@ func evalVisibilityRule(r OptionVisibilityRule, picks optionPicks) bool { // a h
 }
 
 // Maps a persisted line's snapshot onto the CURRENT config for the forced line quantity its picks imply, nil when none - keeps a "Set of 4"-style line locked on quantity edits, and first-wins is safe because add rejects conflicting forcers
+// A value's force comes first, then the line's option rules re-read against its picks
 func forcedQtyForSnapshot(res ProductOptionsResolution, snapshot []CartLineOption) *float64 {
+	if q := forcedQtyForValues(res, snapshot); q != nil {
+		return q
+	}
+	return evaluateOptionRules(res.Rules, picksFromSnapshot(snapshot)).forcedQty
+}
+
+func forcedQtyForValues(res ProductOptionsResolution, snapshot []CartLineOption) *float64 {
 	forcedByValue := make(map[uuid.UUID]*float64)
 	for _, opt := range res.Options {
 		for _, v := range opt.Values {

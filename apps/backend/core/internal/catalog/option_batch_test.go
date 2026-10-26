@@ -62,6 +62,10 @@ func (f *optionBatchRepo) ListProductRowsByIDs(context.Context, []uuid.UUID) (ma
 	return nil, nil
 }
 
+func (f *optionBatchRepo) ListEffectiveOptionTemplates(context.Context, []uuid.UUID) (map[uuid.UUID][]catalog.OptionTemplateUse, error) {
+	return nil, nil
+}
+
 func TestGetProductOptionsByProductIDs_GroupsAndHydratesInOneQuerySet(t *testing.T) {
 	parent, variant, bare := uuid.New(), uuid.New(), uuid.New()
 	engraving, colour, gift := uuid.New(), uuid.New(), uuid.New()

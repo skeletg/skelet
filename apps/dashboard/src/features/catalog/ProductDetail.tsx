@@ -468,8 +468,8 @@ export function ProductDetail() {
 
           {product.kind === 'SIMPLE' || product.kind === 'CONFIGURABLE' ? (
             <CollapsibleSection
-              title="Product options"
-              description="Custom inputs the customer fills in at add-to-cart (text, select, date, file). Each option can adjust the line price."
+              title="Configurator"
+              description="What the customer picks or fills in before adding to cart, when each option shows up, and rules that change what's required, the quantity or the price."
               open={variantsOpen}
               onOpenChange={setVariantsOpen}
             >

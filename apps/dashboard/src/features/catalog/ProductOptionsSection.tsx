@@ -1,69 +1,95 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { useMutation, useQuery } from '@apollo/client/react'
-import { useDebounced } from '@/shared/hooks/useDebounced'
-import { CopyIcon, EyeIcon, LinkIcon, PencilIcon, PlusIcon, SlidersIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { Suspense, lazy, useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useMutation } from '@apollo/client/react'
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EllipsisIcon, EyeIcon, LinkIcon, PencilIcon, PlusIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import type { ProductOptionInputType, ProductOptionPriceType } from '@/graphql/schema.types'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { ConfiguratorLayout, ProductOptionInputType, ProductOptionPriceType } from '@/graphql/schema.types'
 import {
   AddProductOptionDocument,
   AddProductOptionValueDocument,
-  DeleteProductOptionContentDocument,
   DeleteProductOptionDocument,
-  DeleteProductOptionValueContentDocument,
   DeleteProductOptionValueDocument,
+  DetachOptionTemplateDocument,
   DuplicateProductOptionDocument,
+  OptionTemplateDocument,
+  OptionTemplatesDocument,
   ProductDocument,
-  ProductPickerDocument,
+  SetOptionTemplateRulesDocument,
   SetProductOptionChannelPriceDocument,
+  SetProductConfiguratorLayoutDocument,
+  SetProductOptionRulesDocument,
+  SetProductOptionTemplatesDocument,
   SetProductOptionValueChannelPriceDocument,
   UpdateProductOptionDocument,
   UpdateProductOptionValueDocument,
   UpsertProductOptionContentDocument,
   UpsertProductOptionValueContentDocument,
+  type ProductOptionRuleFieldsFragment,
 } from './Catalog.gql'
-import { TranslationLocales } from '@/components/TranslationLocales'
 import {
   applyOps,
   CommitError,
   commitOps,
   isTemp,
-  newTempId,
   opsToDiff,
   optionContentFor,
   reduceOps,
   valueContentFor,
   type Committers,
-  type OptionValue,
-  parseVisibleIfGroup,
   type PendingOp,
   type ProductOption,
-  type SourceProduct,
   type VisibilityGroup,
-  type VisibilityRule,
 } from './productOptionsStaging'
 import { useProductSaveSection } from './productSaveRegistry'
 import { useConfigScope } from '@/lib/config-scope'
-import { ChannelSurchargeInputs, channelEditsFrom, rawChannelPrices, type SurchargeChannel } from './ChannelSurchargeInputs'
+import type { SurchargeChannel } from './channelSurcharges'
+import { OptionDialog } from './product-options/OptionDialog'
+import { conditionSummary, dependents, priceLabel, type DraftContext } from './product-options/option-draft'
+import { INPUT_TYPES, isChoice } from './product-options/option-types'
+import { RuleDialog } from './product-options/RuleDialog'
+import { RulesList } from './product-options/RulesList'
+import { AddTemplateMenu, TemplateGroup } from './product-options/TemplateGroup'
+import { TemplatesDialog } from './product-options/TemplatesDialog'
+import { templatePath } from './product-options/template-path'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { usePermissions } from '@/shared/auth/usePermissions'
+import { resolveRuleIds, ruleLabel, ruleToInput, rulesDiff, rulesFromQuery, rulesUsing, type OptionRule } from './product-options/rules'
+
+// The map pulls in the graph library - loaded only when someone opens it
+const OptionsMap = lazy(() => import('./product-options/OptionsMap'))
+
+export type ConfiguratorTemplateRef = { id: string; name: string; optionCount: number; ruleCount: number }
+// Whose options these are - a product's list carries the options and rules of its templates too, read-only here:
+// first the ones its product type hands it, then the ones it picked
+export type ConfiguratorOwner =
+  | {
+      kind: 'product'
+      id: string
+      templates: readonly ConfiguratorTemplateRef[]
+      typeTemplates: readonly ConfiguratorTemplateRef[]
+      productType: { id: string; name: string } | null
+      layout: ConfiguratorLayout
+    }
+  | { kind: 'template'; id: string }
+export type ConfiguratorSubject = {
+  owner: ConfiguratorOwner
+  contentLocale?: string | null
+  currency: string
+  channels: SurchargeChannel[]
+  productOptions: ProductOption[]
+  optionRules?: readonly ProductOptionRuleFieldsFragment[]
+}
 
 type WithOptions = {
   id: string
@@ -71,91 +97,90 @@ type WithOptions = {
   defaultCurrencyCode?: string
   listings?: { channel: SurchargeChannel }[]
   productOptions: ProductOption[]
+  optionRules?: readonly ProductOptionRuleFieldsFragment[]
+  optionTemplates?: readonly ConfiguratorTemplateRef[]
+  typeOptionTemplates?: readonly ConfiguratorTemplateRef[]
+  productType?: { id: string; name: string } | null
+  configuratorLayout?: ConfiguratorLayout
 }
 
-type Surcharges = { channels: SurchargeChannel[]; baseCurrency: string }
+const MAX_CHIPS = 8
+const LAYOUT_LABEL: Record<ConfiguratorLayout, string> = { LIST: 'All at once', STEPS: 'Step by step' }
 
-const INPUT_TYPE_LABEL: Record<ProductOptionInputType, string> = {
-  FIELD: 'Text · field',
-  AREA: 'Text · area',
-  DROPDOWN: 'Dropdown',
-  RADIO: 'Radio',
-  CHECKBOX: 'Checkbox',
-  MULTISELECT: 'Multiselect',
-  DATE: 'Date',
-  DATE_TIME: 'Date & time',
-  TIME: 'Time',
-  FILE: 'File upload',
+export function ProductOptionsSection({ product, canManage }: { product: WithOptions; canManage: boolean }) {
+  const subject = useMemo<ConfiguratorSubject>(
+    () => ({
+      owner: {
+        kind: 'product',
+        id: product.id,
+        templates: product.optionTemplates ?? [],
+        typeTemplates: product.typeOptionTemplates ?? [],
+        productType: product.productType ?? null,
+        layout: product.configuratorLayout ?? 'LIST',
+      },
+      contentLocale: product.contentLocale,
+      currency: product.defaultCurrencyCode ?? '',
+      channels: (product.listings ?? []).map((l) => l.channel),
+      productOptions: product.productOptions,
+      optionRules: product.optionRules,
+    }),
+    [product],
+  )
+  return <ConfiguratorSection subject={subject} canManage={canManage} />
 }
 
-const INPUT_TYPES: ProductOptionInputType[] = [
-  'FIELD',
-  'AREA',
-  'DROPDOWN',
-  'RADIO',
-  'CHECKBOX',
-  'MULTISELECT',
-  'DATE',
-  'DATE_TIME',
-  'TIME',
-  'FILE',
-]
-
-const SELECT_TYPES: ProductOptionInputType[] = ['DROPDOWN', 'RADIO', 'CHECKBOX', 'MULTISELECT']
-const SINGLE_SELECT_TYPES: ProductOptionInputType[] = ['DROPDOWN', 'RADIO']
-const TEXT_TYPES: ProductOptionInputType[] = ['FIELD', 'AREA']
-const FILE_TYPES: ProductOptionInputType[] = ['FILE']
-
-function isSelect(t: ProductOptionInputType) {
-  return SELECT_TYPES.includes(t)
-}
-function isSingleSelect(t: ProductOptionInputType) {
-  return SINGLE_SELECT_TYPES.includes(t)
-}
-function isText(t: ProductOptionInputType) {
-  return TEXT_TYPES.includes(t)
-}
-function isFile(t: ProductOptionInputType) {
-  return FILE_TYPES.includes(t)
-}
-
-export function ProductOptionsSection({
-  product,
-  canManage,
-}: {
-  product: WithOptions
-  canManage: boolean
-}) {
+export function ConfiguratorSection({ subject, canManage }: { subject: ConfiguratorSubject; canManage: boolean }) {
+  const { owner } = subject
+  const navigate = useNavigate()
+  // Only the owner's own options stage and save here - a product's template options are edited on the template
+  // On a template every option is its own, even though each names the template
+  const inheritedFrom = useCallback((templateId?: string | null) => owner.kind === 'product' && !!templateId, [owner.kind])
+  const own = useMemo(() => subject.productOptions.filter((o) => !inheritedFrom(o.templateId)), [subject.productOptions, inheritedFrom])
+  const inherited = useMemo(
+    () => subject.productOptions.filter((o) => inheritedFrom(o.templateId)).sort((a, b) => a.sortOrder - b.sortOrder),
+    [subject.productOptions, inheritedFrom],
+  )
+  // Kept as staged, not pre-collapsed, so undoing a delete brings back the edits made before it
   const [pendingOps, setPendingOps] = useState<PendingOp[]>([])
-
-  const stage = useCallback((op: PendingOp) => {
-    setPendingOps((prev) => reduceOps([...prev, op]))
+  const stage = useCallback((ops: PendingOp[]) => {
+    if (ops.length > 0) setPendingOps((prev) => [...prev, ...ops])
   }, [])
 
   const reduced = useMemo(() => reduceOps(pendingOps), [pendingOps])
-  const staged = useMemo(() => applyOps(product.productOptions, reduced), [product.productOptions, reduced])
-  const surcharges = useMemo<Surcharges>(
-    () => ({
-      channels: (product.listings ?? []).map((l) => l.channel),
-      baseCurrency: product.defaultCurrencyCode ?? '',
-    }),
-    [product.listings, product.defaultCurrencyCode],
+  const staged = useMemo(() => applyOps(own, reduced), [own, reduced])
+  const sorted = useMemo(() => [...staged].sort((a, b) => a.sortOrder - b.sortOrder), [staged])
+  // What conditions, rules and the map may read - the templates' options always come first
+  const everything = useMemo(() => [...inherited, ...sorted], [inherited, sorted])
+
+  // Rules stage as one list against the saved one, and save in a single write
+  const savedRules = useMemo(
+    () => rulesFromQuery((subject.optionRules ?? []).filter((r) => !inheritedFrom(r.templateId))),
+    [subject.optionRules, inheritedFrom],
   )
+  const inheritedRules = useMemo(
+    () =>
+      (subject.optionRules ?? []).flatMap((r) =>
+        inheritedFrom(r.templateId) ? rulesFromQuery([r]).map((rule) => ({ rule, template: r.templateName ?? '' })) : [],
+      ),
+    [subject.optionRules, inheritedFrom],
+  )
+  const [rulesDraft, setRulesDraft] = useState<OptionRule[] | null>(null)
+  const rules = rulesDraft ?? savedRules
+  const rulesChanged = rulesDraft !== null && JSON.stringify(rulesDraft.map(ruleToInput)) !== JSON.stringify(savedRules.map(ruleToInput))
+  const ctx = useMemo<DraftContext>(() => ({ channels: subject.channels, baseCurrency: subject.currency }), [subject.channels, subject.currency])
   const diff = useMemo(() => {
-    const byId = new Map(surcharges.channels.map((c) => [c.id, c]))
+    const byId = new Map(ctx.channels.map((c) => [c.id, c]))
     const label = (id: string) => {
       const c = byId.get(id)
       return c ? `${c.name} (${c.currencyCode})` : 'another channel'
     }
-    return opsToDiff(product.productOptions, reduced, label)
-  }, [product.productOptions, reduced, surcharges.channels])
+    return opsToDiff(own, reduced, label)
+  }, [own, reduced, ctx.channels])
 
   // New options/values must be created in the configured default locale (the backend enforces this); translations are
-  // added afterwards by switching the edit locale
-  const defaultLocale = product.contentLocale ?? 'en'
+  // added afterwards by switching the language
+  const defaultLocale = subject.contentLocale ?? 'en'
   const { effectiveLocale, availableLocales } = useConfigScope()
-  // The locale whose copy the table + edit dialogs show - Defaults to the dashboard's active locale; the picker lets an
-  // editor target any configured (or already-translated) locale
   const [editLocale, setEditLocale] = useState(effectiveLocale || defaultLocale)
   const localeOptions = useMemo(() => {
     const seen = new Set<string>()
@@ -165,12 +190,18 @@ export function ProductOptionsSection({
     }
     push(defaultLocale)
     for (const l of availableLocales) push(l)
-    for (const o of product.productOptions) for (const c of o.content ?? []) push(c.locale)
+    for (const o of subject.productOptions) for (const c of o.content ?? []) push(c.locale)
     push(editLocale)
     return out
-  }, [availableLocales, product.productOptions, defaultLocale, editLocale])
+  }, [availableLocales, subject.productOptions, defaultLocale, editLocale])
 
-  const refetch = [{ query: ProductDocument, variables: { id: product.id } }]
+  const refetch = useMemo(
+    () =>
+      owner.kind === 'product'
+        ? [{ query: ProductDocument, variables: { id: owner.id } }]
+        : [{ query: OptionTemplateDocument, variables: { id: owner.id } }, { query: OptionTemplatesDocument }],
+    [owner.kind, owner.id],
+  )
   const [addOptionMutation] = useMutation(AddProductOptionDocument, { refetchQueries: refetch })
   const [updateOptionMutation] = useMutation(UpdateProductOptionDocument, { refetchQueries: refetch })
   const [upsertOptionContentMutation] = useMutation(UpsertProductOptionContentDocument, { refetchQueries: refetch })
@@ -182,29 +213,28 @@ export function ProductOptionsSection({
   const [duplicateOptionMutation] = useMutation(DuplicateProductOptionDocument, { refetchQueries: refetch })
   const [setOptionChannelPriceMutation] = useMutation(SetProductOptionChannelPriceDocument, { refetchQueries: refetch })
   const [setValueChannelPriceMutation] = useMutation(SetProductOptionValueChannelPriceDocument, { refetchQueries: refetch })
-
-  // Duplicate fires immediately (not staged) - it's a server-side
-  // clone that doesn't interact with the section's pending ops
-  const onDuplicateOption = useCallback(
-    async (id: string) => {
-      if (isTemp(id)) return // staged option not committed yet - re-stage manually
-      await duplicateOptionMutation({ variables: { id } })
-    },
-    [duplicateOptionMutation],
-  )
+  const [setRulesMutation] = useMutation(SetProductOptionRulesDocument, { refetchQueries: refetch })
+  const [setTemplateRulesMutation] = useMutation(SetOptionTemplateRulesDocument, { refetchQueries: refetch })
+  const [setLayoutMutation] = useMutation(SetProductConfiguratorLayoutDocument, { refetchQueries: refetch })
+  // How the product page asks them - a product setting, staged with the rest of the section
+  const savedLayout: ConfiguratorLayout = owner.kind === 'product' ? owner.layout : 'LIST'
+  const [layoutDraft, setLayoutDraft] = useState<ConfiguratorLayout | null>(null)
+  const layout = layoutDraft ?? savedLayout
+  const layoutChanged = layout !== savedLayout
 
   const save = useCallback(async () => {
-    if (reduced.length === 0) return
-    const knownOptionIds = new Set(product.productOptions.map((o) => o.id))
+    const ops: PendingOp[] = rulesChanged && rulesDraft ? [...reduced, { kind: 'set-rules', rules: rulesDraft.map(ruleToInput) }] : reduced
+    if (ops.length === 0 && !layoutChanged) return
+    const knownOptionIds = new Set(subject.productOptions.map((o) => o.id))
     const knownValueIds = new Set<string>()
-    for (const o of product.productOptions) for (const v of o.values) knownValueIds.add(v.id)
+    for (const o of subject.productOptions) for (const v of o.values) knownValueIds.add(v.id)
 
     const committers: Committers = {
       addOption: async (op) => {
         const res = await addOptionMutation({
           variables: {
             input: {
-              productId: op.productId,
+              ...(owner.kind === 'product' ? { productId: op.productId } : { templateId: op.productId }),
               inputType: op.inputType,
               isRequired: op.isRequired,
               sortOrder: op.sortOrder,
@@ -214,6 +244,7 @@ export function ProductOptionsSection({
               maxFileBytes: op.maxFileBytes ?? undefined,
               fileExtensions: op.fileExtensions ?? undefined,
               visibleIf: op.visibleIf ?? undefined,
+              imageAssetId: op.image?.assetId ?? undefined,
               locale: op.locale,
               title: op.title,
               helpText: op.helpText || undefined,
@@ -244,6 +275,7 @@ export function ProductOptionsSection({
             clearFileExtensions?: boolean
             visibleIf?: VisibilityGroup
             clearVisibleIf?: boolean
+            imageAssetId?: string
           }
         } = { input: { id: op.id } }
         if (op.inputType !== undefined) variables.input.inputType = op.inputType
@@ -274,6 +306,8 @@ export function ProductOptionsSection({
           if (op.visibleIf === null) variables.input.clearVisibleIf = true
           else variables.input.visibleIf = op.visibleIf
         }
+        // An empty id is the schema's "remove the picture"
+        if (op.image !== undefined) variables.input.imageAssetId = op.image?.assetId ?? ''
         await updateOptionMutation({ variables })
       },
       upsertOptionContent: async (op) => {
@@ -298,6 +332,7 @@ export function ProductOptionsSection({
               locale: op.locale,
               title: op.title,
               sourceProductId: op.sourceProductId ?? undefined,
+              imageAssetId: op.image?.assetId ?? undefined,
             },
           },
         })
@@ -321,6 +356,7 @@ export function ProductOptionsSection({
             quantity?: number
             forcedLineQty?: number
             sourceProductId?: string
+            imageAssetId?: string
           }
         } = { input: { id: op.id } }
         if (op.sortOrder !== undefined) variables.input.sortOrder = op.sortOrder
@@ -337,6 +373,7 @@ export function ProductOptionsSection({
           // documented sentinel); a real uuid is sent verbatim
           variables.input.sourceProductId = op.sourceProductId ?? ''
         }
+        if (op.image !== undefined) variables.input.imageAssetId = op.image?.assetId ?? ''
         await updateValueMutation({ variables })
       },
       upsertValueContent: async (op) => {
@@ -353,21 +390,42 @@ export function ProductOptionsSection({
       setValueChannelPrice: async (op) => {
         await setValueChannelPriceMutation({ variables: op })
       },
+      setRules: async (rules) => {
+        if (owner.kind === 'product') await setRulesMutation({ variables: { productId: owner.id, rules } })
+        else await setTemplateRulesMutation({ variables: { templateId: owner.id, rules } })
+      },
     }
 
     try {
-      await commitOps(reduced, product.id, committers)
+      if (ops.length > 0) await commitOps(ops, owner.id, committers)
+      if (layoutChanged) await setLayoutMutation({ variables: { productId: owner.id, layout } })
     } catch (e) {
       // keep only the unapplied tail - a retry resumes instead of
       // re-running committed adds and duplicating options/values
-      if (e instanceof CommitError) setPendingOps(e.remaining)
+      if (e instanceof CommitError) {
+        setPendingOps(e.remaining.filter((op) => op.kind !== 'set-rules'))
+        const idMap = e.idMap
+        setRulesDraft((draft) =>
+          e.remaining.some((op) => op.kind === 'set-rules') && draft ? resolveRuleIds(draft, (id) => idMap.get(id) ?? id) : null,
+        )
+      }
       throw e
     }
     setPendingOps([])
+    setRulesDraft(null)
+    setLayoutDraft(null)
   }, [
+    layout,
+    layoutChanged,
+    setLayoutMutation,
     reduced,
-    product.id,
-    product.productOptions,
+    rulesChanged,
+    rulesDraft,
+    setRulesMutation,
+    setTemplateRulesMutation,
+    owner.kind,
+    owner.id,
+    subject.productOptions,
     addOptionMutation,
     updateOptionMutation,
     upsertOptionContentMutation,
@@ -380,1347 +438,582 @@ export function ProductOptionsSection({
     setValueChannelPriceMutation,
   ])
 
-  useProductSaveSection({ id: 'product-options', title: 'Product options', diff, save })
+  const allDiff = useMemo(
+    () => [
+      ...diff,
+      ...(rulesChanged && rulesDraft ? rulesDiff(savedRules, rulesDraft, everything, defaultLocale, ctx.baseCurrency) : []),
+      ...(layoutChanged ? [{ kind: 'change' as const, label: 'Shown as', before: LAYOUT_LABEL[savedLayout], after: LAYOUT_LABEL[layout] }] : []),
+    ],
+    [diff, rulesChanged, rulesDraft, savedRules, everything, defaultLocale, ctx.baseCurrency, layoutChanged, savedLayout, layout],
+  )
+  useProductSaveSection({
+    id: owner.kind === 'product' ? 'product-options' : 'template-options',
+    title: owner.kind === 'product' ? 'Configurator' : 'Options and rules',
+    diff: allDiff,
+    save,
+  })
 
-  // Inline (non-modal) editors: at most one open at a time. valueForm
-  // with a null valueId is the "new value" form for that option
-  const [addingOption, setAddingOption] = useState(false)
-  const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
-  const [valueForm, setValueForm] = useState<{ optionId: string; valueId: string | null } | null>(null)
+  const [editor, setEditor] = useState<{ optionId: string | null } | null>(null)
+  const [ruleEditor, setRuleEditor] = useState<{ ruleId: string | null } | null>(null)
+  const [view, setView] = useState<'list' | 'map'>('list')
+  const editingRule = ruleEditor?.ruleId ? rules.find((r) => r.id === ruleEditor.ruleId) ?? null : null
+  // What stops an option or one of its choices from going - a condition or a rule still reading it
+  const usersOf = (ref: { optionId?: string; valueId?: string }) => [
+    ...dependents(sorted, ref).map((o) => `the condition on ${optionContentFor(o, editLocale).title || 'Untitled option'}`),
+    ...rulesUsing(rules, ref).map((r) => {
+      const name = ruleLabel(r, editLocale, defaultLocale)
+      return name ? `the rule "${name}"` : `rule ${rules.indexOf(r) + 1}`
+    }),
+  ]
+  const editing = editor?.optionId ? sorted.find((o) => o.id === editor.optionId) ?? null : null
 
-  const sortedOptions = useMemo(() => [...staged].sort((a, b) => a.sortOrder - b.sortOrder), [staged])
+  // Deleted rows stay in place, struck through, until the page is saved - so a slip can be undone
+  const deletedIds = useMemo(() => new Set(reduced.flatMap((op) => (op.kind === 'delete-option' ? [op.id] : []))), [reduced])
+  const rows = useMemo(
+    () =>
+      [...sorted, ...own.filter((o) => deletedIds.has(o.id))].sort((a, b) => a.sortOrder - b.sortOrder),
+    [sorted, own, deletedIds],
+  )
+  const touched = useMemo(() => {
+    const valueOwner = new Map(staged.flatMap((o) => o.values.map((v) => [v.id, o.id] as const)))
+    const out = new Set<string>()
+    for (const op of reduced) {
+      if (op.kind === 'update-option') out.add(op.id)
+      else if (op.kind === 'add-value') out.add(op.optionRef)
+      else if (op.kind === 'update-value' || op.kind === 'delete-value') {
+        const optionId = valueOwner.get(op.id) ?? own.find((o) => o.values.some((v) => v.id === op.id))?.id
+        if (optionId) out.add(optionId)
+      }
+    }
+    return out
+  }, [reduced, staged, own])
+
+  // Every option moves into fresh numbers above all current ones, which the save writes last-first - see phaseWrites
+  const move = (from: number, to: number) => {
+    const next = [...sorted]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    const top = Math.max(-1, ...sorted.map((o) => o.sortOrder), ...own.map((o) => o.sortOrder)) + 1
+    stage(next.map((o, i) => ({ kind: 'update-option' as const, id: o.id, sortOrder: top + i })))
+  }
+  // A swap that would put a condition above the option it reads is refused here - the backend would refuse it at save
+  const blockedSwap = (above: ProductOption, below: ProductOption) => dependents([below], { optionId: above.id }).length > 0
+
+  // Templates on a product change right away - they restructure what the product carries rather than edit it
+  const templates = owner.kind === 'product' ? owner.templates : []
+  const typeTemplates = owner.kind === 'product' ? owner.typeTemplates : []
+  const typeIds = useMemo(() => new Set((owner.kind === 'product' ? owner.typeTemplates : []).map((t) => t.id)), [owner])
+  const { allowedChannelScopes } = usePermissions()
+  const [managing, setManaging] = useState(false)
+  const [setTemplatesMutation] = useMutation(SetProductOptionTemplatesDocument, { refetchQueries: [{ query: OptionTemplatesDocument }] })
+  const [detachMutation] = useMutation(DetachOptionTemplateDocument, { refetchQueries: [{ query: OptionTemplatesDocument }] })
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [confirmTemplate, setConfirmTemplate] = useState<{ kind: 'remove' | 'detach'; id: string; name: string } | null>(null)
+  const setTemplates = async (ids: string[]) => {
+    setTemplateError(null)
+    try {
+      await setTemplatesMutation({ variables: { productId: owner.id, templateIds: ids } })
+    } catch (e) {
+      setTemplateError(e instanceof Error ? e.message : 'Could not change the templates.')
+    }
+  }
+  const dirty = reduced.length > 0 || rulesChanged
+  const leaningOn = (templateId: string) => {
+    // Its type keeps handing it over, so taking the pick off loses nothing
+    if (typeIds.has(templateId)) return []
+    const theirs = inherited.filter((o) => o.templateId === templateId)
+    return [
+      ...new Set(
+        theirs.flatMap((o) => [
+          ...usersOf({ optionId: o.id }),
+          ...o.values.flatMap((v) => usersOf({ valueId: v.id })),
+        ]),
+      ),
+    ]
+  }
+
+  const nextSortOrder = sorted.reduce((m, o) => Math.max(m, o.sortOrder), -1) + 1
+  const multilingual = localeOptions.length > 1
+  const addButton = canManage ? (
+    <Button size="sm" onClick={() => setEditor({ optionId: null })}>
+      <PlusIcon className="size-4" />
+      Add option
+    </Button>
+  ) : null
+  const templateButton =
+    canManage && owner.kind === 'product' ? (
+      <AddTemplateMenu
+        usedIds={new Set([...templates, ...typeTemplates].map((t) => t.id))}
+        onAdd={(id) => void setTemplates([...templates.map((t) => t.id), id])}
+        onManage={() => setManaging(true)}
+      />
+    ) : null
+  const openOption = (id: string) => {
+    const fromTemplate = inherited.find((o) => o.id === id)
+    if (fromTemplate?.templateId) navigate(templatePath(fromTemplate.templateId))
+    else if (canManage) setEditor({ optionId: id })
+  }
+  const anything = rows.length > 0 || templates.length > 0 || typeTemplates.length > 0
+  const inheritedRow = (opt: ProductOption) => (
+    <OptionRow
+      key={opt.id}
+      option={opt}
+      all={everything}
+      locale={editLocale}
+      currency={opt.currencyCode ?? ctx.baseCurrency}
+      canManage={false}
+      isNew={false}
+      changed={false}
+      up={null}
+      down={null}
+      onEdit={() => openOption(opt.id)}
+      onDuplicate={null}
+      deleteBlockedBy={[]}
+      onDelete={() => {}}
+    />
+  )
 
   return (
     <div className="grid gap-4">
-      {/* Title + description come from the parent CollapsibleSection -
-          this row is just the section toolbar */}
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-2">
-          {localeOptions.length > 1 && (
-            <Select value={editLocale} onValueChange={setEditLocale}>
-              <SelectTrigger size="sm" className="w-[8rem]" aria-label="Edit locale">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {localeOptions.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {l}
-                    {l === defaultLocale ? ' (default)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {canManage && (
-            <Button
-              size="sm"
-              onClick={() => {
-                setAddingOption(true)
-                setEditingOptionId(null)
-                setValueForm(null)
-              }}
-            >
-              <PlusIcon className="size-4" />
-              Add option
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {sortedOptions.length === 0 && !addingOption ? (
-        <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          No options yet. Add one to start collecting customer input at add-to-cart.
-        </p>
-      ) : (
-        <div className="divide-y overflow-hidden rounded-md border">
-          {sortedOptions.map((opt) => {
-            if (canManage && editingOptionId === opt.id) {
-              return (
-                <EditOptionForm
-                  key={`${opt.id}:${editLocale}`}
-                  option={opt}
-                  siblings={sortedOptions}
-                  locale={editLocale}
-                  defaultLocale={defaultLocale}
-                  productId={product.id}
-                  surcharges={surcharges}
-                  onStage={stage}
-                  onClose={() => setEditingOptionId(null)}
-                />
-              )
-            }
-            const editingVal =
-              canManage && valueForm?.optionId === opt.id && valueForm.valueId !== null
-                ? opt.values.find((x) => x.id === valueForm.valueId)
-                : undefined
-            return (
-              <OptionCard
-                key={opt.id}
-                option={opt}
-                locale={editLocale}
-                canManage={canManage}
-                onEdit={() => {
-                  setEditingOptionId(opt.id)
-                  setAddingOption(false)
-                  setValueForm(null)
-                }}
-                onDelete={() => stage({ kind: 'delete-option', id: opt.id })}
-                onDuplicate={() => onDuplicateOption(opt.id)}
-                onAddValue={() => setValueForm({ optionId: opt.id, valueId: null })}
-                onEditValue={(v) => setValueForm({ optionId: opt.id, valueId: v.id })}
-                onDeleteValue={(v) => stage({ kind: 'delete-value', id: v.id })}
-                valueFormSlot={
-                  canManage && valueForm?.optionId === opt.id ? (
-                    valueForm.valueId === null ? (
-                      <AddValueForm
-                        option={opt}
-                        locale={defaultLocale}
-                        surcharges={surcharges}
-                        onStage={stage}
-                        onClose={() => setValueForm(null)}
-                      />
-                    ) : editingVal ? (
-                      <EditValueForm
-                        key={`${editingVal.id}:${editLocale}`}
-                        value={editingVal}
-                        locale={editLocale}
-                        defaultLocale={defaultLocale}
-                        productId={product.id}
-                        surcharges={surcharges}
-                        onStage={stage}
-                        onClose={() => setValueForm(null)}
-                      />
-                    ) : null
-                  ) : null
-                }
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {canManage && addingOption && (
-        <AddOptionForm
-          locale={defaultLocale}
-          existingMaxSort={sortedOptions.reduce((m, o) => Math.max(m, o.sortOrder), -1)}
-          surcharges={surcharges}
-          onStage={stage}
-          onClose={() => setAddingOption(false)}
-        />
-      )}
-
-    </div>
-  )
-}
-
-function OptionCard({
-  option,
-  locale,
-  canManage,
-  onEdit,
-  onDelete,
-  onDuplicate,
-  onAddValue,
-  onEditValue,
-  onDeleteValue,
-  valueFormSlot,
-}: {
-  option: ProductOption
-  locale: string
-  canManage: boolean
-  onEdit: () => void
-  onDelete: () => void
-  onDuplicate: () => void
-  onAddValue: () => void
-  onEditValue: (v: OptionValue) => void
-  onDeleteValue: (v: OptionValue) => void
-  valueFormSlot?: ReactNode
-}) {
-  const pending = isTemp(option.id)
-  const content = optionContentFor(option, locale)
-  const sortedValues = useMemo(
-    () => [...option.values].sort((a, b) => a.sortOrder - b.sortOrder),
-    [option.values],
-  )
-  const showValues = isSelect(option.inputType)
-  return (
-    <div className="grid gap-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <SlidersIcon className="size-4 text-muted-foreground" />
-            <span className="font-medium">
-              {content.title || <span className="text-muted-foreground">Untitled option</span>}
-            </span>
-            <Badge variant="outline" className="font-normal">{INPUT_TYPE_LABEL[option.inputType]}</Badge>
-            {option.isRequired ? (
-              <Badge variant="secondary" className="font-normal">Required</Badge>
-            ) : (
-              <Badge variant="outline" className="font-normal text-muted-foreground">Optional</Badge>
-            )}
-            {(parseVisibleIfGroup(option.visibleIf)?.rules?.length ?? 0) > 0 && (
-              <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
-                <EyeIcon className="size-3" />
-                Conditional
-              </Badge>
-            )}
-            {pending && (
-              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
-            )}
-          </div>
-          {content.helpText && (
-            <p className="text-xs text-muted-foreground">{content.helpText}</p>
-          )}
-          {!showValues && option.priceValue !== null && option.priceType && (
-            <p className="text-xs text-muted-foreground font-mono">
-              {option.priceType === 'PERCENT' ? `+${option.priceValue}%` : `+${option.priceValue} ¢`}
-            </p>
-          )}
-        </div>
-        {canManage && (
-          <div className="flex shrink-0 gap-1">
-            <Button variant="ghost" size="icon" className="size-7" onClick={onDuplicate} aria-label="Duplicate option" disabled={pending}>
-              <CopyIcon className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="size-7" onClick={onEdit} aria-label="Edit option">
-              <PencilIcon className="size-3.5" />
-            </Button>
-            <TwoClickDelete label="Delete option" onConfirm={onDelete} />
-          </div>
-        )}
-      </div>
-
-      {showValues && (
-        <>
-          {sortedValues.length === 0 ? (
-            <p className="rounded-md border border-dashed px-4 py-4 text-center text-xs text-muted-foreground">
-              No values yet. Add one to fill this option's menu.
-            </p>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead className="w-32">Linked product</TableHead>
-                    <TableHead className="w-16">Qty</TableHead>
-                    <TableHead className="w-24">Line qty</TableHead>
-                    <TableHead className="w-24">Price</TableHead>
-                    <TableHead className="w-24">Type</TableHead>
-                    <TableHead className="w-20">Default</TableHead>
-                    {canManage && <TableHead className="w-20" />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedValues.map((v) => {
-                    const vp = isTemp(v.id)
-                    return (
-                      <TableRow key={v.id} className={vp ? 'bg-warning-soft' : ''}>
-                        <TableCell className="font-medium">{valueContentFor(v, locale)}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {v.sourceProduct ? (
-                            <span className="inline-flex items-center gap-1">
-                              <LinkIcon className="size-3" />
-                              {v.sourceProduct.sku ?? ''}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{v.quantity}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {v.forcedLineQty != null ? `locks ×${v.forcedLineQty}` : '-'}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{v.priceValue}</TableCell>
-                        <TableCell className="font-mono text-xs">{v.priceType.toLowerCase()}</TableCell>
-                        <TableCell>{v.isDefault ? '✓' : '-'}</TableCell>
-                        {canManage && (
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="size-7" onClick={() => onEditValue(v)} aria-label="Edit value">
-                                <PencilIcon className="size-3.5" />
-                              </Button>
-                              <TwoClickDelete label="Remove value" onConfirm={() => onDeleteValue(v)} />
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          {canManage && !valueFormSlot && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={onAddValue}>
-                <PlusIcon className="size-4" />
-                Add value
-              </Button>
-            </div>
-          )}
-          {valueFormSlot}
-        </>
-      )}
-    </div>
-  )
-}
-
-// TwoClickDelete arms on the first click and stages on the second - deletes are staged (undone by leaving the page before the page-level
-// save), so a blocking modal confirm is overkill; this keeps the safety beat without leaving the page flow - Disarms itself after 3s
-function TwoClickDelete({ label, onConfirm }: { label: string; onConfirm: () => void }) {
-  const [armed, setArmed] = useState(false)
-  useEffect(() => {
-    if (!armed) return
-    const t = setTimeout(() => setArmed(false), 3000)
-    return () => clearTimeout(t)
-  }, [armed])
-  if (armed) {
-    return (
-      <Button
-        variant="destructive"
-        size="sm"
-        className="h-7 px-2 text-xs"
-        onClick={onConfirm}
-        aria-label={`Confirm: ${label}`}
-      >
-        Sure?
-      </Button>
-    )
-  }
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-      onClick={() => setArmed(true)}
-      aria-label={label}
-    >
-      <Trash2Icon className="size-3.5" />
-    </Button>
-  )
-}
-
-// ──────────────────────── Add option ────────────────────────
-
-function AddOptionForm({
-  locale,
-  existingMaxSort,
-  surcharges,
-  onStage,
-  onClose,
-}: {
-  locale: string
-  existingMaxSort: number
-  surcharges: Surcharges
-  onStage: (op: PendingOp) => void
-  onClose: () => void
-}) {
-  const [title, setTitle] = useState('')
-  const [helpText, setHelpText] = useState('')
-  const [inputType, setInputType] = useState<ProductOptionInputType>('FIELD')
-  const [isRequired, setIsRequired] = useState(false)
-  const [priceValue, setPriceValue] = useState<string>('')
-  const [priceType, setPriceType] = useState<ProductOptionPriceType>('FIXED')
-  const [maxChars, setMaxChars] = useState<string>('')
-  const [maxFileBytes, setMaxFileBytes] = useState<string>('')
-  const [fileExtensions, setFileExtensions] = useState<string>('')
-  const [channelPrices, setChannelPrices] = useState<Record<string, string>>({})
-
-  const showPriceOnOption = !isSelect(inputType)
-  const showTextConstraints = isText(inputType)
-  const showFileConstraints = isFile(inputType)
-  const fixedSurcharge = showPriceOnOption && priceValue.trim() !== '' && priceType === 'FIXED'
-
-  function reset() {
-    setTitle('')
-    setHelpText('')
-    setInputType('FIELD')
-    setIsRequired(false)
-    setPriceValue('')
-    setPriceType('FIXED')
-    setMaxChars('')
-    setMaxFileBytes('')
-    setFileExtensions('')
-    setChannelPrices({})
-  }
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const pv = priceValue.trim() === '' ? null : Number(priceValue)
-    const priceEdits = fixedSurcharge ? channelEditsFrom(surcharges.channels, channelPrices, []) : undefined
-    onStage({
-      kind: 'add-option',
-      tempId: newTempId(),
-      inputType,
-      isRequired,
-      sortOrder: existingMaxSort + 1,
-      title: title.trim(),
-      helpText: helpText.trim(),
-      locale,
-      priceValue: showPriceOnOption ? pv : null,
-      priceType: showPriceOnOption && pv !== null ? priceType : null,
-      maxChars: showTextConstraints && maxChars.trim() !== '' ? Number(maxChars) : null,
-      maxFileBytes: showFileConstraints && maxFileBytes.trim() !== '' ? Number(maxFileBytes) : null,
-      fileExtensions: showFileConstraints && fileExtensions.trim() !== '' ? fileExtensions.trim() : null,
-      ...(priceEdits ? { channelPrices: priceEdits } : {}),
-    })
-    reset()
-    onClose()
-  }
-
-  return (
-    <div className="grid gap-4 rounded-md border border-dashed bg-muted/20 p-4">
-      <div className="grid gap-0.5">
-        <h4 className="text-sm font-medium">New option</h4>
-        <p className="text-xs text-muted-foreground">
-          Customer-facing input for this product. Stages until the page-level save.
-        </p>
-      </div>
-
-      <form id="add-product-option" onSubmit={onSubmit} className="grid gap-4 sm:max-w-md">
-          <div className="grid gap-2">
-            <Label htmlFor="po-title">Title</Label>
-            <Input id="po-title" required placeholder="Engrave a name" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              First-translation title in <code className="font-mono">{locale}</code>.
+      {anything ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs value={view} onValueChange={(v) => setView(v as 'list' | 'map')}>
+              <TabsList className="h-9">
+                <TabsTrigger value="list" className="px-3">List</TabsTrigger>
+                <TabsTrigger value="map" className="px-3">Map</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <p className="text-sm text-muted-foreground">
+              {everything.length} option{everything.length === 1 ? '' : 's'}, shown to customers in this order
+              {rules.length + inheritedRules.length > 0
+                ? `, and ${rules.length + inheritedRules.length} rule${rules.length + inheritedRules.length === 1 ? '' : 's'}`
+                : ''}
+              .
             </p>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="po-help">Help text (optional)</Label>
-            <Input id="po-help" placeholder="Letters and spaces only, up to 20 characters" value={helpText} onChange={(e) => setHelpText(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              Short hint rendered under the input on the channel.
-            </p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="po-type">Input type</Label>
-            <Select value={inputType} onValueChange={(v) => setInputType(v as ProductOptionInputType)}>
-              <SelectTrigger id="po-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INPUT_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{INPUT_TYPE_LABEL[t]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="grid gap-0.5">
-              <Label htmlFor="po-required" className="text-sm">Required</Label>
-              <p className="text-xs text-muted-foreground">When on, the customer must fill this option to add to cart.</p>
-            </div>
-            <Switch id="po-required" checked={isRequired} onCheckedChange={setIsRequired} />
-          </div>
-
-          {showPriceOnOption && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="po-price-value">Price adjustment</Label>
-                <Input id="po-price-value" type="number" placeholder="0" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="po-price-type">Type</Label>
-                <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger className="w-full" id="po-price-type"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FIXED">Fixed (¢)</SelectItem>
-                    <SelectItem value="PERCENT">Percent (%)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          {fixedSurcharge && (
-            <ChannelSurchargeInputs
-              idPrefix="po-channel-price-add"
-              channels={surcharges.channels}
-              baseCurrency={surcharges.baseCurrency}
-              baseAmount={Number(priceValue) || 0}
-              values={channelPrices}
-              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
-            />
-          )}
-          {isSelect(inputType) && (
-            <p className="text-xs text-muted-foreground">
-              Select-style options carry price on their values. Add values to this option after staging.
-            </p>
-          )}
-          {showTextConstraints && (
-            <div className="grid gap-2">
-              <Label htmlFor="po-max-chars">Max characters (optional)</Label>
-              <Input id="po-max-chars" type="number" min={1} value={maxChars} onChange={(e) => setMaxChars(e.target.value)} />
-            </div>
-          )}
-          {showFileConstraints && (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="po-max-bytes">Max file size in bytes (optional)</Label>
-                <Input id="po-max-bytes" type="number" min={1} value={maxFileBytes} onChange={(e) => setMaxFileBytes(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="po-extensions">Allowed extensions (optional)</Label>
-                <Input id="po-extensions" placeholder="jpg,png,pdf" value={fileExtensions} onChange={(e) => setFileExtensions(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Comma-separated. Empty = any extension.</p>
-              </div>
-            </>
-          )}
-      </form>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button type="submit" size="sm" form="add-product-option" disabled={!title.trim()}>Stage add</Button>
-      </div>
-    </div>
-  )
-}
-
-// ──────────────────────── Edit option ────────────────────────
-
-function EditOptionForm({
-  option,
-  siblings,
-  locale,
-  defaultLocale,
-  productId,
-  surcharges,
-  onStage,
-  onClose,
-}: {
-  option: ProductOption
-  siblings: ProductOption[]
-  locale: string
-  defaultLocale: string
-  productId: string
-  surcharges: Surcharges
-  onStage: (op: PendingOp) => void
-  onClose: () => void
-}) {
-  const [deleteOptionContent] = useMutation(DeleteProductOptionContentDocument, {
-    refetchQueries: [{ query: ProductDocument, variables: { id: productId } }],
-  })
-  const localeContent = optionContentFor(option, locale)
-  const [title, setTitle] = useState(localeContent.title)
-  const [helpText, setHelpText] = useState(localeContent.helpText)
-  const [isRequired, setIsRequired] = useState(option.isRequired)
-  const [sortOrder, setSortOrder] = useState(option.sortOrder)
-  const [priceValue, setPriceValue] = useState<string>(option.priceValue === null ? '' : String(option.priceValue))
-  const [priceType, setPriceType] = useState<ProductOptionPriceType>(option.priceType ?? 'FIXED')
-  const [maxChars, setMaxChars] = useState<string>(option.maxChars === null ? '' : String(option.maxChars))
-  const [maxFileBytes, setMaxFileBytes] = useState<string>(option.maxFileBytes === null ? '' : String(option.maxFileBytes))
-  const [fileExtensions, setFileExtensions] = useState<string>(option.fileExtensions ?? '')
-  const [channelPrices, setChannelPrices] = useState(() => rawChannelPrices(option.channelPrices))
-
-  const showPriceOnOption = !isSelect(option.inputType)
-  const showTextConstraints = isText(option.inputType)
-  const showFileConstraints = isFile(option.inputType)
-  // A translated title on an unsaved option would fold into the add op and
-  // create it as the default-locale row - so block copy edits until saved
-  const titleLocked = isTemp(option.id) && locale !== defaultLocale
-
-  // Visibility condition (flat rules + AND/OR; nested groups are evaluator-only and can't be authored here) - Rules may only reference
-  // options ordered strictly BEFORE this one - the backend enforces it, the parent Select simply doesn't offer anything else
-  const currentVis = parseVisibleIfGroup(option.visibleIf)
-  const [visLogic, setVisLogic] = useState<'and' | 'or'>(currentVis?.logic === 'or' ? 'or' : 'and')
-  const [visRules, setVisRules] = useState<VisibilityRule[]>(currentVis?.rules ?? [])
-  const hasNestedGroups = (currentVis?.groups?.length ?? 0) > 0
-  const priorOptions = useMemo(
-    () =>
-      siblings.filter(
-        (s) => s.id !== option.id && !isTemp(s.id) && s.sortOrder < sortOrder,
-      ),
-    [siblings, option.id, sortOrder],
-  )
-  const priorById = useMemo(() => new Map(priorOptions.map((o) => [o.id, o])), [priorOptions])
-  const incompleteRule = visRules.some((r) => {
-    if (!r.option_id || !priorById.has(r.option_id)) return true
-    if (r.op === 'anyOf' || r.op === 'noneOf') return (r.value_ids?.length ?? 0) === 0
-    return false
-  })
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (incompleteRule) return
-    const cleanRules: VisibilityRule[] = visRules.map((r) =>
-      r.op === 'anyOf' || r.op === 'noneOf'
-        ? { option_id: r.option_id, op: r.op, value_ids: r.value_ids }
-        : { option_id: r.option_id, op: r.op },
-    )
-    const nextVisibleIf: VisibilityGroup | null =
-      cleanRules.length === 0
-        ? null
-        : { ...(visLogic === 'or' ? { logic: 'or' as const } : {}), rules: cleanRules }
-    const visChanged =
-      JSON.stringify(nextVisibleIf) !== JSON.stringify(currentVis ?? null)
-    const pv = priceValue.trim() === '' ? null : Number(priceValue)
-    // Title + help text are one per-locale unit: when either changes, send
-    // both (plus the locale) so the content upsert replaces the row intact
-    const contentChanged =
-      !titleLocked && (title.trim() !== localeContent.title || helpText !== localeContent.helpText)
-    const op = {
-      kind: 'update-option' as const,
-      id: option.id,
-      ...(contentChanged ? { title: title.trim(), helpText, titleLocale: locale } : {}),
-      ...(isRequired !== option.isRequired ? { isRequired } : {}),
-      ...(sortOrder !== option.sortOrder ? { sortOrder } : {}),
-      ...(showPriceOnOption && pv !== option.priceValue ? { priceValue: pv } : {}),
-      ...(showPriceOnOption && pv !== null && priceType !== option.priceType ? { priceType } : {}),
-      ...(showTextConstraints
-        ? maxChars === '' && option.maxChars !== null
-          ? { maxChars: null }
-          : maxChars !== '' && Number(maxChars) !== option.maxChars
-            ? { maxChars: Number(maxChars) }
-            : {}
-        : {}),
-      ...(showFileConstraints
-        ? maxFileBytes === '' && option.maxFileBytes !== null
-          ? { maxFileBytes: null }
-          : maxFileBytes !== '' && Number(maxFileBytes) !== option.maxFileBytes
-            ? { maxFileBytes: Number(maxFileBytes) }
-            : {}
-        : {}),
-      ...(showFileConstraints && fileExtensions !== (option.fileExtensions ?? '')
-        ? { fileExtensions: fileExtensions.trim() === '' ? null : fileExtensions.trim() }
-        : {}),
-      ...(visChanged && !hasNestedGroups ? { visibleIf: nextVisibleIf } : {}),
-    }
-    const priceEdits =
-      showPriceOnOption && pv !== null && priceType === 'FIXED'
-        ? channelEditsFrom(surcharges.channels, channelPrices, option.channelPrices)
-        : undefined
-    if (priceEdits) Object.assign(op, { channelPrices: priceEdits })
-    if (Object.keys(op).length > 2) onStage(op)
-    onClose()
-  }
-
-  return (
-    <div className="grid gap-4 border-l-2 border-l-primary bg-muted/20 p-4">
-      <div className="grid gap-0.5">
-        <h4 className="text-sm font-medium">
-          Editing <span className="text-primary">{localeContent.title || 'Untitled option'}</span>
-          <span className="ml-1.5 font-normal text-muted-foreground">· {INPUT_TYPE_LABEL[option.inputType]}</span>
-        </h4>
-      </div>
-
-      <form id="edit-product-option" onSubmit={onSubmit} className="grid gap-4 sm:max-w-xl">
-          <div className="grid gap-2">
-            <Label htmlFor="po-title-edit">Title ({locale})</Label>
-            <Input id="po-title-edit" required value={title} onChange={(e) => setTitle(e.target.value)} disabled={titleLocked} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="po-help-edit">Help text ({locale})</Label>
-            <Input id="po-help-edit" placeholder="(optional)" value={helpText} onChange={(e) => setHelpText(e.target.value)} disabled={titleLocked} />
-            {titleLocked && (
-              <p className="text-xs text-muted-foreground">
-                Unsaved option - save it first, then switch the edit locale to translate.
-              </p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-start justify-between gap-4 rounded-md border p-3 col-span-2">
-              <div className="grid gap-0.5">
-                <Label htmlFor="po-required-edit" className="text-sm">Required</Label>
-                <p className="text-xs text-muted-foreground">Customer must fill this option to add to cart.</p>
-              </div>
-              <Switch id="po-required-edit" checked={isRequired} onCheckedChange={setIsRequired} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="po-sort-edit">Sort order</Label>
-              <Input id="po-sort-edit" type="number" inputMode="numeric" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value) || 0)} />
-            </div>
-          </div>
-          {showPriceOnOption && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="po-price-value-edit">Price adjustment</Label>
-                <Input id="po-price-value-edit" type="number" placeholder="(none)" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="po-price-type-edit">Type</Label>
-                <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger className="w-full" id="po-price-type-edit"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FIXED">Fixed (¢)</SelectItem>
-                    <SelectItem value="PERCENT">Percent (%)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          {showPriceOnOption && priceValue.trim() !== '' && priceType === 'FIXED' && (
-            <ChannelSurchargeInputs
-              idPrefix="po-channel-price"
-              channels={surcharges.channels}
-              baseCurrency={surcharges.baseCurrency}
-              baseAmount={Number(priceValue) || 0}
-              values={channelPrices}
-              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
-            />
-          )}
-          {showTextConstraints && (
-            <div className="grid gap-2">
-              <Label htmlFor="po-max-chars-edit">Max characters (optional)</Label>
-              <Input id="po-max-chars-edit" type="number" min={1} value={maxChars} onChange={(e) => setMaxChars(e.target.value)} />
-            </div>
-          )}
-          {showFileConstraints && (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="po-max-bytes-edit">Max file size in bytes (optional)</Label>
-                <Input id="po-max-bytes-edit" type="number" min={1} value={maxFileBytes} onChange={(e) => setMaxFileBytes(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="po-extensions-edit">Allowed extensions (optional)</Label>
-                <Input id="po-extensions-edit" placeholder="jpg,png,pdf" value={fileExtensions} onChange={(e) => setFileExtensions(e.target.value)} />
-              </div>
-            </>
-          )}
-
-          <VisibilityEditor
-            optionIsTemp={isTemp(option.id)}
-            hasNestedGroups={hasNestedGroups}
-            priorOptions={priorOptions}
-            locale={locale}
-            logic={visLogic}
-            rules={visRules}
-            onLogicChange={setVisLogic}
-            onRulesChange={setVisRules}
-          />
-      </form>
-
-      {/* Title + help text above are per-locale - Dropping a locale is
-          immediate (not staged) - it's destructive and the staged diff has
-          no way to express "delete this translation" - Temp options have no
-          server row yet, so there's nothing to delete */}
-      {!isTemp(option.id) && (
-        <TranslationLocales
-          locale={locale}
-          locales={(option.content ?? []).map((c) => c.locale)}
-          entityLabel="option"
-          canManage
-          defaultLocaleLocked
-          onRemove={async () => {
-            await deleteOptionContent({ variables: { optionId: option.id, locale } })
-          }}
-        />
-      )}
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button type="submit" size="sm" form="edit-product-option" disabled={incompleteRule}>Stage edit</Button>
-      </div>
-    </div>
-  )
-}
-
-// ──────────────────────── Visibility condition editor ────────────────────────
-//
-// Flat rule list + AND/OR toggle over PRIOR options only (strictly lower
-// sort order - the backend's ordering invariant, which is what makes cart
-// evaluation a single cycle-free pass). anyOf/noneOf target select-family
-// parents and pick from that parent's value list; filled/empty work on any
-// parent - Mirrors the webform ConditionEditor, but value-id based
-
-const VIS_OP_LABEL: Record<VisibilityRule['op'], string> = {
-  anyOf: 'has any of',
-  noneOf: 'has none of',
-  filled: 'is filled',
-  empty: 'is empty',
-}
-
-function VisibilityEditor({
-  optionIsTemp,
-  hasNestedGroups,
-  priorOptions,
-  locale,
-  logic,
-  rules,
-  onLogicChange,
-  onRulesChange,
-}: {
-  optionIsTemp: boolean
-  hasNestedGroups: boolean
-  priorOptions: ProductOption[]
-  locale: string
-  logic: 'and' | 'or'
-  rules: VisibilityRule[]
-  onLogicChange: (l: 'and' | 'or') => void
-  onRulesChange: (r: VisibilityRule[]) => void
-}) {
-  if (optionIsTemp) {
-    return (
-      <div className="grid gap-1 rounded-md border border-dashed p-3">
-        <p className="text-sm font-medium">Visibility</p>
-        <p className="text-xs text-muted-foreground">
-          Save the new option first, then add rules that show it based on earlier options.
-        </p>
-      </div>
-    )
-  }
-  if (hasNestedGroups) {
-    return (
-      <div className="grid gap-1 rounded-md border border-dashed p-3">
-        <p className="text-sm font-medium">Visibility</p>
-        <p className="text-xs text-muted-foreground">
-          This option uses nested visibility groups (authored via the API), which this editor
-          can't represent. Edit the condition via the API to change it.
-        </p>
-      </div>
-    )
-  }
-
-  const update = (i: number, patch: Partial<VisibilityRule>) => {
-    onRulesChange(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-  }
-
-  return (
-    <div className="grid gap-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="grid gap-0.5">
-          <p className="text-sm font-medium">Visibility</p>
-          <p className="text-xs text-muted-foreground">
-            {rules.length === 0
-              ? 'Always shown. Add a rule to show this option only for certain earlier choices.'
-              : 'Shown when the rules below match. Hidden options are never required and never priced in.'}
-          </p>
-        </div>
-        {rules.length > 1 && (
-          <Select value={logic} onValueChange={(v) => onLogicChange(v as 'and' | 'or')}>
-            <SelectTrigger size="sm" className="w-[7.5rem]" aria-label="Rule logic">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="and">Match all</SelectItem>
-              <SelectItem value="or">Match any</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {rules.map((rule, i) => {
-        const parent = priorOptions.find((o) => o.id === rule.option_id)
-        const parentIsSelect = parent ? isSelect(parent.inputType) : false
-        const ops: VisibilityRule['op'][] = parentIsSelect
-          ? ['anyOf', 'noneOf', 'filled', 'empty']
-          : ['filled', 'empty']
-        const needsValues = rule.op === 'anyOf' || rule.op === 'noneOf'
-        const sortedParentValues = parent
-          ? [...parent.values].sort((a, b) => a.sortOrder - b.sortOrder)
-          : []
-        return (
-          <div key={i} className="grid gap-2 rounded-md border bg-muted/30 p-2">
-            <div className="flex items-center gap-2">
-              <Select
-                value={rule.option_id || undefined}
-                onValueChange={(v) => {
-                  const nextParent = priorOptions.find((o) => o.id === v)
-                  const nextIsSelect = nextParent ? isSelect(nextParent.inputType) : false
-                  update(i, {
-                    option_id: v,
-                    // Reset the op when it stops making sense for the new parent
-                    op: !nextIsSelect && (rule.op === 'anyOf' || rule.op === 'noneOf') ? 'filled' : rule.op,
-                    value_ids: [],
-                  })
-                }}
-              >
-                <SelectTrigger size="sm" className="flex-1" aria-label="Depends on option">
-                  <SelectValue placeholder="Pick an earlier option…" />
+          <div className="flex items-center gap-2">
+            {multilingual ? (
+              <Select value={editLocale} onValueChange={setEditLocale}>
+                <SelectTrigger size="sm" className="w-[9rem]" aria-label="Language">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {priorOptions.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {optionContentFor(o, locale).title || 'Untitled option'}
+                  {localeOptions.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                      {l === defaultLocale ? ' (default)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={rule.op} onValueChange={(v) => update(i, { op: v as VisibilityRule['op'], value_ids: [] })}>
-                <SelectTrigger size="sm" className="w-[8.5rem]" aria-label="Condition">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ops.map((o) => (
-                    <SelectItem key={o} value={o}>{VIS_OP_LABEL[o]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => onRulesChange(rules.filter((_, j) => j !== i))}
-                aria-label="Remove rule"
-              >
-                <Trash2Icon className="size-3.5" />
-              </Button>
-            </div>
-            {needsValues && parent && (
-              sortedParentValues.length === 0 ? (
-                <p className="text-xs text-destructive">That option has no values yet - add values to it first.</p>
-              ) : (
-                <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-1">
-                  {sortedParentValues.map((v) => {
-                    const checked = rule.value_ids?.includes(v.id) ?? false
-                    return (
-                      <label key={v.id} className="flex items-center gap-1.5 text-sm">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(c) => {
-                            const cur = rule.value_ids ?? []
-                            update(i, {
-                              value_ids: c === true ? [...cur, v.id] : cur.filter((id) => id !== v.id),
-                            })
-                          }}
-                        />
-                        {valueContentFor(v, locale)}
-                      </label>
-                    )
-                  })}
-                </div>
-              )
-            )}
-            {needsValues && (rule.value_ids?.length ?? 0) === 0 && sortedParentValues.length > 0 && (
-              <p className="text-xs text-muted-foreground">Pick at least one value.</p>
-            )}
+            ) : null}
+            {templateButton}
+            {addButton}
           </div>
-        )
-      })}
+        </div>
+      ) : null}
 
-      {priorOptions.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No earlier options to depend on. Rules can only reference options ordered before this
-          one - adjust sort orders first if needed.
-        </p>
+      {anything && owner.kind === 'product' ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className="text-muted-foreground">On the product page</span>
+          <Select value={layout} onValueChange={(v) => setLayoutDraft(v as ConfiguratorLayout)} disabled={!canManage}>
+            <SelectTrigger size="sm" className="w-[10rem]" aria-label="Shown as">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LIST">{LAYOUT_LABEL.LIST}</SelectItem>
+              <SelectItem value="STEPS">{LAYOUT_LABEL.STEPS}</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">
+            {layout === 'STEPS'
+              ? 'One option at a time, with progress and the earlier picks above it.'
+              : 'Every option at once, in this order.'}
+          </span>
+          {layoutChanged ? (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <span aria-hidden className="size-1.5 rounded-full bg-warning" />
+              Unsaved
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {templateError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{templateError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {!anything ? (
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed bg-muted/20 px-6 py-10 text-center">
+          <div className="grid max-w-md gap-1">
+            <p className="text-sm font-medium">No options yet</p>
+            <p className="text-sm text-muted-foreground">
+              {owner.kind === 'product'
+                ? 'Options let customers personalise the product as they add it to the cart - a gift wrap choice, an engraving, a delivery date. Each can add to the price. A template brings a set kept in one place, and a product type can hand templates to all of its products.'
+                : 'Add the options every product using this template should ask for, and rules over them. Edits reach every product using it.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {templateButton}
+            {addButton}
+          </div>
+        </div>
+      ) : view === 'map' ? (
+        <Suspense fallback={<div className="h-[360px] animate-pulse rounded-md border bg-muted/30" />}>
+          <OptionsMap
+            options={owner.kind === 'product' ? everything : everything.map((o) => ({ ...o, templateName: null }))}
+            rules={[...inheritedRules.map((r) => r.rule), ...rules]}
+            locale={editLocale}
+            defaultLocale={defaultLocale}
+            currency={ctx.baseCurrency}
+            onOpenOption={openOption}
+            onOpenRule={(id) => {
+              const fromTemplate = (subject.optionRules ?? []).find((r) => r.id === id && inheritedFrom(r.templateId))
+              if (fromTemplate?.templateId) navigate(templatePath(fromTemplate.templateId))
+              else if (canManage) setRuleEditor({ ruleId: id })
+            }}
+          />
+        </Suspense>
       ) : (
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onRulesChange([...rules, { option_id: '', op: 'filled' }])}
-          >
-            <PlusIcon className="size-4" />
-            Add rule
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ──────────────────────── Source-product picker ────────────────────────
-//
-// Inline picker used by Add/Edit value dialogs - Renders either the
-// currently-linked product as a chip with a clear button, or a search
-// input + scrollable result list - SIMPLE products only; the option
-// value's own product is excluded from the candidate list to prevent
-// trivial self-reference (the catalog still hard-rejects it)
-
-function SourceProductPicker({
-  value,
-  excludeProductId,
-  onChange,
-}: {
-  value: SourceProduct | null
-  excludeProductId?: string
-  onChange: (next: SourceProduct | null) => void
-}) {
-  const [search, setSearch] = useState('')
-  const debounced = useDebounced(search.trim(), 250)
-  const { data, loading } = useQuery(ProductPickerDocument, {
-    variables: { search: debounced || null, kinds: ['SIMPLE'], limit: 12 },
-  })
-  // the exclusion stays local - the page is one product-detail screen, so at most one row drops
-  const filtered = useMemo(() => {
-    const all = (data?.productsPaged.items ?? []) as Array<SourceProduct>
-    return all.filter((p) => (excludeProductId ? p.id !== excludeProductId : true)).slice(0, 8)
-  }, [data, excludeProductId])
-
-  if (value) {
-    return (
-      <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
-        <div className="grid gap-0.5 text-sm">
-          <span className="font-medium">{value.name ?? value.sku ?? ''}</span>
-          {value.sku && <code className="font-mono text-xs text-muted-foreground">{value.sku}</code>}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => onChange(null)}
-          aria-label="Unlink product"
-          type="button"
-        >
-          <XIcon className="size-3.5" />
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid gap-2">
-      <Input
-        type="search"
-        placeholder={loading ? 'Loading products…' : 'Search to link a product…'}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-8"
-      />
-      {search.trim() !== '' && (
-        <div className="grid gap-1 rounded-md border bg-popover p-1 text-sm">
-          {filtered.length === 0 ? (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>
+        <div className="grid gap-3">
+          {typeTemplates.map((t) => {
+            const theirs = inherited.filter((o) => o.templateId === t.id)
+            return (
+              <TemplateGroup
+                key={`type-${t.id}`}
+                id={t.id}
+                name={t.name}
+                count={theirs.length}
+                canManage={false}
+                productType={owner.kind === 'product' && owner.productType ? owner.productType : { id: '', name: 'its type' }}
+              >
+                {theirs.map(inheritedRow)}
+              </TemplateGroup>
+            )
+          })}
+          {templates.map((t, i) => {
+            const alsoFromType = typeIds.has(t.id)
+            const theirs = inherited.filter((o) => o.templateId === t.id)
+            const ids = templates.map((x) => x.id)
+            const swap = (j: number) => {
+              const next = [...ids]
+              ;[next[i], next[j]] = [next[j], next[i]]
+              return () => void setTemplates(next)
+            }
+            return (
+              <TemplateGroup
+                key={t.id}
+                id={t.id}
+                name={t.name}
+                count={theirs.length}
+                canManage={canManage}
+                note={alsoFromType ? 'Its product type hands it over too, so its options show in the type\'s group above. Taking it off here changes nothing customers see.' : undefined}
+                removeBlockedBy={leaningOn(t.id)}
+                detachBlockedBy={alsoFromType ? 'It comes from the product type too' : dirty ? 'Save or discard your changes here first' : null}
+                onMoveUp={i > 0 ? swap(i - 1) : null}
+                onMoveDown={i < templates.length - 1 ? swap(i + 1) : null}
+                onRemove={() => setConfirmTemplate({ kind: 'remove', id: t.id, name: t.name })}
+                onDetach={() => setConfirmTemplate({ kind: 'detach', id: t.id, name: t.name })}
+              >
+                {theirs.map(inheritedRow)}
+              </TemplateGroup>
+            )
+          })}
+          {rows.length === 0 ? (
+            <p className="rounded-md border border-dashed px-4 py-4 text-center text-xs text-muted-foreground">
+              No options of its own - add one for anything only this product asks.
+            </p>
           ) : (
-            filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="grid gap-0.5 rounded px-2 py-1.5 text-left hover:bg-accent"
-                onClick={() => {
-                  onChange(p)
-                  setSearch('')
-                }}
-              >
-                <span className="font-medium">{p.name ?? p.sku ?? ''}</span>
-                <span className="font-mono text-xs text-muted-foreground">{p.sku ?? ''}</span>
-              </button>
-            ))
+            <ul className="divide-y rounded-md border" aria-label="Own options">
+              {rows.map((opt) => {
+                const index = sorted.findIndex((o) => o.id === opt.id)
+                if (index < 0) {
+                  return (
+                    <li key={opt.id} className="flex items-center justify-between gap-3 bg-muted/30 px-4 py-3">
+                      <span className="min-w-0 truncate text-sm text-muted-foreground line-through">{optionContentFor(opt, editLocale).title || 'Untitled option'}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="text-xs text-destructive">Will remove</span>
+                        {canManage ? (
+                          <Button
+                            type="button" variant="ghost" size="sm" className="h-7"
+                            onClick={() => setPendingOps((prev) => prev.filter((op) => !(op.kind === 'delete-option' && op.id === opt.id)))}
+                          >
+                            <Undo2Icon className="size-3.5" />
+                            Undo
+                          </Button>
+                        ) : null}
+                      </span>
+                    </li>
+                  )
+                }
+                const above = sorted[index - 1]
+                const below = sorted[index + 1]
+                const upBlocked = !!above && blockedSwap(above, opt)
+                const downBlocked = !!below && blockedSwap(opt, below)
+                const blockers = usersOf({ optionId: opt.id })
+                return (
+                  <OptionRow
+                    key={opt.id}
+                    option={opt}
+                    all={everything}
+                    locale={editLocale}
+                    currency={ctx.baseCurrency}
+                    canManage={canManage}
+                    isNew={isTemp(opt.id)}
+                    changed={touched.has(opt.id)}
+                    up={!above ? null : upBlocked ? `Its condition reads ${optionContentFor(above, editLocale).title || 'the option above'}` : () => move(index, index - 1)}
+                    down={!below ? null : downBlocked ? `${optionContentFor(below, editLocale).title || 'The option below'} has a condition that reads this one` : () => move(index, index + 1)}
+                    onEdit={() => setEditor({ optionId: opt.id })}
+                    onDuplicate={isTemp(opt.id) ? null : () => void duplicateOptionMutation({ variables: { id: opt.id } })}
+                    deleteBlockedBy={blockers}
+                    onDelete={() => stage([{ kind: 'delete-option', id: opt.id }])}
+                  />
+                )
+              })}
+            </ul>
           )}
         </div>
       )}
-    </div>
-  )
-}
 
-// ──────────────────────── Add value ────────────────────────
-
-function AddValueForm({
-  option,
-  locale,
-  surcharges,
-  onStage,
-  onClose,
-}: {
-  option: ProductOption
-  locale: string
-  surcharges: Surcharges
-  onStage: (op: PendingOp) => void
-  onClose: () => void
-}) {
-  const [title, setTitle] = useState('')
-  const [priceValue, setPriceValue] = useState('0')
-  const [priceType, setPriceType] = useState<ProductOptionPriceType>('FIXED')
-  const [isDefault, setIsDefault] = useState(false)
-  const [quantity, setQuantity] = useState('1')
-  const [forcedLineQty, setForcedLineQty] = useState('')
-  const [sourceProduct, setSourceProduct] = useState<SourceProduct | null>(null)
-  const [channelPrices, setChannelPrices] = useState<Record<string, string>>({})
-  const fixed = priceType === 'FIXED' || !!sourceProduct
-
-  function reset() {
-    setTitle('')
-    setPriceValue('0')
-    setPriceType('FIXED')
-    setIsDefault(false)
-    setQuantity('1')
-    setForcedLineQty('')
-    setSourceProduct(null)
-    setChannelPrices({})
-  }
-
-  function onPickProduct(next: SourceProduct | null) {
-    setSourceProduct(next)
-    if (next) {
-      // Auto-fill title with the product's name (admin can edit) and
-      // flip to FIXED price (PERCENT isn't allowed on linked values)
-      if (!title.trim()) setTitle(next.name ?? next.sku ?? '')
-      setPriceType('FIXED')
-    }
-  }
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const nextSort = option.values.reduce((m, v) => Math.max(m, v.sortOrder), -1) + 1
-    onStage({
-      kind: 'add-value',
-      tempId: newTempId(),
-      optionRef: option.id,
-      sortOrder: nextSort,
-      priceValue: Number(priceValue) || 0,
-      priceType,
-      isDefault,
-      quantity: Math.max(1, Number(quantity) || 1),
-      forcedLineQty:
-        forcedLineQty.trim() !== '' && Math.trunc(Number(forcedLineQty)) > 0 ? Math.trunc(Number(forcedLineQty)) : null,
-      title: title.trim(),
-      locale,
-      sourceProductId: sourceProduct?.id ?? null,
-      sourceProduct,
-      ...(fixed ? { channelPrices: channelEditsFrom(surcharges.channels, channelPrices, []) } : {}),
-    })
-    reset()
-    onClose()
-  }
-
-  return (
-    <div className="grid gap-4 border-l-2 border-l-primary bg-muted/20 p-3">
-      <div className="grid gap-0.5">
-        <h4 className="text-sm font-medium">New value</h4>
-        <p className="text-xs text-muted-foreground">One choice the customer can pick. Stages until the page-level save.</p>
-      </div>
-      <form id="add-product-option-value" onSubmit={onSubmit} className="grid gap-4 sm:max-w-md">
-          <div className="grid gap-2">
-            <Label>Linked product (optional)</Label>
-            <SourceProductPicker value={sourceProduct} onChange={onPickProduct} />
-            <p className="text-xs text-muted-foreground">
-              Linking inherits the product's SKU + base price; the price adjustment below
-              becomes a markup on top.
-            </p>
-            {sourceProduct && (
-              <p className="text-xs text-muted-foreground">
-                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
-              </p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pov-title">Title ({locale})</Label>
-            <Input id="pov-title" required value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3 items-start">
-            <div className="grid gap-2">
-              <Label htmlFor="pov-price">{sourceProduct ? 'Markup' : 'Price adjustment'}</Label>
-              <Input id="pov-price" type="number" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pov-type">Type</Label>
-              <Select
-                value={priceType}
-                onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
-                disabled={!!sourceProduct}
-              >
-                <SelectTrigger className="w-full" id="pov-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FIXED">Fixed (¢)</SelectItem>
-                  <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>
-                </SelectContent>
-              </Select>
-              {sourceProduct && (
-                <p className="text-xs text-muted-foreground">PERCENT not allowed on linked values.</p>
-              )}
-            </div>
-          </div>
-          {fixed && (
-            <ChannelSurchargeInputs
-              idPrefix="pov-channel-price"
-              channels={surcharges.channels}
-              baseCurrency={surcharges.baseCurrency}
-              baseAmount={Number(priceValue) || 0}
-              values={channelPrices}
-              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
-            />
-          )}
-          <div className="grid gap-2">
-            <Label htmlFor="pov-quantity">Quantity</Label>
-            <Input id="pov-quantity" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              Units the value represents (default 1). {sourceProduct ? "Multiplied against the linked product's price at cart time." : 'Metadata for now; cart pricing applies it when product options ship in PR 2.'}
-            </p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pov-forced-qty">Forced line quantity (optional)</Label>
-            <Input id="pov-forced-qty" type="number" min={1} step={1} placeholder="(none)" value={forcedLineQty} onChange={(e) => setForcedLineQty(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              Picking this value sets the cart line quantity to exactly this amount and locks
-              it ("Set of 4" → 4). Leave empty for no constraint.
-            </p>
-          </div>
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="grid gap-0.5">
-              <Label htmlFor="pov-default" className="text-sm">Default</Label>
-              <p className="text-xs text-muted-foreground">
-                Pre-selected on the channel. {isSingleSelect(option.inputType) ? 'Single-select: only one default allowed.' : 'Multi-select: any number of defaults allowed.'}
-              </p>
-            </div>
-            <Switch id="pov-default" checked={isDefault} onCheckedChange={setIsDefault} />
-          </div>
-      </form>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button type="submit" size="sm" form="add-product-option-value" disabled={!title.trim()}>Stage add</Button>
-      </div>
-    </div>
-  )
-}
-
-// ──────────────────────── Edit value ────────────────────────
-
-function EditValueForm({
-  value,
-  locale,
-  defaultLocale,
-  productId,
-  surcharges,
-  onStage,
-  onClose,
-}: {
-  value: OptionValue
-  locale: string
-  defaultLocale: string
-  productId: string
-  surcharges: Surcharges
-  onStage: (op: PendingOp) => void
-  onClose: () => void
-}) {
-  const [deleteValueContent] = useMutation(DeleteProductOptionValueContentDocument, {
-    refetchQueries: [{ query: ProductDocument, variables: { id: productId } }],
-  })
-  const localeTitle = valueContentFor(value, locale)
-  const [title, setTitle] = useState(localeTitle)
-  const [priceValue, setPriceValue] = useState(String(value.priceValue))
-  const [priceType, setPriceType] = useState<ProductOptionPriceType>(value.priceType)
-  const [isDefault, setIsDefault] = useState(value.isDefault)
-  const [sortOrder, setSortOrder] = useState(value.sortOrder)
-  const [quantity, setQuantity] = useState(String(value.quantity))
-  const [forcedLineQty, setForcedLineQty] = useState(value.forcedLineQty != null ? String(value.forcedLineQty) : '')
-  const [sourceProduct, setSourceProduct] = useState<SourceProduct | null>(value.sourceProduct ?? null)
-  const [channelPrices, setChannelPrices] = useState(() => rawChannelPrices(value.channelPrices))
-  const fixed = priceType === 'FIXED' || !!sourceProduct
-  // same fold hazard as option titles - see EditOptionForm
-  const titleLocked = isTemp(value.id) && locale !== defaultLocale
-
-  function onPickProduct(next: SourceProduct | null) {
-    setSourceProduct(next)
-    if (next) setPriceType('FIXED')
-  }
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const pv = Number(priceValue) || 0
-    const qty = Math.max(1, Number(quantity) || 1)
-    const nextForced =
-      forcedLineQty.trim() !== '' && Math.trunc(Number(forcedLineQty)) > 0 ? Math.trunc(Number(forcedLineQty)) : null
-    const prevSrcId = value.sourceProduct?.id ?? null
-    const nextSrcId = sourceProduct?.id ?? null
-    const op = {
-      kind: 'update-value' as const,
-      id: value.id,
-      ...(!titleLocked && title.trim() !== localeTitle ? { title: title.trim(), titleLocale: locale } : {}),
-      ...(pv !== value.priceValue ? { priceValue: pv } : {}),
-      ...(priceType !== value.priceType ? { priceType } : {}),
-      ...(isDefault !== value.isDefault ? { isDefault } : {}),
-      ...(sortOrder !== value.sortOrder ? { sortOrder } : {}),
-      ...(nextForced !== (value.forcedLineQty ?? null) ? { forcedLineQty: nextForced } : {}),
-      ...(qty !== value.quantity ? { quantity: qty } : {}),
-      ...(nextSrcId !== prevSrcId
-        ? { sourceProductId: nextSrcId, sourceProduct: sourceProduct ?? null }
-        : {}),
-    }
-    const priceEdits = fixed ? channelEditsFrom(surcharges.channels, channelPrices, value.channelPrices) : undefined
-    if (priceEdits) Object.assign(op, { channelPrices: priceEdits })
-    if (Object.keys(op).length > 2) onStage(op)
-    onClose()
-  }
-
-  return (
-    <div className="grid gap-4 border-l-2 border-l-primary bg-muted/20 p-3">
-      <div className="grid gap-0.5">
-        <h4 className="text-sm font-medium">
-          Editing value <span className="text-primary">{valueContentFor(value, locale) || 'Untitled'}</span>
-        </h4>
-      </div>
-      <form id="edit-product-option-value" onSubmit={onSubmit} className="grid gap-4 sm:max-w-md">
-          <div className="grid gap-2">
-            <Label>Linked product (optional)</Label>
-            <SourceProductPicker value={sourceProduct} onChange={onPickProduct} />
-            {sourceProduct && (
-              <p className="text-xs text-muted-foreground">
-                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
-              </p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pov-title-edit">Title ({locale})</Label>
-            <Input id="pov-title-edit" required value={title} onChange={(e) => setTitle(e.target.value)} disabled={titleLocked} />
-            {titleLocked && (
-              <p className="text-xs text-muted-foreground">
-                Unsaved value - save it first, then switch the edit locale to translate.
-              </p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="pov-price-edit">{sourceProduct ? 'Markup' : 'Price adjustment'}</Label>
-              <Input id="pov-price-edit" type="number" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pov-type-edit">Type</Label>
-              <Select
-                value={priceType}
-                onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
-                disabled={!!sourceProduct}
-              >
-                <SelectTrigger className="w-full" id="pov-type-edit"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FIXED">Fixed (¢)</SelectItem>
-                  <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          {fixed && (
-            <ChannelSurchargeInputs
-              idPrefix="pov-channel-price-edit"
-              channels={surcharges.channels}
-              baseCurrency={surcharges.baseCurrency}
-              baseAmount={Number(priceValue) || 0}
-              values={channelPrices}
-              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
-            />
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="pov-sort-edit">Sort order</Label>
-              <Input id="pov-sort-edit" type="number" inputMode="numeric" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value) || 0)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pov-qty-edit">Quantity</Label>
-              <Input id="pov-qty-edit" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pov-forced-qty-edit">Forced line quantity (optional)</Label>
-            <Input id="pov-forced-qty-edit" type="number" min={1} step={1} placeholder="(none)" value={forcedLineQty} onChange={(e) => setForcedLineQty(e.target.value)} />
-            <p className="text-xs text-muted-foreground">
-              Picking this value sets + locks the cart line quantity. Empty = no constraint.
-            </p>
-          </div>
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="grid gap-0.5">
-              <Label htmlFor="pov-default-edit" className="text-sm">Default</Label>
-              <p className="text-xs text-muted-foreground">Pre-selected on the channel.</p>
-            </div>
-            <Switch id="pov-default-edit" checked={isDefault} onCheckedChange={setIsDefault} />
-          </div>
-      </form>
-      {!isTemp(value.id) && (
-        <TranslationLocales
-          locale={locale}
-          locales={(value.content ?? []).map((c) => c.locale)}
-          entityLabel="option value"
-          canManage
-          defaultLocaleLocked
-          onRemove={async () => {
-            await deleteValueContent({ variables: { valueId: value.id, locale } })
+      {anything && view === 'list' ? (
+        <RulesList
+          rules={rules}
+          inherited={inheritedRules}
+          saved={savedRules}
+          options={everything}
+          locale={editLocale}
+          defaultLocale={defaultLocale}
+          currency={ctx.baseCurrency}
+          canManage={canManage}
+          onAdd={() => setRuleEditor({ ruleId: null })}
+          onEdit={(id) => setRuleEditor({ ruleId: id })}
+          onDelete={(id) => setRulesDraft(rules.filter((r) => r.id !== id))}
+          onMove={(from, to) => {
+            const next = [...rules]
+            next.splice(to, 0, ...next.splice(from, 1))
+            setRulesDraft(next)
           }}
         />
-      )}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button type="submit" size="sm" form="edit-product-option-value">Stage edit</Button>
-      </div>
+      ) : null}
+
+      {canManage ? (
+        <OptionDialog
+          open={editor !== null && (editor.optionId === null || editing !== null)}
+          onOpenChange={(open) => !open && setEditor(null)}
+          option={editing}
+          options={everything}
+          productId={owner.kind === 'product' ? owner.id : ''}
+          refetchQueries={refetch}
+          locale={editLocale}
+          defaultLocale={defaultLocale}
+          multilingual={multilingual}
+          nextSortOrder={nextSortOrder}
+          ctx={ctx}
+          usedBy={(valueId) => usersOf({ valueId })}
+          onDone={stage}
+        />
+      ) : null}
+      {canManage ? (
+        <RuleDialog
+          open={ruleEditor !== null && (ruleEditor.ruleId === null || editingRule !== null)}
+          onOpenChange={(open) => !open && setRuleEditor(null)}
+          rule={editingRule}
+          options={everything}
+          locale={editLocale}
+          defaultLocale={defaultLocale}
+          multilingual={multilingual}
+          ctx={ctx}
+          onDone={(rule) =>
+            setRulesDraft(rules.some((r) => r.id === rule.id) ? rules.map((r) => (r.id === rule.id ? rule : r)) : [...rules, rule])
+          }
+        />
+      ) : null}
+      {canManage && owner.kind === 'product' ? (
+        <TemplatesDialog
+          open={managing}
+          onOpenChange={setManaging}
+          usedIds={new Set(templates.map((t) => t.id))}
+          inheritedIds={typeIds}
+          onUse={async (id) => {
+            await setTemplatesMutation({ variables: { productId: owner.id, templateIds: [...templates.map((t) => t.id), id] } })
+          }}
+          canCreate={allowedChannelScopes('catalog.manage').allChannels}
+          defaultCurrency={subject.currency}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={confirmTemplate !== null}
+        onOpenChange={(open) => !open && setConfirmTemplate(null)}
+        title={confirmTemplate?.kind === 'detach' ? `Detach ${confirmTemplate.name}?` : `Remove ${confirmTemplate?.name ?? ''}?`}
+        description={
+          confirmTemplate?.kind === 'detach'
+            ? 'Its options and rules are copied onto this product as its own, and the product stops following the template. Changes to the template no longer reach it. This applies right away.'
+            : confirmTemplate && typeIds.has(confirmTemplate.id)
+              ? 'Its product type still hands it over, so its options keep showing on this product. Only the pick here goes.'
+              : 'Its options stop showing on this product right away. The template itself stays as it is.'
+        }
+        confirmLabel={confirmTemplate?.kind === 'detach' ? 'Detach' : 'Remove'}
+        destructive={confirmTemplate?.kind === 'remove'}
+        onConfirm={async () => {
+          if (!confirmTemplate) return
+          if (confirmTemplate.kind === 'detach') {
+            await detachMutation({ variables: { productId: owner.id, templateId: confirmTemplate.id } })
+          } else {
+            await setTemplatesMutation({ variables: { productId: owner.id, templateIds: templates.filter((t) => t.id !== confirmTemplate.id).map((t) => t.id) } })
+          }
+          setConfirmTemplate(null)
+        }}
+      />
     </div>
+  )
+}
+
+function OptionRow({
+  option,
+  all,
+  locale,
+  currency,
+  canManage,
+  isNew,
+  changed,
+  up,
+  down,
+  onEdit,
+  onDuplicate,
+  deleteBlockedBy,
+  onDelete,
+}: {
+  option: ProductOption
+  all: ProductOption[]
+  locale: string
+  currency: string
+  canManage: boolean
+  isNew: boolean
+  changed: boolean
+  // null at the end of the list, a reason string when a condition forbids the move
+  up: (() => void) | string | null
+  down: (() => void) | string | null
+  onEdit: () => void
+  onDuplicate: (() => void) | null
+  deleteBlockedBy: string[]
+  onDelete: () => void
+}) {
+  const content = optionContentFor(option, locale)
+  const info = INPUT_TYPES[option.inputType]
+  const title = content.title || 'Untitled option'
+  const condition = conditionSummary(option, all, locale)
+  const values = [...option.values].sort((a, b) => a.sortOrder - b.sortOrder)
+  const extra = priceLabel(option.priceValue, option.priceType, currency)
+  const limits = [
+    option.maxChars ? `Up to ${option.maxChars} characters` : null,
+    option.fileExtensions ? option.fileExtensions.split(',').map((x) => x.trim().toUpperCase()).join(', ') : null,
+    option.maxFileBytes ? `up to ${Number((option.maxFileBytes / (1024 * 1024)).toFixed(1))} MB` : null,
+  ].filter(Boolean)
+
+  const arrow = (dir: 'up' | 'down', action: (() => void) | string | null) => (
+    <span title={typeof action === 'string' ? action : undefined}>
+      <Button
+        type="button" variant="ghost" size="icon" className="size-7" disabled={typeof action !== 'function'}
+        aria-label={`Move ${title} ${dir}`} onClick={typeof action === 'function' ? action : undefined}
+      >
+        {dir === 'up' ? <ArrowUpIcon className="size-3.5" /> : <ArrowDownIcon className="size-3.5" />}
+      </Button>
+    </span>
+  )
+
+  return (
+    <li className="flex items-start gap-2 px-3 py-3 sm:gap-3 sm:px-4">
+      {canManage ? <div className="flex flex-col">{arrow('up', up)}{arrow('down', down)}</div> : null}
+      {option.image ? (
+        <img src={option.image.url} alt="" className="mt-0.5 size-8 shrink-0 rounded-md border object-cover" />
+      ) : (
+        <info.Icon className="mt-1 size-4 shrink-0 text-muted-foreground" />
+      )}
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {canManage ? (
+            <button type="button" onClick={onEdit} className="text-left font-medium hover:underline">{title}</button>
+          ) : (
+            <span className="font-medium">{title}</span>
+          )}
+          <span className="text-xs text-muted-foreground">{info.label}</span>
+          {option.isRequired ? <Badge variant="secondary" className="font-normal">Required</Badge> : null}
+          {isNew ? (
+            <span className="text-xs text-success">New</span>
+          ) : changed ? (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <span aria-hidden className="size-1.5 rounded-full bg-warning" />
+              Unsaved changes
+            </span>
+          ) : null}
+        </div>
+        {content.helpText ? <p className="text-xs text-muted-foreground">{content.helpText}</p> : null}
+        {isChoice(option.inputType) ? (
+          values.length === 0 ? (
+            <p className="text-xs text-warning">No choices yet - customers have nothing to pick.</p>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5" aria-label={`${title} choices`}>
+              {values.slice(0, MAX_CHIPS).map((v) => {
+                const price = v.sourceProduct ? null : priceLabel(v.priceValue, v.priceType, currency)
+                return (
+                  <li key={v.id} className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-xs">
+                    {v.image ? <img src={v.image.url} alt="" className="-ml-1 size-4 shrink-0 rounded-sm object-cover" /> : null}
+                    {v.sourceProduct ? <LinkIcon className="size-3 shrink-0 text-muted-foreground" aria-label="Linked product" /> : null}
+                    <span className="truncate">{valueContentFor(v, locale) || 'Untitled choice'}</span>
+                    {price ? <span className="text-muted-foreground">{price}</span> : null}
+                    {v.isDefault ? <span className="text-muted-foreground">· pre-selected</span> : null}
+                  </li>
+                )
+              })}
+              {values.length > MAX_CHIPS ? <li className="px-1 text-xs text-muted-foreground">+{values.length - MAX_CHIPS} more</li> : null}
+            </ul>
+          )
+        ) : limits.length > 0 || extra ? (
+          <p className="text-xs text-muted-foreground">{[...limits, extra].filter(Boolean).join(' · ')}</p>
+        ) : null}
+        {condition ? (
+          <p className="flex items-start gap-1 text-xs text-muted-foreground">
+            <EyeIcon className="mt-0.5 size-3 shrink-0" />
+            {condition}
+          </p>
+        ) : null}
+      </div>
+      {canManage ? (
+        <div className="flex shrink-0 items-center gap-1">
+          <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Edit ${title}`} onClick={onEdit}>
+            <PencilIcon className="size-3.5" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`More actions for ${title}`}>
+                <EllipsisIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem disabled={!onDuplicate} onSelect={() => onDuplicate?.()}>
+                <CopyIcon className="size-4" />
+                <span className="grid">
+                  Duplicate
+                  <span className="text-xs text-muted-foreground">{onDuplicate ? 'Adds the copy right away' : 'Save the page first'}</span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" disabled={deleteBlockedBy.length > 0} onSelect={onDelete}>
+                <Trash2Icon className="size-4" />
+                <span className="grid">
+                  Delete option
+                  {deleteBlockedBy.length > 0 ? (
+                    <span className="text-xs text-muted-foreground">Used by {deleteBlockedBy.join(', ')}</span>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+    </li>
   )
 }

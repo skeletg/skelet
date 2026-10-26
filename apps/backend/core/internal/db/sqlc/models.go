@@ -696,6 +696,29 @@ type CatalogCategoryContent struct {
 	ShortDescription pqtype.NullRawMessage `json:"short_description"`
 }
 
+type CatalogOptionTemplate struct {
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	CurrencyCode string    `json:"currency_code"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type CatalogOptionTemplateProduct struct {
+	ProductID  uuid.UUID `json:"product_id"`
+	TemplateID uuid.UUID `json:"template_id"`
+	Position   int32     `json:"position"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type CatalogOptionTemplateProductType struct {
+	ProductTypeID uuid.UUID `json:"product_type_id"`
+	TemplateID    uuid.UUID `json:"template_id"`
+	Position      int32     `json:"position"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type CatalogProductAttributeLocaleValue struct {
 	ProductID   uuid.UUID `json:"product_id"`
 	AttributeID uuid.UUID `json:"attribute_id"`
@@ -814,7 +837,7 @@ type CatalogProductMediaRole struct {
 
 type CatalogProductOption struct {
 	ID             uuid.UUID                         `json:"id"`
-	ProductID      uuid.UUID                         `json:"product_id"`
+	ProductID      uuid.NullUUID                     `json:"product_id"`
 	InputType      CatalogProductOptionInputType     `json:"input_type"`
 	IsRequired     bool                              `json:"is_required"`
 	SortOrder      int32                             `json:"sort_order"`
@@ -826,6 +849,8 @@ type CatalogProductOption struct {
 	CreatedAt      time.Time                         `json:"created_at"`
 	UpdatedAt      time.Time                         `json:"updated_at"`
 	VisibleIf      pqtype.NullRawMessage             `json:"visible_if"`
+	TemplateID     uuid.NullUUID                     `json:"template_id"`
+	ImageAssetID   uuid.NullUUID                     `json:"image_asset_id"`
 }
 
 type CatalogProductOptionChannelPrice struct {
@@ -843,6 +868,18 @@ type CatalogProductOptionContent struct {
 	HelpText string    `json:"help_text"`
 }
 
+type CatalogProductOptionRule struct {
+	ID         uuid.UUID       `json:"id"`
+	ProductID  uuid.NullUUID   `json:"product_id"`
+	SortOrder  int32           `json:"sort_order"`
+	Labels     json.RawMessage `json:"labels"`
+	Condition  json.RawMessage `json:"condition"`
+	Actions    json.RawMessage `json:"actions"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+	TemplateID uuid.NullUUID   `json:"template_id"`
+}
+
 type CatalogProductOptionValue struct {
 	ID              uuid.UUID                     `json:"id"`
 	OptionID        uuid.UUID                     `json:"option_id"`
@@ -855,6 +892,7 @@ type CatalogProductOptionValue struct {
 	SourceProductID uuid.NullUUID                 `json:"source_product_id"`
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
+	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
 }
 
 type CatalogProductOptionValueChannelPrice struct {
@@ -1934,6 +1972,7 @@ type Product struct {
 	MinOrderQty             sql.NullFloat64    `json:"min_order_qty"`
 	MaxOrderQty             sql.NullFloat64    `json:"max_order_qty"`
 	CostCents               sql.NullInt64      `json:"cost_cents"`
+	ConfiguratorLayout      string             `json:"configurator_layout"`
 }
 
 type ProductAlsoBought struct {
