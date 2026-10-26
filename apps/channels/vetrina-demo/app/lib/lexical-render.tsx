@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { videoEmbedUrl } from "@/app/lib/video-embed";
 
 type LexicalRoot = {
   type: "root";
@@ -665,29 +666,6 @@ function VideoEmbedBlock({ data }: { data: VideoEmbedData }) {
     </figure>
   );
 }
-function videoEmbedUrl(raw: string): string | null {
-  try {
-    const u = new URL(raw);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const v = u.searchParams.get("v");
-      if (v) return `https://www.youtube.com/embed/${encodeURIComponent(v)}`;
-    }
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "");
-      if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
-    }
-    if (host === "vimeo.com") {
-      const id = u.pathname.replace(/^\//, "");
-      if (id) return `https://player.vimeo.com/video/${encodeURIComponent(id)}`;
-    }
-    if (raw.includes("/embed/") || host.startsWith("player.")) return raw;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 function SpecsTableBlock({ data }: { data: SpecsTableData }) {
   return (
     <dl className="my-6 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
