@@ -8,6 +8,36 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // SYNC: apps/dashboard/src/lib/boot-paint.ts - the shell's last outline, painted before anything loads
+      try {
+        var paint = JSON.parse(localStorage.getItem('skelet-dash:boot-paint') || 'null')
+        var signedIn = !!localStorage.getItem('skelet-dash:auth')
+        var publicPage = /^\/(login|forgot-password|reset-password)(\/|$)/.test(location.pathname)
+        if (paint && paint.sheet && signedIn && !publicPage && innerWidth >= 768) {
+          if (paint.dark) document.documentElement.classList.add('dark')
+          var draw = function (parent, b) {
+            var el = document.createElement('div')
+            el.style.cssText = 'position:fixed'
+            el.style.left = b.left + 'px'
+            el.style.top = b.top + 'px'
+            el.style.right = b.right + 'px'
+            el.style.bottom = b.bottom + 'px'
+            el.style.borderRadius = b.radius
+            el.style.background = b.color
+            el.style.boxShadow = b.shadow
+            parent.appendChild(el)
+          }
+          var frame = document.createElement('div')
+          frame.setAttribute('aria-hidden', 'true')
+          frame.style.cssText = 'position:fixed;inset:0'
+          frame.style.background = paint.page
+          if (paint.rail) draw(frame, paint.rail)
+          draw(frame, paint.sheet)
+          document.getElementById('root').appendChild(frame)
+        }
+      } catch (e) {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

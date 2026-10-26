@@ -17,6 +17,17 @@ describe('Tile', () => {
     expect(container.querySelectorAll('p')).toHaveLength(2)
   })
 
+  it('holds the value with a skeleton while it loads, rather than showing a zero', () => {
+    const { container } = render(<Tile label="Customers" value="0" loading />)
+    expect(screen.queryByText('0')).toBeNull()
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeTruthy()
+  })
+
+  it('fades the value in once a loading tile resolves', () => {
+    render(<Tile label="Customers" value="41" loading={false} />)
+    expect(screen.getByText('41').hasAttribute('data-arrive')).toBe(true)
+  })
+
   it('colours the value with the warning token for tone="warn"', () => {
     render(<Tile label="Zero results" value="18%" tone="warn" />)
     expect(screen.getByText('18%').className).toContain('text-warning')

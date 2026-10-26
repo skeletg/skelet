@@ -56,7 +56,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
                 dividers read as one line across the page */}
             <Collapsible open={scopeOpen} onOpenChange={setScopeOpen}>
               <div data-tour="scope">
-              <div className="flex h-14 items-center border-b group-data-[variant=floating]:h-12 border-sidebar-border px-2">
+              <div className="flex h-12 items-center border-b group-data-[variant=floating]:h-10 border-sidebar-border px-2">
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton
                   size="lg"

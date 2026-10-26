@@ -47,7 +47,7 @@ import { RouteErrorBoundary } from '@/shared/errors/RouteErrorBoundary'
 /** Suspense fallback for lazy pages - pages usually resolve fast enough that anything louder is worse */
 function PageLoading() {
   return (
-    <div className="flex h-64 items-center justify-center">
+    <div data-slot="page-loading" className="flex h-64 items-center justify-center">
       <div className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
     </div>
   )

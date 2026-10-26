@@ -27,6 +27,7 @@ import { scopePermissionForPath } from '@/nav/scope-permission'
 import { ConfigScopeProvider } from '@/lib/config-scope-ui'
 import { useUnloadGuard } from '@/lib/unsaved-changes'
 import { purgeExpiredDrafts } from '@/lib/form-drafts'
+import { useBootPaintCapture } from '@/lib/boot-paint'
 import {
   SidebarInset,
   SidebarProvider,
@@ -72,6 +73,7 @@ export function DashboardLayout() {
   // One listener for the whole shell - it reads the dirty registry when the browser asks, so it
   // needs no state of its own and never re-subscribes
   useUnloadGuard()
+  useBootPaintCapture()
 
   // Once per shell mount - form drafts nobody came back to within the TTL are abandoned work
   useEffect(() => {
@@ -112,14 +114,14 @@ export function DashboardLayout() {
               shrink applies, so a long title or channel name broke onto a second row even though
               every element here truncates - nowrap makes long text truncate instead, and each
               breakpoint below is sized so the rigid parts always fit one row */}
-          <header className="flex min-h-14 shrink-0 items-center gap-2 border-b px-2 py-2">
+          <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-2 py-1.5">
             <SidebarTrigger className="size-8" />
             {/* -my-2 cancels the header's py-2 so the divider spans the full height */}
-            <Separator orientation="vertical" className="-my-2" />
+            <Separator orientation="vertical" className="-my-1.5" />
             {/* Which saved arrangement is on screen - it owns the tabs beside it, so it reads left
                 of them, and it keeps the layout actions that only apply once a workspace is split */}
             <WorkspaceSwitcher />
-            <Separator orientation="vertical" className="-my-2" />
+            <Separator orientation="vertical" className="-my-1.5" />
             {/* Chrome-style workspace tabs replace the old back button + page name - navigation
                 stays in the active tab and New Tab is the only way another one appears */}
             <HeaderWorkspaceTabs />

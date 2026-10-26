@@ -21,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
@@ -31,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { findActiveLeafPath } from '@/nav/active-path'
 import { usePinnedPaths } from '@/lib/nav-pins'
 import { useHiddenGroups } from '@/lib/nav-hidden'
+import { useShellReady } from '@/lib/shell-ready'
 import { useVisibleNav } from '@/nav/use-visible-nav'
 import { useNavLabel } from '@/nav/nav-i18n'
 import {
@@ -103,11 +105,14 @@ function PinStar({ path }: { path: string }) {
   )
 }
 
+const NAV_SKELETON_ROWS = 10
+
 export function NavMain({ items }: { items: NavNode[] }) {
   const { state, isMobile } = useSidebar()
   const isIconOnly = !isMobile && state === 'collapsed'
 
   const navLabel = useNavLabel()
+  const ready = useShellReady()
   const { nodes: visible } = useVisibleNav(items)
   // Hiding a group only tidies the sidebar - pins below still resolve against the full tree, so
   // you can hide a group and keep the one page from it you use
@@ -128,10 +133,24 @@ export function NavMain({ items }: { items: NavNode[] }) {
     return pins.map((p) => byPath.get(p)).filter((l): l is NavLeaf => !!l)
   }, [pins, visible])
 
+  if (!ready) {
+    return (
+      <SidebarGroup>
+        <SidebarMenu className="gap-0.5">
+          {Array.from({ length: NAV_SKELETON_ROWS }, (_, i) => (
+            <SidebarMenuItem key={i}>
+              <SidebarMenuSkeleton showIcon />
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroup>
+    )
+  }
+
   return (
     <>
     {pinnedLeaves.length > 0 && (
-      <SidebarGroup className="pb-0">
+      <SidebarGroup className="pb-0" data-arrive="">
         <SidebarGroupLabel><Trans>Pinned</Trans></SidebarGroupLabel>
         <SidebarMenu className="gap-0.5">
           {pinnedLeaves.map((leaf) => (
@@ -153,7 +172,7 @@ export function NavMain({ items }: { items: NavNode[] }) {
         </SidebarMenu>
       </SidebarGroup>
     )}
-    <SidebarGroup>
+    <SidebarGroup data-arrive="">
       <SidebarMenu className="gap-0.5">
         {shown.map((item) =>
           isGroup(item) ? (
