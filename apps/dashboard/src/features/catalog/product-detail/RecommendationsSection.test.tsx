@@ -1,9 +1,10 @@
 import { PrefsContext } from '@/lib/admin-prefs'
 import { draftKey, writeDraft } from '@/lib/form-drafts'
 import { fireEvent, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, renderSection } from '@/test/page-harness'
-import { RecommendationProductsDocument, ProductLinksDocument, RecommendationSearchDocument, ProductPickerPagedDocument, ProductTypesDocument, SetProductLinksDocument } from '../Catalog.gql'
+import { RecommendationProductsDocument, ProductLinksDocument, ProductPickerPagedDocument, ProductTypesDocument, SetProductLinksDocument } from '../Catalog.gql'
 import { RecommendationsSection } from './RecommendationsSection'
 
 // What these pin: the three lists stage as one section, and only the kinds that changed are written
@@ -16,9 +17,9 @@ const links = (kind: string, ids: string[]) => ({
 
 const slim = (id: string, name: string) => ({ __typename: 'Product', id, name, sku: name.toUpperCase(), thumbnail: null, displayImage: null })
 
-function renderLinks(canManage = true, options: { metadataError?: boolean; missing?: boolean; searchError?: boolean; emptySearch?: boolean; adminId?: string } = {}) {
+function renderLinks(canManage = true, options: { metadataError?: boolean; missing?: boolean; adminId?: string } = {}) {
   const write = vi.fn()
-  renderSection(<PrefsContext.Provider value={options.adminId ?? ''}><RecommendationsSection productId="p1" canManage={canManage} /></PrefsContext.Provider>, [
+  renderSection(<MemoryRouter><PrefsContext.Provider value={options.adminId ?? ''}><RecommendationsSection productId="p1" canManage={canManage} /></PrefsContext.Provider></MemoryRouter>, [
     links('RELATED', ['p2', 'p3']),
     links('UPSELL', []),
     links('CROSSSELL', []),
@@ -28,18 +29,6 @@ function renderLinks(canManage = true, options: { metadataError?: boolean; missi
       request: { query: RecommendationProductsDocument, variables: () => true },
       result: { data: { productsByIds: [slim('p2', 'Mug'), slim('p3', 'Cap')] } },
       maxUsageCount: 20,
-    },
-    ...(options.searchError ? [{ request: { query: RecommendationSearchDocument, variables: { search: 'soc', limit: 10 } }, error: new Error('Search unavailable') }] : []),
-    {
-      request: { query: RecommendationSearchDocument, variables: { search: 'soc', limit: 10 } },
-      result: {
-        data: {
-          productsPaged: {
-            __typename: 'ProductPage',
-            items: options.emptySearch ? [] : [slim('p1', 'Self'), slim('p2', 'Mug'), slim('p4', 'Socks')],
-          },
-        },
-      },
     },
     {
       request: { query: ProductPickerPagedDocument, variables: () => true },
@@ -95,36 +84,17 @@ describe('RecommendationsSection', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', true)
   })
 
-  it('supports keyboard search and excludes self and existing links', async () => {
-    const write = renderLinks()
-    await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW)
-    const input = screen.getByRole('combobox', { name: 'Add to Related' })
-    fireEvent.change(input, { target: { value: 'soc' } })
-    const option = await screen.findByRole('option', { name: /Socks/ }, SLOW)
-    expect(screen.getAllByRole('option')).toHaveLength(1)
-    fireEvent.keyDown(input, { key: 'Escape' })
-    expect(screen.queryByRole('option')).toBeNull()
-    fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect(input.getAttribute('aria-activedescendant')).toBe(option.id)
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(screen.getByRole('button', { name: 'Remove Socks from Related' })).toBeTruthy()
-    expect(write).not.toHaveBeenCalled()
-    await apply(/Apply 1 change/)
-    await vi.waitFor(() => expect(write).toHaveBeenCalledWith({ productId: 'p1', kind: 'RELATED', linkedProductIds: ['p2', 'p3', 'p4'] }), SLOW)
-  })
-
   it('disables edits for read-only viewers', async () => {
     renderLinks(false)
     expect(await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW)).toHaveProperty('disabled', true)
     expect(screen.getByRole('button', { name: 'Reorder Mug' })).toHaveProperty('disabled', true)
-    expect(screen.getByRole('combobox', { name: 'Add to Related' })).toHaveProperty('disabled', true)
-    expect(screen.getByRole('button', { name: 'Browse products to add to Related' })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: /Add products/ })).toBeNull()
   })
 
   it('stages a multi-product Browse selection at the end of the list', async () => {
     const write = renderLinks()
     await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW)
-    fireEvent.click(screen.getByRole('button', { name: 'Browse products to add to Related' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add products to Related' }))
     const dialog = await screen.findByRole('dialog')
     const socks = await within(dialog).findByRole('checkbox', { name: 'Select Socks' }, SLOW)
     expect(within(dialog).queryByRole('checkbox', { name: 'Select Self' })).toBeNull()
@@ -133,6 +103,8 @@ describe('RecommendationsSection', () => {
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Select Shirt' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add 2 products' }))
     expect(await screen.findByRole('button', { name: 'Remove Shirt from Related' }, SLOW)).toBeTruthy()
+    expect(screen.getAllByText('Will add')).toHaveLength(2)
+    expect(screen.getByRole('tab', { name: /Related.*unsaved changes/ })).toBeTruthy()
     expect(write).not.toHaveBeenCalled()
     await apply(/Apply 1 change/)
     await vi.waitFor(() => expect(write).toHaveBeenCalledWith({ productId: 'p1', kind: 'RELATED', linkedProductIds: ['p2', 'p3', 'p4', 'p5'] }), SLOW)
@@ -157,22 +129,6 @@ describe('RecommendationsSection', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', true)
   })
 
-  it('shows a search error and recovers on retry', async () => {
-    renderLinks(true, { searchError: true })
-    await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW)
-    fireEvent.change(screen.getByLabelText('Add to Related'), { target: { value: 'soc' } })
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry search' }, SLOW))
-    expect(await screen.findByRole('option', { name: /Socks/ }, SLOW)).toBeTruthy()
-  })
-
-  it('shows loading and no-results search feedback', async () => {
-    renderLinks(true, { emptySearch: true })
-    await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW)
-    fireEvent.change(screen.getByLabelText('Add to Related'), { target: { value: 'soc' } })
-    expect(screen.getByText('Searching…')).toBeTruthy()
-    expect(await screen.findByText('No products available for this search.', {}, SLOW)).toBeTruthy()
-  })
-
   it('offers a stored order draft and restores it without writing', async () => {
     const key = draftKey('recommendation-admin', null, 'product-links:p1')
     writeDraft(key, { related: { base: ['p2', 'p3'], value: ['p3', 'p2'] } })
@@ -190,12 +146,64 @@ describe('RecommendationsSection', () => {
   it('writes only the kinds that changed', async () => {
     const write = renderLinks()
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Mug from Related' }, SLOW))
-    fireEvent.change(screen.getByLabelText('Add to Cross-sells'), { target: { value: 'soc' } })
-    fireEvent.click(await screen.findByRole('option', { name: /Socks/ }, SLOW))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Cross-sells/ }), { button: 0, ctrlKey: false })
+    expect(screen.getByText('No cross-sells yet')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Add products to Cross-sells' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Select Socks' }, SLOW))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add 1 product' }))
+    expect(await screen.findByRole('button', { name: 'Remove Socks from Cross-sells' }, SLOW)).toBeTruthy()
     expect(write).not.toHaveBeenCalled()
     await apply(/Apply 2 changes/)
     await vi.waitFor(() => expect(write).toHaveBeenCalledTimes(2), SLOW)
     expect(write).toHaveBeenCalledWith({ productId: 'p1', kind: 'RELATED', linkedProductIds: ['p3'] })
     expect(write).toHaveBeenCalledWith({ productId: 'p1', kind: 'CROSSSELL', linkedProductIds: ['p4'] })
+  })
+
+  it('names every product past the by-id batch limit', async () => {
+    const asked: number[] = []
+    const ids = Array.from({ length: 150 }, (_, i) => `p${i + 10}`)
+    renderSection(<MemoryRouter><PrefsContext.Provider value=""><RecommendationsSection productId="p1" canManage /></PrefsContext.Provider></MemoryRouter>, [
+      links('RELATED', ids),
+      links('UPSELL', []),
+      links('CROSSSELL', []),
+      {
+        request: { query: RecommendationProductsDocument, variables: () => true },
+        result: (vars: Record<string, unknown>) => {
+          const batch = vars.ids as string[]
+          asked.push(batch.length)
+          return { data: { productsByIds: batch.map((id) => slim(id, `Item ${id}`)) } }
+        },
+        maxUsageCount: 5,
+      },
+    ])
+    expect(await screen.findByText('Item p159', {}, SLOW)).toBeTruthy()
+    expect(screen.queryByText('Unavailable product')).toBeNull()
+    expect(asked.sort((a, b) => b - a)).toEqual([100, 50])
+  })
+
+  it('filters a long list and pauses reordering meanwhile', async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `p${i + 10}`)
+    renderSection(<MemoryRouter><PrefsContext.Provider value=""><RecommendationsSection productId="p1" canManage /></PrefsContext.Provider></MemoryRouter>, [
+      links('RELATED', ids),
+      links('UPSELL', []),
+      links('CROSSSELL', []),
+      {
+        request: { query: RecommendationProductsDocument, variables: () => true },
+        result: (vars: Record<string, unknown>) => ({ data: { productsByIds: (vars.ids as string[]).map((id) => slim(id, `Item ${id}`)) } }),
+        maxUsageCount: 5,
+      },
+    ])
+    await screen.findByText('Item p21', {}, SLOW)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter Related' }), { target: { value: 'item p2' } })
+    expect(screen.getByText('2 of 12 shown. Clear the filter to reorder.')).toBeTruthy()
+    expect(screen.queryByText('Item p10')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reorder Item p20' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Move Item p21 up in Related' })).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Item p21 from Related' }))
+    expect(screen.queryByText('Item p21')).toBeNull()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter Related' }), { target: { value: '' } })
+    expect(screen.getByText('Item p10')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Move Item p20 up in Related' })).toHaveProperty('disabled', false)
   })
 })

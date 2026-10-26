@@ -609,6 +609,27 @@ func TestTheChannelProductListFiltersBeforeTheCap(t *testing.T) {
 	}
 }
 
+func TestAByIDReadCarriesTheLocalesNames(t *testing.T) {
+	r := newCatalogRig(t)
+	ctx := context.Background()
+	pt := r.ptype("", false)
+	second := r.newProduct(pt.ID, KindSimple, "BYID-B-"+r.sfx, "Second", "USD")
+	first := r.newProduct(pt.ID, KindSimple, "BYID-A-"+r.sfx, "First", "USD")
+	got, err := r.svc.ListProductsWithGraphByIDs(ctx, []uuid.UUID{first.ID, second.ID}, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(got))
+	for i, p := range got {
+		if p.Content != nil {
+			names[i] = p.Content.Name
+		}
+	}
+	if !slices.Equal(names, []string{"First", "Second"}) {
+		t.Errorf("names by id = %q, want the locale's names in the order asked", names)
+	}
+}
+
 func TestChannelPathsResolveOnlyPublishedBoundedOverrides(t *testing.T) {
 	r := newCatalogRig(t)
 	r.sweep()
