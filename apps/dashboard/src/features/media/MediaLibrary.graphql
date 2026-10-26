@@ -42,8 +42,8 @@ query MediaDirectory($path: String!) {
   }
 }
 
-query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $limit: Int, $offset: Int) {
-  searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, limit: $limit, offset: $offset) {
+query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $sort: MediaAssetSort, $limit: Int, $offset: Int) {
+  searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, sort: $sort, limit: $limit, offset: $offset) {
     totalCount
     items {
       ...MediaAssetFields

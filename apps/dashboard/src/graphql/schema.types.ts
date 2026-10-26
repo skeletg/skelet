@@ -3612,6 +3612,12 @@ export type MediaAssetSearchResult = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type MediaAssetSort =
+  | 'LARGEST'
+  | 'NAME'
+  | 'NEWEST'
+  | 'OLDEST';
+
 export type MediaAssetStatus =
   | 'PENDING'
   | 'READY';
@@ -8848,6 +8854,7 @@ export type QuerySearchMediaAssetsArgs = {
   offset?: InputMaybe<Scalars['Int']['input']>;
   path?: InputMaybe<Scalars['String']['input']>;
   query?: InputMaybe<Scalars['String']['input']>;
+  sort?: InputMaybe<MediaAssetSort>;
 };
 
 

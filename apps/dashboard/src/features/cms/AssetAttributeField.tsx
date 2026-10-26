@@ -62,7 +62,7 @@ export function AssetField({
           </Button>
         )}
       </div>
-      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(a) => onChange(a.id)} />
+      <MediaAssetPicker open={open} onOpenChange={setOpen} uploadPath="cms/pages" selectedIds={value ? [value] : []} onSelect={(a) => onChange(a.id)} />
     </div>
   )
 }
@@ -107,7 +107,13 @@ export function AssetsField({
           <PlusIcon className="size-4" /> Add
         </Button>
       </div>
-      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(a) => onChange([...ids, a.id])} />
+      <MediaAssetPicker
+        open={open}
+        onOpenChange={setOpen}
+        uploadPath="cms/pages"
+        multiple
+        onSelectMany={(assets) => onChange([...ids, ...assets.map((a) => a.id).filter((id) => !ids.includes(id))])}
+      />
     </div>
   )
 }

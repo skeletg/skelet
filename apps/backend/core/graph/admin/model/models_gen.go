@@ -7463,6 +7463,65 @@ func (e LinkNodeType) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type MediaAssetSort string
+
+const (
+	MediaAssetSortNewest  MediaAssetSort = "NEWEST"
+	MediaAssetSortOldest  MediaAssetSort = "OLDEST"
+	MediaAssetSortName    MediaAssetSort = "NAME"
+	MediaAssetSortLargest MediaAssetSort = "LARGEST"
+)
+
+var AllMediaAssetSort = []MediaAssetSort{
+	MediaAssetSortNewest,
+	MediaAssetSortOldest,
+	MediaAssetSortName,
+	MediaAssetSortLargest,
+}
+
+func (e MediaAssetSort) IsValid() bool {
+	switch e {
+	case MediaAssetSortNewest, MediaAssetSortOldest, MediaAssetSortName, MediaAssetSortLargest:
+		return true
+	}
+	return false
+}
+
+func (e MediaAssetSort) String() string {
+	return string(e)
+}
+
+func (e *MediaAssetSort) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MediaAssetSort(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MediaAssetSort", str)
+	}
+	return nil
+}
+
+func (e MediaAssetSort) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MediaAssetSort) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MediaAssetSort) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type MediaAssetStatus string
 
 const (
