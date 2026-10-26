@@ -13,6 +13,7 @@ import { gqlFetch } from "@/app/lib/graphql";
 import { GuestOrderDocument } from "@/app/lib/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
+import { toMajor } from "@/app/lib/format";
 
 export async function generateMetadata({
   params,
@@ -90,14 +91,14 @@ export default async function GuestOrderPage({
             ecommerce: {
               transaction_id: order.id,
               currency: order.currencyCode,
-              value: order.total / 100,
-              tax: order.taxAmount / 100,
-              shipping: order.shippingAmount / 100,
+              value: toMajor(order.total, order.currencyCode),
+              tax: toMajor(order.taxAmount, order.currencyCode),
+              shipping: toMajor(order.shippingAmount, order.currencyCode),
               items: order.lines.map((line) => ({
                 item_id: line.sku,
                 item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
-                price: line.unitPrice / 100,
+                price: toMajor(line.unitPrice, order.currencyCode),
               })),
             },
           }}

@@ -8,7 +8,7 @@ import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
 import { getResolvedConsent } from "@/app/lib/consent/read";
 import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
+import { formatPrice, toMajor } from "@/app/lib/format";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { gqlFetch, isBackendFailure } from "@/app/lib/graphql";
 import { MyOrderDocument } from "@/app/lib/checkout/operations.gql";
@@ -75,14 +75,14 @@ export default async function OrderDetailPage({
             ecommerce: {
               transaction_id: order.id,
               currency: order.currencyCode,
-              value: order.total / 100,
-              tax: order.taxAmount / 100,
-              shipping: order.shippingAmount / 100,
+              value: toMajor(order.total, order.currencyCode),
+              tax: toMajor(order.taxAmount, order.currencyCode),
+              shipping: toMajor(order.shippingAmount, order.currencyCode),
               items: order.lines.map((line) => ({
                 item_id: line.sku,
                 item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
-                price: line.unitPrice / 100,
+                price: toMajor(line.unitPrice, order.currencyCode),
               })),
             },
           }}

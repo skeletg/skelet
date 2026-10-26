@@ -29,6 +29,7 @@ import { displayName } from "@/app/lib/display";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { getMyPaymentMethods } from "@/app/lib/payment-methods/actions";
 import { getChannel } from "@/app/lib/channel/read";
+import { toMajor } from "@/app/lib/format";
 
 import { DeliveryStep, type LineInfo } from "./delivery-step";
 import { DetailsStep } from "./details-step";
@@ -165,12 +166,12 @@ export default async function CheckoutPage({
         payload={{
           ecommerce: {
             currency: typeof currency === "string" ? currency : currency.code,
-            value: checkout.totals.totalCents / 100,
+            value: toMajor(checkout.totals.totalCents, currency),
             items: cart.lines.map((line) => ({
               item_id: line.sku,
               item_name: displayName(line.name, line.sku),
               quantity: line.quantity,
-              price: line.unitPrice / 100,
+              price: toMajor(line.unitPrice, currency),
             })),
           },
         }}
