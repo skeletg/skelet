@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const { gqlFetch } = vi.hoisted(() => ({ gqlFetch: vi.fn() }));
 vi.mock("@/app/lib/graphql", () => ({ gqlFetch }));
-const { getDeliveryPoints } = await import("./read");
+const { getDeliveryPoints, getPaymentMethods } = await import("./read");
 beforeEach(() => gqlFetch.mockReset());
 it("passes search to the backend so points outside the initial result limit can be found", async () => {
   gqlFetch.mockResolvedValue({ data: { deliveryPoints: [{ id: "point-21" }] } });
@@ -18,4 +18,13 @@ it("can recover a point-source failure on retry", async () => {
   gqlFetch.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ data: { deliveryPoints: [{ id: "point-21" }] } });
   expect((await getDeliveryPoints("cart", "group", "station")).unavailable).toBe(true);
   expect(await getDeliveryPoints("cart", "group", "station")).toEqual({ points: [{ id: "point-21" }], unavailable: false });
+});
+
+it("offers only offline methods, in sort order - the demo has no gateway SDK to finish a payment action", async () => {
+  gqlFetch.mockResolvedValue({ data: { paymentMethods: [
+    { providerSlug: "bank", sortOrder: 2, isOffline: true },
+    { providerSlug: "stripe", sortOrder: 0, isOffline: false },
+    { providerSlug: "cod", sortOrder: 1, isOffline: true },
+  ] } });
+  expect((await getPaymentMethods("RS", "cart")).map((m) => m.providerSlug)).toEqual(["cod", "bank"]);
 });

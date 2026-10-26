@@ -30,6 +30,7 @@ export default async function GuestOrderPage({
   searchParams: Promise<{
     email?: string | string[];
     just_placed?: string | string[];
+    payment?: string | string[];
     resent?: string | string[];
   }>;
 }) {
@@ -55,6 +56,7 @@ export default async function GuestOrderPage({
     ? sp.just_placed[0]
     : sp.just_placed;
   const justPlaced = justPlacedRaw === "1";
+  const paymentIncomplete = (Array.isArray(sp.payment) ? sp.payment[0] : sp.payment) === "incomplete";
 
   let order: Awaited<ReturnType<typeof loadOrder>> | null = null;
   try {
@@ -153,7 +155,7 @@ export default async function GuestOrderPage({
       )}
 
       {/* Admin-facing history - signed-in page only, never the guest receipt */}
-      <OrderDetailView order={{ ...order, events: [] }} />
+      <OrderDetailView order={{ ...order, events: [] }} paymentIncomplete={paymentIncomplete} />
     </main>
   );
 }
