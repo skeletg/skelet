@@ -10,6 +10,7 @@ export function DetailPageToc({ entries }: { entries: TocEntry[] }) {
   const [visible, setVisible] = useState<Set<string>>(new Set())
   const [scrolling, setScrolling] = useState(false)
   const [hovered, setHovered] = useState(false) // or the rail would fade out from under the pointer before it could be clicked
+  const [focused, setFocused] = useState(false)
   const idle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
@@ -56,12 +57,20 @@ export function DetailPageToc({ entries }: { entries: TocEntry[] }) {
 
   if (entries.length < 2) return null // a contents list of one is noise
 
-  const show = scrolling || hovered
+  // Scrolling shows only the ticks, which fit in the sections' right padding - the labels (and the blur behind them)
+  // spread over the page only once the pointer or focus is on the rail, so they never sit over a button uninvited
+  const open = hovered || focused
+  const show = scrolling || open
   return (
     <nav
       aria-label="Sections"
+      data-open={open || undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false)
+      }}
       className={cn(
         // right-3 clears the 10px scrollbar - at right-0 the blur layer sat on top of it
         'absolute right-3 top-1/2 z-20 hidden -translate-y-1/2 py-2 transition-opacity duration-200 xl:block',
@@ -70,11 +79,14 @@ export function DetailPageToc({ entries }: { entries: TocEntry[] }) {
     >
       {/* Two masks intersected so the blur fades out on the left AND both ends, instead of stopping
           on a hard edge - the bleed gives each gradient room to resolve past the labels */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-y-8 -left-10 right-0 bg-gradient-to-l from-background/70 to-transparent backdrop-blur-[3px] [mask-composite:intersect] [mask-image:linear-gradient(to_left,black_45%,transparent),linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)]"
-      />
-      <ul className="relative grid gap-1.5 border-r border-border/60">
+      {open ? (
+        <div
+          aria-hidden
+          data-toc-backdrop
+          className="pointer-events-none absolute -inset-y-8 -left-10 right-0 bg-gradient-to-l from-background/70 to-transparent backdrop-blur-[3px] [mask-composite:intersect] [mask-image:linear-gradient(to_left,black_45%,transparent),linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)]"
+        />
+      ) : null}
+      <ul className="relative grid gap-0.5 border-r border-border/60">
         {entries.map((e) => {
           const on = visible.has(e.id)
           return (
@@ -82,20 +94,25 @@ export function DetailPageToc({ entries }: { entries: TocEntry[] }) {
               <button
                 type="button"
                 onClick={() => jump(e)}
-                className="group/toc flex items-center justify-end gap-2 text-right"
+                className="group/toc flex h-4 items-center justify-end gap-2 text-right"
               >
                 <span
                   className={cn(
                     'max-w-44 truncate text-[11px] leading-none transition-colors duration-200 group-hover/toc:text-foreground',
                     on ? 'text-foreground' : 'text-muted-foreground/60',
+                    !open && 'sr-only',
                   )}
                 >
                   {e.title}
                 </span>
+                {/* Closed, the widest tick and the rule stay inside 12px - right-3 plus that fits the sections'
+                    24px padding even where the scrollbar takes no room */}
                 <span
                   className={cn(
-                    'h-px transition-all duration-200 group-hover/toc:w-4 group-hover/toc:bg-foreground',
-                    on ? 'w-4 bg-foreground' : 'w-2 bg-border',
+                    'h-px transition-all duration-200 group-hover/toc:bg-foreground',
+                    open ? 'group-hover/toc:w-4' : '',
+                    open ? (on ? 'w-4' : 'w-2') : on ? 'w-2.5' : 'w-1.5',
+                    on ? 'bg-foreground' : 'bg-border',
                   )}
                 />
               </button>
