@@ -36,7 +36,8 @@ import {
   CartAddProductOptionsDocument,
   CartDocument,
 } from './Carts.gql'
-import { visibleOptionIds } from './optionVisibility'
+import { optionRuleEffects } from './optionRules'
+import { visibleOptionPicks } from './optionVisibility'
 import { ProductSearch } from './pickers'
 import { CustomLineDialog } from './offer/CustomLineDialog'
 import { LinePrice } from './offer/LinePrice'
@@ -435,17 +436,19 @@ function ConfigureLine({
   }, [options, picks])
 
   const pick = (id: string) => effective[id] ?? { valueIds: [], textValue: '' }
-  const visible = useMemo(
+  const { visible, picks: answered } = useMemo(
     () =>
-      visibleOptionIds(
+      visibleOptionPicks(
         options,
         (id) => effective[id]?.valueIds ?? [],
         (id) => (effective[id]?.textValue ?? '').trim() !== '',
       ),
     [options, effective],
   )
+  const ruled = optionRuleEffects(data?.product.optionRules ?? [], answered)
 
-  const shown = options.filter((o) => visible.has(o.id))
+  // Carrying what the product's rules make of isRequired, so the marks and the gate below follow them
+  const shown = options.filter((o) => visible.has(o.id)).map((o) => ({ ...o, isRequired: ruled.isRequired(o) }))
   const fileBlocked = shown.some((o) => o.inputType === 'FILE' && o.isRequired)
   const missing = shown.filter((o) => {
     if (!o.isRequired || o.inputType === 'FILE') return false
@@ -486,6 +489,11 @@ function ConfigureLine({
           aria-label="Quantity"
         />
       </div>
+      {ruled.conflict ? (
+        <p className="mb-2 text-xs text-destructive">Two rules set different quantities for these answers - the add will be refused.</p>
+      ) : ruled.forcedQty != null ? (
+        <p className="mb-2 text-xs text-muted-foreground">A rule sets the quantity to {ruled.forcedQty} for these answers.</p>
+      ) : null}
 
       {loading && <p className="text-xs text-muted-foreground">Loading options…</p>}
 

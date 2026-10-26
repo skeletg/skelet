@@ -21,8 +21,13 @@ export function CartLineOptionsList({
     <ul className={className}>
       {options.map((o) => (
         <li key={o.id}>
-          {o.optionTitle}:{" "}
-          {o.fileUrl ? (
+          {/* A rule's price row has a name and an amount, no answer */}
+          {o.inputType === "rule" ? (
+            <span className="text-foreground">{o.optionTitle}</span>
+          ) : (
+            <>{o.optionTitle}:{" "}</>
+          )}
+          {o.inputType === "rule" ? null : o.fileUrl ? (
             <a
               href={o.fileUrl}
               target="_blank"

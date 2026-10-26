@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import type { ProductDetail } from "@/app/lib/catalog/read";
 import { displayName } from "@/app/lib/display";
+import { formatPrice } from "@/app/lib/format";
 import { CompareButton } from "@/app/components/CompareButton";
 import { QtySelector } from "@/app/components/QtySelector";
 import { RatingStars } from "@/app/components/RatingStars";
@@ -176,15 +177,50 @@ export function OptionsAddLabel({
   uploading,
   missingRequired,
   forcedQtyConflict,
+  unavailable = false,
 }: {
   uploading: boolean;
   missingRequired: boolean;
   forcedQtyConflict: boolean;
+  unavailable?: boolean;
 }) {
   const t = useTranslations("product.pdp");
   const tp = useTranslations("product");
   if (uploading) return t("uploading");
+  if (unavailable) return t("ruleBlocked");
   if (missingRequired) return t("completeRequired");
   if (forcedQtyConflict) return t("resolveConflict");
   return tp("addToCart");
+}
+
+// What the product's option rules do to the price for these picks, one row each as the cart line will list them
+export function RuleAdjustments({
+  adjustments,
+  unavailable,
+  currency,
+}: {
+  adjustments: { id: string; label: string; amount: number }[];
+  unavailable: boolean;
+  currency: string;
+}) {
+  const t = useTranslations("product.pdp");
+  if (adjustments.length === 0 && !unavailable) return null;
+  return (
+    <div className="mt-1 space-y-0.5 text-xs">
+      {adjustments.map((a) => (
+        <p key={a.id} className="text-muted-foreground">
+          {a.label || t("ruleAdjustment")}:{" "}
+          <span className="font-medium text-foreground">
+            {a.amount > 0 ? "+" : ""}
+            {formatPrice(a.amount, currency)}
+          </span>
+        </p>
+      ))}
+      {unavailable ? (
+        <p role="alert" className="font-medium text-red-600 dark:text-red-400">
+          {t("ruleUnavailable")}
+        </p>
+      ) : null}
+    </div>
+  );
 }

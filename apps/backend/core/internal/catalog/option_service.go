@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -32,12 +33,16 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 	if strings.TrimSpace(input.Title) == "" {
 		return ProductOption{}, ErrTitleRequired
 	}
-	parent, err := s.repo.GetProductByID(ctx, input.ProductID)
-	if err != nil {
-		return ProductOption{}, err
+	owner := OptionOwner{ProductID: input.ProductID, TemplateID: input.TemplateID}
+	if (owner.ProductID == uuid.Nil) == (owner.TemplateID == uuid.Nil) {
+		return ProductOption{}, fmt.Errorf("%w: an option belongs to one product or one template", ErrOptionTemplateInvalid)
 	}
-	if parent.Kind != KindSimple && parent.Kind != KindConfigurable {
-		return ProductOption{}, fmt.Errorf("%w: product %q is kind %q", ErrOptionInputKindNotPurchasable, parent.SKU, string(parent.Kind))
+	if owner.IsTemplate() {
+		if _, err := s.repo.GetOptionTemplate(ctx, owner.TemplateID); err != nil {
+			return ProductOption{}, err
+		}
+	} else if err := s.checkTemplateTarget(ctx, owner.ProductID); err != nil {
+		return ProductOption{}, err
 	}
 	if strings.TrimSpace(input.Locale) == "" {
 		return ProductOption{}, ErrLocaleRequired
@@ -51,8 +56,11 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 	if err := validateOptionConstraintShape(input.InputType, input.MaxChars, input.MaxFileBytes, input.FileExtensions); err != nil {
 		return ProductOption{}, err
 	}
+	if err := s.checkOptionImage(ctx, input.ImageAssetID); err != nil {
+		return ProductOption{}, err
+	}
 	if input.VisibleIf != nil {
-		siblings, serr := s.optionsWithValues(ctx, input.ProductID)
+		siblings, serr := s.ownerOptions(ctx, owner)
 		if serr != nil {
 			return ProductOption{}, serr
 		}
@@ -61,7 +69,7 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 		}
 	}
 	created, err := s.repo.CreateProductOption(ctx, input)
-	return created, s.announced(ctx, input.ProductID, err)
+	return created, s.announced(ctx, owner, err)
 }
 
 // UpdateProductOption applies pointer-style "no change = nil" updates - Input-type transitions are allowed but constrained: changing from a select-family type to a non-select type or vice-versa is rejected when the option already has values (would leave orphan rows / mismatched shape)
@@ -160,13 +168,17 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 		return ProductOption{}, err
 	}
 
+	finalImage, err := s.nextOptionImage(ctx, current.ImageAssetID, input.ImageAssetID)
+	if err != nil {
+		return ProductOption{}, err
+	}
 	finalVisibleIf := current.VisibleIf
 	if input.ClearVisibleIf {
 		finalVisibleIf = nil
 	} else if input.VisibleIf != nil {
 		finalVisibleIf = input.VisibleIf
 	}
-	siblings, err := s.optionsWithValues(ctx, current.ProductID)
+	siblings, err := s.ownerOptions(ctx, current.Owner())
 	if err != nil {
 		return ProductOption{}, err
 	}
@@ -185,7 +197,7 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 			}
 		}
 		for _, sib := range siblings {
-			if sib.ID == current.ID || sib.VisibleIf == nil {
+			if sib.ID == current.ID || sib.VisibleIf == nil || sib.TemplateID != current.TemplateID {
 				continue
 			}
 			if err := validateOptionVisibility(sib.VisibleIf, sib.SortOrder, sib.ID, adjusted); err != nil {
@@ -203,8 +215,9 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 		MaxFileBytes:   finalMaxFileBytes,
 		FileExtensions: finalFileExtensions,
 		VisibleIf:      finalVisibleIf,
+		ImageAssetID:   finalImage,
 	})
-	return updated, s.announced(ctx, current.ProductID, err)
+	return updated, s.announced(ctx, current.Owner(), err)
 }
 
 // DeleteProductOption removes an option and cascades its content + values (FK CASCADE handles those)
@@ -214,16 +227,34 @@ func (s *optionService) DeleteProductOption(ctx context.Context, id uuid.UUID) e
 		return err
 	}
 	// A sibling's visibility rule referencing this option would dangle - make the operator remove the dependency first
-	siblings, err := s.optionsWithValues(ctx, current.ProductID)
+	siblings, err := s.ownerOptions(ctx, current.Owner())
 	if err != nil {
 		return err
 	}
 	for _, sib := range siblings {
-		if sib.ID != id && groupReferencesOption(sib.VisibleIf, id) {
+		if sib.ID != id && sib.TemplateID == current.TemplateID && groupReferencesOption(sib.VisibleIf, id) {
 			return fmt.Errorf("%w: option %q depends on this one - remove its visibility rule first", ErrOptionVisibilityInvalid, sib.Title)
 		}
 	}
-	return s.announced(ctx, current.ProductID, s.repo.DeleteProductOption(ctx, id))
+	if rule, err := s.ruleUsing(ctx, current.Owner(), &id, nil); err != nil || rule != nil {
+		if err != nil {
+			return err
+		}
+		return ruleInUseError(rule)
+	}
+	if current.TemplateID != uuid.Nil {
+		if current.Values, err = s.repo.ListProductOptionValuesByOptionID(ctx, id); err != nil {
+			return err
+		}
+		users, err := s.repo.ListAllProductIDsUsingOptionTemplate(ctx, current.TemplateID)
+		if err != nil {
+			return err
+		}
+		if err := s.refuseProductLeaning(ctx, users, current); err != nil {
+			return err
+		}
+	}
+	return s.announced(ctx, current.Owner(), s.repo.DeleteProductOption(ctx, id))
 }
 
 // DuplicateProductOption clones an option (with all its content rows and, for select-family types, all its values + their content rows) onto the same parent product
@@ -236,7 +267,7 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 		out, err = duplicateProductOption(ctx, r, id, def)
 		return err
 	})
-	return out, s.announced(ctx, out.ProductID, err)
+	return out, s.announced(ctx, out.Owner(), err)
 }
 
 func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUID, def string) (ProductOption, error) {
@@ -244,16 +275,14 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 	if err != nil {
 		return ProductOption{}, err
 	}
-	sourceContent, err := r.ListProductOptionContent(ctx, source.ID)
-	if err != nil {
-		return ProductOption{}, err
-	}
-	initial, ok := pickLocalized(sourceContent, optionContentLocale, def, def)
-	if !ok {
-		return ProductOption{}, fmt.Errorf("%w: %s", ErrOptionHasNoContent, source.ID)
-	}
-	existing, err := r.ListProductOptionsByProductID(ctx, source.ProductID)
-	if err != nil {
+	var existing []ProductOption
+	if source.TemplateID != uuid.Nil {
+		byTemplate, err := r.ListProductOptionsByTemplateIDs(ctx, []uuid.UUID{source.TemplateID})
+		if err != nil {
+			return ProductOption{}, err
+		}
+		existing = byTemplate[source.TemplateID]
+	} else if existing, err = r.ListProductOptionsByProductID(ctx, source.ProductID); err != nil {
 		return ProductOption{}, err
 	}
 	nextSort := int32(0)
@@ -262,12 +291,34 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 			nextSort = o.SortOrder + 1
 		}
 	}
+	created, _, err := cloneOption(ctx, r, id, source.Owner(), nextSort, def, nil)
+	return created, err
+}
+
+// cloneOption copies an option with its content, values and store amounts onto owner at sortOrder - the map says which
+// new value each old one became, and listed, when given, keeps only the store amounts for those channels
+func cloneOption(ctx context.Context, r OptionRepository, id uuid.UUID, owner OptionOwner, sortOrder int32, def string, listed map[uuid.UUID]bool) (ProductOption, map[uuid.UUID]uuid.UUID, error) {
+	source, err := r.GetProductOptionByID(ctx, id)
+	if err != nil {
+		return ProductOption{}, nil, err
+	}
+	sourceContent, err := r.ListProductOptionContent(ctx, source.ID)
+	if err != nil {
+		return ProductOption{}, nil, err
+	}
+	initial, ok := pickLocalized(sourceContent, optionContentLocale, def, def)
+	if !ok {
+		return ProductOption{}, nil, fmt.Errorf("%w: %s", ErrOptionHasNoContent, source.ID)
+	}
+	keep := func(channelID uuid.UUID) bool { return listed == nil || listed[channelID] }
+	valueMap := map[uuid.UUID]uuid.UUID{}
 
 	created, err := r.CreateProductOption(ctx, AddProductOptionInput{
-		ProductID:      source.ProductID,
+		ProductID:      owner.ProductID,
+		TemplateID:     owner.TemplateID,
 		InputType:      source.InputType,
 		IsRequired:     source.IsRequired,
-		SortOrder:      nextSort,
+		SortOrder:      sortOrder,
 		PriceValue:     source.PriceValue,
 		PriceType:      source.PriceType,
 		MaxChars:       source.MaxChars,
@@ -277,9 +328,10 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 		Title:          initial.Title,
 		HelpText:       initial.HelpText,
 		VisibleIf:      source.VisibleIf,
+		ImageAssetID:   source.ImageAssetID,
 	})
 	if err != nil {
-		return ProductOption{}, err
+		return ProductOption{}, nil, err
 	}
 	for _, c := range sourceContent {
 		if c.Locale == initial.Locale {
@@ -288,23 +340,26 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 		if _, err := r.UpsertProductOptionContent(ctx, UpsertProductOptionContentInput{
 			OptionID: created.ID, Locale: c.Locale, Title: c.Title, HelpText: c.HelpText,
 		}); err != nil {
-			return ProductOption{}, fmt.Errorf("clone option content %q: %w", c.Locale, err)
+			return ProductOption{}, nil, fmt.Errorf("clone option content %q: %w", c.Locale, err)
 		}
 	}
 	optPrices, err := r.ListProductOptionChannelPricesByOptionIDs(ctx, []uuid.UUID{source.ID})
 	if err != nil {
-		return ProductOption{}, err
+		return ProductOption{}, nil, err
 	}
 	for _, p := range optPrices[source.ID] {
+		if !keep(p.ChannelID) {
+			continue
+		}
 		if err := r.SetProductOptionChannelPrice(ctx, created.ID, p.ChannelID, &p.PriceValue); err != nil {
-			return ProductOption{}, err
+			return ProductOption{}, nil, err
 		}
 	}
 
 	if source.InputType.IsSelect() {
 		sourceValues, err := r.ListProductOptionValuesByOptionID(ctx, source.ID)
 		if err != nil {
-			return ProductOption{}, err
+			return ProductOption{}, nil, err
 		}
 		valueIDs := make([]uuid.UUID, len(sourceValues))
 		for i, v := range sourceValues {
@@ -312,11 +367,11 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 		}
 		vcByValue, err := r.ListProductOptionValueContentByValueIDs(ctx, valueIDs)
 		if err != nil {
-			return ProductOption{}, err
+			return ProductOption{}, nil, err
 		}
 		valPrices, err := r.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
 		if err != nil {
-			return ProductOption{}, err
+			return ProductOption{}, nil, err
 		}
 		for _, v := range sourceValues {
 			vc := vcByValue[v.ID]
@@ -333,15 +388,20 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 				Quantity:        v.Quantity,
 				ForcedLineQty:   v.ForcedLineQty,
 				SourceProductID: v.SourceProductID,
+				ImageAssetID:    v.ImageAssetID,
 				Locale:          vInitial.Locale,
 				Title:           vInitial.Title,
 			})
 			if err != nil {
-				return ProductOption{}, fmt.Errorf("clone option value: %w", err)
+				return ProductOption{}, nil, fmt.Errorf("clone option value: %w", err)
 			}
+			valueMap[v.ID] = newValue.ID
 			for _, p := range valPrices[v.ID] {
+				if !keep(p.ChannelID) {
+					continue
+				}
 				if err := r.SetProductOptionValueChannelPrice(ctx, newValue.ID, p.ChannelID, &p.PriceValue); err != nil {
-					return ProductOption{}, err
+					return ProductOption{}, nil, err
 				}
 			}
 			for _, c := range vc {
@@ -351,12 +411,13 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 				if _, err := r.UpsertProductOptionValueContent(ctx, UpsertProductOptionValueContentInput{
 					ValueID: newValue.ID, Locale: c.Locale, Title: c.Title,
 				}); err != nil {
-					return ProductOption{}, fmt.Errorf("clone option value content %q: %w", c.Locale, err)
+					return ProductOption{}, nil, fmt.Errorf("clone option value content %q: %w", c.Locale, err)
 				}
 			}
 		}
 	}
-	return r.GetProductOptionByID(ctx, created.ID)
+	out, err := r.GetProductOptionByID(ctx, created.ID)
+	return out, valueMap, err
 }
 
 func (s *optionService) UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error) {
@@ -374,7 +435,7 @@ func (s *optionService) UpsertProductOptionContent(ctx context.Context, input Up
 		return ProductOptionContent{}, err
 	}
 	content, err := s.repo.UpsertProductOptionContent(ctx, input)
-	return content, s.announced(ctx, opt.ProductID, err)
+	return content, s.announced(ctx, opt.Owner(), err)
 }
 
 // DeleteProductOptionContent: removing the default-locale translation while other translations still exist is rejected - same rule as ProductContent / BundleOptionContent
@@ -389,7 +450,7 @@ func (s *optionService) DeleteProductOptionContent(ctx context.Context, optionID
 	if err != nil {
 		return err
 	}
-	return s.announced(ctx, opt.ProductID, s.repo.DeleteProductOptionContent(ctx, optionID, locale))
+	return s.announced(ctx, opt.Owner(), s.repo.DeleteProductOptionContent(ctx, optionID, locale))
 }
 
 // ==================== Option values ====================
@@ -427,6 +488,9 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 	if err := s.validateValueSourceProduct(ctx, input.SourceProductID, input.PriceType); err != nil {
 		return ProductOptionValue{}, err
 	}
+	if err := s.checkOptionImage(ctx, input.ImageAssetID); err != nil {
+		return ProductOptionValue{}, err
+	}
 	var created ProductOptionValue
 	err = s.inTx(ctx, func(r Repository) error {
 		if input.IsDefault {
@@ -437,7 +501,7 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 		created, err = r.CreateProductOptionValue(ctx, input)
 		return err
 	})
-	return created, s.announced(ctx, option.ProductID, err)
+	return created, s.announced(ctx, option.Owner(), err)
 }
 
 // A single-select option takes one default - the option row lock serializes concurrent default flips
@@ -537,6 +601,10 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 	if err := validatePercentRange(finalPriceType, finalPriceValue); err != nil {
 		return ProductOptionValue{}, err
 	}
+	finalImage, err := s.nextOptionImage(ctx, current.ImageAssetID, input.ImageAssetID)
+	if err != nil {
+		return ProductOptionValue{}, err
+	}
 
 	var updated ProductOptionValue
 	err = s.inTx(ctx, func(r Repository) error {
@@ -545,7 +613,7 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 				return err
 			}
 		}
-		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty)
+		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty, finalImage)
 		return err
 	})
 	return updated, s.announcedForOption(ctx, current.OptionID, err)
@@ -561,13 +629,28 @@ func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UU
 		return err
 	}
 	// A sibling's visibility rule pinned to this value would silently degrade - anyOf could never match again, noneOf would become always-true - same guard as option delete
-	siblings, err := s.optionsWithValues(ctx, option.ProductID)
+	siblings, err := s.ownerOptions(ctx, option.Owner())
 	if err != nil {
 		return err
 	}
 	for _, sib := range siblings {
-		if sib.ID != option.ID && groupReferencesValue(sib.VisibleIf, id) {
+		if sib.ID != option.ID && sib.TemplateID == option.TemplateID && groupReferencesValue(sib.VisibleIf, id) {
 			return fmt.Errorf("%w: the visibility rule on option %q references this value - remove it first", ErrOptionVisibilityInvalid, sib.Title)
+		}
+	}
+	if rule, err := s.ruleUsing(ctx, option.Owner(), nil, &id); err != nil || rule != nil {
+		if err != nil {
+			return err
+		}
+		return ruleInUseError(rule)
+	}
+	if option.TemplateID != uuid.Nil {
+		users, err := s.repo.ListAllProductIDsUsingOptionTemplate(ctx, option.TemplateID)
+		if err != nil {
+			return err
+		}
+		if err := s.refuseProductLeaning(ctx, users, ProductOption{Values: []ProductOptionValue{current}}); err != nil {
+			return err
 		}
 	}
 	// Removing the last value of a required select leaves an option that can never validate, silently bricking purchase
@@ -580,7 +663,7 @@ func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UU
 			return fmt.Errorf("%w: make the option optional before removing its last value", ErrOptionRequiredNeedsValues)
 		}
 	}
-	return s.announced(ctx, option.ProductID, s.repo.DeleteProductOptionValue(ctx, id))
+	return s.announced(ctx, option.Owner(), s.repo.DeleteProductOptionValue(ctx, id))
 }
 
 func (s *optionService) UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error) {
@@ -629,38 +712,101 @@ func (s *optionService) GetProductOptions(ctx context.Context, productID uuid.UU
 	return []ProductOption{}, nil
 }
 
-// A product with no options is absent from the map
+// A product with no options is absent from the map - a product's list leads with the options of the templates it uses,
+// its type's and then its own picks, in their order, then its own options
 func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID, locale string) (map[uuid.UUID][]ProductOption, error) {
-	byProduct, err := s.repo.ListProductOptionsByProductIDs(ctx, productIDs)
+	productIDs = distinctIDs(productIDs)
+	own, err := s.repo.ListProductOptionsByProductIDs(ctx, productIDs)
 	if err != nil {
 		return nil, err
 	}
-	if len(byProduct) == 0 {
-		return byProduct, nil
+	uses, err := s.repo.ListEffectiveOptionTemplates(ctx, productIDs)
+	if err != nil {
+		return nil, err
 	}
-	var options []ProductOption
-	for _, pid := range productIDs {
-		options = append(options, byProduct[pid]...)
-		delete(byProduct, pid)
+	assigned := make(map[uuid.UUID][]uuid.UUID, len(uses))
+	var templateIDs []uuid.UUID
+	for pid, list := range uses {
+		assigned[pid] = templateIDsOf(list)
+		templateIDs = append(templateIDs, assigned[pid]...)
+	}
+	templateIDs = distinctIDs(templateIDs)
+	byTemplate := map[uuid.UUID][]ProductOption{}
+	templates := map[uuid.UUID]OptionTemplate{}
+	if len(templateIDs) > 0 {
+		if byTemplate, err = s.repo.ListProductOptionsByTemplateIDs(ctx, templateIDs); err != nil {
+			return nil, err
+		}
+		if templates, err = s.repo.ListOptionTemplatesByIDs(ctx, templateIDs); err != nil {
+			return nil, err
+		}
 	}
 
+	var rows []ProductOption
+	for _, pid := range productIDs {
+		rows = append(rows, own[pid]...)
+	}
+	for _, tid := range templateIDs {
+		rows = append(rows, byTemplate[tid]...)
+	}
+	if len(rows) == 0 {
+		return map[uuid.UUID][]ProductOption{}, nil
+	}
+	if err := s.hydrateOptions(ctx, rows, locale, templates); err != nil {
+		return nil, err
+	}
+	hydrated := make(map[uuid.UUID]ProductOption, len(rows))
+	for _, o := range rows {
+		hydrated[o.ID] = o
+	}
+
+	out := make(map[uuid.UUID][]ProductOption, len(productIDs))
+	for _, pid := range productIDs {
+		var list []ProductOption
+		for _, tid := range assigned[pid] {
+			for _, o := range byTemplate[tid] {
+				h := hydrated[o.ID]
+				h.TemplateName = templates[tid].Name
+				h.SortOrder = int32(templateSortBand + len(list))
+				list = append(list, h)
+			}
+		}
+		for _, o := range own[pid] {
+			list = append(list, hydrated[o.ID])
+		}
+		if len(list) > 0 {
+			out[pid] = list
+		}
+	}
+	return out, nil
+}
+
+// hydrateOptions fills in content, values, store amounts and currency on bare option rows, in place - a product's
+// option is in the product's currency, a template's in the template's
+func (s *optionService) hydrateOptions(ctx context.Context, options []ProductOption, locale string, templates map[uuid.UUID]OptionTemplate) error {
+	if len(options) == 0 {
+		return nil
+	}
 	defLocale := s.resolveDefaultLocale(ctx)
 	if strings.TrimSpace(locale) == "" {
 		locale = defLocale
 	}
-
 	optionIDs := make([]uuid.UUID, len(options))
+	var ownerIDs []uuid.UUID
 	for i, o := range options {
 		optionIDs[i] = o.ID
+		if o.ProductID != uuid.Nil {
+			ownerIDs = append(ownerIDs, o.ProductID)
+		}
 	}
 
 	contentByOption, err := s.repo.ListProductOptionContentByOptionIDs(ctx, optionIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	valuesByOption, err := s.repo.ListProductOptionValuesByOptionIDs(ctx, optionIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Collect every value ID to batch-load value content
@@ -683,26 +829,26 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 	if len(valueIDs) > 0 {
 		valueContentByValue, err = s.repo.ListProductOptionValueContentByValueIDs(ctx, valueIDs)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// A since-deleted source product simply drops out of the maps and the value renders unlinked
 	sourceByID, sourceContentByID, err := s.loadProductsWithContent(ctx, sourceProductIDs, locale, false)
 	if err != nil {
-		return nil, fmt.Errorf("option value sources: %w", err)
+		return fmt.Errorf("option value sources: %w", err)
 	}
-	owners, err := s.repo.ListProductRowsByIDs(ctx, productIDs)
+	owners, err := s.repo.ListProductRowsByIDs(ctx, distinctIDs(ownerIDs))
 	if err != nil {
-		return nil, fmt.Errorf("option owners: %w", err)
+		return fmt.Errorf("option owners: %w", err)
 	}
 	optPrices, err := s.repo.ListProductOptionChannelPricesByOptionIDs(ctx, optionIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	valPrices, err := s.repo.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for i := range options {
@@ -710,7 +856,12 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 		opt.AllContent = contentByOption[opt.ID]
 		oc, _ := pickLocalized(opt.AllContent, optionContentLocale, locale, defLocale)
 		opt.Title, opt.HelpText = oc.Title, oc.HelpText
-		opt.Currency = owners[opt.ProductID].DefaultCurrencyCode
+		if opt.TemplateID != uuid.Nil {
+			opt.Currency = templates[opt.TemplateID].CurrencyCode
+			opt.TemplateName = templates[opt.TemplateID].Name
+		} else {
+			opt.Currency = owners[opt.ProductID].DefaultCurrencyCode
+		}
 		opt.ChannelPrices = optPrices[opt.ID]
 
 		vals := valuesByOption[opt.ID]
@@ -734,16 +885,53 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 		}
 		opt.Values = vals
 	}
+	return nil
+}
 
-	out := make(map[uuid.UUID][]ProductOption, len(productIDs))
-	for _, o := range options {
-		out[o.ProductID] = append(out[o.ProductID], o)
+func distinctIDs(ids []uuid.UUID) []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(ids))
+	seen := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
 	}
-	return out, nil
+	return out
 }
 
 func optionContentLocale(c ProductOptionContent) string     { return c.Locale }
 func valueContentLocale(c ProductOptionValueContent) string { return c.Locale }
+
+// A picture has to be a finished media-library upload - a pending one has no file yet
+func (s *optionService) checkOptionImage(ctx context.Context, id *uuid.UUID) error {
+	if id == nil || *id == uuid.Nil {
+		return nil
+	}
+	ok, err := s.repo.MediaAssetReady(ctx, *id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrOptionImageInvalid
+	}
+	return nil
+}
+
+// The picture after an update - nil leaves it, a zero id clears it, anything else replaces it
+func (s *optionService) nextOptionImage(ctx context.Context, current, next *uuid.UUID) (*uuid.UUID, error) {
+	switch {
+	case next == nil:
+		return current, nil
+	case *next == uuid.Nil:
+		return nil, nil
+	}
+	if err := s.checkOptionImage(ctx, next); err != nil {
+		return nil, err
+	}
+	id := *next
+	return &id, nil
+}
 
 // --- shape validators ---
 
@@ -800,44 +988,13 @@ func validateOptionConstraintShape(t ProductOptionInputType, maxChars *int32, ma
 	return nil
 }
 
-// optionsWithValues lists a product's options with Values attached - visibility validation needs the parent value sets,
-// which the bare repository list does not hydrate
-func (s *optionService) optionsWithValues(ctx context.Context, productID uuid.UUID) ([]ProductOption, error) {
-	options, err := s.repo.ListProductOptionsByProductID(ctx, productID)
-	if err != nil {
-		return nil, err
+// The options a condition or rule on this owner may read, values attached - a product's include its templates', which
+// always come first, so its own options may read them whatever their order
+func (s *optionService) ownerOptions(ctx context.Context, owner OptionOwner) ([]ProductOption, error) {
+	if owner.IsTemplate() {
+		return s.GetOptionTemplateOptions(ctx, owner.TemplateID, "")
 	}
-	if len(options) == 0 {
-		return options, nil
-	}
-	ids := make([]uuid.UUID, len(options))
-	for i, o := range options {
-		ids[i] = o.ID
-	}
-	valuesByOption, err := s.repo.ListProductOptionValuesByOptionIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	contentByOption, err := s.repo.ListProductOptionContentByOptionIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	defLocale := s.resolveDefaultLocale(ctx)
-	for i := range options {
-		options[i].Values = valuesByOption[options[i].ID]
-		// Resolve a display title (default locale, else any) so
-		// validation errors can name the option
-		if rows := contentByOption[options[i].ID]; len(rows) > 0 {
-			options[i].Title = rows[0].Title
-			for _, c := range rows {
-				if c.Locale == defLocale {
-					options[i].Title = c.Title
-					break
-				}
-			}
-		}
-	}
-	return options, nil
+	return s.GetProductOptions(ctx, owner.ProductID, "")
 }
 
 // validateOptionVisibility structurally checks a visibility condition: known ops/logic, no self-reference, parents exist on the product with STRICTLY lower sort_order (canonical order (sort_order, created_at) - the strict-order rule is what makes evaluation a cycle-free single pass), anyOf/noneOf only on select-family parents with value_ids that belong to them
@@ -943,13 +1100,13 @@ func (s *optionService) SetProductOptionChannelPrice(ctx context.Context, option
 	if priceValue != nil && (opt.PriceType == nil || *opt.PriceType != OptionPriceFixed) {
 		return ProductOption{}, ErrOptionChannelPriceNotFixed
 	}
-	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+	if err := s.checkChannelSurcharge(ctx, opt.Owner(), channelID, priceValue); err != nil {
 		return ProductOption{}, err
 	}
 	if err := s.repo.SetProductOptionChannelPrice(ctx, optionID, channelID, priceValue); err != nil {
 		return ProductOption{}, err
 	}
-	return opt, s.announced(ctx, opt.ProductID, nil)
+	return opt, s.announced(ctx, opt.Owner(), nil)
 }
 
 // Sets or (nil) clears a value's FIXED surcharge, or a linked value's markup, for one channel the product is listed on
@@ -965,23 +1122,29 @@ func (s *optionService) SetProductOptionValueChannelPrice(ctx context.Context, v
 	if err != nil {
 		return ProductOptionValue{}, err
 	}
-	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+	if err := s.checkChannelSurcharge(ctx, opt.Owner(), channelID, priceValue); err != nil {
 		return ProductOptionValue{}, err
 	}
 	if err := s.repo.SetProductOptionValueChannelPrice(ctx, valueID, channelID, priceValue); err != nil {
 		return ProductOptionValue{}, err
 	}
-	return val, s.announced(ctx, opt.ProductID, nil)
+	return val, s.announced(ctx, opt.Owner(), nil)
 }
 
-func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, channelID uuid.UUID, priceValue *int32) error {
+func (s *optionService) checkChannelSurcharge(ctx context.Context, owner OptionOwner, channelID uuid.UUID, priceValue *int32) error {
 	if priceValue != nil && (*priceValue > MaxOptionChannelSurcharge || *priceValue < -MaxOptionChannelSurcharge) {
 		return fmt.Errorf("%w: %d", ErrOptionChannelPriceRange, *priceValue)
 	}
 	if priceValue == nil {
 		return nil // clearing is always allowed, even for a channel the product has since left
 	}
-	listings, err := s.core.repo.ListProductChannelListingsByProduct(ctx, productID)
+	if owner.IsTemplate() {
+		if known, err := s.knownChannels(ctx, []uuid.UUID{channelID}); err != nil || !known[channelID] {
+			return errors.Join(ErrOptionChannelNotListed, err)
+		}
+		return nil
+	}
+	listings, err := s.core.repo.ListProductChannelListingsByProduct(ctx, owner.ProductID)
 	if err != nil {
 		return err
 	}
@@ -993,12 +1156,22 @@ func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, ch
 	return ErrOptionChannelNotListed
 }
 
-// Every option write changes what the product page renders and what the cart charges, so a successful one announces the product - err passes through untouched
-func (s *optionService) announced(ctx context.Context, productID uuid.UUID, err error) error {
-	if err == nil {
-		s.publishProductUpdatedByID(ctx, productID, "options")
+// Every option write changes what the product page renders and what the cart charges, so a successful one announces the product - or every product a template reaches - err passes through untouched
+func (s *optionService) announced(ctx context.Context, owner OptionOwner, err error) error {
+	if err != nil {
+		return err
 	}
-	return err
+	if !owner.IsTemplate() {
+		s.publishProductUpdatedByID(ctx, owner.ProductID, ProductFieldOptions)
+		return nil
+	}
+	ids, lerr := s.repo.ListAllProductIDsUsingOptionTemplate(ctx, owner.TemplateID)
+	if lerr != nil {
+		applog.From(ctx).Warn("list products using option template", "template_id", owner.TemplateID, "err", lerr) // the write stands - only the cache purge is lost
+		return nil
+	}
+	s.publishProductsUpdated(ctx, ids, ProductFieldOptions)
+	return nil
 }
 
 func (s *optionService) announcedForOption(ctx context.Context, optionID uuid.UUID, err error) error {
@@ -1010,5 +1183,5 @@ func (s *optionService) announcedForOption(ctx context.Context, optionID uuid.UU
 		applog.From(ctx).Warn("announce option change", "option_id", optionID, "err", oerr) // the write stands - only the cache purge is lost
 		return nil
 	}
-	return s.announced(ctx, opt.ProductID, nil)
+	return s.announced(ctx, opt.Owner(), nil)
 }

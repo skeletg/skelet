@@ -24,7 +24,7 @@ import (
 
 // Allowlist for ANONYMOUS requests - strictly catalog/content reads, nothing customer-, cart- or session-scoped, and mutations never reach this path
 var frontCacheableOps = map[string]bool{
-	"Product": true, "ProductWithReviews": true, "ProductsByIds": true,
+	"Product": true, "ProductWithReviews": true, "ProductsByIds": true, "ProductConfigurator": true,
 	"BrowseProducts": true, "SearchProducts": true, "ProductRecommendations": true,
 	"ProductQuestions": true, "ProductSortOptions": true,
 	"Category": true, "Collection": true, "Collections": true,

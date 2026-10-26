@@ -106,6 +106,9 @@ type ProductCreated struct { // fires AFTER the insert commits, async-only
 func (*ProductCreated) Type() string { return EventProductCreated }
 
 // Fires AFTER the update commits, async-only - ChangedFields lists which top-level fields the admin touched so subscribers can skip irrelevant updates
+// The ChangedFields entry for an edit to a product's configurator - its options, rules or templates
+const ProductFieldOptions = "options"
+
 type ProductUpdated struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID

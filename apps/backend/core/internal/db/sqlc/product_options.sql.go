@@ -30,14 +30,14 @@ const createProductOption = `-- name: CreateProductOption :one
 INSERT INTO catalog_product_options (
     product_id, input_type, is_required, sort_order,
     price_value, price_type, max_chars, max_file_bytes, file_extensions,
-    visible_if
+    visible_if, template_id, image_asset_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id
 `
 
 type CreateProductOptionParams struct {
-	ProductID      uuid.UUID                         `json:"product_id"`
+	ProductID      uuid.NullUUID                     `json:"product_id"`
 	InputType      CatalogProductOptionInputType     `json:"input_type"`
 	IsRequired     bool                              `json:"is_required"`
 	SortOrder      int32                             `json:"sort_order"`
@@ -47,6 +47,8 @@ type CreateProductOptionParams struct {
 	MaxFileBytes   sql.NullInt64                     `json:"max_file_bytes"`
 	FileExtensions sql.NullString                    `json:"file_extensions"`
 	VisibleIf      pqtype.NullRawMessage             `json:"visible_if"`
+	TemplateID     uuid.NullUUID                     `json:"template_id"`
+	ImageAssetID   uuid.NullUUID                     `json:"image_asset_id"`
 }
 
 func (q *Queries) CreateProductOption(ctx context.Context, arg CreateProductOptionParams) (CatalogProductOption, error) {
@@ -61,6 +63,8 @@ func (q *Queries) CreateProductOption(ctx context.Context, arg CreateProductOpti
 		arg.MaxFileBytes,
 		arg.FileExtensions,
 		arg.VisibleIf,
+		arg.TemplateID,
+		arg.ImageAssetID,
 	)
 	var i CatalogProductOption
 	err := row.Scan(
@@ -77,16 +81,18 @@ func (q *Queries) CreateProductOption(ctx context.Context, arg CreateProductOpti
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.VisibleIf,
+		&i.TemplateID,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
 
 const createProductOptionValue = `-- name: CreateProductOptionValue :one
 INSERT INTO catalog_product_option_values (
-    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty
+    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id
 `
 
 type CreateProductOptionValueParams struct {
@@ -98,6 +104,7 @@ type CreateProductOptionValueParams struct {
 	SourceProductID uuid.NullUUID                 `json:"source_product_id"`
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
+	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
 }
 
 func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProductOptionValueParams) (CatalogProductOptionValue, error) {
@@ -110,6 +117,7 @@ func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProduc
 		arg.SourceProductID,
 		arg.Quantity,
 		arg.ForcedLineQty,
+		arg.ImageAssetID,
 	)
 	var i CatalogProductOptionValue
 	err := row.Scan(
@@ -124,6 +132,7 @@ func (q *Queries) CreateProductOptionValue(ctx context.Context, arg CreateProduc
 		&i.SourceProductID,
 		&i.Quantity,
 		&i.ForcedLineQty,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -205,7 +214,7 @@ func (q *Queries) DeleteProductOptionValueContent(ctx context.Context, arg Delet
 }
 
 const getProductOptionByID = `-- name: GetProductOptionByID :one
-SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options WHERE id = $1
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id FROM catalog_product_options WHERE id = $1
 `
 
 func (q *Queries) GetProductOptionByID(ctx context.Context, id uuid.UUID) (CatalogProductOption, error) {
@@ -225,12 +234,14 @@ func (q *Queries) GetProductOptionByID(ctx context.Context, id uuid.UUID) (Catal
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.VisibleIf,
+		&i.TemplateID,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
 
 const getProductOptionByIDForUpdate = `-- name: GetProductOptionByIDForUpdate :one
-SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options WHERE id = $1 FOR UPDATE
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id FROM catalog_product_options WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductOption, error) {
@@ -250,12 +261,14 @@ func (q *Queries) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.VisibleIf,
+		&i.TemplateID,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
 
 const getProductOptionValueByID = `-- name: GetProductOptionValueByID :one
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty FROM catalog_product_option_values WHERE id = $1
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values WHERE id = $1
 `
 
 func (q *Queries) GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (CatalogProductOptionValue, error) {
@@ -273,6 +286,7 @@ func (q *Queries) GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (
 		&i.SourceProductID,
 		&i.Quantity,
 		&i.ForcedLineQty,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -474,7 +488,7 @@ func (q *Queries) ListProductOptionValueContentByValueIDs(ctx context.Context, v
 }
 
 const listProductOptionValuesByOptionID = `-- name: ListProductOptionValuesByOptionID :many
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty FROM catalog_product_option_values
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values
 WHERE option_id = $1
 ORDER BY sort_order, id
 `
@@ -500,6 +514,7 @@ func (q *Queries) ListProductOptionValuesByOptionID(ctx context.Context, optionI
 			&i.SourceProductID,
 			&i.Quantity,
 			&i.ForcedLineQty,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -515,7 +530,7 @@ func (q *Queries) ListProductOptionValuesByOptionID(ctx context.Context, optionI
 }
 
 const listProductOptionValuesByOptionIDs = `-- name: ListProductOptionValuesByOptionIDs :many
-SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty FROM catalog_product_option_values
+SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id FROM catalog_product_option_values
 WHERE option_id = ANY($1::uuid[])
 ORDER BY option_id, sort_order, id
 `
@@ -541,6 +556,7 @@ func (q *Queries) ListProductOptionValuesByOptionIDs(ctx context.Context, option
 			&i.SourceProductID,
 			&i.Quantity,
 			&i.ForcedLineQty,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -556,12 +572,12 @@ func (q *Queries) ListProductOptionValuesByOptionIDs(ctx context.Context, option
 }
 
 const listProductOptionsByProductID = `-- name: ListProductOptionsByProductID :many
-SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id FROM catalog_product_options
 WHERE product_id = $1
 ORDER BY sort_order, created_at
 `
 
-func (q *Queries) ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]CatalogProductOption, error) {
+func (q *Queries) ListProductOptionsByProductID(ctx context.Context, productID uuid.NullUUID) ([]CatalogProductOption, error) {
 	rows, err := q.db.QueryContext(ctx, listProductOptionsByProductID, productID)
 	if err != nil {
 		return nil, err
@@ -584,6 +600,8 @@ func (q *Queries) ListProductOptionsByProductID(ctx context.Context, productID u
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.VisibleIf,
+			&i.TemplateID,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -599,7 +617,7 @@ func (q *Queries) ListProductOptionsByProductID(ctx context.Context, productID u
 }
 
 const listProductOptionsByProductIDs = `-- name: ListProductOptionsByProductIDs :many
-SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id FROM catalog_product_options
 WHERE product_id = ANY($1::uuid[])
 ORDER BY product_id, sort_order, created_at
 `
@@ -627,6 +645,8 @@ func (q *Queries) ListProductOptionsByProductIDs(ctx context.Context, productIds
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.VisibleIf,
+			&i.TemplateID,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -641,6 +661,17 @@ func (q *Queries) ListProductOptionsByProductIDs(ctx context.Context, productIds
 	return items, nil
 }
 
+const mediaAssetReady = `-- name: MediaAssetReady :one
+SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready')
+`
+
+func (q *Queries) MediaAssetReady(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, mediaAssetReady, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const updateProductOption = `-- name: UpdateProductOption :one
 UPDATE catalog_product_options
 SET input_type      = $2,
@@ -652,9 +683,10 @@ SET input_type      = $2,
     max_file_bytes  = $8,
     file_extensions = $9,
     visible_if      = $10,
+    image_asset_id  = $11,
     updated_at      = NOW()
 WHERE id = $1
-RETURNING id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if
+RETURNING id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if, template_id, image_asset_id
 `
 
 type UpdateProductOptionParams struct {
@@ -668,6 +700,7 @@ type UpdateProductOptionParams struct {
 	MaxFileBytes   sql.NullInt64                     `json:"max_file_bytes"`
 	FileExtensions sql.NullString                    `json:"file_extensions"`
 	VisibleIf      pqtype.NullRawMessage             `json:"visible_if"`
+	ImageAssetID   uuid.NullUUID                     `json:"image_asset_id"`
 }
 
 func (q *Queries) UpdateProductOption(ctx context.Context, arg UpdateProductOptionParams) (CatalogProductOption, error) {
@@ -682,6 +715,7 @@ func (q *Queries) UpdateProductOption(ctx context.Context, arg UpdateProductOpti
 		arg.MaxFileBytes,
 		arg.FileExtensions,
 		arg.VisibleIf,
+		arg.ImageAssetID,
 	)
 	var i CatalogProductOption
 	err := row.Scan(
@@ -698,6 +732,8 @@ func (q *Queries) UpdateProductOption(ctx context.Context, arg UpdateProductOpti
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.VisibleIf,
+		&i.TemplateID,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -711,9 +747,10 @@ SET sort_order        = $2,
     source_product_id = $6,
     quantity          = $7,
     forced_line_qty   = $8,
+    image_asset_id    = $9,
     updated_at        = NOW()
 WHERE id = $1
-RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty
+RETURNING id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty, image_asset_id
 `
 
 type UpdateProductOptionValueParams struct {
@@ -725,6 +762,7 @@ type UpdateProductOptionValueParams struct {
 	SourceProductID uuid.NullUUID                 `json:"source_product_id"`
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
+	ImageAssetID    uuid.NullUUID                 `json:"image_asset_id"`
 }
 
 func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProductOptionValueParams) (CatalogProductOptionValue, error) {
@@ -737,6 +775,7 @@ func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProduc
 		arg.SourceProductID,
 		arg.Quantity,
 		arg.ForcedLineQty,
+		arg.ImageAssetID,
 	)
 	var i CatalogProductOptionValue
 	err := row.Scan(
@@ -751,6 +790,7 @@ func (q *Queries) UpdateProductOptionValue(ctx context.Context, arg UpdateProduc
 		&i.SourceProductID,
 		&i.Quantity,
 		&i.ForcedLineQty,
+		&i.ImageAssetID,
 	)
 	return i, err
 }

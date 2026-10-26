@@ -25,7 +25,8 @@ func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddP
 			return err
 		}
 		row, err := q.CreateProductOption(ctx, db.CreateProductOptionParams{
-			ProductID:      input.ProductID,
+			ProductID:      nullID(input.ProductID),
+			TemplateID:     nullID(input.TemplateID),
 			InputType:      db.CatalogProductOptionInputType(input.InputType),
 			IsRequired:     input.IsRequired,
 			SortOrder:      input.SortOrder,
@@ -35,6 +36,7 @@ func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddP
 			MaxFileBytes:   sqlnull.Int64(input.MaxFileBytes),
 			FileExtensions: sqlnull.StringValueNonEmpty(input.FileExtensions),
 			VisibleIf:      visibleIf,
+			ImageAssetID:   sqlnull.UUIDNonZero(input.ImageAssetID),
 		})
 		if err != nil {
 			return fmt.Errorf("create product option: %w", err)
@@ -85,7 +87,7 @@ func (r *postgresRepository) GetProductOptionByIDForUpdate(ctx context.Context, 
 }
 
 func (r *postgresRepository) ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductOption, error) {
-	rows, err := r.queries.ListProductOptionsByProductID(ctx, productID)
+	rows, err := r.queries.ListProductOptionsByProductID(ctx, nullID(productID))
 	if err != nil {
 		return nil, fmt.Errorf("list product options: %w", err)
 	}
@@ -112,7 +114,7 @@ func (r *postgresRepository) ListProductOptionsByProductIDs(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		out[row.ProductID] = append(out[row.ProductID], o)
+		out[row.ProductID.UUID] = append(out[row.ProductID.UUID], o)
 	}
 	return out, nil
 }
@@ -133,6 +135,7 @@ func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UU
 		MaxFileBytes:   sqlnull.Int64(params.MaxFileBytes),
 		FileExtensions: sqlnull.StringValueNonEmpty(params.FileExtensions),
 		VisibleIf:      visibleIf,
+		ImageAssetID:   sqlnull.UUIDNonZero(params.ImageAssetID),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -211,6 +214,7 @@ func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input
 			SourceProductID: sqlnull.UUIDNonZero(input.SourceProductID),
 			Quantity:        input.Quantity,
 			ForcedLineQty:   sqlnull.Float64(input.ForcedLineQty),
+			ImageAssetID:    sqlnull.UUIDNonZero(input.ImageAssetID),
 		})
 		if err != nil {
 			return fmt.Errorf("create product option value: %w", err)
@@ -280,7 +284,7 @@ func (r *postgresRepository) CountProductOptionValueDefaultsForOption(ctx contex
 	return n, nil
 }
 
-func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error) {
+func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64, imageAssetID *uuid.UUID) (ProductOptionValue, error) {
 	row, err := r.queries.UpdateProductOptionValue(ctx, db.UpdateProductOptionValueParams{
 		ID:              id,
 		SortOrder:       sortOrder,
@@ -290,6 +294,7 @@ func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uu
 		SourceProductID: sqlnull.UUIDNonZero(sourceProductID),
 		Quantity:        quantity,
 		ForcedLineQty:   sqlnull.Float64(forcedLineQty),
+		ImageAssetID:    sqlnull.UUIDNonZero(imageAssetID),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -359,7 +364,8 @@ func (r *postgresRepository) DeleteProductOptionValueContent(ctx context.Context
 func toProductOption(row db.CatalogProductOption) (ProductOption, error) {
 	out := ProductOption{
 		ID:         row.ID,
-		ProductID:  row.ProductID,
+		ProductID:  row.ProductID.UUID,
+		TemplateID: row.TemplateID.UUID,
 		InputType:  ProductOptionInputType(row.InputType),
 		IsRequired: row.IsRequired,
 		SortOrder:  row.SortOrder,
@@ -392,6 +398,10 @@ func toProductOption(row db.CatalogProductOption) (ProductOption, error) {
 	if row.FileExtensions.Valid {
 		out.FileExtensions = row.FileExtensions.String
 	}
+	if row.ImageAssetID.Valid {
+		id := row.ImageAssetID.UUID
+		out.ImageAssetID = &id
+	}
 	return out, nil
 }
 
@@ -415,7 +425,19 @@ func toProductOptionValue(row db.CatalogProductOptionValue) ProductOptionValue {
 		q := row.ForcedLineQty.Float64
 		out.ForcedLineQty = &q
 	}
+	if row.ImageAssetID.Valid {
+		id := row.ImageAssetID.UUID
+		out.ImageAssetID = &id
+	}
 	return out
+}
+
+func (r *postgresRepository) MediaAssetReady(ctx context.Context, id uuid.UUID) (bool, error) {
+	ok, err := r.queries.MediaAssetReady(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("check media asset: %w", err)
+	}
+	return ok, nil
 }
 
 // UpdateProductOptionFields is a flat, fully-resolved struct passed by the service to the repository's UpdateProductOption - The service has already applied "no change = current value" defaulting, so every field is the final value to write
@@ -429,6 +451,7 @@ type UpdateProductOptionFields struct {
 	MaxFileBytes   *int64
 	FileExtensions string
 	VisibleIf      *OptionConditionGroup
+	ImageAssetID   *uuid.UUID
 }
 
 // --- null-helpers (local to options for now) ---

@@ -50,6 +50,7 @@ fragment OrderSummaryFields on Order {
     totalPrice
     options {
       id
+      inputType
       optionTitle
       valueLabel
       textValue

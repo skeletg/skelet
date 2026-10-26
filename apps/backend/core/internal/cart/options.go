@@ -19,6 +19,7 @@ type ProductOptionsResolution struct { // built by the catalog bridge, so the ca
 	UnitPrice   int64 // base line price (cents) before options
 	BasePrice   int64 // resolved channel unit price (cents) - the base for percent adjustments
 	Options     []ProductOptionConfig
+	Rules       []ProductOptionRuleConfig // see options_rules.go
 }
 
 type ProductOptionConfig struct { // snapshot of the catalog row
@@ -65,7 +66,11 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 	for _, o := range res.Options {
 		cfgByID[o.ID] = o
 	}
-	visible := visibleOptionIDs(res, inputs)
+	visible, picks := visibleOptionPicks(res, inputs)
+	effects := evaluateOptionRules(res.Rules, picks)
+	if effects.conflict {
+		return nil, 0, nil, fmt.Errorf("%w: two rules set different quantities", ErrProductOptionQtyConflict)
+	}
 	supplied := make(map[uuid.UUID]CartLineOptionInput, len(inputs))
 	for _, in := range inputs {
 		if _, ok := cfgByID[in.OptionID]; !ok {
@@ -91,9 +96,10 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 			continue // hidden: no required-check, no price delta, no snapshot
 		}
 		in, ok := supplied[opt.ID]
+		required := effects.required(opt)
 		if isSelectInput(opt.InputType) {
 			if !ok || len(in.ValueIDs) == 0 {
-				if opt.IsRequired {
+				if required {
 					return nil, 0, nil, fmt.Errorf("%w: option %s", ErrProductOptionMissing, opt.ID)
 				}
 				continue
@@ -153,7 +159,7 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 
 		if opt.InputType == "file" { // the client supplies an asset id, and the asset's real server-side filename/size/extension are what get validated
 			if !ok || in.FileAssetID == nil {
-				if opt.IsRequired {
+				if required {
 					return nil, 0, nil, fmt.Errorf("%w: option %s", ErrProductOptionMissing, opt.ID)
 				}
 				continue
@@ -186,7 +192,7 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 
 		text := strings.TrimSpace(in.TextValue) // text/date/time - opaque value, priced by the option-level adjustment
 		if !ok || text == "" {
-			if opt.IsRequired {
+			if required {
 				return nil, 0, nil, fmt.Errorf("%w: option %s", ErrProductOptionMissing, opt.ID)
 			}
 			continue
@@ -217,14 +223,45 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 		})
 		sort++
 	}
+	if effects.forcedQty != nil {
+		if forcedQty != nil && *forcedQty != *effects.forcedQty {
+			return nil, 0, nil, fmt.Errorf("%w: %v vs %v", ErrProductOptionQtyConflict, *forcedQty, *effects.forcedQty)
+		}
+		forcedQty = effects.forcedQty
+	}
+	for _, rule := range effects.priced {
+		c, ok := ruleContribution(res.BasePrice, rule)
+		if !ok {
+			return nil, 0, nil, fmt.Errorf("%w: rule %s", ErrOptionPriceUnavailable, rule.ID)
+		}
+		title := rule.Label
+		if title == "" {
+			title = "Adjustment"
+		}
+		delta += c
+		out = append(out, CartLineOption{
+			ProductOptionID: rule.ID,
+			InputType:       OptionRuleInputType,
+			OptionTitle:     title,
+			PriceDelta:      c,
+			Quantity:        1,
+			SortOrder:       sort,
+		})
+		sort++
+	}
 	return out, delta, forcedQty, nil
 }
 
 // HasVisiblyRequiredOptions reports whether a plain no-picks add must be rejected - a required option hidden behind an unsatisfied visible_if doesn't count, since the hidden state is exactly how a customer would legitimately buy without it
+// Option rules count as they'd fire on no picks: one requiring an option, or moving the price or quantity, needs the configured add to apply it
 func HasVisiblyRequiredOptions(res ProductOptionsResolution) bool {
-	visible := visibleOptionIDs(res, nil)
+	visible, picks := visibleOptionPicks(res, nil)
+	effects := evaluateOptionRules(res.Rules, picks)
+	if effects.forcedQty != nil || len(effects.priced) > 0 {
+		return true
+	}
 	for _, opt := range res.Options {
-		if opt.IsRequired && visible[opt.ID] {
+		if effects.required(opt) && visible[opt.ID] {
 			return true
 		}
 	}

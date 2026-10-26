@@ -89,7 +89,11 @@ type ProductOptionValueContent {
 }
 
 input AddProductOptionInput {
-  productId:      ID!
+  # Exactly one of the two - the product or configurator template the option belongs to
+  productId:      ID
+  templateId:     ID
+  # A ready media-library image shown beside the option
+  imageAssetId:   ID
   inputType:      ProductOptionInputType!
   isRequired:     Boolean
   sortOrder:      Int
@@ -112,6 +116,8 @@ input AddProductOptionInput {
 
 input UpdateProductOptionInput {
   id:             ID!
+  # null = no change, an empty string removes the picture
+  imageAssetId:   ID
   inputType:      ProductOptionInputType
   isRequired:     Boolean
   sortOrder:      Int
@@ -133,6 +139,8 @@ input UpdateProductOptionInput {
 
 input AddProductOptionValueInput {
   optionId:   ID!
+  # A ready media-library image the storefront shows the choice as
+  imageAssetId: ID
   sortOrder:  Int
   priceValue: Int
   priceType:  ProductOptionPriceType
@@ -150,6 +158,8 @@ input AddProductOptionValueInput {
 
 input UpdateProductOptionValueInput {
   id:         ID!
+  # null = no change, an empty string removes the picture
+  imageAssetId: ID
   sortOrder:  Int
   priceValue: Int
   priceType:  ProductOptionPriceType
@@ -165,21 +175,21 @@ input UpdateProductOptionValueInput {
 # --- Mutations (require catalog.manage) ---
 extend type Mutation {
   # ---------- Product options ---------- Custom options attach customer-facing inputs to a product.
-  # Returned mutations include the parent Product with refreshed productOptions so the dashboard can refresh on a single round-trip.
-  addProductOption(input: AddProductOptionInput!): Product!
-  updateProductOption(input: UpdateProductOptionInput!): Product!
-  upsertProductOptionContent(optionId: ID!, locale: String!, title: String!, helpText: String): Product!
-  deleteProductOptionContent(optionId: ID!, locale: String!): Product!
-  deleteProductOption(id: ID!): Product!
-  # Clones an option (with all values + content rows) onto the same parent product at the end of the sort order. Returns the parent product with the refreshed options list.
-  duplicateProductOption(id: ID!): Product!
+  # Each returns the option's owner - its product or configurator template - with refreshed productOptions, so the dashboard refreshes in one round-trip.
+  addProductOption(input: AddProductOptionInput!): ProductOptionOwner!
+  updateProductOption(input: UpdateProductOptionInput!): ProductOptionOwner!
+  upsertProductOptionContent(optionId: ID!, locale: String!, title: String!, helpText: String): ProductOptionOwner!
+  deleteProductOptionContent(optionId: ID!, locale: String!): ProductOptionOwner!
+  deleteProductOption(id: ID!): ProductOptionOwner!
+  # Clones an option (with all values + content rows) onto the same owner at the end of the sort order.
+  duplicateProductOption(id: ID!): ProductOptionOwner!
 
-  addProductOptionValue(input: AddProductOptionValueInput!): Product!
-  updateProductOptionValue(input: UpdateProductOptionValueInput!): Product!
-  upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): Product!
-  deleteProductOptionValueContent(valueId: ID!, locale: String!): Product!
-  deleteProductOptionValue(id: ID!): Product!
-  # Set (or, with a null priceValue, clear) a FIXED surcharge for one channel the product is listed on. Gated like every option write, and on the named channel too.
-  setProductOptionChannelPrice(optionId: ID!, channelId: ID!, priceValue: Int): Product!
-  setProductOptionValueChannelPrice(valueId: ID!, channelId: ID!, priceValue: Int): Product!
+  addProductOptionValue(input: AddProductOptionValueInput!): ProductOptionOwner!
+  updateProductOptionValue(input: UpdateProductOptionValueInput!): ProductOptionOwner!
+  upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): ProductOptionOwner!
+  deleteProductOptionValueContent(valueId: ID!, locale: String!): ProductOptionOwner!
+  deleteProductOptionValue(id: ID!): ProductOptionOwner!
+  # Set (or, with a null priceValue, clear) a FIXED surcharge for one channel the product is listed on - any channel for a template's option. Gated like every option write, and on the named channel too.
+  setProductOptionChannelPrice(optionId: ID!, channelId: ID!, priceValue: Int): ProductOptionOwner!
+  setProductOptionValueChannelPrice(valueId: ID!, channelId: ID!, priceValue: Int): ProductOptionOwner!
 }

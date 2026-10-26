@@ -468,6 +468,9 @@ const detailLeaves = [
   { title: 'All reviews', path: '/reviews/all', element: <Navigate to="/reviews" replace />, permission: 'reviews.view' },
   { title: 'Review detail', path: '/reviews/:id', element: lazyPage(() => import('@/features/reviews/ReviewDetail'), 'ReviewDetail') },
   { title: 'Product type detail', path: '/catalog/product-types/:id', element: lazyPage(() => import('@/features/catalog/ProductTypesList'), 'ProductTypesList') },
+  // Templates are reached from a product's Configurator and a product type, not the menu
+  { title: 'Configurator templates', path: '/catalog/configurator-templates', element: lazyPage(() => import('@/features/catalog/OptionTemplatesList'), 'OptionTemplatesList'), permission: 'catalog.view' },
+  { title: 'Configurator template', path: '/catalog/configurator-templates/:id', element: lazyPage(() => import('@/features/catalog/OptionTemplatesList'), 'OptionTemplatesList'), permission: 'catalog.view' },
   { title: 'New customer', path: '/customers/new', element: lazyPage(() => import('@/features/customers/CustomerCreate'), 'CustomerCreate'), permission: 'customers.manage' },
   { title: 'Customer detail', path: '/customers/:id', element: lazyPage(() => import('@/features/customers/CustomerDetail'), 'CustomerDetail'), permission: 'customers.view' },
   { title: 'Customer group detail', path: '/customers/groups/:id', element: lazyPage(() => import('@/features/customers/CustomerGroupDetail'), 'CustomerGroupDetailPage'), permission: 'customers.view' },
