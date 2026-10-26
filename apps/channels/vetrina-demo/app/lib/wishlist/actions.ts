@@ -44,14 +44,14 @@ export async function wishlistIdsAction(): Promise<string[]> {
 }
 
 // moveToCartAction moves a wishlist item into the cart (add + remove from wishlist). The header's cart badge reads the
-// client cart store, not the layout, so the updated cart goes back to the caller instead of revalidating every page
+// client cart store, not the layout, so the updated cart goes back to the caller instead of revalidating every page. No
+// revalidation here either: the caller drops the guest copy of the item before it refreshes, which a refresh riding on
+// this response would race
 export async function moveToCartAction(
   productId: string,
 ): Promise<{ ok: boolean; error?: string; cart?: Cart | null }> {
   try {
     await gqlFetch(MoveToCartDocument, { productId });
-    revalidatePath(WISHLIST_ROUTE, "page");
-    revalidatePath("/[channel]/[locale]/account", "layout");
     return { ok: true, cart: await getCart() };
   } catch (err) {
     let msg = "moveFailed";

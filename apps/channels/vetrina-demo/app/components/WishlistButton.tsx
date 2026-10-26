@@ -34,6 +34,11 @@ function writeLocalWishlist(ids: string[]) {
   listeners.forEach((fn) => fn());
 }
 
+// An item that left the wishlist some other way (moved to the cart) - left in the guest list, WishlistMerge would import it again
+export function removeLocalWishlistItem(productId: string) {
+  writeLocalWishlist(readLocalWishlist().filter((i) => i !== productId));
+}
+
 function subscribe(onChange: () => void) {
   listeners.add(onChange);
   window.addEventListener("storage", onChange);
