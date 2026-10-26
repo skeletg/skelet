@@ -156,7 +156,8 @@ export async function addBundleToCart(
     const res = await gqlFetch(AddBundleToCartDocument, {
       input: { cartId, sku, quantity, selections },
     });
-    return { ok: true, cart: res.data.addBundleToCart };
+    const promoCart = await consumePendingPromo(cartId);
+    return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
   } catch (err) {
     return { ok: false, error: formatAddError(err) };
   }
@@ -276,8 +277,9 @@ export async function addGroupedToCart(
   // Members are added one at a time, so a mid-batch failure can leave earlier members
   // already on the cart
   let last: Cart | null = null;
+  let cartId = "";
   try {
-    const cartId = await ensureCartID();
+    cartId = await ensureCartID();
     for (const l of real) {
       if (l.hasOptions) {
         const res = await gqlFetch(AddConfiguredToCartDocument, {
@@ -294,9 +296,11 @@ export async function addGroupedToCart(
         last = res.data.addToCart;
       }
     }
-    return { ok: true, cart: last };
+    return { ok: true, cart: (await consumePendingPromo(cartId)) ?? last };
   } catch (err) {
-    return { ok: false, error: formatAddError(err), cart: last };
+    // The members that did land are an addition like any other, so the held code applies to them
+    const promoCart = last ? await consumePendingPromo(cartId) : null;
+    return { ok: false, error: formatAddError(err), cart: promoCart ?? last };
   }
 }
 // Line edits reconcile to server truth on failure but also carry the rejection
@@ -484,7 +488,7 @@ export async function quickOrderAction(
     ok: errors.length === 0,
     added,
     errors,
-    cart: added > 0 ? await getCartFull(cartId) : undefined,
+    cart: added > 0 ? ((await consumePendingPromo(cartId)) ?? (await getCartFull(cartId))) : undefined,
   };
 }
 
