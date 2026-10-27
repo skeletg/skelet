@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dbmigrate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
@@ -73,6 +74,14 @@ func RegisterAdminActions(cfg *config.Service, tier SearchTier, vk CacheRedis, w
 func applyTrustedProxies(cfg Config) error { // honored only when the TCP peer is trusted, else any client spoofs a fresh IP per request and sidesteps every limit
 	if err := authpkg.SetTrustedProxies(strings.Split(cfg.TrustedProxies, ",")); err != nil {
 		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	}
+	return nil
+}
+
+// Before the first read or write, and after bootstrapRegistries installs the plugins whose migrations and patches it applies - both roles run it, and whichever boots second waits on the locks and finds nothing to do
+func migrateDatabase(rc RootContext, cfg Config) error {
+	if err := dbmigrate.Up(rc.Context, cfg.DatabaseURL); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
 }

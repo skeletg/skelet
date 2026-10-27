@@ -100,8 +100,8 @@ for. The individual scripts exist so you can rerun one while fixing it.
 
 | Command | What it does |
 |---|---|
-| `./skelet db migrate` | `./skelet db migrate up`, `down 1`, `version`, `force <v>`. Runs inside the container, so `DATABASE_URL` is always the right one. `up` is mostly a no-op: the `migrate` one-shot in the compose file applies the stream on every `docker compose up` and gates the backend roles on it finishing, so what you actually need this for is `down`, `force` and `version`. |
-| `./skelet db migrate --signals` | The same, against the Signals database (`SIGNALS_DB_URL`) - the `signals-migrate` one-shot gates the same way. |
+| `./skelet db migrate` | `./skelet db migrate up`, `new <name>`, `rollback`, `status` - dbmate. Runs inside the container, so `DATABASE_URL` is always the right one. `up` is mostly a no-op: the app applies the stream as it boots, so what you actually need this for is `new`, `rollback` and `status`. |
+| `./skelet db migrate --signals` | The same, against the Signals database (`SIGNALS_DB_URL`) - the signals process applies it as it boots. |
 | `./skelet db export` | Dump the dev DB into the gitignored `backups/` dir (timestamped `.dump`; pass a `.sql` path for plain SQL, or any explicit path). |
 | `./skelet db import` | Restore a dump. **Overwrites the dev DB**, so it asks for confirmation first (`-y` to skip in scripts). |
 

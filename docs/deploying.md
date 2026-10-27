@@ -58,12 +58,11 @@ SIGNALS_CH_URL=clickhouse://user:password@your-managed-ch:9440/signals?secure=tr
 The eight containers (two Postgres, two pgbouncers, three Valkeys and ClickHouse)
 then never start, instead of idling beside the databases you are actually paying
 for. The `*_PASSWORD` lines go unused too, so leave them empty. Everything else -
-app, worker, media, signals, ingest and the migrate one-shots - is the same image
-and the same file.
+app, worker, media, signals and ingest - is the same image and the same file.
 
-The spine's migrate one-shot runs against whatever `SIGNALS_CH_URL` names, so
-the schema lands on the managed server without a second URL - a TLS endpoint is
-`clickhouse://user:password@host:9440/signals?secure=true`.
+The signals process migrates the spine on whatever `SIGNALS_CH_URL` names as it
+boots, so the schema lands on the managed server without a second URL - a TLS
+endpoint is `clickhouse://user:password@host:9440/signals?secure=true`.
 
 Two things that bite:
 

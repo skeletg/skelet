@@ -1,14 +1,37 @@
 # Database and migrations
 
-Three separate schemas, three separate streams. Each is applied by
-[dbmate](https://github.com/amacneil/dbmate) from its own one-shot in the compose files,
-and none of them knows about the others.
+Three separate schemas, three separate streams, written as
+[dbmate](https://github.com/amacneil/dbmate) files. The binaries embed them and apply
+them as they boot - the server migrates commerce, the signals and ingest processes
+migrate the suite's two databases - so there's no separate migration step anywhere.
+None of the streams knows about the others.
 
 | Stream | Files | Applied to |
 |---|---|---|
 | Commerce | `apps/backend/core/internal/db/migrations` | `DATABASE_URL` |
 | Signals | `apps/backend/signals/internal/db/migrations` - the suite's, holding Pulse (campaigns, flows, the email builder) beside the spine | `SIGNALS_DB_URL` |
-| ClickHouse spine | `apps/backend/signals/internal/analytics/spinech/migrations` | `SIGNALS_CH_URL`, applied by the `clickhouse-migrate` one-shot wherever the suite runs |
+| ClickHouse spine | `apps/backend/signals/internal/analytics/spinech/migrations` | `SIGNALS_CH_URL` |
+
+## How a boot applies them
+
+Every process that opens a database migrates it before anything else touches it. The
+server - and the worker, which is the same binary - migrates commerce; signals and ingest
+migrate the Signals Postgres and then the ClickHouse spine. Each file commits in one
+transaction holding an advisory lock, so processes that boot together apply it once
+between them: the rest wait, then find it recorded. ClickHouse has no locks, so the
+spine's run holds one on the Signals Postgres instead. The media tier doesn't migrate -
+it only reads focal points, and centres its crops until the server has.
+
+The bookkeeping is dbmate's own `schema_migrations` table, so `./skelet db migrate status`
+and `rollback` read the same history the boot writes. The runner resets the session after
+each file, before recording it, so the `SET`s a dump-style baseline opens with never
+outlive it - that's what lets a boot migrate through PgBouncer's transaction pooling.
+
+A migration that fails rolls back and stops the process, with the error in its log. In
+prod the container restarts and tries again; in dev Air rebuilds on your next save, or
+`./skelet restart app` retries straight away. `skelet migrate`
+runs the commerce step by hand, for a deploy that wants the database migrated before
+anything starts.
 
 ## What the files are
 
@@ -40,10 +63,10 @@ declares an `ID`, an optional `DependsOn`, and an `Apply`; the runner topologica
 sorts them and commits each patch together with its `data_patches` marker, so a failure
 rolls back and retries next deploy.
 
-The `migrate` one-shot runs core's migrations, then `skelet plugin migrate up`, then
-`skelet data-patch up` in all three compose files, so a patch can count on every schema
-it touches and lands before any backend role boots. Runs that overlap - a hand-run `up`
-during a deploy - take turns per patch, and the second finds it already applied.
+The server runs core's migrations, then the plugins', then the data patches, before it
+reads or writes anything else, so a patch can count on every schema it touches. Runs that
+overlap - the server and the worker booting together, or a hand-run `skelet migrate` during
+a deploy - take turns per patch, and the second finds it already applied.
 `skelet data-patch status` lists what has run.
 
 **Reference data does not belong here.** Rows every install needs go in
@@ -66,12 +89,24 @@ ALTER TABLE public.orders ADD COLUMN gift_note text;
 ALTER TABLE public.orders DROP COLUMN gift_note;
 ```
 
-Fill both in and leave the baselines alone. `./skelet db migrate up` applies it,
-`rollback` undoes the highest version, `status` lists them, and `./skelet gen`
-regenerates sqlc from it - sqlc reads only the up halves. Each migration runs in a
-transaction; write `-- migrate:up transaction:false` for the rare statement that can't,
-like `CREATE INDEX CONCURRENTLY`. Qualify your table names with `public.` or rely on the
-search path being intact - see the guard below for why that is not guaranteed.
+Fill both in and leave the baselines alone. The app applies it the next time it starts
+or rebuilds - `./skelet gen`, which regenerates sqlc from it, usually sets that off, and
+`./skelet restart app` does it on demand. Air doesn't watch `.sql` files, so saving a
+half-written migration doesn't apply it, and a file whose up half is still empty is
+skipped rather than recorded, so the template `new` writes waits for you. The boot records
+a checksum of each file it applies and refuses to start if one changes afterwards - comments
+included - so to change a migration that's already been applied, `./skelet db migrate rollback`
+it first and restart. In prod the fix is almost always to restore the file and put the change
+in a new migration instead.
+`./skelet db migrate up` still applies one straight away, `status` lists them, and sqlc
+reads only the up halves.
+
+Every migration runs in a single transaction, and the boot refuses
+`-- migrate:up transaction:false` - a statement outside a transaction can't hold the lock
+that keeps two booting processes apart. For a `CREATE INDEX CONCURRENTLY` on a big table,
+build the index by hand first and have the migration create it `IF NOT EXISTS`. Qualify
+your table names with `public.` or rely on the search path being intact - see the guard
+below for why that is not guaranteed.
 
 Migrations are timestamped, so two branches never pick the same name. dbmate records every
 version it applies, not just the highest, so a migration that lands after a newer one - two branches merged out of order -
@@ -113,5 +148,7 @@ same function to keep running ahead of the data.
 
 ClickHouse migrations are hand-written, not dumped. ClickHouse takes one statement
 per query, so give every statement its own `-- migrate:up` / `-- migrate:down` pair in
-the file - dbmate runs each section as a query of its own. A section with nothing to undo
-still needs a statement under its `-- migrate:down`; `SELECT 1;` does.
+the file - each section runs as a query of its own. A section with nothing to undo
+still needs a statement under its `-- migrate:down`; `SELECT 1;` does. ClickHouse has no
+transactions, so a file that fails halfway runs its earlier statements again on the next
+boot - write each one so that's harmless (`IF NOT EXISTS`, `IF EXISTS`).

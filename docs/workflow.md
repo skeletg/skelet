@@ -130,8 +130,8 @@ CORS in the browser.
 Source edits hot-reload through the bind mounts - air for the app and the Signals process, Vite
 and Next for the frontends. A frontend container also watches its own `package.json` and
 lockfile, reinstalling and restarting its dev server when either changes (`watchexec` in its dev
-Dockerfile's CMD). What still needs you: a Dockerfile change and a new
-migration - `./skelet up` handles both, rebuilding images and re-running the migrate one-shots.
+Dockerfile's CMD). What still needs you is a Dockerfile change - `./skelet up` rebuilds the
+images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
 
 Where the frontends run is your choice, recorded in `.skelet-apps`. Listed
 there, `./skelet up` starts them in Docker on <http://localhost:5173> and

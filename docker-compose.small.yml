@@ -36,7 +36,6 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       db: { condition: service_healthy }
-      migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 15s
@@ -46,16 +45,6 @@ services:
     restart: unless-stopped
     # Same drain budget as prod - this process owns the background layer too
     stop_grace_period: 40s
-    logging: *logging
-
-  migrate:
-    image: ${APP_IMAGE:-skelet-app:prod}
-    env_file: [env/small.env]
-    environment: *db-urls
-    depends_on:
-      db: { condition: service_healthy }
-    command: ["sh", "-c", "dbmate --no-dump-schema --wait --migrations-dir /app/migrations up && skelet plugin migrate up && skelet data-patch up"]
-    restart: "no"
     logging: *logging
 
   # Tenant-agnostic image - the SPA calls the relative /api and nginx envsubsts

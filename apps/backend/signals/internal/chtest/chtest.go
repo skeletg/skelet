@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -115,7 +114,7 @@ func applySchema(ctx context.Context, db clickhouse.Conn) error {
 // ApplyUp runs a spine migration's up sections one query each, as dbmate does - ClickHouse refuses a query holding several statements
 func ApplyUp(ctx context.Context, db clickhouse.Conn, f migfile.File) error {
 	for _, stmt := range f.Ups {
-		if strings.TrimSpace(stripComments(stmt)) == "" {
+		if migfile.Blank(stmt) {
 			continue
 		}
 		if err := db.Exec(ctx, stmt); err != nil {
@@ -123,15 +122,4 @@ func ApplyUp(ctx context.Context, db clickhouse.Conn, f migfile.File) error {
 		}
 	}
 	return nil
-}
-
-func stripComments(stmt string) string {
-	var out []string
-	for line := range strings.SplitSeq(stmt, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "--") {
-			continue
-		}
-		out = append(out, line)
-	}
-	return strings.Join(out, "\n")
 }

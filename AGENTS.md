@@ -75,8 +75,8 @@ those files on regeneration, so private helpers go in `helpers.go` or
 
 ## 4. Database
 
-Three independent migration streams, all applied by compose one-shots that gate the
-backend roles - adding a migration means restarting the stack, not remembering to run
+Three independent migration streams, each applied by the processes that use it as
+they boot - adding a migration means restarting the app, not remembering to run
 anything.
 
 | Stream | Files |

@@ -1,4 +1,4 @@
-# Prod Signals image - the suite's two binaries, dbmate and the spine schema on alpine, static CGO-off builds
+# Prod Signals image - the suite's two binaries on alpine, static CGO-off builds
 # Build from apps/backend, since this module replaces core's by relative path: docker build -f apps/backend/signals/Dockerfile.prod -t skelet-signals:prod apps/backend
 
 # The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
@@ -21,9 +21,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # The web-ingest tier - the public /t beacon surface, scaled out on its own
 RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ingest ./cmd/ingest
-# The migrations runner, dbmate - one binary for the Postgres stream and the ClickHouse spine
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go install github.com/amacneil/dbmate/v2@v2.36.0
 
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for the retention windows' day math
@@ -31,14 +28,9 @@ RUN apk add --no-cache ca-certificates curl tzdata && adduser -D -u 10001 app &&
 WORKDIR /app
 COPY --from=build /out/signals /app/signals
 COPY --from=build /out/ingest /app/ingest
-COPY --from=build /go/bin/dbmate /usr/local/bin/dbmate
-# The signals database's own stream - the suite's, applied by the signals-migrate one-shot
-COPY --from=build /src/signals/internal/db/migrations /app/signals-migrations
-# The spine schema - applied by the clickhouse-migrate one-shot
-COPY --from=build /src/signals/internal/analytics/spinech/migrations /app/clickhouse-migrations
 USER app
 EXPOSE 8090 8092
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
     CMD curl -fsS http://localhost:8090/healthz || exit 1
-# CMD (not ENTRYPOINT) so overriding with ingest or migrate just works
+# CMD (not ENTRYPOINT) so overriding with ingest just works - both binaries migrate the suite's databases as they boot
 CMD ["/app/signals"]
