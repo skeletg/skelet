@@ -218,6 +218,11 @@ jobs:
           sed -i -e "s|^CUSTOMER_JWT_PRIVATE_KEY=.*|CUSTOMER_JWT_PRIVATE_KEY=$seed|" \
             -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" \
             -e "s|^CONFIG_ENCRYPTION_KEY=.*|CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n')|" env/go.env
+      # The dev containers run as SKELET_UID, which only bin/_lib exports - left at compose's 1000, Air can't write to the runner's checkout
+      - name: Container user
+        run: |
+          echo "SKELET_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "SKELET_GID=$(id -g)" >> "$GITHUB_ENV"
       # --wait blocks on the app's healthcheck, and the app migrates before it serves, so healthy means migrated
       - name: Start the stack
         run: docker compose --profile dashboard up -d --wait app dashboard
