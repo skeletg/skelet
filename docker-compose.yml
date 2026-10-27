@@ -19,7 +19,7 @@ x-backend-base: &backend-base
   # those ports are published in dev - go1.27's goroutineleak profile is served there too
   PPROF_ENABLED: "${PPROF_ENABLED:-}"
 
-# The Signals processes' own environment - signals, ingest and the signals-migrate one-shot
+# The Signals processes' own environment - signals and ingest, which also migrate both its databases as they boot
 x-signals-env: &signals-env
   # Signals' own database (signals-db below) - only the suite's processes open it; app and worker
   # reach everything in it over the contract
@@ -69,12 +69,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
       signals-db:
         condition: service_healthy
-      signals-migrate:
-        condition: service_completed_successfully
       valkey:
         condition: service_healthy
     healthcheck:
@@ -114,12 +110,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
       signals-db:
         condition: service_healthy
-      signals-migrate:
-        condition: service_completed_successfully
       valkey:
         condition: service_healthy
     healthcheck:
@@ -154,8 +146,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/healthz"]
       interval: 15s
@@ -197,12 +187,8 @@ services:
         condition: service_healthy
       signals-db:
         condition: service_healthy
-      signals-migrate:
-        condition: service_completed_successfully
       clickhouse:
         condition: service_healthy
-      clickhouse-migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
       interval: 15s
@@ -242,12 +228,8 @@ services:
         condition: service_healthy
       signals-db:
         condition: service_healthy
-      signals-migrate:
-        condition: service_completed_successfully
       clickhouse:
         condition: service_healthy
-      clickhouse-migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8091/healthz"]
       interval: 15s
@@ -363,27 +345,6 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # One-shot: bring the commerce database up to date, then exit - gates every backend role so none boots against an un-migrated schema ($$ = the container's shell) Schema first, then the run-once data patches that need Go the schema can't express - a plugin's patch reaches the database here, and nowhere else
-  migrate:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
-    volumes:
-      - ./apps/backend:/var/www/backend
-    environment:
-      <<: *backend-base
-    # DATABASE_URL comes from here, so this migrates whatever db the backend
-    # will actually open - not a second copy of the DSN
-    env_file:
-      - env/go.env
-    command: sh -c 'dbmate --no-dump-schema --wait --migrations-dir internal/db/migrations up && go run ./cmd/cli plugin migrate up && go run ./cmd/cli data-patch up'
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-    logging: *logging
-
   # Signals' own Postgres - spine, Lens and identity tables live only here - its own database, not necessarily its own
   # server: prod can point SIGNALS_DB_URL at a second db on the commerce instance
   signals-db:
@@ -402,25 +363,6 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    logging: *logging
-
-  # The same one-shot for the signals stream - gates app, worker, signals and ingest
-  # Reuses the app image for dbmate with the Signals module mounted, since the stream is the suite's
-  signals-migrate:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
-    volumes:
-      - ./apps/backend/signals:/var/www/backend/signals
-    environment:
-      <<: *signals-env
-      HOME: "/tmp"
-    command: sh -c 'dbmate --no-dump-schema --wait --env SIGNALS_DB_URL --migrations-dir /var/www/backend/signals/internal/db/migrations up'
-    depends_on:
-      signals-db:
-        condition: service_healthy
-    restart: "no"
     logging: *logging
 
   # The event spine's server, up with the suite
@@ -466,25 +408,6 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
-    logging: *logging
-
-  # The spine schema on the server above, applied the same way prod does so there's one mechanism and
-  # editing a migration takes effect on the next up rather than only on a fresh volume
-  clickhouse-migrate:
-    profiles: ["signals", "ingest"]
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
-    volumes:
-      - ./apps/backend/signals/internal/analytics/spinech/migrations:/m:ro
-    environment:
-      <<: *signals-env
-      HOME: "/tmp"
-    depends_on:
-      clickhouse: { condition: service_healthy }
-    command: sh -c 'dbmate --no-dump-schema --wait --env SIGNALS_CH_URL --migrations-dir /m up'
-    restart: "no"
     logging: *logging
 
   valkey:

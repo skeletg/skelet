@@ -94,6 +94,21 @@ func TestUpNamespace_AppliesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestUpNamespace_ResetsSessionSettingsBeforeRecording(t *testing.T) {
+	conn := testDB(t)
+	const ns, table = "pmtest-reset", "pmtest_reset"
+	registerFixture(t, conn, ns, table, mapFS(map[string]string{
+		"0001_dump.up.sql":   `CREATE TABLE ` + table + ` (id INT); SELECT pg_catalog.set_config('search_path', '', false);`,
+		"0001_dump.down.sql": `DROP TABLE public.` + table + `;`,
+	}))
+	if err := New(conn).UpNamespace(context.Background(), ns); err != nil {
+		t.Fatalf("up: %v - the record insert has to run after the migration's settings are reset", err)
+	}
+	if got := appliedCount(t, conn, ns); got != 1 {
+		t.Errorf("applied rows: got %d, want 1", got)
+	}
+}
+
 // Editing a shipped migration desyncs file from DB, and rolling forward on that is how environments silently diverge
 func TestUpNamespace_ChecksumDriftRefuses(t *testing.T) {
 	conn := testDB(t)

@@ -252,6 +252,10 @@ func (r *Runner) applyOne(ctx context.Context, namespace string, m Migration) er
 		return fmt.Errorf("plugin %s migration %04d_%s: %w\nSQL: %s",
 			namespace, m.Version, m.Name, err, truncateForLog(m.UpSQL))
 	}
+	// Boot runs this through the app's pooler, so a session SET in the body must not outlive the commit
+	if _, err := tx.ExecContext(ctx, `RESET ALL`); err != nil {
+		return fmt.Errorf("reset after %s/%d: %w", namespace, m.Version, err)
+	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO plugin_migrations (namespace, version, checksum) VALUES ($1, $2, $3)`,
 		namespace, m.Version, migrationChecksum(m),
@@ -282,6 +286,9 @@ func (r *Runner) rollbackOne(ctx context.Context, namespace string, m Migration)
 	if _, err := tx.ExecContext(ctx, m.DownSQL); err != nil {
 		return fmt.Errorf("plugin %s rollback %04d_%s: %w\nSQL: %s",
 			namespace, m.Version, m.Name, err, truncateForLog(m.DownSQL))
+	}
+	if _, err := tx.ExecContext(ctx, `RESET ALL`); err != nil {
+		return fmt.Errorf("reset after rolling back %s/%d: %w", namespace, m.Version, err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM plugin_migrations WHERE namespace = $1 AND version = $2`,

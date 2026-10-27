@@ -141,8 +141,7 @@ fi
 
 # The spine lives in ClickHouse - with the suite on, a missing server or schema means the beacons write into a hole
 if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' env/go.env 2>/dev/null; then
-    # Exact element match - `grep -w clickhouse` also accepts clickhouse-migrate, since a
-    # hyphen counts as a word boundary, and that one-shot exits while the server may not exist
+    # Exact element match - `grep -w clickhouse` would also accept any hyphenated service named after it
     case " $running " in
         *" clickhouse "*)
             if [ "$(docker compose exec -T clickhouse clickhouse-client \
@@ -150,7 +149,7 @@ if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[
                       --query 'EXISTS TABLE signals.analytics_events' 2>/dev/null | tr -d '[:space:]')" = 1 ]; then
                 pass "clickhouse spine up, schema present"
             else
-                bad "clickhouse is up but signals.analytics_events is missing - see bin/logs clickhouse-migrate"
+                bad "clickhouse is up but signals.analytics_events is missing - the signals process migrates it as it boots, see bin/logs signals"
             fi ;;
         *)  bad "SIGNALS_ENABLED is on but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
     esac

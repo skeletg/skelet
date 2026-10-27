@@ -1,4 +1,4 @@
-# Prod stack - compiled images + the datastores, no edge and no TLS: services bind to 127.0.0.1 only, so put your own proxy in front and terminate TLS there cp each env/*.example to its real name plus .env.example -> .env at the root, then build (or pull via *_IMAGE) and `up -d` - migrations gate app Every var is documented in docs/env.md, and optional infra sits behind --profile queue and --profile edge
+# Prod stack - compiled images + the datastores, no edge and no TLS: services bind to 127.0.0.1 only, so put your own proxy in front and terminate TLS there cp each env/*.example to its real name plus .env.example -> .env at the root, then build (or pull via *_IMAGE) and `up -d` - each service migrates the databases it opens as it boots Every var is documented in docs/env.md, and optional infra sits behind --profile queue and --profile edge
 name: skelet-prod
 
 # json-file is UNBOUNDED by default, so a long deployment fills the disk - 10 MB x 3 caps each service at ~30 MB, which
@@ -57,13 +57,6 @@ x-core-db: &core-db
 x-signals-db: &signals-db
   SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
 
-# The migration one-shots bypass the pooler - DDL and a long backfill want a real session, not a transaction-pooled one
-x-core-db-direct: &core-db-direct
-  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:-}@db:5432/skelet?sslmode=disable}
-
-x-signals-db-direct: &signals-db-direct
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@signals-db:5432/skelet_signals?sslmode=disable}
-
 # The bundled datastores sit behind the `bundled` profile so a managed deployment can drop them - point DATABASE_URL / SIGNALS_DB_URL / VALKEY_URL / SIGNALS_CH_URL at the managed instances and they never start - .env sets COMPOSE_PROFILES=bundled, so a self-hosted box gets them by default Every depends_on on them carries `required: false`, without which compose rejects the whole file the moment the profile is off
 services:
   app:
@@ -87,9 +80,6 @@ services:
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
       valkey-limits: { condition: service_healthy, required: false }
-      # Both schemas are migrated before the app boots - see the two one-shots
-      migrate: { condition: service_completed_successfully }
-      signals-migrate: { condition: service_completed_successfully }
       # Optional infra - `required: false` keeps the project valid when the
       # profile is off, and still waits for health when it's on
       nats: { condition: service_healthy, required: false }
@@ -130,8 +120,6 @@ services:
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
       valkey-limits: { condition: service_healthy, required: false }
-      migrate: { condition: service_completed_successfully }
-      signals-migrate: { condition: service_completed_successfully }
       # Optional infra - see the note on `app`
       nats: { condition: service_healthy, required: false }
     healthcheck:
@@ -164,7 +152,6 @@ services:
     depends_on:
       pgbouncer: { condition: service_healthy, required: false }
       db: { condition: service_healthy, required: false }
-      migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8083/healthz"]
       interval: 15s
@@ -206,9 +193,7 @@ services:
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
       valkey-limits: { condition: service_healthy, required: false }
-      signals-migrate: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy, required: false }
-      clickhouse-migrate: { condition: service_completed_successfully }
       # Optional infra - see the note on `app`; this worker owns the queue consumer
       nats: { condition: service_healthy, required: false }
     healthcheck:
@@ -245,9 +230,7 @@ services:
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
       valkey-limits: { condition: service_healthy, required: false }
-      signals-migrate: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy, required: false }
-      clickhouse-migrate: { condition: service_completed_successfully }
       # Optional infra - see the note on `app`; the beacon tier publishes to the same queue
       nats: { condition: service_healthy, required: false }
     healthcheck:
@@ -263,39 +246,6 @@ services:
     deploy:
       resources:
         limits: { memory: 512m, cpus: "2" }
-    logging: *logging
-
-  # One-shot: schema, then the run-once data patches - gates app via depends_on, and is where a plugin's patch reaches the database
-  # Signals has its own database and its own signals-migrate one-shot, and the commerce baseline carries no Signals tables at all
-  migrate:
-    image: ${APP_IMAGE:-skelet-app:prod}
-    build:
-      context: ./apps/backend
-      dockerfile: core/Dockerfile.prod
-    env_file: [env/prod.env]
-    environment:
-      <<: [*shared-secrets, *core-secrets, *core-db-direct]
-    depends_on:
-      db: { condition: service_healthy, required: false }
-    # $$ so the container's shell expands DATABASE_URL, not compose
-    command: ["sh", "-c", "dbmate --no-dump-schema --wait --migrations-dir /app/migrations up && skelet plugin migrate up && skelet data-patch up"]
-    restart: "no"
-    logging: *logging
-
-  # Same one-shot for the signals stream, gating app/worker/signals - run alone with
-  # docker compose -f docker-compose.prod.yml run --rm signals-migrate
-  signals-migrate:
-    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
-    build:
-      context: ./apps/backend
-      dockerfile: signals/Dockerfile.prod
-    env_file: [env/prod.env]
-    environment:
-      <<: *signals-db-direct
-    depends_on:
-      signals-db: { condition: service_healthy, required: false }
-    command: ["sh", "-c", "dbmate --no-dump-schema --wait --env SIGNALS_DB_URL --migrations-dir /app/signals-migrations up"]
-    restart: "no"
     logging: *logging
 
   dashboard:
@@ -391,7 +341,7 @@ services:
 
   # Connection poolers, one per database so the bulkhead survives the pooler - the commerce pool can't be drained by beacon volume, exactly as the two Postgres instances are already split
   # POOL_MODE=transaction is what makes that true - a server connection is held for
-  # a transaction, not a session - it is also why migrations are wired around this, and why prepared statements are off in the pooled DSN above
+  # a transaction, not a session - it is also why a migration resets its session settings before it commits, and why prepared statements are off in the pooled DSN above
   pgbouncer:
     profiles: ["bundled"]
     image: edoburu/pgbouncer:v1.25.2-p0
@@ -596,20 +546,6 @@ services:
     deploy:
       resources:
         limits: { memory: 4g, cpus: "4" }
-    logging: *logging
-
-  #   docker compose -f docker-compose.prod.yml run --rm clickhouse-migrate
-  clickhouse-migrate:
-    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
-    build:
-      context: ./apps/backend
-      dockerfile: signals/Dockerfile.prod
-    environment:
-      SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
-    depends_on:
-      clickhouse: { condition: service_healthy, required: false }
-    command: ["sh", "-c", "dbmate --no-dump-schema --wait --env SIGNALS_CH_URL --migrations-dir /app/clickhouse-migrations up"]
-    restart: "no"
     logging: *logging
 
   # Durable ingest queue between /t and the spine - an append is on disk before the request returns, and the signals worker is required with this on, since it runs the consumer

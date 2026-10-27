@@ -250,9 +250,10 @@ more than it works.
 `POOL_MODE=transaction` is what makes any of that true, and it has three
 consequences worth knowing:
 
-- **Migrations bypass it.** DDL and a long backfill want a real session,
-  not a transaction-pooled one, so `migrate` and `signals-migrate` keep the
-  direct DSNs.
+- **Migrations go through it, one transaction per file.** Each file runs
+  and is recorded in a single transaction, and the runner resets the session
+  before it commits, so a migration's `SET`s never reach another client's
+  connection.
 - **Server-side prepared statements are off.** The pooled DSNs carry
   `default_query_exec_mode=exec`, because a `PREPARE` lands on whichever
   server connection is free and the next `EXECUTE` may not find it.
