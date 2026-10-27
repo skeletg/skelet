@@ -477,7 +477,7 @@ const cases: Case[] = [
             slug: `${RUN}-location`,
             name: 'Seeded location',
             isActive: false,
-            type: 'warehouse',
+            type: 'WAREHOUSE',
             line1: 'Seeded street 1',
             line2: 'Dock 4',
             city: 'Novi Sad',

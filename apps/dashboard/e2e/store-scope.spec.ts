@@ -1,5 +1,5 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { adminApi, test } from './helpers'
+import { adminApi, spendFirstLogin, test } from './helpers'
 import { RUN, cleanup, firstChannel, registerCleanups } from './fixtures'
 
 // An admin whose roles reach one store only. Everything else in the suite runs as an admin with
@@ -39,6 +39,7 @@ test.beforeAll(async ({ browser }) => {
     i: { email, password: PASSWORD, firstName: 'One', lastName: 'Store', roleSlugs: [createRole.slug] },
   })
   cleanup(() => adminApi('mutation($id:ID!){ deleteAdmin(id:$id) }', { id: createAdmin.id }))
+  await spendFirstLogin(email, PASSWORD)
 
   const customer = async (channelId: string, who: string) => {
     const { adminCreateCustomer } = await adminApi<{ adminCreateCustomer: { id: string } }>('mutation($i:AdminCreateCustomerInput!){ adminCreateCustomer(input:$i){ id } }', {

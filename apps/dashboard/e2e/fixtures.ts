@@ -54,6 +54,17 @@ export async function firstChannel() {
   return channels[0]
 }
 
+// CI's database starts with no catalog, so a spec that needs a product type makes one for the run
+export async function productTypeId(): Promise<string> {
+  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
+  if (productTypes[0]) return productTypes[0].id
+  const { createProductType } = await adminApi<{ createProductType: { id: string } }>('mutation($i:CreateProductTypeInput!){ createProductType(input:$i){ id } }', {
+    i: { slug: `${RUN}-type`, name: `${RUN} type` },
+  })
+  cleanup(() => adminApi('mutation($id:ID!){ deleteProductType(id:$id) }', { id: createProductType.id }))
+  return createProductType.id
+}
+
 export async function open(page: Page, path: string) {
   await startClean(page)
   await page.goto(path, { waitUntil: 'domcontentloaded' })

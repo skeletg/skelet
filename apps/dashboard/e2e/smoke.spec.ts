@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, type Page } from '@playwright/test'
 import { adminApi, startClean, test } from './helpers'
-import { RUN, cleanup, registerCleanups } from './fixtures'
+import { RUN, cleanup, productTypeId, registerCleanups } from './fixtures'
 
 // Every page with a fixed path, opened once against the real API. The unit suite mocks Apollo, so a
 // query the schema no longer accepts, a resolver that refuses an admin it should serve, or a page that
@@ -187,6 +187,8 @@ function detailResolvers(channelId: string, currencyCode: string): Record<string
       `/carts/${(await adminApi<{ adminCreateCart: { id: string } }>('mutation($c:ID!){ adminCreateCart(channelId:$c){ id } }', { c: channelId })).adminCreateCart.id}`,
     '/catalog/attributes/:id': async () =>
       `/catalog/attributes/${await made('mutation($i:CreateAttributeInput!){ createAttribute(input:$i){ id } }', { slug: `${RUN}-detail-attr`, name: 'Detail attribute', inputType: 'PLAIN_TEXT' }, 'deleteAttribute')}`,
+    '/catalog/configurator-templates/:id': async () =>
+      `/catalog/configurator-templates/${await made('mutation($i:OptionTemplateInput!){ createOptionTemplate(input:$i){ id } }', { name: `${RUN} detail template`, currencyCode }, 'deleteOptionTemplate')}`,
     '/catalog/product-types/:id': async () =>
       `/catalog/product-types/${await made('mutation($i:CreateProductTypeInput!){ createProductType(input:$i){ id } }', { slug: `${RUN}-detail-type`, name: 'Detail type' }, 'deleteProductType')}`,
     '/categories/:id': async () =>
@@ -222,18 +224,19 @@ function detailResolvers(channelId: string, currencyCode: string): Record<string
     '/integrations/:id': async () =>
       `/integrations/${await made('mutation($i:CreateIntegrationInput!){ createIntegration(input:$i){ integration { id } } }', { name: `${RUN} detail integration`, permissionSlugs: ['customers.view'] }, 'deleteIntegration')}`,
     '/inventory/locations/:id': async () =>
-      `/inventory/locations/${await made('mutation($i:CreateInventoryLocationInput!){ createInventoryLocation(input:$i){ id } }', { slug: `${RUN}-detail-location`, name: 'Detail location', type: 'warehouse' }, 'deleteInventoryLocation')}`,
+      `/inventory/locations/${await made('mutation($i:CreateInventoryLocationInput!){ createInventoryLocation(input:$i){ id } }', { slug: `${RUN}-detail-location`, name: 'Detail location', type: 'WAREHOUSE' }, 'deleteInventoryLocation')}`,
     '/lens/sessions/:id': () =>
       or((id) => `/lens/sessions/${id}`, first<{ id: string }>('query($c:ID!){ lensSessions(channelId:$c, limit:1){ id } }', { c: channelId }).then((r) => r?.id), 'the dev data has no recorded session'),
     '/locales/:code': async () => '/locales/en',
     '/menus/:id': async () => `/menus/${await made('mutation($i:CreateMenuInput!){ createMenu(input:$i){ id } }', { slug: `${RUN}-detail-menu`, name: 'Detail menu' }, 'deleteMenu')}`,
+    '/offers/:id': async () =>
+      `/offers/${(await adminApi<{ adminCreateCartOffer: { id: string } }>('mutation($i:AdminCreateCartOfferInput!){ adminCreateCartOffer(input:$i){ id } }', { i: { channelId, email: `${RUN}-offer@e2e.test` } })).adminCreateCartOffer.id}`,
     '/orders/:id': () =>
       or((id) => `/orders/${id}`, first<{ id: string }>('query($c:ID){ orders(channelId:$c){ id } }', { c: channelId }).then((r) => r?.id), 'the dev data has no order'),
     '/prism/:id': () =>
       or((id) => `/prism/${id}`, first<{ id: string }>('query($c:ID!){ experiments(channelId:$c){ id } }', { c: channelId }).then((r) => r?.id), 'the dev data has no experiment'),
     '/products/:id': async () => {
-      const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
-      return `/products/${await made('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', { productTypeId: productTypes[0]?.id, kind: 'SIMPLE', sku: `${RUN}-detail-product`, locale: 'en', name: 'Detail product', defaultPrice: 1500, defaultCurrencyCode: currencyCode }, 'deleteProduct')}`
+      return `/products/${await made('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', { productTypeId: await productTypeId(), kind: 'SIMPLE', sku: `${RUN}-detail-product`, locale: 'en', name: 'Detail product', defaultPrice: 1500, defaultCurrencyCode: currencyCode }, 'deleteProduct')}`
     },
     '/promotions/:id': async () =>
       `/promotions/${await made('mutation($i:CreatePromotionRuleInput!){ createPromotionRule(input:$i){ id } }', { slug: `${RUN}-detail-rule`, name: 'Detail rule', isActive: false }, 'deletePromotionRule')}`,

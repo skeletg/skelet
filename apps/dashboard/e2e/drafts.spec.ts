@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { adminApi, login, saveThroughDialog, test } from './helpers'
-import { RUN, cleanup, draftKeys, firstChannel, hasDraft, open, registerCleanups } from './fixtures'
+import { RUN, cleanup, draftKeys, firstChannel, hasDraft, open, productTypeId, registerCleanups } from './fixtures'
 
 // The stored draft's life, in a real browser: what a reload offers when someone else changed the same
 // field meanwhile, two sections of one page each offering their own, an edit made instead of deciding,
@@ -78,9 +78,9 @@ test('an edit made instead of deciding drops the offer and becomes the draft', a
 
 test('two sections of the product page each offer their own draft', async ({ page }) => {
   const channel = await firstChannel()
-  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
+  const typeId = await productTypeId()
   const { createProduct } = await adminApi<{ createProduct: { id: string } }>('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', {
-    i: { productTypeId: productTypes[0]?.id, kind: 'SIMPLE', sku: `${RUN}-two-sections`, locale: 'en', name: 'Two sections', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
+    i: { productTypeId: typeId, kind: 'SIMPLE', sku: `${RUN}-two-sections`, locale: 'en', name: 'Two sections', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
   })
   const id = createProduct.id
   cleanup(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id }))
