@@ -25,6 +25,7 @@ import {
   LibraryEmailsDocument,
   RenameEmailGroupDocument,
 } from './Emails.gql'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return '-'
@@ -43,6 +44,7 @@ type EmailRow = {
 // The "Emails" tab: the reusable-email library rendered with the shared DataTable (search + a Group faceted filter + sortable columns) -
 // Group management is a lightweight dialog; the "New email" action lives in the EmailsHub page header
 export function EmailsTab({ channelId, isChannel }: { channelId: string; isChannel: boolean }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const { has } = usePermissions()
   const canManage = has('emails.manage')
   const [manageOpen, setManageOpen] = useState(false)
@@ -114,15 +116,15 @@ export function EmailsTab({ channelId, isChannel }: { channelId: string; isChann
                     variant="ghost"
                     className="size-8 text-muted-foreground hover:text-destructive"
                     aria-label={`Delete ${row.original.name}`}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete “${row.original.name}”? This can't be undone. Any flow that sends it will stop until you pick another email.`,
-                        )
-                      ) {
-                        void deleteEmail({ variables: { id: row.original.id } })
-                      }
-                    }}
+                    onClick={() =>
+                      confirm({
+                        title: `Delete “${row.original.name}”?`,
+                        description: "This can't be undone. Any flow that sends it will stop until you pick another email.",
+                        confirmLabel: 'Delete email',
+                        destructive: true,
+                        onConfirm: () => void deleteEmail({ variables: { id: row.original.id } }),
+                      })
+                    }
                   >
                     <Trash2Icon className="size-4" />
                   </Button>
@@ -132,7 +134,7 @@ export function EmailsTab({ channelId, isChannel }: { channelId: string; isChann
           ]
         : []),
     ],
-    [canManage, groupNameById, deleteEmail],
+    [canManage, groupNameById, deleteEmail, confirm],
   )
 
   const filters =
@@ -184,6 +186,7 @@ export function EmailsTab({ channelId, isChannel }: { channelId: string; isChann
       </DetailPageSection>
 
       {manageOpen && <ManageGroupsDialog open={manageOpen} onClose={() => setManageOpen(false)} />}
+      {confirmDialog}
     </>
   )
 }
@@ -270,6 +273,7 @@ function GroupRow({
   onRename: (name: string) => void
   onDelete: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
 
@@ -307,13 +311,20 @@ function GroupRow({
         size="sm"
         variant="ghost"
         className="h-7 px-2 text-muted-foreground hover:text-destructive"
-        onClick={() => {
-          if (window.confirm(`Delete the “${name}” group? Its ${emailCount} email(s) stay in the library, just untagged.`)) onDelete()
-        }}
+        onClick={() =>
+          confirm({
+            title: `Delete the “${name}” group?`,
+            description: `Its ${emailCount} email(s) stay in the library, just untagged.`,
+            confirmLabel: 'Delete group',
+            destructive: true,
+            onConfirm: onDelete,
+          })
+        }
         aria-label={`Delete ${name}`}
       >
         <Trash2Icon className="size-3.5" />
       </Button>
+      {confirmDialog}
     </div>
   )
 }

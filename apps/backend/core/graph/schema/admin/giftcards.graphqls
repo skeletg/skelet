@@ -29,9 +29,16 @@ type GiftCardTransaction {
   createdAt: Time!
 }
 
+type GiftCardPage {
+  totalCount: Int!
+  items:      [GiftCard!]!
+}
+
 extend type Query {
-  # Gift cards newest-first (paginated).
+  # Gift cards newest-first (paginated). giftCardsPaged adds search and the total
   giftCards(limit: Int, offset: Int): [GiftCard!]!
+  # One page of gift cards, newest first. search matches the code or the recipient's email
+  giftCardsPaged(search: String, limit: Int, offset: Int): GiftCardPage!
   # Look up one card by its code (for the redeem/balance-check admin tool).
   giftCard(code: String!): GiftCard
 }

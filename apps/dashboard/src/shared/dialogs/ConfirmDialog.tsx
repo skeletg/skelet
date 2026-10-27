@@ -20,6 +20,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   busyLabel,
   destructive = false,
   onConfirm,
@@ -29,6 +30,7 @@ export function ConfirmDialog({
   title: ReactNode
   description?: ReactNode
   confirmLabel?: ReactNode
+  cancelLabel?: ReactNode // 'Keep' where the action itself is a cancel, so the two buttons don't both say it
   busyLabel?: ReactNode // defaults to the confirm label plus an ellipsis, what nearly every caller wrote by hand
   destructive?: boolean
   onConfirm: () => void | Promise<void>
@@ -72,7 +74,7 @@ export function ConfirmDialog({
           </Alert>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             disabled={busy}
             // preventDefault keeps Radix from closing before the mutation resolves

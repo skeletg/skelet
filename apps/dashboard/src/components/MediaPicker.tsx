@@ -1,20 +1,11 @@
-import { useState, useEffect } from 'react'
-import { useLazyQuery, useQuery } from '@apollo/client/react'
-import { ImageOffIcon, ImageIcon, SearchIcon, XIcon } from 'lucide-react'
+import { useState } from 'react'
+import { useQuery } from '@apollo/client/react'
+import { ImageOffIcon, ImageIcon, XIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import type { MediaMimeGroup } from '@/graphql/schema.types'
-import { MediaPickerAssetDocument, MediaPickerSearchDocument, type MediaPickerAssetQuery } from './MediaPicker.gql'
+import { MediaAssetPicker } from '@/features/media/MediaAssetPicker'
+import { MediaPickerAssetDocument } from './MediaPicker.gql'
 
 // MediaPicker is the dashboard's single-asset picker - Used wherever a
 // domain row references one media asset by id (promotion label /
@@ -28,15 +19,12 @@ import { MediaPickerAssetDocument, MediaPickerSearchDocument, type MediaPickerAs
 // the parent's stored model when GraphQL hydrates the asset
 // separately
 
-type PickerAsset = NonNullable<MediaPickerAssetQuery['mediaAsset']>
-
 export function MediaPicker({
   value,
   onChange,
   label,
   description,
   previewClassName,
-  mimeGroup,
 }: {
   // Current asset id (nullable) - When set, the picker fetches the asset on mount so the preview thumbnail renders even
   // before the user opens the dialog
@@ -45,9 +33,6 @@ export function MediaPicker({
   label?: string
   description?: string
   previewClassName?: string
-  // Optional MIME-group filter for the search dialog - Pass "IMAGE"
-  // for image-only pickers (the most common case)
-  mimeGroup?: MediaMimeGroup
 }) {
   // Hydrate the currently-selected asset so the preview thumbnail
   // shows immediately - Skipped when value is null
@@ -118,15 +103,7 @@ export function MediaPicker({
         </div>
       </div>
 
-      <PickerDialog
-        open={open}
-        onOpenChange={setOpen}
-        mimeGroup={mimeGroup}
-        onPick={(asset) => {
-          onChange(asset.id)
-          setOpen(false)
-        }}
-      />
+      <MediaAssetPicker open={open} onOpenChange={setOpen} selectedIds={current ? [current.id] : []} onSelect={(asset) => onChange(asset.id)} />
     </div>
   )
 }
@@ -138,11 +115,9 @@ export function MediaPicker({
 export function MediaPickerButton({
   onPick,
   label = 'Library',
-  mimeGroup = 'IMAGE',
 }: {
   onPick: (url: string) => void
   label?: string
-  mimeGroup?: MediaMimeGroup
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -151,102 +126,7 @@ export function MediaPickerButton({
         <ImageIcon className="size-4" />
         {label}
       </Button>
-      <PickerDialog
-        open={open}
-        onOpenChange={setOpen}
-        mimeGroup={mimeGroup}
-        onPick={(asset) => {
-          onPick(asset.url)
-          setOpen(false)
-        }}
-      />
+      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(asset) => onPick(asset.url)} />
     </>
-  )
-}
-
-function PickerDialog({
-  open,
-  onOpenChange,
-  mimeGroup,
-  onPick,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  mimeGroup?: MediaMimeGroup
-  onPick: (asset: PickerAsset) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [runSearch, { data, loading }] = useLazyQuery(MediaPickerSearchDocument)
-
-  // Re-fetch when the dialog opens / search query changes - The search query is the asset filename / title; without it the backend returns
-  // the most-recent assets, which is the right default for "I just uploaded the sticker, find it" flows
-  useEffect(() => {
-    if (!open) return
-    const handle = window.setTimeout(() => {
-      runSearch({
-        variables: { query: query || null, mimeGroup: mimeGroup ?? null, limit: 60 },
-      })
-    }, 150) // debounce typing
-    return () => window.clearTimeout(handle)
-  }, [open, query, mimeGroup, runSearch])
-
-  const items = data?.searchMediaAssets.items ?? []
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Pick an image</DialogTitle>
-          <DialogDescription>
-            Search by filename or title. The 60 newest matching assets are
-            shown.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className="pl-9"
-            autoFocus
-          />
-        </div>
-        <div className="grid max-h-96 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4">
-          {loading && items.length === 0 ? (
-            <p className="col-span-full p-4 text-center text-sm text-muted-foreground">
-              Loading…
-            </p>
-          ) : items.length === 0 ? (
-            <p className="col-span-full p-4 text-center text-sm text-muted-foreground">
-              No assets found.
-            </p>
-          ) : (
-            items.map((asset) => (
-              <button
-                type="button"
-                key={asset.id}
-                onClick={() => onPick(asset)}
-                className="grid gap-1 rounded border p-1.5 text-left transition hover:border-foreground/40 hover:bg-accent/50"
-              >
-                <div className="grid aspect-square place-items-center overflow-hidden rounded bg-muted">
-                  <img
-                    src={asset.url}
-                    alt={asset.altText || asset.title || asset.filename}
-                    className="size-full object-cover"
-                  />
-                </div>
-                <p className="truncate text-xs">{asset.title || asset.filename}</p>
-              </button>
-            ))
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

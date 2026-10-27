@@ -555,11 +555,12 @@ bin/dev --lean
 echo "==> Waiting for db..."
 docker compose exec db sh -c 'until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done'
 
+# The app migrates as it boots - this waits for the same work under the same locks, so the steps below find the schema in place
 echo "==> Running migrations..."
-bin/migrate up
+bin/cli migrate
 
-# ClickHouse came up inside the signals profile and the Signals process waits on its one-shot, so
-# this only confirms the spine schema landed before the first beacon
+# ClickHouse came up inside the signals profile and the Signals process migrates the spine as it boots, so
+# this only confirms the schema landed before the first beacon
 if [ "$SKELET_SIGNALS" = true ]; then
     echo "==> Waiting for the ClickHouse spine schema..."
     ch_ready=0
@@ -576,7 +577,7 @@ if [ "$SKELET_SIGNALS" = true ]; then
         echo "    signals.analytics_events present"
     else
         echo "    NOT ready after 2 minutes - the spine will write nowhere until this lands" >&2
-        echo "    look at: bin/logs clickhouse-migrate" >&2
+        echo "    look at: bin/logs signals" >&2
     fi
 fi
 

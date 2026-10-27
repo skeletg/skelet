@@ -126,13 +126,19 @@ SELECT * FROM promotion_codes
 WHERE code = $1 AND is_active = TRUE;
 
 -- name: ListPromotionCodesByRule :many
+-- search matches the code; a NULL is_active keeps both. CountPromotionCodesByRule keeps the same WHERE
 SELECT * FROM promotion_codes
-WHERE rule_id = $1
+WHERE rule_id = sqlc.arg(rule_id)
+  AND (sqlc.arg(search)::text = '' OR code ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean)
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountPromotionCodesByRule :one
-SELECT COUNT(*)::INTEGER FROM promotion_codes WHERE rule_id = $1;
+SELECT COUNT(*)::INTEGER FROM promotion_codes
+WHERE rule_id = sqlc.arg(rule_id)
+  AND (sqlc.arg(search)::text = '' OR code ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean);
 
 -- name: IncrementCodeUsage :execrows
 -- Cap-guarded like IncrementRuleUsage: zero rows affected = cap hit

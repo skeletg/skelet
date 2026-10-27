@@ -20,38 +20,29 @@ import {
   RequestProductOptionFileUploadDocument,
   UpdateCartLineDocument,
 } from "@/app/lib/cart/mutations.gql";
-import { CART_COOKIE } from "@/app/lib/cart/read";
+import { CART_COOKIE, getOwnCartId, PROMO_PENDING_COOKIE } from "@/app/lib/cart/read";
 import { couponSchema } from "@/app/lib/cart/schemas";
 import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCartRecommendations } from "@/app/lib/catalog/read";
 import { getCart } from "@/app/lib/cart/read";
 import { productHref } from "@/app/lib/entity-href";
-import {
-  CartByIdDocument,
-  CartEstimateDocument,
-  MyCartDocument,
-} from "@/app/lib/cart/queries.gql";
+import { CartByIdDocument, CartEstimateDocument } from "@/app/lib/cart/queries.gql";
 import type { Cart } from "@/app/lib/cart/types";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
 
-// Resolves the active cart ID, creating a guest cart server-side (and writing the
-// cookie) on first use
+// Own-cart edits: null when there is no cart to edit, or the session's cart can't be read - the store then
+// re-reads the cart instead of the edit landing anywhere else
+async function ownCartId(): Promise<string | null> {
+  return getOwnCartId().catch(() => null);
+}
+
+// Additions only: the shopper's own cart, creating a guest cart (and its cookie) when a guest has none or theirs is
+// gone. The signed-in cart is get-or-create server side, and a failed read fails the add rather than using another
 async function ensureCartID(): Promise<string> {
+  const existing = await getOwnCartId();
+  if (await getAccessToken()) return existing!;
   const store = await cookies();
-  // Signed in: always the customer's own cart (get-or-create server side)
-  if (await getAccessToken()) {
-    try {
-      const mine = await gqlFetch(MyCartDocument);
-      const id = mine.data.myCart.id;
-      if (store.get(CART_COOKIE)?.value !== id) setCartCookie(store, id);
-      return id;
-    } catch {
-      // Token expired mid-session - fall back to the guest path so the add still
-      // succeeds
-    }
-  }
-  const existing = store.get(CART_COOKIE)?.value;
   if (existing) {
     const probe = await gqlFetch(CartProbeDocument, { id: existing });
     if (probe.data.cart) return existing;
@@ -62,7 +53,6 @@ async function ensureCartID(): Promise<string> {
   return id;
 }
 
-// Shared so the signed-in and guest paths can't drift on cookie flags
 function setCartCookie(
   store: Awaited<ReturnType<typeof cookies>>,
   id: string,
@@ -79,8 +69,6 @@ function setCartCookie(
     maxAge: 60 * 60 * 24 * 365,
   });
 }
-
-const PROMO_PENDING_COOKIE = "storefront_pending_promo";
 
 async function consumePendingPromo(cartId: string): Promise<Cart | null> {
   const store = await cookies();
@@ -168,7 +156,8 @@ export async function addBundleToCart(
     const res = await gqlFetch(AddBundleToCartDocument, {
       input: { cartId, sku, quantity, selections },
     });
-    return { ok: true, cart: res.data.addBundleToCart };
+    const promoCart = await consumePendingPromo(cartId);
+    return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
   } catch (err) {
     return { ok: false, error: formatAddError(err) };
   }
@@ -288,8 +277,9 @@ export async function addGroupedToCart(
   // Members are added one at a time, so a mid-batch failure can leave earlier members
   // already on the cart
   let last: Cart | null = null;
+  let cartId = "";
   try {
-    const cartId = await ensureCartID();
+    cartId = await ensureCartID();
     for (const l of real) {
       if (l.hasOptions) {
         const res = await gqlFetch(AddConfiguredToCartDocument, {
@@ -306,9 +296,11 @@ export async function addGroupedToCart(
         last = res.data.addToCart;
       }
     }
-    return { ok: true, cart: last };
+    return { ok: true, cart: (await consumePendingPromo(cartId)) ?? last };
   } catch (err) {
-    return { ok: false, error: formatAddError(err), cart: last };
+    // The members that did land are an addition like any other, so the held code applies to them
+    const promoCart = last ? await consumePendingPromo(cartId) : null;
+    return { ok: false, error: formatAddError(err), cart: promoCart ?? last };
   }
 }
 // Line edits reconcile to server truth on failure but also carry the rejection
@@ -320,8 +312,7 @@ export async function setCartLineQuantity(
   quantity: number,
 ): Promise<CartLineEditResult> {
   if (!lineId) return { cart: null };
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return { cart: null };
   const qty = quantity > 0 ? quantity : 0;
   try {
@@ -337,8 +328,7 @@ export async function setCartLineQuantity(
 }
 export async function removeCartLine(lineId: string): Promise<Cart | null> {
   if (!lineId) return null;
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return null;
   try {
     const res = await gqlFetch(RemoveFromCartDocument, { cartId, lineId });
@@ -349,8 +339,7 @@ export async function removeCartLine(lineId: string): Promise<Cart | null> {
 }
 
 export async function clearCart(): Promise<Cart | null> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return null;
   try {
     const res = await gqlFetch(ClearCartDocument, { cartId });
@@ -379,7 +368,8 @@ export type RestoreLinePayload =
 export async function restoreCartLineAction(
   payload: RestoreLinePayload,
 ): Promise<CartLineEditResult> {
-  const cartId = await ensureCartID();
+  const cartId = await ownCartId();
+  if (!cartId) return { cart: null, error: "addFailed" };
   try {
     if (payload.kind === "bundle") {
       const res = await gqlFetch(AddBundleToCartDocument, {
@@ -419,7 +409,8 @@ export async function applyCoupon(
 ): Promise<CouponActionResult> {
   const submission = parseForm(formData, couponSchema);
   if (submission.status !== "success") return submission.reply();
-  const cartId = await ensureCartID();
+  const cartId = await ownCartId();
+  if (!cartId) return submission.reply({ fieldErrors: { code: ["couponFailed"] } });
   try {
     const res = await gqlFetch(ApplyCouponDocument, {
       cartId,
@@ -439,8 +430,7 @@ export async function applyCoupon(
 export async function removeCouponAction(code: string): Promise<Cart | null> {
   const trimmed = code.trim();
   if (!trimmed) return null;
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return null;
   try {
     const res = await gqlFetch(RemoveCouponDocument, { cartId, code: trimmed });
@@ -472,7 +462,12 @@ export async function quickOrderAction(
   if (rows.length === 0) {
     return { ok: false, added: 0, errors: [{ sku: "", message: "Enter at least one SKU and quantity." }] };
   }
-  const cartId = await ensureCartID();
+  let cartId: string;
+  try {
+    cartId = await ensureCartID();
+  } catch {
+    return { ok: false, added: 0, errors: [{ sku: "", message: "Could not reach your cart." }] };
+  }
   let added = 0;
   const errors: Array<{ sku: string; message: string }> = [];
   for (const row of rows) {
@@ -493,13 +488,12 @@ export async function quickOrderAction(
     ok: errors.length === 0,
     added,
     errors,
-    cart: added > 0 ? await getCartFull(cartId) : undefined,
+    cart: added > 0 ? ((await consumePendingPromo(cartId)) ?? (await getCartFull(cartId))) : undefined,
   };
 }
 
 export async function saveForLaterAction(lineId: string): Promise<Cart | null> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId || !lineId) return null;
   try {
     const res = await gqlFetch(SaveForLaterDocument, { cartId, lineId });
@@ -511,8 +505,7 @@ export async function saveForLaterAction(lineId: string): Promise<Cart | null> {
 }
 
 export async function moveSavedToCartAction(savedItemId: string): Promise<Cart | null> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId || !savedItemId) return null;
   try {
     const res = await gqlFetch(MoveSavedToCartDocument, { cartId, savedItemId });
@@ -523,8 +516,7 @@ export async function moveSavedToCartAction(savedItemId: string): Promise<Cart |
 }
 
 export async function removeSavedItemAction(savedItemId: string): Promise<Cart | null> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId || !savedItemId) return null;
   try {
     const res = await gqlFetch(RemoveSavedItemDocument, { cartId, savedItemId });
@@ -546,8 +538,7 @@ export async function cartEstimateAction(
   countryCode: string,
   regionCode: string,
 ): Promise<CartEstimate | null> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId || !countryCode.trim()) return null;
   try {
     const res = await gqlFetch(CartEstimateDocument, {
@@ -562,8 +553,7 @@ export async function cartEstimateAction(
 }
 
 export async function setCartNoteAction(note: string): Promise<void> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return;
   try {
     await gqlFetch(SetCartNoteDocument, { cartId, note });
@@ -578,8 +568,7 @@ export type CartRecoItem = {
   priceCents: number;
 };
 export async function cartRecommendationsAction(): Promise<CartRecoItem[]> {
-  const store = await cookies();
-  const cartId = store.get(CART_COOKIE)?.value;
+  const cartId = await ownCartId();
   if (!cartId) return [];
   try {
     const recs = await getCartRecommendations(cartId);

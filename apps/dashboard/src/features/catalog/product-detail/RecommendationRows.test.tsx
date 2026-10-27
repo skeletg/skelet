@@ -1,6 +1,7 @@
 import { PrefsContext } from '@/lib/admin-prefs'
 import { useState } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, renderDialog } from '@/test/page-harness'
 import { RecommendationImage, RecommendationRows } from './RecommendationRows'
@@ -11,11 +12,11 @@ const mug = product('p2', 'Mug'), cap = product('p3', 'Cap')
 
 function Harness({ products = [mug, cap] }: { products?: RecommendationProduct[] }) {
   const [value, onChange] = useState(products.map((p) => p.id))
-  return <RecommendationRows value={value} onChange={onChange} byId={new Map(products.map((p) => [p.id, p]))} label="Related" disabled={false} loading={false} />
+  return <MemoryRouter><RecommendationRows value={value} onChange={onChange} byId={new Map(products.map((p) => [p.id, p]))} label="Related" disabled={false} loading={false} /></MemoryRouter>
 }
 
 function names() {
-  return Array.from(screen.getByRole('table').querySelectorAll('tbody tr')).map((r) => r.querySelector('p')?.textContent)
+  return Array.from(screen.getByRole('table').querySelectorAll('tbody tr')).map((r) => r.querySelector('a')?.textContent)
 }
 
 describe('RecommendationRows', () => {

@@ -283,6 +283,7 @@ export async function ProductListShell({
                 currentSlug={sortSlug}
                 basePath={basePath}
                 pathFilters={pathFilters}
+                currentQuery={toQueryString(searchParams)}
               />
               <p className="text-xs text-muted-foreground">
                 {data.totalCount} match{data.totalCount === 1 ? "" : "es"}

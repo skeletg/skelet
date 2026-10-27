@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import {
@@ -25,16 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -71,6 +61,7 @@ import {
 import { RenderCampaignPreviewDocument } from '@/features/campaigns/Campaigns.gql'
 import { toComponent } from './model'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const MERGE_TAGS = ['store.name', 'store.logoUrl', 'storefront.url', 'customer.firstName', 'customer.email']
 const FIELD_KINDS: CustomFieldKind[] = ['text', 'textarea', 'url', 'color', 'number', 'date', 'image', 'select', 'boolean']
@@ -178,7 +169,6 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   const [error, setError] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const htmlRef = useRef<HTMLTextAreaElement | null>(null)
 
   const blocks = useMemo(() => items.map((i) => i.block), [items])
@@ -336,13 +326,8 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
 
   const [deleteBlock] = useMutation(DeleteEmailBlockDocument)
   async function onConfirmDelete() {
-    setDeleting(true)
-    try {
-      await deleteBlock({ variables: { channelId: initial.channelId, slug: initial.slug } })
-      onDeleted()
-    } finally {
-      setDeleting(false)
-    }
+    await deleteBlock({ variables: { channelId: initial.channelId, slug: initial.slug } })
+    onDeleted()
   }
 
   const { data: previewData } = useQuery(RenderCampaignPreviewDocument, {
@@ -528,22 +513,15 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmingDelete} onOpenChange={(o) => !deleting && setConfirmingDelete(o)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this block?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Emails that reference “{name}” ({initial.slug}) will render nothing in its place. This can’t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete} disabled={deleting}>
-              {deleting ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this block?"
+        description={<>Emails that reference “{name}” ({initial.slug}) will render nothing in its place. This can’t be undone.</>}
+        confirmLabel="Delete"
+        // Not awaited: the dialog closes at once, as it always has
+        onConfirm={() => void onConfirmDelete()}
+      />
     </DndContext>
   )
 }
@@ -583,7 +561,7 @@ function FieldsEditor({
                 ))}
               </SelectContent>
             </Select>
-            <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0 text-destructive" onClick={() => onRemove(i)}>
+            <Button aria-label="Remove input" type="button" variant="ghost" size="icon" className="size-7 shrink-0 text-destructive" onClick={() => onRemove(i)}>
               <Trash2Icon className="size-4" />
             </Button>
           </div>
@@ -624,6 +602,7 @@ function HtmlBodyEditor({
   fields: CustomFieldDef[]
   htmlRef: React.MutableRefObject<HTMLTextAreaElement | null>
 }) {
+  const fid = useId()
   return (
     <div className="mx-auto grid max-w-3xl gap-4 p-6">
       <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/20 p-3">
@@ -642,7 +621,7 @@ function HtmlBodyEditor({
       {scripted && <ScriptingHelp fields={fields} />}
 
       <div className="grid gap-2">
-        <Label>HTML template</Label>
+        <Label htmlFor={`${fid}-html-template`}>HTML template</Label>
         <div className="flex flex-wrap gap-1">
           {fields.filter((f) => f.key).map((f) => (
             <button
@@ -665,7 +644,7 @@ function HtmlBodyEditor({
             </button>
           ))}
         </div>
-        <Textarea
+        <Textarea id={`${fid}-html-template`}
           ref={htmlRef}
           value={html}
           rows={12}
@@ -680,8 +659,8 @@ function HtmlBodyEditor({
       </div>
 
       <div className="grid gap-1.5">
-        <Label>Custom CSS (optional)</Label>
-        <Textarea
+        <Label htmlFor={`${fid}-custom-css-optional`}>Custom CSS (optional)</Label>
+        <Textarea id={`${fid}-custom-css-optional`}
           value={css}
           rows={4}
           className="font-mono text-xs"
@@ -694,8 +673,8 @@ function HtmlBodyEditor({
       </div>
 
       <div className="grid gap-1.5">
-        <Label>Plain-text template (optional)</Label>
-        <Textarea value={text} rows={3} className="font-mono text-xs" onChange={(e) => onText(e.target.value)} placeholder="{{label}} - {{customer.firstName}}" />
+        <Label htmlFor={`${fid}-plain-text-template-opti`}>Plain-text template (optional)</Label>
+        <Textarea id={`${fid}-plain-text-template-opti`} value={text} rows={3} className="font-mono text-xs" onChange={(e) => onText(e.target.value)} placeholder="{{label}} - {{customer.firstName}}" />
       </div>
     </div>
   )

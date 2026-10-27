@@ -1,5 +1,5 @@
 -- migrate:up
--- ClickHouse spine schema, applied by the clickhouse-migrate one-shot. ClickHouse takes one
+-- ClickHouse spine schema, applied by the signals and ingest processes as they boot. ClickHouse takes one
 -- statement per query, so each statement sits in an up section of its own.
 -- The database itself comes from the server's CLICKHOUSE_DB, so this only makes
 -- tables. Optional UUID columns use the zero UUID as "none" (cheaper than

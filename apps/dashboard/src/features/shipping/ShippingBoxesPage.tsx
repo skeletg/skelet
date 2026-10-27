@@ -2,17 +2,6 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -34,6 +23,7 @@ import {
   ShippingBoxesDocument,
 } from './Shipping.gql'
 import { ShippingBoxFormDialog, type ShippingBoxRow } from './ShippingBoxFormDialog'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const kg = (grams: number) => (grams > 0 ? `${(grams / 1000).toLocaleString()} kg` : '-')
 
@@ -53,20 +43,13 @@ export function ShippingBoxesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ShippingBoxRow | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<ShippingBoxRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteBox, { loading: deleting }] = useMutation(DeleteShippingBoxDocument)
+  const [deleteBox] = useMutation(DeleteShippingBoxDocument)
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteBox({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-      void refetch()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
-    }
+    await deleteBox({ variables: { id: confirmingDelete.id } })
+    void refetch()
   }
 
   function openEdit(row: ShippingBoxRow) {
@@ -162,7 +145,6 @@ export function ShippingBoxesPage() {
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => {
-                  setDeleteError(null)
                   setConfirmingDelete(row.original)
                 }}
               >
@@ -230,44 +212,16 @@ export function ShippingBoxesPage() {
         onSaved={() => void refetch()}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete box {confirmingDelete?.code}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Future quotes and labels stop packing into it. If this was the last active box,
-              cartonization turns off entirely.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete box'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete box {confirmingDelete?.code}?</>}
+        description="Future quotes and labels stop packing into it. If this was the last active box, cartonization turns off entirely."
+        confirmLabel="Delete box"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageLayout>
   )
 }

@@ -1,27 +1,18 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { LogOutIcon } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/shared/auth/auth'
 import { LogoutOtherDevicesDocument, MeDocument } from '@/shared/auth/Me.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 export function ActiveSessionsCard() {
   const { auth } = useAuth()
   const { data, loading } = useQuery(MeDocument)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [logoutOtherDevices, logoutState] = useMutation(LogoutOtherDevicesDocument, {
-    refetchQueries: [{ query: MeDocument }],
+    refetchQueries: [MeDocument],
   })
 
   const sessions = data?.me.sessions ?? []
@@ -29,12 +20,7 @@ export function ActiveSessionsCard() {
 
   async function onConfirmLogoutOtherDevices() {
     if (!auth?.refreshToken) return
-    try {
-      await logoutOtherDevices({ variables: { token: auth.refreshToken } })
-      setConfirmOpen(false)
-    } catch {
-      // The mutation error is rendered from `logoutState.error`
-    }
+    await logoutOtherDevices({ variables: { token: auth.refreshToken } })
   }
 
   return (
@@ -52,7 +38,8 @@ export function ActiveSessionsCard() {
             type="button"
             variant="outline"
             onClick={() => setConfirmOpen(true)}
-            disabled={loading || otherSessionCount === 0 || logoutState.loading}
+            // Without a refresh token there is nothing to send - this guarded the dialog's confirm button before
+            disabled={loading || otherSessionCount === 0 || logoutState.loading || !auth?.refreshToken}
           >
             <LogOutIcon className="size-4" />
             {logoutState.loading ? 'Logging out…' : 'Log out other devices'}
@@ -95,34 +82,20 @@ export function ActiveSessionsCard() {
         </div>
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmOpen}
-        onOpenChange={(open) => {
-          if (!logoutState.loading) setConfirmOpen(open)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Log out other devices?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will revoke {otherSessionCount} other active admin session{otherSessionCount === 1 ? '' : 's'}.
-              Your current session will stay signed in.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={logoutState.loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={logoutState.loading || !auth?.refreshToken}
-              onClick={(e) => {
-                e.preventDefault()
-                void onConfirmLogoutOtherDevices()
-              }}
-            >
-              {logoutState.loading ? 'Logging out…' : 'Log out other devices'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmOpen}
+        title="Log out other devices?"
+        description={
+          <>
+            This will revoke {otherSessionCount} other active admin session{otherSessionCount === 1 ? '' : 's'}.
+            Your current session will stay signed in.
+          </>
+        }
+        confirmLabel="Log out other devices"
+        busyLabel="Logging out…"
+        onConfirm={onConfirmLogoutOtherDevices}
+      />
     </>
   )
 }

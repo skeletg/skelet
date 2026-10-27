@@ -96,6 +96,7 @@ export type AddProductDownloadInput = {
 export type AddProductOptionInput = {
   fileExtensions?: InputMaybe<Scalars['String']['input']>;
   helpText?: InputMaybe<Scalars['String']['input']>;
+  imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   inputType: ProductOptionInputType;
   isRequired?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
@@ -103,14 +104,16 @@ export type AddProductOptionInput = {
   maxFileBytes?: InputMaybe<Scalars['Int']['input']>;
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;
-  productId: Scalars['ID']['input'];
+  productId?: InputMaybe<Scalars['ID']['input']>;
   sortOrder?: InputMaybe<Scalars['Int']['input']>;
+  templateId?: InputMaybe<Scalars['ID']['input']>;
   title: Scalars['String']['input'];
   visibleIf?: InputMaybe<Scalars['JSON']['input']>;
 };
 
 export type AddProductOptionValueInput = {
   forcedLineQty?: InputMaybe<Scalars['Float']['input']>;
+  imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
@@ -1565,6 +1568,10 @@ export type ConfigurableMembership = {
   sortOrder: Scalars['Int']['output'];
   variantMode?: Maybe<VariantMode>;
 };
+
+export type ConfiguratorLayout =
+  | 'LIST'
+  | 'STEPS';
 
 export type ConsentChannel =
   | 'EMAIL'
@@ -3038,6 +3045,12 @@ export type GiftCard = {
   transactions: Array<GiftCardTransaction>;
 };
 
+export type GiftCardPage = {
+  __typename?: 'GiftCardPage';
+  items: Array<GiftCard>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type GiftCardTransaction = {
   __typename?: 'GiftCardTransaction';
   amount: Scalars['Int']['output'];
@@ -3606,6 +3619,12 @@ export type MediaAssetSearchResult = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type MediaAssetSort =
+  | 'LARGEST'
+  | 'NAME'
+  | 'NEWEST'
+  | 'OLDEST';
+
 export type MediaAssetStatus =
   | 'PENDING'
   | 'READY';
@@ -3706,8 +3725,8 @@ export type Mutation = {
   addKitComponent: Product;
   addProductChild: Product;
   addProductDownload: Product;
-  addProductOption: Product;
-  addProductOptionValue: Product;
+  addProductOption: ProductOptionOwner;
+  addProductOptionValue: ProductOptionOwner;
   addProductToCategory: Product;
   addProductToCollection: Collection;
   addSearchSynonym: SearchSynonym;
@@ -3748,6 +3767,7 @@ export type Mutation = {
   assignCMSAttribute: CmsPageType;
   assignCustomersToSegment: Scalars['Boolean']['output'];
   assignEmailSlot: Scalars['Boolean']['output'];
+  assignOptionTemplate: OptionTemplate;
   assignReviewQuestion: Scalars['Boolean']['output'];
   bulkDeleteCMSPages: BulkCmsPageResult;
   bulkPublishCMSPages: BulkCmsPageResult;
@@ -3812,6 +3832,7 @@ export type Mutation = {
   createMediaDirectory: MediaDirectoryChild;
   createMenu: Menu;
   createMenuItem: MenuItem;
+  createOptionTemplate: OptionTemplate;
   createProduct: Product;
   createProductType: ProductType;
   createPromotionRule: PromotionRule;
@@ -3883,15 +3904,16 @@ export type Mutation = {
   deleteMenu: Scalars['Boolean']['output'];
   deleteMenuItem: Scalars['Boolean']['output'];
   deleteMenuItemTranslation: Scalars['Boolean']['output'];
+  deleteOptionTemplate: Scalars['Boolean']['output'];
   deleteProduct: Scalars['Boolean']['output'];
   deleteProductAttributeSlug: Scalars['Boolean']['output'];
   deleteProductContent: Scalars['Boolean']['output'];
   deleteProductMedia: Scalars['Boolean']['output'];
   deleteProductMediaBulk: Scalars['Int']['output'];
-  deleteProductOption: Product;
-  deleteProductOptionContent: Product;
-  deleteProductOptionValue: Product;
-  deleteProductOptionValueContent: Product;
+  deleteProductOption: ProductOptionOwner;
+  deleteProductOptionContent: ProductOptionOwner;
+  deleteProductOptionValue: ProductOptionOwner;
+  deleteProductOptionValueContent: ProductOptionOwner;
   deleteProductQuestion: Scalars['Boolean']['output'];
   deleteProductType: Scalars['Boolean']['output'];
   deletePromotionCode: Scalars['Boolean']['output'];
@@ -3916,10 +3938,11 @@ export type Mutation = {
   deleteUrlRewritesForEntity: Scalars['Int']['output'];
   deleteWebForm: Scalars['Boolean']['output'];
   deleteWebhook: Scalars['Boolean']['output'];
+  detachOptionTemplate: Product;
   devImpersonate: AdminAuthPayload;
   disableGiftCard: GiftCard;
   draftReviewReply: Scalars['String']['output'];
-  duplicateProductOption: Product;
+  duplicateProductOption: ProductOptionOwner;
   editOrder: Order;
   editOrderAddress: Order;
   enqueueRebuild: Scalars['Int']['output'];
@@ -4046,21 +4069,26 @@ export type Mutation = {
   setMediaFocalPoint: MediaAsset;
   setMenuStores: Menu;
   setMyPreference: Scalars['Boolean']['output'];
+  setOptionTemplateRules: OptionTemplate;
   setPaymentMethodCountries: PaymentMethodAdmin;
   setPaymentMethodEnabled: PaymentMethodAdmin;
   setProductAttributeLocaleValue: ProductAttributeLocaleValue;
   setProductAttributeReferences: Product;
   setProductAttributeSlug: ProductAttributeSlug;
   setProductAttributes: Product;
+  setProductConfiguratorLayout: Product;
   setProductGroupPrices: Array<ProductGroupPrice>;
   setProductLinks: Scalars['Boolean']['output'];
   setProductListing: Product;
   setProductMediaRole: Product;
-  setProductOptionChannelPrice: Product;
-  setProductOptionValueChannelPrice: Product;
+  setProductOptionChannelPrice: ProductOptionOwner;
+  setProductOptionRules: Product;
+  setProductOptionTemplates: Product;
+  setProductOptionValueChannelPrice: ProductOptionOwner;
   setProductPrimaryCategory: Product;
   setProductTaxClass: Product;
   setProductTypeDeliveryKinds: ProductType;
+  setProductTypeOptionTemplates: ProductType;
   setProductTypeURLPathTemplate: ProductType;
   setProductVariantMode: Product;
   setRemoteProviderActive: RemoteProvider;
@@ -4090,6 +4118,7 @@ export type Mutation = {
   unassignAttribute: ProductType;
   unassignCMSAttribute: CmsPageType;
   unassignCMSPage: CmsPage;
+  unassignOptionTemplate: OptionTemplate;
   unassignReviewQuestion: Scalars['Boolean']['output'];
   unpublishBlogPost: BlogPost;
   unpublishCMSPage: CmsPage;
@@ -4132,12 +4161,13 @@ export type Mutation = {
   updateMediaAsset: MediaAsset;
   updateMenu: Menu;
   updateMenuItem: MenuItem;
+  updateOptionTemplate: OptionTemplate;
   updatePaymentMethodPresentation: PaymentMethodAdmin;
   updateProduct: Product;
   updateProductDownload: Product;
   updateProductMedia: ProductMedia;
-  updateProductOption: Product;
-  updateProductOptionValue: Product;
+  updateProductOption: ProductOptionOwner;
+  updateProductOptionValue: ProductOptionOwner;
   updateProductType: ProductType;
   updatePromotionCode: PromotionCode;
   updatePromotionRule: PromotionRule;
@@ -4169,8 +4199,8 @@ export type Mutation = {
   upsertCollectionContent: Collection;
   upsertMenuItemTranslation: MenuItemTranslation;
   upsertProductContent: Product;
-  upsertProductOptionContent: Product;
-  upsertProductOptionValueContent: Product;
+  upsertProductOptionContent: ProductOptionOwner;
+  upsertProductOptionValueContent: ProductOptionOwner;
   upsertPromotionRuleContent: PromotionRuleContent;
   upsertReviewQuestionContent: ReviewQuestion;
   upsertSearchBoost: SearchBoost;
@@ -4468,6 +4498,12 @@ export type MutationAssignCustomersToSegmentArgs = {
 export type MutationAssignEmailSlotArgs = {
   emailId: Scalars['ID']['input'];
   slot: Scalars['String']['input'];
+};
+
+
+export type MutationAssignOptionTemplateArgs = {
+  productIds: Array<Scalars['ID']['input']>;
+  templateId: Scalars['ID']['input'];
 };
 
 
@@ -4805,6 +4841,11 @@ export type MutationCreateMenuArgs = {
 
 export type MutationCreateMenuItemArgs = {
   input: CreateMenuItemInput;
+};
+
+
+export type MutationCreateOptionTemplateArgs = {
+  input: OptionTemplateInput;
 };
 
 
@@ -5178,6 +5219,11 @@ export type MutationDeleteMenuItemTranslationArgs = {
 };
 
 
+export type MutationDeleteOptionTemplateArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteProductArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5354,6 +5400,12 @@ export type MutationDeleteWebFormArgs = {
 
 export type MutationDeleteWebhookArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationDetachOptionTemplateArgs = {
+  productId: Scalars['ID']['input'];
+  templateId: Scalars['ID']['input'];
 };
 
 
@@ -6095,6 +6147,12 @@ export type MutationSetMyPreferenceArgs = {
 };
 
 
+export type MutationSetOptionTemplateRulesArgs = {
+  rules: Array<ProductOptionRuleInput>;
+  templateId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetPaymentMethodCountriesArgs = {
   channelId: Scalars['ID']['input'];
   countries: Array<Scalars['String']['input']>;
@@ -6136,6 +6194,12 @@ export type MutationSetProductAttributesArgs = {
 };
 
 
+export type MutationSetProductConfiguratorLayoutArgs = {
+  layout: ConfiguratorLayout;
+  productId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetProductGroupPricesArgs = {
   prices: Array<ProductGroupPriceInput>;
   productId: Scalars['ID']['input'];
@@ -6168,6 +6232,18 @@ export type MutationSetProductOptionChannelPriceArgs = {
 };
 
 
+export type MutationSetProductOptionRulesArgs = {
+  productId: Scalars['ID']['input'];
+  rules: Array<ProductOptionRuleInput>;
+};
+
+
+export type MutationSetProductOptionTemplatesArgs = {
+  productId: Scalars['ID']['input'];
+  templateIds: Array<Scalars['ID']['input']>;
+};
+
+
 export type MutationSetProductOptionValueChannelPriceArgs = {
   channelId: Scalars['ID']['input'];
   priceValue?: InputMaybe<Scalars['Int']['input']>;
@@ -6190,6 +6266,12 @@ export type MutationSetProductTaxClassArgs = {
 export type MutationSetProductTypeDeliveryKindsArgs = {
   kinds?: InputMaybe<Array<Scalars['String']['input']>>;
   productTypeId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetProductTypeOptionTemplatesArgs = {
+  productTypeId: Scalars['ID']['input'];
+  templateIds: Array<Scalars['ID']['input']>;
 };
 
 
@@ -6361,6 +6443,12 @@ export type MutationUnassignCmsAttributeArgs = {
 
 export type MutationUnassignCmsPageArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationUnassignOptionTemplateArgs = {
+  productIds: Array<Scalars['ID']['input']>;
+  templateId: Scalars['ID']['input'];
 };
 
 
@@ -6586,6 +6674,12 @@ export type MutationUpdateMenuArgs = {
 
 export type MutationUpdateMenuItemArgs = {
   input: UpdateMenuItemInput;
+};
+
+
+export type MutationUpdateOptionTemplateArgs = {
+  id: Scalars['ID']['input'];
+  input: OptionTemplateInput;
 };
 
 
@@ -6857,6 +6951,45 @@ export type OptionChannelPrice = {
   priceValue: Scalars['Int']['output'];
 };
 
+export type OptionImage = {
+  __typename?: 'OptionImage';
+  altText: Scalars['String']['output'];
+  assetId: Scalars['ID']['output'];
+  height?: Maybe<Scalars['Int']['output']>;
+  url: Scalars['String']['output'];
+  width?: Maybe<Scalars['Int']['output']>;
+};
+
+export type OptionTemplate = ProductOptionOwner & {
+  __typename?: 'OptionTemplate';
+  createdAt: Scalars['Time']['output'];
+  currencyCode: Scalars['String']['output'];
+  description: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  optionCount: Scalars['Int']['output'];
+  optionRules: Array<ProductOptionRule>;
+  productCount: Scalars['Int']['output'];
+  productOptions: Array<ProductOption>;
+  productTypeCount: Scalars['Int']['output'];
+  productTypes: Array<ProductType>;
+  products: Array<Product>;
+  ruleCount: Scalars['Int']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+
+export type OptionTemplateProductsArgs = {
+  first?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type OptionTemplateInput = {
+  currencyCode: Scalars['String']['input'];
+  description?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+};
+
 export type Order = {
   __typename?: 'Order';
   appliedPromotions: Array<AppliedPromotion>;
@@ -7112,7 +7245,7 @@ export type PermissionGroup = {
   slug: Scalars['String']['output'];
 };
 
-export type Product = {
+export type Product = ProductOptionOwner & {
   __typename?: 'Product';
   attributeValues: Array<ProductAttributeValue>;
   bundleOptions: Array<BundleOption>;
@@ -7123,6 +7256,7 @@ export type Product = {
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
   compareAtPriceResolved?: Maybe<Scalars['Int']['output']>;
   configurableOptions: Array<Attribute>;
+  configuratorLayout: ConfiguratorLayout;
   content: Array<ProductContent>;
   contentLocale?: Maybe<Scalars['String']['output']>;
   costCents?: Maybe<Scalars['Int']['output']>;
@@ -7153,6 +7287,8 @@ export type Product = {
   name?: Maybe<Scalars['String']['output']>;
   ogImage?: Maybe<ProductMedia>;
   onSale: Scalars['Boolean']['output'];
+  optionRules: Array<ProductOptionRule>;
+  optionTemplates: Array<OptionTemplate>;
   partOf: ProductMemberships;
   price: Scalars['Int']['output'];
   primaryCategory?: Maybe<Category>;
@@ -7173,6 +7309,7 @@ export type Product = {
   thumbnail?: Maybe<ProductMedia>;
   tracksInventory: Scalars['Boolean']['output'];
   tracksInventoryOverride?: Maybe<Scalars['Boolean']['output']>;
+  typeOptionTemplates: Array<OptionTemplate>;
   updatedAt: Scalars['Time']['output'];
   url: Scalars['String']['output'];
   urlAuto: Scalars['Boolean']['output'];
@@ -7344,9 +7481,11 @@ export type ProductOption = {
   channelPrices: Array<OptionChannelPrice>;
   content: Array<ProductOptionContent>;
   createdAt: Scalars['Time']['output'];
+  currencyCode: Scalars['String']['output'];
   fileExtensions?: Maybe<Scalars['String']['output']>;
   helpText: Scalars['String']['output'];
   id: Scalars['ID']['output'];
+  image?: Maybe<OptionImage>;
   inputType: ProductOptionInputType;
   isRequired: Scalars['Boolean']['output'];
   maxChars?: Maybe<Scalars['Int']['output']>;
@@ -7354,6 +7493,8 @@ export type ProductOption = {
   priceType?: Maybe<ProductOptionPriceType>;
   priceValue?: Maybe<Scalars['Int']['output']>;
   sortOrder: Scalars['Int']['output'];
+  templateId?: Maybe<Scalars['ID']['output']>;
+  templateName?: Maybe<Scalars['String']['output']>;
   title: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
   values: Array<ProductOptionValue>;
@@ -7379,9 +7520,74 @@ export type ProductOptionInputType =
   | 'RADIO'
   | 'TIME';
 
+export type ProductOptionOwner = {
+  id: Scalars['ID']['output'];
+  optionRules: Array<ProductOptionRule>;
+  productOptions: Array<ProductOption>;
+};
+
 export type ProductOptionPriceType =
   | 'FIXED'
   | 'PERCENT';
+
+export type ProductOptionRule = {
+  __typename?: 'ProductOptionRule';
+  actions: Array<ProductOptionRuleAction>;
+  condition: Scalars['JSON']['output'];
+  id: Scalars['ID']['output'];
+  label: Scalars['String']['output'];
+  labels: Array<ProductOptionRuleLabel>;
+  templateId?: Maybe<Scalars['ID']['output']>;
+  templateName?: Maybe<Scalars['String']['output']>;
+};
+
+export type ProductOptionRuleAction = {
+  __typename?: 'ProductOptionRuleAction';
+  channelPrices: Array<OptionChannelPrice>;
+  optionId?: Maybe<Scalars['ID']['output']>;
+  priceType?: Maybe<ProductOptionPriceType>;
+  priceValue?: Maybe<Scalars['Int']['output']>;
+  quantity?: Maybe<Scalars['Float']['output']>;
+  type: ProductOptionRuleActionType;
+};
+
+export type ProductOptionRuleActionInput = {
+  channelPrices?: InputMaybe<Array<ProductOptionRuleChannelPriceInput>>;
+  optionId?: InputMaybe<Scalars['ID']['input']>;
+  priceType?: InputMaybe<ProductOptionPriceType>;
+  priceValue?: InputMaybe<Scalars['Int']['input']>;
+  quantity?: InputMaybe<Scalars['Float']['input']>;
+  type: ProductOptionRuleActionType;
+};
+
+export type ProductOptionRuleActionType =
+  | 'ADJUST_PRICE'
+  | 'OPTIONAL'
+  | 'REQUIRE'
+  | 'SET_QUANTITY';
+
+export type ProductOptionRuleChannelPriceInput = {
+  channelId: Scalars['ID']['input'];
+  priceValue: Scalars['Int']['input'];
+};
+
+export type ProductOptionRuleInput = {
+  actions: Array<ProductOptionRuleActionInput>;
+  condition: Scalars['JSON']['input'];
+  id?: InputMaybe<Scalars['ID']['input']>;
+  labels?: InputMaybe<Array<ProductOptionRuleLabelInput>>;
+};
+
+export type ProductOptionRuleLabel = {
+  __typename?: 'ProductOptionRuleLabel';
+  label: Scalars['String']['output'];
+  locale: Scalars['String']['output'];
+};
+
+export type ProductOptionRuleLabelInput = {
+  label: Scalars['String']['input'];
+  locale: Scalars['String']['input'];
+};
 
 export type ProductOptionValue = {
   __typename?: 'ProductOptionValue';
@@ -7390,6 +7596,7 @@ export type ProductOptionValue = {
   createdAt: Scalars['Time']['output'];
   forcedLineQty?: Maybe<Scalars['Float']['output']>;
   id: Scalars['ID']['output'];
+  image?: Maybe<OptionImage>;
   isDefault: Scalars['Boolean']['output'];
   priceType: ProductOptionPriceType;
   priceValue: Scalars['Int']['output'];
@@ -7433,6 +7640,7 @@ export type ProductType = {
   isShippingRequired: Scalars['Boolean']['output'];
   metadata: Array<MetadataItem>;
   name: Scalars['String']['output'];
+  optionTemplates: Array<OptionTemplate>;
   privateMetadata: Array<MetadataItem>;
   reviewQuestions: Array<ReviewQuestion>;
   slug: Scalars['String']['output'];
@@ -7577,8 +7785,10 @@ export type PromotionRule = {
 
 
 export type PromotionRuleCodesArgs = {
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type PromotionRuleAnalytics = {
@@ -7783,6 +7993,7 @@ export type Query = {
   flows: Array<Flow>;
   giftCard?: Maybe<GiftCard>;
   giftCards: Array<GiftCard>;
+  giftCardsPaged: GiftCardPage;
   integrations: Array<Integration>;
   inventoryLocation: InventoryLocation;
   inventoryLocations: Array<InventoryLocation>;
@@ -7820,6 +8031,8 @@ export type Query = {
   myPreferences: Array<AdminPreference>;
   notificationUnreadCount: Scalars['Int']['output'];
   notifications: Array<AdminNotification>;
+  optionTemplate?: Maybe<OptionTemplate>;
+  optionTemplates: Array<OptionTemplate>;
   order: Order;
   orderDocumentPdf: Scalars['String']['output'];
   orders: Array<Order>;
@@ -7887,6 +8100,7 @@ export type Query = {
   storeCredit: StoreCreditSummary;
   subscription?: Maybe<CustomerSubscription>;
   subscriptions: Array<CustomerSubscription>;
+  subscriptionsPaged: SubscriptionPage;
   synapseFlow: SynapseFlow;
   synapseFunnel: SynapseFunnel;
   synapseInsights: SynapseInsights;
@@ -8385,6 +8599,13 @@ export type QueryGiftCardsArgs = {
 };
 
 
+export type QueryGiftCardsPagedArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type QueryInventoryLocationArgs = {
   id: Scalars['ID']['input'];
 };
@@ -8562,6 +8783,11 @@ export type QueryMenuBySlugArgs = {
 export type QueryNotificationsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   unreadOnly?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
+export type QueryOptionTemplateArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -8831,6 +9057,7 @@ export type QuerySearchMediaAssetsArgs = {
   offset?: InputMaybe<Scalars['Int']['input']>;
   path?: InputMaybe<Scalars['String']['input']>;
   query?: InputMaybe<Scalars['String']['input']>;
+  sort?: InputMaybe<MediaAssetSort>;
 };
 
 
@@ -8903,6 +9130,13 @@ export type QuerySubscriptionArgs = {
 
 
 export type QuerySubscriptionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  status?: InputMaybe<SubscriptionStatus>;
+};
+
+
+export type QuerySubscriptionsPagedArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   status?: InputMaybe<SubscriptionStatus>;
@@ -10166,6 +10400,12 @@ export type SubscriptionInvoiceStatus =
   | 'PAID'
   | 'VOID';
 
+export type SubscriptionPage = {
+  __typename?: 'SubscriptionPage';
+  items: Array<CustomerSubscription>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type SubscriptionStatus =
   | 'ACTIVE'
   | 'CANCELED'
@@ -10811,6 +11051,7 @@ export type UpdateProductOptionInput = {
   clearVisibleIf?: InputMaybe<Scalars['Boolean']['input']>;
   fileExtensions?: InputMaybe<Scalars['String']['input']>;
   id: Scalars['ID']['input'];
+  imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   inputType?: InputMaybe<ProductOptionInputType>;
   isRequired?: InputMaybe<Scalars['Boolean']['input']>;
   maxChars?: InputMaybe<Scalars['Int']['input']>;
@@ -10824,6 +11065,7 @@ export type UpdateProductOptionInput = {
 export type UpdateProductOptionValueInput = {
   forcedLineQty?: InputMaybe<Scalars['Float']['input']>;
   id: Scalars['ID']['input'];
+  imageAssetId?: InputMaybe<Scalars['ID']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   priceType?: InputMaybe<ProductOptionPriceType>;
   priceValue?: InputMaybe<Scalars['Int']['input']>;

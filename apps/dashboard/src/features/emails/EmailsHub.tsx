@@ -17,6 +17,7 @@ import { EmailsTab } from './EmailsTab'
 import { BlocksTab } from './BlocksTab'
 import { SlotsTab } from './SlotsTab'
 import { LibraryEmailsDocument, SeedPulseStarterContentDocument, TransactionalSlotsDocument } from './Emails.gql'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 
 const TABS = ['emails', 'blocks', 'slots'] as const
 type TabValue = (typeof TABS)[number]
@@ -34,6 +35,7 @@ const TAB_META: Record<TabValue, string> = {
 // EmailsHub is the reusable-email library + content-block library under one page with a `?tab=` tab bar - The builder
 // editor (/emails/new, /emails/:id) and block editor (/emails/blocks/:slug) are their own routes
 export function EmailsHub() {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = isTab(searchParams.get('tab')) ? (searchParams.get('tab') as TabValue) : 'emails'
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -77,15 +79,15 @@ export function EmailsHub() {
             size="sm"
             variant="outline"
             disabled={seeding}
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Add the starter content to this channel? It creates an editable email for every transactional slot and an active flow that sends it, so receipts and account mail go out from these emails instead of the built-in templates. Anything the channel already has is left alone.',
-                )
-              ) {
-                void seedStarter({ variables: { channelId } })
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: 'Add the starter content to this channel?',
+                description:
+                  'It creates an editable email for every transactional slot and an active flow that sends it, so receipts and account mail go out from these emails instead of the built-in templates. Anything the channel already has is left alone.',
+                confirmLabel: 'Add starter content',
+                onConfirm: () => void seedStarter({ variables: { channelId } }),
+              })
+            }
           >
             <SparklesIcon className="size-4" /> Add starter content
           </Button>
@@ -134,6 +136,7 @@ export function EmailsHub() {
           </TabsContent>
         </Tabs>
       </DetailPageBody>
+      {confirmDialog}
     </DetailPageLayout>
   )
 }

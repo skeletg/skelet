@@ -13,12 +13,15 @@ export function SortSelect({
   currentSlug,
   basePath,
   pathFilters,
+  currentQuery = "",
 }: {
   options: ProductSortOption[];
   currentSlug: string;
   // Required for path-based callers (every listing page today)
   basePath?: string;
   pathFilters?: { slug: string; values: string[] }[];
+  // The page's query string (the search term, query-string filters) - carried over so a sort refines the same results
+  currentQuery?: string;
 }) {
   const router = useRouter();
   const t = useTranslations("listing");
@@ -52,9 +55,13 @@ export function SortSelect({
   const effective =
     options.find((o) => o.slug === currentSlug) ?? options[0];
 
+  // A new order starts from the first page
+  const carried = new URLSearchParams(currentQuery);
+  carried.delete("page");
+
   function hrefFor(slug: string): string {
     const next = slug === defaultSlug ? "" : slug;
-    return joinBasePathWithFilters(basePath!, pathFilters ?? [], next);
+    return joinBasePathWithFilters(basePath!, pathFilters ?? [], next, carried.toString());
   }
 
   return (

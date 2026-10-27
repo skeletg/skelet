@@ -19,7 +19,8 @@ export function AccountSlot() {
       href="/account"
       aria-label={t("accountLabel", { name: identity.firstName })}
       title={th("hi", { name: identity.firstName })}
-      className="relative flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
+      // lens-block: the label and title carry the customer's name, and rrweb masks text, not attributes
+      className="lens-block relative flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
     >
       <UserIcon className="h-5 w-5" aria-hidden="true" />
       <span

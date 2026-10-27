@@ -1,17 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { MoreHorizontalIcon, PlusIcon, TagsIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +19,7 @@ import {
   type ReviewCategoryFieldsFragment,
 } from './Reviews.gql'
 import { ReviewCategoryFormDialog } from './ReviewCategoryFormDialog'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // Operator-managed taxonomy the AI classifier sorts reviews into - Flat list
 // (no per-locale content or product-type assignment, unlike review questions),
@@ -59,10 +49,9 @@ export function ReviewCategoriesContent() {
   const [editing, setEditing] = useState<ReviewCategoryFieldsFragment | null>(null)
   const [confirmingDelete, setConfirmingDelete] =
     useState<ReviewCategoryFieldsFragment | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteCategory, { loading: deleting }] = useMutation(DeleteReviewCategoryDocument, {
-    refetchQueries: [{ query: ReviewCategoriesDocument }],
+  const [deleteCategory] = useMutation(DeleteReviewCategoryDocument, {
+    refetchQueries: [ReviewCategoriesDocument],
   })
 
   function openCreate() {
@@ -76,13 +65,7 @@ export function ReviewCategoriesContent() {
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteCategory({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteCategory({ variables: { id: confirmingDelete.id } })
   }
 
   if (error) {
@@ -172,7 +155,6 @@ export function ReviewCategoriesContent() {
                         <DropdownMenuItem
                           variant="destructive"
                           onSelect={() => {
-                            setDeleteError(null)
                             setConfirmingDelete(c)
                           }}
                         >
@@ -190,45 +172,16 @@ export function ReviewCategoriesContent() {
 
       <ReviewCategoryFormDialog open={formOpen} onOpenChange={setFormOpen} category={editing} />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete &quot;{confirmingDelete?.name}&quot;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Reviews currently in this group become uncategorized (their category is cleared). The
-              AI won't reassign them automatically - re-check a review or run a backfill to
-              reclassify. This is permanent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Couldn't delete</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete category'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete &quot;{confirmingDelete?.name}&quot;?</>}
+        description="Reviews currently in this group become uncategorized (their category is cleared). The AI won't reassign them automatically - re-check a review or run a backfill to reclassify. This is permanent."
+        confirmLabel="Delete category"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageBody>
   )
 }

@@ -3,7 +3,6 @@ import {
   Suspense,
   memo,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -27,6 +26,7 @@ import { type WorkspacePane, type WorkspaceTab } from '@/lib/workspace-tabs'
 import { useWorkspaceTabs } from '@/lib/workspace-tabs-context'
 import type { LayoutNode, SplitNode } from '@/lib/workspace-layout'
 import { TabPanelContext } from '@/lib/tab-panel-context'
+import { usePanelLocation } from '@/lib/panel-location'
 import { WorkspaceTabStrip } from '@/components/layout/workspace-tab-strip'
 import { PaneDropZone } from '@/components/layout/workspace-dnd'
 import { NotFound } from '@/shared/errors/NotFound'
@@ -47,7 +47,7 @@ import { RouteErrorBoundary } from '@/shared/errors/RouteErrorBoundary'
 /** Suspense fallback for lazy pages - pages usually resolve fast enough that anything louder is worse */
 function PageLoading() {
   return (
-    <div className="flex h-64 items-center justify-center">
+    <div data-slot="page-loading" className="flex h-64 items-center justify-center">
       <div className="size-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
     </div>
   )
@@ -99,22 +99,12 @@ type PanelProps = {
 // memo matters here: dragging a split divider re-renders the layout every frame, and without it
 // every mounted page in the workspace would re-render along with it
 const TabPanel = memo(function TabPanel({ tab, paneId, host, live, visible, lagging }: PanelProps) {
-  const parent = useContext(UNSAFE_LocationContext)
-
   const frozen = useMemo<Location>(() => {
     const p = parsePath(tab.path)
     return { pathname: p.pathname ?? '/', search: p.search ?? '', hash: p.hash ?? '', state: null, key: tab.id }
   }, [tab.path, tab.id])
 
-  // while a tab-switch navigation is still in flight the router reports the OLD page - the newly
-  // live panel keeps its frozen location for that beat so the wrong page can't flash through it
-  const value = useMemo(
-    () => ({
-      location: live && !lagging ? parent.location : frozen,
-      navigationType: parent.navigationType,
-    }),
-    [live, lagging, parent, frozen],
-  )
+  const value = usePanelLocation(live, lagging, frozen)
 
   const panel = useMemo(
     () => ({ active: live, visible, id: tab.id, paneId }),

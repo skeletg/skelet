@@ -29,7 +29,7 @@ WITH fixture(sku, name, path, kind, price, step, decimals) AS (VALUES
  SELECT md5(f.sku)::uuid,t.id,f.sku,f.path,f.kind::catalog_product_kind,f.price,c.currency_code,f.step,f.decimals::smallint,
  CASE WHEN f.kind='configurable' THEN 'list' ELSE NULL END,true
  FROM fixture f CROSS JOIN fixture_type t JOIN channels c ON c.id=$1::uuid
- ON CONFLICT (sku) DO UPDATE SET sku=EXCLUDED.sku RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents
+ ON CONFLICT (sku) DO UPDATE SET sku=EXCLUDED.sku RETURNING id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents, configurator_layout
 ), content AS (
  INSERT INTO catalog_product_content(product_id,locale,name)
  SELECT p.id,l.code,f.name FROM products p JOIN fixture f ON f.sku=p.sku CROSS JOIN locales l

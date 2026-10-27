@@ -130,8 +130,8 @@ CORS in the browser.
 Source edits hot-reload through the bind mounts - air for the app and the Signals process, Vite
 and Next for the frontends. A frontend container also watches its own `package.json` and
 lockfile, reinstalling and restarting its dev server when either changes (`watchexec` in its dev
-Dockerfile's CMD). What still needs you: a Dockerfile change and a new
-migration - `./skelet up` handles both, rebuilding images and re-running the migrate one-shots.
+Dockerfile's CMD). What still needs you is a Dockerfile change - `./skelet up` rebuilds the
+images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
 
 Where the frontends run is your choice, recorded in `.skelet-apps`. Listed
 there, `./skelet up` starts them in Docker on <http://localhost:5173> and
@@ -248,6 +248,14 @@ frontends in Docker instead when it is interactive. `./skelet doctor` checks it 
 app, because that is where pnpm switches itself to the pinned version - and on Windows a
 10.x switching itself to 12 has been seen to leave a pnpm that won't start, which
 `self-update` fixes.
+
+CI's `pnpm audit` checks each lockfile against the live advisory database, so it can start
+failing with no commit at all. Most findings are a transitive dep the lockfile resolved before
+the fix shipped, inside a range that already allows it - Renovate's weekly lockfile
+maintenance picks those up, and to fix one sooner, trigger that PR from the dependency
+dashboard or delete the app's `pnpm-lock.yaml` and run `./skelet pnpm <app> install`. An
+override in `pnpm-workspace.yaml` is only for a fix the parent's range excludes - check with
+`pnpm why <pkg>` - and its comment names the parent, so it can go once that parent widens.
 
 A clone from before the switch to pnpm needs two things done once:
 

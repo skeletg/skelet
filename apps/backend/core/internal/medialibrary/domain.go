@@ -149,8 +149,10 @@ type SearchInput struct {
 	Query     *string
 	Path      *string
 	MimeGroup *MimeGroup
-	Limit     int32
-	Offset    int32
+	// newest (the default), oldest, name or largest
+	Sort   string
+	Limit  int32
+	Offset int32
 }
 
 type Repository interface {

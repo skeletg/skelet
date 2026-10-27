@@ -4,16 +4,6 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -44,6 +34,7 @@ import {
 import { CreateSegmentDocument, DeleteSegmentDocument, SegmentsPageDocument } from './Segments.gql'
 import { segmentType, summarizeRules, type Rules } from './rules'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type SegmentRow = {
   id: string
@@ -70,19 +61,12 @@ export function SegmentsListPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState<SegmentRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteSegment, { loading: deleting }] = useMutation(DeleteSegmentDocument)
+  const [deleteSegment] = useMutation(DeleteSegmentDocument)
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteSegment({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-      void refetch()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
-    }
+    await deleteSegment({ variables: { id: confirmingDelete.id } })
+    void refetch()
   }
 
   const columns = useMemo<ColumnDef<SegmentRow>[]>(
@@ -177,7 +161,6 @@ export function SegmentsListPage() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -230,44 +213,16 @@ export function SegmentsListPage() {
         onCreated={(id) => navigate(`/segments/${id}`)}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Membership is deleted with it. Promotions, campaigns and flows referencing the slug
-              "{confirmingDelete?.slug}" stop matching anyone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete segment'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.name}?</>}
+        description={<>Membership is deleted with it. Promotions, campaigns and flows referencing the slug "{confirmingDelete?.slug}" stop matching anyone.</>}
+        confirmLabel="Delete segment"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </DetailPageLayout>
   )
 }

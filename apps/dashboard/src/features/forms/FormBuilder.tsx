@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
@@ -19,16 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
@@ -39,6 +29,10 @@ import { useConfigScope } from '@/lib/config-scope'
 import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { formatDateTime } from '@/lib/format'
+import { slugify } from '@/lib/slug'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { LoadError } from '@/shared/errors/LoadError'
+import { NotFound } from '@/shared/errors/NotFound'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -46,15 +40,6 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
 }
 
 const SUBMISSIONS_LIMIT = 25
-
-// slugify - lowercase, hyphenate, strip non-url-safe chars
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 type Loaded = {
   id: string | null
@@ -106,7 +91,7 @@ export function FormBuilder() {
   const { effectiveChannelId, isChannel } = useConfigScope()
   const isNew = !id || id === 'new'
 
-  const { data, loading } = useQuery(SignupFormDocument, {
+  const { data, loading, error, refetch } = useQuery(SignupFormDocument, {
     variables: { id: id ?? '' },
     skip: isNew,
     fetchPolicy: 'cache-and-network',
@@ -115,7 +100,7 @@ export function FormBuilder() {
   if (isNew && !isChannel) {
     return (
       <DetailPageLayout>
-        <DetailPageHeader title="New form" backTo="/forms" />
+        <DetailPageHeader title="New signup form" backTo="/forms" />
         <DetailPageBody>
           <DetailPageSection>
             <Alert>
@@ -127,6 +112,11 @@ export function FormBuilder() {
       </DetailPageLayout>
     )
   }
+  // A failed load or a missing record used to leave the editor's header over an empty body
+  if (!isNew && !data?.signupForm && error) {
+    return <LoadError title="Couldn't load this form" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
+  if (!isNew && !data?.signupForm && !loading) return <NotFound />
   if (!isNew && !data?.signupForm) {
     return (
       <DetailPageLayout>
@@ -171,6 +161,7 @@ function Builder({
   onCreated: (id: string) => void
   onDeleted: () => void
 }) {
+  const fid = useId()
   const isNew = initial.id == null
   // Saving and deleting a form need forms.manage - a viewer gets the form read-only, no Save or Delete
   const canEdit = usePermissions().has('forms.manage')
@@ -282,11 +273,9 @@ function Builder({
     if (!formId) return
     try {
       await deleteForm({ variables: { id: formId } })
-      setConfirmDelete(false)
       onDeleted()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed.')
-      setConfirmDelete(false)
     }
   }
 
@@ -339,9 +328,9 @@ function Builder({
                 <p className="text-xs text-muted-foreground">Used to reference this form on the storefront.</p>
               </div>
               <div className="grid gap-1.5">
-                <Label>Status</Label>
+                <Label htmlFor={`${fid}-status`}>Status</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-status`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -351,9 +340,9 @@ function Builder({
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>Type</Label>
+                <Label htmlFor={`${fid}-type`}>Type</Label>
                 <Select value={type} onValueChange={setType}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-type`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -397,9 +386,9 @@ function Builder({
           <DetailPageSection title="After signup" description="What happens once someone confirms their subscription from the emailed link.">
             <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
-                <Label>Add to segment</Label>
+                <Label htmlFor={`${fid}-add-to-segment`}>Add to segment</Label>
                 <Select value={targetSegmentId ?? '__none'} onValueChange={(v) => setTargetSegmentId(v === '__none' ? null : v)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-add-to-segment`} className="w-full">
                     <SelectValue placeholder="No segment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -425,9 +414,9 @@ function Builder({
           <DetailPageSection title="Display rules" description="When and how often the form appears.">
             <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
-                <Label>Trigger</Label>
+                <Label htmlFor={`${fid}-trigger`}>Trigger</Label>
                 <Select value={trigger} onValueChange={setTrigger}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${fid}-trigger`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -509,20 +498,16 @@ function Builder({
         </fieldset>
       </DetailPageBody>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this form?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The form stops appearing on the storefront. Existing signups are kept. This can&apos;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this form?"
+        description="The form stops appearing on the storefront. Existing signups are kept. This can't be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep"
+        // Not awaited: the dialog closes at once and a failure shows on the page, as it always has
+        onConfirm={() => void onConfirmDelete()}
+      />
     </DetailPageLayout>
   )
 }

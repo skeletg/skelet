@@ -1,9 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MockLink } from '@apollo/client/testing'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { ProductTypeDetail } from './ProductTypeDetail'
 import {
   AttributesDocument,
+  DeleteProductTypeDocument,
   ProductTypeDocument,
   ProductTypesDocument,
   SetProductTypeUrlPathTemplateDocument,
@@ -24,6 +26,7 @@ const productType = {
   urlTemplate: '{slug}',
   tracksInventory: false,
   deliveryKinds: [],
+  optionTemplates: [],
   attributes: [],
   groups: [],
 }
@@ -98,4 +101,81 @@ it.each([false, true])('saves explicit delivery-kind restrictions and the all-ki
   expect(within(dialog).getByText('Allowed delivery kinds')).toBeDefined()
   fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
   await vi.waitFor(() => expect(onKinds).toHaveBeenCalledWith({ productTypeId: 'pt1', kinds: all ? null : ['ship_to_address', 'store_pickup'] }), SLOW)
+})
+
+// The delete confirm runs through the shared ConfirmDialog: a refused delete keeps it open with the server's
+// message, a successful one goes back to the list
+describe('ProductTypeDetail delete', () => {
+  async function confirmDelete(mock: MockLink.MockedResponse) {
+    renderPage({
+      path: '/catalog/product-types/pt1', adminId: 'admin-1',
+      routes: { '/catalog/product-types/:id': <ProductTypeDetail productTypeId="pt1" />, '/catalog/product-types': <p>Product types list</p> },
+      mocks: [
+        meMock(),
+        { request: { query: ProductTypeDocument, variables: { id: 'pt1' } }, result: { data: { productType } }, maxUsageCount: 5 },
+        { request: { query: ProductTypesDocument }, result: { data: { productTypes: [] } }, maxUsageCount: 5 },
+        { request: { query: AttributesDocument }, result: { data: { attributes: [] } }, maxUsageCount: 5 },
+        mock,
+      ],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete product type' }, SLOW))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete product type' }))
+    return dialog
+  }
+
+  it('keeps the dialog open and shows a refused delete', async () => {
+    const dialog = await confirmDelete({ request: { query: DeleteProductTypeDocument, variables: { id: 'pt1' } }, result: { errors: [{ message: 'type has products' }] } })
+    expect(await within(dialog).findByText('type has products')).toBeDefined()
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+  })
+
+  it('goes back to the list once the delete goes through', async () => {
+    await confirmDelete({ request: { query: DeleteProductTypeDocument, variables: { id: 'pt1' } }, result: { data: { deleteProductType: true } } })
+    expect(await screen.findByText('Product types list', {}, SLOW)).toBeDefined()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  })
+})
+
+// A type's templates reach products on every store, so a catalog manager scoped to one store sees them but can't change
+// them - the rest of the page stays theirs to edit
+describe('the configurator templates section', () => {
+  const withTemplate = {
+    ...productType,
+    optionTemplates: [{ __typename: 'OptionTemplate' as const, id: 't1', name: 'Care plan', description: '', optionCount: 1, ruleCount: 0 }],
+  }
+  const scopedTo = (channelId: string, ...permissions: string[]) => {
+    const mock = meMock({ superuser: false, permissions })
+    const me = (mock.result as { data: { me: { roles: { scopes: { channelId: string | null }[] }[] } } }).data.me
+    for (const scope of me.roles[0].scopes) scope.channelId = channelId
+    return mock
+  }
+  const open = (me: ReturnType<typeof meMock>) =>
+    renderPage({
+      path: '/catalog/product-types/pt1',
+      routes: { '/catalog/product-types/:id': <ProductTypeDetail productTypeId="pt1" /> },
+      mocks: [
+        me,
+        { request: { query: ProductTypeDocument, variables: { id: 'pt1' } }, result: { data: { productType: withTemplate } }, maxUsageCount: 5 },
+        { request: { query: AttributesDocument }, result: { data: { attributes: [] } }, maxUsageCount: 3 },
+      ],
+    })
+
+  it('lets a store-wide catalog manager change them', async () => {
+    open(meMock())
+    const list = await screen.findByRole('list', { name: 'Templates for this type' }, SLOW)
+    expect(within(list).getByRole('link', { name: 'Care plan' })).toBeDefined()
+    expect(await screen.findByRole('button', { name: 'Use a template' }, SLOW)).toBeDefined()
+    expect(within(list).getByRole('button', { name: 'Remove Care plan' })).toBeDefined()
+  })
+
+  it('only shows them to a catalog manager scoped to one store', async () => {
+    open(scopedTo('ch1', 'catalog.view', 'catalog.manage'))
+    const list = await screen.findByRole('list', { name: 'Templates for this type' }, SLOW)
+    // the grants have arrived once the General fields open up - only then does a missing control mean anything
+    await vi.waitFor(() => expect(screen.getByLabelText('Name').matches(':disabled')).toBe(false), SLOW)
+    expect(within(list).getByRole('link', { name: 'Care plan' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Use a template' })).toBeNull()
+    expect(within(list).queryByRole('button', { name: 'Remove Care plan' })).toBeNull()
+  })
 })

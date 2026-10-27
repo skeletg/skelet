@@ -44,6 +44,7 @@ type LimitsRedis struct{ *redis.Client } // rate-limit counters, off the cache i
 var Registries = fx.Module("registries",
 	fx.Invoke( // fx runs invokes in registration order, and that matters: plugins install before anything validates the registries they contribute to, and permissions validate before they sync
 		bootstrapRegistries,
+		migrateDatabase,
 		applyTrustedProxies,
 		syncPermissions,
 	),

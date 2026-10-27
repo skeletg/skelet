@@ -27,6 +27,7 @@ import { AddToCartButton } from "@/app/components/product/AddToCartButton";
 import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
 import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { OptionControl } from "./ProductOptions";
+import { OptionsLayout } from "./OptionsLayout";
 import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
@@ -37,6 +38,7 @@ import {
 } from "./parts";
 import {
   OptionsAddLabel,
+  RuleAdjustments,
   PdpBuyBox,
   PdpMetaRow,
   PdpQty,
@@ -186,13 +188,26 @@ export function ConfigurablePDP({
       return true;
     });
   }, [product.options, matched]);
-  const opts = useConfiguredOptions(combinedOptions, {
-    // Percent deltas are computed off defaultPrice server-side - never the
-    // channel/special price - so the preview must match
-    defaultPrice: matched?.defaultPrice ?? product.defaultPrice,
-    effectivePrice: optBasePrice,
-    productSku: matched?.sku ?? "",
-  });
+  // The same dedupe for rules - a variant's already carry its parent's
+  const combinedRules = useMemo(() => {
+    const seen = new Set<string>();
+    return [...(product.optionRules ?? []), ...(matched?.optionRules ?? [])].filter((r) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+  }, [product.optionRules, matched]);
+  const opts = useConfiguredOptions(
+    combinedOptions,
+    {
+      // Percent deltas are computed off defaultPrice server-side - never the
+      // channel/special price - so the preview must match
+      defaultPrice: matched?.defaultPrice ?? product.defaultPrice,
+      effectivePrice: optBasePrice,
+      productSku: matched?.sku ?? "",
+    },
+    combinedRules,
+  );
   const unansweredVariantOptions = product.configurableOptions
     .filter((o) => !selection[o.id])
     .map((o) => ({ id: o.id, label: o.name }));
@@ -295,7 +310,13 @@ export function ConfigurablePDP({
           {/* Parent's product-wide options first, then the matched variant's own */}
           {hasOptions && (
             <div className="mt-6 space-y-6">
-              {opts.visibleOptions.map((opt) => (
+              <OptionsLayout
+                className=""
+                layout={product.configuratorLayout}
+                options={opts.visibleOptions}
+                answers={opts}
+                missingRequiredIds={opts.missingRequiredIds}
+                renderOption={(opt) => (
                 <RequiredFlag
                   key={opt.id}
                   active={
@@ -320,7 +341,8 @@ export function ConfigurablePDP({
                   />
                   )}
                 </RequiredFlag>
-              ))}
+                )}
+              />
               {opts.forcedQtyConflict && (
                 <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
                   {t("qtyConflict")}
@@ -335,6 +357,11 @@ export function ConfigurablePDP({
                   </span>
                 </p>
               )}
+              <RuleAdjustments
+                adjustments={opts.ruleAdjustments}
+                unavailable={opts.rulePriceUnavailable}
+                currency={displayCurrency}
+              />
             </div>
           )}
 
@@ -363,7 +390,8 @@ export function ConfigurablePDP({
                 blocked={
                   !matched ||
                   opts.missingRequired.length > 0 ||
-                  opts.forcedQtyConflict
+                  opts.forcedQtyConflict ||
+                  opts.rulePriceUnavailable
                 }
                 onBlockedClick={onBlockedAdd}
                 className="flex-1"
@@ -377,6 +405,7 @@ export function ConfigurablePDP({
                     uploading={opts.uploading}
                     missingRequired={opts.missingRequired.length > 0}
                     forcedQtyConflict={opts.forcedQtyConflict}
+                    unavailable={opts.rulePriceUnavailable}
                   />
                 )}
               </AddToCartButton>

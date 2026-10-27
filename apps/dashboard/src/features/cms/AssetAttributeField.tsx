@@ -19,6 +19,9 @@ function AssetThumb({ id, className = 'size-16' }: { id: string; className?: str
   const { data } = useQuery<MediaAssetByIdQuery, MediaAssetByIdQueryVariables>(MediaAssetByIdDocument, {
     variables: { id },
     skip: !id,
+    // A thumbnail's url and alt barely change, and the app default (network-only) refetched every image each time a
+    // block or gallery field remounted - cache-first fetches each asset once
+    fetchPolicy: 'cache-first',
   })
   const a = data?.mediaAsset
   return (
@@ -59,7 +62,7 @@ export function AssetField({
           </Button>
         )}
       </div>
-      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(a) => onChange(a.id)} />
+      <MediaAssetPicker open={open} onOpenChange={setOpen} uploadPath="cms/pages" selectedIds={value ? [value] : []} onSelect={(a) => onChange(a.id)} />
     </div>
   )
 }
@@ -104,7 +107,13 @@ export function AssetsField({
           <PlusIcon className="size-4" /> Add
         </Button>
       </div>
-      <MediaAssetPicker open={open} onOpenChange={setOpen} onSelect={(a) => onChange([...ids, a.id])} />
+      <MediaAssetPicker
+        open={open}
+        onOpenChange={setOpen}
+        uploadPath="cms/pages"
+        multiple
+        onSelectMany={(assets) => onChange([...ids, ...assets.map((a) => a.id).filter((id) => !ids.includes(id))])}
+      />
     </div>
   )
 }

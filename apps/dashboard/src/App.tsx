@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom'
 import { ApolloProvider } from '@apollo/client/react'
 import { I18nProvider } from '@lingui/react'
@@ -9,7 +10,7 @@ import { AuthProvider } from '@/shared/auth/auth-provider'
 import { ThemeProvider } from '@/lib/theme'
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute'
 import { CurrencyRegistryProvider } from '@/features/currencies/CurrencyRegistryProvider'
-import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { lazyPage } from '@/nav/lazy'
 import { PageTitleProvider } from '@/lib/page-title-provider'
 import { useNavGuard } from '@/lib/nav-guard'
 import { AuthShell } from '@/shared/auth/AuthShell'
@@ -21,6 +22,7 @@ import { ResetPassword } from '@/shared/auth/ResetPassword'
 import '@/nav/routes'
 import '@/plugins/loader'
 import { SignalsBanner } from '@/shared/signals/SignalsBanner'
+import { BootSilhouette } from '@/components/layout/boot-silhouette'
 
 // Everything the router hosts - the unsaved-changes navigation guard has to live INSIDE the data
 // router to see navigations at all, and page titles need a location to resolve against
@@ -36,6 +38,8 @@ function RootLayout() {
     </PageTitleProvider>
   )
 }
+
+const dashboardLayout = lazyPage(() => import('@/components/layout/DashboardLayout'), 'DashboardLayout')
 
 // A DATA router rather than <BrowserRouter> for one reason: useBlocker, which only data routers
 // provide - it's what lets a dirty page refuse a link click or a back button before it unmounts
@@ -62,7 +66,8 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <CurrencyRegistryProvider>
-              <DashboardLayout />
+              {/* Lazy so /login never downloads the signed-in shell - sidebar, chat, workspace tabs and what they import */}
+              <Suspense fallback={<BootSilhouette />}>{dashboardLayout}</Suspense>
             </CurrencyRegistryProvider>
           </ProtectedRoute>
         ),

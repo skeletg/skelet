@@ -1,20 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -65,6 +54,7 @@ import {
   pageTypeSchema,
   toPageTypeValues,
 } from './schemas/pageType'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function typeName(t: CmsPageTypeRowFragment) {
   return t.content?.name ?? t.slug
@@ -126,7 +116,6 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
   const [deleteType, { loading: deleting }] = useMutation(DeleteCmsPageTypeDocument, { refetchQueries })
 
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const baseline = useMemo(
     () => toPageTypeValues(type, locale, parseDocument(type.defaultBlocks)?.blocks ?? []),
@@ -179,13 +168,8 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
   const rootSlug = useStore(form.store, (s) => normalizeRoot(s.values.rootSlug))
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteType({ variables: { id: type.id } })
-      navigate('/cms/page-types', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteType({ variables: { id: type.id } })
+    navigate('/cms/page-types', { replace: true })
   }
 
   return (
@@ -211,10 +195,7 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
             variant="outline"
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => {
-              setDeleteError(null)
-              setConfirmDelete(true)
-            }}
+            onClick={() => setConfirmDelete(true)}
             disabled={deleting}
           >
             <Trash2Icon className="size-4" />
@@ -353,33 +334,16 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
         </form.Field>
       </DetailPageSection>
 
-      <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {typeName(type)}?</AlertDialogTitle>
-            <AlertDialogDescription>This removes the page type and its attribute assignments. It must have no pages.</AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete page type'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={<>Delete {typeName(type)}?</>}
+        description="This removes the page type and its attribute assignments. It must have no pages."
+        confirmLabel="Delete page type"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
     </RecordFormPage>
   )
 }
@@ -393,10 +357,11 @@ function PageTypeAttributesPanel({
   type: CmsPageTypeRowFragment
   canManage: boolean
 }) {
+  const fid = useId()
   const { data: attrsData } = useQuery(CmsAttributesDocument)
   const allAttrs = attrsData?.cmsAttributes ?? []
-  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
-  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
+  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
+  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [CmsAttributesDocument] })
 
   const [picked, setPicked] = useState('')
   const [required, setRequired] = useState(false)
@@ -486,8 +451,8 @@ function PageTypeAttributesPanel({
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Switch checked={required} onCheckedChange={setRequired} />
-            <Label className="text-xs">Required</Label>
+            <Switch id={`${fid}-required`} checked={required} onCheckedChange={setRequired} />
+            <Label htmlFor={`${fid}-required`} className="text-xs">Required</Label>
           </div>
           {groups.length > 0 && (
             <Select value={groupId} onValueChange={setGroupId}>
@@ -505,9 +470,9 @@ function PageTypeAttributesPanel({
           )}
           {conditionSources.length > 0 && (
             <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Show only if</Label>
+              <Label htmlFor={`${fid}-show-only-if`} className="text-xs text-muted-foreground">Show only if</Label>
               <Select value={condAttr} onValueChange={setCondAttr}>
-                <SelectTrigger className="h-8 w-40">
+                <SelectTrigger id={`${fid}-show-only-if`} className="h-8 w-40">
                   <SelectValue placeholder="(always)" />
                 </SelectTrigger>
                 <SelectContent>

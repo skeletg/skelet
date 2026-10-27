@@ -25,7 +25,3 @@ export function getSlots<TCtx = unknown>(zone: string | undefined): SlotEntry<TC
     .filter((s) => s.zone === zone)
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) as SlotEntry<TCtx>[]
 }
-
-export function __resetSlotsForTests() {
-  slots.length = 0
-}

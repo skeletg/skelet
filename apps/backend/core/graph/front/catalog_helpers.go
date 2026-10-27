@@ -31,7 +31,7 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 		if v, ok := r.cachedSalable(ctx, productID); ok {
 			return v, nil
 		}
-		if r.primeGroupOnce(ctx, "salable", productID, func(ids []uuid.UUID) error { return r.primeSalable(ctx, ids, channelID) }) {
+		if r.primeGroupOnce(ctx, "stock", productID, func(ids []uuid.UUID) error { return r.primeStock(ctx, ids, channelID) }) {
 			if v, ok := r.cachedSalable(ctx, productID); ok {
 				return v, nil
 			}
@@ -132,7 +132,7 @@ func (r *productResolver) sellableByIDs(ctx context.Context, ids []uuid.UUID, ch
 	if len(ids) == 0 {
 		return out, nil
 	}
-	bySalable, err := r.InventorySvc.SalableByProductIDs(ctx, ids, channelID)
+	bySalable, backorderable, err := r.InventorySvc.StockByProductIDs(ctx, ids, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,12 +145,7 @@ func (r *productResolver) sellableByIDs(ctx context.Context, ids []uuid.UUID, ch
 			out[id] = true // missing key (untracked sentinel), unbounded, or positive
 			continue
 		}
-		item, err := r.InventorySvc.GetItemByProduct(ctx, id) // s == 0, so sellable only if the item is backorderable
-		if err != nil {
-			out[id] = false
-			continue
-		}
-		out[id] = item.Backorderable
+		out[id] = backorderable[id]
 	}
 	return out, nil
 }
@@ -219,7 +214,7 @@ func (r *productResolver) loadPromotionMediaViaLoader(ctx context.Context, loade
 	if mediaID == nil {
 		return nil
 	}
-	asset, err := loaders.PromotionAsset.Load(ctx, *mediaID)()
+	asset, err := loaders.MediaAsset.Load(ctx, *mediaID)()
 	if err != nil || asset.ID == uuid.Nil {
 		return nil
 	}
@@ -1207,4 +1202,38 @@ func optionPricingChannel(ctx context.Context) (uuid.UUID, string, bool) {
 		return uuid.Nil, "", false
 	}
 	return ch.ID, ch.CurrencyCode, true
+}
+
+// Rules as the cart applies them on this channel - a price action carries the amount this channel charges, or flags
+// that there's none to charge in its currency
+func toCustomOptionRuleModels(ctx context.Context, rules []catalog.ProductOptionRule) []*model1.ProductCustomOptionRule {
+	chID, chCur, perChannel := optionPricingChannel(ctx)
+	out := make([]*model1.ProductCustomOptionRule, len(rules))
+	for i, r := range rules {
+		actions := make([]*model1.ProductCustomOptionRuleAction, len(r.Actions))
+		for j, a := range r.Actions {
+			m := &model1.ProductCustomOptionRuleAction{Type: string(a.Type), Quantity: a.Quantity}
+			if a.OptionID != nil {
+				id := a.OptionID.String()
+				m.OptionID = &id
+			}
+			if a.Type == catalog.RuleActionAdjustPrice {
+				pt := string(a.PriceType)
+				pv := a.PriceValue
+				if perChannel {
+					v, ok := a.ChannelPriceValue(chID, chCur, r.Currency)
+					pv, m.PriceUnavailable = v, !ok
+				}
+				m.PriceType, m.PriceValue = &pt, &pv
+			}
+			actions[j] = m
+		}
+		out[i] = &model1.ProductCustomOptionRule{
+			ID:        r.ID.String(),
+			Label:     r.Label,
+			Condition: visibleIfToAny(&r.Condition),
+			Actions:   actions,
+		}
+	}
+	return out
 }

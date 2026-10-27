@@ -3,17 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { PencilIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -47,6 +37,7 @@ import {
   toQuestionTranslationsValues,
   toTranslationInput,
 } from './schemas/reviewQuestion'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // Per-question editor - Header carries the slug + type + required/comment badges and the Edit/Delete actions; body
 // sections cover settings recap and translations - Mirrors the ProductDetail template layout
@@ -106,13 +97,12 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
 
   const [editingSettings, setEditingSettings] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
+    refetchQueries: [ReviewQuestionsDocument],
   })
   const [upsert] = useMutation(UpsertReviewQuestionContentDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
+    refetchQueries: [ReviewQuestionsDocument],
   })
 
   // The locale list comes back as a fresh array each render - key the offered rows on its content
@@ -144,13 +134,8 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
   const submitting = useStore(form.store, (s) => s.isSubmitting)
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteQuestion({ variables: { id: question.id } })
-      navigate('/reviews/questions')
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteQuestion({ variables: { id: question.id } })
+    navigate('/reviews/questions')
   }
 
   const displayName = question.content?.label || question.slug
@@ -190,10 +175,7 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
                 variant="outline"
                 size="sm"
                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
+                onClick={() => setConfirmingDelete(true)}
                 disabled={deleting}
               >
                 <Trash2Icon className="size-4" />
@@ -269,36 +251,16 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
 
       <ReviewQuestionFormDialog open={editingSettings} onOpenChange={setEditingSettings} attribute={question} />
 
-      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this question?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Removes the question from every product type and erases every existing answer row. Past reviews keep their
-              headers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Couldn't delete</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void onDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this question?"
+        description="Removes the question from every product type and erases every existing answer row. Past reviews keep their headers."
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
       <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={record.label} sections={registry.dirtySections} />
     </SaveRegistryContext.Provider>
   )

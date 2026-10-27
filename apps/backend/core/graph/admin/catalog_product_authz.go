@@ -39,6 +39,10 @@ func (r *mutationResolver) requireCatalogManageForProductOption(ctx context.Cont
 	if err != nil {
 		return err
 	}
+	// A template's option reaches products on every store
+	if opt.TemplateID != uuid.Nil {
+		return r.requireGlobal(ctx, "catalog.manage")
+	}
 	return r.requireCatalogManageOnAllListingChannels(ctx, opt.ProductID)
 }
 

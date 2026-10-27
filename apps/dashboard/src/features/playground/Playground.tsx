@@ -5,16 +5,6 @@ import 'graphiql/setup-workers/vite' // without it MonacoEnvironment.getWorker i
 import 'graphiql/style.css'
 import { RotateCcwIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { getAccessToken } from '@/shared/auth/auth'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { exampleTabs, frontExampleTabs } from './examples'
@@ -25,6 +15,7 @@ import { timedFetch, type ResponseDetails } from './responseDetails'
 import type { PickRunner } from './valueTargets'
 import { namespacedStorage, resetSurfaceTabs, SURFACES, surfaceById, type SurfaceId } from './surfaces'
 import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // GraphiQL's own docs explorer browses types, which is a different question from "what can I call"
 const operationsPlugin = {
@@ -49,7 +40,6 @@ export function Playground() {
     resetSurfaceTabs(surfaceId)
     setLast(null)
     setGeneration((g) => g + 1)
-    setConfirmReset(false)
   }
 
   const fetcher = useMemo(
@@ -132,21 +122,19 @@ export function Playground() {
           <RotateCcwIcon className="size-3" aria-hidden /> Reset tabs
         </button>
       </div>
-      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reset the {surface.label} tabs?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Closes every {surface.label} tab and their variables and headers, and opens the example tabs again. Operations
-              saved from an older schema go with them. The other surface's tabs stay as they are.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={resetTabs}>Reset tabs</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmReset}
+        onOpenChange={setConfirmReset}
+        title={<>Reset the {surface.label} tabs?</>}
+        description={
+          <>
+            Closes every {surface.label} tab and their variables and headers, and opens the example tabs again. Operations
+            saved from an older schema go with them. The other surface's tabs stay as they are.
+          </>
+        }
+        confirmLabel="Reset tabs"
+        onConfirm={resetTabs}
+      />
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
         {/* Remount per surface: the schema, tabs and storage all change together */}
         <PickerProvider run={runPick} surface={surface.id}>

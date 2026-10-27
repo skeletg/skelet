@@ -3,6 +3,7 @@
 // Lifting this needs the reads moved onto table.Subscribe, not another version bump
 'use no memo'
 
+import { useId } from 'react'
 import type { Column, RowData } from '@/components/data-table/tanstack'
 import { CheckIcon, PlusCircleIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -105,6 +106,7 @@ export function DataTableNumberRangeFilter<TData extends RowData, TValue>({
   title: string
   step?: number
 }) {
+  const fid = useId()
   const value = (column?.getFilterValue() as NumberRange | undefined) ?? {}
   // undefined rather than NaN for a cleared box, or the filter never reports itself inactive
   const set = (patch: NumberRange) => {
@@ -117,8 +119,8 @@ export function DataTableNumberRangeFilter<TData extends RowData, TValue>({
     <FilterShell title={title} value={value} onClear={() => column?.setFilterValue(undefined)}>
       <div className="grid grid-cols-2 gap-2">
         <div className="grid gap-1">
-          <Label className="text-xs text-muted-foreground">Min</Label>
-          <Input
+          <Label htmlFor={`${fid}-min`} className="text-xs text-muted-foreground">Min</Label>
+          <Input id={`${fid}-min`}
             type="number"
             step={step}
             className="h-8"
@@ -127,8 +129,8 @@ export function DataTableNumberRangeFilter<TData extends RowData, TValue>({
           />
         </div>
         <div className="grid gap-1">
-          <Label className="text-xs text-muted-foreground">Max</Label>
-          <Input
+          <Label htmlFor={`${fid}-max`} className="text-xs text-muted-foreground">Max</Label>
+          <Input id={`${fid}-max`}
             type="number"
             step={step}
             className="h-8"
@@ -148,6 +150,7 @@ export function DataTableDateRangeFilter<TData extends RowData, TValue>({
   column?: Column<TData, TValue>
   title: string
 }) {
+  const fid = useId()
   const value = (column?.getFilterValue() as DateRange | undefined) ?? {}
   const set = (patch: DateRange) => {
     const next = { ...value, ...patch }
@@ -158,8 +161,8 @@ export function DataTableDateRangeFilter<TData extends RowData, TValue>({
     <FilterShell title={title} value={value} onClear={() => column?.setFilterValue(undefined)}>
       <div className="grid gap-2">
         <div className="grid gap-1">
-          <Label className="text-xs text-muted-foreground">From</Label>
-          <Input
+          <Label htmlFor={`${fid}-from`} className="text-xs text-muted-foreground">From</Label>
+          <Input id={`${fid}-from`}
             type="date"
             className="h-8"
             value={value.from ?? ''}
@@ -167,8 +170,8 @@ export function DataTableDateRangeFilter<TData extends RowData, TValue>({
           />
         </div>
         <div className="grid gap-1">
-          <Label className="text-xs text-muted-foreground">To</Label>
-          <Input
+          <Label htmlFor={`${fid}-to`} className="text-xs text-muted-foreground">To</Label>
+          <Input id={`${fid}-to`}
             type="date"
             className="h-8"
             value={value.to ?? ''}

@@ -55,9 +55,3 @@ export function extractPlainTextFor(  // undefined when no block claims the type
 ): ((node: unknown) => string) | undefined {
   return extractors.get(nodeType)
 }
-
-export function __resetForTests(): void {  // unit tests only, never production
-  nodes.clear()
-  toolbarEntries.length = 0
-  extractors.clear()
-}

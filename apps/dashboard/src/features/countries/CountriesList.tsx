@@ -9,17 +9,6 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +26,7 @@ import {
   DeleteCountryDocument,
 } from './Countries.gql'
 import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type CountryRow = {
   code: string
@@ -71,21 +61,18 @@ export function CountriesList() {
   const rows = useMemo(() => (data?.countries ?? []) as CountryRow[], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<CountryRow | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [deleteCountry, { loading: deleting }] = useMutation(DeleteCountryDocument, {
-    refetchQueries: [{ query: CountriesAdminListDocument }],
+  const [deleteCountry] = useMutation(DeleteCountryDocument, {
+    refetchQueries: [CountriesAdminListDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
     try {
       await deleteCountry({ variables: { code: confirmingDelete.code } })
-      setConfirmingDelete(null)
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Delete failed.'
-      setDeleteError(friendlyDeleteError(raw))
+      throw new Error(friendlyDeleteError(raw), { cause: err })
     }
   }
 
@@ -194,7 +181,6 @@ export function CountriesList() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmingDelete(row.original)
                     }}
                   >
@@ -251,44 +237,16 @@ export function CountriesList() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmingDelete?.code}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The backend refuses deletion if anything still references this country
-              (locales, addresses, tax rules, etc.).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete blocked</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete country'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete?.code}?</>}
+        description="The backend refuses deletion if anything still references this country (locales, addresses, tax rules, etc.)."
+        confirmLabel="Delete country"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

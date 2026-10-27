@@ -50,6 +50,7 @@ import {
   type ExistingZone,
   type ZoneValues,
 } from './schemas/zone'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
 
 export function ShippingZoneCreatePage() {
   const [params] = useSearchParams()
@@ -243,6 +244,7 @@ function MethodRow({
   onChanged?: () => void
   onCancel?: () => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const key = method?.id ?? 'new'
   const [error, setError] = useState<string | null>(null)
   const [createMethod] = useMutation(CreateShippingMethodDocument)
@@ -276,7 +278,6 @@ function MethodRow({
 
   async function remove() {
     if (!method) return
-    if (!window.confirm(`Delete method ${method.code}? This is permanent.`)) return
     try {
       await deleteMethod({ variables: { id: method.id } })
       onChanged?.()
@@ -439,7 +440,7 @@ function MethodRow({
             </Button>
           )}
           {method && (
-            <Button type="button" variant="ghost" size="icon" onClick={remove} title="Delete method" aria-label="Delete method">
+            <Button type="button" variant="ghost" size="icon" onClick={() => confirm({ title: `Delete method ${method?.code}?`, description: 'This is permanent.', confirmLabel: 'Delete method', destructive: true, onConfirm: remove })} title="Delete method" aria-label="Delete method">
               <Trash2Icon className="size-4 text-destructive" />
             </Button>
           )}
@@ -449,6 +450,7 @@ function MethodRow({
         </div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
+      {confirmDialog}
     </div>
   )
 }

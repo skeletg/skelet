@@ -60,7 +60,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive'> = 
 
 export function QuestionsList() {
   const [status, setStatus] = useState('pending')
-  const { data, loading, refetch } = useQuery(ProductQuestionsDocument, {
+  const { data, loading, error: loadError, refetch } = useQuery(ProductQuestionsDocument, {
     variables: { status: status === 'all' ? '' : status, limit: 100 },
   })
   const [answering, setAnswering] = useState<Row | null>(null)
@@ -128,7 +128,7 @@ export function QuestionsList() {
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button aria-label="Question actions" variant="ghost" size="icon" className="size-8">
                 <MoreHorizontalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -186,7 +186,7 @@ export function QuestionsList() {
       />
       <DetailPageBody>
         <DetailPageSection>
-          <DataTable columns={columns} data={rows} loading={loading} />
+          <DataTable columns={columns} data={rows} loading={loading} error={loadError} />
         </DetailPageSection>
       </DetailPageBody>
 

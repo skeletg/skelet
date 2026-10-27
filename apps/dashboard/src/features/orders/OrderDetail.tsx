@@ -4,16 +4,6 @@ import { useMutation, useQuery, useLazyQuery } from '@apollo/client/react'
 import { usePageTitle } from '@/lib/page-title'
 import { BanIcon, CheckCircle2Icon, CogIcon, FileTextIcon, PackageCheckIcon, PauseCircleIcon, PlayCircleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -74,6 +64,7 @@ import {
 } from './Orders.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 import { formatPhone } from '@/lib/phone'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // Shipping is gated on the status machine, so the note names the transition that unblocks it
 function shipmentBlockedReason(status: string): string {
@@ -133,7 +124,6 @@ export function OrderDetail() {
   const [placeDraft,       placeDraftState]  = useMutation(PlaceDraftOrderDocument,       { refetchQueries: refetch })
 
   const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const [cancelError, setCancelError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   // Fulfill flow: clicking Fulfill opens a dialog that lets the admin
   // optionally stamp carrier + tracking before the transition - Empty
@@ -162,13 +152,7 @@ export function OrderDetail() {
   }
 
   async function onCancelConfirmed() {
-    setCancelError(null)
-    try {
-      await cancelOrder({ variables: { id } })
-      setConfirmingCancel(false)
-    } catch (e) {
-      setCancelError(e instanceof Error ? e.message : 'Cancel failed.')
-    }
+    await cancelOrder({ variables: { id } })
   }
 
   async function onFulfillConfirmed() {
@@ -338,7 +322,7 @@ export function OrderDetail() {
                 size="sm"
                 variant="outline"
                 disabled={cancelState.loading}
-                onClick={() => { setCancelError(null); setConfirmingCancel(true) }}
+                onClick={() => setConfirmingCancel(true)}
               >
                 <BanIcon className="size-4" />
                 Cancel
@@ -364,10 +348,7 @@ export function OrderDetail() {
                 setFulfillError(null)
                 setFulfillOpen(true)
               }}
-              onCancel={() => {
-                setCancelError(null)
-                setConfirmingCancel(true)
-              }}
+              onCancel={() => setConfirmingCancel(true)}
               running={{
                 confirm: confirmState.loading,
                 processing: processingState.loading,
@@ -676,40 +657,16 @@ export function OrderDetail() {
         <PluginSections target="order" entity={order} mode="edit" />
       </DetailPageBody>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingCancel}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingCancel(false)
-            setCancelError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel order {order.number}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The order moves to the CANCELLED state and no further transitions are possible.
-              Cancellation cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {cancelError && (
-            <Alert variant="destructive">
-              <AlertTitle>Cancel failed</AlertTitle>
-              <AlertDescription>{cancelError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelState.loading}>Keep order</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={cancelState.loading}
-              onClick={(e) => { e.preventDefault(); onCancelConfirmed() }}
-            >
-              {cancelState.loading ? 'Cancelling…' : 'Cancel order'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingCancel}
+        title={<>Cancel order {order.number}?</>}
+        description="The order moves to the CANCELLED state and no further transitions are possible. Cancellation cannot be undone."
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        busyLabel="Cancelling…"
+        onConfirm={onCancelConfirmed}
+      />
 
       <Dialog
         open={fulfillOpen}

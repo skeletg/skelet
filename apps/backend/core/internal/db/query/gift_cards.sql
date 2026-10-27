@@ -40,9 +40,16 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListGiftCards :many
+-- search matches the code or the recipient's email; CountGiftCards keeps the same WHERE so a page's total agrees with its rows
 SELECT * FROM gift_cards
-WHERE sqlc.narg(channel_ids)::uuid[] IS NULL OR channel_id = ANY(sqlc.narg(channel_ids)::uuid[])
+WHERE (sqlc.narg(channel_ids)::uuid[] IS NULL OR channel_id = ANY(sqlc.narg(channel_ids)::uuid[]))
+  AND (sqlc.arg(search)::text = '' OR code ILIKE '%' || sqlc.arg(search)::text || '%' OR recipient_email ILIKE '%' || sqlc.arg(search)::text || '%')
 ORDER BY created_at DESC LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountGiftCards :one
+SELECT COUNT(*)::INTEGER FROM gift_cards
+WHERE (sqlc.narg(channel_ids)::uuid[] IS NULL OR channel_id = ANY(sqlc.narg(channel_ids)::uuid[]))
+  AND (sqlc.arg(search)::text = '' OR code ILIKE '%' || sqlc.arg(search)::text || '%' OR recipient_email ILIKE '%' || sqlc.arg(search)::text || '%');
 
 -- name: ListGiftCardsByIssuedOrder :many
 -- Used for issuance idempotency: if any card already references this order,

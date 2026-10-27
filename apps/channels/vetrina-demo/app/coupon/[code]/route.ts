@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
-import { ApplyCouponDocument, CreateGuestCartDocument } from "@/app/lib/cart/mutations.gql";
-import { CART_COOKIE } from "@/app/lib/cart/read";
+import { ApplyCouponDocument } from "@/app/lib/cart/mutations.gql";
+import { getOwnCartId, PROMO_PENDING_COOKIE } from "@/app/lib/cart/read";
 import { gqlFetch } from "@/app/lib/graphql";
 
 export async function GET(
@@ -18,22 +17,19 @@ export async function GET(
   if (!trimmed) return res;
 
   try {
-    const cookieStore = await cookies();
-    let cartId = cookieStore.get(CART_COOKIE)?.value;
-    if (!cartId) {
-      const created = await gqlFetch(CreateGuestCartDocument, {});
-      cartId = created.data.createGuestCart.id;
-      // Must match ensureCartID's cookie exactly: the client reads this cookie
-      // (httpOnly:false) and expects the sticky 365-day lifetime
-      res.cookies.set(CART_COOKIE, cartId, {
-        httpOnly: false,
+    const cartId = await getOwnCartId();
+    if (cartId) {
+      await gqlFetch(ApplyCouponDocument, { cartId, code: trimmed });
+    } else {
+      // Only an addition creates a guest cart - hold the code for the first one
+      res.cookies.set(PROMO_PENDING_COOKIE, trimmed, {
+        httpOnly: true,
         sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 365,
+        maxAge: 60 * 60 * 24 * 30,
       });
     }
-    await gqlFetch(ApplyCouponDocument, { cartId, code: trimmed });
   } catch {
     // Bad code / backend hiccup - still land on the cart
   }

@@ -40,7 +40,12 @@ WHERE
         OR caption ILIKE '%' || escape_like($3::text) || '%'
         OR notes ILIKE '%' || escape_like($3::text) || '%'
     )
-ORDER BY updated_at DESC, filename
+-- $6 picks the order: '' or newest, oldest, name, largest. The picker pages by offset, so id settles every tie
+ORDER BY
+    CASE WHEN $6::text = 'name' THEN lower(filename) END ASC,
+    CASE WHEN $6::text = 'largest' THEN size_bytes END DESC,
+    CASE WHEN $6::text = 'oldest' THEN created_at END ASC,
+    updated_at DESC, filename, id
 LIMIT $4 OFFSET $5;
 
 -- name: CountSearchMediaAssets :one
@@ -120,5 +125,8 @@ WHERE media_assets.object_key LIKE 'product-options/%'
     SELECT 1 FROM order_line_options o
     WHERE o.file_url != '' AND o.file_url LIKE '%' || escape_like(media_assets.object_key)
   )
+  -- One picked from the library as an option's or a choice's picture is in use too
+  AND NOT EXISTS (SELECT 1 FROM catalog_product_options po WHERE po.image_asset_id = media_assets.id)
+  AND NOT EXISTS (SELECT 1 FROM catalog_product_option_values pv WHERE pv.image_asset_id = media_assets.id)
 ORDER BY media_assets.created_at
 LIMIT sqlc.arg(max_rows);

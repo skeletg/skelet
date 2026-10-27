@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useId } from 'react'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { useQuery } from '@apollo/client/react'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { CRON_PRESETS, SERVER_TZ, TIMEZONES } from './scheduler-options'
@@ -41,15 +42,12 @@ export function SchedulePicker({
   timezone: string
   onTimezoneChange: (v: string) => void
 }) {
+  const fid = useId()
   const presetMatch = CRON_PRESETS.find((p) => p.value === schedule)
   const presetValue = presetMatch ? presetMatch.value : CUSTOM_PRESET
 
   // Debounce the schedule string feeding the preview query
-  const [debounced, setDebounced] = useState(schedule)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(schedule), 350)
-    return () => clearTimeout(t)
-  }, [schedule])
+  const debounced = useDebounced(schedule, 350)
 
   const { data, loading } = useQuery(PreviewScheduleDocument, {
     variables: { schedule: debounced, timezone, count: 5 },
@@ -63,14 +61,14 @@ export function SchedulePicker({
   return (
     <div className="grid gap-3">
       <div className="grid gap-2">
-        <Label>Schedule</Label>
+        <Label htmlFor={`${fid}-schedule`}>Schedule</Label>
         <Select
           value={presetValue}
           onValueChange={(v) => {
             if (v !== CUSTOM_PRESET) onScheduleChange(v)
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger id={`${fid}-schedule`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -91,12 +89,12 @@ export function SchedulePicker({
       </div>
 
       <div className="grid gap-2">
-        <Label>Timezone</Label>
+        <Label htmlFor={`${fid}-timezone`}>Timezone</Label>
         <Select
           value={timezone === '' ? SERVER_TZ : timezone}
           onValueChange={(v) => onTimezoneChange(v === SERVER_TZ ? '' : v)}
         >
-          <SelectTrigger>
+          <SelectTrigger id={`${fid}-timezone`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -172,7 +170,7 @@ export function HeadersEditor({
             placeholder="value"
             className="text-sm"
           />
-          <Button
+          <Button aria-label="Remove header"
             type="button"
             variant="ghost"
             size="icon"

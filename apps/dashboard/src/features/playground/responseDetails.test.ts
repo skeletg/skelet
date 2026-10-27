@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   describeResponse,
-  formatBytes,
   formatDuration,
   isIntrospectionRequest,
   responseTone,
   timedFetch,
 } from './responseDetails'
+import { formatBytes } from '@/lib/format'
 
 function response(status: number, headers: Record<string, string> = {}) {
   return new Response(null, { status, statusText: status === 200 ? 'OK' : '', headers })

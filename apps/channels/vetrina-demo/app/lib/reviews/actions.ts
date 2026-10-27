@@ -5,6 +5,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 import { revalidatePublicPath } from "@/app/lib/revalidate";
 
 import { getAccessToken } from "@/app/lib/auth/session";
@@ -169,5 +171,5 @@ export async function submitReviewAction(
   const { product } = await getProduct(productId);
   const dest = product ? productHref(product) : "/";
   await revalidatePublicPath(dest);
-  redirect(`${dest}?reviewSubmitted=1`);
+  redirect(await withLocalePrefix(`${dest}?reviewSubmitted=1`, await getCurrentLocale()));
 }

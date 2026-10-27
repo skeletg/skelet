@@ -89,7 +89,7 @@ func TestNilClientIsASafeNoOp(t *testing.T) {
 	c.Rebuild(ctx, "cms", []string{"cms:all"}, nil, []string{"/"}, "test", nil)
 	c.PurgeSurface(ctx, "cms", "test", nil)
 	c.PurgeAll(ctx, "test", nil)
-	if err := c.warmPath(ctx, nil, "/"); err != nil {
+	if err := c.warmPath(ctx, "", nil, "/"); err != nil {
 		t.Errorf("warmPath on a nil client = %v, want nil", err)
 	}
 	got, err := c.Log(ctx, 10)
@@ -199,22 +199,22 @@ func TestPurgeStillSendsWhenTheStoreFails(t *testing.T) {
 // a failure rather than success
 func TestWarmPathRequiresTheStorefrontToConfirmARebuild(t *testing.T) {
 	srv, _, _ := storefrontStub(t, 1, http.StatusOK)
-	if err := New(srv.URL, "secret", nil).warmPath(context.Background(), []string{"cms:all"}, "/about"); err != nil {
+	if err := New(srv.URL, "secret", nil).warmPath(context.Background(), "", []string{"cms:all"}, "/about"); err != nil {
 		t.Errorf("warmPath with warmed=1 = %v, want nil", err)
 	}
 
 	cold, _, _ := storefrontStub(t, 0, http.StatusOK)
-	if err := New(cold.URL, "secret", nil).warmPath(context.Background(), nil, "/about"); err == nil {
+	if err := New(cold.URL, "secret", nil).warmPath(context.Background(), "", nil, "/about"); err == nil {
 		t.Error("warmPath with warmed=0 = nil, want an error so the queue retries")
 	}
 
 	failing, _, _ := storefrontStub(t, 0, http.StatusBadGateway)
-	if err := New(failing.URL, "secret", nil).warmPath(context.Background(), nil, "/about"); err == nil {
+	if err := New(failing.URL, "secret", nil).warmPath(context.Background(), "", nil, "/about"); err == nil {
 		t.Error("warmPath against a 502 = nil, want an error so the queue retries")
 	}
 
 	// no storefront configured is a no-op success, not a permanently failing task
-	if err := New("", "secret", nil).warmPath(context.Background(), nil, "/about"); err != nil {
+	if err := New("", "secret", nil).warmPath(context.Background(), "", nil, "/about"); err != nil {
 		t.Errorf("warmPath with no URL = %v, want nil", err)
 	}
 }
@@ -222,7 +222,7 @@ func TestWarmPathRequiresTheStorefrontToConfirmARebuild(t *testing.T) {
 // Next applies a route handler's purge only when that request ends, so the warm has to be a request of its own
 func TestWarmPathPurgesBeforeItWarms(t *testing.T) {
 	srv, reqs, _ := storefrontStub(t, 1, http.StatusOK)
-	if err := New(srv.URL, "secret", nil).warmPath(context.Background(), []string{"cms:all"}, "/about"); err != nil {
+	if err := New(srv.URL, "secret", nil).warmPath(context.Background(), "", []string{"cms:all"}, "/about"); err != nil {
 		t.Fatalf("warmPath: %v", err)
 	}
 	if len(*reqs) != 2 {
@@ -406,5 +406,29 @@ func TestDedupKeyDistinguishesSurfaceAndPath(t *testing.T) {
 			t.Errorf("%s and %s both produce key %q", name, prev, key)
 		}
 		seen[key] = name
+	}
+}
+
+func TestBeforePurgeRunsBeforeTheStorefrontHearsAndNamesTheSurface(t *testing.T) {
+	var mu sync.Mutex
+	var seen []string
+	note := func(s string) { mu.Lock(); seen = append(seen, s); mu.Unlock() }
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		note("storefront")
+		_ = json.NewEncoder(w).Encode(map[string]int{"warmed": 1})
+	}))
+	t.Cleanup(srv.Close)
+	c := New(srv.URL, "secret", nil)
+	c.SetBeforePurge(func(_ context.Context, surface string) { note("hook:" + surface) })
+
+	c.Purge(context.Background(), "product", []string{"product:1"}, nil, "edit", nil)
+	if err := c.warmPath(context.Background(), "cms", []string{"cms:all"}, "/about"); err != nil {
+		t.Fatal(err)
+	}
+	c.PurgeAll(context.Background(), "flush", nil)
+
+	want := []string{"hook:product", "storefront", "hook:cms", "storefront", "storefront", "hook:", "storefront"}
+	if !slices.Equal(seen, want) {
+		t.Fatalf("got %v, want %v", seen, want)
 	}
 }

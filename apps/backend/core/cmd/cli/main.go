@@ -34,6 +34,7 @@ func main() {
 	rootCmd.AddCommand(commands.MediaOrphansCmd)
 	rootCmd.AddCommand(commands.MediaMigrateCmd)
 	rootCmd.AddCommand(commands.DataPatchCmd)
+	rootCmd.AddCommand(commands.MigrateCmd)
 	rootCmd.AddCommand(commands.SearchCmd)
 	rootCmd.AddCommand(commands.URLRewriteCmd)
 	rootCmd.AddCommand(commands.InventoryCmd)

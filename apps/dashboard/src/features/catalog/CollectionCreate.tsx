@@ -33,7 +33,7 @@ export function CollectionCreate() {
   const defaultLocale = globalDefaultLocale && locales.includes(globalDefaultLocale) ? globalDefaultLocale : (locales[0] ?? '')
 
   const [slugTouched, setSlugTouched] = useState(false)
-  const [createCollection] = useMutation(CreateCollectionDocument, { refetchQueries: [{ query: CollectionsDocument }] })
+  const [createCollection] = useMutation(CreateCollectionDocument, { refetchQueries: [CollectionsDocument] })
   const createdId = useRef<string | null>(null)
   const schema = useMemo(() => newCollectionSchema(defaultLocale), [defaultLocale])
 

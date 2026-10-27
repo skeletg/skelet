@@ -55,6 +55,7 @@ type Loaders struct {
 	Customer         *dataloader.Loader[uuid.UUID, customer.Customer]
 	ProductReviews   *dataloader.Loader[ReviewsKey, []review.Review]
 	ReviewAggregates *dataloader.Loader[uuid.UUID, review.Aggregates]
+	ReviewOverall    *dataloader.Loader[uuid.UUID, review.Aggregates] // no PerQuestion
 	ReviewVoteCounts *dataloader.Loader[uuid.UUID, review.VoteCounts]
 	MyReviewVote     *dataloader.Loader[uuid.UUID, int16]
 	Channel          *dataloader.Loader[uuid.UUID, channel.Channel]
@@ -68,7 +69,7 @@ type Loaders struct {
 	ReviewQuestion       *dataloader.Loader[uuid.UUID, review.Question]
 	PromotionConditions  *dataloader.Loader[uuid.UUID, []promotion.Condition]
 	PromotionRuleContent *dataloader.Loader[uuid.UUID, promotion.RuleContent]
-	PromotionAsset       *dataloader.Loader[uuid.UUID, medialibrary.Asset]
+	MediaAsset           *dataloader.Loader[uuid.UUID, medialibrary.Asset]
 
 	productFieldLoaders
 
@@ -93,7 +94,12 @@ func New(d Deps) *Loaders {
 			dataloader.WithCache[ReviewsKey, []review.Review](dataloader.NewCache[ReviewsKey, []review.Review]()),
 		),
 		ReviewAggregates: dataloader.NewBatchedLoader(
-			reviewAggregatesBatchFn(d.Review),
+			reviewAggregatesBatchFn(d.Review.GetAggregatesByProductIDs),
+			dataloader.WithWait[uuid.UUID, review.Aggregates](loaderWait),
+			dataloader.WithCache[uuid.UUID, review.Aggregates](dataloader.NewCache[uuid.UUID, review.Aggregates]()),
+		),
+		ReviewOverall: dataloader.NewBatchedLoader(
+			reviewAggregatesBatchFn(d.Review.GetOverallAggregatesByProductIDs),
 			dataloader.WithWait[uuid.UUID, review.Aggregates](loaderWait),
 			dataloader.WithCache[uuid.UUID, review.Aggregates](dataloader.NewCache[uuid.UUID, review.Aggregates]()),
 		),
@@ -157,8 +163,8 @@ func New(d Deps) *Loaders {
 			dataloader.WithWait[uuid.UUID, promotion.RuleContent](loaderWait),
 			dataloader.WithCache[uuid.UUID, promotion.RuleContent](dataloader.NewCache[uuid.UUID, promotion.RuleContent]()),
 		),
-		PromotionAsset: dataloader.NewBatchedLoader(
-			promotionAssetBatchFn(d.MediaLibrary),
+		MediaAsset: dataloader.NewBatchedLoader(
+			mediaAssetBatchFn(d.MediaLibrary),
 			dataloader.WithWait[uuid.UUID, medialibrary.Asset](loaderWait),
 			dataloader.WithCache[uuid.UUID, medialibrary.Asset](dataloader.NewCache[uuid.UUID, medialibrary.Asset]()),
 		),
@@ -249,10 +255,10 @@ func productReviewsBatchFn(svc *review.Service) dataloader.BatchFunc[ReviewsKey,
 }
 
 // Zero-value Aggregates for products with no approved reviews - that's the storefront-visible truth, and matches how the resolver already treats absent map entries
-func reviewAggregatesBatchFn(svc *review.Service) dataloader.BatchFunc[uuid.UUID, review.Aggregates] {
+func reviewAggregatesBatchFn(fetch func(context.Context, []uuid.UUID) (map[uuid.UUID]review.Aggregates, error)) dataloader.BatchFunc[uuid.UUID, review.Aggregates] {
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[review.Aggregates] {
 		out := make([]*dataloader.Result[review.Aggregates], len(keys))
-		byID, err := svc.GetAggregatesByProductIDs(ctx, keys)
+		byID, err := fetch(ctx, keys)
 		if err != nil {
 			for i := range keys {
 				out[i] = &dataloader.Result[review.Aggregates]{Error: err}
@@ -520,8 +526,8 @@ func promotionRuleContentBatchFn(svc *promotion.Service) dataloader.BatchFunc[uu
 	}
 }
 
-// A missing id resolves to a zero Asset, not an error - promotional displays render without their badge/banner when it's gone, matching loadPromotionMedia
-func promotionAssetBatchFn(svc *medialibrary.Service) dataloader.BatchFunc[uuid.UUID, medialibrary.Asset] {
+// A missing id resolves to a zero Asset, not an error - a promotion badge or an option picture renders without it when it's gone
+func mediaAssetBatchFn(svc *medialibrary.Service) dataloader.BatchFunc[uuid.UUID, medialibrary.Asset] {
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[medialibrary.Asset] {
 		out := make([]*dataloader.Result[medialibrary.Asset], len(keys))
 		byID, err := svc.GetAssetsByIDs(ctx, keys)

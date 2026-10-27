@@ -1002,7 +1002,7 @@ func (q *Queries) ListProductChildIDsByParentIDs(ctx context.Context, parentIds 
 }
 
 const listProductChildren = `-- name: ListProductChildren :many
-SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout
 FROM catalog_product_children pc
 JOIN catalog_products p ON p.id = pc.child_id
 WHERE pc.parent_id = $1
@@ -1051,6 +1051,7 @@ func (q *Queries) ListProductChildren(ctx context.Context, parentID uuid.UUID) (
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}
@@ -1066,7 +1067,7 @@ func (q *Queries) ListProductChildren(ctx context.Context, parentID uuid.UUID) (
 }
 
 const listProductChildrenByParentIDs = `-- name: ListProductChildrenByParentIDs :many
-SELECT pc.parent_id, p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents
+SELECT pc.parent_id, p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents, p.configurator_layout
 FROM catalog_product_children pc
 JOIN catalog_products p ON p.id = pc.child_id
 WHERE pc.parent_id = ANY($1::uuid[])
@@ -1107,6 +1108,7 @@ type ListProductChildrenByParentIDsRow struct {
 	MinOrderQty             sql.NullFloat64    `json:"min_order_qty"`
 	MaxOrderQty             sql.NullFloat64    `json:"max_order_qty"`
 	CostCents               sql.NullInt64      `json:"cost_cents"`
+	ConfiguratorLayout      string             `json:"configurator_layout"`
 }
 
 func (q *Queries) ListProductChildrenByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]ListProductChildrenByParentIDsRow, error) {
@@ -1152,6 +1154,7 @@ func (q *Queries) ListProductChildrenByParentIDs(ctx context.Context, parentIds 
 			&i.MinOrderQty,
 			&i.MaxOrderQty,
 			&i.CostCents,
+			&i.ConfiguratorLayout,
 		); err != nil {
 			return nil, err
 		}

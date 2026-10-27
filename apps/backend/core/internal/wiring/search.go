@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,11 +27,12 @@ import (
 
 // SearchTier is the assembled product-discovery stack - Client is nil when OPENSEARCH_URL is unset - /health reports on it, so it stays visible rather than being hidden inside Engine
 type SearchTier struct {
-	Client   *search.Client
-	Products *search.ProductIndexer
-	Posts    *search.BlogPostIndexer
-	Engine   search.Engine
-	Indexes  *search.IndexRegistry // every index the reindex tooling can address (core here, plugin-owned via the SDK host) - non-nil even with no cluster, so callers enumerate without a nil check
+	Client     *search.Client
+	Products   *search.ProductIndexer
+	Posts      *search.BlogPostIndexer
+	Engine     search.Engine
+	Attributes *search.AttributeCache
+	Indexes    *search.IndexRegistry // every index the reindex tooling can address (core here, plugin-owned via the SDK host) - non-nil even with no cluster, so callers enumerate without a nil check
 }
 
 // Search assembles product discovery - it is a TIER, not one engine: OpenSearch answers when it can, Postgres answers when it can't - including when it was never configured, which is the shipped default
@@ -40,6 +42,7 @@ type searchDeps struct {
 	fx.In
 
 	Root           RootContext
+	Cfg            Config
 	Bus            *events.Bus
 	Queries        *db.Queries
 	Blog           *blog.Service
@@ -141,13 +144,15 @@ func newSearchTier(d searchDeps) SearchTier {
 		func(ctx context.Context, op string, cause error) {
 			graphqlx.MarkUncacheable(ctx)
 		},
+		search.WithFallbackLimit(max(1, d.Cfg.MaxConns/4)),
 	)
 	return SearchTier{
-		Client:   searchClient,
-		Products: productIndexer,
-		Posts:    blogPostIndexer,
-		Engine:   productSearchEngine,
-		Indexes:  registry,
+		Client:     searchClient,
+		Products:   productIndexer,
+		Posts:      blogPostIndexer,
+		Engine:     productSearchEngine,
+		Attributes: attrCache,
+		Indexes:    registry,
 	}
 }
 
@@ -180,7 +185,9 @@ func registerSearchSubscribers(root context.Context, bus *events.Bus, products p
 		return nil
 	})
 	bus.Subscribe(catalog.EventProductUpdated, func(ctx context.Context, e events.Event) error {
-		upsertProduct(ctx, e.(*catalog.ProductUpdated).ProductID)
+		if updated := e.(*catalog.ProductUpdated); indexedChange(updated.ChangedFields) {
+			upsertProduct(ctx, updated.ProductID)
+		}
 		return nil
 	})
 	bus.Subscribe(catalog.EventProductDeleted, func(ctx context.Context, e events.Event) error {
@@ -326,4 +333,11 @@ func (c *stockCoalescer) run(ctx context.Context) {
 			c.upsert(ctx, id)
 		}
 	}
+}
+
+// The index holds nothing of a product's configurator, and one template or product type edit can announce thousands
+// of products - an update that touched only that skips the ~dozen-query upsert. No changed fields means unknown, so
+// it indexes
+func indexedChange(changed []string) bool {
+	return len(changed) == 0 || slices.ContainsFunc(changed, func(f string) bool { return f != catalog.ProductFieldOptions })
 }

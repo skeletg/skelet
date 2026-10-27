@@ -47,6 +47,14 @@ var parentGatedFieldResolvers = map[string]string{
 	"CMSPageType.PageCount":              "a count over the parent page type",
 	"Product.Downloads":                  "digital assets attached to the parent product",
 	"Product.ProductOptions":             "the parent product's own option set",
+	"Product.OptionRules":                "the parent product's own option rules",
+	"Product.OptionTemplates":            "names and counts of the templates the parent product uses",
+	"Product.ConfiguratorLayout":         "one setting on the parent product",
+	"OptionTemplate.ProductOptions":      "the parent template's own option set",
+	"OptionTemplate.OptionRules":         "the parent template's own option rules",
+	"OptionTemplate.Products":            "the products using the parent template, which catalog.view already lists",
+	"OptionTemplate.ProductTypes":        "the product types handing the parent template on - global configuration catalog.view lists",
+	"Product.TypeOptionTemplates":        "names and counts of the templates the parent product's type hands it",
 	"Product.PartOf":                     "reads memberships off the parent, no service call",
 	"PromotionRule.Codes":                "coupon codes belonging to the parent rule",
 	"PromotionRule.Contents":             "the parent rule's own localized copy",
@@ -61,6 +69,7 @@ var parentGatedFieldResolvers = map[string]string{
 	"InventoryLocation.Country":      "global country catalogue, not inventory data",
 	"CategoryChannelListing.Channel": "channel name and currency, needed to label the parent listing",
 	"ProductType.ReviewQuestions":    "the parent type's curated question set - configuration, not review content",
+	"ProductType.OptionTemplates":    "names and counts of the templates the parent type hands its products",
 
 	// Same subject as the parent, which is the thing customers.view already grants
 	"Customer.Consents": "marketing opt-in state for the parent customer only, keyed by its id",

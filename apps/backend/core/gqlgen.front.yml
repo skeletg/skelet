@@ -113,6 +113,10 @@ models:
       # autobound admin Product model's dead partOf field isn't bound.
       partOf:
         resolver: true
+      optionRules:
+        resolver: true
+      configuratorLayout:
+        resolver: true
       # tierPrices is caller-scoped (channel + customer group), so it must
       # resolve per request rather than bind to the shared admin model.
       tierPrices:

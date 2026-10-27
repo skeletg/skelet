@@ -2,9 +2,9 @@
 INSERT INTO catalog_product_options (
     product_id, input_type, is_required, sort_order,
     price_value, price_type, max_chars, max_file_bytes, file_extensions,
-    visible_if
+    visible_if, template_id, image_asset_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetProductOptionByID :one
@@ -34,6 +34,7 @@ SET input_type      = $2,
     max_file_bytes  = $8,
     file_extensions = $9,
     visible_if      = $10,
+    image_asset_id  = $11,
     updated_at      = NOW()
 WHERE id = $1
 RETURNING *;
@@ -65,9 +66,9 @@ WHERE option_id = $1 AND locale = $2;
 
 -- name: CreateProductOptionValue :one
 INSERT INTO catalog_product_option_values (
-    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty
+    option_id, sort_order, price_value, price_type, is_default, source_product_id, quantity, forced_line_qty, image_asset_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetProductOptionValueByID :one
@@ -96,6 +97,7 @@ SET sort_order        = $2,
     source_product_id = $6,
     quantity          = $7,
     forced_line_qty   = $8,
+    image_asset_id    = $9,
     updated_at        = NOW()
 WHERE id = $1
 RETURNING *;
@@ -151,3 +153,6 @@ DELETE FROM catalog_product_option_value_channel_prices WHERE value_id = $1 AND 
 SELECT * FROM catalog_product_option_value_channel_prices
 WHERE value_id = ANY(sqlc.arg(value_ids)::uuid[])
 ORDER BY value_id, channel_id;
+
+-- name: MediaAssetReady :one
+SELECT EXISTS (SELECT 1 FROM media_assets WHERE id = $1 AND status = 'ready');

@@ -1,11 +1,11 @@
 import { GQ } from './graphiqlTheme'
 import {
-  formatBytes,
   formatDuration,
   responseTone,
   type ResponseDetails,
   type ResponseTone,
 } from './responseDetails'
+import { formatBytes } from '@/lib/format'
 
 const MUTED = GQ.muted
 const STRONG = GQ.strong

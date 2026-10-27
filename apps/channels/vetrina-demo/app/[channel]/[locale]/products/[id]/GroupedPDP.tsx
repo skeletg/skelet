@@ -35,7 +35,7 @@ import {
   SelectionHint,
   StockBadge,
 } from "./parts";
-import { PdpBuyBox, PdpMetaRow, PdpShell } from "./pdp-shell";
+import { PdpBuyBox, PdpMetaRow, PdpShell, RuleAdjustments } from "./pdp-shell";
 
 const FORM_ID = "grouped-add-form";
 
@@ -287,11 +287,15 @@ function GroupedRow({
   const hasOptions = p.options.length > 0;
   const t = useTranslations("product.pdp");
   const tc = useTranslations("common");
-  const opts = useConfiguredOptions(p.options, {
-    defaultPrice: p.defaultPrice,
-    effectivePrice: p.price ?? p.defaultPrice,
-    productSku: p.sku,
-  });
+  const opts = useConfiguredOptions(
+    p.options,
+    {
+      defaultPrice: p.defaultPrice,
+      effectivePrice: p.price ?? p.defaultPrice,
+      productSku: p.sku,
+    },
+    p.optionRules,
+  );
   const qtyLocked = opts.forcedQty != null;
   const effectiveQty = qtyLocked && qty > 0 ? (opts.forcedQty as number) : qty;
   const showOptions = hasOptions && qty > 0;
@@ -398,6 +402,11 @@ function GroupedRow({
               )}
             </RequiredFlag>
           ))}
+          <RuleAdjustments
+            adjustments={opts.ruleAdjustments}
+            unavailable={opts.rulePriceUnavailable}
+            currency={p.defaultCurrencyCode}
+          />
           {qtyLocked ? (
             <p className="text-xs text-muted-foreground">
               {t("qtyLocked", { qty: opts.forcedQty ?? 0 })}

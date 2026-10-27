@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { useMutation } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -45,6 +45,7 @@ type LineDraft = { checked: boolean; quantity: string }
 // OrderReturnsSection lists RMAs and drives their lifecycle (request → approve → receive → refund, or reject) - Refund
 // here is RMA-driven (issueReturnRefund: original tender or gift card), distinct from the gateway actions in Payments
 export function OrderReturnsSection({ order }: { order: OrderData }) {
+  const fid = useId()
   const permissions = usePermissions()
   const canUpdate = permissions.canAccessChannelScope('orders.update', order.channelId)
   const canRefund = permissions.canAccessChannelScope('orders.refund', order.channelId)
@@ -257,9 +258,9 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
             </div>
             <div className="flex items-center justify-between gap-3">
               <div className="grid gap-1">
-                <Label className="text-xs">Refund to</Label>
+                <Label htmlFor={`${fid}-refund-to`} className="text-xs">Refund to</Label>
                 <Select value={refundTarget} onValueChange={(v) => setRefundTarget(v as 'original' | 'gift_card')}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${fid}-refund-to`} className="w-44"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="original">Original payment</SelectItem>
                     <SelectItem value="gift_card">Gift card</SelectItem>

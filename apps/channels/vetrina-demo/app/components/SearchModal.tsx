@@ -82,18 +82,23 @@ export function SearchModal() {
   const visibleResults = trimmedQuery ? results : [];
   const visibleTotal = trimmedQuery ? totalCount : 0;
 
+  // Responses can land out of order, or after the dialog closed - only the one asked for the current query in the open
+  // dialog may set the results. Every query or open change takes a new ticket, so anything still in flight goes stale
+  const ticket = useRef(0);
   useEffect(() => {
+    const mine = ++ticket.current;
     const q = query.trim();
-    if (!q) return;
+    if (!q || !open) return;
     const id = setTimeout(() => {
       startTransition(async () => {
         const res = await searchProductsAction(q);
+        if (mine !== ticket.current) return;
         setResults(res.items);
         setTotalCount(res.totalCount);
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(id);
-  }, [query]);
+  }, [query, open]);
 
   const close = () => {
     setOpen(false);

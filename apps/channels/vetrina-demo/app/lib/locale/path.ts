@@ -15,8 +15,9 @@ export async function withLocalePrefix(path: string, locale: string): Promise<st
   const { codes, defaultLocale } = await getCurrentChannelLocales();
   if (!locale || locale === defaultLocale) return base;
   if (codes.length > 0 && !codes.includes(locale)) return base;
-  // Already prefixed - don't stack another one
-  const first = base.split("/")[1] ?? "";
+  // Already prefixed - don't stack another one. The first segment ends at a query or fragment too, so /de?x=1 counts
+  const first = base.split(/[/?#]/)[1] ?? "";
   if (first === locale) return base;
-  return `/${locale}${base === "/" ? "" : base}`;
+  // The root keeps its query without a stray slash: /?done=1 becomes /de?done=1
+  return `/${locale}${base === "/" || /^\/[?#]/.test(base) ? base.slice(1) : base}`;
 }

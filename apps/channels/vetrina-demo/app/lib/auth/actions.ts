@@ -2,6 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { withLocalePrefix } from "@/app/lib/locale/path";
+import { getCurrentLocale } from "@/app/lib/locale/read";
 import { revalidatePath } from "next/cache";
 
 import { revalidateAccount } from "@/app/lib/revalidate";
@@ -105,13 +107,13 @@ export async function registerAction(
     return replyError(submission, err, "registrationFailed", PASSWORD_FIELDS);
   }
   if (verificationRequired) {
-    redirect("/account/login?verify=required");
+    redirect(await withLocalePrefix("/account/login?verify=required", await getCurrentLocale()));
   }
   const merged = await mergeGuestCartIfNeeded();
   revalidatePath("/", "layout");
   let dest = withFlag(returnTo ?? "/account", "welcome", "1");
   if (!merged) dest = withFlag(dest, CART_MERGE_FLAG, CART_MERGE_FAILED);
-  redirect(dest);
+  redirect(await withLocalePrefix(dest, await getCurrentLocale()));
 }
 
 export async function loginAction(
@@ -148,7 +150,7 @@ export async function loginAction(
   const merged = await mergeGuestCartIfNeeded();
   revalidatePath("/", "layout");
   const dest = returnTo ?? "/account";
-  redirect(merged ? dest : withFlag(dest, CART_MERGE_FLAG, CART_MERGE_FAILED));
+  redirect(await withLocalePrefix(merged ? dest : withFlag(dest, CART_MERGE_FLAG, CART_MERGE_FAILED), await getCurrentLocale()));
 }
 
 export async function requestPasswordResetAction(
@@ -192,13 +194,13 @@ export async function resetPasswordAction(
   } catch (err) {
     return replyError(submission, err, "resetLinkInvalid", PASSWORD_FIELDS);
   }
-  redirect("/account/login?reset=ok");
+  redirect(await withLocalePrefix("/account/login?reset=ok", await getCurrentLocale()));
 }
 
 export async function resendVerificationEmailAction(formData: FormData) {
   const returnTo = safeReturnTo(formData.get("returnTo")) ?? "/account";
   if (!(await getAccessToken())) {
-    redirect(`/account/login?returnTo=${encodeURIComponent(returnTo)}`);
+    redirect(await withLocalePrefix(`/account/login?returnTo=${encodeURIComponent(returnTo)}`, await getCurrentLocale()));
   }
   let sent = true;
   try {
@@ -208,7 +210,7 @@ export async function resendVerificationEmailAction(formData: FormData) {
     sent = false;
   }
   const sep = returnTo.includes("?") ? "&" : "?";
-  redirect(`${returnTo}${sep}resent=${sent ? "1" : "0"}`);
+  redirect(await withLocalePrefix(`${returnTo}${sep}resent=${sent ? "1" : "0"}`, await getCurrentLocale()));
 }
 
 // Signed out, for an account the verification gate won't let sign in. The backend answers the same for any address, and
@@ -224,7 +226,7 @@ export async function resendVerificationAction(formData: FormData) {
     }
   }
   const dest = "/account/login?verify=sent";
-  redirect(returnTo ? `${dest}&returnTo=${encodeURIComponent(returnTo)}` : dest);
+  redirect(await withLocalePrefix(returnTo ? `${dest}&returnTo=${encodeURIComponent(returnTo)}` : dest, await getCurrentLocale()));
 }
 
 export async function changePasswordAction(
@@ -286,7 +288,7 @@ export async function addAddressAction(
     return replyError(submission, err, "addressAddFailed");
   }
   revalidateAccount();
-  redirect("/account/addresses");
+  redirect(await withLocalePrefix("/account/addresses", await getCurrentLocale()));
 }
 
 export async function updateAddressAction(
@@ -306,21 +308,21 @@ export async function updateAddressAction(
     return replyError(submission, err, "addressSaveFailed");
   }
   revalidateAccount();
-  redirect("/account/addresses");
+  redirect(await withLocalePrefix("/account/addresses", await getCurrentLocale()));
 }
 
 const ADDRESSES_PAGE = "/account/addresses";
 
 // The address list re-renders from the server, so a failure that isn't announced looks
 // exactly like a click that never registered
-function finishAddressAction(ok: boolean, errorKey: string): never {
+async function finishAddressAction(ok: boolean, errorKey: string): Promise<never> {
   revalidateAccount();
-  redirect(ok ? ADDRESSES_PAGE : `${ADDRESSES_PAGE}?error=${errorKey}`);
+  redirect(await withLocalePrefix(ok ? ADDRESSES_PAGE : `${ADDRESSES_PAGE}?error=${errorKey}`, await getCurrentLocale()));
 }
 
 export async function deleteAddressAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(ADDRESSES_PAGE);
+  if (!id) redirect(await withLocalePrefix(ADDRESSES_PAGE, await getCurrentLocale()));
   let ok = true;
   try {
     await gqlFetch(AccountDeleteAddressDocument, { id });
@@ -329,12 +331,12 @@ export async function deleteAddressAction(formData: FormData) {
     console.error("address delete failed:", err);
     ok = false;
   }
-  finishAddressAction(ok, "delete");
+  await finishAddressAction(ok, "delete");
 }
 
 export async function setDefaultBillingAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(ADDRESSES_PAGE);
+  if (!id) redirect(await withLocalePrefix(ADDRESSES_PAGE, await getCurrentLocale()));
   let ok = true;
   try {
     await gqlFetch(SetDefaultBillingAddressDocument, { id });
@@ -343,12 +345,12 @@ export async function setDefaultBillingAction(formData: FormData) {
     console.error("default billing address failed:", err);
     ok = false;
   }
-  finishAddressAction(ok, "default");
+  await finishAddressAction(ok, "default");
 }
 
 export async function setDefaultShippingAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(ADDRESSES_PAGE);
+  if (!id) redirect(await withLocalePrefix(ADDRESSES_PAGE, await getCurrentLocale()));
   let ok = true;
   try {
     await gqlFetch(SetDefaultShippingAddressDocument, { id });
@@ -357,7 +359,7 @@ export async function setDefaultShippingAction(formData: FormData) {
     console.error("default shipping address failed:", err);
     ok = false;
   }
-  finishAddressAction(ok, "default");
+  await finishAddressAction(ok, "default");
 }
 
 export async function logoutAction() {
@@ -372,5 +374,5 @@ export async function logoutAction() {
   }
   await clearSessionCookies();
   revalidatePath("/", "layout");
-  redirect("/");
+  redirect(await withLocalePrefix("/", await getCurrentLocale()));
 }

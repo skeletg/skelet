@@ -5,11 +5,8 @@ import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import {
   AlertTriangleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   ExternalLinkIcon,
   FileTextIcon,
-  FolderIcon,
   FolderOpenIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -92,6 +89,13 @@ import {
   type UpdateMediaAssetMutationVariables,
 } from './MediaLibrary.gql'
 import { readImageDimensions } from '@/lib/image'
+import { useConfirmDialog } from '@/shared/dialogs/useConfirmDialog'
+import { formatBytes } from '@/lib/format'
+import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
+import { buildBreadcrumbs, buildDirectoryTree } from './directory-paths'
+import { DirectoryTree, RootRow } from './directory-tree'
 
 type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
@@ -101,6 +105,7 @@ const UPLOAD_ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/svg+xml,application/pdf'
 
 export function MediaLibrary() {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [searchParams, setSearchParams] = useSearchParams()
   const path = searchParams.get('path') ?? ''
   const query = searchParams.get('q') ?? ''
@@ -239,11 +244,17 @@ export function MediaLibrary() {
     }
   }
 
+  function askDeleteCurrentDirectory(recursive: boolean) {
+    confirm({
+      title: recursive ? 'Delete this directory and all files inside it?' : 'Delete this empty directory?',
+      confirmLabel: 'Delete directory',
+      destructive: true,
+      onConfirm: () => onDeleteCurrentDirectory(recursive),
+    })
+  }
+
   async function onDeleteCurrentDirectory(recursive: boolean) {
     if (!path) return
-    if (!window.confirm(recursive ? 'Delete this directory and all files inside it?' : 'Delete this empty directory?')) {
-      return
-    }
     setErrorMessage(null)
     try {
       await deleteDirectory({ variables: { path, recursive } })
@@ -293,9 +304,10 @@ export function MediaLibrary() {
           </div>
         </div>
 
-        <div className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
+        <div role="tree" aria-label="Folders" className="scrollbar-accent flex-1 overflow-y-auto px-2 py-2">
           <RootRow
             isActive={path === '' && !query}
+            tabbable={path === ''}
             onClick={() => navigateTo('')}
           />
           {directoryTree.length > 0 ? (
@@ -349,11 +361,11 @@ export function MediaLibrary() {
                         Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={() => onDeleteCurrentDirectory(false)}>
+                      <DropdownMenuItem variant="destructive" onSelect={() => askDeleteCurrentDirectory(false)}>
                         <Trash2Icon className="size-4" />
                         Delete empty
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => onDeleteCurrentDirectory(true)}>
+                      <DropdownMenuItem variant="destructive" onSelect={() => askDeleteCurrentDirectory(true)}>
                         <Trash2Icon className="size-4" />
                         Delete recursive
                       </DropdownMenuItem>
@@ -457,25 +469,12 @@ export function MediaLibrary() {
         }}
         onError={setErrorMessage}
       />
+      {confirmDialog}
     </div>
   )
 }
 
-function RootRow({ isActive, onClick }: { isActive: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
-        isActive ? 'bg-primary/10 font-medium text-foreground' : 'text-foreground/90 hover:bg-muted/60'
-      }`}
-    >
-      <FolderIcon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-      <span className="truncate">Library</span>
-    </button>
-  )
-}
-
+// The tree's one tab stop is the open folder's row - Library's when the root is open, a search included
 function EmptyMediaState({
   canManage,
   onUpload,
@@ -779,12 +778,7 @@ function UploadMediaDialog({
       const payload = requested.data?.requestMediaAssetUpload
       if (!payload) throw new Error('Upload request did not return a payload.')
 
-      const uploaded = await fetch(payload.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      if (!uploaded.ok) throw new Error(`Upload failed with HTTP ${uploaded.status}`)
+      await putToSignedUrl(payload.uploadUrl, file)
 
       const dimensions: { width?: number; height?: number } =
         file.type.startsWith('image/') ? await readImageDimensions(file) : {}
@@ -845,7 +839,7 @@ function UploadMediaDialog({
   )
 }
 
-function AssetDetailsSheet({
+export function AssetDetailsSheet({
   asset,
   canManage,
   currentPath,
@@ -862,6 +856,7 @@ function AssetDetailsSheet({
   onDeleted: () => void
   onError: (message: string | null) => void
 }) {
+  const [confirm, confirmDialog] = useConfirmDialog()
   const [title, setTitle] = useState(asset?.title ?? '')
   const [altText, setAltText] = useState(asset?.altText ?? '')
   const [caption, setCaption] = useState(asset?.caption ?? '')
@@ -883,6 +878,22 @@ function AssetDetailsSheet({
       setFilename(asset.filename)
       setTargetPath(asset.directoryPath)
     }
+  }
+
+  // Closing the sheet used to drop typed-in metadata without a word - it now asks, and leaving the page is guarded too
+  const dirty =
+    !!asset &&
+    (title !== asset.title ||
+      altText !== asset.altText ||
+      caption !== asset.caption ||
+      notes !== asset.notes ||
+      filename !== asset.filename ||
+      targetPath !== asset.directoryPath)
+  useUnsavedChangesGuard(dirty, 'Media asset')
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+  function requestOpenChange(open: boolean) {
+    if (!open && dirty) setConfirmingDiscard(true)
+    else onOpenChange(open)
   }
 
   const [updateAsset] = useMutation<UpdateMediaAssetMutation, UpdateMediaAssetMutationVariables>(
@@ -962,7 +973,6 @@ function AssetDetailsSheet({
 
   async function onDelete() {
     if (!asset) return
-    if (!window.confirm('Delete this media asset?')) return
     onError(null)
     try {
       await deleteAsset({ variables: { id: asset.id, deleteFromStorage: true } })
@@ -973,263 +983,138 @@ function AssetDetailsSheet({
   }
 
   return (
-    <Sheet open={!!asset} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-        {asset ? (
-          <>
-            <SheetHeader>
-              <SheetTitle>{asset.title || asset.filename}</SheetTitle>
-            </SheetHeader>
-            <div className="grid gap-4 px-4">
-              <div className="overflow-hidden rounded-lg border bg-muted">
-                {asset.mimeGroup === 'IMAGE' ? (
-                  <div className="flex justify-center">
-                    <div className="relative">
-                      <img
-                        src={asset.url}
-                        alt={asset.altText || asset.filename}
-                        className={cn('max-h-80 max-w-full', canManage && 'cursor-crosshair')}
-                        onClick={canManage ? onPickFocal : undefined}
-                      />
-                      {asset.focalX != null && asset.focalY != null && (
-                        <span
-                          className="pointer-events-none absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md ring-1 ring-black/40"
-                          style={{ left: `${asset.focalX * 100}%`, top: `${asset.focalY * 100}%` }}
+    <>
+      <ConfirmDialog
+        open={confirmingDiscard}
+        onOpenChange={setConfirmingDiscard}
+        title="Discard changes to this asset?"
+        description="The title, alt text, caption, notes or location you edited haven't been saved."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => onOpenChange(false)}
+      />
+      <Sheet open={!!asset} onOpenChange={requestOpenChange}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+          {asset ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>{asset.title || asset.filename}</SheetTitle>
+              </SheetHeader>
+              <div className="grid gap-4 px-4">
+                <div className="overflow-hidden rounded-lg border bg-muted">
+                  {asset.mimeGroup === 'IMAGE' ? (
+                    <div className="flex justify-center">
+                      <div className="relative">
+                        <img
+                          src={asset.url}
+                          alt={asset.altText || asset.filename}
+                          className={cn('max-h-80 max-w-full', canManage && 'cursor-crosshair')}
+                          onClick={canManage ? onPickFocal : undefined}
                         />
-                      )}
+                        {asset.focalX != null && asset.focalY != null && (
+                          <span
+                            className="pointer-events-none absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md ring-1 ring-black/40"
+                            style={{ left: `${asset.focalX * 100}%`, top: `${asset.focalY * 100}%` }}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid aspect-video place-items-center text-muted-foreground">
-                    <FileTextIcon className="size-12" />
-                  </div>
-                )}
-              </div>
-              {asset.mimeGroup === 'IMAGE' && canManage && (
-                <p className="text-xs text-muted-foreground">
-                  Click the image to set the crop focal point - server-side cover crops stay centered on it.{' '}
-                  {asset.focalX != null && asset.focalY != null ? (
-                    <>
-                      <span className="tabular-nums">
-                        ({Math.round(asset.focalX * 100)}%, {Math.round(asset.focalY * 100)}%)
-                      </span>{' '}
-                      <button type="button" className="underline underline-offset-2" onClick={() => void applyFocal(null, null)}>
-                        Clear
-                      </button>
-                    </>
                   ) : (
-                    <span>None set - crops use the center.</span>
-                  )}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">{asset.mimeType}</Badge>
-                <span>{formatBytes(asset.sizeBytes)}</span>
-                {asset.width && asset.height ? <span>{asset.width}x{asset.height}</span> : null}
-                <Button variant="ghost" size="xs" asChild>
-                  <a href={asset.url} target="_blank" rel="noreferrer">
-                    <ExternalLinkIcon className="size-3" />
-                    Open
-                  </a>
-                </Button>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-title">Title</Label>
-                <Input id="asset-title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="asset-alt">Alt text</Label>
-                  {aiEnabled && canManage && asset?.mimeGroup === 'IMAGE' && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      disabled={genningAlt}
-                      onClick={onGenerateAlt}
-                      title="Generate alt text from the image with AI"
-                    >
-                      <SparklesIcon className="size-3.5" />
-                      {genningAlt ? 'Generating…' : 'Generate'}
-                    </Button>
+                    <div className="grid aspect-video place-items-center text-muted-foreground">
+                      <FileTextIcon className="size-12" />
+                    </div>
                   )}
                 </div>
-                <Input id="asset-alt" value={altText} onChange={(event) => setAltText(event.target.value)} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-caption">Caption</Label>
-                <Textarea id="asset-caption" value={caption} onChange={(event) => setCaption(event.target.value)} rows={3} disabled={!canManage} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asset-notes">Notes</Label>
-                <Textarea id="asset-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={!canManage} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="asset-path">Directory path</Label>
-                  <Input id="asset-path" value={targetPath} onChange={(event) => setTargetPath(event.target.value)} disabled={!canManage} placeholder={currentPath} />
+                {asset.mimeGroup === 'IMAGE' && canManage && (
+                  <p className="text-xs text-muted-foreground">
+                    Click the image to set the crop focal point - server-side cover crops stay centered on it.{' '}
+                    {asset.focalX != null && asset.focalY != null ? (
+                      <>
+                        <span className="tabular-nums">
+                          ({Math.round(asset.focalX * 100)}%, {Math.round(asset.focalY * 100)}%)
+                        </span>{' '}
+                        <button type="button" className="underline underline-offset-2" onClick={() => void applyFocal(null, null)}>
+                          Clear
+                        </button>
+                      </>
+                    ) : (
+                      <span>None set - crops use the center.</span>
+                    )}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">{asset.mimeType}</Badge>
+                  <span>{formatBytes(asset.sizeBytes)}</span>
+                  {asset.width && asset.height ? <span>{asset.width}x{asset.height}</span> : null}
+                  <Button variant="ghost" size="xs" asChild>
+                    <a href={asset.url} target="_blank" rel="noreferrer">
+                      <ExternalLinkIcon className="size-3" />
+                      Open
+                    </a>
+                  </Button>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="asset-filename">Filename</Label>
-                  <Input id="asset-filename" value={filename} onChange={(event) => setFilename(event.target.value)} disabled={!canManage} />
+                  <Label htmlFor="asset-title">Title</Label>
+                  <Input id="asset-title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="asset-alt">Alt text</Label>
+                    {aiEnabled && canManage && asset?.mimeGroup === 'IMAGE' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        disabled={genningAlt}
+                        onClick={onGenerateAlt}
+                        title="Generate alt text from the image with AI"
+                      >
+                        <SparklesIcon className="size-3.5" />
+                        {genningAlt ? 'Generating…' : 'Generate'}
+                      </Button>
+                    )}
+                  </div>
+                  <Input id="asset-alt" value={altText} onChange={(event) => setAltText(event.target.value)} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="asset-caption">Caption</Label>
+                  <Textarea id="asset-caption" value={caption} onChange={(event) => setCaption(event.target.value)} rows={3} disabled={!canManage} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="asset-notes">Notes</Label>
+                  <Textarea id="asset-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={!canManage} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="asset-path">Directory path</Label>
+                    <Input id="asset-path" value={targetPath} onChange={(event) => setTargetPath(event.target.value)} disabled={!canManage} placeholder={currentPath} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="asset-filename">Filename</Label>
+                    <Input id="asset-filename" value={filename} onChange={(event) => setFilename(event.target.value)} disabled={!canManage} />
+                  </div>
                 </div>
               </div>
-            </div>
-            {canManage ? (
-              <SheetFooter>
-                <Button onClick={onSave} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
-                <Button variant="destructive" onClick={onDelete}>
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </Button>
-              </SheetFooter>
-            ) : null}
-          </>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  )
-}
-
-type DirTreeNode = {
-  name: string
-  path: string
-  children: DirTreeNode[]
-}
-
-function buildDirectoryTree(paths: string[]): DirTreeNode[] {
-  const root: DirTreeNode[] = []
-  for (const dirPath of [...paths].sort()) {
-    const parts = dirPath.split('/').filter(Boolean)
-    let nodes = root
-    for (let i = 0; i < parts.length; i++) {
-      const fullPath = parts.slice(0, i + 1).join('/')
-      let node = nodes.find((n) => n.name === parts[i])
-      if (!node) {
-        node = { name: parts[i], path: fullPath, children: [] }
-        nodes.push(node)
-      }
-      nodes = node.children
-    }
-  }
-  return root
-}
-
-function DirectoryTree({
-  nodes,
-  activePath,
-  onNavigate,
-  depth = 0,
-}: {
-  nodes: DirTreeNode[]
-  activePath: string
-  onNavigate: (path: string) => void
-  depth?: number
-}) {
-  return (
-    <ul className="grid gap-0.5">
-      {nodes.map((node) => (
-        <DirectoryTreeNode key={node.path} node={node} activePath={activePath} onNavigate={onNavigate} depth={depth} />
-      ))}
-    </ul>
-  )
-}
-
-function DirectoryTreeNode({
-  node,
-  activePath,
-  onNavigate,
-  depth,
-}: {
-  node: DirTreeNode
-  activePath: string
-  onNavigate: (path: string) => void
-  depth: number
-}) {
-  const isActive = node.path === activePath
-  const isAncestor = activePath.startsWith(node.path + '/')
-  const [open, setOpen] = useState(isAncestor || isActive)
-  const hasChildren = node.children.length > 0
-
-  // Auto-expand when the node becomes the active path or an ancestor of it - State is adjusted during render instead of in an effect; both
-  // flags are tracked separately so an active->ancestor transition still re-expands a manually collapsed node
-  const [prevActivity, setPrevActivity] = useState({ isAncestor, isActive })
-  if (prevActivity.isAncestor !== isAncestor || prevActivity.isActive !== isActive) {
-    setPrevActivity({ isAncestor, isActive })
-    if (isAncestor || isActive) setOpen(true)
-  }
-
-  return (
-    <li>
-      <div
-        className={`group relative flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors ${
-          isActive
-            ? 'bg-primary/10 font-medium text-foreground'
-            : isAncestor
-              ? 'text-foreground hover:bg-muted/60'
-              : 'text-foreground/90 hover:bg-muted/60'
-        }`}
-        style={{ paddingLeft: `${depth * 1.125 + 0.5}rem` }}
-        onClick={() => onNavigate(node.path)}
-      >
-        {/* indent guides */}
-        {depth > 0
-          ? Array.from({ length: depth }).map((_, i) => (
-              <span
-                key={i}
-                aria-hidden
-                className="pointer-events-none absolute top-0 bottom-0 w-px bg-border/60"
-                style={{ left: `${i * 1.125 + 0.875}rem` }}
-              />
-            ))
-          : null}
-        <button
-          type="button"
-          className="grid size-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-          aria-label={open ? 'Collapse' : 'Expand'}
-          disabled={!hasChildren}
-        >
-          {hasChildren ? (
-            open ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />
+              {canManage ? (
+                <SheetFooter>
+                  <Button onClick={onSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => confirm({ title: 'Delete this media asset?', confirmLabel: 'Delete asset', destructive: true, onConfirm: onDelete })}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </Button>
+                </SheetFooter>
+              ) : null}
+            </>
           ) : null}
-        </button>
-        {open && hasChildren ? (
-          <FolderOpenIcon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-        ) : (
-          <FolderIcon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-        )}
-        <span className="flex-1 truncate">{node.name}</span>
-      </div>
-      {hasChildren && open ? (
-        <DirectoryTree nodes={node.children} activePath={activePath} onNavigate={onNavigate} depth={depth + 1} />
-      ) : null}
-    </li>
+          {confirmDialog}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
-
-function buildBreadcrumbs(path: string): { name: string; path: string }[] {
-  const crumbs = [{ name: 'Library', path: '' }]
-  if (!path) return crumbs
-  const parts = path.split('/').filter(Boolean)
-  for (let i = 0; i < parts.length; i += 1) {
-    crumbs.push({ name: parts[i], path: parts.slice(0, i + 1).join('/') })
-  }
-  return crumbs
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unit = 0
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024
-    unit += 1
-  }
-  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
-}
-

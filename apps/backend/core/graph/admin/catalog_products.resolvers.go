@@ -733,7 +733,9 @@ func (r *productResolver) ProductOptions(ctx context.Context, obj *model.Product
 	if err != nil {
 		return nil, err
 	}
-	return toProductOptionModels(options, perm), nil
+	out := toProductOptionModels(options, perm)
+	r.attachOptionImages(ctx, out, options)
+	return out, nil
 }
 
 // Products is the resolver for the products field. When channelId is set, the result is restricted to products with a
@@ -858,7 +860,7 @@ func (r *queryResolver) ProductsByIds(ctx context.Context, ids []string) ([]*mod
 		}
 		parsed = append(parsed, id)
 	}
-	products, err := r.CatalogSvc.ListProductsWithAttributesByIDs(ctx, parsed)
+	products, err := r.CatalogSvc.ListProductsWithGraphByIDs(ctx, parsed, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}

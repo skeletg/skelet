@@ -1,20 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { RotateCcwIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 // Shared controls for the soft-deleted entities (flows, email campaigns,
 // web forms) - Deleting these keeps the row - a sent campaign's recipients
@@ -78,16 +68,13 @@ export function SoftDeleteRowAction({
 }) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  async function run(fn: () => Promise<void>, closeAfter: boolean) {
-    setError(null)
+  async function restore() {
     setBusy(true)
     try {
-      await fn()
-      if (closeAfter) setConfirming(false)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.')
+      await onRestore()
+    } catch {
+      // shortcut: a failed restore has never been shown anywhere, give it an inline error when restores need one
     } finally {
       setBusy(false)
     }
@@ -100,7 +87,7 @@ export function SoftDeleteRowAction({
         variant="ghost"
         size="sm"
         disabled={disabled || busy}
-        onClick={() => void run(onRestore, false)}
+        onClick={() => void restore()}
       >
         <RotateCcwIcon className="size-3.5" />
         Restore
@@ -117,49 +104,21 @@ export function SoftDeleteRowAction({
         className="size-7 text-destructive"
         title={`Delete ${entityLabel}`}
         disabled={disabled || busy}
-        onClick={() => {
-          setError(null)
-          setConfirming(true)
-        }}
+        onClick={() => setConfirming(true)}
       >
         <Trash2Icon className="size-3.5" />
       </Button>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirming}
-        onOpenChange={(open) => {
-          if (!open && !busy) {
-            setConfirming(false)
-            setError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{name}”?</AlertDialogTitle>
-            <AlertDialogDescription>{consequence}</AlertDialogDescription>
-          </AlertDialogHeader>
-          {error ? (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy}
-              onClick={(e) => {
-                e.preventDefault()
-                void run(onDelete, true)
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {busy ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirming}
+        title={<>Delete “{name}”?</>}
+        description={consequence}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
     </>
   )
 }

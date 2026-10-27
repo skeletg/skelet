@@ -14,8 +14,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
+	"github.com/skeletg/skelet/apps/backend/core/lib/migrate"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/db/migrations"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
@@ -42,6 +45,7 @@ var Pools = fx.Module("pools",
 		newLimitsValkey,
 		newRevocations,
 	),
+	fx.Invoke(migrateDatabases),
 )
 
 // IngestPools is the beacon tier's: one pool only, since this tier absorbs beacon spikes and a second
@@ -56,7 +60,39 @@ var IngestPools = fx.Module("ingestpools",
 		newValkey,
 		newLimitsValkey,
 	),
+	fx.Invoke(migrateDatabases),
 )
+
+// In this module because fx runs its invokes before Services builds the spine, which migrates under a lock on the Signals Postgres since ClickHouse has none
+func migrateDatabases(rc RootContext, cfg Config) error {
+	conn, err := dbconn.Connect(cfg.SignalsURL, dbconn.WithMaxConns(1))
+	if err != nil {
+		return fmt.Errorf("connect to migrate: %w", err)
+	}
+	defer conn.Close()
+
+	applied, err := migrate.Postgres(rc.Context, conn, "signals", migrations.FS)
+	if len(applied) > 0 {
+		slog.Info("signals schema migrated", "applied", applied)
+	}
+	if err != nil {
+		return fmt.Errorf("migrate the signals database: %w", err)
+	}
+	dsn, err := spinech.DSN()
+	if err != nil {
+		return err
+	}
+	return migrate.WithLock(rc.Context, conn, "spine", func(ctx context.Context) error {
+		applied, err := spinech.Migrate(ctx, dsn)
+		if len(applied) > 0 {
+			slog.Info("spine schema migrated", "applied", applied)
+		}
+		if err != nil {
+			return fmt.Errorf("migrate the clickhouse spine: %w", err)
+		}
+		return nil
+	})
+}
 
 // LimitsValkey holds the rate-limit counters, kept off the evictable cache when VALKEY_LIMITS_URL names its own instance
 type LimitsValkey struct{ *redis.Client }

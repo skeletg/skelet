@@ -10,17 +10,6 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +23,7 @@ import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { DeleteTaxRuleDocument, TaxRulesDocument, type TaxRulesQuery } from './Tax.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type TaxRule = TaxRulesQuery['taxRules'][number]
 
@@ -83,19 +73,12 @@ export function TaxRulesTable() {
   }, [channels])
 
   const [confirmDelete, setConfirmDelete] = useState<TaxRule | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteRule, { loading: deleting }] = useMutation(DeleteTaxRuleDocument)
+  const [deleteRule] = useMutation(DeleteTaxRuleDocument)
 
   async function onConfirmDelete() {
     if (!confirmDelete) return
-    setDeleteError(null)
-    try {
-      await deleteRule({ variables: { id: confirmDelete.id } })
-      setConfirmDelete(null)
-      void refetch()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
-    }
+    await deleteRule({ variables: { id: confirmDelete.id } })
+    void refetch()
   }
 
   const columns = useMemo<ColumnDef<TaxRule>[]>(
@@ -198,7 +181,6 @@ export function TaxRulesTable() {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={() => {
-                      setDeleteError(null)
                       setConfirmDelete(row.original)
                     }}
                   >
@@ -254,43 +236,16 @@ export function TaxRulesTable() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete tax rule?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDelete?.name || '(unnamed rule)'} - this is permanent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title="Delete tax rule?"
+        description={<>{confirmDelete?.name || '(unnamed rule)'} - this is permanent.</>}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

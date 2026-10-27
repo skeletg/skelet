@@ -13,6 +13,7 @@ import { gqlFetch } from "@/app/lib/graphql";
 import { GuestOrderDocument } from "@/app/lib/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
+import { toMajor } from "@/app/lib/format";
 
 export async function generateMetadata({
   params,
@@ -30,6 +31,7 @@ export default async function GuestOrderPage({
   searchParams: Promise<{
     email?: string | string[];
     just_placed?: string | string[];
+    payment?: string | string[];
     resent?: string | string[];
   }>;
 }) {
@@ -55,6 +57,7 @@ export default async function GuestOrderPage({
     ? sp.just_placed[0]
     : sp.just_placed;
   const justPlaced = justPlacedRaw === "1";
+  const paymentIncomplete = (Array.isArray(sp.payment) ? sp.payment[0] : sp.payment) === "incomplete";
 
   let order: Awaited<ReturnType<typeof loadOrder>> | null = null;
   try {
@@ -88,14 +91,14 @@ export default async function GuestOrderPage({
             ecommerce: {
               transaction_id: order.id,
               currency: order.currencyCode,
-              value: order.total / 100,
-              tax: order.taxAmount / 100,
-              shipping: order.shippingAmount / 100,
+              value: toMajor(order.total, order.currencyCode),
+              tax: toMajor(order.taxAmount, order.currencyCode),
+              shipping: toMajor(order.shippingAmount, order.currencyCode),
               items: order.lines.map((line) => ({
                 item_id: line.sku,
                 item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
-                price: line.unitPrice / 100,
+                price: toMajor(line.unitPrice, order.currencyCode),
               })),
             },
           }}
@@ -153,7 +156,7 @@ export default async function GuestOrderPage({
       )}
 
       {/* Admin-facing history - signed-in page only, never the guest receipt */}
-      <OrderDetailView order={{ ...order, events: [] }} />
+      <OrderDetailView order={{ ...order, events: [] }} paymentIncomplete={paymentIncomplete} />
     </main>
   );
 }

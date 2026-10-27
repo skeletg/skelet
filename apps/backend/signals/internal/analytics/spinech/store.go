@@ -66,33 +66,9 @@ var _ analytics.SpineStore = (*Store)(nil)
 var errBufferFull = errors.New("spinech: ingest buffer full, event dropped") // shedding is data loss, not deduplication - callers get an error so it can't read as "already recorded"
 
 func New(ctx context.Context, dsn string) (*Store, error) {
-	opts, err := clickhouse.ParseDSN(dsn)
-	if err != nil {
-		if uerr, ok := errors.AsType[*url.Error](err); ok {
-			return nil, fmt.Errorf("parse SIGNALS_CH_URL (value redacted): %w", uerr.Err)
-		}
-		return nil, errors.New("parse SIGNALS_CH_URL: invalid DSN (value redacted)")
-	}
-	if opts.Settings == nil {
-		opts.Settings = clickhouse.Settings{}
-	}
-	opts.Settings["do_not_merge_across_partitions_select_final"] = 1 // every read runs FINAL to collapse not-yet-merged duplicates - this keeps that affordable, and it's sound because ReplacingMergeTree only dedups within a partition
-	conn, err := clickhouse.Open(opts)
+	conn, opts, err := open(ctx, dsn)
 	if err != nil {
 		return nil, err
-	}
-	deadline := time.Now().Add(30 * time.Second) // patient ping for container start ordering - a single attempt crash-loops the app whenever ClickHouse warms up slower
-	for {
-		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		err = conn.Ping(pctx)
-		cancel()
-		if err == nil {
-			break
-		}
-		if time.Now().After(deadline) || ctx.Err() != nil {
-			return nil, fmt.Errorf("ping clickhouse: %w", err)
-		}
-		time.Sleep(300*time.Millisecond + time.Duration(rand.Int63n(int64(400*time.Millisecond))))
 	}
 	if err := ensureIdentityDict(ctx, conn, opts); err != nil {
 		return nil, err
@@ -109,6 +85,38 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	s.wg.Add(1)
 	go s.flushLoop()
 	return s, nil
+}
+
+func open(ctx context.Context, dsn string) (driver.Conn, *clickhouse.Options, error) {
+	opts, err := clickhouse.ParseDSN(dsn)
+	if err != nil {
+		if uerr, ok := errors.AsType[*url.Error](err); ok {
+			return nil, nil, fmt.Errorf("parse SIGNALS_CH_URL (value redacted): %w", uerr.Err)
+		}
+		return nil, nil, errors.New("parse SIGNALS_CH_URL: invalid DSN (value redacted)")
+	}
+	if opts.Settings == nil {
+		opts.Settings = clickhouse.Settings{}
+	}
+	opts.Settings["do_not_merge_across_partitions_select_final"] = 1 // every read runs FINAL to collapse not-yet-merged duplicates - this keeps that affordable, and it's sound because ReplacingMergeTree only dedups within a partition
+	conn, err := clickhouse.Open(opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	deadline := time.Now().Add(30 * time.Second) // patient ping for container start ordering - a single attempt crash-loops the app whenever ClickHouse warms up slower
+	for {
+		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = conn.Ping(pctx)
+		cancel()
+		if err == nil {
+			return conn, opts, nil
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			_ = conn.Close()
+			return nil, nil, fmt.Errorf("ping clickhouse: %w", err)
+		}
+		time.Sleep(300*time.Millisecond + time.Duration(rand.Int63n(int64(400*time.Millisecond))))
+	}
 }
 
 const (

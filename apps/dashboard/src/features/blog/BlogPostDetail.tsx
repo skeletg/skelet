@@ -15,16 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DetailPageLayout } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -70,11 +60,14 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { slugify } from '@/lib/slug'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
-import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
+import { SaveRegistryContext, useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { changed } from '@/shared/saving/diff'
 import { BlogPreviewPanel } from './BlogPreviewPanel'
 import { POST_LABELS, postChanges, postDiff, postSchema, toPostValues } from './schemas/post'
 import { readImageDimensions } from '@/lib/image'
+import { putToSignedUrl } from '@/lib/upload'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 function statusLabel(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase()
@@ -178,7 +171,7 @@ function PostForm({
   const [scheduleMut, { loading: scheduling }] = useMutation(ScheduleBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
   const [unpublishMut, { loading: unpublishing }] = useMutation(UnpublishBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
   const [archiveMut, { loading: archiving }] = useMutation(ArchiveBlogPostDocument, { refetchQueries: [...refetchPost, ...refetchList] })
-  const [deletePost, { loading: deleting }] = useMutation(DeleteBlogPostDocument, { refetchQueries: refetchList })
+  const [deletePost] = useMutation(DeleteBlogPostDocument, { refetchQueries: refetchList })
   const [deleteContent] = useMutation(DeleteBlogPostContentDocument, { refetchQueries: refetchPost, awaitRefetchQueries: true })
   // Media-library upload pair for the body's Insert Image - images go into a per-post directory in the
   // shared library; the editor inserts a figure/caption node with the returned URL
@@ -276,7 +269,6 @@ function PostForm({
       navigate('/blog/posts', { replace: true })
     } catch (err) {
       setFeedback({ kind: 'err', msg: err instanceof Error ? err.message : 'Delete failed.' })
-      setConfirmDelete(false)
     }
   }
 
@@ -303,8 +295,7 @@ function PostForm({
     })
     const payload = requested.data?.requestMediaAssetUpload
     if (!payload) throw new Error('Upload request did not return a signed URL.')
-    const uploaded = await fetch(payload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    if (!uploaded.ok) throw new Error(`Image upload failed with HTTP ${uploaded.status}.`)
+    await putToSignedUrl(payload.uploadUrl, file, 'Image upload')
     const confirmed = await confirmMediaUpload({ variables: { assetId: payload.asset.id, width: dims.width, height: dims.height } })
     const asset = confirmed.data?.confirmMediaAssetUpload
     if (!asset) throw new Error('Image upload confirmation failed.')
@@ -650,20 +641,15 @@ function PostForm({
 
           <PostStoresSection postId={post.id} listings={post.channelListings} canManage={canManage} refetchVariables={variables} />
 
-          <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete post?</AlertDialogTitle>
-                <AlertDialogDescription>This permanently removes the post and all its translations. URL redirects are preserved.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onDelete} disabled={deleting}>
-                  {deleting ? 'Deleting…' : 'Delete'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title="Delete post?"
+            description="This permanently removes the post and all its translations. URL redirects are preserved."
+            confirmLabel="Delete"
+            // Not awaited: the dialog closes at once and a failure shows in the page feedback, as it always has
+            onConfirm={() => void onDelete()}
+          />
 
           <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={`Locale ${locale}`} sections={registry.dirtySections} />
         </div>
@@ -728,6 +714,27 @@ function PostStoresSection({
   const byStore = new Map(listings.map((l) => [l.channelId, l]))
   const active = stores.filter((s) => s.isActive)
 
+  // Noindex is an SEO field, so it stages for the header Save - Published stays immediate, it's the post's lifecycle
+  const [noindexEdits, setNoindexEdits] = useState<Map<string, boolean>>(new Map())
+  const noindexDiff = active
+    .map((sv) =>
+      noindexEdits.has(sv.id) ? changed(`Store · ${sv.name} · noindex`, !!byStore.get(sv.id)?.seoNoindex, noindexEdits.get(sv.id)) : null,
+    )
+    .filter((e): e is SectionDiffEntry => e !== null)
+  useSaveSection({
+    id: 'store-noindex',
+    title: 'Available on stores',
+    diff: noindexDiff,
+    save: async () => {
+      for (const [channelId, seoNoindex] of noindexEdits) {
+        const listing = byStore.get(channelId)
+        if (!listing || listing.seoNoindex === seoNoindex) continue
+        await setListing({ variables: { input: { postId, channelId, isPublished: listing.isPublished, seoNoindex } } })
+      }
+      setNoindexEdits(new Map())
+    },
+  })
+
   return (
     <section className="px-6 py-6">
       <div className="mb-3">
@@ -778,19 +785,8 @@ function PostStoresSection({
                   <div className="flex items-center gap-1.5">
                     <Switch
                       id={`ni-${sv.id}`}
-                      checked={noindex}
-                      onCheckedChange={(v) =>
-                        setListing({
-                          variables: {
-                            input: {
-                              postId,
-                              channelId: sv.id,
-                              isPublished: enabled,
-                              seoNoindex: v,
-                            },
-                          },
-                        })
-                      }
+                      checked={noindexEdits.get(sv.id) ?? noindex}
+                      onCheckedChange={(v) => setNoindexEdits((prev) => new Map(prev).set(sv.id, v))}
                       disabled={!canManage || saving || !listing}
                     />
                     <Label htmlFor={`ni-${sv.id}`} className="text-xs">

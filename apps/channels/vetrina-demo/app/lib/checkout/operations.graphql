@@ -50,6 +50,7 @@ fragment OrderSummaryFields on Order {
     totalPrice
     options {
       id
+      inputType
       optionTitle
       valueLabel
       textValue
@@ -67,6 +68,7 @@ query PaymentMethods($countryCode: String!, $cartId: ID) {
     displayName
     sortOrder
     instructions
+    isOffline
   }
 }
 
@@ -151,12 +153,6 @@ mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: I
     amountDue
     paymentClientSecret
   }
-}
-
-# After the customer completes a client-side 3DS challenge, verifies the
-# authorization with the gateway and records it. Idempotent.
-mutation FinalizeOrderPayment($orderId: ID!) {
-  finalizeOrderPayment(orderId: $orderId)
 }
 
 # Balance check for the /gift-card page. Rate-limited per IP server-side.

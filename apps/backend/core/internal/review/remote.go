@@ -35,8 +35,16 @@ func (s *Service) GetAggregates(ctx context.Context, productID uuid.UUID) (Aggre
 
 // The batched form - remote overrides native per product, and omitted products fall back to native, so a mixed catalog renders right
 func (s *Service) GetAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, error) {
+	return s.aggregatesByProductIDs(ctx, productIDs, s.repo.GetAggregatesByProductIDs)
+}
+
+func (s *Service) GetOverallAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, error) {
+	return s.aggregatesByProductIDs(ctx, productIDs, s.repo.GetOverallAggregatesByProductIDs)
+}
+
+func (s *Service) aggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID, fetch func(context.Context, []uuid.UUID, *uuid.UUID) (map[uuid.UUID]Aggregates, error)) (map[uuid.UUID]Aggregates, error) {
 	ch := storeScope(ctx)
-	native, err := s.repo.GetAggregatesByProductIDs(ctx, productIDs, ch)
+	native, err := fetch(ctx, productIDs, ch)
 	if err != nil {
 		return nil, err
 	}

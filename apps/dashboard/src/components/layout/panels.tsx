@@ -1,13 +1,35 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // The stat tile, header-strip panel and empty state the home dashboard and the analytics pages are built from
 
-export function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'warn' }) {
+export function Tile({
+  label,
+  value,
+  sub,
+  tone,
+  loading,
+}: {
+  label: string
+  value: string
+  sub?: string
+  tone?: 'warn'
+  loading?: boolean
+}) {
   return (
     <div className="rounded border p-4">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={cn('mt-1 text-2xl font-semibold tabular-nums', tone === 'warn' && 'text-warning')}>{value}</p>
+      {loading ? (
+        <Skeleton className="mt-1 h-8 w-24" />
+      ) : (
+        <p
+          className={cn('mt-1 text-2xl font-semibold tabular-nums', tone === 'warn' && 'text-warning')}
+          data-arrive={loading === false ? '' : undefined}
+        >
+          {value}
+        </p>
+      )}
       {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   )

@@ -20,16 +20,6 @@ import {
   TruckIcon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -103,6 +93,8 @@ import {
 } from './Catalog.gql'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
 import { ProductTypeReviewsCard } from './ProductTypeReviewsCard'
+import { ProductTypeTemplatesSection } from './ProductTypeTemplatesSection'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 type AttributeRow = {
   sortOrder: number
@@ -122,8 +114,10 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   const params = useParams<{ id?: string }>()
   const id = productTypeId ?? params.id ?? ''
   const navigate = useNavigate()
-  const { has } = usePermissions()
+  const { has, allowedChannelScopes } = usePermissions()
   const canManage = has('catalog.manage')
+  // A type's templates reach products on every store, so only a store-wide catalog manager changes them
+  const canManageTemplates = canManage && allowedChannelScopes('catalog.manage').allChannels
 
   const ptQuery = useQuery(ProductTypeDocument, {
     variables: { id },
@@ -141,7 +135,7 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   const [assignAttribute, { loading: assigning }] = useMutation(AssignAttributeDocument, { refetchQueries: refetch })
   const [unassignAttribute, { loading: unassigning }] = useMutation(UnassignAttributeDocument, { refetchQueries: refetch })
   const [deleteProductType, { loading: deleting }] = useMutation(DeleteProductTypeDocument, {
-    refetchQueries: [{ query: ProductTypesDocument }],
+    refetchQueries: [ProductTypesDocument],
   })
   const [createAttributeGroup, { loading: creatingGroup }] = useMutation(CreateAttributeGroupDocument, { refetchQueries: refetch })
   const [updateAttributeGroup, { loading: updatingGroup }] = useMutation(UpdateAttributeGroupDocument, { refetchQueries: refetch })
@@ -149,7 +143,6 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   const [moveAttributeToGroup] = useMutation(MoveAttributeToGroupDocument, { refetchQueries: refetch })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Page save registry: field edits (the General section) stage locally
   // and the header Save applies them through the SaveConfirmDialog diff
@@ -214,13 +207,8 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
   }
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteProductType({ variables: { id } })
-      navigate('/catalog/product-types', { replace: true })
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Delete failed.')
-    }
+    await deleteProductType({ variables: { id } })
+    navigate('/catalog/product-types', { replace: true })
   }
 
   async function onAssign() {
@@ -564,6 +552,8 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
           )}
       </DetailPageSection>
 
+      <ProductTypeTemplatesSection productType={productType} canManage={canManageTemplates} />
+
       <ProductTypeReviewsCard
         productTypeId={productType.id}
         canManage={canManage}
@@ -579,10 +569,7 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
               variant="outline"
               size="sm"
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => {
-                setDeleteError(null)
-                setConfirmingDelete(true)
-              }}
+              onClick={() => setConfirmingDelete(true)}
               disabled={deleting}
             >
               <Trash2Icon className="size-4" />
@@ -753,38 +740,16 @@ export function ProductTypeDetail({ productTypeId }: { productTypeId?: string } 
       </Dialog>
 
       {/* Delete product type confirm */}
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) { setConfirmingDelete(false); setDeleteError(null) }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {productType.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the product type and its attribute assignments. Product
-              types with products attached cannot be deleted - the backend will reject those.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); onDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete product type'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {productType.name}?</>}
+        description="This permanently removes the product type and its attribute assignments. Product types with products attached cannot be deleted - the backend will reject those."
+        confirmLabel="Delete product type"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
 
       {/* Review-before-save modal: lists every staged change across the
           page's registered sections (General) */}

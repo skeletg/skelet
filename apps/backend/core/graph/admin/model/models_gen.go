@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+type ProductOptionOwner interface {
+	IsProductOptionOwner()
+}
+
 type AISeoSuggestion struct {
 	MetaTitle       string `json:"metaTitle"`
 	MetaDescription string `json:"metaDescription"`
@@ -81,7 +85,9 @@ type AddProductDownloadInput struct {
 }
 
 type AddProductOptionInput struct {
-	ProductID      string                  `json:"productId"`
+	ProductID      *string                 `json:"productId,omitempty"`
+	TemplateID     *string                 `json:"templateId,omitempty"`
+	ImageAssetID   *string                 `json:"imageAssetId,omitempty"`
 	InputType      ProductOptionInputType  `json:"inputType"`
 	IsRequired     *bool                   `json:"isRequired,omitempty"`
 	SortOrder      *int32                  `json:"sortOrder,omitempty"`
@@ -98,6 +104,7 @@ type AddProductOptionInput struct {
 
 type AddProductOptionValueInput struct {
 	OptionID        string                  `json:"optionId"`
+	ImageAssetID    *string                 `json:"imageAssetId,omitempty"`
 	SortOrder       *int32                  `json:"sortOrder,omitempty"`
 	PriceValue      *int32                  `json:"priceValue,omitempty"`
 	PriceType       *ProductOptionPriceType `json:"priceType,omitempty"`
@@ -2686,6 +2693,11 @@ type GiftCard struct {
 	Transactions   []*GiftCardTransaction `json:"transactions"`
 }
 
+type GiftCardPage struct {
+	TotalCount int32       `json:"totalCount"`
+	Items      []*GiftCard `json:"items"`
+}
+
 type GiftCardTransaction struct {
 	ID        string    `json:"id"`
 	Amount    int32     `json:"amount"`
@@ -3236,6 +3248,39 @@ type OptionChannelPrice struct {
 	PriceValue int32  `json:"priceValue"`
 }
 
+type OptionImage struct {
+	AssetID string `json:"assetId"`
+	URL     string `json:"url"`
+	AltText string `json:"altText"`
+	Width   *int32 `json:"width,omitempty"`
+	Height  *int32 `json:"height,omitempty"`
+}
+
+type OptionTemplate struct {
+	ID               string               `json:"id"`
+	Name             string               `json:"name"`
+	Description      string               `json:"description"`
+	CurrencyCode     string               `json:"currencyCode"`
+	ProductOptions   []*ProductOption     `json:"productOptions"`
+	OptionRules      []*ProductOptionRule `json:"optionRules"`
+	OptionCount      int32                `json:"optionCount"`
+	RuleCount        int32                `json:"ruleCount"`
+	ProductCount     int32                `json:"productCount"`
+	ProductTypeCount int32                `json:"productTypeCount"`
+	Products         []*Product           `json:"products"`
+	ProductTypes     []*ProductType       `json:"productTypes"`
+	CreatedAt        time.Time            `json:"createdAt"`
+	UpdatedAt        time.Time            `json:"updatedAt"`
+}
+
+func (OptionTemplate) IsProductOptionOwner() {}
+
+type OptionTemplateInput struct {
+	Name         string  `json:"name"`
+	Description  *string `json:"description,omitempty"`
+	CurrencyCode string  `json:"currencyCode"`
+}
+
 type Order struct {
 	ID                  string                `json:"id"`
 	ChannelID           string                `json:"channelId"`
@@ -3508,9 +3553,15 @@ type Product struct {
 	PrivateMetadata         []*MetadataItem          `json:"privateMetadata"`
 	CreatedAt               time.Time                `json:"createdAt"`
 	UpdatedAt               time.Time                `json:"updatedAt"`
+	OptionTemplates         []*OptionTemplate        `json:"optionTemplates"`
+	TypeOptionTemplates     []*OptionTemplate        `json:"typeOptionTemplates"`
+	ConfiguratorLayout      ConfiguratorLayout       `json:"configuratorLayout"`
+	OptionRules             []*ProductOptionRule     `json:"optionRules"`
 	PartOf                  *ProductMemberships      `json:"partOf"`
 	VariantMode             *VariantMode             `json:"variantMode,omitempty"`
 }
+
+func (Product) IsProductOptionOwner() {}
 
 type ProductAttributeAssignmentInput struct {
 	AttributeID string   `json:"attributeId"`
@@ -3633,12 +3684,66 @@ type ProductOption struct {
 	VisibleIf      any                     `json:"visibleIf,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	UpdatedAt      time.Time               `json:"updatedAt"`
+	Image          *OptionImage            `json:"image,omitempty"`
+	TemplateID     *string                 `json:"templateId,omitempty"`
+	TemplateName   *string                 `json:"templateName,omitempty"`
+	CurrencyCode   string                  `json:"currencyCode"`
 }
 
 type ProductOptionContent struct {
 	Locale   string `json:"locale"`
 	Title    string `json:"title"`
 	HelpText string `json:"helpText"`
+}
+
+type ProductOptionRule struct {
+	ID           string                     `json:"id"`
+	Label        string                     `json:"label"`
+	Labels       []*ProductOptionRuleLabel  `json:"labels"`
+	Condition    any                        `json:"condition"`
+	Actions      []*ProductOptionRuleAction `json:"actions"`
+	TemplateID   *string                    `json:"templateId,omitempty"`
+	TemplateName *string                    `json:"templateName,omitempty"`
+}
+
+type ProductOptionRuleAction struct {
+	Type          ProductOptionRuleActionType `json:"type"`
+	OptionID      *string                     `json:"optionId,omitempty"`
+	Quantity      *float64                    `json:"quantity,omitempty"`
+	PriceType     *ProductOptionPriceType     `json:"priceType,omitempty"`
+	PriceValue    *int32                      `json:"priceValue,omitempty"`
+	ChannelPrices []*OptionChannelPrice       `json:"channelPrices"`
+}
+
+type ProductOptionRuleActionInput struct {
+	Type          ProductOptionRuleActionType           `json:"type"`
+	OptionID      *string                               `json:"optionId,omitempty"`
+	Quantity      *float64                              `json:"quantity,omitempty"`
+	PriceType     *ProductOptionPriceType               `json:"priceType,omitempty"`
+	PriceValue    *int32                                `json:"priceValue,omitempty"`
+	ChannelPrices []*ProductOptionRuleChannelPriceInput `json:"channelPrices,omitempty"`
+}
+
+type ProductOptionRuleChannelPriceInput struct {
+	ChannelID  string `json:"channelId"`
+	PriceValue int32  `json:"priceValue"`
+}
+
+type ProductOptionRuleInput struct {
+	ID        *string                         `json:"id,omitempty"`
+	Labels    []*ProductOptionRuleLabelInput  `json:"labels,omitempty"`
+	Condition any                             `json:"condition"`
+	Actions   []*ProductOptionRuleActionInput `json:"actions"`
+}
+
+type ProductOptionRuleLabel struct {
+	Locale string `json:"locale"`
+	Label  string `json:"label"`
+}
+
+type ProductOptionRuleLabelInput struct {
+	Locale string `json:"locale"`
+	Label  string `json:"label"`
 }
 
 type ProductOptionValue struct {
@@ -3655,6 +3760,7 @@ type ProductOptionValue struct {
 	ChannelPrices []*OptionChannelPrice        `json:"channelPrices"`
 	CreatedAt     time.Time                    `json:"createdAt"`
 	UpdatedAt     time.Time                    `json:"updatedAt"`
+	Image         *OptionImage                 `json:"image,omitempty"`
 }
 
 type ProductOptionValueContent struct {
@@ -3691,6 +3797,7 @@ type ProductType struct {
 	PrivateMetadata    []*MetadataItem         `json:"privateMetadata"`
 	CreatedAt          time.Time               `json:"createdAt"`
 	UpdatedAt          time.Time               `json:"updatedAt"`
+	OptionTemplates    []*OptionTemplate       `json:"optionTemplates"`
 	ReviewQuestions    []*ReviewQuestion       `json:"reviewQuestions"`
 }
 
@@ -4828,6 +4935,11 @@ type SubscriptionInvoice struct {
 	CreatedAt    time.Time                 `json:"createdAt"`
 }
 
+type SubscriptionPage struct {
+	TotalCount int32                   `json:"totalCount"`
+	Items      []*CustomerSubscription `json:"items"`
+}
+
 type SubscriptionTerms struct {
 	IntervalUnit  SubscriptionInterval `json:"intervalUnit"`
 	IntervalCount int32                `json:"intervalCount"`
@@ -5433,6 +5545,7 @@ type UpdateProductMediaInput struct {
 
 type UpdateProductOptionInput struct {
 	ID                  string                  `json:"id"`
+	ImageAssetID        *string                 `json:"imageAssetId,omitempty"`
 	InputType           *ProductOptionInputType `json:"inputType,omitempty"`
 	IsRequired          *bool                   `json:"isRequired,omitempty"`
 	SortOrder           *int32                  `json:"sortOrder,omitempty"`
@@ -5451,6 +5564,7 @@ type UpdateProductOptionInput struct {
 
 type UpdateProductOptionValueInput struct {
 	ID              string                  `json:"id"`
+	ImageAssetID    *string                 `json:"imageAssetId,omitempty"`
 	SortOrder       *int32                  `json:"sortOrder,omitempty"`
 	PriceValue      *int32                  `json:"priceValue,omitempty"`
 	PriceType       *ProductOptionPriceType `json:"priceType,omitempty"`
@@ -6902,6 +7016,61 @@ func (e ConfigType) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type ConfiguratorLayout string
+
+const (
+	ConfiguratorLayoutList  ConfiguratorLayout = "LIST"
+	ConfiguratorLayoutSteps ConfiguratorLayout = "STEPS"
+)
+
+var AllConfiguratorLayout = []ConfiguratorLayout{
+	ConfiguratorLayoutList,
+	ConfiguratorLayoutSteps,
+}
+
+func (e ConfiguratorLayout) IsValid() bool {
+	switch e {
+	case ConfiguratorLayoutList, ConfiguratorLayoutSteps:
+		return true
+	}
+	return false
+}
+
+func (e ConfiguratorLayout) String() string {
+	return string(e)
+}
+
+func (e *ConfiguratorLayout) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConfiguratorLayout(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConfiguratorLayout", str)
+	}
+	return nil
+}
+
+func (e ConfiguratorLayout) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConfiguratorLayout) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConfiguratorLayout) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type ConsentChannel string
 
 const (
@@ -7448,6 +7617,65 @@ func (e *LinkNodeType) UnmarshalJSON(b []byte) error {
 }
 
 func (e LinkNodeType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MediaAssetSort string
+
+const (
+	MediaAssetSortNewest  MediaAssetSort = "NEWEST"
+	MediaAssetSortOldest  MediaAssetSort = "OLDEST"
+	MediaAssetSortName    MediaAssetSort = "NAME"
+	MediaAssetSortLargest MediaAssetSort = "LARGEST"
+)
+
+var AllMediaAssetSort = []MediaAssetSort{
+	MediaAssetSortNewest,
+	MediaAssetSortOldest,
+	MediaAssetSortName,
+	MediaAssetSortLargest,
+}
+
+func (e MediaAssetSort) IsValid() bool {
+	switch e {
+	case MediaAssetSortNewest, MediaAssetSortOldest, MediaAssetSortName, MediaAssetSortLargest:
+		return true
+	}
+	return false
+}
+
+func (e MediaAssetSort) String() string {
+	return string(e)
+}
+
+func (e *MediaAssetSort) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MediaAssetSort(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MediaAssetSort", str)
+	}
+	return nil
+}
+
+func (e MediaAssetSort) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MediaAssetSort) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MediaAssetSort) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -8290,6 +8518,65 @@ func (e *ProductOptionPriceType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ProductOptionPriceType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProductOptionRuleActionType string
+
+const (
+	ProductOptionRuleActionTypeRequire     ProductOptionRuleActionType = "REQUIRE"
+	ProductOptionRuleActionTypeOptional    ProductOptionRuleActionType = "OPTIONAL"
+	ProductOptionRuleActionTypeSetQuantity ProductOptionRuleActionType = "SET_QUANTITY"
+	ProductOptionRuleActionTypeAdjustPrice ProductOptionRuleActionType = "ADJUST_PRICE"
+)
+
+var AllProductOptionRuleActionType = []ProductOptionRuleActionType{
+	ProductOptionRuleActionTypeRequire,
+	ProductOptionRuleActionTypeOptional,
+	ProductOptionRuleActionTypeSetQuantity,
+	ProductOptionRuleActionTypeAdjustPrice,
+}
+
+func (e ProductOptionRuleActionType) IsValid() bool {
+	switch e {
+	case ProductOptionRuleActionTypeRequire, ProductOptionRuleActionTypeOptional, ProductOptionRuleActionTypeSetQuantity, ProductOptionRuleActionTypeAdjustPrice:
+		return true
+	}
+	return false
+}
+
+func (e ProductOptionRuleActionType) String() string {
+	return string(e)
+}
+
+func (e *ProductOptionRuleActionType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProductOptionRuleActionType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProductOptionRuleActionType", str)
+	}
+	return nil
+}
+
+func (e ProductOptionRuleActionType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProductOptionRuleActionType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProductOptionRuleActionType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

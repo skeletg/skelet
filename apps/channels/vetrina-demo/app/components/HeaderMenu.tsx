@@ -123,7 +123,7 @@ export function HeaderMenu({
       >
         <header className="gap-1 border-b border-border px-5 py-4">
           <h2 className="text-xl font-semibold tracking-tight">{brand}</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="lens-mask text-sm text-muted-foreground">
             {customer
               ? tm("signedInAs", { email: customer.email })
               : tm("browseAndShop")}
@@ -138,7 +138,7 @@ export function HeaderMenu({
             <Link
               href="/account"
               onClick={close}
-              className="flex items-center gap-3 rounded-lg bg-accent px-3 py-2 text-sm transition hover:bg-accent/80"
+              className="lens-block flex items-center gap-3 rounded-lg bg-accent px-3 py-2 text-sm transition hover:bg-accent/80"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">
                 <UserIcon className="h-4 w-4" />

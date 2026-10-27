@@ -4,10 +4,13 @@
 // Consent-gated: signed-in customers always record, anonymous ones only inside the
 // server's sample %. Inputs masked at source; .lens-mask hides text, .lens-block blanks
 // Session id + chunk seq live in sessionStorage so recording survives same-tab nav
+// Private pages (recording-policy) pause it; the next public page restarts it with a fresh full snapshot
 
-import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { redactPath } from "@/app/lib/analytics/redact";
+import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@/app/lib/analytics/recording-policy";
 import { ensureAnonId, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
 import { beaconFetch } from "@/app/lib/beacons/client";
@@ -76,6 +79,17 @@ export function LensReplay({
   channelId: string;
   customerId?: string;
 }) {
+  const pathname = usePathname();
+  const isPrivate = isPrivateRecordingPath(pathname);
+  const privateRef = useRef(isPrivate);
+  // Set once rrweb is loaded and this session records - route changes pause and resume through it
+  const toggleRef = useRef<((isPrivate: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    privateRef.current = isPrivate;
+    toggleRef.current?.(isPrivate);
+  }, [isPrivate]);
+
   useEffect(() => {
     if (!enabled || !channelId || typeof window === "undefined") return;
 
@@ -152,33 +166,47 @@ export function LensReplay({
       if (cancelled) return;
 
       const maxMs = maxMinutes > 0 ? maxMinutes * 60_000 : 0;
+      let capped = false;
       if (maxMs > 0) {
         const elapsed = Date.now() - sessionStartedAt();
         if (elapsed >= maxMs) return;
         capTimer = setTimeout(() => {
+          capped = true;
           stopRecording?.();
           stopRecording = undefined;
           flush(true);
         }, maxMs - elapsed);
       }
 
-      stopRecording = record({
-        emit(event) {
-          if (isNoiseInput(event)) return; // drop programmatic/hidden-field input churn
-          buffer.push(scrubMetaHref(event));
-          if (buffer.length >= FLUSH_EVENTS) flush(false);
-          else schedule();
-        },
-        maskAllInputs: true,
-        maskTextClass: "lens-mask",
-        blockClass: "lens-block",
-        recordCanvas: false,
-        collectFonts: false,
-        inlineStylesheet: true, // self-contained so the dashboard can replay cross-origin
-        sampling: { mousemove: 50, scroll: 150, media: 800, input: "last" },
-        userTriggeredOnInput: true, // flag real user input vs. programmatic value-sets
-        checkoutEveryNms: CHECKOUT_MS,
-      });
+      // Every record() call opens with a Meta + full snapshot, so a resumed recording never patches onto a DOM the
+      // replay last saw before the private page
+      const start = () => {
+        if (stopRecording || capped) return;
+        stopRecording = record({
+          emit(event) {
+            if (isNoiseInput(event)) return; // drop programmatic/hidden-field input churn
+            buffer.push(scrubMetaHref(event));
+            if (buffer.length >= FLUSH_EVENTS) flush(false);
+            else schedule();
+          },
+          maskAllInputs: true,
+          maskTextClass: "lens-mask",
+          blockClass: RECORDING_BLOCK_CLASS,
+          recordCanvas: false,
+          collectFonts: false,
+          inlineStylesheet: true, // self-contained so the dashboard can replay cross-origin
+          sampling: { mousemove: 50, scroll: 150, media: 800, input: "last" },
+          userTriggeredOnInput: true, // flag real user input vs. programmatic value-sets
+          checkoutEveryNms: CHECKOUT_MS,
+        });
+      };
+      toggleRef.current = (nowPrivate) => {
+        if (!nowPrivate) return start();
+        stopRecording?.();
+        stopRecording = undefined;
+        flush(false);
+      };
+      toggleRef.current(privateRef.current);
 
       document.addEventListener("visibilitychange", onHide);
       window.addEventListener("pagehide", onPageHide);
@@ -186,6 +214,7 @@ export function LensReplay({
 
     return () => {
       cancelled = true;
+      toggleRef.current = null;
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", onPageHide);
       if (flushTimer) {

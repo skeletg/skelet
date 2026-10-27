@@ -17,6 +17,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { BotTrafficDocument } from './Lens.gql'
 import { Empty, Panel, Tile } from '@/components/layout/panels'
 import { formatDateTime, formatNumber, formatShortDay } from '@/lib/format'
+import { LoadError } from '@/shared/errors/LoadError'
 
 // Category → friendly label + colour, used for the per-agent badges and the category roll-up. "ai" is first because
 // it's the headline use case (which LLMs crawl me)
@@ -38,7 +39,7 @@ export function LensBots() {
   const channelId = effectiveChannelId ?? ''
   const [bot, setBot] = useState('')
 
-  const { data, loading } = useQuery(BotTrafficDocument, {
+  const { data, loading, error, refetch } = useQuery(BotTrafficDocument, {
     variables: { channelId, sinceDays: 30, bot },
     skip: !isChannel,
     fetchPolicy: 'cache-and-network',
@@ -80,6 +81,10 @@ export function LensBots() {
   const byCat = new Map<string, number>()
   for (const b of bt?.bots ?? []) byCat.set(b.category, (byCat.get(b.category) ?? 0) + b.hits)
   const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1])
+
+  if (error && !data) {
+    return <LoadError title="Couldn't load bot traffic" message={error.message} onRetry={() => void refetch()} retrying={loading} />
+  }
 
   return (
     <DetailPageLayout>

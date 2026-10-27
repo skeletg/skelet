@@ -3,17 +3,6 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { LayersIcon, PlusIcon, Trash2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
@@ -24,6 +13,7 @@ import {
   DeleteCmsAttributeDocument,
   type CmsAttributeRowFragment,
 } from './Cms.gql'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 const INPUT_TYPE_FILTER_OPTIONS = [
   { label: 'Text', value: 'TEXT' },
@@ -62,20 +52,13 @@ export function CmsAttributesPage() {
   const attributes = useMemo(() => data?.cmsAttributes ?? [], [data])
 
   const [confirmingDelete, setConfirmingDelete] = useState<CmsAttributeRowFragment | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteAttr, { loading: deleting }] = useMutation(DeleteCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
+  const [deleteAttr] = useMutation(DeleteCmsAttributeDocument, {
+    refetchQueries: [CmsAttributesDocument],
   })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
-    setDeleteError(null)
-    try {
-      await deleteAttr({ variables: { id: confirmingDelete.id } })
-      setConfirmingDelete(null)
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteAttr({ variables: { id: confirmingDelete.id } })
   }
 
   const columns = useMemo<ColumnDef<CmsAttributeRowFragment>[]>(
@@ -148,7 +131,6 @@ export function CmsAttributesPage() {
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-destructive"
               onClick={() => {
-                setDeleteError(null)
                 setConfirmingDelete(row.original)
               }}
             >
@@ -201,46 +183,16 @@ export function CmsAttributesPage() {
         }
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={!!confirmingDelete}
-        onOpenChange={(v) => {
-          if (!v) {
-            setConfirmingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmingDelete ? attrName(confirmingDelete) : 'attribute'}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the attribute definition. It must be unassigned from all page
-              types first.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                onConfirmDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete attribute'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title={<>Delete {confirmingDelete ? attrName(confirmingDelete) : 'attribute'}?</>}
+        description="This permanently removes the attribute definition. It must be unassigned from all page types first."
+        confirmLabel="Delete attribute"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

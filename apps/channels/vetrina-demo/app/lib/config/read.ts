@@ -101,6 +101,7 @@ export const getVariantOwnUrl = cache(async (): Promise<boolean> => {
       cache: "force-cache",
       revalidate: 300,
       tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
       // publicConfig resolves per channel and Next keys the Data Cache off the request body, not
       // the X-Channel-Id header - without this one channel's values would be served to all
       cacheKeyExtra: [await getCurrentChannelId()],
@@ -127,6 +128,7 @@ export const getStoreNameSetting = cache(async (): Promise<string | null> => {
       cache: "force-cache",
       revalidate: 300,
       tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
       // Per-channel, and Next keys the Data Cache off the request body rather than X-Channel-Id
       cacheKeyExtra: [await getCurrentChannelId()],
     });
@@ -166,6 +168,7 @@ export const getBranding = cache(async (): Promise<Branding> => {
       cache: "force-cache",
       revalidate: 300,
       tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
       cacheKeyExtra: [await getCurrentChannelId()],
     });
     const data = res.data as PublicConfigQuery;
@@ -195,6 +198,7 @@ const getFeatures = cache(async (): Promise<{ signals: boolean }> => {
       cache: "force-cache",
       revalidate: 300,
       tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
     });
     const data = res.data as StoreFeaturesQuery;
     return data.features;
@@ -260,6 +264,7 @@ export const getSeoConfig = cache(async (): Promise<SeoConfig> => {
       cache: "force-cache",
       revalidate: 3600,
       tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
       cacheKeyExtra: [await getCurrentChannelId()],
     });
     const data = res.data as PublicConfigQuery;
@@ -322,55 +327,64 @@ export const getSeoConfig = cache(async (): Promise<SeoConfig> => {
   }
 });
 
-// The cache-related subset of gqlFetch's options
+// The cache-related subset of gqlFetch's options - surface names the purge behind a cached copy, so the backend drops its own copy on that purge too
 export type CacheFetchOpts = {
   cache?: "force-cache";
   revalidate?: number;
   tags?: string[];
   cacheKeyExtra?: string[];
+  surface?: string;
 };
 
-// Data Cache lifetime per surface. Only a backstop: on a full-page-cached route the page's
-// own statically-analysable `revalidate` governs the HTML, and a fetch TTL below it would
-// drag the whole route's regeneration down with it. This matters on routes that still
-// render per request (checkout, account, blog)
-const SURFACE_TTL_SECONDS: Record<string, number> = {
-  nav: 3600,
-  cms: 3600,
-  product: 3600,
-  catalog: 3600,
-};
 const FALLBACK_TTL_SECONDS = 3600;
+// Not no-store - on the force-static catch-all that strips the tags while the HTML stays cached, so the page could no longer be purged
+const DISABLED_TTL_SECONDS = 1;
 
-// The one decision point for storefront data caching, and the dev/prod switch:
-// dev always returns {} so every fetch is no-store and you never chase a stale cache
-//
-// Tags are attached unconditionally on purpose - gating them on the admin's cache/<surface>/enabled
-// cannot work: `revalidate` has to be statically analysable, so disabling a surface would strip the
-// tags without stopping the HTML caching, leaving pages cached and UNPURGEABLE
-//
-// token makes a surface anonymous-only - a personalized response must never be shared
-// keyExtra overrides the default [store, locale] key dimensions
+const getSurfaceSettings = cache(async (key: string): Promise<{ enabled: boolean; ttl: number }> => {
+  try {
+    const res = await gqlFetch(PublicConfigDocument, {}, {
+      cache: "force-cache",
+      revalidate: 300,
+      tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
+      cacheKeyExtra: [await getCurrentChannelId()],
+    });
+    const rows = (res.data as PublicConfigQuery).publicConfig;
+    const ttl = Number.parseInt(rows.find((c) => c.path === `cache/${key}/ttl_seconds`)?.value ?? "", 10);
+    return {
+      enabled: rows.find((c) => c.path === `cache/${key}/enabled`)?.value !== "false",
+      ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : FALLBACK_TTL_SECONDS,
+    };
+  } catch {
+    return { enabled: true, ttl: FALLBACK_TTL_SECONDS };
+  }
+});
+
+// The one decision point for storefront data caching, and the dev/prod switch: dev only names the surface, so every fetch
+// is no-store yet a purge still drops the backend's copy. token makes a surface anonymous-only, keyExtra overrides the
+// default [store, locale] key dimensions
 export async function surfaceCacheOpts(
   key: string,
   opts: { tags: string[]; token?: string | null; keyExtra?: string[] },
 ): Promise<CacheFetchOpts> {
-  // Developer mode: never cache
-  if (process.env.NODE_ENV !== "production") return {};
+  if (process.env.NODE_ENV !== "production") return { surface: key };
   // Never share a signed-in visitor's (potentially personalized) response
   if (opts.token) return {};
+  const settings = await getSurfaceSettings(key);
   const keyExtra =
     opts.keyExtra ?? [await getCurrentChannelId(), await getCurrentLocale()];
   return {
     cache: "force-cache",
-    revalidate: SURFACE_TTL_SECONDS[key] ?? FALLBACK_TTL_SECONDS,
+    revalidate: settings.enabled ? settings.ttl : DISABLED_TTL_SECONDS,
     tags: opts.tags,
     cacheKeyExtra: keyExtra,
+    surface: key,
   };
 }
 
 // Well-known "nav" cache surface: the store-scoped, rarely-changing data the root layout + header pull on every page
 // (channel, menus, presentment, free-shipping threshold)
 export const CONFIG_TAG = "config:public";
+const CONFIG_SURFACE = "config";
 export const NAV_SURFACE = "nav";
 export const NAV_TAG = "nav:all";

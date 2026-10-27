@@ -7,18 +7,7 @@ import {
   CircleOffIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { LoadingState } from '@/components/ui/loading-state'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -71,6 +60,7 @@ import { ChannelUrlOverridesEditor } from './product-detail/ChannelUrlOverridesE
 import { ConfigurableVariantsCard } from './product-detail/ConfigurableVariantsCard'
 import { ProductMetadataEditor } from './product-detail/MetadataEditor'
 import { PluginSections } from '@/plugins/detail-sections'
+import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
 export function ProductDetail() {
   const { id = '' } = useParams()
@@ -135,7 +125,6 @@ export function ProductDetail() {
   const [subscriptionOpen, setSubscriptionOpen] = useState(false)
   const [seoOpen, setSeoOpen] = useState(false)
   const [metadataOpen, setMetadataOpen] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Section registry: each editable section reports its dirty diff + save fn - this page had its own
   // copy of the hook's internals, which is how it missed out on the unsaved-changes guard
@@ -164,13 +153,8 @@ export function ProductDetail() {
   }
 
   async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteProduct({ variables: { id } })
-      navigate('/products', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
+    await deleteProduct({ variables: { id } })
+    navigate('/products', { replace: true })
   }
 
   if (productQuery.loading) return <LoadingState label="Loading product…" />
@@ -254,7 +238,7 @@ export function ProductDetail() {
                   variant="outline"
                   size="sm"
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => { setDeleteError(null); setConfirmingDelete(true) }}
+                  onClick={() => setConfirmingDelete(true)}
                   disabled={deleting}
                 >
                   <Trash2Icon className="size-4" />
@@ -484,8 +468,8 @@ export function ProductDetail() {
 
           {product.kind === 'SIMPLE' || product.kind === 'CONFIGURABLE' ? (
             <CollapsibleSection
-              title="Product options"
-              description="Custom inputs the customer fills in at add-to-cart (text, select, date, file). Each option can adjust the line price."
+              title="Configurator"
+              description="What the customer picks or fills in before adding to cart, when each option shows up, and rules that change what's required, the quantity or the price."
               open={variantsOpen}
               onOpenChange={setVariantsOpen}
             >
@@ -573,35 +557,16 @@ export function ProductDetail() {
       </DetailPageBody>
     </DetailPageLayout>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmingDelete}
-        onOpenChange={(v) => { if (!v) { setConfirmingDelete(false); setDeleteError(null) } }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {displayName}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes the product and all its attribute assignments.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{deleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(e) => { e.preventDefault(); onDelete() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting…' : 'Delete product'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmingDelete}
+        title={<>Delete {displayName}?</>}
+        description="Permanently removes the product and all its attribute assignments."
+        confirmLabel="Delete product"
+        busyLabel="Deleting…"
+        destructive
+        onConfirm={onDelete}
+      />
 
       <SaveConfirmDialog
         open={confirmingSave}
