@@ -1,7 +1,19 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 import { AUTH_FILE, adminApi, menuAction, navigate, newTab, openWorkspaceMenu, startClean, strips, test, workspaceName } from './helpers'
+import { RUN, cleanup, firstChannel, productTypeId, registerCleanups } from './fixtures'
+
+registerCleanups()
 
 type Stored = { activeWorkspaceId: string; workspaces: { id: string; name: string; panes: { tabs: { title: string }[] }[] }[] }
+
+async function seedProduct(): Promise<string> {
+  const channel = await firstChannel()
+  const { createProduct } = await adminApi<{ createProduct: { id: string } }>('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', {
+    i: { productTypeId: await productTypeId(), kind: 'SIMPLE', sku: `${RUN}-roaming`, locale: 'en', name: 'Roaming product', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
+  })
+  cleanup(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id: createProduct.id }))
+  return createProduct.id
+}
 
 /** The roaming copy as the server holds it: the active workspace's name and its panes' tab titles */
 async function stored(): Promise<{ active: string; strips: string[][] }> {
@@ -95,8 +107,7 @@ test('switching workspace keeps staged edits as a draft instead of asking', asyn
   await landed(page)
 
   // a page that really stages edits - unlike a tab switch, leaving a workspace unmounts it
-  await page.goto('/products', { waitUntil: 'domcontentloaded' })
-  await page.locator('table tbody tr a').first().click()
+  await page.goto(`/products/${await seedProduct()}`, { waitUntil: 'domcontentloaded' })
   const name = page.locator('#pd-name')
   await expect(name).toBeVisible()
   await name.fill('E2E dirty edit')
