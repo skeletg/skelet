@@ -755,7 +755,7 @@ func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*mod
 	return r.renderProductRows(ctx, products, channelID)
 }
 
-func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error) {
+func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
@@ -779,6 +779,22 @@ func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, se
 	for _, k := range kinds {
 		kindValues = append(kindValues, strings.ToLower(string(k)))
 	}
+	categoryUUIDs, err := parseUUIDs(categoryIds)
+	if err != nil {
+		return nil, errInvalidID("categoryIds", err)
+	}
+	collectionUUIDs, err := parseUUIDs(collectionIds)
+	if err != nil {
+		return nil, errInvalidID("collectionIds", err)
+	}
+	minPrice, err := priceBound("priceMin", priceMin)
+	if err != nil {
+		return nil, err
+	}
+	maxPrice, err := priceBound("priceMax", priceMax)
+	if err != nil {
+		return nil, err
+	}
 	f := catalog.ProductPageFilter{
 		Locale:            r.activeLocale(ctx),
 		ChannelID:         chID,
@@ -786,6 +802,12 @@ func (r *queryResolver) ProductsPaged(ctx context.Context, channelID *string, se
 		TypeSlugs:         productTypeSlugs,
 		Published:         published,
 		AttributeValueIDs: valueIDs,
+		CategoryIDs:       categoryUUIDs,
+		CollectionIDs:     collectionUUIDs,
+		PriceMin:          minPrice,
+		PriceMax:          maxPrice,
+		InStock:           inStock,
+		FlatInventory:     inStock != nil && r.InventorySvc != nil && r.InventorySvc.FlatModeEnabled(ctx),
 		SortDesc:          sortDesc != nil && *sortDesc,
 		Limit:             intDeref(limit, 25),
 		Offset:            intDeref(offset, 0),

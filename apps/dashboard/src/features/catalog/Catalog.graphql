@@ -521,6 +521,11 @@ query ProductPickerPaged(
   $productTypeSlugs: [String!]
   $published: Boolean
   $attributeValueIds: [ID!]
+  $categoryIds: [ID!]
+  $collectionIds: [ID!]
+  $priceMin: String
+  $priceMax: String
+  $inStock: Boolean
   $limit: Int
   $offset: Int
   $withAttributes: Boolean! = false
@@ -531,6 +536,11 @@ query ProductPickerPaged(
     productTypeSlugs: $productTypeSlugs
     published: $published
     attributeValueIds: $attributeValueIds
+    categoryIds: $categoryIds
+    collectionIds: $collectionIds
+    priceMin: $priceMin
+    priceMax: $priceMax
+    inStock: $inStock
     limit: $limit
     offset: $offset
   ) {
@@ -561,6 +571,11 @@ query ProductsPaged(
   $productTypeSlugs: [String!]
   $published: Boolean
   $attributeValueIds: [ID!]
+  $categoryIds: [ID!]
+  $collectionIds: [ID!]
+  $priceMin: String
+  $priceMax: String
+  $inStock: Boolean
   $sortKey: String
   $sortDesc: Boolean
   $limit: Int
@@ -573,6 +588,11 @@ query ProductsPaged(
     productTypeSlugs: $productTypeSlugs
     published: $published
     attributeValueIds: $attributeValueIds
+    categoryIds: $categoryIds
+    collectionIds: $collectionIds
+    priceMin: $priceMin
+    priceMax: $priceMax
+    inStock: $inStock
     sortKey: $sortKey
     sortDesc: $sortDesc
     limit: $limit
@@ -1984,5 +2004,32 @@ query RecommendationProducts($ids: [ID!]!) {
     id name sku
     thumbnail { id url altText status }
     displayImage { id url altText status }
+  }
+}
+
+fragment ProductFilterCategory on Category {
+  id
+  name
+}
+
+query ProductFilterOptions {
+  rootCategories {
+    ...ProductFilterCategory
+    children {
+      ...ProductFilterCategory
+      children {
+        ...ProductFilterCategory
+        children {
+          ...ProductFilterCategory
+          children {
+            ...ProductFilterCategory
+          }
+        }
+      }
+    }
+  }
+  collections {
+    id
+    name
   }
 }

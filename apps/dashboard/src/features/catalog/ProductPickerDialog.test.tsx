@@ -4,7 +4,7 @@ import type { MockLink } from '@apollo/client/testing'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { SLOW, renderPage } from '@/test/page-harness'
-import { ProductPickerPagedDocument, ProductTypesDocument } from './Catalog.gql'
+import { AttributesDocument, ProductFilterOptionsDocument, ProductPickerPagedDocument, ProductTypesDocument } from './Catalog.gql'
 import { ProductPickerDialog, type PickExtra, type ProductPick, type PickerOutcome } from './ProductPickerDialog'
 import { defaultColumn, quantityColumn } from './product-picker-columns'
 
@@ -24,9 +24,10 @@ const item = (id: string, name: string) => ({
   displayImage: null,
 })
 
+const noFilters = { categoryIds: null, collectionIds: null, priceMin: null, priceMax: null, inStock: null }
 const pickerVariables = {
   limit: 25, offset: 0, search: null, kinds: null, productTypeSlugs: null,
-  published: null, attributeValueIds: null, withAttributes: false,
+  published: null, ...noFilters, attributeValueIds: null, withAttributes: false,
 }
 
 function productsPage(items: ReturnType<typeof item>[], totalCount = items.length) {
@@ -69,8 +70,22 @@ function Harness({
 }
 
 // renderPage rather than renderDialog - the table reads the admin's list preferences
+const optionMocks: MockLink.MockedResponse[] = [
+  {
+    request: { query: ProductFilterOptionsDocument },
+    result: { data: {
+      rootCategories: [{ __typename: 'Category', id: 'c1', name: 'Clothing', children: [
+        { __typename: 'Category', id: 'c2', name: 'Shirts', children: [] },
+      ] }],
+      collections: [{ __typename: 'Collection', id: 'col1', name: 'Summer' }],
+    } },
+    maxUsageCount: 10,
+  },
+  { request: { query: AttributesDocument }, result: { data: { attributes: [] } }, maxUsageCount: 10 },
+]
+
 function render(node: ReactElement, queryMocks: MockLink.MockedResponse[] = mocks) {
-  return renderPage({ path: '/pick', adminId: 'admin-1', routes: { '/pick': node }, mocks: queryMocks })
+  return renderPage({ path: '/pick', adminId: 'admin-1', routes: { '/pick': node }, mocks: [...queryMocks, ...optionMocks] })
 }
 
 async function pick(name: string) {
@@ -143,7 +158,7 @@ describe('ProductPickerDialog', () => {
     expect(within(dialog).queryByText('Trail Max')).toBeNull()
     expect(within(dialog).getByRole('checkbox', { name: 'Select every product on this page' })).toBeDisabled()
     fireEvent.click(within(dialog).getByText('Air Runner'))
-    expect(within(dialog).getByText('0 selected')).toBeVisible()
+    expect(within(dialog).getByText('Nothing selected yet')).toBeVisible()
     expect(within(dialog).getByRole('button', { name: 'Add products' })).toBeDisabled()
     expect(onConfirm).not.toHaveBeenCalled()
   })
@@ -159,7 +174,7 @@ describe('ProductPickerDialog', () => {
     expect(within(dialog).getByText('2 selected')).toBeVisible()
     expect(all).toBeChecked()
     fireEvent.click(all)
-    expect(within(dialog).getByText('0 selected')).toBeVisible()
+    expect(within(dialog).getByText('Nothing selected yet')).toBeVisible()
     fireEvent.click(all)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }))
     expect(within(dialog).getByRole('checkbox', { name: 'Select Air Runner' })).not.toBeChecked()
@@ -174,7 +189,7 @@ describe('ProductPickerDialog', () => {
       __typename: 'ProductPage', totalCount: 1, items: [item('p2', 'Trail Max')],
     } } }))
     const variables = { limit: 25, offset: 0, search: null, kinds: null, productTypeSlugs: null,
-      published: null, attributeValueIds: null, withAttributes: false }
+      published: null, ...noFilters, attributeValueIds: null, withAttributes: false }
     const pageMock = (offset: number, search: string | null, id: string, name: string): MockLink.MockedResponse => ({
       request: { query: ProductPickerPagedDocument, variables: { ...variables, offset, search } },
       result: { data: { productsPaged: { __typename: 'ProductPage', totalCount: 26, items: [item(id, name)] } } },
@@ -228,7 +243,7 @@ describe('ProductPickerDialog', () => {
     const filteredPage = (offset: number, attribute: string, name: string): MockLink.MockedResponse => ({
       request: { query: ProductPickerPagedDocument, variables: {
         limit: 25, offset, search: null, kinds: ['SIMPLE'], productTypeSlugs: ['shoe'],
-        published: null, attributeValueIds: [attribute], withAttributes: false,
+        published: null, ...noFilters, attributeValueIds: [attribute], withAttributes: false,
       } },
       result: { data: { productsPaged: { __typename: 'ProductPage', totalCount: 26, items: [item(name, name)] } } },
     })
@@ -325,6 +340,33 @@ describe('ProductPickerDialog', () => {
     await within(dialog).findByText('Unpublished match', {}, SLOW)
     fireEvent.click(screen.getByRole('option', { name: 'Unpublished' }))
     await within(dialog).findByText('All statuses', {}, SLOW)
+  })
+
+  it('sends the category, collection, price and stock filters the admin picks', async () => {
+    const pageMock = (filters: Partial<Record<keyof typeof noFilters, unknown>>, name: string): MockLink.MockedResponse => ({
+      request: { query: ProductPickerPagedDocument, variables: { ...pickerVariables, ...filters } },
+      result: productsPage([item(name, name)]),
+    })
+    render(<ProductPickerDialog open title="Pick" onOpenChange={() => {}} onConfirm={() => {}} />, [
+      pageMock({}, 'Everything'),
+      pageMock({ categoryIds: ['c2'] }, 'Shirts only'),
+      pageMock({ categoryIds: ['c2'], inStock: true }, 'Shirts in stock'),
+      pageMock({ categoryIds: ['c2'], inStock: true, collectionIds: ['col1'] }, 'Summer shirts in stock'),
+      mocks[1],
+    ])
+    const dialog = await screen.findByRole('dialog', {}, SLOW)
+    await within(dialog).findByText('Everything', {}, SLOW)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Category' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Clothing › Shirts' }))
+    await within(dialog).findByText('Shirts only', {}, SLOW)
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stock' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'In stock' }))
+    await within(dialog).findByText('Shirts in stock', {}, SLOW)
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Collection' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Summer' }))
+    await within(dialog).findByText('Summer shirts in stock', {}, SLOW)
   })
 
   it('combines kind and product-type filters using server enum values and slugs', async () => {

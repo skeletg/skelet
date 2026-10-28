@@ -381,6 +381,14 @@ extend type Query {
     productTypeSlugs:  [String!]
     published:         Boolean
     attributeValueIds: [ID!]
+    # A category includes its subcategories
+    categoryIds:       [ID!]
+    collectionIds:     [ID!]
+    # Default price bounds as typed ("12.50"), read in each product's own currency
+    priceMin:          String
+    priceMax:          String
+    # true = in stock, false = out of stock, by the same rule the storefront uses
+    inStock:           Boolean
     sortKey:           String
     sortDesc:          Boolean
     limit:             Int = 25
