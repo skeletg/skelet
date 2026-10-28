@@ -490,7 +490,12 @@ LIMIT sqlc.arg(max_values);
 -- name: ListProductsPagedAdmin :many
 -- Server-side page for the admin product list - the unpaginated `products` query hydrates the full graph for every row: measured at 101k products that was a 152MB response taking 20s, and the tab then froze normalising it into the Apollo cache
 -- this returns one page of ids plus the filtered total; the caller hydrates only those ids through the same path it always used
-WITH filtered AS (
+WITH RECURSIVE category_tree AS (
+    SELECT c.id FROM catalog_categories c WHERE c.id = ANY(sqlc.arg(category_ids)::uuid[])
+    UNION
+    SELECT c.id FROM catalog_categories c JOIN category_tree t ON c.parent_id = t.id
+),
+filtered AS (
     SELECT p.id,
            p.sku,
            p.url,
@@ -504,6 +509,7 @@ WITH filtered AS (
     JOIN catalog_product_types pt ON pt.id = p.product_type_id
     LEFT JOIN catalog_product_content co
       ON co.product_id = p.id AND co.locale = sqlc.arg(locale)::text
+    LEFT JOIN currencies cur ON cur.code = p.default_currency_code
     WHERE (sqlc.arg(all_channels)::boolean OR EXISTS (
               SELECT 1 FROM catalog_product_channel_listings l
               WHERE l.product_id = p.id AND l.channel_id = sqlc.arg(channel_id)))
@@ -534,6 +540,34 @@ WITH filtered AS (
                   SELECT count(DISTINCT v2.attribute_id)
                   FROM catalog_attribute_values v2
                   WHERE v2.id = ANY(sqlc.arg(attr_value_ids)::uuid[]))))
+      -- A category reaches its subcategories, the way browsing it in the storefront does
+      AND (cardinality(sqlc.arg(category_ids)::uuid[]) = 0 OR p.id IN (
+              SELECT pc.product_id
+              FROM catalog_product_categories pc
+              WHERE pc.category_id IN (SELECT id FROM category_tree)))
+      AND (cardinality(sqlc.arg(collection_ids)::uuid[]) = 0 OR EXISTS (
+              SELECT 1 FROM catalog_collection_products cp
+              WHERE cp.product_id = p.id AND cp.collection_id = ANY(sqlc.arg(collection_ids)::uuid[])))
+      -- Bounds arrive as typed ('12.50') and scale by each product's own currency, so they mean 12.50 dollars and 12 yen alike
+      AND (NULLIF(sqlc.arg(price_min)::text, '') IS NULL
+           OR p.default_price >= NULLIF(sqlc.arg(price_min)::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      AND (NULLIF(sqlc.arg(price_max)::text, '') IS NULL
+           OR p.default_price <= NULLIF(sqlc.arg(price_max)::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      -- inventory's Salable in SQL: no item is always in stock, flat mode reads the item's own quantity, otherwise the levels at
+      -- the scope's locations (every location globally) less reservations for tracked items - a remote stock provider isn't seen here
+      AND (sqlc.arg(stock)::text = '' OR (sqlc.arg(stock)::text = 'in') = (
+              NOT EXISTS (SELECT 1 FROM inventory_items i0 WHERE i0.product_id = p.id)
+              OR EXISTS (
+                  SELECT 1 FROM inventory_items ii
+                  WHERE ii.product_id = p.id
+                    AND CASE WHEN sqlc.arg(flat_inventory)::boolean THEN NOT ii.tracked OR ii.quantity > 0
+                             ELSE (SELECT coalesce(sum(CASE WHEN ii.tracked THEN lv.quantity - greatest(lv.reserved_quantity, 0) ELSE lv.quantity END), 0)
+                                   FROM inventory_levels lv
+                                   WHERE lv.inventory_item_id = ii.id
+                                     AND (sqlc.arg(all_channels)::boolean OR lv.location_id IN (
+                                          SELECT cl.location_id FROM inventory_channel_locations cl
+                                          WHERE cl.channel_id = sqlc.arg(channel_id)))) > 0
+                        END)))
 )
 SELECT id, COUNT(*) OVER () AS total_count
 FROM filtered

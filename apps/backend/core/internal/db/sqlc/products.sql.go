@@ -1927,7 +1927,12 @@ func (q *Queries) ListProductsForChannel(ctx context.Context, arg ListProductsFo
 }
 
 const listProductsPagedAdmin = `-- name: ListProductsPagedAdmin :many
-WITH filtered AS (
+WITH RECURSIVE category_tree AS (
+    SELECT c.id FROM catalog_categories c WHERE c.id = ANY($5::uuid[])
+    UNION
+    SELECT c.id FROM catalog_categories c JOIN category_tree t ON c.parent_id = t.id
+),
+filtered AS (
     SELECT p.id,
            p.sku,
            p.url,
@@ -1940,37 +1945,66 @@ WITH filtered AS (
     FROM catalog_products p
     JOIN catalog_product_types pt ON pt.id = p.product_type_id
     LEFT JOIN catalog_product_content co
-      ON co.product_id = p.id AND co.locale = $5::text
-    WHERE ($6::boolean OR EXISTS (
+      ON co.product_id = p.id AND co.locale = $6::text
+    LEFT JOIN currencies cur ON cur.code = p.default_currency_code
+    WHERE ($7::boolean OR EXISTS (
               SELECT 1 FROM catalog_product_channel_listings l
-              WHERE l.product_id = p.id AND l.channel_id = $7))
-      AND ($8::text = ''
-           OR p.sku ILIKE '%' || escape_like($8::text) || '%'
-           OR p.url ILIKE '%' || escape_like($8::text) || '%'
-           OR co.name ILIKE '%' || escape_like($8::text) || '%')
-      AND (cardinality($9::text[]) = 0 OR p.kind::text = ANY($9::text[]))
-      AND (cardinality($10::text[]) = 0 OR pt.slug = ANY($10::text[]))
+              WHERE l.product_id = p.id AND l.channel_id = $8))
+      AND ($9::text = ''
+           OR p.sku ILIKE '%' || escape_like($9::text) || '%'
+           OR p.url ILIKE '%' || escape_like($9::text) || '%'
+           OR co.name ILIKE '%' || escape_like($9::text) || '%')
+      AND (cardinality($10::text[]) = 0 OR p.kind::text = ANY($10::text[]))
+      AND (cardinality($11::text[]) = 0 OR pt.slug = ANY($11::text[]))
       -- Published means "has a published listing in scope" - in global mode any
       -- channel counts, which matches what the unpaginated list showed
-      AND (NOT $11::boolean
-           OR $12::boolean = EXISTS (
+      AND (NOT $12::boolean
+           OR $13::boolean = EXISTS (
                 SELECT 1 FROM catalog_product_channel_listings l2
                 WHERE l2.product_id = p.id
                   AND l2.is_published
-                  AND ($6::boolean OR l2.channel_id = $7)))
+                  AND ($7::boolean OR l2.channel_id = $8)))
       -- Same AND-across-attributes / OR-within-one shape the facet count uses: a value id belongs to exactly one
       -- attribute, so counting distinct matched attributes and requiring all of them needs no SQL built per request
-      AND (cardinality($13::uuid[]) = 0 OR p.id IN (
+      AND (cardinality($14::uuid[]) = 0 OR p.id IN (
               SELECT av.product_id
               FROM catalog_product_attribute_values av
-              WHERE av.attribute_value_id = ANY($13::uuid[])
+              WHERE av.attribute_value_id = ANY($14::uuid[])
               GROUP BY av.product_id
               -- How many distinct attributes the selection spans, derived here so no caller has to know: two values of the SAME attribute
               -- must count once, or picking two colours becomes an unsatisfiable AND instead of an OR
               HAVING count(DISTINCT av.attribute_id) = (
                   SELECT count(DISTINCT v2.attribute_id)
                   FROM catalog_attribute_values v2
-                  WHERE v2.id = ANY($13::uuid[]))))
+                  WHERE v2.id = ANY($14::uuid[]))))
+      -- A category reaches its subcategories, the way browsing it in the storefront does
+      AND (cardinality($5::uuid[]) = 0 OR p.id IN (
+              SELECT pc.product_id
+              FROM catalog_product_categories pc
+              WHERE pc.category_id IN (SELECT id FROM category_tree)))
+      AND (cardinality($15::uuid[]) = 0 OR EXISTS (
+              SELECT 1 FROM catalog_collection_products cp
+              WHERE cp.product_id = p.id AND cp.collection_id = ANY($15::uuid[])))
+      -- Bounds arrive as typed ('12.50') and scale by each product's own currency, so they mean 12.50 dollars and 12 yen alike
+      AND (NULLIF($16::text, '') IS NULL
+           OR p.default_price >= NULLIF($16::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      AND (NULLIF($17::text, '') IS NULL
+           OR p.default_price <= NULLIF($17::text, '')::numeric * power(10, coalesce(cur.decimals, 2)))
+      -- inventory's Salable in SQL: no item is always in stock, flat mode reads the item's own quantity, otherwise the levels at
+      -- the scope's locations (every location globally) less reservations for tracked items - a remote stock provider isn't seen here
+      AND ($18::text = '' OR ($18::text = 'in') = (
+              NOT EXISTS (SELECT 1 FROM inventory_items i0 WHERE i0.product_id = p.id)
+              OR EXISTS (
+                  SELECT 1 FROM inventory_items ii
+                  WHERE ii.product_id = p.id
+                    AND CASE WHEN $19::boolean THEN NOT ii.tracked OR ii.quantity > 0
+                             ELSE (SELECT coalesce(sum(CASE WHEN ii.tracked THEN lv.quantity - greatest(lv.reserved_quantity, 0) ELSE lv.quantity END), 0)
+                                   FROM inventory_levels lv
+                                   WHERE lv.inventory_item_id = ii.id
+                                     AND ($7::boolean OR lv.location_id IN (
+                                          SELECT cl.location_id FROM inventory_channel_locations cl
+                                          WHERE cl.channel_id = $8))) > 0
+                        END)))
 )
 SELECT id, COUNT(*) OVER () AS total_count
 FROM filtered
@@ -2020,6 +2054,7 @@ type ListProductsPagedAdminParams struct {
 	SortKey         string      `json:"sort_key"`
 	Off             int32       `json:"off"`
 	Lim             int32       `json:"lim"`
+	CategoryIds     []uuid.UUID `json:"category_ids"`
 	Locale          string      `json:"locale"`
 	AllChannels     bool        `json:"all_channels"`
 	ChannelID       uuid.UUID   `json:"channel_id"`
@@ -2029,6 +2064,11 @@ type ListProductsPagedAdminParams struct {
 	FilterPublished bool        `json:"filter_published"`
 	IsPublished     bool        `json:"is_published"`
 	AttrValueIds    []uuid.UUID `json:"attr_value_ids"`
+	CollectionIds   []uuid.UUID `json:"collection_ids"`
+	PriceMin        string      `json:"price_min"`
+	PriceMax        string      `json:"price_max"`
+	Stock           string      `json:"stock"`
+	FlatInventory   bool        `json:"flat_inventory"`
 }
 
 type ListProductsPagedAdminRow struct {
@@ -2046,6 +2086,7 @@ func (q *Queries) ListProductsPagedAdmin(ctx context.Context, arg ListProductsPa
 		arg.SortKey,
 		arg.Off,
 		arg.Lim,
+		pq.Array(arg.CategoryIds),
 		arg.Locale,
 		arg.AllChannels,
 		arg.ChannelID,
@@ -2055,6 +2096,11 @@ func (q *Queries) ListProductsPagedAdmin(ctx context.Context, arg ListProductsPa
 		arg.FilterPublished,
 		arg.IsPublished,
 		pq.Array(arg.AttrValueIds),
+		pq.Array(arg.CollectionIds),
+		arg.PriceMin,
+		arg.PriceMax,
+		arg.Stock,
+		arg.FlatInventory,
 	)
 	if err != nil {
 		return nil, err

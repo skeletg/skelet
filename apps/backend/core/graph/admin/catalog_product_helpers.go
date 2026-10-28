@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -514,4 +515,18 @@ func allProductContent(p catalog.Product) []*model.ProductContent {
 		return nil
 	}
 	return toProductContentModels(p.AllContent)
+}
+
+var priceBoundPattern = regexp.MustCompile(`^\d{1,12}(\.\d{1,6})?$`)
+
+// The bound reaches SQL as numeric text, so anything but a plain non-negative amount stops here
+func priceBound(field string, v *string) (string, error) {
+	if v == nil {
+		return "", nil
+	}
+	s := strings.TrimSpace(*v)
+	if s == "" || priceBoundPattern.MatchString(s) {
+		return s, nil
+	}
+	return "", errInvalidInput(field, fmt.Errorf("want an amount like 12.50, got %q", s))
 }

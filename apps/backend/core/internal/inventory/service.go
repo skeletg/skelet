@@ -118,6 +118,8 @@ func (s *Service) ledgerEnabled(ctx context.Context) bool {
 	return s.ledger.LedgerEnabled(ctx)
 }
 
+func (s *Service) FlatModeEnabled(ctx context.Context) bool { return s.flatModeEnabled(ctx) }
+
 func (s *Service) flatModeEnabled(ctx context.Context) bool {
 	if s.flatMode == nil {
 		return false

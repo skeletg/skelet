@@ -7,6 +7,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // The role fields and displayImage answer two different questions, and the dashboard depends on the difference: the media-role editor uses mainImage as the assignment itself AND as its staged-save baseline, so a stand-in there would make "set this as main" read as no change and never fire
@@ -50,5 +51,21 @@ func TestAdminProductImageFieldsSeparateRolesFromDisplay(t *testing.T) {
 	empty := toProductBaseModel(catalog.Product{}, nil, nil, nil, nil, nil, nil, nil)
 	if empty.DisplayImage != nil {
 		t.Errorf("DisplayImage = %v, want nil with no media", empty.DisplayImage)
+	}
+}
+
+func TestPriceBoundTakesPlainAmountsOnly(t *testing.T) {
+	for in, want := range map[string]string{"": "", "  7 ": "7", "12.50": "12.50", "1000": "1000"} {
+		if got, err := priceBound("priceMin", &in); err != nil || got != want {
+			t.Errorf("priceBound(%q) = %q, %v - want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"-1", "1e5", "12.5.0", "abc", "12,50", "1234567890123"} {
+		if _, err := priceBound("priceMin", &in); apperr.CodeOf(err) != "INVALID_INPUT" {
+			t.Errorf("priceBound(%q) err = %v, want INVALID_INPUT", in, err)
+		}
+	}
+	if got, err := priceBound("priceMax", nil); err != nil || got != "" {
+		t.Errorf("priceBound(nil) = %q, %v", got, err)
 	}
 }

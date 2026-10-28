@@ -3700,7 +3700,7 @@ type ComplexityRoot struct {
 		ProductTypes                 func(childComplexity int) int
 		Products                     func(childComplexity int, channelID *string) int
 		ProductsByIds                func(childComplexity int, ids []string) int
-		ProductsPaged                func(childComplexity int, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, sortKey *string, sortDesc *bool, limit *int32, offset *int32) int
+		ProductsPaged                func(childComplexity int, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) int
 		PromotionActionTypes         func(childComplexity int) int
 		PromotionAnalytics           func(childComplexity int, start *time.Time, end *time.Time) int
 		PromotionAnalyticsDaily      func(childComplexity int, start *time.Time, end *time.Time, ruleID *string) int
@@ -5402,7 +5402,7 @@ type QueryResolver interface {
 	ProductTypes(ctx context.Context) ([]*model.ProductType, error)
 	ProductType(ctx context.Context, id string) (*model.ProductType, error)
 	Products(ctx context.Context, channelID *string) ([]*model.Product, error)
-	ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error)
+	ProductsPaged(ctx context.Context, channelID *string, search *string, kinds []model.ProductKind, productTypeSlugs []string, published *bool, attributeValueIds []string, categoryIds []string, collectionIds []string, priceMin *string, priceMax *string, inStock *bool, sortKey *string, sortDesc *bool, limit *int32, offset *int32) (*model.ProductPage, error)
 	Product(ctx context.Context, id string) (*model.Product, error)
 	ProductsByIds(ctx context.Context, ids []string) ([]*model.Product, error)
 	ProductLinks(ctx context.Context, productID string, kind model.ProductLinkKind) ([]string, error)
@@ -25577,7 +25577,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.ProductsPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["kinds"].([]model.ProductKind), args["productTypeSlugs"].([]string), args["published"].(*bool), args["attributeValueIds"].([]string), args["sortKey"].(*string), args["sortDesc"].(*bool), args["limit"].(*int32), args["offset"].(*int32)), true
+		return e.ComplexityRoot.Query.ProductsPaged(childComplexity, args["channelId"].(*string), args["search"].(*string), args["kinds"].([]model.ProductKind), args["productTypeSlugs"].([]string), args["published"].(*bool), args["attributeValueIds"].([]string), args["categoryIds"].([]string), args["collectionIds"].([]string), args["priceMin"].(*string), args["priceMax"].(*string), args["inStock"].(*bool), args["sortKey"].(*string), args["sortDesc"].(*bool), args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.promotionActionTypes":
 		if e.ComplexityRoot.Query.PromotionActionTypes == nil {
 			break
@@ -33385,6 +33385,14 @@ extend type Query {
     productTypeSlugs:  [String!]
     published:         Boolean
     attributeValueIds: [ID!]
+    # A category includes its subcategories
+    categoryIds:       [ID!]
+    collectionIds:     [ID!]
+    # Default price bounds as typed ("12.50"), read in each product's own currency
+    priceMin:          String
+    priceMax:          String
+    # true = in stock, false = out of stock, by the same rule the storefront uses
+    inStock:           Boolean
     sortKey:           String
     sortDesc:          Boolean
     limit:             Int = 25
@@ -59847,38 +59855,78 @@ func (ec *executionContext) field_Query_productsPaged_args(ctx context.Context, 
 		return nil, err
 	}
 	args["attributeValueIds"] = arg5
-	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "sortKey",
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "categoryIds",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["categoryIds"] = arg6
+	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "collectionIds",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["collectionIds"] = arg7
+	arg8, err := graphql.ProcessArgField(ctx, rawArgs, "priceMin",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["sortKey"] = arg6
-	arg7, err := graphql.ProcessArgField(ctx, rawArgs, "sortDesc",
+	args["priceMin"] = arg8
+	arg9, err := graphql.ProcessArgField(ctx, rawArgs, "priceMax",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["priceMax"] = arg9
+	arg10, err := graphql.ProcessArgField(ctx, rawArgs, "inStock",
 		func(ctx context.Context, v any) (*bool, error) {
 			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["sortDesc"] = arg7
-	arg8, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	args["inStock"] = arg10
+	arg11, err := graphql.ProcessArgField(ctx, rawArgs, "sortKey",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sortKey"] = arg11
+	arg12, err := graphql.ProcessArgField(ctx, rawArgs, "sortDesc",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sortDesc"] = arg12
+	arg13, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg8
-	arg9, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+	args["limit"] = arg13
+	arg14, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
 		func(ctx context.Context, v any) (*int32, error) {
 			return ec.unmarshalOInt2ᚖint32(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg9
+	args["offset"] = arg14
 	return args, nil
 }
 
@@ -136237,7 +136285,7 @@ func (ec *executionContext) _Query_productsPaged(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ProductsPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["kinds"].([]model.ProductKind), fc.Args["productTypeSlugs"].([]string), fc.Args["published"].(*bool), fc.Args["attributeValueIds"].([]string), fc.Args["sortKey"].(*string), fc.Args["sortDesc"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+			return ec.Resolvers.Query().ProductsPaged(ctx, fc.Args["channelId"].(*string), fc.Args["search"].(*string), fc.Args["kinds"].([]model.ProductKind), fc.Args["productTypeSlugs"].([]string), fc.Args["published"].(*bool), fc.Args["attributeValueIds"].([]string), fc.Args["categoryIds"].([]string), fc.Args["collectionIds"].([]string), fc.Args["priceMin"].(*string), fc.Args["priceMax"].(*string), fc.Args["inStock"].(*bool), fc.Args["sortKey"].(*string), fc.Args["sortDesc"].(*bool), fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductPage) graphql.Marshaler {
