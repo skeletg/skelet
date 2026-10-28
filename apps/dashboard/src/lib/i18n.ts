@@ -20,6 +20,8 @@ export type AdminLocale = {
   plugin: string
 }
 
+// Production @lingui/core ships without the ICU compiler, so the macro's inline English would print raw ("of {lastPage}")
+i18n.setMessagesCompiler(compileMessage)
 i18n.load(SOURCE_LOCALE, {})
 i18n.activate(SOURCE_LOCALE)
 
