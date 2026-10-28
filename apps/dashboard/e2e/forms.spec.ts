@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { adminApi, saveThroughDialog, test } from './helpers'
-import { RUN, cleanup, firstChannel, hasDraft, lexical, open, openScoped, registerCleanups } from './fixtures'
+import { RUN, cleanup, firstChannel, hasDraft, lexical, open, openScoped, productTypeId, registerCleanups } from './fixtures'
 
 // The staged forms against the real API - what the unit tests' mocked Apollo can't show: that a Save
 // writes what the review dialog listed, that sections sharing one backend row don't undo each other,
@@ -22,12 +22,11 @@ type ProductRead = {
 }
 
 async function seedProduct(suffix: string) {
-  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
-  if (!productTypes[0]) throw new Error('the dev stack has no product type')
+  const typeId = await productTypeId()
   const channel = await firstChannel()
   const { createProduct } = await adminApi<{ createProduct: { id: string } }>(
     'mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }',
-    { i: { productTypeId: productTypes[0].id, kind: 'SIMPLE', sku: `${RUN}-${suffix}`, locale: 'en', name: `${RUN} ${suffix}`, defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode } },
+    { i: { productTypeId: typeId, kind: 'SIMPLE', sku: `${RUN}-${suffix}`, locale: 'en', name: `${RUN} ${suffix}`, defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode } },
   )
   const id = createProduct.id
   cleanup(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id }))

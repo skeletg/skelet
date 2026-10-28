@@ -92,8 +92,8 @@ test('the only workspace cannot be deleted, and deleting the current one moves y
   await closeMenu(page)
 
   await createWorkspace(page, 'Scratch')
-  page.on('dialog', (d) => void d.accept())
   await menuAction(page, 'Delete workspace')
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete workspace' }).click()
   await expect.poll(() => workspaceName(page)).toContain('Workspace 1')
 
   await openWorkspaceMenu(page)

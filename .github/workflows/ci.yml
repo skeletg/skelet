@@ -212,15 +212,29 @@ jobs:
         run: |
           cp env/go.env.example env/go.env
           cp env/db.env.example env/db.env
+          cp env/signals.env.example env/signals.env
           seed="$(openssl rand -base64 32 | tr -d '\n')"
           pub="$({ printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; printf '%s' "$seed" | base64 -d; } \
             | openssl pkey -inform DER -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')"
           sed -i -e "s|^CUSTOMER_JWT_PRIVATE_KEY=.*|CUSTOMER_JWT_PRIVATE_KEY=$seed|" \
             -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" \
             -e "s|^CONFIG_ENCRYPTION_KEY=.*|CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n')|" env/go.env
+          sed -i -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" env/signals.env
+      # The dev containers run as SKELET_UID, which only bin/_lib exports - left at compose's 1000, Air can't write to the runner's checkout
+      - name: Container user
+        run: |
+          echo "SKELET_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "SKELET_GID=$(id -g)" >> "$GITHUB_ENV"
+      # Before the stack - the dashboard container's node_modules volume would otherwise leave a root-owned mount point here that pnpm can't write
+      - name: Install
+        working-directory: apps/dashboard
+        run: pnpm install --frozen-lockfile
+      - name: Install the browser
+        working-directory: apps/dashboard
+        run: pnpm exec playwright install --with-deps chromium
       # --wait blocks on the app's healthcheck, and the app migrates before it serves, so healthy means migrated
       - name: Start the stack
-        run: docker compose --profile dashboard up -d --wait app dashboard
+        run: docker compose --profile dashboard --profile signals up -d --wait app dashboard signals
       # The dev admin on a workstation is created by hand, so CI mints its own - the flags exist
       # because the prompts need a TTY
       - name: Seed the e2e admin
@@ -231,12 +245,6 @@ jobs:
       # Vite is up before it is ready to serve, and --wait only knows the container is running
       - name: Wait for the dashboard
         run: timeout 180 bash -c 'until curl -sf -o /dev/null http://localhost:5173/login; do sleep 2; done'
-      - name: Install
-        working-directory: apps/dashboard
-        run: pnpm install --frozen-lockfile
-      - name: Install the browser
-        working-directory: apps/dashboard
-        run: pnpm exec playwright install --with-deps chromium
       - name: Run the suite
         working-directory: apps/dashboard
         run: pnpm run test:e2e
@@ -253,7 +261,7 @@ jobs:
           retention-days: 7
       - name: Stack logs
         if: failure()
-        run: docker compose --profile dashboard logs --tail 200
+        run: docker compose --profile dashboard --profile signals logs --tail 200
 
   docker:
     name: Docker image (${{ matrix.image }})

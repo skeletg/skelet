@@ -88,6 +88,12 @@ async function currentSession(margin: number): Promise<AuthState> {
   return session
 }
 
+/** A new admin's first login opens the welcome tour over the page, so a spec that signs one in by hand spends it here first */
+export async function spendFirstLogin(email: string, password: string): Promise<void> {
+  const out = await api('mutation($e:String!,$p:String!){ adminLogin(input:{email:$e,password:$p}){ accessToken } }', { e: email, p: password })
+  if (out.errors || !out.data) throw new Error(`first login: ${JSON.stringify(out.errors ?? out).slice(0, 300)}`)
+}
+
 export async function adminToken(): Promise<string> {
   return (await currentSession(API_MARGIN_MS)).accessToken
 }
@@ -192,7 +198,8 @@ export async function login(page: Page): Promise<void> {
 export async function startClean(page: Page): Promise<void> {
   await resetWorkspaces()
   await page.addInitScript(() => {
-    if (sessionStorage.getItem('e2e:wiped')) return
+    // Init scripts run in every frame, and an iframe that failed to load - the CMS preview with no storefront up - throws on sessionStorage
+    if (window !== window.top || sessionStorage.getItem('e2e:wiped')) return
     sessionStorage.setItem('e2e:wiped', '1')
     for (const key of Object.keys(localStorage)) {
       if (key.endsWith(':workspaces') || key === 'skelet-dash:workspace-tabs') localStorage.removeItem(key)

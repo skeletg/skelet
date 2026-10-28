@@ -1,6 +1,6 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 import { adminApi, test } from './helpers'
-import { RUN, cleanup, draftKeys, firstChannel, registerCleanups } from './fixtures'
+import { RUN, cleanup, draftKeys, firstChannel, productTypeId, registerCleanups } from './fixtures'
 
 // An admin who may look but not change: every staged-save page they can open must render read-only -
 // no header Save, every input disabled - and must not write drafts for work they can't save. Signs in
@@ -61,9 +61,9 @@ test.afterAll(async () => {
 
 async function seed(): Promise<Seeds> {
   const channel = await firstChannel()
-  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
+  const typeId = await productTypeId()
   const { createProduct } = await adminApi<{ createProduct: { id: string } }>('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', {
-    i: { productTypeId: productTypes[0]?.id, kind: 'SIMPLE', sku: `${RUN}-readonly`, locale: 'en', name: 'Read-only product', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
+    i: { productTypeId: typeId, kind: 'SIMPLE', sku: `${RUN}-readonly`, locale: 'en', name: 'Read-only product', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
   })
   cleanup(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id: createProduct.id }))
   const { createCustomerGroup } = await adminApi<{ createCustomerGroup: { id: string } }>('mutation($i:CreateCustomerGroupInput!){ createCustomerGroup(input:$i){ id } }', {

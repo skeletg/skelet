@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { adminApi, test } from './helpers'
-import { RUN, cleanup, dashboardQueries, firstChannel, lexical, registerCleanups } from './fixtures'
+import { RUN, cleanup, dashboardQueries, firstChannel, lexical, productTypeId, registerCleanups } from './fixtures'
 import { typePolicies } from '../src/lib/apollo-type-policies'
 
 // Translation rows carry no id, so Apollo keeps them under their parent record - and every query that
@@ -56,9 +56,9 @@ async function seedAll(): Promise<Seeded[]> {
     i: { name: 'Other collection', description: doc },
   })
 
-  const { productTypes } = await adminApi<{ productTypes: { id: string }[] }>('{ productTypes { id } }')
+  const typeId = await productTypeId()
   const { createProduct } = await adminApi<{ createProduct: { id: string } }>('mutation($i:CreateProductInput!){ createProduct(input:$i){ id } }', {
-    i: { productTypeId: productTypes[0]?.id, kind: 'SIMPLE', sku: `${RUN}-tr-product`, locale: 'en', name: 'Seeded product', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
+    i: { productTypeId: typeId, kind: 'SIMPLE', sku: `${RUN}-tr-product`, locale: 'en', name: 'Seeded product', defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode },
   })
   add('Product', createProduct.id, 'deleteProduct')
   await adminApi('mutation($p:ID!,$l:String!,$i:UpsertProductContentInput!){ upsertProductContent(productId:$p, locale:$l, input:$i){ id } }', {

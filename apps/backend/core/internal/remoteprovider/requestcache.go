@@ -55,6 +55,13 @@ func (s *Service) listActive(ctx context.Context, kind Kind, channelID *uuid.UUI
 	c.mu.Unlock()
 	if !ok {
 		v, err, _ := c.flight.Do(key, func() (any, error) {
+			// A flight that finished between our miss above and this Do has already filled the map
+			c.mu.Lock()
+			done, ok := c.byChannel[key]
+			c.mu.Unlock()
+			if ok {
+				return done, nil
+			}
 			all, err := s.repo.ListActiveForChannel(ctx, channelID)
 			if err != nil {
 				return nil, err

@@ -53,7 +53,8 @@ export function useRecordForm<T extends object>(opts: RecordFormOptions<T>) {
         throw err
       }
       draft.saved()
-      form.reset(value)
+      // Not on a create: the reset untouches the form, so the next render syncs the empty baseline back in, and a page still up stores that blank as a draft
+      if (isEdit) form.reset(value)
       if (opts.onSaved) await duringCommit(opts.onSaved)
     },
   })
