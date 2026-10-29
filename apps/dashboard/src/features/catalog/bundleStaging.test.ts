@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   CommitError,
   applyOps,
+  selectionLimitText,
   commitOps,
   opsToDiff,
   isTemp,
@@ -36,6 +37,8 @@ const addOption = (tempId: string, over: Partial<AddOptionOp> = {}): PendingOp =
   inputType: 'RADIO',
   isRequired: false,
   sortOrder: 0,
+  minSelections: 0,
+  maxSelections: null,
   locale: 'en',
   ...over,
 }) as PendingOp
@@ -56,6 +59,8 @@ const option = (over: Partial<BundleOption> = {}): BundleOption => ({
   inputType: 'RADIO',
   isRequired: false,
   sortOrder: 0,
+  minSelections: 0,
+  maxSelections: null,
   title: 'Choose one',
   content: [{ locale: 'en', title: 'Choose one' }],
   selections: [],
@@ -223,5 +228,26 @@ describe('a staged translation removal', () => {
     }
     await commitOps([drop], 'p1', c)
     expect(deleteOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'sr' })
+  })
+})
+
+describe('pick limits', () => {
+  it('reads as the customer would hear it', () => {
+    expect([selectionLimitText(3, 3), selectionLimitText(1, 3), selectionLimitText(2, null), selectionLimitText(0, 4), selectionLimitText(0, null)])
+      .toEqual(['pick 3', 'pick 1–3', 'pick 2+', 'up to 4', null])
+  })
+
+  it('stages, words and commits a cleared maximum', async () => {
+    const op: PendingOp = { kind: 'update-option', id: 'o1', minSelections: 2, maxSelections: null }
+    expect(applyOps([option({ maxSelections: 5 })], [op])[0]).toMatchObject({ minSelections: 2, maxSelections: null })
+    expect(opsToDiff([option({ maxSelections: 5 })], [op])).toEqual([
+      expect.objectContaining({ label: 'Option · Choose one · at least', before: '0', after: '2' }),
+      expect.objectContaining({ label: 'Option · Choose one · at most', before: '5', after: 'no limit' }),
+    ])
+  })
+
+  it('folds limits set before the first save into the add', () => {
+    const [add] = reduceOps([addOption('tmp_o1'), { kind: 'update-option', id: 'tmp_o1', minSelections: 3, maxSelections: 3 }])
+    expect(add).toMatchObject({ kind: 'add-option', minSelections: 3, maxSelections: 3 })
   })
 })

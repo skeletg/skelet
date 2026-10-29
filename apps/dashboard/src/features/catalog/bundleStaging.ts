@@ -33,6 +33,9 @@ export type BundleOption = {
   inputType: BundleInputType
   isRequired: boolean
   sortOrder: number
+  // How many picks the customer must and may make - 0 is no explicit minimum (required still means 1), null no maximum. Multi-select only
+  minSelections: number
+  maxSelections: number | null
   title: string
   content: OptionContent[]
   selections: Selection[]
@@ -49,6 +52,8 @@ export type AddOptionOp = {
   inputType: BundleInputType
   isRequired: boolean
   sortOrder: number
+  minSelections: number
+  maxSelections: number | null
   locale: string
 }
 
@@ -61,6 +66,8 @@ export type UpdateOptionOp = {
   inputType?: BundleInputType
   isRequired?: boolean
   sortOrder?: number
+  minSelections?: number
+  maxSelections?: number | null // null clears the bound
 }
 
 export type DeleteOptionOp = {
@@ -171,6 +178,8 @@ function mergeAddWithUpdate(add: AddOptionOp | AddSelectionOp, upd: UpdateOption
       inputType: upd.inputType ?? add.inputType,
       isRequired: upd.isRequired ?? add.isRequired,
       sortOrder: upd.sortOrder ?? add.sortOrder,
+      minSelections: upd.minSelections ?? add.minSelections,
+      maxSelections: upd.maxSelections !== undefined ? upd.maxSelections : add.maxSelections,
     }
   }
   if (add.kind === 'add-selection' && upd.kind === 'update-selection') {
@@ -205,6 +214,8 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           inputType: op.inputType,
           isRequired: op.isRequired,
           sortOrder: op.sortOrder,
+          minSelections: op.minSelections,
+          maxSelections: op.maxSelections,
           content: [{ locale: op.locale, title: op.title }],
           selections: [],
         })
@@ -217,6 +228,8 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           if (op.inputType !== undefined) next.inputType = op.inputType
           if (op.isRequired !== undefined) next.isRequired = op.isRequired
           if (op.sortOrder !== undefined) next.sortOrder = op.sortOrder
+          if (op.minSelections !== undefined) next.minSelections = op.minSelections
+          if (op.maxSelections !== undefined) next.maxSelections = op.maxSelections
           if (op.title !== undefined && op.titleLocale) {
             const locale = op.titleLocale
             const existing = next.content.findIndex((c) => c.locale === locale)
@@ -282,6 +295,16 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
 // ─── Diff for the save-registry ─────────────────────────────────────
 
 // One row per surviving op, with before/after strings in plain English for SaveConfirmDialog
+// A pick limit for display - 0 or null is no limit
+export function selectionLimitText(min: number, max: number | null): string | null {
+  if (min > 0 && max !== null) return min === max ? `pick ${min}` : `pick ${min}–${max}`
+  if (min > 0) return `pick ${min}+`
+  if (max !== null) return `up to ${max}`
+  return null
+}
+
+const limitText = (max: number | null | undefined) => (max === undefined ? undefined : (max ?? 'no limit'))
+
 export function opsToDiff(original: readonly BundleOption[], ops: readonly PendingOp[]): SectionDiffEntry[] {
   const byId = new Map(original.map((o) => [o.id, o]))
   const selById = new Map<string, { option: BundleOption; selection: Selection }>()
@@ -292,7 +315,10 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
   return ops.flatMap((op): SectionDiffEntry[] => {
     switch (op.kind) {
       case 'add-option':
-        return [added(`Option · ${op.title}`, `${op.inputType.toLowerCase()}${op.isRequired ? ' · required' : ''}`)]
+        return [added(
+          `Option · ${op.title}`,
+          [op.inputType.toLowerCase(), op.isRequired && 'required', selectionLimitText(op.minSelections, op.maxSelections)].filter(Boolean).join(' · '),
+        )]
       case 'update-option': {
         const prev = byId.get(op.id)
         const label = `Option · ${prev?.title ?? op.id}`
@@ -305,6 +331,8 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         if (op.inputType !== undefined) push('style', prev?.inputType.toLowerCase(), op.inputType.toLowerCase())
         if (op.isRequired !== undefined) push('required', prev?.isRequired, op.isRequired)
         if (op.sortOrder !== undefined) push('order', prev?.sortOrder, op.sortOrder)
+        if (op.minSelections !== undefined) push('at least', prev?.minSelections, op.minSelections)
+        if (op.maxSelections !== undefined) push('at most', limitText(prev?.maxSelections), limitText(op.maxSelections))
         return rows
       }
       case 'delete-option': {

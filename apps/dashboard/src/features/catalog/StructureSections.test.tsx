@@ -31,7 +31,7 @@ describe('structure section remove confirms', () => {
 
   it('stages a bundle option delete and a selection removal', async () => {
     const selection = { id: 's1', product: widget, quantity: 1, isDefault: false, sortOrder: 0 }
-    const option = { id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, title: 'Size', content: [{ locale: 'en', title: 'Size' }], selections: [selection] }
+    const option = { id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Size', content: [{ locale: 'en', title: 'Size' }], selections: [selection] }
     renderSection(<BundleStructureSection canManage product={{ id: 'p1', bundleOptions: [option] }} />)
     await confirmIn('Remove selection', 'Stage remove')
     await confirmIn('Delete option', 'Stage delete')
@@ -42,7 +42,7 @@ describe('structure section remove confirms', () => {
 // overwrite whichever locale happens to be stored first
 describe('bundle option title locale', () => {
   const option = {
-    id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, title: 'Veličina',
+    id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Veličina',
     content: [{ locale: 'en', title: 'Size' }, { locale: 'sr', title: 'Veličina' }], selections: [],
   }
   const editTitle = async (contentLocale: string) => {
@@ -63,5 +63,34 @@ describe('bundle option title locale', () => {
     await editTitle('sr')
     await confirmIn('Remove translation', 'Stage remove')
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+})
+
+// What this pins: pick limits are only offered where they mean something, and a contradictory pair can't be staged
+describe('bundle option pick limits', () => {
+  const openEdit = async (inputType: 'RADIO' | 'CHECKBOX') => {
+    const option = { id: 'o1', inputType, isRequired: false, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Shirts', content: [{ locale: 'en', title: 'Shirts' }], selections: [] }
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', bundleOptions: [option] }} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit option' }))
+    await screen.findByRole('dialog')
+  }
+
+  it('hides the limits on a single-select option', async () => {
+    await openEdit('RADIO')
+    expect(screen.queryByLabelText('At least')).toBeNull()
+  })
+
+  it('refuses at most below at least', async () => {
+    await openEdit('CHECKBOX')
+    fireEvent.change(screen.getByLabelText('At least'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('At most'), { target: { value: '2' } })
+    expect(screen.getByText('At most can’t be lower than at least.')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Stage edit' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('warns when the minimum outruns the selections', async () => {
+    await openEdit('CHECKBOX')
+    fireEvent.change(screen.getByLabelText('At least'), { target: { value: '3' } })
+    expect(screen.getByText(/customers can’t pick 3 until you add more/)).toBeTruthy()
   })
 })

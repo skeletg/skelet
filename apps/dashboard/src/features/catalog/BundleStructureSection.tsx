@@ -38,7 +38,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCents } from '@/lib/format'
-import type { BundleInputType } from '@/graphql/schema.types'
+import type { BundleInputType, UpdateBundleOptionInput } from '@/graphql/schema.types'
 import {
   AddBundleOptionDocument,
   AddBundleSelectionDocument,
@@ -58,6 +58,7 @@ import {
   newTempId,
   opsToDiff,
   reduceOps,
+  selectionLimitText,
   type BundleOption,
   type Committers,
   type PendingOp,
@@ -87,6 +88,77 @@ const SINGLE_SELECT_TYPES: BundleInputType[] = ['RADIO', 'DROPDOWN']
 
 function isSingleSelect(t: BundleInputType) {
   return SINGLE_SELECT_TYPES.includes(t)
+}
+
+type Limits = { min: number; max: number | null }
+const NO_LIMITS: Limits = { min: 0, max: null }
+
+// The backend refuses counts above one on a single-select option, so switching to one drops the limits
+function effectiveLimits(t: BundleInputType, l: Limits): Limits {
+  return isSingleSelect(t) ? NO_LIMITS : l
+}
+
+// The same bounds the database enforces, said before the save rather than after it
+function limitsError({ min, max }: Limits): string | null {
+  if (!Number.isInteger(min) || min < 0) return 'At least must be 0 or more.'
+  if (max === null) return null
+  if (!Number.isInteger(max) || max < 1) return 'At most must be 1 or more, or left empty for no limit.'
+  if (max < min) return 'At most can’t be lower than at least.'
+  return null
+}
+
+function SelectionLimitsFields({
+  idPrefix,
+  value,
+  onChange,
+  error,
+  selectionCount,
+}: {
+  idPrefix: string
+  value: Limits
+  onChange: (l: Limits) => void
+  error: string | null
+  selectionCount?: number
+}) {
+  const shortBy = selectionCount !== undefined && value.min > selectionCount
+  return (
+    <div className="grid gap-2 rounded-md border p-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-min`}>At least</Label>
+          <Input
+            id={`${idPrefix}-min`}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={value.min}
+            onChange={(e) => onChange({ ...value, min: Number(e.target.value) || 0 })}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-max`}>At most</Label>
+          <Input
+            id={`${idPrefix}-max`}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            placeholder="No limit"
+            value={value.max ?? ''}
+            onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        How many items the customer picks here. 0 and empty mean no limit - a required option still needs one.
+      </p>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {!error && shortBy && (
+        <p className="text-xs text-warning">
+          Only {selectionCount} selection(s) so far - customers can’t pick {value.min} until you add more.
+        </p>
+      )}
+    </div>
+  )
 }
 
 export function BundleStructureSection({
@@ -133,6 +205,8 @@ export function BundleStructureSection({
               productId: op.productId,
               inputType: op.inputType,
               isRequired: op.isRequired,
+              minSelections: op.minSelections,
+              ...(op.maxSelections !== null ? { maxSelections: op.maxSelections } : {}),
               locale: op.locale,
               title: op.title,
             },
@@ -149,16 +223,17 @@ export function BundleStructureSection({
         return fresh.id
       },
       updateOption: async (op) => {
-        const variables: { input: { id: string; inputType?: BundleInputType; isRequired?: boolean; sortOrder?: number } } = {
-          input: { id: op.id },
-        }
-        if (op.inputType !== undefined) variables.input.inputType = op.inputType
-        if (op.isRequired !== undefined) variables.input.isRequired = op.isRequired
-        if (op.sortOrder !== undefined) variables.input.sortOrder = op.sortOrder
+        const input: UpdateBundleOptionInput = { id: op.id }
+        if (op.inputType !== undefined) input.inputType = op.inputType
+        if (op.isRequired !== undefined) input.isRequired = op.isRequired
+        if (op.sortOrder !== undefined) input.sortOrder = op.sortOrder
+        if (op.minSelections !== undefined) input.minSelections = op.minSelections
+        if (op.maxSelections === null) input.clearMaxSelections = true
+        else if (op.maxSelections !== undefined) input.maxSelections = op.maxSelections
         // updateBundleOption only takes structural fields; title is
         // upserted separately by upsertOptionContent below
-        if (variables.input.inputType !== undefined || variables.input.isRequired !== undefined || variables.input.sortOrder !== undefined) {
-          await updateOptionMutation({ variables })
+        if (Object.keys(input).length > 1) {
+          await updateOptionMutation({ variables: { input } })
         }
       },
       upsertOptionContent: async (op) => {
@@ -380,6 +455,9 @@ function OptionCard({
             <PackagePlusIcon className="size-4 text-muted-foreground" />
             <span className="font-medium">{option.title || <span className="text-muted-foreground">Untitled option</span>}</span>
             <Badge variant="outline" className="font-normal">{INPUT_TYPE_LABEL[option.inputType]}</Badge>
+            {!isSingleSelect(option.inputType) && selectionLimitText(option.minSelections, option.maxSelections) && (
+              <Badge variant="outline" className="font-normal">{selectionLimitText(option.minSelections, option.maxSelections)}</Badge>
+            )}
             {option.isRequired ? (
               <Badge variant="secondary" className="font-normal">Required</Badge>
             ) : (
@@ -501,9 +579,13 @@ function AddOptionDialog({
   const [title, setTitle] = useState('')
   const [inputType, setInputType] = useState<BundleInputType>('RADIO')
   const [isRequired, setIsRequired] = useState(true)
+  const [limits, setLimits] = useState<Limits>(NO_LIMITS)
+  const bounds = effectiveLimits(inputType, limits)
+  const limitsErr = limitsError(bounds)
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (limitsErr) return
     onStage({
       kind: 'add-option',
       tempId: newTempId(),
@@ -511,11 +593,14 @@ function AddOptionDialog({
       inputType,
       isRequired,
       sortOrder: existingMaxSort + 1,
+      minSelections: bounds.min,
+      maxSelections: bounds.max,
       locale,
     })
     setTitle('')
     setInputType('RADIO')
     setIsRequired(true)
+    setLimits(NO_LIMITS)
     onOpenChange(false)
   }
 
@@ -570,11 +655,13 @@ function AddOptionDialog({
             </div>
             <Switch id="opt-required" checked={isRequired} onCheckedChange={setIsRequired} />
           </div>
+
+          {!isSingleSelect(inputType) && <SelectionLimitsFields idPrefix="opt" value={limits} onChange={setLimits} error={limitsErr} />}
         </form>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="add-bundle-option" disabled={!title.trim()}>
+          <Button type="submit" form="add-bundle-option" disabled={!title.trim() || !!limitsErr}>
             Stage add
           </Button>
         </DialogFooter>
@@ -602,6 +689,9 @@ function EditOptionDialog({
   const [inputType, setInputType] = useState<BundleInputType>(option.inputType)
   const [isRequired, setIsRequired] = useState(option.isRequired)
   const [sortOrder, setSortOrder] = useState(option.sortOrder)
+  const [limits, setLimits] = useState<Limits>({ min: option.minSelections, max: option.maxSelections })
+  const bounds = effectiveLimits(inputType, limits)
+  const limitsErr = limitsError(bounds)
   const titleLocale = locale
   // No translation yet shows the fallback title - left as is, it stages nothing, typed over, it adds the locale
   const initialTitle = option.content.find((c) => c.locale === locale)?.title ?? option.title
@@ -616,7 +706,10 @@ function EditOptionDialog({
       ...(inputType !== option.inputType ? { inputType } : {}),
       ...(isRequired !== option.isRequired ? { isRequired } : {}),
       ...(sortOrder !== option.sortOrder ? { sortOrder } : {}),
+      ...(bounds.min !== option.minSelections ? { minSelections: bounds.min } : {}),
+      ...(bounds.max !== option.maxSelections ? { maxSelections: bounds.max } : {}),
     }
+    if (limitsErr) return
     // Only stage when there's something to change
     if (Object.keys(op).length > 2) {
       onStage(op)
@@ -677,6 +770,10 @@ function EditOptionDialog({
             </div>
             <Switch id="opt-required-edit" checked={isRequired} onCheckedChange={setIsRequired} />
           </div>
+
+          {!isSingleSelect(inputType) && (
+            <SelectionLimitsFields idPrefix="opt-edit" value={limits} onChange={setLimits} error={limitsErr} selectionCount={option.selections.length} />
+          )}
         </form>
 
         {!isTemp(option.id) && (
@@ -696,7 +793,7 @@ function EditOptionDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="edit-bundle-option">Stage edit</Button>
+          <Button type="submit" form="edit-bundle-option" disabled={!!limitsErr}>Stage edit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

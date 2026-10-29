@@ -906,6 +906,8 @@ query Product($id: ID!) {
       inputType
       isRequired
       sortOrder
+      minSelections
+      maxSelections
       title
       content {
         locale
@@ -1392,6 +1394,8 @@ fragment BundleOptionFields on BundleOption {
   inputType
   isRequired
   sortOrder
+  minSelections
+  maxSelections
   title
   content {
     locale
