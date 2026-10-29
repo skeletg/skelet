@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { Choice } from "./Choice";
 import { Price } from "./Price";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
@@ -88,5 +89,20 @@ describe("ui", () => {
   it("Notice is announced", () => {
     render(<Notice>Out of stock</Notice>);
     expect(screen.getByRole("alert").textContent).toBe("Out of stock");
+  });
+});
+
+describe("Choice", () => {
+  it("is a required radio named by its content, wired to autosubmit", () => {
+    render(<Choice name="sku" value="H-L" checked autosubmit="update-shipping">Large</Choice>);
+    const radio = screen.getByRole("radio", { name: "Large" }) as HTMLInputElement;
+    expect(radio.checked).toBe(true);
+    expect(radio.required).toBe(true);
+    expect(radio.dataset.autosubmit).toBe("update-shipping");
+  });
+
+  it("can be sold out", () => {
+    render(<Choice name="sku" value="H-S" disabled>Small</Choice>);
+    expect((screen.getByRole("radio", { name: "Small" }) as HTMLInputElement).disabled).toBe(true);
   });
 });
