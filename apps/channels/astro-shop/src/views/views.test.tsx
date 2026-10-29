@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { CartView } from "./CartView";
 import { CheckoutView, type CheckoutValues } from "./CheckoutView";
+import { HomeView } from "./HomeView";
 import { NotFoundView } from "./NotFoundView";
 import { OrderPlacedView } from "./OrderPlacedView";
 import { ProductView } from "./ProductView";
@@ -132,5 +133,25 @@ describe("CheckoutView", () => {
     render(<CheckoutView {...base} dest={{ countryCode: "RS", postalCode: "11000" }} groups={[{ key: "g1", selection: null, choices: [] }]} />);
     expect(screen.getAllByRole("alert").map((a) => a.textContent)).toEqual(["These items can't be delivered there.", "No payment method is available for this country."]);
     expect((screen.getByRole("button", { name: "Place order" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("HomeView", () => {
+  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  const card = { id: "p1", url: "mug", name: "Mug", inStock: true, price: 900, compareAtPrice: null, onSale: false, mainImage: null };
+
+  it("lists the collection, counting what's in stock, with the anchors the nav links to", () => {
+    const { container } = render(<HomeView products={[card, { ...card, id: "p2", url: "jug", name: "Jug", inStock: false }]} channel={channel} />);
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+    expect(screen.getAllByRole("link").filter((a) => ["/mug", "/jug"].includes(a.getAttribute("href") ?? ""))).toHaveLength(2);
+    expect(container.textContent).toContain("1 in stock");
+    expect(container.textContent).toContain("2 pieces, each one");
+    expect(["products", "story", "promise"].every((id) => container.querySelector(`#${id}`))).toBe(true);
+    expect(container.querySelector("video")?.muted).toBe(true);
+  });
+
+  it("says when there's nothing for sale", () => {
+    render(<HomeView products={[]} channel={channel} />);
+    expect(screen.getByText("Nothing for sale yet - check back soon.")).toBeTruthy();
   });
 });
