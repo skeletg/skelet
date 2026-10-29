@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Choice } from "./Choice";
+import { Field } from "./Field";
 import { Price } from "./Price";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
@@ -104,5 +105,13 @@ describe("Choice", () => {
   it("can be sold out", () => {
     render(<Choice name="sku" value="H-S" disabled>Small</Choice>);
     expect((screen.getByRole("radio", { name: "Small" }) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+describe("Field", () => {
+  it("labels its control and marks it optional", () => {
+    const { container } = render(<Field label="Phone" optional wide><input name="phone" /></Field>);
+    expect(screen.getByRole("textbox", { name: /^Phone ?\(optional\)$/ })).toBeTruthy();
+    expect(container.firstElementChild?.className).toContain("sm:col-span-2");
   });
 });
