@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Choice } from "./Choice";
 import { Field } from "./Field";
 import { Price } from "./Price";
+import { QuantityInput } from "./QuantityInput";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
 import { Button, ButtonLink, Notice } from "./ui";
@@ -113,5 +114,25 @@ describe("Field", () => {
     const { container } = render(<Field label="Phone" optional wide><input name="phone" /></Field>);
     expect(screen.getByRole("textbox", { name: /^Phone ?\(optional\)$/ })).toBeTruthy();
     expect(container.firstElementChild?.className).toContain("sm:col-span-2");
+  });
+});
+
+describe("QuantityInput", () => {
+  it("is a named number box between step buttons enhance.ts finds by id", () => {
+    render(<QuantityInput id="qty-l1" value={2} max={5} label="Quantity for Mug" item="Mug" autosubmit />);
+    const box = screen.getByRole("spinbutton", { name: "Quantity for Mug" }) as HTMLInputElement;
+    expect(box.value).toBe("2");
+    expect(box.max).toBe("5");
+    expect(box.step).toBe("any");
+    expect(box.hasAttribute("data-autosubmit")).toBe(true);
+    expect(screen.getByRole("button", { name: "One fewer Mug" }).id).toBe("qty-l1-less");
+    expect(screen.getByRole("button", { name: "One more Mug" }).dataset.step).toBe("1");
+  });
+
+  it("leaves autosubmit and arrows off by default", () => {
+    render(<QuantityInput id="quantity" value={1} label="Quantity" />);
+    const box = screen.getByRole("spinbutton");
+    expect(box.hasAttribute("data-autosubmit")).toBe(false);
+    expect(box.hasAttribute("data-arrows")).toBe(false);
   });
 });
