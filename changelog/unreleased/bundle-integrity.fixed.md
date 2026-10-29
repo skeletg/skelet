@@ -23,3 +23,7 @@
   used to look at the bundle itself, which holds no stock, so a short component only failed
   the order at placement. Adding a bundle or raising its quantity now checks every component,
   the same way a simple product is checked.
+- **A bundle no longer picks a default the store doesn't sell.** When a customer left an
+  option untouched, every default was added, including ones not listed on that store, and
+  the add failed over a product they never saw. Defaults the store doesn't sell are now
+  skipped.

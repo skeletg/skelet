@@ -311,3 +311,24 @@ func TestABundleIsRefusedWhenAComponentIsShort(t *testing.T) {
 	short("raising the line to 3", err)
 	h.Settle(t)
 }
+
+// Scenario: one of an option's defaults isn't sold on this store - a customer who leaves the option alone gets the defaults the store does sell, not a refusal over a product they never saw
+func TestAHiddenDefaultIsNotPickedForTheCustomer(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	shown := h.AddProduct(t, f, 500, true, 10)
+	b, _ := h.newBundle(t, f, shown, h.AddProduct(t, f, 250, false, 10))
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	got, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 1})
+	if err != nil {
+		t.Fatalf("add with defaults: %v", err)
+	}
+	if comps := got.Lines[0].Components; len(comps) != 1 || comps[0].ProductID != shown.ID || got.Lines[0].UnitPrice != 500 {
+		t.Fatalf("components = %+v at %d, want only the listed default at 500", comps, got.Lines[0].UnitPrice)
+	}
+	h.Settle(t)
+}

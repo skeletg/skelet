@@ -506,7 +506,35 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 		}
 		snap.Options[i] = os
 	}
+	a.dropHiddenDefaults(ctx, channelID, &snap)
 	return snap, nil
+}
+
+// A default the channel doesn't sell would be auto-picked for a customer who left the option alone, failing their add on a product they never chose - so it stops being a default here. It stays a valid pick, so choosing it outright still fails as unpublished. A lookup failure keeps the defaults
+func (a CartCatalogAdapter) dropHiddenDefaults(ctx context.Context, channelID uuid.UUID, snap *cart.BundleSnapshot) {
+	var ids []uuid.UUID
+	for _, o := range snap.Options {
+		for _, sel := range o.Selections {
+			if sel.IsDefault {
+				ids = append(ids, sel.ProductID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	visible, err := a.svc.FilterVisibleProductIDsForChannel(ctx, ids, channelID)
+	if err != nil {
+		return
+	}
+	for i := range snap.Options {
+		for j := range snap.Options[i].Selections {
+			sel := &snap.Options[i].Selections[j]
+			if _, ok := visible[sel.ProductID]; sel.IsDefault && !ok {
+				sel.IsDefault = false
+			}
+		}
+	}
 }
 
 type CatalogProductLookup struct { // satisfies inventory.ProductLookup for the OrderPlacing reservation listener
