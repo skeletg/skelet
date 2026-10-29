@@ -134,7 +134,7 @@ describe("product page", () => {
     const { res, html } = await render("[...slug]", "/nope", { slug: "nope" });
     expect(res.status).toBe(404);
     expect(html).toContain('content="noindex, follow"');
-    expect(html).toContain("couldn't find that page");
+    expect(dom(html).querySelector("h1")?.textContent).toBe("We couldn't find that page");
   });
 
   it("follows the backend's redirects", async () => {
