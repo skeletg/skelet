@@ -9,6 +9,8 @@ import { Price } from "./Price";
 import { QuantityInput } from "./QuantityInput";
 import { SectionHeading } from "./SectionHeading";
 import { Seo } from "./Seo";
+import { SiteFooter } from "./SiteFooter";
+import { SiteHeader } from "./SiteHeader";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
 import { Button, ButtonLink, Notice } from "./ui";
@@ -177,5 +179,27 @@ describe("Seo", () => {
     expect(doc.title).toBe("Test Shop");
     expect(doc.querySelector("meta[name=robots]")?.getAttribute("content")).toBe("noindex, follow");
     expect(doc.querySelector("meta[name=description]")).toBeNull();
+  });
+});
+
+describe("SiteHeader", () => {
+  it("names the shop, links the sections and carries the hooks the scripts fill", () => {
+    const { container } = render(<SiteHeader shop="Test Shop" />);
+    expect(screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/")?.textContent).toBe("Test Shop");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect([...nav.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/#products", "/#story", "/#promise"]);
+    expect(screen.getByRole("link", { name: "Cart" }).getAttribute("data-astro-prefetch")).toBe("false");
+    expect((container.querySelector("[data-cart-count]") as HTMLElement).hidden).toBe(true);
+    expect(screen.getByRole("button", { name: "Dark theme" }).hasAttribute("data-theme-toggle")).toBe(true);
+  });
+});
+
+describe("SiteFooter", () => {
+  it("shows the font picker only when asked to", () => {
+    const { container, rerender } = render(<SiteFooter shop="Test Shop" />);
+    expect(container.textContent).toContain(`© ${new Date().getFullYear()} Test Shop.`);
+    expect(container.querySelector("[data-font-picker]")).toBeNull();
+    rerender(<SiteFooter shop="Test Shop" fontPicker />);
+    expect(container.querySelector("[data-font-picker]")).not.toBeNull();
   });
 });
