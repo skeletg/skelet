@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CartView } from "./CartView";
+import { CheckoutView, type CheckoutValues } from "./CheckoutView";
 import { NotFoundView } from "./NotFoundView";
 import { OrderPlacedView } from "./OrderPlacedView";
 import { ProductView } from "./ProductView";
@@ -86,5 +87,50 @@ describe("ProductView", () => {
     expect((screen.getByRole("button", { name: "Sold out" }) as HTMLButtonElement).disabled).toBe(true);
     rerender(<ProductView product={{ ...shirt, kind: "BUNDLE" as const }} currency={usd} />);
     expect(container.querySelector("form")).toBeNull();
+  });
+});
+
+describe("CheckoutView", () => {
+  const channel = { name: "Test Shop", defaultLocale: "en", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  const totals = { subtotalCents: 3900, discountCents: 0, shippingCents: 0, taxCents: 0, totalCents: 3900 };
+  const cart = {
+    id: "c1", subtotal: 3900, totalDiscount: 0, lines,
+    checkout: { email: "", paymentProviderSlug: null, destination: null, shippingAddress: null, deliveryGroups: [], requirements: [], totals },
+  };
+  const countries = [{ code: "RS", name: "Serbia" }, { code: "DE", name: "Germany" }];
+  const values: CheckoutValues = {
+    countryCode: "DE", postalCode: "", email: "ana@example.test", firstName: "Ana", lastName: "", street1: "", street2: "", city: "", state: "", phone: "", acceptTerms: false,
+  };
+  const choice = { optionId: "o1", optionName: "Door", kind: "ship_to_address", carrierSlug: "post", methodCode: "m1", methodName: "Standard", priceCents: 0, estimatedArrival: null, value: "o1|post|m1" };
+  const base = { cart, channel, countries, groups: [], picks: new Map(), payments: [], values };
+
+  it("asks where it's going first, and the summary has no shipping line yet", () => {
+    const { container } = render(<CheckoutView {...base} dest={null} />);
+    expect((screen.getByRole("combobox", { name: "Country" }) as HTMLSelectElement).value).toBe("DE");
+    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(container.querySelector("[data-summary]")?.textContent).not.toContain("Shipping");
+    expect(container.querySelector("#update-shipping")).toBeNull();
+  });
+
+  it("then takes delivery, details and payment in one form, keeping what was typed", () => {
+    const payments = [{ providerSlug: "cod", displayName: "Cash on delivery", instructions: "Pay the courier." }];
+    const { container } = render(
+      <CheckoutView {...base} dest={{ countryCode: "RS", postalCode: "11000" }} groups={[{ key: "g1", selection: null, choices: [choice] }]} picks={new Map([["g1", "o1|post|m1"]])} payments={payments} pickedPayment="cod" error="Enter a valid email" />,
+    );
+    expect(screen.getByRole("alert").textContent).toBe("Enter a valid email");
+    expect(container.textContent).toContain("To Serbia 11000");
+    const delivery = screen.getByRole("radio", { name: /Standard/ }) as HTMLInputElement;
+    expect([delivery.checked, delivery.value, delivery.dataset.autosubmit]).toEqual([true, "o1|post|m1", "update-shipping"]);
+    expect((screen.getByRole("radio", { name: /Cash on delivery/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("textbox", { name: "Email" }) as HTMLInputElement).value).toBe("ana@example.test");
+    expect((screen.getByRole("button", { name: "Place order" }) as HTMLButtonElement).disabled).toBe(false);
+    const update = container.querySelector<HTMLButtonElement>("#update-shipping");
+    expect([update?.getAttribute("form"), update?.formNoValidate, update?.dataset.enhance]).toEqual(["checkout-details", true, "[data-summary]"]);
+  });
+
+  it("won't place an order nothing can deliver or pay for", () => {
+    render(<CheckoutView {...base} dest={{ countryCode: "RS", postalCode: "11000" }} groups={[{ key: "g1", selection: null, choices: [] }]} />);
+    expect(screen.getAllByRole("alert").map((a) => a.textContent)).toEqual(["These items can't be delivered there.", "No payment method is available for this country."]);
+    expect((screen.getByRole("button", { name: "Place order" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
