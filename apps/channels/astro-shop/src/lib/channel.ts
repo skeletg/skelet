@@ -2,7 +2,7 @@ import { gql } from "./gql";
 import { siteOrigin } from "./seo";
 import { CurrentChannelDocument, type CurrentChannelQuery } from "../graphql/channel.gql";
 
-type Channel = NonNullable<CurrentChannelQuery["currentChannel"]>;
+export type Channel = NonNullable<CurrentChannelQuery["currentChannel"]>;
 
 // Read on every page including the uncached cart, so it's held here - /api/revalidate drops it on config:public
 let held: { channel: Channel; at: number } | null = null;
