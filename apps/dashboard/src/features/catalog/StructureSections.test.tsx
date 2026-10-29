@@ -37,3 +37,25 @@ describe('structure section remove confirms', () => {
     await confirmIn('Delete option', 'Stage delete')
   })
 })
+
+// What this pins: the option title is edited in the page's content locale - a translated view must neither show nor
+// overwrite whichever locale happens to be stored first
+describe('bundle option title locale', () => {
+  const option = {
+    id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, title: 'Veličina',
+    content: [{ locale: 'en', title: 'Size' }, { locale: 'sr', title: 'Veličina' }], selections: [],
+  }
+  const editTitle = async (contentLocale: string) => {
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', contentLocale, bundleOptions: [option] }} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit option' }))
+    return (await screen.findByLabelText(`Title (${contentLocale})`)) as HTMLInputElement
+  }
+
+  it("edits the page locale's own title", async () => {
+    expect((await editTitle('sr')).value).toBe('Veličina')
+  })
+
+  it('starts an untranslated locale from the fallback title', async () => {
+    expect((await editTitle('de')).value).toBe('Veličina')
+  })
+})

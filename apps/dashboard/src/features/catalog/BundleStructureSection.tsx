@@ -297,6 +297,7 @@ export function BundleStructureSection({
       {canManage && editingOption && (
         <EditOptionDialog
           option={editingOption}
+          locale={product.contentLocale ?? 'en'}
           productId={product.id}
           open
           onOpenChange={(v) => { if (!v) setEditingOption(null) }}
@@ -582,12 +583,15 @@ function AddOptionDialog({
 
 function EditOptionDialog({
   option,
+  locale,
   productId,
   open,
   onOpenChange,
   onStage,
 }: {
   option: BundleOption
+  // The page's content locale - the title is read and written in it, so editing in a translated view never overwrites another locale
+  locale: string
   productId: string
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -599,15 +603,17 @@ function EditOptionDialog({
   const [inputType, setInputType] = useState<BundleInputType>(option.inputType)
   const [isRequired, setIsRequired] = useState(option.isRequired)
   const [sortOrder, setSortOrder] = useState(option.sortOrder)
-  const [title, setTitle] = useState(option.title)
-  const [titleLocale] = useState(option.content[0]?.locale ?? 'en')
+  const titleLocale = locale
+  // No translation yet shows the fallback title - left as is, it stages nothing, typed over, it adds the locale
+  const initialTitle = option.content.find((c) => c.locale === locale)?.title ?? option.title
+  const [title, setTitle] = useState(initialTitle)
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const op = {
       kind: 'update-option' as const,
       id: option.id,
-      ...(title.trim() !== option.title ? { title: title.trim(), titleLocale } : {}),
+      ...(title.trim() !== initialTitle ? { title: title.trim(), titleLocale } : {}),
       ...(inputType !== option.inputType ? { inputType } : {}),
       ...(isRequired !== option.isRequired ? { isRequired } : {}),
       ...(sortOrder !== option.sortOrder ? { sortOrder } : {}),
@@ -625,7 +631,7 @@ function EditOptionDialog({
         <DialogHeader>
           <DialogTitle>Edit option</DialogTitle>
           <DialogDescription>
-            Default-locale title, selection style, required flag, and sort order. Stages until the page-level save.
+            Title in the page's locale, selection style, required flag, and sort order. Stages until the page-level save.
           </DialogDescription>
         </DialogHeader>
 

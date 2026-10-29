@@ -34,3 +34,7 @@
 - **Retrying a failed bundle save no longer duplicates what already went through.** When one
   change in a bundle save failed partway, the ones before it were saved but stayed queued,
   so the retry sent them again. A retry now sends only the changes that didn't go through.
+- **Bundle option titles are edited in the language you're viewing.** Editing a title while
+  the product page showed a translation used to write it into whichever language was stored
+  first, often overwriting the default. The dialog now reads and saves the page's language,
+  and typing a title for a language that has none yet adds that translation.
