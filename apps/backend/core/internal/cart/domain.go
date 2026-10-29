@@ -288,6 +288,18 @@ func OwnsStock(parts []CartLineStockPart) bool {
 	return true
 }
 
+// The products a bundle line's components take stock from, per line unit - the rows hold line totals, so divide back by the line quantity
+func ComponentStockParts(l CartLine) []CartLineStockPart {
+	if l.Quantity <= 0 {
+		return nil
+	}
+	out := make([]CartLineStockPart, 0, len(l.Components))
+	for _, c := range l.Components {
+		out = append(out, CartLineStockPart{ProductID: c.ProductID, Quantity: c.Quantity / l.Quantity})
+	}
+	return out
+}
+
 // The linked sources a configured line's picks take stock from, per line unit
 func OptionStockParts(opts []CartLineOption) []CartLineStockPart {
 	var out []CartLineStockPart

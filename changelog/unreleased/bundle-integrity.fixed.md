@@ -19,3 +19,7 @@
 - **Bundle errors on the storefront no longer show internal ids.** Refused bundle adds and
   checkouts now show a plain message instead of the backend text with option and selection
   UUIDs. Checkout reports a bundle that changed after it was added as `BUNDLE_CHANGED`.
+- **A bundle whose component is out of stock is refused when it's added.** The stock check
+  used to look at the bundle itself, which holds no stock, so a short component only failed
+  the order at placement. Adding a bundle or raising its quantity now checks every component,
+  the same way a simple product is checked.

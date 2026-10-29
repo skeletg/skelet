@@ -148,8 +148,8 @@ func (s *Service) onCartBundleAdding(ctx context.Context, e events.Event) error 
 	if !ok {
 		return nil
 	}
-	// Guard the bundle parent SKU - component availability is enforced at placement
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	// The bundle SKU holds no stock, so its components are what can run out - placement still reserves them for real
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
 }
 
 func (s *Service) onCartLineUpdating(ctx context.Context, e events.Event) error {

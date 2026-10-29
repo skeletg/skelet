@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // Scenario: a bundle prices as the sum of its components' CHANNEL prices (the 2026-08 billing
@@ -280,5 +281,33 @@ func TestABundleLineIsRepricedAtCheckout(t *testing.T) {
 	if err := h.D.DB.QueryRowContext(h.Ctx, `SELECT unit_price FROM order_line_components WHERE order_line_id = $1`, lines[0].ID).Scan(&compPrice); err != nil || compPrice != 800 {
 		t.Fatalf("order component price = %d (%v), want 800", compPrice, err)
 	}
+	h.Settle(t)
+}
+
+// Scenario: a bundle whose component is short - the add and a quantity edit must be refused up front, as a simple product's would, rather than at the payment step
+func TestABundleIsRefusedWhenAComponentIsShort(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	b, _ := h.newBundle(t, f, h.AddProduct(t, f, 500, true, 2))
+	short := func(what string, err error) {
+		t.Helper()
+		if ae, ok := apperr.AsAppError(err); !ok || ae.Code != "CART_INSUFFICIENT_STOCK" {
+			t.Fatalf("%s = %v, want CART_INSUFFICIENT_STOCK", what, err)
+		}
+	}
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	_, err = h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 3})
+	short("adding 3 bundles over a 2-stock component", err)
+
+	got, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 2})
+	if err != nil {
+		t.Fatalf("adding the 2 in stock: %v", err)
+	}
+	_, err = h.D.Cart.UpdateCartLine(h.Ctx, c.ID, got.Lines[0].ID, nil, 3)
+	short("raising the line to 3", err)
 	h.Settle(t)
 }

@@ -460,7 +460,7 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 			LineID:     lineID,
 			ProductSku: line.ProductSku,
 			Quantity:   &quantity,
-			StockParts: OptionStockParts(line.Options),
+			StockParts: append(OptionStockParts(line.Options), ComponentStockParts(line)...),
 		}
 		if err := s.bus.PublishSync(ctx, updating); err != nil {
 			return Cart{}, fmt.Errorf("update cart line rejected: %w", err)

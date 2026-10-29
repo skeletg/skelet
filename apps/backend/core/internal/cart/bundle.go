@@ -69,6 +69,9 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 			UnitPrice:   &unitPrice,
 			Quantity:    &bundleQty,
 		}
+		for i, c := range components {
+			adding.StockParts = append(adding.StockParts, CartLineStockPart{ProductID: c.ProductID, Quantity: perBundle[i]})
+		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add bundle to cart rejected: %w", err)
 		}
