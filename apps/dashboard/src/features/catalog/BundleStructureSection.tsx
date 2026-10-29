@@ -77,11 +77,12 @@ type Bundle = {
   bundleOptions: BundleOption[]
 }
 
+// Said as what the customer does - the widget name alone hid that checkbox and multiselect behave the same
 const INPUT_TYPE_LABEL: Record<BundleInputType, string> = {
-  RADIO: 'Radio',
-  DROPDOWN: 'Dropdown',
-  CHECKBOX: 'Checkbox',
-  MULTISELECT: 'Multiselect',
+  RADIO: 'Pick one · radio',
+  DROPDOWN: 'Pick one · dropdown',
+  CHECKBOX: 'Pick several · checkboxes',
+  MULTISELECT: 'Pick several · list',
 }
 const INPUT_TYPES: BundleInputType[] = ['RADIO', 'DROPDOWN', 'CHECKBOX', 'MULTISELECT']
 const SINGLE_SELECT_TYPES: BundleInputType[] = ['RADIO', 'DROPDOWN']
@@ -630,7 +631,7 @@ function AddOptionDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="opt-input">Selection style</Label>
+            <Label htmlFor="opt-input">Customer picks</Label>
             <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
               <SelectTrigger id="opt-input">
                 <SelectValue />
@@ -639,7 +640,6 @@ function AddOptionDialog({
                 {INPUT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
                     {INPUT_TYPE_LABEL[t]}
-                    {SINGLE_SELECT_TYPES.includes(t) ? ' · single-select' : ' · multi-select'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -723,7 +723,7 @@ function EditOptionDialog({
         <DialogHeader>
           <DialogTitle>Edit option</DialogTitle>
           <DialogDescription>
-            Title in the page's locale, selection style, required flag, and sort order. Stages until the page-level save.
+            Title in the page's locale, how the customer picks, required flag, and sort order. Stages until the page-level save.
           </DialogDescription>
         </DialogHeader>
 
@@ -739,7 +739,7 @@ function EditOptionDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="opt-input-edit">Selection style</Label>
+              <Label htmlFor="opt-input-edit">Customer picks</Label>
               <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
                 <SelectTrigger className="w-full" id="opt-input-edit">
                   <SelectValue />
@@ -830,7 +830,7 @@ function EditSelectionDialog({
     e.preventDefault()
     setErr(null)
     if (blockedByCardinality) {
-      setErr(`${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default selection - clear the other default first.`)
+      setErr('A pick-one option accepts at most one default selection - clear the other default first.')
       return
     }
     const op = {
