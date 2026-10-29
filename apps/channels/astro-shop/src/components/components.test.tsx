@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Choice } from "./Choice";
@@ -7,6 +8,7 @@ import { Field } from "./Field";
 import { Price } from "./Price";
 import { QuantityInput } from "./QuantityInput";
 import { SectionHeading } from "./SectionHeading";
+import { Seo } from "./Seo";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
 import { Button, ButtonLink, Notice } from "./ui";
@@ -149,5 +151,31 @@ describe("SectionHeading", () => {
   it("renders no intro block without children", () => {
     const { container } = render(<SectionHeading eyebrow="Our story" title="Made slowly" />);
     expect(container.firstElementChild?.children).toHaveLength(2);
+  });
+});
+
+describe("Seo", () => {
+  const channel = { name: "Test Shop", defaultLocale: "en-GB", publicUrl: "", currency: { code: "USD", symbol: "", symbolPosition: "prefix", decimals: 2 } };
+  // Head tags, rendered the way the server does - a client render would hoist them out of the container
+  const head = (el: React.ReactElement) => {
+    const doc = document.implementation.createHTMLDocument();
+    doc.head.innerHTML = renderToStaticMarkup(el);
+    return doc;
+  };
+
+  it("titles the page under the shop's name, with canonical, social tags and JSON-LD", () => {
+    const doc = head(<Seo title="Mug" description="A mug." image="https://cdn.test/m.jpg" type="product" structured={[{ "@type": "Product" }]} channel={channel} canonical="https://shop.test/mug" />);
+    expect(doc.title).toBe("Mug · Test Shop");
+    expect(doc.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://shop.test/mug");
+    expect(doc.querySelector("meta[property='og:locale']")?.getAttribute("content")).toBe("en_GB");
+    expect(doc.querySelector("meta[name='twitter:card']")?.getAttribute("content")).toBe("summary_large_image");
+    expect(JSON.parse(doc.querySelector("script[type='application/ld+json']")?.textContent ?? "")).toEqual({ "@type": "Product" });
+  });
+
+  it("falls back to the shop's name and keeps noindex pages out", () => {
+    const doc = head(<Seo noindex channel={channel} canonical="https://shop.test/cart" />);
+    expect(doc.title).toBe("Test Shop");
+    expect(doc.querySelector("meta[name=robots]")?.getAttribute("content")).toBe("noindex, follow");
+    expect(doc.querySelector("meta[name=description]")).toBeNull();
   });
 });

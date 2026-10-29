@@ -1,6 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { getContainerRenderer } from "@astrojs/react/container-renderer";
 import { loadRenderers } from "astro:container";
+import { JSDOM } from "jsdom";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Pages rendered for real, with the backend answered per operation - what the head, the JSON-LD and the
@@ -73,6 +74,10 @@ async function render(page: keyof typeof pages, path: string, params: Record<str
   return { res, html: await res.text() };
 }
 
+// Asserted on the parsed page, so how a tag is spelled (React's "/>", attribute order) doesn't matter
+const dom = (html: string) => new JSDOM(html).window.document;
+const attr = (html: string, selector: string, name: string) => dom(html).querySelector(selector)?.getAttribute(name);
+
 function jsonLdOf(html: string): { "@type": string; [k: string]: unknown }[] {
   return [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]!));
 }
@@ -84,7 +89,7 @@ describe("home page", () => {
     expect(html).toContain('href="/casual-t-shirt"');
     expect(html).not.toContain("Hidden");
     expect(html).toContain("<title>Test Shop</title>");
-    expect(html).toContain('<link rel="canonical" href="https://shop.test/">');
+    expect(attr(html, "link[rel=canonical]", "href")).toBe("https://shop.test/");
     expect(html).toContain('content="index, follow, max-image-preview:large"');
     expect(jsonLdOf(html).map((d) => d["@type"])).toEqual(["WebSite"]);
   });
@@ -96,9 +101,9 @@ describe("product page", () => {
     const { res, html } = await render("[...slug]", "/casual-t-shirt", { slug: "casual-t-shirt" });
     expect(res.status).toBe(200);
     expect(html).toContain("<title>Casual T-Shirt · Test Shop</title>");
-    expect(html).toContain('<meta name="description" content="Soft cotton tee.">');
-    expect(html).toContain('<meta property="og:type" content="product">');
-    expect(html).toContain('<link rel="canonical" href="https://shop.test/casual-t-shirt">');
+    expect(attr(html, "meta[name=description]", "content")).toBe("Soft cotton tee.");
+    expect(attr(html, "meta[property='og:type']", "content")).toBe("product");
+    expect(attr(html, "link[rel=canonical]", "href")).toBe("https://shop.test/casual-t-shirt");
     const [product, crumbs] = jsonLdOf(html);
     expect(product).toMatchObject({ "@type": "Product", sku: "TSHIRT", offers: { price: "15.00", priceCurrency: "USD" } });
     expect(crumbs?.["@type"]).toBe("BreadcrumbList");
@@ -118,8 +123,9 @@ describe("product page", () => {
     };
     backend({ Route: { route: { kind: "PRODUCT", entityId: "p1" } }, ProductPage: { product: hoodie } });
     const { html } = await render("[...slug]", "/hoodie", { slug: "hoodie" });
-    expect(html).toMatch(/value="H-S"[^>]*disabled/);
-    expect(html).toMatch(/value="H-L"[^>]*checked/);
+    const doc = dom(html);
+    expect(doc.querySelector<HTMLInputElement>("input[value=H-S]")?.disabled).toBe(true);
+    expect(doc.querySelector<HTMLInputElement>("input[value=H-L]")?.hasAttribute("checked")).toBe(true);
     expect(html).toContain(">Small<");
   });
 
