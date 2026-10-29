@@ -244,8 +244,41 @@ func TestABundleLineWhosePickWasRemovedIsRefusedAtCheckout(t *testing.T) {
 	if err := h.D.Catalog.DeleteBundleSelection(h.Ctx, got.Lines[0].Components[1].BundleSelectionID); err != nil {
 		t.Fatalf("remove selection: %v", err)
 	}
-	if _, err := h.TryPlace(t, f.Channel, c.ID); !errors.Is(err, cart.ErrBundleSelectionInvalid) {
-		t.Fatalf("place after the pick was removed = %v, want ErrBundleSelectionInvalid", err)
+	if _, err := h.TryPlace(t, f.Channel, c.ID); !errors.Is(err, cart.ErrBundleChanged) {
+		t.Fatalf("place after the pick was removed = %v, want ErrBundleChanged", err)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a component's price changes while its bundle sits in a cart - the order must charge today's sum, the same as a simple line would, and its component rows must carry the new price
+func TestABundleLineIsRepricedAtCheckout(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	mug := h.AddProduct(t, f, 500, true, 10)
+	b, _ := h.newBundle(t, f, mug)
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 2}); err != nil {
+		t.Fatalf("add bundle: %v", err)
+	}
+	price := int64(800)
+	if _, err := h.D.Catalog.SetProductListing(h.Ctx, catalog.ProductChannelListingInput{ProductID: mug.ID, ChannelID: f.Channel.ID, Price: &price, IsPublished: true}); err != nil {
+		t.Fatalf("raise component price: %v", err)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	lines := h.OrderLines(t, o.ID)
+	if len(lines) != 1 || lines[0].UnitPrice != 800 {
+		t.Fatalf("order lines = %+v, want the bundle at today's 800, not the added-at 500", lines)
+	}
+	var compPrice int64
+	if err := h.D.DB.QueryRowContext(h.Ctx, `SELECT unit_price FROM order_line_components WHERE order_line_id = $1`, lines[0].ID).Scan(&compPrice); err != nil || compPrice != 800 {
+		t.Fatalf("order component price = %d (%v), want 800", compPrice, err)
 	}
 	h.Settle(t)
 }

@@ -24,6 +24,7 @@ func init() { // registers cart sentinels so the front presenter forwards their 
 	apperr.RegisterSentinel(ErrBundleSelectionInvalid, "BUNDLE_SELECTION_INVALID", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrBundleSelectionCardinality, "BUNDLE_SELECTION_CARDINALITY", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrBundleOptionUnknown, "BUNDLE_OPTION_UNKNOWN", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrBundleChanged, "BUNDLE_CHANGED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionUnknown, "PRODUCT_OPTION_UNKNOWN", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionMissing, "PRODUCT_OPTION_MISSING", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionInvalid, "PRODUCT_OPTION_INVALID", apperr.ClassValidation)

@@ -388,9 +388,9 @@ type CartLine {
   totalPrice:  Int!
   # Current salable quantity for this line's product (null = untracked or backorderable, i.e. no low-stock warning applies). The storefront warns when this is below the line quantity.
   availableQuantity: Float
-  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set only for simple lines; bundle/configured lines are snapshot-locked. Lets the cart flag price drift.
+  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set for simple and bundle lines (a bundle re-sums its components at today's prices, unless a cart.bundle.adding hook priced it); configured lines are snapshot-locked. Lets the cart flag price drift.
   currentUnitPrice:  Int
-  # Empty for simple-product lines. For bundle lines, one row per picked component - bundle options, quantities, and prices are all snapshotted at the moment of add-to-cart.
+  # Empty for simple-product lines. For bundle lines, one row per picked component - snapshotted at add-to-cart and refreshed to today's prices and quantities at checkout.
   components:  [CartLineComponent!]!
   # The customer's product custom-option picks, snapshotted at add time.
   # Empty for plain and bundle lines.

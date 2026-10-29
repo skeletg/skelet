@@ -54,8 +54,8 @@ func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart
 		return
 	}
 
-	if r.CartSvc != nil { // price drift on simple lines, via the cart's own pricing path
-		prices := r.CartSvc.CurrentSimpleLinePrices(ctx, c)
+	if r.CartSvc != nil { // price drift on simple and bundle lines, via the cart's own pricing path
+		prices := r.CartSvc.CurrentLinePrices(ctx, c)
 		for _, line := range m.Lines {
 			lid, perr := uuid.Parse(line.ID)
 			if perr != nil {

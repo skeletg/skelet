@@ -253,14 +253,23 @@ func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int6
 	return s.repo.PruneStale(ctx, time.Now().Add(-olderThan))
 }
 
-// Effective price (base plus best tier) of each simple line of an already-authorized cart, for flagging drift - bundle and configured lines are snapshot-locked and omitted, and a pricing miss just leaves the line out
-func (s *Service) CurrentSimpleLinePrices(ctx context.Context, c Cart) map[uuid.UUID]int64 {
+// The price checkout would charge each line of an already-authorized cart, for flagging drift - a simple line's base plus best tier, a bundle's re-summed components. Configured lines are snapshot-locked and omitted, and a pricing miss just leaves the line out
+func (s *Service) CurrentLinePrices(ctx context.Context, c Cart) map[uuid.UUID]int64 {
 	out := make(map[uuid.UUID]int64, len(c.Lines))
 	if s.products == nil {
 		return out
 	}
 	for _, l := range c.Lines {
-		if len(l.Components) > 0 || len(l.Options) > 0 || l.PriceOverride || l.IsCustom {
+		if l.PriceOverride || l.IsCustom {
+			continue
+		}
+		if len(l.Components) > 0 {
+			if unit, _, ok := s.liveBundleLine(ctx, c, l); ok {
+				out[l.ID] = unit
+			}
+			continue
+		}
+		if len(l.Options) > 0 {
 			continue
 		}
 		p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
@@ -580,7 +589,7 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 		}
 		if err == nil { // the picks were checked against the bundle as it was at add time - an option or selection removed, or a rule tightened since, would place an order the bundle no longer allows
 			if _, err := bundlePicks(snap, picksFromComponents(snap, l.Components)); err != nil {
-				return fmt.Errorf("bundle %s changed since it was added: %w", l.ProductSku, err)
+				return fmt.Errorf("%w: %s: %s", ErrBundleChanged, l.ProductSku, err.Error()) // text only, not wrapped - the inner rule's code would compete with BUNDLE_CHANGED for the response
 			}
 		}
 		for _, comp := range l.Components {
@@ -593,14 +602,18 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 }
 
 // Re-resolves each line's base price from today's catalog and persists any drift - carts snapshot prices at add time, so without this a checkout after a price change would charge the stale snapshot, and the math mirrors UpdateCartLine's reprice: tier break on the base, the line's snapshot option deltas on top
-// Bundle lines keep their snapshot, since component pricing has no per-SKU re-resolution path - fail-open per line, so a pricing hiccup or persist failure keeps the snapshot rather than blocking checkout, and the returned cart always matches what was persisted
+// Bundle lines re-sum today's components (repriceBundleLine) - fail-open per line, so a pricing hiccup or persist failure keeps the snapshot rather than blocking checkout, and the returned cart always matches what was persisted
 func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 	if s.products == nil {
 		return c
 	}
 	for i := range c.Lines {
 		l := &c.Lines[i]
-		if len(l.Components) > 0 || l.PriceOverride || l.IsCustom { // an admin's offer price is the price
+		if l.PriceOverride || l.IsCustom { // an admin's offer price is the price
+			continue
+		}
+		if len(l.Components) > 0 {
+			s.repriceBundleLine(ctx, c, l)
 			continue
 		}
 		p, err := s.resolvePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
@@ -621,6 +634,30 @@ func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
 		l.UnitPrice = unit
 	}
 	return c
+}
+
+// Rewrites a bundle line from today's components when its price, or a component's price or quantity per bundle, has moved - same fail-open contract as simple lines, and a line that can't be re-resolved is left for ValidateCheckoutLines to refuse
+func (s *Service) repriceBundleLine(ctx context.Context, c Cart, l *CartLine) {
+	unit, components, ok := s.liveBundleLine(ctx, c, *l)
+	if !ok || !bundleLineDrifted(*l, unit, components) {
+		return
+	}
+	var updated CartLine
+	if err := s.inTx(ctx, func(r Repository) error {
+		var err error
+		updated, err = r.UpsertBundleCartLine(ctx, c.ID, AddBundleLineInput{
+			ProductName: l.ProductName,
+			ProductSku:  l.ProductSku,
+			UnitPrice:   unit,
+			Quantity:    l.Quantity,
+			Components:  components,
+		})
+		return err
+	}); err != nil {
+		slog.WarnContext(ctx, "cart: reprice bundle line", "cart", c.ID, "sku", l.ProductSku, "err", err)
+		return
+	}
+	l.UnitPrice, l.Components = unit, updated.Components
 }
 
 func (s *Service) resolvePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (SimplePricing, error) { // the single funnel for cart pricing, catalog price then the remote override when wired, so every call site applies it uniformly

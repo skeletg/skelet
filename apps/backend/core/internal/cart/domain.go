@@ -50,6 +50,7 @@ var ErrProductNotBundle = errors.New("AddBundleToCart requires a product of kind
 var ErrProductNotPublished = errors.New("product is not published on this store")
 
 var ErrBundleSelectionMissing = errors.New("bundle requires a selection for a required option")
+var ErrBundleChanged = errors.New("bundle changed since it was added to the cart") // checkout's answer when stored picks no longer fit the live bundle - one code for the shopper, the specific rule only in the message
 
 var ErrBundleSelectionInvalid = errors.New("bundle selection does not belong to this bundle")
 
