@@ -456,6 +456,9 @@ func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibili
 
 func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uuid.UUID, sku string) (cart.BundleSnapshot, error) {
 	p, err := a.svc.GetProductBySKU(ctx, sku)
+	if errors.Is(err, catalog.ErrProductNotFound) { // a bundle deleted under a cart line is a definite "not sellable here", so checkout refuses it instead of treating it as a lookup hiccup
+		return cart.BundleSnapshot{}, fmt.Errorf("bundle %q: %w", sku, cart.ErrProductNotPublished)
+	}
 	if err != nil {
 		return cart.BundleSnapshot{}, err
 	}

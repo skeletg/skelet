@@ -175,3 +175,54 @@ func TestKitReservesComponentsAndFailsClosed(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// One required checkbox option over the given components, listed on the store at 0 - returns the bundle and its option
+func (h *harness) newBundle(t *testing.T, f *store, comps ...catalog.Product) (catalog.Product, catalog.BundleOption) {
+	t.Helper()
+	b, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
+		ProductTypeID: f.Product.ProductTypeID, Locale: "en",
+		Name: "E2E Bundle " + uuid.NewString()[:8], SKU: "e2e-bundle-" + uuid.NewString()[:8],
+		Kind: catalog.KindBundle, DefaultCurrencyCode: "USD",
+	})
+	if err != nil {
+		t.Fatalf("create bundle: %v", err)
+	}
+	h.ListOn(t, f.Channel, b.ID, 0)
+	opt, err := h.D.Catalog.AddBundleOption(h.Ctx, catalog.AddBundleOptionInput{
+		ProductID: b.ID, InputType: catalog.BundleInputCheckbox,
+		IsRequired: true, MinSelections: 1, Locale: "en", Title: "Pick parts",
+	})
+	if err != nil {
+		t.Fatalf("bundle option: %v", err)
+	}
+	for i, c := range comps {
+		if _, err := h.D.Catalog.AddBundleSelection(h.Ctx, catalog.AddBundleSelectionInput{
+			OptionID: opt.ID, ProductID: c.ID, Quantity: 1, SortOrder: int32(i), IsDefault: true,
+		}); err != nil {
+			t.Fatalf("selection %d: %v", i, err)
+		}
+	}
+	return b, opt
+}
+
+// Scenario: the merchant deletes a bundle while it sits in a cart - checkout must refuse the line, not place an order for a product that no longer exists
+func TestADeletedBundleIsRefusedAtCheckout(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	b, _ := h.newBundle(t, f, h.AddProduct(t, f, 500, true, 10))
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 1}); err != nil {
+		t.Fatalf("add bundle: %v", err)
+	}
+	if err := h.D.Catalog.DeleteProduct(h.Ctx, b.ID); err != nil {
+		t.Fatalf("delete bundle: %v", err)
+	}
+	if _, err := h.TryPlace(t, f.Channel, c.ID); !errors.Is(err, cart.ErrProductNotPublished) {
+		t.Fatalf("place after delete = %v, want ErrProductNotPublished", err)
+	}
+	h.Settle(t)
+}
