@@ -197,6 +197,9 @@ func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput) ([]picke
 			out = append(out, pickedSelection{BundleSelectionSnapshot: sel, optionID: opt.ID})
 		}
 	}
+	if len(out) == 0 { // a line with no components prices at zero and reads as a simple line downstream, so checkout would let it through for free
+		return nil, fmt.Errorf("%w: the bundle needs at least one selection", ErrBundleSelectionMissing)
+	}
 	return out, nil
 }
 

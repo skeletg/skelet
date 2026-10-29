@@ -18,6 +18,9 @@ func TestBundlePicks(t *testing.T) {
 	min2 := snap
 	min2.Options = append([]BundleOptionSnapshot(nil), snap.Options...)
 	min2.Options[1].MinSelections = 2
+	optional := snap
+	optional.Options = append([]BundleOptionSnapshot(nil), snap.Options...)
+	optional.Options[0].IsRequired = false
 
 	for _, tc := range []struct {
 		name    string
@@ -34,6 +37,8 @@ func TestBundlePicks(t *testing.T) {
 		{"two values on a radio", snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel, uuid.New()}}}, 0, ErrBundleSelectionCardinality},
 		{"a selection from nowhere", snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{uuid.New()}}}, 0, ErrBundleSelectionInvalid},
 		{"an option from nowhere", snap, []AddBundleSelectionInput{{OptionID: uuid.New()}}, 0, ErrBundleOptionUnknown},
+		{"every optional option left empty", optional, []AddBundleSelectionInput{{OptionID: mugs}, {OptionID: coasters}}, 0, ErrBundleSelectionMissing},
+		{"no options at all", BundleSnapshot{}, nil, 0, ErrBundleSelectionMissing},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := bundlePicks(tc.snap, tc.in)
