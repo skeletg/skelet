@@ -184,3 +184,37 @@ func TestALostSavedItemClaimAddsNothing(t *testing.T) {
 		t.Fatalf("%d adds from a move that lost the claim, want none", repo.upserts)
 	}
 }
+
+// Checkout re-runs the add-time rules on the line's stored picks against today's bundle
+func TestStoredPicksAgainstAChangedBundle(t *testing.T) {
+	snap, mugs, coasters, mugSel, coasterSel := mugSet()
+	snap.Options[1].Selections[0].IsDefault = true
+	line := []CartLineComponent{{BundleOptionID: mugs, BundleSelectionID: mugSel}, {BundleOptionID: coasters, BundleSelectionID: coasterSel}}
+	only := func(o ...BundleOptionSnapshot) BundleSnapshot { return BundleSnapshot{Options: o} }
+	noCoaster := snap.Options[1]
+	noCoaster.Selections = nil
+	required := BundleOptionSnapshot{ID: uuid.New(), InputType: "radio", IsRequired: true, Selections: []BundleSelectionSnapshot{{ID: uuid.New(), IsDefault: true}}}
+
+	for _, tc := range []struct {
+		name    string
+		snap    BundleSnapshot
+		comps   []CartLineComponent
+		wantErr error
+	}{
+		{"unchanged", snap, line, nil},
+		{"the picked selection was removed", only(snap.Options[0], noCoaster), line, ErrBundleSelectionInvalid},
+		{"the picked option was removed", only(snap.Options[0]), line, ErrBundleOptionUnknown},
+		{"a required option was added", only(snap.Options[0], snap.Options[1], required), line, ErrBundleSelectionMissing},
+		{"an untouched default is not slipped in", snap, line[:1], nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := bundlePicks(tc.snap, picksFromComponents(tc.snap, tc.comps))
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err %v, want %v", err, tc.wantErr)
+			}
+			if err == nil && len(got) != len(tc.comps) {
+				t.Fatalf("%d picks from %d stored components", len(got), len(tc.comps))
+			}
+		})
+	}
+}

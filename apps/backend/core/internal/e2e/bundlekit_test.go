@@ -226,3 +226,26 @@ func TestADeletedBundleIsRefusedAtCheckout(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// Scenario: the merchant removes a selection from a bundle while a cart holds it - checkout must refuse the line, since the bundle no longer offers what the customer picked
+func TestABundleLineWhosePickWasRemovedIsRefusedAtCheckout(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	b, _ := h.newBundle(t, f, h.AddProduct(t, f, 500, true, 10), h.AddProduct(t, f, 250, true, 10))
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	got, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 1})
+	if err != nil || len(got.Lines) != 1 || len(got.Lines[0].Components) != 2 {
+		t.Fatalf("add bundle with both defaults: %+v %v", got.Lines, err)
+	}
+	if err := h.D.Catalog.DeleteBundleSelection(h.Ctx, got.Lines[0].Components[1].BundleSelectionID); err != nil {
+		t.Fatalf("remove selection: %v", err)
+	}
+	if _, err := h.TryPlace(t, f.Channel, c.ID); !errors.Is(err, cart.ErrBundleSelectionInvalid) {
+		t.Fatalf("place after the pick was removed = %v, want ErrBundleSelectionInvalid", err)
+	}
+	h.Settle(t)
+}

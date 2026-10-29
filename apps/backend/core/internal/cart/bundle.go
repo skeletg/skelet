@@ -203,6 +203,27 @@ func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput) ([]picke
 	return out, nil
 }
 
+// Rebuilds a line's picks from its component rows, with every live option supplied - an option the line has nothing for is an explicit empty pick, so a since-required option fails instead of quietly taking today's defaults, and an option that no longer exists is still sent so bundlePicks rejects it
+func picksFromComponents(snap BundleSnapshot, comps []CartLineComponent) []AddBundleSelectionInput {
+	byOption := make(map[uuid.UUID][]uuid.UUID, len(snap.Options))
+	var order []uuid.UUID
+	for _, o := range snap.Options {
+		byOption[o.ID] = nil
+		order = append(order, o.ID)
+	}
+	for _, c := range comps {
+		if _, ok := byOption[c.BundleOptionID]; !ok {
+			order = append(order, c.BundleOptionID)
+		}
+		byOption[c.BundleOptionID] = append(byOption[c.BundleOptionID], c.BundleSelectionID)
+	}
+	out := make([]AddBundleSelectionInput, 0, len(order))
+	for _, id := range order {
+		out = append(out, AddBundleSelectionInput{OptionID: id, SelectionIDs: byOption[id]})
+	}
+	return out
+}
+
 func selectionOn(opt BundleOptionSnapshot, id uuid.UUID) (BundleSelectionSnapshot, bool) {
 	for _, sel := range opt.Selections {
 		if sel.ID == id {

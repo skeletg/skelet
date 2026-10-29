@@ -574,8 +574,14 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 			}
 			continue
 		}
-		if _, err := s.products.ResolveBundleBySKU(ctx, c.ChannelID, l.ProductSku); errors.Is(err, ErrProductNotPublished) {
+		snap, err := s.products.ResolveBundleBySKU(ctx, c.ChannelID, l.ProductSku)
+		if errors.Is(err, ErrProductNotPublished) {
 			return err
+		}
+		if err == nil { // the picks were checked against the bundle as it was at add time - an option or selection removed, or a rule tightened since, would place an order the bundle no longer allows
+			if _, err := bundlePicks(snap, picksFromComponents(snap, l.Components)); err != nil {
+				return fmt.Errorf("bundle %s changed since it was added: %w", l.ProductSku, err)
+			}
 		}
 		for _, comp := range l.Components {
 			if _, err := s.products.ResolveSimplePricing(ctx, c.ChannelID, comp.ProductSku, c.CustomerID); errors.Is(err, ErrProductNotPublished) || errors.Is(err, ErrProductNotPurchasable) {
