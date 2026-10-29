@@ -31,3 +31,6 @@
   not listed on the store, accepted one available pick for an option that needs two, and
   showed a bundle as in stock when nothing in it could be bought. It now applies the same
   rules as add-to-cart.
+- **Retrying a failed bundle save no longer duplicates what already went through.** When one
+  change in a bundle save failed partway, the ones before it were saved but stayed queued,
+  so the retry sent them again. A retry now sends only the changes that didn't go through.

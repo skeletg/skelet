@@ -334,8 +334,20 @@ export type Committers = {
   deleteSelection: (op: { id: string }) => Promise<void>
 }
 
+// Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
+// can keep just that and a retry resumes instead of re-running committed adds and duplicating selections
+export class CommitError extends Error {
+  remaining: PendingOp[]
+  constructor(cause: unknown, remaining: PendingOp[]) {
+    super(cause instanceof Error ? cause.message : String(cause))
+    this.name = 'CommitError'
+    this.cause = cause
+    this.remaining = remaining
+  }
+}
+
 // Builds the tempId -> realId map incrementally, so a later op referencing an added entity writes to the right row - An error aborts the
-// loop and propagates to the parent's global save handler - ops that already succeeded are NOT rolled back, they're dropped before retry
+// loop with a CommitError - ops that already succeeded are NOT rolled back, the section drops them so a retry doesn't repeat them
 export async function commitOps(
   ops: readonly PendingOp[],
   productId: string,
@@ -344,50 +356,69 @@ export async function commitOps(
   const idMap = new Map<string, string>()
   const resolve = (id: string) => idMap.get(id) ?? id
 
-  for (const op of ops) {
-    switch (op.kind) {
-      case 'add-option': {
-        const realId = await committers.addOption({ ...op, productId })
-        idMap.set(op.tempId, realId)
-        break
-      }
-      case 'update-option': {
-        const id = resolve(op.id)
-        await committers.updateOption({ ...op, id })
-        if (op.title !== undefined && op.titleLocale) {
-          await committers.upsertOptionContent({
-            optionId: id,
-            locale: op.titleLocale,
-            title: op.title,
-          })
-        }
-        break
-      }
-      case 'delete-option': {
-        const id = resolve(op.id)
-        if (isTemp(id)) break // never made it to the server
-        await committers.deleteOption({ id })
-        break
-      }
-      case 'add-selection': {
-        const optionId = resolve(op.optionRef)
-        const realId = await committers.addSelection({ ...op, optionRef: optionId })
-        idMap.set(op.tempId, realId)
-        break
-      }
-      case 'update-selection': {
-        const id = resolve(op.id)
-        await committers.updateSelection({ ...op, id })
-        break
-      }
-      case 'delete-selection': {
-        const id = resolve(op.id)
-        if (isTemp(id)) break
-        await committers.deleteSelection({ id })
-        break
-      }
+  for (let i = 0; i < ops.length; i++) {
+    try {
+      await commitOne(ops[i], productId, committers, idMap, resolve)
+    } catch (err) {
+      const remaining = ops.slice(i).map((o): PendingOp => {
+        if (o.kind === 'add-option') return o
+        if (o.kind === 'add-selection') return { ...o, optionRef: resolve(o.optionRef) }
+        return { ...o, id: resolve(o.id) }
+      })
+      throw new CommitError(err, remaining)
     }
   }
 
   return { idMap }
+}
+
+async function commitOne(
+  op: PendingOp,
+  productId: string,
+  committers: Committers,
+  idMap: Map<string, string>,
+  resolve: (id: string) => string,
+): Promise<void> {
+  switch (op.kind) {
+    case 'add-option': {
+      const realId = await committers.addOption({ ...op, productId })
+      idMap.set(op.tempId, realId)
+      break
+    }
+    case 'update-option': {
+      const id = resolve(op.id)
+      await committers.updateOption({ ...op, id })
+      if (op.title !== undefined && op.titleLocale) {
+        await committers.upsertOptionContent({
+          optionId: id,
+          locale: op.titleLocale,
+          title: op.title,
+        })
+      }
+      break
+    }
+    case 'delete-option': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break // never made it to the server
+      await committers.deleteOption({ id })
+      break
+    }
+    case 'add-selection': {
+      const optionId = resolve(op.optionRef)
+      const realId = await committers.addSelection({ ...op, optionRef: optionId })
+      idMap.set(op.tempId, realId)
+      break
+    }
+    case 'update-selection': {
+      const id = resolve(op.id)
+      await committers.updateSelection({ ...op, id })
+      break
+    }
+    case 'delete-selection': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break
+      await committers.deleteSelection({ id })
+      break
+    }
+  }
 }

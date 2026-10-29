@@ -1,12 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  CommitError,
   applyOps,
+  commitOps,
   isTemp,
   newTempId,
   reduceOps,
   type AddOptionOp,
   type AddSelectionOp,
   type BundleOption,
+  type Committers,
   type PendingOp,
   type SelectionProduct,
 } from './bundleStaging'
@@ -177,5 +180,22 @@ describe('applyOps', () => {
     const out = applyOps([], [addOption('tmp_o1'), addSelection('tmp_s1'), { kind: 'delete-selection', id: 'tmp_s1' }])
     expect(out).toHaveLength(1)
     expect(out[0].selections).toEqual([])
+  })
+})
+
+describe('commitOps', () => {
+  it('hands back only the unapplied tail, pointed at the rows it already made', async () => {
+    const noop = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: vi.fn(async () => 'o-real'), updateOption: noop, upsertOptionContent: noop, deleteOption: noop,
+      addSelection: vi.fn(async () => {
+        throw new Error('boom')
+      }),
+      updateSelection: noop, deleteSelection: noop,
+    }
+    const err = await commitOps([addOption('tmp_o1'), addSelection('tmp_s1', { optionRef: 'tmp_o1' })], 'p1', c).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CommitError)
+    expect(c.addOption).toHaveBeenCalledTimes(1)
+    expect((err as CommitError).remaining).toEqual([expect.objectContaining({ kind: 'add-selection', tempId: 'tmp_s1', optionRef: 'o-real' })])
   })
 })
