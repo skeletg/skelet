@@ -107,8 +107,9 @@ describe("product page", () => {
     const [product, crumbs] = jsonLdOf(html);
     expect(product).toMatchObject({ "@type": "Product", sku: "TSHIRT", offers: { price: "15.00", priceCurrency: "USD" } });
     expect(crumbs?.["@type"]).toBe("BreadcrumbList");
-    expect(html).toMatch(/<form method="post" action="\/cart"/);
-    expect(html).toContain('name="sku" value="TSHIRT"');
+    const form = dom(html).querySelector<HTMLFormElement>("form[action='/cart']");
+    expect(form?.method).toBe("post");
+    expect((form?.elements.namedItem("sku") as HTMLInputElement | null)?.value).toBe("TSHIRT");
   });
 
   it("offers in-stock variants and disables sold-out ones", async () => {

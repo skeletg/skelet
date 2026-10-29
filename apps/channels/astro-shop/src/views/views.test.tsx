@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CartView } from "./CartView";
 import { NotFoundView } from "./NotFoundView";
 import { OrderPlacedView } from "./OrderPlacedView";
+import { ProductView } from "./ProductView";
 
 afterEach(cleanup);
 
@@ -51,5 +52,39 @@ describe("CartView", () => {
     expect([...forms].map((f) => (f.elements.namedItem("intent") as HTMLInputElement).value)).toEqual(["update", "remove", "update", "remove"]);
     expect(container.textContent).toContain("−$4.00");
     expect(screen.getByRole("link", { name: "Checkout" }).getAttribute("href")).toBe("/checkout");
+  });
+});
+
+describe("ProductView", () => {
+  const shirt = {
+    id: "p1", url: "casual-t-shirt", sku: "TSHIRT", name: "Casual T-Shirt", kind: "SIMPLE" as const, inStock: true, price: 1500,
+    compareAtPrice: null, onSale: false, minOrderQty: 2, quantityStep: 1, maxOrderQty: null, metaTitle: null, metaDescription: null,
+    description: { root: { children: [{ children: [{ text: "Soft cotton tee." }] }] } }, mainImage: null, children: [],
+  };
+  const sku = (c: HTMLElement) => c.querySelector<HTMLFormElement>("form[action='/cart']")?.elements.namedItem("sku") as HTMLInputElement;
+
+  it("adds a simple product as itself, from its minimum quantity", () => {
+    const { container } = render(<ProductView product={shirt} currency={usd} />);
+    expect(sku(container).value).toBe("TSHIRT");
+    expect((screen.getByRole("spinbutton", { name: "Quantity" }) as HTMLInputElement).value).toBe("2");
+    expect(screen.getByRole("button", { name: "Add to cart" })).toBeTruthy();
+    expect(screen.getByText("Soft cotton tee.")).toBeTruthy();
+  });
+
+  it("offers a configurable product's variants, picking the first in stock", () => {
+    const hoodie = { ...shirt, kind: "CONFIGURABLE" as const, name: "Hoodie", children: [
+      { id: "v1", sku: "H-S", name: "Hoodie / Small", inStock: false, price: 4900 },
+      { id: "v2", sku: "H-L", name: "Hoodie / Large", inStock: true, price: 4900 },
+    ] };
+    render(<ProductView product={hoodie} currency={usd} />);
+    expect((screen.getByRole("radio", { name: /Small/ }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("radio", { name: /Large/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("can't be bought sold out, and has no form when this shop can't sell it", () => {
+    const { rerender, container } = render(<ProductView product={{ ...shirt, inStock: false }} currency={usd} />);
+    expect((screen.getByRole("button", { name: "Sold out" }) as HTMLButtonElement).disabled).toBe(true);
+    rerender(<ProductView product={{ ...shirt, kind: "BUNDLE" as const }} currency={usd} />);
+    expect(container.querySelector("form")).toBeNull();
   });
 });
