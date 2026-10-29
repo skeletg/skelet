@@ -144,15 +144,30 @@ async function render(page: keyof typeof pages, path: string, { params = {}, coo
   return { status: res.status, html: normalize(await res.text()) };
 }
 
-// One element per line, attributes sorted, so a diff points at exactly what moved
+// Where a leading or trailing space is part of the line - inside anything else, the browser doesn't draw it
+const inline = new Set(["a", "b", "em", "i", "label", "s", "small", "span", "strong"]);
+
+// One element per line, attributes sorted, so a diff points at exactly what moved. Comments go and the text around
+// them merges, so React's <!-- --> separators and Astro's template comments both drop out
 function normalize(html: string): string {
   // The dev script src carries the checkout's absolute path
-  const { document, Node } = new JSDOM(html.replaceAll(process.cwd(), "<root>")).window;
+  const { document, Node, NodeFilter } = new JSDOM(html.replaceAll(process.cwd(), "<root>")).window;
+  const comments = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT);
+  const dead: Node[] = [];
+  while (comments.nextNode()) dead.push(comments.currentNode);
+  dead.forEach((c) => c.parentNode?.removeChild(c));
+  document.documentElement.normalize();
+
   const out: string[] = [];
   const walk = (node: Node, depth: number) => {
     const pad = "  ".repeat(depth);
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = (node.textContent ?? "").replace(/\s+/g, " ");
+      let text = (node.textContent ?? "").replace(/\s+/g, " ");
+      const parent = node.parentElement?.tagName.toLowerCase() ?? "";
+      if (!inline.has(parent)) {
+        if (!node.previousSibling) text = text.trimStart();
+        if (!node.nextSibling) text = text.trimEnd();
+      }
       if (text.trim()) out.push(pad + JSON.stringify(text.replace(/© \d{4}/, "© YEAR")));
       return;
     }
