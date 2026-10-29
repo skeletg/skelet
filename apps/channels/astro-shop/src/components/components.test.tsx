@@ -6,6 +6,7 @@ import { Choice } from "./Choice";
 import { Field } from "./Field";
 import { Price } from "./Price";
 import { QuantityInput } from "./QuantityInput";
+import { SectionHeading } from "./SectionHeading";
 import { ProductCard, type CardProduct } from "./ProductCard";
 import { ProductImage } from "./ProductImage";
 import { Button, ButtonLink, Notice } from "./ui";
@@ -134,5 +135,19 @@ describe("QuantityInput", () => {
     const box = screen.getByRole("spinbutton");
     expect(box.hasAttribute("data-autosubmit")).toBe(false);
     expect(box.hasAttribute("data-arrows")).toBe(false);
+  });
+});
+
+describe("SectionHeading", () => {
+  it("titles a band, with its intro when given one", () => {
+    const { container } = render(<SectionHeading eyebrow="The shop" title="The collection" id="products-title" center>Three pieces.</SectionHeading>);
+    expect(screen.getByRole("heading", { level: 2, name: "The collection" }).id).toBe("products-title");
+    expect(container.textContent).toContain("Three pieces.");
+    expect(container.firstElementChild?.className).toContain("text-center");
+  });
+
+  it("renders no intro block without children", () => {
+    const { container } = render(<SectionHeading eyebrow="Our story" title="Made slowly" />);
+    expect(container.firstElementChild?.children).toHaveLength(2);
   });
 });
