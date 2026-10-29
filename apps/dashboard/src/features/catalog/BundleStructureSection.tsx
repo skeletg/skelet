@@ -208,7 +208,7 @@ export function BundleStructureSection({
       await commitOps(reduced, product.id, committers)
     } catch (e) {
       // keep only the unapplied tail - a retry resumes instead of re-running committed adds and duplicating selections
-      if (e instanceof CommitError) setPendingOps(e.remaining)
+      if (e instanceof CommitError) setPendingOps(e.remaining as PendingOp[])
       throw e
     }
     setPendingOps([])

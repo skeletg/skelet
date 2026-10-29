@@ -38,3 +38,5 @@
   the product page showed a translation used to write it into whichever language was stored
   first, often overwriting the default. The dialog now reads and saves the page's language,
   and typing a title for a language that has none yet adds that translation.
+- **Retrying a failed grouped or kit save no longer duplicates what already went through.**
+  These sections had the same bug as bundles, and now get the same fix.

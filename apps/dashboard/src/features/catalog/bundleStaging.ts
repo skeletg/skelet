@@ -5,7 +5,7 @@
 // Ops carry tempIds for entities created this session, resolved to real ids as adds complete
 
 import type { BundleInputType } from '@/graphql/schema.types'
-import { collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
+import { CommitError, collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
 import { added, changed, removed } from '@/shared/saving/diff'
 
@@ -38,7 +38,7 @@ export type BundleOption = {
   selections: Selection[]
 }
 
-export { TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
+export { CommitError, TEMP_PREFIX, isTemp, newTempId } from '@/features/catalog/stagingOps'
 
 // ─── Op union ───────────────────────────────────────────────────────
 
@@ -332,18 +332,6 @@ export type Committers = {
   addSelection: (op: AddSelectionOp) => Promise<string>
   updateSelection: (op: UpdateSelectionOp) => Promise<void>
   deleteSelection: (op: { id: string }) => Promise<void>
-}
-
-// Thrown when a mid-sequence mutation fails - carries the unapplied tail (temp refs already resolved) so the section
-// can keep just that and a retry resumes instead of re-running committed adds and duplicating selections
-export class CommitError extends Error {
-  remaining: PendingOp[]
-  constructor(cause: unknown, remaining: PendingOp[]) {
-    super(cause instanceof Error ? cause.message : String(cause))
-    this.name = 'CommitError'
-    this.cause = cause
-    this.remaining = remaining
-  }
 }
 
 // Builds the tempId -> realId map incrementally, so a later op referencing an added entity writes to the right row - An error aborts the

@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  CommitError,
   applyOps,
+  commitOps,
   isTemp,
   newTempId,
   opsToDiff,
   reduceOps,
+  type Committers,
   type GroupedMember,
   type MemberProduct,
   type PendingOp,
@@ -150,5 +153,22 @@ describe('opsToDiff', () => {
   it('names a removed member', () => {
     const rows = opsToDiff([member()], [{ kind: 'remove-member', id: 'm1' }])
     expect(rows[0].label).toContain('Widget')
+  })
+})
+
+// Grouped and kit sections both commit through here
+describe('commitOps', () => {
+  it('hands back only the unapplied tail, pointed at the rows it already made', async () => {
+    const c: Committers = {
+      addMember: vi.fn(async () => 'm-real'),
+      updateMember: vi.fn(async () => {
+        throw new Error('boom')
+      }),
+      removeMember: vi.fn(async () => {}),
+    }
+    const err = await commitOps([add('tmp_m1'), { kind: 'update-member', id: 'tmp_m1', defaultQuantity: 3 }], 'p1', c).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CommitError)
+    expect(c.addMember).toHaveBeenCalledTimes(1)
+    expect((err as CommitError).remaining).toEqual([{ kind: 'update-member', id: 'm-real', defaultQuantity: 3 }])
   })
 })
