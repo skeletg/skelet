@@ -40,3 +40,6 @@
   and typing a title for a language that has none yet adds that translation.
 - **Retrying a failed grouped or kit save no longer duplicates what already went through.**
   These sections had the same bug as bundles, and now get the same fix.
+- **Removing a bundle option's translation waits for the page's Save.** It used to delete
+  immediately, the one edit in the bundle editor that skipped the save dialog. It's now staged
+  like every other change: it shows in the save confirmation, and Discard undoes it.

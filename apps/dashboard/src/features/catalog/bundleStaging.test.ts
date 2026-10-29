@@ -3,6 +3,7 @@ import {
   CommitError,
   applyOps,
   commitOps,
+  opsToDiff,
   isTemp,
   newTempId,
   reduceOps,
@@ -187,7 +188,7 @@ describe('commitOps', () => {
   it('hands back only the unapplied tail, pointed at the rows it already made', async () => {
     const noop = vi.fn(async () => {})
     const c: Committers = {
-      addOption: vi.fn(async () => 'o-real'), updateOption: noop, upsertOptionContent: noop, deleteOption: noop,
+      addOption: vi.fn(async () => 'o-real'), updateOption: noop, upsertOptionContent: noop, deleteOption: noop, deleteOptionContent: noop,
       addSelection: vi.fn(async () => {
         throw new Error('boom')
       }),
@@ -197,5 +198,30 @@ describe('commitOps', () => {
     expect(err).toBeInstanceOf(CommitError)
     expect(c.addOption).toHaveBeenCalledTimes(1)
     expect((err as CommitError).remaining).toEqual([expect.objectContaining({ kind: 'add-selection', tempId: 'tmp_s1', optionRef: 'o-real' })])
+  })
+})
+
+describe('a staged translation removal', () => {
+  const translated = option({ content: [{ locale: 'en', title: 'Size' }, { locale: 'sr', title: 'Veličina' }] })
+  const drop: PendingOp = { kind: 'delete-content', id: 'o1', locale: 'sr' }
+
+  it('hides the locale until saved, and words the change', () => {
+    expect(applyOps([translated], [drop])[0].content).toEqual([{ locale: 'en', title: 'Size' }])
+    expect(opsToDiff([translated], [drop])).toEqual([expect.objectContaining({ kind: 'remove', label: 'Option · Choose one · sr title' })])
+  })
+
+  it('is dropped when the option itself is deleted', () => {
+    expect(reduceOps([drop, { kind: 'delete-option', id: 'o1' }])).toEqual([{ kind: 'delete-option', id: 'o1' }])
+  })
+
+  it('runs on save', async () => {
+    const noop = vi.fn(async () => {})
+    const deleteOptionContent = vi.fn(async () => {})
+    const c: Committers = {
+      addOption: vi.fn(async () => ''), updateOption: noop, upsertOptionContent: noop, deleteOption: noop, deleteOptionContent,
+      addSelection: vi.fn(async () => ''), updateSelection: noop, deleteSelection: noop,
+    }
+    await commitOps([drop], 'p1', c)
+    expect(deleteOptionContent).toHaveBeenCalledWith({ optionId: 'o1', locale: 'sr' })
   })
 })

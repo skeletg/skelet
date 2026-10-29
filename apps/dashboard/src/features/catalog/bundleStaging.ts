@@ -91,6 +91,13 @@ export type DeleteSelectionOp = {
   id: string
 }
 
+// Drops one locale's title from a saved option - staged like the rest, so it shows in the save dialog and a Discard undoes it
+export type DeleteContentOp = {
+  kind: 'delete-content'
+  id: string // the option
+  locale: string
+}
+
 export type PendingOp =
   | AddOptionOp
   | UpdateOptionOp
@@ -98,6 +105,7 @@ export type PendingOp =
   | AddSelectionOp
   | UpdateSelectionOp
   | DeleteSelectionOp
+  | DeleteContentOp
 
 // ─── Coalescing ─────────────────────────────────────────────────────
 
@@ -143,6 +151,9 @@ export function reduceOps(ops: PendingOp[]): PendingOp[] {
       return false
     })
   })
+
+  // A translation removal on an option that is going away anyway is work the server throws out
+  result = result.filter((op) => op.kind !== 'delete-content' || !result.some((o) => o.kind === 'delete-option' && o.id === op.id))
 
   return collapseOps(result, view, {
     updates: (acc, next) =>
@@ -223,6 +234,9 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
       case 'delete-option':
         opts = opts.filter((o) => o.id !== op.id)
         break
+      case 'delete-content':
+        opts = opts.map((o) => (o.id === op.id ? { ...o, content: o.content.filter((c) => c.locale !== op.locale) } : o))
+        break
       case 'add-selection':
         opts = opts.map((o) => {
           if (o.id !== op.optionRef) return o
@@ -297,6 +311,10 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         const prev = byId.get(op.id)
         return [removed(`Option · ${prev?.title ?? op.id}`, prev ? `${prev.selections.length} selection(s)` : undefined)]
       }
+      case 'delete-content': {
+        const prev = byId.get(op.id)
+        return [removed(`Option · ${prev?.title ?? op.id} · ${op.locale} title`, prev?.content.find((c) => c.locale === op.locale)?.title)]
+      }
       case 'add-selection':
         return [added(`Selection · ${op.product.name ?? op.product.sku ?? ''}`, `qty ${op.quantity}${op.isDefault ? ' · default' : ''}`)]
       case 'update-selection': {
@@ -329,6 +347,7 @@ export type Committers = {
   updateOption: (op: UpdateOptionOp) => Promise<void>
   upsertOptionContent: (op: { optionId: string; locale: string; title: string }) => Promise<void>
   deleteOption: (op: { id: string }) => Promise<void>
+  deleteOptionContent: (op: { optionId: string; locale: string }) => Promise<void>
   addSelection: (op: AddSelectionOp) => Promise<string>
   updateSelection: (op: UpdateSelectionOp) => Promise<void>
   deleteSelection: (op: { id: string }) => Promise<void>
@@ -406,6 +425,12 @@ async function commitOne(
       const id = resolve(op.id)
       if (isTemp(id)) break
       await committers.deleteSelection({ id })
+      break
+    }
+    case 'delete-content': {
+      const id = resolve(op.id)
+      if (isTemp(id)) break
+      await committers.deleteOptionContent({ optionId: id, locale: op.locale })
       break
     }
   }

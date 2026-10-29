@@ -58,4 +58,10 @@ describe('bundle option title locale', () => {
   it('starts an untranslated locale from the fallback title', async () => {
     expect((await editTitle('de')).value).toBe('Veličina')
   })
+
+  it('stages a translation removal for the page save instead of deleting it at once', async () => {
+    await editTitle('sr')
+    await confirmIn('Remove translation', 'Stage remove')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
 })

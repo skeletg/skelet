@@ -118,6 +118,7 @@ export function BundleStructureSection({
   const [addSelectionMutation] = useMutation(AddBundleSelectionDocument, { refetchQueries: refetch })
   const [updateSelectionMutation] = useMutation(UpdateBundleSelectionDocument, { refetchQueries: refetch })
   const [deleteSelectionMutation] = useMutation(DeleteBundleSelectionDocument, { refetchQueries: refetch })
+  const [deleteOptionContentMutation] = useMutation(DeleteBundleOptionContentDocument, { refetchQueries: refetch })
 
   const save = useCallback(async () => {
     if (reduced.length === 0) return
@@ -167,6 +168,9 @@ export function BundleStructureSection({
       },
       deleteOption: async (op) => {
         await deleteOptionMutation({ variables: { id: op.id } })
+      },
+      deleteOptionContent: async (op) => {
+        await deleteOptionContentMutation({ variables: { optionId: op.optionId, locale: op.locale } })
       },
       addSelection: async (op) => {
         const res = await addSelectionMutation({
@@ -223,6 +227,7 @@ export function BundleStructureSection({
     addSelectionMutation,
     updateSelectionMutation,
     deleteSelectionMutation,
+    deleteOptionContentMutation,
   ])
 
   useProductSaveSection({ id: 'bundle-structure', title: 'Bundle structure', diff, save })
@@ -298,7 +303,6 @@ export function BundleStructureSection({
         <EditOptionDialog
           option={editingOption}
           locale={product.contentLocale ?? 'en'}
-          productId={product.id}
           open
           onOpenChange={(v) => { if (!v) setEditingOption(null) }}
           onStage={stage}
@@ -584,7 +588,6 @@ function AddOptionDialog({
 function EditOptionDialog({
   option,
   locale,
-  productId,
   open,
   onOpenChange,
   onStage,
@@ -592,14 +595,10 @@ function EditOptionDialog({
   option: BundleOption
   // The page's content locale - the title is read and written in it, so editing in a translated view never overwrites another locale
   locale: string
-  productId: string
   open: boolean
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
-  const [deleteOptionContent] = useMutation(DeleteBundleOptionContentDocument, {
-    refetchQueries: [{ query: ProductDocument, variables: { id: productId } }],
-  })
   const [inputType, setInputType] = useState<BundleInputType>(option.inputType)
   const [isRequired, setIsRequired] = useState(option.isRequired)
   const [sortOrder, setSortOrder] = useState(option.sortOrder)
@@ -680,8 +679,6 @@ function EditOptionDialog({
           </div>
         </form>
 
-        {/* Immediate, unlike the staged title edit above - a translation
-            delete has no representation in the staged diff */}
         {!isTemp(option.id) && (
           <TranslationLocales
             locale={titleLocale}
@@ -689,10 +686,10 @@ function EditOptionDialog({
             entityLabel="bundle option"
             canManage
             defaultLocaleLocked
+            staged
             onRemove={async () => {
-              await deleteOptionContent({
-                variables: { optionId: option.id, locale: titleLocale },
-              })
+              onStage({ kind: 'delete-content', id: option.id, locale: titleLocale })
+              onOpenChange(false)
             }}
           />
         )}
