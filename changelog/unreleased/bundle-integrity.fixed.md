@@ -11,3 +11,11 @@
   or selection was removed after the bundle went into the cart, or a newly required option or
   tighter limit means the picks no longer fit, checkout now refuses the line instead of
   placing an order the bundle no longer allows.
+- **A bundle in the cart follows its components' prices.** A bundle used to keep the price
+  it had when added, so checkout charged a stale total after a component's price changed.
+  Checkout now re-sums the components at today's prices and quantities per bundle, and the
+  cart's `currentUnitPrice` flags the change beforehand, as it already did for simple
+  products. A price set by a `cart.bundle.adding` hook is kept.
+- **Bundle errors on the storefront no longer show internal ids.** Refused bundle adds and
+  checkouts now show a plain message instead of the backend text with option and selection
+  UUIDs. Checkout reports a bundle that changed after it was added as `BUNDLE_CHANGED`.

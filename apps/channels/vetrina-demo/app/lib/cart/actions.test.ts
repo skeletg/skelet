@@ -20,7 +20,9 @@ vi.mock("@/app/lib/auth/session", () => ({ getAccessToken: async () => mocks.tok
 vi.mock("@/app/lib/config/read", () => ({ surfaceCacheOpts: vi.fn(), NAV_SURFACE: "nav", NAV_TAG: "nav" }));
 vi.mock("@/app/lib/catalog/read", () => ({ getCartRecommendations: vi.fn() }));
 
-const { addSimpleToCart, applyCoupon, setCartLineQuantity, removeCartLine } = await import("./actions");
+const { addSimpleToCart, addBundleToCart, applyCoupon, setCartLineQuantity, removeCartLine } = await import("./actions");
+const { GraphQLRequestError } = await import("@/app/lib/graphql");
+const en = (await import("@/messages/en.json")).default;
 const { CartByIdDocument, MyCartDocument } = await import("./queries.gql");
 const { AddToCartDocument, CartProbeDocument, CreateGuestCartDocument, UpdateCartLineDocument } = await import("./mutations.gql");
 
@@ -105,5 +107,35 @@ describe("a guest", () => {
     await expect(add()).resolves.toMatchObject({ ok: false });
     expect(sent(CreateGuestCartDocument)).toEqual([]);
     expect(mocks.jar.get("storefront_cart")).toBe("guest-cart");
+  });
+});
+
+describe("a bundle add the backend refuses", () => {
+  const addBundle = () => {
+    const form = new FormData();
+    form.set("productSku", "SET-1");
+    form.set("selections", "[]");
+    return addBundleToCart(null, form);
+  };
+  const refuse = (code: string | undefined, message: string) =>
+    mocks.gqlFetch.mockImplementation(async (doc: unknown) => {
+      if (doc === CreateGuestCartDocument) return { data: { createGuestCart: { id: "new-guest" } } };
+      throw new GraphQLRequestError(message, [{ message, extensions: code ? { code } : {} }]);
+    });
+
+  it.each([
+    ["BUNDLE_SELECTION_INVALID", "bundleOutdated"],
+    ["BUNDLE_SELECTION_CARDINALITY", "bundleSelectionCount"],
+    ["PRODUCT_NOT_PUBLISHED", "productNotSold"],
+  ])("says %s in the shopper's words, never the ids", async (code, key) => {
+    refuse(code, "add to cart: bundle selection not on this option: 01a18981-5a5b-7d4a-9ed7-08fe87d64256");
+    const res = await addBundle();
+    expect(res).toMatchObject({ ok: false, error: key, code });
+    expect(en.forms.errors).toHaveProperty(key);
+  });
+
+  it("keeps an uncoded message", async () => {
+    refuse(undefined, "add to cart rejected: sold out in your region");
+    await expect(addBundle()).resolves.toMatchObject({ ok: false, error: "sold out in your region" });
   });
 });

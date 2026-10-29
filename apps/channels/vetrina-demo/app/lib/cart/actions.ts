@@ -102,7 +102,17 @@ export type AddToCartResult = {
   code?: string;
   cart?: Cart | null;
 };
+// Backend codes said by the storefront instead - their messages carry option and selection ids a shopper can't act on
+const ADD_CODE_KEYS: Record<string, string> = {
+  BUNDLE_SELECTION_MISSING: "bundleSelectionMissing",
+  BUNDLE_SELECTION_CARDINALITY: "bundleSelectionCount",
+  BUNDLE_SELECTION_INVALID: "bundleOutdated",
+  BUNDLE_OPTION_UNKNOWN: "bundleOutdated",
+  PRODUCT_NOT_PUBLISHED: "productNotSold",
+};
 function formatAddError(err: unknown): string {
+  const key = ADD_CODE_KEYS[addErrorCode(err) ?? ""];
+  if (key) return key;
   if (err instanceof GraphQLRequestError) {
     const msg = err.errors[0]?.message ?? err.message;
     return msg.replace(/^add to cart(?: rejected)?:\s*/i, "");
@@ -159,7 +169,7 @@ export async function addBundleToCart(
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
   } catch (err) {
-    return { ok: false, error: formatAddError(err) };
+    return { ok: false, error: formatAddError(err), code: addErrorCode(err) };
   }
 }
 
