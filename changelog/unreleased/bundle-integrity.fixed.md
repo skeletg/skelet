@@ -27,3 +27,7 @@
   option untouched, every default was added, including ones not listed on that store, and
   the add failed over a product they never saw. Defaults the store doesn't sell are now
   skipped.
+- **A bundle's in-stock flag matches what can actually be added.** It used to count products
+  not listed on the store, accepted one available pick for an option that needs two, and
+  showed a bundle as in stock when nothing in it could be bought. It now applies the same
+  rules as add-to-cart.
