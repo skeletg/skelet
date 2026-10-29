@@ -551,7 +551,7 @@ func (s *Service) findHydratedLine(ctx context.Context, cartID, lineID uuid.UUID
 	return CartLine{}, ErrCartLineNotFound
 }
 
-// Placement's last word on the lines - a bundle whose bundle or component left the channel can't be placed, and every other line must sit inside its product's min/max/step, since a merged guest cart or two concurrent adds can each sum a line past a bound the add path checked
+// Placement's last word on the lines - a product, bundle or component that left the channel can't be placed, and every other line must sit inside its product's min/max/step, since a merged guest cart or two concurrent adds can each sum a line past a bound the add path checked
 // Only a definite catalog answer refuses, never a pricing hiccup, and it reads the catalog directly - bounds don't depend on a remote price
 func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 	if s.products == nil {
@@ -563,6 +563,9 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 		}
 		if len(l.Components) == 0 {
 			p, err := s.products.ResolveSimplePricing(ctx, c.ChannelID, l.ProductSku, c.CustomerID)
+			if errors.Is(err, ErrProductNotPublished) || errors.Is(err, ErrProductNotPurchasable) {
+				return fmt.Errorf("%s: %w", l.ProductSku, err)
+			}
 			if err != nil {
 				continue
 			}

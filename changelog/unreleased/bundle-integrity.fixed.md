@@ -4,3 +4,6 @@
 - **A deleted bundle no longer goes through checkout.** If the bundle product was deleted
   while it sat in a cart, checkout used to place the order anyway. It now refuses the line
   with `PRODUCT_NOT_PUBLISHED`.
+- **Checkout refuses a product that left the store.** A product deleted or unpublished
+  while it sat in a cart used to be ordered anyway. Checkout now refuses the line with
+  `PRODUCT_NOT_PUBLISHED`, the same as the add-to-cart check.

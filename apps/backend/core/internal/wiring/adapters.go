@@ -209,6 +209,9 @@ func (a OrderProductPricer) ResolveSimplePricing(ctx context.Context, channelID 
 // ResolveSimplePricing returns the canonical name + price for a directly purchasable SKU on the given channel - used by cart.Service.AddToCart to ignore client-supplied pricing so a tampered mutation can't set price to 1 cent - resolves the listing override if any, else the product's default_price - rejects unlisted products and kinds that can't be a direct cart line (ProductKind.IsCartLineEligible)
 func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (cart.SimplePricing, error) {
 	p, err := a.svc.GetProductBySKU(ctx, sku)
+	if errors.Is(err, catalog.ErrProductNotFound) { // deleted under a cart line: as unsellable as an unpublished one, so checkout refuses it rather than skipping it as a hiccup
+		return cart.SimplePricing{}, fmt.Errorf("sku %q: %w", sku, cart.ErrProductNotPublished)
+	}
 	if err != nil {
 		return cart.SimplePricing{}, err
 	}
