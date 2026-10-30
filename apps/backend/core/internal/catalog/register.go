@@ -42,6 +42,7 @@ func init() {
 	apperr.RegisterSentinel(ErrKitComponentNotSimple, "KIT_COMPONENT_NOT_SIMPLE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrKitComponentIsParent, "KIT_COMPONENT_IS_PARENT", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrListingCurrencyMismatch, "LISTING_CURRENCY_MISMATCH", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidBundlePricing, "INVALID_BUNDLE_PRICING", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrCollectionProductAlreadyAdded, "COLLECTION_PRODUCT_ALREADY_ADDED", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrCollectionCoverNotPending, "COLLECTION_COVER_NOT_PENDING", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrCollectionNoCover, "COLLECTION_NO_COVER", apperr.ClassConflict)
