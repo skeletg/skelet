@@ -45,3 +45,8 @@
   like every other change: it shows in the save confirmation, and Discard undoes it.
 - **Product listings in the admin API return their `productId` and `channelId`.** Both came
   back as empty strings.
+- **Bundles are weighed and packed by their components when shipping is quoted.** A bundle
+  line used to be rated as the bundle product, which has no weight or size of its own, so a
+  weight-based rate came out as if the box weighed nothing. The checkout quote, placement,
+  order edits, split shipments and labels now rate each component with its own weight, size
+  and product type. A partial shipment takes the same share of each component.

@@ -505,9 +505,9 @@ func (r *Resolver) cartRateRequest(ctx context.Context, sv *channel.Channel, c c
 	country = strings.ToUpper(strings.TrimSpace(country))
 	m := toCartModel(c)
 	r.HydrateCartPromotions(ctx, m, c, country)
-	items := make([]shipping.RateItem, len(c.Lines))
-	for i, l := range c.Lines {
-		items[i] = shipping.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}
+	items := make([]shipping.RateItem, 0, len(c.Lines))
+	for _, l := range c.Lines {
+		items = append(items, shipping.LineItems(shipping.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, cartLineParts(l))...)
 	}
 	return shipping.RateRequest{
 		ChannelID: sv.ID,
@@ -520,4 +520,13 @@ func (r *Resolver) cartRateRequest(ctx context.Context, sv *channel.Channel, c c
 		CurrencyCode:  sv.CurrencyCode,
 		Items:         items,
 	}, m
+}
+
+// A cart line's components as shipping parts, so a bundle is quoted on what it ships - empty on anything else
+func cartLineParts(l cart.CartLine) []shipping.Part {
+	parts := make([]shipping.Part, len(l.Components))
+	for i, c := range l.Components {
+		parts[i] = shipping.Part{SKU: c.ProductSku, Quantity: c.Quantity, UnitPriceCents: c.UnitPrice}
+	}
+	return parts
 }
