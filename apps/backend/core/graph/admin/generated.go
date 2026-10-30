@@ -2685,6 +2685,7 @@ type ComplexityRoot struct {
 		SetBlogPostChannelListing         func(childComplexity int, input model.SetBlogPostChannelListingInput) int
 		SetBlogPostTags                   func(childComplexity int, postID string, tagIds []string) int
 		SetBundlePricing                  func(childComplexity int, input model.SetBundlePricingInput) int
+		SetBundleStructure                func(childComplexity int, productID string, ops []*model.BundleStructureOpInput) int
 		SetCMSPageChannelListing          func(childComplexity int, input model.SetCMSPageChannelListingInput) int
 		SetCMSPageExperiment              func(childComplexity int, pageID string, experimentKey string) int
 		SetCMSPageRelationships           func(childComplexity int, pageID string, attributeID string, refs []*model.CMSRelationshipRefInput) int
@@ -4972,6 +4973,7 @@ type MutationResolver interface {
 	AddBundleSelection(ctx context.Context, input model.AddBundleSelectionInput) (*model.Product, error)
 	UpdateBundleSelection(ctx context.Context, input model.UpdateBundleSelectionInput) (*model.Product, error)
 	DeleteBundleSelection(ctx context.Context, id string) (*model.Product, error)
+	SetBundleStructure(ctx context.Context, productID string, ops []*model.BundleStructureOpInput) (*model.Product, error)
 	AddGroupedMember(ctx context.Context, input model.AddGroupedMemberInput) (*model.Product, error)
 	UpdateGroupedMember(ctx context.Context, input model.UpdateGroupedMemberInput) (*model.Product, error)
 	RemoveGroupedMember(ctx context.Context, id string) (*model.Product, error)
@@ -19048,6 +19050,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetBundlePricing(childComplexity, args["input"].(model.SetBundlePricingInput)), true
+	case "Mutation.setBundleStructure":
+		if e.ComplexityRoot.Mutation.SetBundleStructure == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setBundleStructure_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetBundleStructure(childComplexity, args["productId"].(string), args["ops"].([]*model.BundleStructureOpInput)), true
 	case "Mutation.setCMSPageChannelListing":
 		if e.ComplexityRoot.Mutation.SetCMSPageChannelListing == nil {
 			break
@@ -30389,6 +30402,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAttributeReferenceRefInput,
 		ec.unmarshalInputAttributeValueInput,
 		ec.unmarshalInputBlogPostFilter,
+		ec.unmarshalInputBundleOptionContentInput,
+		ec.unmarshalInputBundleStructureOpInput,
 		ec.unmarshalInputBusinessIdFieldInput,
 		ec.unmarshalInputCMSAttributeValueInput,
 		ec.unmarshalInputCMSPageCommentInput,
@@ -32875,6 +32890,27 @@ input UpdateBundleSelectionInput {
   sortOrder: Int
 }
 
+# One staged edit for setBundleStructure - set tempId plus exactly one of the rest. Any option or selection id may be a
+# real one from this bundle, or the tempId an earlier add in the same call gave what it created
+input BundleStructureOpInput {
+  tempId:          ID
+  addOption:       AddBundleOptionInput
+  updateOption:    UpdateBundleOptionInput
+  deleteOption:    ID
+  upsertContent:   BundleOptionContentInput
+  deleteContent:   BundleOptionContentInput
+  addSelection:    AddBundleSelectionInput
+  updateSelection: UpdateBundleSelectionInput
+  deleteSelection: ID
+}
+
+input BundleOptionContentInput {
+  optionId: ID!
+  locale:   String!
+  # Required by upsertContent, ignored by deleteContent
+  title:    String
+}
+
 # ==================== Grouped structure ====================
 
 type GroupedMember {
@@ -32936,6 +32972,9 @@ extend type Mutation {
   addBundleSelection(input: AddBundleSelectionInput!): Product!
   updateBundleSelection(input: UpdateBundleSelectionInput!): Product!
   deleteBundleSelection(id: ID!): Product!
+  # Applies a whole staged edit of the bundle's options, translations and selections in order, in one transaction -
+  # every op lands or none does
+  setBundleStructure(productId: ID!, ops: [BundleStructureOpInput!]!): Product!
 
   # ---------- Grouped structure ---------- A grouped product (kind=GROUPED) holds a list of SIMPLE member products that the storefront renders side-by-side.
   # Each member is added to the cart individually - the grouped parent is never directly purchasable.
@@ -53726,6 +53765,28 @@ func (ec *executionContext) field_Mutation_setBundlePricing_args(ctx context.Con
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setBundleStructure_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "productId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["productId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "ops",
+		func(ctx context.Context, v any) ([]*model.BundleStructureOpInput, error) {
+			return ec.unmarshalNBundleStructureOpInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleStructureOpInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ops"] = arg1
 	return args, nil
 }
 
@@ -107251,6 +107312,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteBundleSelection(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteBundleSelection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setBundleStructure(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setBundleStructure(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetBundleStructure(ctx, fc.Args["productId"].(string), fc.Args["ops"].([]*model.BundleStructureOpInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setBundleStructure(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setBundleStructure_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -162621,6 +162726,136 @@ func (ec *executionContext) unmarshalInputBlogPostFilter(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBundleOptionContentInput(ctx context.Context, obj any) (model.BundleOptionContentInput, error) {
+	var it model.BundleOptionContentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"optionId", "locale", "title"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "optionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("optionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OptionID = data
+		case "locale":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locale"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Locale = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputBundleStructureOpInput(ctx context.Context, obj any) (model.BundleStructureOpInput, error) {
+	var it model.BundleStructureOpInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"tempId", "addOption", "updateOption", "deleteOption", "upsertContent", "deleteContent", "addSelection", "updateSelection", "deleteSelection"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "tempId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tempId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TempID = data
+		case "addOption":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addOption"))
+			data, err := ec.unmarshalOAddBundleOptionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddBundleOptionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddOption = data
+		case "updateOption":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateOption"))
+			data, err := ec.unmarshalOUpdateBundleOptionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateBundleOptionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateOption = data
+		case "deleteOption":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deleteOption"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DeleteOption = data
+		case "upsertContent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upsertContent"))
+			data, err := ec.unmarshalOBundleOptionContentInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleOptionContentInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpsertContent = data
+		case "deleteContent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deleteContent"))
+			data, err := ec.unmarshalOBundleOptionContentInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleOptionContentInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DeleteContent = data
+		case "addSelection":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addSelection"))
+			data, err := ec.unmarshalOAddBundleSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddBundleSelectionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddSelection = data
+		case "updateSelection":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateSelection"))
+			data, err := ec.unmarshalOUpdateBundleSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateBundleSelectionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateSelection = data
+		case "deleteSelection":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deleteSelection"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DeleteSelection = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBusinessIdFieldInput(ctx context.Context, obj any) (model.BusinessIDFieldInput, error) {
 	var it model.BusinessIDFieldInput
 	if obj == nil {
@@ -192996,6 +193231,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setBundleStructure":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setBundleStructure(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addGroupedMember":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addGroupedMember(ctx, field)
@@ -215314,6 +215556,25 @@ func (ec *executionContext) marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._BundleSelection(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNBundleStructureOpInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleStructureOpInputᚄ(ctx context.Context, v any) ([]*model.BundleStructureOpInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.BundleStructureOpInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBundleStructureOpInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleStructureOpInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNBundleStructureOpInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleStructureOpInput(ctx context.Context, v any) (*model.BundleStructureOpInput, error) {
+	res, err := ec.unmarshalInputBundleStructureOpInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNBusinessIdField2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BusinessIDField) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -225343,6 +225604,22 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalOAddBundleOptionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddBundleOptionInput(ctx context.Context, v any) (*model.AddBundleOptionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAddBundleOptionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOAddBundleSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddBundleSelectionInput(ctx context.Context, v any) (*model.AddBundleSelectionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAddBundleSelectionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -225593,6 +225870,14 @@ func (ec *executionContext) marshalOBundleInputType2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOBundleOptionContentInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleOptionContentInput(ctx context.Context, v any) (*model.BundleOptionContentInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputBundleOptionContentInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOBusinessIdFieldInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBusinessIDFieldInputᚄ(ctx context.Context, v any) ([]*model.BusinessIDFieldInput, error) {
@@ -227043,6 +227328,22 @@ func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel
 	_ = ctx
 	res := graphql.MarshalTime(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOUpdateBundleOptionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateBundleOptionInput(ctx context.Context, v any) (*model.UpdateBundleOptionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputUpdateBundleOptionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOUpdateBundleSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateBundleSelectionInput(ctx context.Context, v any) (*model.UpdateBundleSelectionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputUpdateBundleSelectionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOUrlEntityType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐURLEntityType(ctx context.Context, v any) (*model.URLEntityType, error) {

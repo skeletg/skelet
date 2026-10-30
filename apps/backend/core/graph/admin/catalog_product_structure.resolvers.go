@@ -189,6 +189,20 @@ func (r *mutationResolver) DeleteBundleSelection(ctx context.Context, id string)
 	return r.reloadProduct(ctx, opt.ProductID)
 }
 
+func (r *mutationResolver) SetBundleStructure(ctx context.Context, productID string, ops []*model.BundleStructureOpInput) (*model.Product, error) {
+	pid, err := parseID(productID, "product")
+	if err != nil {
+		return nil, err
+	}
+	if err := r.requireCatalogManageOnAllListingChannels(ctx, pid); err != nil {
+		return nil, err
+	}
+	if err := r.applyBundleOps(ctx, pid, ops); err != nil {
+		return nil, err
+	}
+	return r.reloadProduct(ctx, pid)
+}
+
 func (r *mutationResolver) AddGroupedMember(ctx context.Context, input model.AddGroupedMemberInput) (*model.Product, error) {
 	parentID, err := parseID(input.ParentID, "parent")
 	if err != nil {

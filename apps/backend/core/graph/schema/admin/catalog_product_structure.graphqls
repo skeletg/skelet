@@ -77,6 +77,27 @@ input UpdateBundleSelectionInput {
   sortOrder: Int
 }
 
+# One staged edit for setBundleStructure - set tempId plus exactly one of the rest. Any option or selection id may be a
+# real one from this bundle, or the tempId an earlier add in the same call gave what it created
+input BundleStructureOpInput {
+  tempId:          ID
+  addOption:       AddBundleOptionInput
+  updateOption:    UpdateBundleOptionInput
+  deleteOption:    ID
+  upsertContent:   BundleOptionContentInput
+  deleteContent:   BundleOptionContentInput
+  addSelection:    AddBundleSelectionInput
+  updateSelection: UpdateBundleSelectionInput
+  deleteSelection: ID
+}
+
+input BundleOptionContentInput {
+  optionId: ID!
+  locale:   String!
+  # Required by upsertContent, ignored by deleteContent
+  title:    String
+}
+
 # ==================== Grouped structure ====================
 
 type GroupedMember {
@@ -138,6 +159,9 @@ extend type Mutation {
   addBundleSelection(input: AddBundleSelectionInput!): Product!
   updateBundleSelection(input: UpdateBundleSelectionInput!): Product!
   deleteBundleSelection(id: ID!): Product!
+  # Applies a whole staged edit of the bundle's options, translations and selections in order, in one transaction -
+  # every op lands or none does
+  setBundleStructure(productId: ID!, ops: [BundleStructureOpInput!]!): Product!
 
   # ---------- Grouped structure ---------- A grouped product (kind=GROUPED) holds a list of SIMPLE member products that the storefront renders side-by-side.
   # Each member is added to the cart individually - the grouped parent is never directly purchasable.

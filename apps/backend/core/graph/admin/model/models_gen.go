@@ -772,12 +772,30 @@ type BundleOptionContent struct {
 	Title  string `json:"title"`
 }
 
+type BundleOptionContentInput struct {
+	OptionID string  `json:"optionId"`
+	Locale   string  `json:"locale"`
+	Title    *string `json:"title,omitempty"`
+}
+
 type BundleSelection struct {
 	ID        string   `json:"id"`
 	Product   *Product `json:"product"`
 	Quantity  float64  `json:"quantity"`
 	IsDefault bool     `json:"isDefault"`
 	SortOrder int32    `json:"sortOrder"`
+}
+
+type BundleStructureOpInput struct {
+	TempID          *string                     `json:"tempId,omitempty"`
+	AddOption       *AddBundleOptionInput       `json:"addOption,omitempty"`
+	UpdateOption    *UpdateBundleOptionInput    `json:"updateOption,omitempty"`
+	DeleteOption    *string                     `json:"deleteOption,omitempty"`
+	UpsertContent   *BundleOptionContentInput   `json:"upsertContent,omitempty"`
+	DeleteContent   *BundleOptionContentInput   `json:"deleteContent,omitempty"`
+	AddSelection    *AddBundleSelectionInput    `json:"addSelection,omitempty"`
+	UpdateSelection *UpdateBundleSelectionInput `json:"updateSelection,omitempty"`
+	DeleteSelection *string                     `json:"deleteSelection,omitempty"`
 }
 
 type BusinessIDField struct {
