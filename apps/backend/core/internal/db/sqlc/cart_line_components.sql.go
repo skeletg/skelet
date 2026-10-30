@@ -145,22 +145,24 @@ func (q *Queries) SetBundleLineQuantity(ctx context.Context, arg SetBundleLineQu
 }
 
 const upsertBundleCartLine = `-- name: UpsertBundleCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (cart_id, product_sku) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,
+      bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
 `
 
 type UpsertBundleCartLineParams struct {
-	CartID      uuid.UUID `json:"cart_id"`
-	ProductName string    `json:"product_name"`
-	ProductSku  string    `json:"product_sku"`
-	UnitPrice   int64     `json:"unit_price"`
-	Quantity    float64   `json:"quantity"`
+	CartID           uuid.UUID `json:"cart_id"`
+	ProductName      string    `json:"product_name"`
+	ProductSku       string    `json:"product_sku"`
+	UnitPrice        int64     `json:"unit_price"`
+	Quantity         float64   `json:"quantity"`
+	BundleHookPriced bool      `json:"bundle_hook_priced"`
 }
 
 // Bundle cart-line upsert: unlike the simple-product path the ON CONFLICT clause REPLACES quantity + price + name rather than summing - when a customer reconfigures the bundle they're submitting a fresh selection set, not adding more units of the previous configuration
@@ -171,6 +173,7 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		arg.ProductSku,
 		arg.UnitPrice,
 		arg.Quantity,
+		arg.BundleHookPriced,
 	)
 	var i CartLine
 	err := row.Scan(
@@ -187,6 +190,7 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		&i.PriceOverride,
 		&i.IsCustom,
 		&i.TaxClass,
+		&i.BundleHookPriced,
 	)
 	return i, err
 }

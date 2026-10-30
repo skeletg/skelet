@@ -24,6 +24,15 @@ SET is_published = EXCLUDED.is_published,
     updated_at   = NOW()
 RETURNING *;
 
+-- name: SetProductChannelListingBundlePricing :one
+-- Its own statement so the listing upsert, which every listing form drives, never resets a bundle's pricing
+UPDATE catalog_product_channel_listings
+SET bundle_pricing          = sqlc.arg(bundle_pricing),
+    bundle_discount_percent = sqlc.arg(bundle_discount_percent),
+    updated_at              = NOW()
+WHERE product_id = sqlc.arg(product_id) AND channel_id = sqlc.arg(channel_id)
+RETURNING *;
+
 -- name: GetProductChannelListing :one
 SELECT * FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2;
