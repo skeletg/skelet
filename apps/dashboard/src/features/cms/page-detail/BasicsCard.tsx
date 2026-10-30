@@ -1,7 +1,5 @@
 import { useMemo } from 'react'
 import { useStore } from '@tanstack/react-form'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
 import { type CmsPageRowFragment } from '../Cms.gql'
@@ -11,7 +9,7 @@ import { type PageTypeAttr } from './shared'
 
 // ---------- Basics card ----------
 
-// The slug, noindex and the non-translated attribute values - staged into the page's save registry,
+// The slug and the non-translated attribute values - staged into the page's save registry,
 // with its own stored draft
 export function BasicsCard({
   page,
@@ -41,15 +39,9 @@ export function BasicsCard({
   return (
     <fieldset disabled={!canManage} className="grid gap-4">
       {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_BASICS_LABELS} />}
-      <form.AppField name="slug">{(f) => <f.TextField id="slug" label="Slug" />}</form.AppField>
-      <form.Field name="seoNoindex">
-        {(f) => (
-          <div className="flex items-center gap-2">
-            <Switch id="seo-noindex" checked={f.state.value} onCheckedChange={f.handleChange} />
-            <Label htmlFor="seo-noindex">Hide from search engines (noindex)</Label>
-          </div>
-        )}
-      </form.Field>
+      <form.AppField name="slug">
+        {(f) => <f.TextField id="slug" label="Slug" hint="Changing it leaves a redirect from the old URL." />}
+      </form.AppField>
       {scalarAttrs.map((pta) => (
         <DynamicField
           key={pta.attribute.id}

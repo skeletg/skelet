@@ -98,6 +98,8 @@ export type CmsBlockField = {
   description?: string
   /** Only show this field when a sibling prop equals a value (conditional UI) */
   showIf?: { key: string; equals: string }
+  /** Tucked into the block's collapsed Advanced group with the tracking and visibility settings */
+  advanced?: boolean
   /** For kind === 'variant': which BLOCK_REGISTRIES option-set to choose from */
   registry?: string
   /** For kind === 'variant': render a searchable dropdown (good for long,
@@ -147,7 +149,7 @@ export const CMS_BLOCK_TYPES: CmsBlockDescriptor[] = [
         ],
         description: 'Renders the storefront search pill inside the hero.',
       },
-      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', description: 'When the page is A/B tested, a CTA click fires this event - match it to the experiment’s goal.' },
+      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', advanced: true, description: 'When the page is A/B tested, a CTA click fires this event - match it to the experiment’s goal.' },
       {
         key: 'align',
         label: 'Alignment',
@@ -169,7 +171,7 @@ export const CMS_BLOCK_TYPES: CmsBlockDescriptor[] = [
       { key: 'text', label: 'Text', kind: 'textarea' },
       { key: 'ctaLabel', label: 'Button label', kind: 'text' },
       { key: 'ctaHref', label: 'Button link', kind: 'link' },
-      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', description: 'When the page is A/B tested, a click fires this event - match it to the experiment’s goal.' },
+      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', advanced: true, description: 'When the page is A/B tested, a click fires this event - match it to the experiment’s goal.' },
     ],
   },
   {
@@ -530,7 +532,7 @@ export const CMS_BLOCK_TYPES: CmsBlockDescriptor[] = [
       { key: 'body', label: 'Body', kind: 'richtext' },
       { key: 'ctaLabel', label: 'Button label', kind: 'text' },
       { key: 'ctaHref', label: 'Button link', kind: 'link' },
-      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', description: 'When the page is A/B tested, a click fires this event - match it to the experiment’s goal.' },
+      { key: 'goalEvent', label: 'A/B goal event', kind: 'text', advanced: true, description: 'When the page is A/B tested, a click fires this event - match it to the experiment’s goal.' },
       { key: 'container', label: 'Section style', kind: 'variant', registry: 'container', searchable: true },
     ],
   },
