@@ -244,12 +244,14 @@ type ComplexityRoot struct {
 	}
 
 	BundleOption struct {
-		ID         func(childComplexity int) int
-		InputType  func(childComplexity int) int
-		IsRequired func(childComplexity int) int
-		Selections func(childComplexity int) int
-		SortOrder  func(childComplexity int) int
-		Title      func(childComplexity int) int
+		ID            func(childComplexity int) int
+		InputType     func(childComplexity int) int
+		IsRequired    func(childComplexity int) int
+		MaxSelections func(childComplexity int) int
+		MinSelections func(childComplexity int) int
+		Selections    func(childComplexity int) int
+		SortOrder     func(childComplexity int) int
+		Title         func(childComplexity int) int
 	}
 
 	BundleSelection struct {
@@ -944,6 +946,7 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
+		Components func(childComplexity int) int
 		ID         func(childComplexity int) int
 		IsGift     func(childComplexity int) int
 		Name       func(childComplexity int) int
@@ -952,6 +955,14 @@ type ComplexityRoot struct {
 		Sku        func(childComplexity int) int
 		TotalPrice func(childComplexity int) int
 		UnitPrice  func(childComplexity int) int
+	}
+
+	OrderLineComponent struct {
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
+		UnitPrice func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -2620,6 +2631,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BundleOption.IsRequired(childComplexity), true
+	case "BundleOption.maxSelections":
+		if e.ComplexityRoot.BundleOption.MaxSelections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleOption.MaxSelections(childComplexity), true
+	case "BundleOption.minSelections":
+		if e.ComplexityRoot.BundleOption.MinSelections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleOption.MinSelections(childComplexity), true
 	case "BundleOption.selections":
 		if e.ComplexityRoot.BundleOption.Selections == nil {
 			break
@@ -6087,6 +6110,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.OrderEvent.Type(childComplexity), true
 
+	case "OrderLine.components":
+		if e.ComplexityRoot.OrderLine.Components == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Components(childComplexity), true
 	case "OrderLine.id":
 		if e.ComplexityRoot.OrderLine.ID == nil {
 			break
@@ -6135,6 +6164,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.UnitPrice(childComplexity), true
+
+	case "OrderLineComponent.id":
+		if e.ComplexityRoot.OrderLineComponent.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.ID(childComplexity), true
+	case "OrderLineComponent.name":
+		if e.ComplexityRoot.OrderLineComponent.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Name(childComplexity), true
+	case "OrderLineComponent.quantity":
+		if e.ComplexityRoot.OrderLineComponent.Quantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Quantity(childComplexity), true
+	case "OrderLineComponent.sku":
+		if e.ComplexityRoot.OrderLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Sku(childComplexity), true
+	case "OrderLineComponent.unitPrice":
+		if e.ComplexityRoot.OrderLineComponent.UnitPrice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.UnitPrice(childComplexity), true
 
 	case "OrderLineOption.fileUrl":
 		if e.ComplexityRoot.OrderLineOption.FileURL == nil {
@@ -9940,6 +10000,9 @@ type BundleOption {
   inputType:  BundleInputType!
   isRequired: Boolean!
   sortOrder:  Int!
+  # How many picks a checkbox/multiselect option takes. 0 is no explicit minimum (a required option still needs one), null no maximum. Single-select ignores both. Add-to-cart enforces them
+  minSelections: Int!
+  maxSelections: Int
   title:      String!
   selections: [BundleSelection!]!
 }
@@ -10854,6 +10917,17 @@ type OrderLine {
   isGift:      Boolean!
   # Custom-option picks the customer configured (engraving, gift wrap, …).
   options:     [OrderLineOption!]!
+  # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
+  components:  [OrderLineComponent!]!
+}
+
+type OrderLineComponent {
+  id:          ID!
+  sku:         String!
+  name:        String!
+  unitPrice:   Int!
+  # Already multiplied by the parent line quantity, so it is what actually ships
+  quantity:    Float!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
@@ -11968,6 +12042,10 @@ func (ec *executionContext) childFields_BundleOption(ctx context.Context, field 
 		return ec.fieldContext_BundleOption_isRequired(ctx, field)
 	case "sortOrder":
 		return ec.fieldContext_BundleOption_sortOrder(ctx, field)
+	case "minSelections":
+		return ec.fieldContext_BundleOption_minSelections(ctx, field)
+	case "maxSelections":
+		return ec.fieldContext_BundleOption_maxSelections(ctx, field)
 	case "title":
 		return ec.fieldContext_BundleOption_title(ctx, field)
 	case "selections":
@@ -13204,8 +13282,26 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 		return ec.fieldContext_OrderLine_isGift(ctx, field)
 	case "options":
 		return ec.fieldContext_OrderLine_options(ctx, field)
+	case "components":
+		return ec.fieldContext_OrderLine_components(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderLine", field.Name)
+}
+
+func (ec *executionContext) childFields_OrderLineComponent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_OrderLineComponent_id(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLineComponent_name(ctx, field)
+	case "unitPrice":
+		return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
+	case "quantity":
+		return ec.fieldContext_OrderLineComponent_quantity(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrderLineComponent", field.Name)
 }
 
 func (ec *executionContext) childFields_OrderLineOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -19967,6 +20063,52 @@ func (ec *executionContext) _BundleOption_sortOrder(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_BundleOption_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleOption", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BundleOption_minSelections(ctx context.Context, field graphql.CollectedField, obj *model.BundleOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleOption_minSelections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MinSelections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BundleOption_minSelections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleOption", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BundleOption_maxSelections(ctx context.Context, field graphql.CollectedField, obj *model.BundleOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleOption_maxSelections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxSelections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BundleOption_maxSelections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BundleOption", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -33886,6 +34028,153 @@ func (ec *executionContext) fieldContext_OrderLine_options(_ context.Context, fi
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _OrderLine_components(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLine_components(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Components, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderLineComponent) graphql.Marshaler {
+			return ec.marshalNOrderLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineComponentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLine_components(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OrderLine",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrderLineComponent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OrderLineComponent_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_sku(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sku, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLineComponent_unitPrice(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnitPrice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_unitPrice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OrderLineComponent_quantity(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_quantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Quantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_quantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
 func (ec *executionContext) _OrderLineOption_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineOption) (ret graphql.Marshaler) {
@@ -49022,6 +49311,16 @@ func (ec *executionContext) _BundleOption(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "minSelections":
+			out.Values[i] = ec._BundleOption_minSelections(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxSelections":
+			out.Values[i] = ec._BundleOption_maxSelections(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "title":
 			out.Values[i] = ec._BundleOption_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -54316,6 +54615,69 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			}
 		case "options":
 			out.Values[i] = ec._OrderLine_options(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "components":
+			out.Values[i] = ec._OrderLine_components(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orderLineComponentImplementors = []string{"OrderLineComponent"}
+
+func (ec *executionContext) _OrderLineComponent(ctx context.Context, sel ast.SelectionSet, obj *model.OrderLineComponent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orderLineComponentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrderLineComponent")
+		case "id":
+			out.Values[i] = ec._OrderLineComponent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sku":
+			out.Values[i] = ec._OrderLineComponent_sku(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._OrderLineComponent_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitPrice":
+			out.Values[i] = ec._OrderLineComponent_unitPrice(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quantity":
+			out.Values[i] = ec._OrderLineComponent_quantity(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -63447,6 +63809,32 @@ func (ec *executionContext) marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskelet
 		return graphql.Null
 	}
 	return ec._OrderLine(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOrderLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLineComponent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrderLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineComponent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrderLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineComponent(ctx context.Context, sel ast.SelectionSet, v *model.OrderLineComponent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrderLineComponent(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrderLineOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLineOption) graphql.Marshaler {

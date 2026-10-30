@@ -779,15 +779,17 @@ func toBundleOptionModels(opts []catalog.BundleOption) []*model.BundleOption {
 			}
 		}
 		out[i] = &model.BundleOption{
-			ID:         o.ID.String(),
-			InputType:  model.BundleInputType(strings.ToUpper(string(o.InputType))),
-			IsRequired: o.IsRequired,
-			SortOrder:  o.SortOrder,
-			Title:      o.Title,
-			Content:    content,
-			Selections: sels,
-			CreatedAt:  o.CreatedAt,
-			UpdatedAt:  o.UpdatedAt,
+			ID:            o.ID.String(),
+			InputType:     model.BundleInputType(strings.ToUpper(string(o.InputType))),
+			IsRequired:    o.IsRequired,
+			SortOrder:     o.SortOrder,
+			MinSelections: o.MinSelections,
+			MaxSelections: o.MaxSelections,
+			Title:         o.Title,
+			Content:       content,
+			Selections:    sels,
+			CreatedAt:     o.CreatedAt,
+			UpdatedAt:     o.UpdatedAt,
 		}
 	}
 	return out

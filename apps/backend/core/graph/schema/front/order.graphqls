@@ -65,6 +65,17 @@ type OrderLine {
   isGift:      Boolean!
   # Custom-option picks the customer configured (engraving, gift wrap, …).
   options:     [OrderLineOption!]!
+  # A bundle line's picked components, as snapshotted at checkout. Empty for every other line
+  components:  [OrderLineComponent!]!
+}
+
+type OrderLineComponent {
+  id:          ID!
+  sku:         String!
+  name:        String!
+  unitPrice:   Int!
+  # Already multiplied by the parent line quantity, so it is what actually ships
+  quantity:    Float!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
