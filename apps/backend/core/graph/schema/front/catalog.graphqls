@@ -142,6 +142,9 @@ type Product {
   configurableOptions: [Attribute!]!
   # Empty unless kind == BUNDLE.
   bundleOptions:       [BundleOption!]!
+  # How this bundle is priced on the request's store: SUM adds up the picks, FIXED charges price whatever is picked, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum. Other kinds read SUM
+  bundlePricing:         BundlePricing!
+  bundleDiscountPercent: Int!
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
@@ -178,6 +181,12 @@ type PromotionalDisplay {
   pillText:        String!
   pillTextColor:   String!
   pillBgColor:     String!
+}
+
+enum BundlePricing {
+  SUM
+  FIXED
+  SUM_MINUS_PERCENT
 }
 
 enum BundleInputType {

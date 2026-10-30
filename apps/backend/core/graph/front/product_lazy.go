@@ -62,6 +62,15 @@ func (r *Resolver) productPricing(ctx context.Context, obj *model.Product) (pric
 	return pricing.Resolve(catalog.EffectivePricingInputs(row, r.channelListingOf(ctx, row.ID)), time.Now()), nil
 }
 
+// The request store's listing for a bundle - nil for any other kind, which prices as a plain sum of nothing
+func (r *Resolver) bundleListingOf(ctx context.Context, obj *model.Product) (*catalog.ProductChannelListing, error) {
+	row, err := r.productRowOf(ctx, obj)
+	if err != nil || row.Kind != catalog.KindBundle {
+		return nil, err
+	}
+	return r.channelListingOf(ctx, row.ID), nil
+}
+
 func (r *Resolver) productURL(ctx context.Context, obj *model.Product) (string, error) {
 	row, err := r.productRowOf(ctx, obj)
 	if err != nil {

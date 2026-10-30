@@ -1045,59 +1045,61 @@ type ComplexityRoot struct {
 	}
 
 	Product struct {
-		AlsoBought          func(childComplexity int, limit *int32) int
-		AttributeValues     func(childComplexity int) int
-		Backorderable       func(childComplexity int) int
-		BundleOptions       func(childComplexity int) int
-		CanonicalURL        func(childComplexity int) int
-		Categories          func(childComplexity int) int
-		Children            func(childComplexity int) int
-		Collections         func(childComplexity int) int
-		CompareAtPrice      func(childComplexity int) int
-		ConfigurableOptions func(childComplexity int) int
-		ConfiguratorLayout  func(childComplexity int) int
-		CustomerCanReview   func(childComplexity int) int
-		DefaultCurrencyCode func(childComplexity int) int
-		DefaultPrice        func(childComplexity int) int
-		Description         func(childComplexity int) int
-		DescriptionRichText func(childComplexity int) int
-		GroupedMembers      func(childComplexity int) int
-		ID                  func(childComplexity int) int
-		InStock             func(childComplexity int, channelID *string) int
-		Kind                func(childComplexity int) int
-		LinkedProducts      func(childComplexity int, kind model.ProductLinkKind) int
-		MainImage           func(childComplexity int) int
-		MaxOrderQty         func(childComplexity int) int
-		Media               func(childComplexity int) int
-		MetaDescription     func(childComplexity int) int
-		MetaKeywords        func(childComplexity int) int
-		MetaTitle           func(childComplexity int) int
-		MinOrderQty         func(childComplexity int) int
-		Name                func(childComplexity int) int
-		OgImage             func(childComplexity int) int
-		OnSale              func(childComplexity int) int
-		OptionRules         func(childComplexity int) int
-		Options             func(childComplexity int) int
-		PartOf              func(childComplexity int) int
-		Price               func(childComplexity int) int
-		PrimaryCategory     func(childComplexity int) int
-		ProductType         func(childComplexity int) int
-		PromotionalDisplays func(childComplexity int) int
-		QuantityDecimals    func(childComplexity int) int
-		QuantityStep        func(childComplexity int) int
-		ReviewAggregates    func(childComplexity int) int
-		ReviewQuestions     func(childComplexity int) int
-		ReviewSummary       func(childComplexity int) int
-		Reviews             func(childComplexity int, limit *int32, offset *int32, sort *model1.ReviewSort, withMediaOnly *bool) int
-		SalableQuantity     func(childComplexity int, channelID *string) int
-		SeoNoindex          func(childComplexity int) int
-		ShortDescription    func(childComplexity int) int
-		Sku                 func(childComplexity int) int
-		SubscriptionTerms   func(childComplexity int) int
-		Thumbnail           func(childComplexity int) int
-		TierPrices          func(childComplexity int) int
-		URL                 func(childComplexity int) int
-		VariantMode         func(childComplexity int) int
+		AlsoBought            func(childComplexity int, limit *int32) int
+		AttributeValues       func(childComplexity int) int
+		Backorderable         func(childComplexity int) int
+		BundleDiscountPercent func(childComplexity int) int
+		BundleOptions         func(childComplexity int) int
+		BundlePricing         func(childComplexity int) int
+		CanonicalURL          func(childComplexity int) int
+		Categories            func(childComplexity int) int
+		Children              func(childComplexity int) int
+		Collections           func(childComplexity int) int
+		CompareAtPrice        func(childComplexity int) int
+		ConfigurableOptions   func(childComplexity int) int
+		ConfiguratorLayout    func(childComplexity int) int
+		CustomerCanReview     func(childComplexity int) int
+		DefaultCurrencyCode   func(childComplexity int) int
+		DefaultPrice          func(childComplexity int) int
+		Description           func(childComplexity int) int
+		DescriptionRichText   func(childComplexity int) int
+		GroupedMembers        func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		InStock               func(childComplexity int, channelID *string) int
+		Kind                  func(childComplexity int) int
+		LinkedProducts        func(childComplexity int, kind model.ProductLinkKind) int
+		MainImage             func(childComplexity int) int
+		MaxOrderQty           func(childComplexity int) int
+		Media                 func(childComplexity int) int
+		MetaDescription       func(childComplexity int) int
+		MetaKeywords          func(childComplexity int) int
+		MetaTitle             func(childComplexity int) int
+		MinOrderQty           func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		OgImage               func(childComplexity int) int
+		OnSale                func(childComplexity int) int
+		OptionRules           func(childComplexity int) int
+		Options               func(childComplexity int) int
+		PartOf                func(childComplexity int) int
+		Price                 func(childComplexity int) int
+		PrimaryCategory       func(childComplexity int) int
+		ProductType           func(childComplexity int) int
+		PromotionalDisplays   func(childComplexity int) int
+		QuantityDecimals      func(childComplexity int) int
+		QuantityStep          func(childComplexity int) int
+		ReviewAggregates      func(childComplexity int) int
+		ReviewQuestions       func(childComplexity int) int
+		ReviewSummary         func(childComplexity int) int
+		Reviews               func(childComplexity int, limit *int32, offset *int32, sort *model1.ReviewSort, withMediaOnly *bool) int
+		SalableQuantity       func(childComplexity int, channelID *string) int
+		SeoNoindex            func(childComplexity int) int
+		ShortDescription      func(childComplexity int) int
+		Sku                   func(childComplexity int) int
+		SubscriptionTerms     func(childComplexity int) int
+		Thumbnail             func(childComplexity int) int
+		TierPrices            func(childComplexity int) int
+		URL                   func(childComplexity int) int
+		VariantMode           func(childComplexity int) int
 	}
 
 	ProductAttributeReference struct {
@@ -1686,6 +1688,8 @@ type ProductResolver interface {
 	Children(ctx context.Context, obj *model.Product) ([]*model.Product, error)
 	ConfigurableOptions(ctx context.Context, obj *model.Product) ([]*model.Attribute, error)
 	BundleOptions(ctx context.Context, obj *model.Product) ([]*model.BundleOption, error)
+	BundlePricing(ctx context.Context, obj *model.Product) (model.BundlePricing, error)
+	BundleDiscountPercent(ctx context.Context, obj *model.Product) (int32, error)
 	GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error)
 	Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error)
 	OptionRules(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOptionRule, error)
@@ -6540,12 +6544,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Product.Backorderable(childComplexity), true
+	case "Product.bundleDiscountPercent":
+		if e.ComplexityRoot.Product.BundleDiscountPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Product.BundleDiscountPercent(childComplexity), true
 	case "Product.bundleOptions":
 		if e.ComplexityRoot.Product.BundleOptions == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Product.BundleOptions(childComplexity), true
+	case "Product.bundlePricing":
+		if e.ComplexityRoot.Product.BundlePricing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Product.BundlePricing(childComplexity), true
 	case "Product.canonicalUrl":
 		if e.ComplexityRoot.Product.CanonicalURL == nil {
 			break
@@ -9949,6 +9965,9 @@ type Product {
   configurableOptions: [Attribute!]!
   # Empty unless kind == BUNDLE.
   bundleOptions:       [BundleOption!]!
+  # How this bundle is priced on the request's store: SUM adds up the picks, FIXED charges price whatever is picked, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum. Other kinds read SUM
+  bundlePricing:         BundlePricing!
+  bundleDiscountPercent: Int!
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
@@ -9985,6 +10004,12 @@ type PromotionalDisplay {
   pillText:        String!
   pillTextColor:   String!
   pillBgColor:     String!
+}
+
+enum BundlePricing {
+  SUM
+  FIXED
+  SUM_MINUS_PERCENT
 }
 
 enum BundleInputType {
@@ -13530,6 +13555,10 @@ func (ec *executionContext) childFields_Product(ctx context.Context, field graph
 		return ec.fieldContext_Product_configurableOptions(ctx, field)
 	case "bundleOptions":
 		return ec.fieldContext_Product_bundleOptions(ctx, field)
+	case "bundlePricing":
+		return ec.fieldContext_Product_bundlePricing(ctx, field)
+	case "bundleDiscountPercent":
+		return ec.fieldContext_Product_bundleDiscountPercent(ctx, field)
 	case "groupedMembers":
 		return ec.fieldContext_Product_groupedMembers(ctx, field)
 	case "options":
@@ -36288,6 +36317,52 @@ func (ec *executionContext) fieldContext_Product_bundleOptions(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Product_bundlePricing(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Product_bundlePricing(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Product().BundlePricing(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.BundlePricing) graphql.Marshaler {
+			return ec.marshalNBundlePricing2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundlePricing(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Product_bundlePricing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Product", field, true, true, errors.New("field of type BundlePricing does not have child fields"))
+}
+
+func (ec *executionContext) _Product_bundleDiscountPercent(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Product_bundleDiscountPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Product().BundleDiscountPercent(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Product_bundleDiscountPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Product", field, true, true, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Product_groupedMembers(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -55931,6 +56006,82 @@ func (ec *executionContext) _Product(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "bundlePricing":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Product_bundlePricing(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "bundleDiscountPercent":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Product_bundleDiscountPercent(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "groupedMembers":
 			field := field
 
@@ -62407,6 +62558,16 @@ func (ec *executionContext) marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._BundleOption(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBundlePricing2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundlePricing(ctx context.Context, v any) (model.BundlePricing, error) {
+	var res model.BundlePricing
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBundlePricing2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundlePricing(ctx context.Context, sel ast.SelectionSet, v model.BundlePricing) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BundleSelection) graphql.Marshaler {
