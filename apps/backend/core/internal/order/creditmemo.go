@@ -333,12 +333,17 @@ func creditMemoForReturn(ctx context.Context, r Repository, o Order, ret OrderRe
 		TotalCents:   txn.AmountCents,
 	}
 	lines := make([]CreditMemoLine, 0, len(ret.Lines))
+	lineUnit := refundUnitByLine(o)
 	for _, rl := range ret.Lines {
 		total := money.LineTotal(rl.RefundUnitCents, rl.Quantity)
 		memo.LinesTotalCents += total
-		lines = append(lines, CreditMemoLine{
-			OrderLineID: rl.OrderLineID, Quantity: rl.Quantity, UnitCents: rl.RefundUnitCents, TotalCents: total,
-		})
+		ml := CreditMemoLine{OrderLineID: rl.OrderLineID, Quantity: rl.Quantity, UnitCents: rl.RefundUnitCents, TotalCents: total}
+		// Memo lines count bundles, so a component's refund is booked as the share of a bundle it was worth
+		if rl.ComponentID != nil && lineUnit[rl.OrderLineID] > 0 {
+			ml.UnitCents = lineUnit[rl.OrderLineID]
+			ml.Quantity = float64(total) / float64(ml.UnitCents)
+		}
+		lines = append(lines, ml)
 	}
 	// Clamped by what remained refundable - book the difference as a fee so the document still adds up
 	if memo.LinesTotalCents > memo.TotalCents {

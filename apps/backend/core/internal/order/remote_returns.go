@@ -27,6 +27,7 @@ type RemoteReturnLine struct {
 	OrderLineID uuid.UUID
 	Quantity    float64
 	Reason      string
+	ComponentID *uuid.UUID // one component of a bundle line, Quantity then in its units
 }
 
 // Optional
@@ -43,6 +44,8 @@ type remoteReturnReqLine struct {
 	OrderLineID string  `json:"orderLineId"`
 	Quantity    float64 `json:"quantity"`
 	Reason      string  `json:"reason"`
+	// One component of a bundle line, quantity then in its units - absent for a whole line
+	ComponentID string `json:"componentId,omitempty"`
 }
 
 type remoteReturnResponse struct {
@@ -72,6 +75,9 @@ func (r *remoteReturnsPolicy) Allowed(ctx context.Context, in RemoteReturnInput)
 	lines := make([]remoteReturnReqLine, len(in.Lines))
 	for i, l := range in.Lines {
 		lines[i] = remoteReturnReqLine{OrderLineID: l.OrderLineID.String(), Quantity: l.Quantity, Reason: l.Reason}
+		if l.ComponentID != nil {
+			lines[i].ComponentID = l.ComponentID.String()
+		}
 	}
 	req := remoteReturnRequest{OrderID: in.OrderID.String(), Resolution: in.Resolution, RefundTarget: in.RefundTarget, Lines: lines}
 	var resp remoteReturnResponse

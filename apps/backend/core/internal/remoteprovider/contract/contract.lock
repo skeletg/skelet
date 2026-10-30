@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "files": {
     "address_validator.request.json": "b21e68e3653f3a33ea20dbfe9b6091964e4d3acf8bdfdeb297228a4daa85b246",
     "address_validator.schema.json": "563eff8a83c7d18af0b7e6153c1cf04415ec1defdaef6577b1d2168483c41496",
@@ -21,8 +21,8 @@
     "promotion_condition.schema.json": "3627f31d674bd6b3290146616f002502045313988022ee2e95745fc94df7b8f1",
     "recommendation.request.json": "dcbf16dd67b3ced224ca778b8d87a0c108c96504808aa675101eb09b51bfc31c",
     "recommendation.schema.json": "4c85c442a38dca3d72131f5a4d3fd71d3408eddbaa089d99fb7e5fdf519eea95",
-    "returns_policy.request.json": "856d4de100e126920eb85aad05319c5578344eac5343e0cca4ae419b6e647595",
-    "returns_policy.schema.json": "c21f2eac6691e0239206ec00911f99f80ee80acf94eab17be4f8544d97be4956",
+    "returns_policy.request.json": "b77c6059a1202bac1f2df8e661de73896784355503e45eea5511471a1a775498",
+    "returns_policy.schema.json": "623d01da55dab510b559e7733718f23ca7ea8e477e0dabb171a65595169a132f",
     "reviews.request.json": "6ff6c5508d1784afb5783823082335a9ace9c8f2e0800435791c0937e7fafe8e",
     "reviews.schema.json": "62159f77a17f908a9bd258b63cb14acd5c2d8b476de7eaf412923509b042382e",
     "search.browse.request.json": "3f4c9252a0bb7de343817446614a41183f0d62a137c4945bd3abdfa2e704e809",

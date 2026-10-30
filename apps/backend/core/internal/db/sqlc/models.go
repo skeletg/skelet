@@ -1904,13 +1904,14 @@ type OrderReturn struct {
 }
 
 type OrderReturnLine struct {
-	ID              uuid.UUID `json:"id"`
-	ReturnID        uuid.UUID `json:"return_id"`
-	OrderLineID     uuid.UUID `json:"order_line_id"`
-	Quantity        float64   `json:"quantity"`
-	Reason          string    `json:"reason"`
-	RefundUnitCents int64     `json:"refund_unit_cents"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID                   uuid.UUID     `json:"id"`
+	ReturnID             uuid.UUID     `json:"return_id"`
+	OrderLineID          uuid.UUID     `json:"order_line_id"`
+	Quantity             float64       `json:"quantity"`
+	Reason               string        `json:"reason"`
+	RefundUnitCents      int64         `json:"refund_unit_cents"`
+	CreatedAt            time.Time     `json:"created_at"`
+	OrderLineComponentID uuid.NullUUID `json:"order_line_component_id"`
 }
 
 type OrderShipment struct {

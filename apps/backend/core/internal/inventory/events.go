@@ -425,7 +425,7 @@ func (s *Service) onReturnReceived(ctx context.Context, e events.Event) error {
 	}
 	lines := make([]RestockLineQty, len(evt.Lines))
 	for i, l := range evt.Lines {
-		lines[i] = RestockLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity}
+		lines[i] = RestockLineQty{OrderLineID: l.OrderLineID, Quantity: l.Quantity, ProductID: l.ProductID}
 	}
 	op := func(ctx context.Context) error { return s.RestockReturn(ctx, evt.OrderID, evt.ReturnID, lines) }
 	if err := retryWithBackoff(ctx, 5, 100*time.Millisecond, op); err != nil {
