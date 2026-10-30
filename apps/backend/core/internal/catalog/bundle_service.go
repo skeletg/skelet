@@ -222,8 +222,11 @@ func (s *bundleService) AddBundleSelection(ctx context.Context, input AddBundleS
 	if err != nil {
 		return BundleSelection{}, err
 	}
-	if child.Kind != KindSimple {
+	if child.Kind != KindSimple && child.Kind != KindConfigurable {
 		return BundleSelection{}, fmt.Errorf("%w: product %q is kind %q", ErrBundleSelectionNotSimple, child.SKU, string(child.Kind))
+	}
+	if child.Kind == KindConfigurable && input.IsDefault {
+		return BundleSelection{}, ErrBundleConfigurableDefault
 	}
 
 	var created BundleSelection
@@ -258,6 +261,16 @@ func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateB
 	finalSortOrder := current.SortOrder
 	if input.SortOrder != nil {
 		finalSortOrder = *input.SortOrder
+	}
+
+	if finalIsDefault && !current.IsDefault {
+		child, err := s.repo.GetProductByID(ctx, current.ProductID)
+		if err != nil {
+			return BundleSelection{}, err
+		}
+		if child.Kind == KindConfigurable {
+			return BundleSelection{}, ErrBundleConfigurableDefault
+		}
 	}
 
 	var updated BundleSelection
@@ -339,6 +352,7 @@ func (s *bundleService) GetBundleOptions(ctx context.Context, productID uuid.UUI
 				sel.ProductSKU = p.SKU
 				sel.ProductDefaultPrice = p.DefaultPrice
 				sel.ProductCurrency = p.DefaultCurrencyCode
+				sel.ProductKind = p.Kind
 				if c, ok := contentByProduct[p.ID]; ok {
 					sel.ProductName = c.Name
 				}

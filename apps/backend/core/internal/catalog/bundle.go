@@ -52,7 +52,7 @@ type BundleOptionContent struct {
 	Title  string
 }
 
-type BundleSelection struct { // one SIMPLE product filling an option's menu
+type BundleSelection struct { // one SIMPLE product filling an option's menu, or a CONFIGURABLE whose variant the customer picks
 	ID                  uuid.UUID
 	OptionID            uuid.UUID
 	ProductID           uuid.UUID
@@ -64,6 +64,7 @@ type BundleSelection struct { // one SIMPLE product filling an option's menu
 	ProductName         string
 	ProductDefaultPrice int64
 	ProductCurrency     string
+	ProductKind         ProductKind
 }
 
 type AddBundleOptionInput struct {
@@ -109,8 +110,10 @@ type UpdateBundleSelectionInput struct {
 }
 
 var (
-	ErrBundleParentNotBundle      = errors.New("bundle options can only be defined on products of kind BUNDLE")
-	ErrBundleSelectionNotSimple   = errors.New("bundle selections must reference SIMPLE products")
+	ErrBundleParentNotBundle    = errors.New("bundle options can only be defined on products of kind BUNDLE")
+	ErrBundleSelectionNotSimple = errors.New("bundle selections must reference SIMPLE or CONFIGURABLE products")
+	// The customer picks a configurable selection's variant at add-to-cart, so there is nothing to pre-pick
+	ErrBundleConfigurableDefault  = errors.New("a configurable bundle selection can't be a default - the customer picks its variant")
 	ErrBundleSelectionIsParent    = errors.New("a bundle cannot include itself as a selection")
 	ErrBundleOptionNotFound       = errors.New("bundle option not found")
 	ErrBundleSelectionNotFound    = errors.New("bundle selection not found")
