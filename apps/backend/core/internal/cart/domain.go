@@ -50,6 +50,9 @@ var ErrProductNotBundle = errors.New("AddBundleToCart requires a product of kind
 var ErrProductNotPublished = errors.New("product is not published on this store")
 
 var ErrBundleSelectionMissing = errors.New("bundle requires a selection for a required option")
+
+// A configurable selection was picked without one of its own variants
+var ErrBundleVariantMissing = errors.New("bundle selection needs one of its variants picked")
 var ErrBundleChanged = errors.New("bundle changed since it was added to the cart") // checkout's answer when stored picks no longer fit the live bundle - one code for the shopper, the specific rule only in the message
 
 var ErrBundleSelectionInvalid = errors.New("bundle selection does not belong to this bundle")
@@ -133,6 +136,16 @@ type BundleSelectionSnapshot struct {
 	UnitPrice         int64
 	QuantityPerBundle float64
 	IsDefault         bool
+	// Set when the selection is a configurable - the customer picks one of these at add-to-cart, and that variant is
+	// what the component row holds, prices and reserves
+	Variants []BundleVariantSnapshot
+}
+
+type BundleVariantSnapshot struct {
+	ProductID   uuid.UUID
+	ProductSKU  string
+	ProductName string
+	UnitPrice   int64
 }
 
 // CustomerID is nil for guests - every cart belongs to one store, and a customer holds one active shopper cart per store, plus any number of offers

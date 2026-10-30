@@ -21,6 +21,7 @@ type AddBundleToCartInput struct { // the bundle counterpart to AddCartLineInput
 	ProductSku string
 	Quantity   float64
 	Selections []AddBundleSelectionInput
+	Variants   map[uuid.UUID]uuid.UUID // configurable selection -> the variant picked for it
 }
 
 func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, input AddBundleToCartInput) (Cart, error) { // prices the line from the picked components - re-adding the same SKU REPLACES the prior selection set
@@ -44,7 +45,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	if err != nil {
 		return Cart{}, fmt.Errorf("%w: %w", ErrProductNotBundle, err)
 	}
-	picked, err := bundlePicks(snap, input.Selections)
+	picked, err := bundlePicks(snap, input.Selections, input.Variants)
 	if err != nil {
 		return Cart{}, err
 	}
@@ -146,7 +147,7 @@ func (s *Service) liveBundleLine(ctx context.Context, c Cart, l CartLine) (unitP
 	if err != nil {
 		return 0, nil, false
 	}
-	picked, err := bundlePicks(snap, picksFromComponents(snap, l.Components))
+	picked, err := bundlePicks(snap, picksFromComponents(snap, l.Components), variantsFromComponents(l.Components))
 	if err != nil {
 		return 0, nil, false
 	}
@@ -184,7 +185,7 @@ type pickedSelection struct {
 
 // Resolves the customer's picks against the bundle's own structure, in option order - each option at most once and each selection at most once, since a repeat would slip a second pick past a single-select or count one pick twice toward min_selections
 // Untouched options take their defaults, and a supplied option always wins, even an explicit empty list, so a customer can deselect an optional default
-func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput) ([]pickedSelection, error) {
+func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput, variants map[uuid.UUID]uuid.UUID) ([]pickedSelection, error) {
 	optByID := make(map[uuid.UUID]BundleOptionSnapshot, len(snap.Options))
 	for _, o := range snap.Options {
 		optByID[o.ID] = o
@@ -244,6 +245,14 @@ func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput) ([]picke
 			if !found {
 				return nil, fmt.Errorf("%w: selection %s on option %s", ErrBundleSelectionInvalid, id, opt.ID)
 			}
+			if sel.Variants != nil {
+				v, ok := variantOf(sel, variants[sel.ID])
+				if !ok {
+					return nil, fmt.Errorf("%w: selection %s", ErrBundleVariantMissing, sel.ID)
+				}
+				// The component is the variant from here on - its SKU prices, its stock is reserved, its name is on the order
+				sel.ProductID, sel.ProductSKU, sel.ProductName, sel.UnitPrice = v.ProductID, v.ProductSKU, v.ProductName, v.UnitPrice
+			}
 			out = append(out, pickedSelection{BundleSelectionSnapshot: sel, optionID: opt.ID})
 		}
 	}
@@ -270,6 +279,24 @@ func picksFromComponents(snap BundleSnapshot, comps []CartLineComponent) []AddBu
 	out := make([]AddBundleSelectionInput, 0, len(order))
 	for _, id := range order {
 		out = append(out, AddBundleSelectionInput{OptionID: id, SelectionIDs: byOption[id]})
+	}
+	return out
+}
+
+func variantOf(sel BundleSelectionSnapshot, id uuid.UUID) (BundleVariantSnapshot, bool) {
+	for _, v := range sel.Variants {
+		if v.ProductID == id {
+			return v, true
+		}
+	}
+	return BundleVariantSnapshot{}, false
+}
+
+// A stored line's variant per selection - the component row holds the variant, so it is what gets rechecked against today's variants
+func variantsFromComponents(comps []CartLineComponent) map[uuid.UUID]uuid.UUID {
+	out := make(map[uuid.UUID]uuid.UUID, len(comps))
+	for _, c := range comps {
+		out[c.BundleSelectionID] = c.ProductID
 	}
 	return out
 }

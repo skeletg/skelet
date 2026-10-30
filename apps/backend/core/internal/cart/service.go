@@ -588,7 +588,7 @@ func (s *Service) ValidateCheckoutLines(ctx context.Context, c Cart) error {
 			return err
 		}
 		if err == nil { // the picks were checked against the bundle as it was at add time - an option or selection removed, or a rule tightened since, would place an order the bundle no longer allows
-			if _, err := bundlePicks(snap, picksFromComponents(snap, l.Components)); err != nil {
+			if _, err := bundlePicks(snap, picksFromComponents(snap, l.Components), variantsFromComponents(l.Components)); err != nil {
 				return fmt.Errorf("%w: %s: %s", ErrBundleChanged, l.ProductSku, err.Error()) // text only, not wrapped - the inner rule's code would compete with BUNDLE_CHANGED for the response
 			}
 		}

@@ -39,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
@@ -512,8 +513,51 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 		}
 		snap.Options[i] = os
 	}
+	if err := a.attachBundleVariants(ctx, &snap); err != nil {
+		return cart.BundleSnapshot{}, err
+	}
 	a.dropHiddenDefaults(ctx, channelID, &snap)
 	return snap, nil
+}
+
+// A configurable selection carries its variants, one of which the customer picks - one batched children lookup for the
+// whole bundle, with the variants' display names in the active locale
+func (a CartCatalogAdapter) attachBundleVariants(ctx context.Context, snap *cart.BundleSnapshot) error {
+	var ids []uuid.UUID
+	for _, o := range snap.Options {
+		for _, sel := range o.Selections {
+			ids = append(ids, sel.ProductID)
+		}
+	}
+	children, err := a.svc.ListProductChildrenByParentIDs(ctx, ids)
+	if err != nil || len(children) == 0 {
+		return err
+	}
+	var variantIDs []uuid.UUID
+	for _, kids := range children {
+		for _, k := range kids {
+			variantIDs = append(variantIDs, k.ID)
+		}
+	}
+	names := a.svc.LinkLabelsByIDs(ctx, string(urlrewrite.EntityTypeProduct), variantIDs, locale.Active(ctx, nil))
+	for i := range snap.Options {
+		for j := range snap.Options[i].Selections {
+			sel := &snap.Options[i].Selections[j]
+			kids, ok := children[sel.ProductID]
+			if !ok {
+				continue
+			}
+			sel.Variants = make([]cart.BundleVariantSnapshot, 0, len(kids))
+			for _, k := range kids {
+				name := names[k.ID]
+				if name == "" {
+					name = k.SKU
+				}
+				sel.Variants = append(sel.Variants, cart.BundleVariantSnapshot{ProductID: k.ID, ProductSKU: k.SKU, ProductName: name, UnitPrice: k.DefaultPrice})
+			}
+		}
+	}
+	return nil
 }
 
 // A default the channel doesn't sell would be auto-picked for a customer who left the option alone, failing their add on a product they never chose - so it stops being a default here. It stays a valid pick, so choosing it outright still fails as unpublished. A lookup failure keeps the defaults
