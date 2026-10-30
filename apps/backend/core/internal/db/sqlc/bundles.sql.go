@@ -71,18 +71,20 @@ func (q *Queries) CreateBundleOption(ctx context.Context, arg CreateBundleOption
 
 const createBundleSelection = `-- name: CreateBundleSelection :one
 INSERT INTO catalog_product_bundle_selections (
-    option_id, product_id, quantity, is_default, sort_order
+    option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 )
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, option_id, product_id, quantity, is_default, sort_order
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 `
 
 type CreateBundleSelectionParams struct {
-	OptionID  uuid.UUID `json:"option_id"`
-	ProductID uuid.UUID `json:"product_id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	OptionID         uuid.UUID `json:"option_id"`
+	ProductID        uuid.UUID `json:"product_id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSelectionParams) (CatalogProductBundleSelection, error) {
@@ -92,6 +94,8 @@ func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSel
 		arg.Quantity,
 		arg.IsDefault,
 		arg.SortOrder,
+		arg.DiscountPercent,
+		arg.CustomerQuantity,
 	)
 	var i CatalogProductBundleSelection
 	err := row.Scan(
@@ -101,6 +105,8 @@ func (q *Queries) CreateBundleSelection(ctx context.Context, arg CreateBundleSel
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }
@@ -187,7 +193,7 @@ func (q *Queries) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID
 }
 
 const getBundleSelectionByID = `-- name: GetBundleSelectionByID :one
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections WHERE id = $1
+SELECT id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity FROM catalog_product_bundle_selections WHERE id = $1
 `
 
 func (q *Queries) GetBundleSelectionByID(ctx context.Context, id uuid.UUID) (CatalogProductBundleSelection, error) {
@@ -200,6 +206,8 @@ func (q *Queries) GetBundleSelectionByID(ctx context.Context, id uuid.UUID) (Cat
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }
@@ -354,7 +362,7 @@ func (q *Queries) ListBundleSelectionLinksByProductIDs(ctx context.Context, prod
 }
 
 const listBundleSelectionsByOptionIDs = `-- name: ListBundleSelectionsByOptionIDs :many
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections
+SELECT id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity FROM catalog_product_bundle_selections
 WHERE option_id = ANY($1::uuid[])
 ORDER BY option_id, sort_order, id
 `
@@ -375,6 +383,8 @@ func (q *Queries) ListBundleSelectionsByOptionIDs(ctx context.Context, optionIds
 			&i.Quantity,
 			&i.IsDefault,
 			&i.SortOrder,
+			&i.DiscountPercent,
+			&i.CustomerQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -482,18 +492,22 @@ func (q *Queries) UpdateBundleOption(ctx context.Context, arg UpdateBundleOption
 
 const updateBundleSelection = `-- name: UpdateBundleSelection :one
 UPDATE catalog_product_bundle_selections
-SET quantity   = $2,
-    is_default = $3,
-    sort_order = $4
+SET quantity          = $2,
+    is_default        = $3,
+    sort_order        = $4,
+    discount_percent  = $5,
+    customer_quantity = $6
 WHERE id = $1
-RETURNING id, option_id, product_id, quantity, is_default, sort_order
+RETURNING id, option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 `
 
 type UpdateBundleSelectionParams struct {
-	ID        uuid.UUID `json:"id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	ID               uuid.UUID `json:"id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSelectionParams) (CatalogProductBundleSelection, error) {
@@ -502,6 +516,8 @@ func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSel
 		arg.Quantity,
 		arg.IsDefault,
 		arg.SortOrder,
+		arg.DiscountPercent,
+		arg.CustomerQuantity,
 	)
 	var i CatalogProductBundleSelection
 	err := row.Scan(
@@ -511,6 +527,8 @@ func (q *Queries) UpdateBundleSelection(ctx context.Context, arg UpdateBundleSel
 		&i.Quantity,
 		&i.IsDefault,
 		&i.SortOrder,
+		&i.DiscountPercent,
+		&i.CustomerQuantity,
 	)
 	return i, err
 }

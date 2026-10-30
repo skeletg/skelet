@@ -811,12 +811,14 @@ type CatalogProductBundleOptionContent struct {
 }
 
 type CatalogProductBundleSelection struct {
-	ID        uuid.UUID `json:"id"`
-	OptionID  uuid.UUID `json:"option_id"`
-	ProductID uuid.UUID `json:"product_id"`
-	Quantity  float64   `json:"quantity"`
-	IsDefault bool      `json:"is_default"`
-	SortOrder int32     `json:"sort_order"`
+	ID               uuid.UUID `json:"id"`
+	OptionID         uuid.UUID `json:"option_id"`
+	ProductID        uuid.UUID `json:"product_id"`
+	Quantity         float64   `json:"quantity"`
+	IsDefault        bool      `json:"is_default"`
+	SortOrder        int32     `json:"sort_order"`
+	DiscountPercent  int16     `json:"discount_percent"`
+	CustomerQuantity bool      `json:"customer_quantity"`
 }
 
 type CatalogProductCategory struct {

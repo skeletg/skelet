@@ -156,11 +156,13 @@ func (r *postgresRepository) DeleteBundleOptionContent(ctx context.Context, opti
 
 func (r *postgresRepository) CreateBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error) {
 	row, err := r.queries.CreateBundleSelection(ctx, db.CreateBundleSelectionParams{
-		OptionID:  input.OptionID,
-		ProductID: input.ProductID,
-		Quantity:  input.Quantity,
-		IsDefault: input.IsDefault,
-		SortOrder: input.SortOrder,
+		OptionID:         input.OptionID,
+		ProductID:        input.ProductID,
+		Quantity:         input.Quantity,
+		IsDefault:        input.IsDefault,
+		SortOrder:        input.SortOrder,
+		DiscountPercent:  input.DiscountPercent,
+		CustomerQuantity: input.CustomerQuantity,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -226,12 +228,14 @@ func (r *postgresRepository) CountBundleSelectionDefaultsForOption(ctx context.C
 	return n, nil
 }
 
-func (r *postgresRepository) UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32) (BundleSelection, error) {
+func (r *postgresRepository) UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32, discountPercent int16, customerQuantity bool) (BundleSelection, error) {
 	row, err := r.queries.UpdateBundleSelection(ctx, db.UpdateBundleSelectionParams{
-		ID:        id,
-		Quantity:  quantity,
-		IsDefault: isDefault,
-		SortOrder: sortOrder,
+		ID:               id,
+		Quantity:         quantity,
+		IsDefault:        isDefault,
+		SortOrder:        sortOrder,
+		DiscountPercent:  discountPercent,
+		CustomerQuantity: customerQuantity,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -291,11 +295,13 @@ func (r *postgresRepository) SetBundleOptionRule(ctx context.Context, id uuid.UU
 
 func toBundleSelection(row db.CatalogProductBundleSelection) BundleSelection {
 	return BundleSelection{
-		ID:        row.ID,
-		OptionID:  row.OptionID,
-		ProductID: row.ProductID,
-		Quantity:  row.Quantity,
-		IsDefault: row.IsDefault,
-		SortOrder: row.SortOrder,
+		ID:               row.ID,
+		OptionID:         row.OptionID,
+		ProductID:        row.ProductID,
+		Quantity:         row.Quantity,
+		IsDefault:        row.IsDefault,
+		SortOrder:        row.SortOrder,
+		DiscountPercent:  row.DiscountPercent,
+		CustomerQuantity: row.CustomerQuantity,
 	}
 }

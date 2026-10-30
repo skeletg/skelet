@@ -257,6 +257,9 @@ func (s *bundleService) AddBundleSelection(ctx context.Context, input AddBundleS
 	if err := validPositiveQuantity(input.Quantity); err != nil {
 		return BundleSelection{}, err
 	}
+	if input.DiscountPercent < 0 || input.DiscountPercent > 100 {
+		return BundleSelection{}, ErrBundleSelectionDiscount
+	}
 	option, err := s.repo.GetBundleOptionByID(ctx, input.OptionID)
 	if err != nil {
 		return BundleSelection{}, err
@@ -315,6 +318,17 @@ func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateB
 	if input.SortOrder != nil {
 		finalSortOrder = *input.SortOrder
 	}
+	finalDiscount := current.DiscountPercent
+	if input.DiscountPercent != nil {
+		if *input.DiscountPercent < 0 || *input.DiscountPercent > 100 {
+			return BundleSelection{}, ErrBundleSelectionDiscount
+		}
+		finalDiscount = *input.DiscountPercent
+	}
+	finalCustomerQty := current.CustomerQuantity
+	if input.CustomerQuantity != nil {
+		finalCustomerQty = *input.CustomerQuantity
+	}
 
 	if finalIsDefault && !current.IsDefault {
 		child, err := s.repo.GetProductByID(ctx, current.ProductID)
@@ -333,7 +347,7 @@ func (s *bundleService) UpdateBundleSelection(ctx context.Context, input UpdateB
 				return err
 			}
 		}
-		updated, err = r.UpdateBundleSelection(ctx, current.ID, finalQuantity, finalIsDefault, finalSortOrder)
+		updated, err = r.UpdateBundleSelection(ctx, current.ID, finalQuantity, finalIsDefault, finalSortOrder, finalDiscount, finalCustomerQty)
 		return err
 	})
 	return updated, err

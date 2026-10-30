@@ -53,9 +53,9 @@ WHERE option_id = $1 AND locale = $2;
 
 -- name: CreateBundleSelection :one
 INSERT INTO catalog_product_bundle_selections (
-    option_id, product_id, quantity, is_default, sort_order
+    option_id, product_id, quantity, is_default, sort_order, discount_percent, customer_quantity
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetBundleSelectionByID :one
@@ -72,9 +72,11 @@ WHERE option_id = $1 AND is_default = TRUE;
 
 -- name: UpdateBundleSelection :one
 UPDATE catalog_product_bundle_selections
-SET quantity   = $2,
-    is_default = $3,
-    sort_order = $4
+SET quantity          = $2,
+    is_default        = $3,
+    sort_order        = $4,
+    discount_percent  = $5,
+    customer_quantity = $6
 WHERE id = $1
 RETURNING *;
 
