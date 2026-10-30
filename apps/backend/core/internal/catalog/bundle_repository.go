@@ -266,7 +266,27 @@ func toBundleOption(row db.CatalogProductBundleOption) BundleOption {
 		v := row.MaxSelections.Int32
 		o.MaxSelections = &v
 	}
+	if row.RuleCategoryID.Valid {
+		o.Rule = &BundleOptionRule{CategoryID: row.RuleCategoryID.UUID, AttributeValueIDs: row.RuleAttributeValueIds, Quantity: row.RuleQuantity}
+	}
 	return o
+}
+
+func (r *postgresRepository) SetBundleOptionRule(ctx context.Context, id uuid.UUID, rule *BundleOptionRule) (BundleOption, error) {
+	params := db.SetBundleOptionRuleParams{ID: id, RuleAttributeValueIds: []uuid.UUID{}, RuleQuantity: 1}
+	if rule != nil {
+		params.RuleCategoryID = uuid.NullUUID{UUID: rule.CategoryID, Valid: true}
+		params.RuleAttributeValueIds = append(params.RuleAttributeValueIds, rule.AttributeValueIDs...)
+		params.RuleQuantity = rule.Quantity
+	}
+	row, err := r.queries.SetBundleOptionRule(ctx, params)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BundleOption{}, ErrBundleOptionNotFound
+	}
+	if err != nil {
+		return BundleOption{}, fmt.Errorf("set bundle option rule: %w", err)
+	}
+	return toBundleOption(row), nil
 }
 
 func toBundleSelection(row db.CatalogProductBundleSelection) BundleSelection {

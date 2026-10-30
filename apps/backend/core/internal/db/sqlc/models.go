@@ -790,15 +790,18 @@ type CatalogProductAttributeSlug struct {
 }
 
 type CatalogProductBundleOption struct {
-	ID            uuid.UUID              `json:"id"`
-	ProductID     uuid.UUID              `json:"product_id"`
-	InputType     CatalogBundleInputType `json:"input_type"`
-	IsRequired    bool                   `json:"is_required"`
-	SortOrder     int32                  `json:"sort_order"`
-	CreatedAt     time.Time              `json:"created_at"`
-	UpdatedAt     time.Time              `json:"updated_at"`
-	MinSelections int32                  `json:"min_selections"`
-	MaxSelections sql.NullInt32          `json:"max_selections"`
+	ID                    uuid.UUID              `json:"id"`
+	ProductID             uuid.UUID              `json:"product_id"`
+	InputType             CatalogBundleInputType `json:"input_type"`
+	IsRequired            bool                   `json:"is_required"`
+	SortOrder             int32                  `json:"sort_order"`
+	CreatedAt             time.Time              `json:"created_at"`
+	UpdatedAt             time.Time              `json:"updated_at"`
+	MinSelections         int32                  `json:"min_selections"`
+	MaxSelections         sql.NullInt32          `json:"max_selections"`
+	RuleCategoryID        uuid.NullUUID          `json:"rule_category_id"`
+	RuleAttributeValueIds []uuid.UUID            `json:"rule_attribute_value_ids"`
+	RuleQuantity          float64                `json:"rule_quantity"`
 }
 
 type CatalogProductBundleOptionContent struct {

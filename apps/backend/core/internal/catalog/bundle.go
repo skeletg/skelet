@@ -42,6 +42,8 @@ type BundleOption struct { // one "option group" on a bundle product - a single 
 	MaxSelections *int32 // nil = unbounded - single-select ignores it
 	Title         string // resolved to the active request locale with a default-locale fallback - empty when no content row exists
 	AllContent    []BundleOptionContent
+	// Fills the option from a category on top of Selections - nil when it has none
+	Rule *BundleOptionRule
 	Selections    []BundleSelection
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -65,7 +67,18 @@ type BundleSelection struct { // one SIMPLE product filling an option's menu, or
 	ProductDefaultPrice int64
 	ProductCurrency     string
 	ProductKind         ProductKind
+	FromRule            bool // made by the option's rule when read, not a stored row - edit the rule, not the selection
 }
+
+// Every SIMPLE product in the category that has all the attribute values, each as a selection of Quantity per bundle
+type BundleOptionRule struct {
+	CategoryID        uuid.UUID
+	AttributeValueIDs []uuid.UUID
+	Quantity          float64
+}
+
+// shortcut: a rule fills at most this many selections, raise it or page the picker if a category outgrows it
+const bundleRuleLimit = 200
 
 type AddBundleOptionInput struct {
 	ProductID     uuid.UUID

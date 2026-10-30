@@ -371,6 +371,7 @@ type OptionRepository interface {
 
 // Bundle options and selections, including localized content
 type BundleRepository interface {
+	SetBundleOptionRule(ctx context.Context, id uuid.UUID, rule *BundleOptionRule) (BundleOption, error)
 	CountBundleSelectionDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
 	CreateBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error)
 	CreateBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error)

@@ -186,6 +186,7 @@ type BundleEditor interface {
 	AddBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error)
 	UpdateBundleSelection(ctx context.Context, input UpdateBundleSelectionInput) (BundleSelection, error)
 	DeleteBundleSelection(ctx context.Context, id uuid.UUID) error
+	SetBundleOptionRule(ctx context.Context, optionID uuid.UUID, rule *BundleOptionRule) (BundleOption, error)
 }
 
 // EditBundle runs fn's writes in one transaction, so a staged save of many edits lands whole or not at all. The editor is
@@ -196,6 +197,58 @@ func (s *bundleService) EditBundle(ctx context.Context, fn func(BundleEditor) er
 		c.repo, c.tx = r, nil
 		return fn(&bundleService{core: &c, repo: r})
 	})
+}
+
+// SetBundleOptionRule fills an option from a category, or with a nil rule stops doing so - the selections it makes are
+// worked out on every read, so products joining or leaving the category need no bundle edit
+func (s *bundleService) SetBundleOptionRule(ctx context.Context, optionID uuid.UUID, rule *BundleOptionRule) (BundleOption, error) {
+	if rule != nil {
+		if err := validPositiveQuantity(rule.Quantity); err != nil {
+			return BundleOption{}, err
+		}
+		if rule.CategoryID == uuid.Nil {
+			return BundleOption{}, fmt.Errorf("%w: a rule needs a category", ErrInvalidBundleLimits)
+		}
+	}
+	if _, err := s.repo.GetBundleOptionByID(ctx, optionID); err != nil {
+		return BundleOption{}, err
+	}
+	return s.repo.SetBundleOptionRule(ctx, optionID, rule)
+}
+
+// The option's rule as selections, after the hand-picked ones and skipping products already among them. Each id is
+// derived from the option and the product, so a cart line holding one still resolves on the next read
+func (s *bundleService) ruleSelections(ctx context.Context, opt BundleOption, explicit []BundleSelection) ([]BundleSelection, error) {
+	ids, _, err := s.repo.ListProductIDsPaged(ctx, ProductPageFilter{
+		Kinds:             []string{string(KindSimple)},
+		CategoryIDs:       []uuid.UUID{opt.Rule.CategoryID},
+		AttributeValueIDs: opt.Rule.AttributeValueIDs,
+		SortKey:           "sku",
+		Limit:             bundleRuleLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("bundle option rule: %w", err)
+	}
+	taken := map[uuid.UUID]bool{opt.ProductID: true}
+	for _, sel := range explicit {
+		taken[sel.ProductID] = true
+	}
+	out := explicit
+	for i, pid := range ids {
+		if taken[pid] {
+			continue
+		}
+		out = append(out, BundleSelection{
+			ID: RuleSelectionID(opt.ID, pid), OptionID: opt.ID, ProductID: pid, Quantity: opt.Rule.Quantity,
+			SortOrder: int32(len(explicit) + i), FromRule: true,
+		})
+	}
+	return out, nil
+}
+
+// RuleSelectionID is the stable id a rule gives the selection it makes for a product
+func RuleSelectionID(optionID, productID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(optionID, productID[:])
 }
 
 // ==================== Bundle selections ====================
@@ -325,6 +378,14 @@ func (s *bundleService) GetBundleOptions(ctx context.Context, productID uuid.UUI
 	selectionsByOption, err := s.repo.ListBundleSelectionsByOptionIDs(ctx, optionIDs)
 	if err != nil {
 		return nil, err
+	}
+	for _, o := range options {
+		if o.Rule == nil {
+			continue
+		}
+		if selectionsByOption[o.ID], err = s.ruleSelections(ctx, o, selectionsByOption[o.ID]); err != nil {
+			return nil, err
+		}
 	}
 
 	var sels []BundleSelection

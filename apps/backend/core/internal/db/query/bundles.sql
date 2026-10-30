@@ -89,3 +89,13 @@ FROM catalog_product_bundle_selections s
 JOIN catalog_product_bundle_options o ON o.id = s.option_id
 WHERE s.product_id = ANY(sqlc.arg(product_ids)::uuid[])
 ORDER BY s.product_id, o.sort_order, s.sort_order;
+
+-- name: SetBundleOptionRule :one
+-- A null category drops the rule
+UPDATE catalog_product_bundle_options
+SET rule_category_id         = sqlc.narg(rule_category_id),
+    rule_attribute_value_ids = sqlc.arg(rule_attribute_value_ids)::uuid[],
+    rule_quantity            = sqlc.arg(rule_quantity),
+    updated_at               = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
