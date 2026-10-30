@@ -153,13 +153,15 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 		createdSubs = nil // reset so a tx retry doesn't double-publish
 		r := s.repo.WithTx(t)
 		for _, ln := range lines {
-			// The originating order covers the first period - TrialDays delays the first renewal, otherwise it's one interval out
-			start := now
+			// The originating order covers the first period - TrialDays delays the first renewal, otherwise it's one interval out.
+			// Renewals count from the purchase, or from the trial's end when there is one
+			start, anchor := now, now
 			var end time.Time
 			if ln.TrialDays > 0 {
 				end = start.AddDate(0, 0, int(ln.TrialDays))
+				anchor = end
 			} else {
-				end = nextBillingTime(start, ln.IntervalUnit, ln.IntervalCount)
+				end = nextBoundary(anchor, start, ln.IntervalUnit, ln.IntervalCount)
 			}
 			channelID := placed.ChannelID
 			sub, err := r.Create(ctx, StartInput{
@@ -177,6 +179,7 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 				CurrentPeriodStart: start,
 				CurrentPeriodEnd:   end,
 				NextBillingAt:      end,
+				BillingAnchor:      anchor,
 			})
 			if err != nil {
 				return err

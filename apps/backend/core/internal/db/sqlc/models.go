@@ -2612,6 +2612,7 @@ type Subscription struct {
 	UpdatedAt          time.Time     `json:"updated_at"`
 	ChannelID          uuid.NullUUID `json:"channel_id"`
 	PaymentMethodID    uuid.NullUUID `json:"payment_method_id"`
+	BillingAnchor      time.Time     `json:"billing_anchor"`
 }
 
 type SubscriptionInvoice struct {
