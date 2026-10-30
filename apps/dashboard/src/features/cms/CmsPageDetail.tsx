@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -49,11 +49,12 @@ import { CmsPreviewPanel } from './CmsPreviewPanel'
 import { parseDocument, serializeDocument, type CmsBlock } from './page-blocks'
 import type { FieldValue } from './DynamicFieldRenderer'
 import { BasicsCard } from './page-detail/BasicsCard'
-import { ContentCard, SeoCard } from './page-detail/ContentCard'
+import { ContentCard } from './page-detail/ContentCard'
+import { SeoCard } from './page-detail/SeoCard'
 import { SelectionsCard } from './page-detail/SelectionsCard'
 import { RelationshipsCard } from './page-detail/RelationshipsCard'
 import { CmsPageExperimentSection } from './page-detail/ExperimentSection'
-import { CmsPageCommentsSection } from './page-detail/Comments'
+import { CmsPageComments } from './page-detail/Comments'
 import { CmsPageTagsSection } from './page-detail/TagsSection'
 import { CmsPageChannelsSection } from './page-detail/ChannelsSection'
 import { CmsPageHistory } from './page-detail/History'
@@ -268,7 +269,7 @@ function CmsPageEditor({
               </Button>
               {canManage ? (
                 <>
-                  <PublishMenu page={p} canApprove={canApprove} refetchVariables={variables} />
+                  <PublishMenu page={p} canApprove={canApprove} dirty={registry.isDirty} refetchVariables={variables} />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button type="button" variant="ghost" size="sm" aria-label="More actions" disabled={cloning || deleting}>
@@ -423,29 +424,36 @@ function CmsPageEditor({
           <PluginSections target="cms-page" entity={p} mode="edit" />
         </DetailPageBody>
 
-        <Sheet open={panel === 'history'} onOpenChange={(o) => !o && setPanel(null)}>
-          <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-            <SheetHeader>
-              <SheetTitle>Version history</SheetTitle>
-              <SheetDescription>Saved versions of the {editingLocale} content. Restoring one saves it as a new version.</SheetDescription>
-            </SheetHeader>
-            <div className="px-4 pb-6">
+        <Dialog open={panel === 'history'} onOpenChange={(o) => !o && setPanel(null)}>
+          <DialogContent className="flex h-[min(85vh,46rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+            <DialogHeader className="gap-1 border-b px-5 py-4 pr-12">
+              <DialogTitle className="flex items-center gap-2">
+                <HistoryIcon className="size-5 text-muted-foreground" />
+                Version history
+              </DialogTitle>
+              <DialogDescription>
+                Saved versions of the <code className="font-mono">{editingLocale}</code> content. Restoring one saves it as a new
+                version, so it can be undone.
+              </DialogDescription>
+            </DialogHeader>
+            {panel === 'history' && (
               <CmsPageHistory pageId={p.id} locale={editingLocale} canManage={canManage} refetchVariables={variables} />
-            </div>
-          </SheetContent>
-        </Sheet>
+            )}
+          </DialogContent>
+        </Dialog>
 
-        <Sheet open={panel === 'comments'} onOpenChange={(o) => !o && setPanel(null)}>
-          <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>Comments</SheetTitle>
-              <SheetDescription>Notes for whoever works on this page. Resolve one once it's handled.</SheetDescription>
-            </SheetHeader>
-            <div className="px-4 pb-6">
-              <CmsPageCommentsSection pageId={p.id} canManage={canManage} />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Dialog open={panel === 'comments'} onOpenChange={(o) => !o && setPanel(null)}>
+          <DialogContent className="flex max-h-[min(80vh,40rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+            <DialogHeader className="gap-1 border-b px-5 py-4 pr-12">
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquareIcon className="size-5 text-muted-foreground" />
+                Comments
+              </DialogTitle>
+              <DialogDescription>Notes for whoever works on this page. Resolve one once it's handled.</DialogDescription>
+            </DialogHeader>
+            {panel === 'comments' && <CmsPageComments pageId={p.id} canManage={canManage} />}
+          </DialogContent>
+        </Dialog>
 
         <ConfirmDialog
           open={confirmDelete}

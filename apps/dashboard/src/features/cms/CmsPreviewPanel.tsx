@@ -1,20 +1,23 @@
-// Inline live preview for a CMS page - a sibling of the editor, not an overlay, streaming the
-// in-flight block document to the storefront iframe over postMessage so edits render before Save
+// Inline live preview for a CMS page - docked beside the editor, or folded to a rail that opens over it when
+// the screen is too narrow for both - streaming the in-flight block document to the storefront iframe over postMessage so edits render before Save
 //
 // Mirror of features/blog/BlogPreviewPanel, differing only in payload: the CMS page body IS a
 // block document, so this streams { blocks } rather than post form state
 // Token re-mints at ~80% of TTL; contract lives in CmsPreviewClient.tsx, discriminator
 // "skelet:cms-preview:update"
 
-import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@apollo/client/react'
 import {
   ExternalLinkIcon,
+  EyeIcon,
   MonitorIcon,
+  PanelRightCloseIcon,
   RefreshCwIcon,
   SmartphoneIcon,
   XIcon,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
 import type { CmsBlock } from './page-blocks'
@@ -34,11 +37,27 @@ const VIEWPORT_WIDTH: Record<Viewport, number> = {
 const PANEL_WIDTH_KEY = 'skelet:cms-preview:panel-width'
 const DEFAULT_PANEL_WIDTH = 640
 const MIN_PANEL_WIDTH = 360
+// The editor keeps this much: the preview shrinks into what's left, and once even its minimum doesn't fit it
+// folds to a rail and opens over the editor on demand
+const MIN_EDITOR_WIDTH = 560
+// Opened over the editor it leaves a strip of the editor showing, and never narrows past the minimum
+const OVERLAY_GUTTER = 48
+const OVERLAY_MIN_WIDTH = 320
+const COLLAPSED_KEY = 'skelet:cms-preview:collapsed'
 
-// Cap so the pane can't swallow the editor - leave at least ~480px for it, and never exceed 1280
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const MAX_PANEL_WIDTH = 1280
+
+// Only the preference's own bounds - what the editor needs is taken off the measured row at render
 function clampPanelWidth(w: number): number {
-  const max = Math.max(MIN_PANEL_WIDTH, Math.min(1280, window.innerWidth - 480))
-  return Math.round(Math.max(MIN_PANEL_WIDTH, Math.min(w, max)))
+  return Math.round(Math.max(MIN_PANEL_WIDTH, Math.min(w, MAX_PANEL_WIDTH)))
 }
 
 function readSavedPanelWidth(): number {
@@ -85,16 +104,60 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
       // storage unavailable - the width just won't persist across reloads
     }
   }, [panelWidth])
+
+  // Sized off the row it shares with the editor, not the window - the app sidebar takes its share too
+  const asideRef = useRef<HTMLElement | null>(null)
+  const [rowWidth, setRowWidth] = useState(0)
+  useLayoutEffect(() => {
+    const row = asideRef.current?.parentElement
+    if (!row) return
+    setRowWidth(row.getBoundingClientRect().width)
+    const obs = new ResizeObserver((entries) => setRowWidth(entries[0]?.contentRect.width ?? 0))
+    obs.observe(row)
+    return () => obs.disconnect()
+  }, [])
+  const room = rowWidth > 0 ? rowWidth - MIN_EDITOR_WIDTH : Number.POSITIVE_INFINITY
+  const fits = room >= MIN_PANEL_WIDTH
+  const dockedWidth = Math.min(panelWidth, room)
+  const overlayWidth = Math.min(rowWidth || panelWidth, Math.max(OVERLAY_MIN_WIDTH, Math.min(panelWidth, rowWidth - OVERLAY_GUTTER)))
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const mode: 'docked' | 'rail' | 'overlay' = collapsed ? 'rail' : !fits ? (overlayOpen ? 'overlay' : 'rail') : 'docked'
+  function rememberCollapsed(next: boolean) {
+    setCollapsed(next)
+    try {
+      window.localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0')
+    } catch {
+      // the choice just won't survive a reload
+    }
+  }
+  function showPreview() {
+    rememberCollapsed(false)
+    if (!fits) setOverlayOpen(true)
+  }
+  function hidePreview() {
+    if (mode === 'overlay') setOverlayOpen(false)
+    else rememberCollapsed(true)
+  }
+  useEffect(() => {
+    if (mode !== 'overlay') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOverlayOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode])
   // Pointer capture keeps the drag alive over the iframe, which would otherwise swallow the events
   function onResizeDown(e: ReactPointerEvent<HTMLDivElement>) {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragStart.current = { x: e.clientX, w: panelWidth }
+    dragStart.current = { x: e.clientX, w: dockedWidth }
   }
   function onResizeMove(e: ReactPointerEvent<HTMLDivElement>) {
     if (!dragStart.current) return
     // The handle is on the LEFT edge, so dragging left (dx < 0) widens the panel
-    setPanelWidth(clampPanelWidth(dragStart.current.w - (e.clientX - dragStart.current.x)))
+    // Capped at the room too, or dragging past it banks width the pane can't show and dragging back feels dead
+    setPanelWidth(clampPanelWidth(Math.min(room, dragStart.current.w - (e.clientX - dragStart.current.x))))
   }
   function onResizeUp(e: ReactPointerEvent<HTMLDivElement>) {
     if (!dragStart.current) return
@@ -178,7 +241,10 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
       if (!ev.data || typeof ev.data !== 'object') return
       if (ev.data.type !== SELECT_TYPE) return
       if (ev.data.pageId !== pageId) return
-      if (typeof ev.data.blockId === 'string') onSelectBlock?.(ev.data.blockId)
+      if (typeof ev.data.blockId !== 'string') return
+      // Over the editor, the preview would hide the card it just opened
+      setOverlayOpen(false)
+      onSelectBlock?.(ev.data.blockId)
     }
     window.addEventListener('message', onSelect)
     return () => window.removeEventListener('message', onSelect)
@@ -213,10 +279,34 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
 
   return (
     <aside
-      className="relative flex h-full shrink-0 flex-col border-l bg-background"
-      style={{ width: panelWidth }}
+      ref={asideRef}
+      className={cn('relative flex h-full shrink-0 flex-col border-l bg-background', mode !== 'docked' && 'w-11 items-center')}
+      style={mode === 'docked' ? { width: dockedWidth } : undefined}
     >
+      {mode !== 'docked' && (
+        <button
+          type="button"
+          onClick={showPreview}
+          aria-expanded={mode === 'overlay'}
+          className="mt-3 flex flex-col items-center gap-2 rounded-md px-1.5 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <EyeIcon className="size-4" />
+          <span className="rotate-180 [writing-mode:vertical-rl]">Live preview</span>
+        </button>
+      )}
+      {/* Kept mounted in every mode - hiding it with display:none keeps the iframe's page loaded */}
+      <div
+        hidden={mode === 'rail'}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col bg-background',
+          mode === 'docked' && 'relative',
+          mode === 'rail' && 'hidden',
+          mode === 'overlay' && 'absolute inset-y-0 right-0 z-30 border-l shadow-2xl',
+        )}
+        style={mode === 'overlay' ? { width: overlayWidth } : undefined}
+      >
       {/* Drag the left edge to resize the preview; double-click to reset to the default width */}
+      {mode === 'docked' && (
       <div
         role="separator"
         aria-orientation="vertical"
@@ -228,6 +318,7 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
         title="Drag to resize · double-click to reset"
         className="absolute left-0 top-0 z-20 h-full w-2 -translate-x-1/2 cursor-col-resize touch-none select-none bg-transparent transition-colors hover:bg-primary/40 active:bg-primary/60"
       />
+      )}
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Live preview</div>
@@ -272,7 +363,7 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
               </a>
             </Button>
           )}
-          {onClose && (
+          {onClose ? (
             <Button
               variant="outline"
               size="sm"
@@ -280,6 +371,10 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
               title="Close preview panel"
             >
               <XIcon className="size-4" />
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={hidePreview} title="Hide preview" aria-label="Hide preview">
+              <PanelRightCloseIcon className="size-4" />
             </Button>
           )}
         </div>
@@ -328,6 +423,7 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
             Minting preview token…
           </div>
         )}
+      </div>
       </div>
     </aside>
   )

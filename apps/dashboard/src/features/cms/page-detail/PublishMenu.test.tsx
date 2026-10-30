@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { SLOW, captureInput, renderDialog } from '@/test/page-harness'
-import { PublishCmsPageDocument, RejectCmsPageDocument } from '../Cms.gql'
+import { PublishCmsPageDocument, RejectCmsPageDocument, ScheduleCmsPageDocument } from '../Cms.gql'
 import { PublishMenu } from './PublishMenu'
 import { publishStatus, type PublishPage } from './shared'
 
@@ -55,5 +55,19 @@ describe('PublishMenu', () => {
     openMenu()
     expect(await screen.findByRole('menuitem', { name: 'Awaiting an approver' })).toHaveAttribute('aria-disabled', 'true')
     expect(screen.queryByRole('menuitem', { name: 'Approve' })).toBeNull()
+  })
+
+  it('schedules at the picked time and flags unsaved changes', async () => {
+    const onSchedule = vi.fn()
+    renderDialog(<PublishMenu page={draft} canApprove dirty refetchVariables={{ id: 'pg1' }} />, [
+      { request: { query: ScheduleCmsPageDocument, variables: captureInput(onSchedule) }, result: { data: { scheduleCMSPage: null } } },
+    ])
+    openMenu()
+    expect(await screen.findByText(/Unsaved changes aren't included/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule publish…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Schedule publish' })
+    fireEvent.change(within(dialog).getByLabelText('Publish at'), { target: { value: '2030-01-15T10:30' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Schedule' }))
+    await vi.waitFor(() => expect(onSchedule).toHaveBeenCalledWith({ id: 'pg1', scheduledAt: new Date('2030-01-15T10:30').toISOString() }), SLOW)
   })
 })

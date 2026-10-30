@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { GitCompareIcon, RotateCcwIcon, XIcon } from 'lucide-react'
+import { toast } from 'sonner'
+import { GitCompareIcon, HistoryIcon, RotateCcwIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import {
   CmsPageDocument,
@@ -43,10 +45,10 @@ function changeSummary(older: RevisionLike | undefined, rev: RevisionLike): stri
   return parts.length > 0 ? parts.join(', ') : 'No content changes'
 }
 
-// The page's saved versions for the active locale, newest first, with a compare against the current
-// one and a restore. The backend keeps up to 50 per locale, so they reveal in pages
-const REVISIONS_INITIAL = 10
-const REVISIONS_STEP = 15
+// The page's saved versions for the active locale, newest first: the list on the left, the picked version's
+// changes and its restore on the right. The backend keeps up to 50 per locale, so the list reveals in pages
+const REVISIONS_INITIAL = 15
+const REVISIONS_STEP = 20
 
 export function CmsPageHistory({
   pageId,
@@ -60,107 +62,113 @@ export function CmsPageHistory({
   refetchVariables: { id: string }
 }) {
   const { data, loading } = useQuery(CmsPageRevisionsDocument, { variables: { pageId, locale } })
-  const revisions = data?.cmsPageRevisions ?? []
+  const revisions = useMemo(() => data?.cmsPageRevisions ?? [], [data])
   const [restore, { loading: restoring }] = useMutation(RestoreCmsPageRevisionDocument, {
     refetchQueries: [{ query: CmsPageDocument, variables: refetchVariables }, { query: CmsPageRevisionsDocument, variables: { pageId, locale } }],
   })
   const [shown, setShown] = useState(REVISIONS_INITIAL)
-  const [compareId, setCompareId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // A layout diff word-diffs every changed block prop - worth doing once per load, not on every click
+  const summaries = useMemo(() => revisions.map((rev, i) => changeSummary(revisions[i + 1], rev)), [revisions])
+
+  if (loading && revisions.length === 0) return <p className="p-5 text-sm text-muted-foreground">Loading…</p>
+  if (revisions.length === 0) {
+    return (
+      <div className="grid flex-1 place-items-center p-8 text-center">
+        <div className="grid justify-items-center gap-2">
+          <HistoryIcon className="size-8 text-muted-foreground/60" />
+          <p className="text-sm font-medium">No saved versions yet</p>
+          <p className="text-sm text-muted-foreground">One is kept each time the page is saved.</p>
+        </div>
+      </div>
+    )
+  }
 
   const visible = revisions.slice(0, shown)
   const remaining = revisions.length - visible.length
   const current = revisions[0]
-  const compareBase = compareId ? revisions.find((r) => r.id === compareId) : undefined
+  const selectedIndex = Math.max(0, revisions.findIndex((r) => r.id === selectedId))
+  const selected = revisions[selectedIndex]
+  const isCurrent = selectedIndex === 0
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>
-  if (revisions.length === 0) {
-    return (
-      <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-        No saved versions yet - one is kept each time the page is saved.
-      </p>
-    )
+  async function onRestore() {
+    try {
+      await restore({ variables: { id: selected.id } })
+      setSelectedId(null)
+      toast.success('Version restored - it is now the current one.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Restore failed.')
+    }
   }
 
   return (
-    <div className="grid gap-3">
-      <ol className="relative ml-[6px] border-l border-border pl-5">
-        {visible.map((rev, i) => {
-          const isCurrent = i === 0
-          return (
-            <li key={rev.id} className="relative pb-4 last:pb-0">
-              <span
-                className={cn(
-                  'absolute -left-[27px] top-1 size-3 rounded-full border-2 border-background',
-                  isCurrent ? 'bg-primary' : 'bg-muted-foreground/40',
-                )}
-              />
-              <div className="flex items-start justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground" title={new Date(rev.createdAt).toLocaleString()}>
-                      {relativeTime(rev.createdAt)}
-                    </span>
-                    {isCurrent && (
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,14rem)_minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)] md:grid-rows-1">
+      <nav className="min-h-0 overflow-y-auto border-b md:border-b-0 md:border-r" aria-label="Versions">
+        <ol className="divide-y">
+          {visible.map((rev, i) => {
+            const active = rev.id === selected.id
+            return (
+              <li key={rev.id}>
+                <button
+                  type="button"
+                  aria-current={active || undefined}
+                  onClick={() => setSelectedId(rev.id)}
+                  className={cn(
+                    'relative grid w-full gap-0.5 px-4 py-3 text-left transition-colors hover:bg-muted/50',
+                    active && 'bg-muted hover:bg-muted',
+                  )}
+                >
+                  {active && <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" aria-hidden />}
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <span title={formatDateTime(rev.createdAt)}>{relativeTime(rev.createdAt)}</span>
+                    {i === 0 && (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                         Current
                       </Badge>
                     )}
                   </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{changeSummary(revisions[i + 1], rev)}</span>
-                </span>
-                {!isCurrent && (
-                  <span className="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant={compareId === rev.id ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className="h-8 gap-1.5 px-2 text-xs"
-                      title="Compare this version with the current one"
-                      onClick={() => setCompareId((id) => (id === rev.id ? null : rev.id))}
-                    >
-                      <GitCompareIcon className="size-3.5" />
-                      Compare
-                    </Button>
-                    {canManage && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1.5 px-2 text-xs"
-                        disabled={restoring}
-                        title="Restore this version (saved as a new version, so it's reversible)"
-                        onClick={() => restore({ variables: { id: rev.id } })}
-                      >
-                        <RotateCcwIcon className="size-3.5" />
-                        Restore
-                      </Button>
-                    )}
-                  </span>
-                )}
-              </div>
-              {compareBase?.id === rev.id && current && (
-                <div className="mt-2">
-                  <RevisionComparePanel
-                    base={compareBase}
-                    target={current}
-                    baseWhen={relativeTime(compareBase.createdAt)}
-                    onClose={() => setCompareId(null)}
-                  />
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ol>
+                  <span className="truncate text-xs text-muted-foreground">{summaries[i]}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+        {remaining > 0 && (
+          <div className="border-t p-2">
+            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setShown((n) => n + REVISIONS_STEP)}>
+              Load {Math.min(remaining, REVISIONS_STEP)} more
+            </Button>
+          </div>
+        )}
+      </nav>
 
-      {remaining > 0 && (
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span>
-            Showing {visible.length} of {revisions.length}
-          </span>
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setShown((n) => n + REVISIONS_STEP)}>
-            Load {Math.min(remaining, REVISIONS_STEP)} more
-          </Button>
+      <section className="grid min-h-0 content-start gap-4 overflow-y-auto p-5" aria-label="Selected version">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-0.5">
+            <h3 className="text-base font-semibold">{isCurrent ? 'Current version' : formatDateTime(selected.createdAt)}</h3>
+            <p className="text-sm text-muted-foreground">
+              {isCurrent
+                ? `Saved ${relativeTime(selected.createdAt)} - what the page holds now.`
+                : `Saved ${relativeTime(selected.createdAt)}. Restoring it undoes the changes below.`}
+            </p>
+          </div>
+          {!isCurrent && canManage && (
+            <Button type="button" size="sm" disabled={restoring} onClick={() => void onRestore()}>
+              <RotateCcwIcon className="size-4" />
+              {restoring ? 'Restoring…' : 'Restore this version'}
+            </Button>
+          )}
         </div>
-      )}
+        {isCurrent ? (
+          revisions[1] ? (
+            <RevisionDiff title="What this save changed" base={revisions[1]} target={current} />
+          ) : (
+            <p className="text-sm text-muted-foreground">The oldest version kept - there's nothing earlier to compare it with.</p>
+          )
+        ) : (
+          <RevisionDiff title="Changed since this version" base={selected} target={current} />
+        )}
+      </section>
     </div>
   )
 }
@@ -201,48 +209,32 @@ function blockChangeBadge(kind: BlockChange['kind']): { label: string; cls: stri
   }
 }
 
-// RevisionComparePanel shows what changed from a past revision to the current
-// one: field-level word diffs + a block-level layout diff
-function RevisionComparePanel({
-  base,
-  target,
-  baseWhen,
-  onClose,
-}: {
-  base: RevisionLike
-  target: RevisionLike
-  baseWhen: string
-  onClose: () => void
-}) {
+// RevisionDiff shows what changed from one revision to another: field-level word diffs + a block-level layout diff
+function RevisionDiff({ title, base, target }: { title: string; base: RevisionLike; target: RevisionLike }) {
   const fields = diffFields(base, target)
   const doc = diffDocuments(base.body, target.body)
   const nothing = fields.length === 0 && doc.changes.length === 0
   return (
-    <div className="grid gap-3 rounded-md border bg-muted/30 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <GitCompareIcon className="size-4 text-muted-foreground" />
-          Changes from {baseWhen} → current
-        </span>
-        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={onClose}>
-          <XIcon className="size-4" />
-        </Button>
-      </div>
+    <div className="grid gap-3">
+      <span className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <GitCompareIcon className="size-3.5" />
+        {title}
+      </span>
       {nothing ? (
-        <p className="text-sm text-muted-foreground">No differences - these versions are identical.</p>
+        <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">No differences - the content is identical.</p>
       ) : (
         <>
           {fields.length > 0 && (
-            <div className="grid gap-2">
+            <ul className="divide-y rounded-md border">
               {fields.map((f) => (
-                <div key={f.key} className="grid gap-0.5">
+                <li key={f.key} className="grid gap-1 px-3 py-2.5">
                   <span className="text-xs font-medium text-muted-foreground">{f.label}</span>
                   <div className="text-sm leading-relaxed">
                     <DiffInline spans={f.spans} />
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
           {doc.changes.length > 0 && (
             <div className="grid gap-2">
@@ -250,11 +242,11 @@ function RevisionComparePanel({
               {doc.freeform ? (
                 <p className="text-sm text-muted-foreground">Body content changed (not a block layout).</p>
               ) : (
-                <ul className="grid gap-2">
+                <ul className="divide-y rounded-md border">
                   {doc.changes.map((c) => {
                     const badge = blockChangeBadge(c.kind)
                     return (
-                      <li key={c.id || c.label} className="rounded border bg-background px-2.5 py-2">
+                      <li key={c.id || c.label} className="px-3 py-2.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', badge.cls)}>
                             {badge.label}

@@ -62,10 +62,13 @@ export function PublishStatus({ page }: { page: PublishPage }) {
 export function PublishMenu({
   page,
   canApprove,
+  dirty = false,
   refetchVariables,
 }: {
   page: PublishPage
   canApprove: boolean
+  // Staged edits waiting on Save - publishing acts on the saved page, which they aren't part of yet
+  dirty?: boolean
   refetchVariables: { id: string }
 }) {
   const refetchQueries = [{ query: CmsPageDocument, variables: refetchVariables }, CmsPagesDocument]
@@ -115,6 +118,11 @@ export function PublishMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
+          {dirty && (
+            <DropdownMenuLabel className="text-xs font-normal text-warning">
+              Unsaved changes aren't included - save first to publish them.
+            </DropdownMenuLabel>
+          )}
           {page.isPublished ? (
             <DropdownMenuItem onSelect={() => void run(() => unpublish({ variables: { id } }), 'Page unpublished.')}>
               <CircleOffIcon /> Unpublish

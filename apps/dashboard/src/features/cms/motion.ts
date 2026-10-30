@@ -21,29 +21,41 @@ export function visibleTravel(el: HTMLElement, px: number): number {
 }
 
 const HOLD_MS = 420
+// A header below this fraction of the scroller is low enough that its form would open out of sight...
+const RAISE_BELOW = 0.55
+// ...so it eases up to this fraction instead
+const RAISE_TO = 0.25
 const easeOut = (p: number) => 1 - (1 - p) ** 3
+
+// One hold steers the scroller at a time - a second click mid-glide hands over instead of two loops fighting
+let cancelHold: (() => void) | null = null
 
 // Opening a block closes the open one, and when that one sits above, everything under it slid up and the
 // clicked block left the screen. This holds the clicked header where it was through the collapse - or, when it
-// is low enough that its form would open out of sight, eases it up to a quarter of the way down
+// is low enough that its form would open out of sight, eases it up the scroller.
 // `shrinkAbove` is how much is about to fold away over it: past the top of the page there's nothing left to
 // scroll back, so the header has to give up that much - easing it there from the start beats a drop at the end
 export function holdInPlace(card: HTMLElement, opts: { reveal?: boolean; shrinkAbove?: number } = {}) {
+  cancelHold?.()
   const scroller = findScrollParent(card)
   if (!scroller) return
   const box = scroller.getBoundingClientRect()
   const start = card.getBoundingClientRect().top
-  const raise = opts.reveal || start > box.top + box.height * 0.55
+  const raise = opts.reveal || start > box.top + box.height * RAISE_BELOW
   const deficit = Math.max(0, (opts.shrinkAbove ?? 0) - scroller.scrollTop)
-  const target = Math.min(raise ? box.top + box.height * 0.25 : start, start - deficit)
+  const target = Math.min(raise ? box.top + box.height * RAISE_TO : start, start - deficit)
   const smooth = canAnimate()
-  // A hand on the wheel wins - stop steering the moment the admin scrolls themselves
   let stopped = false
+  // A hand on the wheel wins - stop steering the moment the admin scrolls themselves
   const stop = () => {
     stopped = true
+    scroller.removeEventListener('wheel', stop)
+    scroller.removeEventListener('touchmove', stop)
+    if (cancelHold === stop) cancelHold = null
   }
-  scroller.addEventListener('wheel', stop, { once: true, passive: true })
-  scroller.addEventListener('touchmove', stop, { once: true, passive: true })
+  cancelHold = stop
+  scroller.addEventListener('wheel', stop, { passive: true })
+  scroller.addEventListener('touchmove', stop, { passive: true })
   // Timed from the first frame that runs, in real time - the frame timestamp is stale after the long mount frame
   let t0: number | undefined
   const step = () => {
@@ -54,10 +66,7 @@ export function holdInPlace(card: HTMLElement, opts: { reveal?: boolean; shrinkA
     const want = smooth ? start + (target - start) * easeOut(p) : target
     scroller.scrollTop += card.getBoundingClientRect().top - want
     if (p < 1) requestAnimationFrame(step)
-    else {
-      scroller.removeEventListener('wheel', stop)
-      scroller.removeEventListener('touchmove', stop)
-    }
+    else stop()
   }
   requestAnimationFrame(step)
 }

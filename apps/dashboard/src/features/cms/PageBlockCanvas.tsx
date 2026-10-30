@@ -728,6 +728,15 @@ function BlockCard({
   )
 }
 
+// Matched on the attribute rather than built into a selector - a block id is document data, and one with a quote
+// in it would make querySelector throw
+function cardById(id: string): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-block-card-id]')) {
+    if (el.dataset.blockCardId === id) return el
+  }
+  return null
+}
+
 // ---------- add-block menu ----------
 
 // AddBlockMenu opens a right-hand sidebar to browse + search the block library Blocks are grouped by category and each shows its icon,
@@ -869,7 +878,7 @@ export function PageBlockCanvas({
     // focusNonce) by driving local UI - the sanctioned "subscribe to an
     // external system" use of an effect, same as the seed effect in
     // CmsPageDetail - Not a render-derived cascade
-    const el = document.querySelector<HTMLElement>(`[data-block-card-id="${focusBlockId}"]`)
+    const el = cardById(focusBlockId)
     if (el) holdInPlace(el, { reveal: true })
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenId(focusBlockId)
@@ -894,7 +903,7 @@ export function PageBlockCanvas({
 
   // What closes over `card` when it opens: the open block's form, if that block sits above it
   function foldingAbove(id: string | null, card: HTMLElement): number {
-    const open = id ? document.querySelector<HTMLElement>(`[data-block-card-id="${id}"]`) : null
+    const open = id ? cardById(id) : null
     if (!open || !(open.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)) return 0
     return open.getBoundingClientRect().height - (open.firstElementChild?.getBoundingClientRect().height ?? 0)
   }
@@ -916,7 +925,7 @@ export function PageBlockCanvas({
                   open={openId === b.id}
                   onToggle={() => {
                     const opening = openId !== b.id
-                    const card = document.querySelector<HTMLElement>(`[data-block-card-id="${b.id}"]`)
+                    const card = cardById(b.id)
                     if (opening && card) holdInPlace(card, { shrinkAbove: foldingAbove(openId, card) })
                     setOpenId(opening ? b.id : null)
                   }}

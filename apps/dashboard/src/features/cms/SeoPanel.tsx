@@ -285,8 +285,10 @@ export function SeoPanel({
         <span className="text-muted-foreground">· {summary}</span>
         <ChevronDownIcon className={cn('ml-auto size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
-      {/* Hidden rather than unmounted - the staged settings live in this component's state */}
-      <div className={cn('grid gap-5 border-t p-3', !open && 'hidden')}>
+      {/* Only rendered while open - the staged settings live in this component's state, not the inputs, so folding
+          it keeps them, and a folded panel no longer fetches its preview image */}
+      {open && (
+      <div className="grid gap-5 border-t p-3">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Search result preview</Label>
@@ -452,6 +454,7 @@ export function SeoPanel({
         </ul>
       </div>
       </div>
+      )}
     </div>
   )
 }
