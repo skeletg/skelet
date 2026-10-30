@@ -3,10 +3,18 @@ import type { MockLink } from '@apollo/client/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, globalScope, meMock, renderPage } from '@/test/page-harness'
 import { CmsPageDetail } from './CmsPageDetail'
-import { AiStatusDocument, CmsPageDocument, DeleteCmsPageDocument, UpsertCmsPageContentDocument } from './Cms.gql'
+import {
+  AiStatusDocument,
+  CmsPageCommentsDocument,
+  CmsPageDocument,
+  DeleteCmsPageDocument,
+  UpdateCmsPageDocument,
+  UpsertCmsPageContentDocument,
+} from './Cms.gql'
 
 // What these pin: the locale's content is staged in the page's review and written as one content row
-// carrying the block layout, and a blank title is refused before it reaches the service
+// carrying the block layout, a blank title is refused before it reaches the service, search indexing has
+// one owner, and global scope points at a scope that can edit
 
 const page = {
   __typename: 'CMSPage' as const,
@@ -52,18 +60,19 @@ const page = {
   updatedAt: '2026-01-01T00:00:00Z',
 }
 
-function renderCmsPage(extra: MockLink.MockedResponse[] = []) {
+function renderCmsPage(extra: MockLink.MockedResponse[] = [], scope = { ...globalScope, effectiveLocale: 'en' }) {
   const onContent = vi.fn()
   renderPage({
     path: '/cms/pages/pg1',
     adminId: 'admin-1',
-    scope: { ...globalScope, effectiveLocale: 'en' },
+    scope,
     routes: { '/cms/pages/:id': <CmsPageDetail />, '/cms/pages': <p>Pages list</p> },
     mocks: [
       ...extra,
       meMock(),
       { request: { query: CmsPageDocument, variables: { id: 'pg1' } }, result: { data: { cmsPage: page } }, maxUsageCount: 5 },
       { request: { query: AiStatusDocument }, result: { data: { aiStatus: { __typename: 'AiStatus', enabled: false } } }, maxUsageCount: 3 },
+      { request: { query: CmsPageCommentsDocument, variables: { pageId: 'pg1' } }, result: { data: { cmsPageComments: [] } }, maxUsageCount: 3 },
       { request: { query: UpsertCmsPageContentDocument, variables: captureInput(onContent) }, result: { data: { upsertCMSPageContent: page } } },
     ],
   })
@@ -97,6 +106,33 @@ describe('CmsPageDetail', () => {
     expect(await within(dialog).findByText(/Title is required/)).toBeDefined()
     expect(onContent).not.toHaveBeenCalled()
   })
+
+  // Basics and the SEO panel used to both stage seoNoindex and write it on every save, so whichever ran
+  // last won - a slug change could quietly undo the indexing switch
+  it('writes search indexing from the SEO panel only', async () => {
+    const onUpdate = vi.fn()
+    renderCmsPage([
+      { request: { query: UpdateCmsPageDocument, variables: captureInput(onUpdate) }, result: { data: { updateCMSPage: page } }, maxUsageCount: 2 },
+    ])
+    fireEvent.change(await screen.findByLabelText('Slug', {}, SLOW), { target: { value: 'about-us' } })
+    fireEvent.click(screen.getByRole('button', { name: /Previews, indexing and structured data/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow search indexing' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /Apply 2 changes/ }))
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(2), SLOW)
+    expect(onUpdate).toHaveBeenCalledWith({ id: 'pg1', slug: 'about-us', data: {} })
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'pg1', seoNoindex: true }))
+  })
+
+  it('shows global scope read-only and offers a scope that can edit', async () => {
+    const setScope = vi.fn(() => true)
+    const europe = { id: 'c1', name: 'Europe', defaultLocale: 'en', locales: [{ code: 'en' }], isActive: true }
+    renderCmsPage([], { ...globalScope, effectiveLocale: '', channels: [europe], setScope })
+    // Disabled through its fieldset, which the input's own disabled property doesn't reflect
+    expect((await screen.findByLabelText('Title', {}, SLOW)).matches(':disabled')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in Europe · en' }))
+    expect(setScope).toHaveBeenCalledWith({ mode: 'CHANNEL', channelId: 'c1', locale: 'en' })
+  })
 })
 
 // The delete confirm runs through the shared ConfirmDialog and waits for the server: a refused delete keeps it open
@@ -104,7 +140,8 @@ describe('CmsPageDetail', () => {
 describe('CmsPageDetail delete', () => {
   async function confirmDelete(mock: MockLink.MockedResponse) {
     renderCmsPage([mock])
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }, SLOW))
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'More actions' }, SLOW), { button: 0, ctrlKey: false, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     return dialog

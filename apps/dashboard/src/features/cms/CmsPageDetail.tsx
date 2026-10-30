@@ -2,19 +2,20 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
-import {
-  CheckCircle2Icon,
-  CircleOffIcon,
-  CopyIcon,
-  RotateCcwIcon,
-  Trash2Icon,
-  WorkflowIcon,
-} from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { toast } from 'sonner'
+import { CopyIcon, HistoryIcon, MessageSquareIcon, MoreHorizontalIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -31,15 +32,13 @@ import { useSectionForm } from '@/shared/saving/useSectionForm'
 import {
   AiStatusDocument,
   CloneCmsPageDocument,
+  CmsPageCommentsDocument,
   CmsPageDocument,
   TranslateCmsPageDocument,
   CmsPageTypeDocument,
   DeleteCmsPageDocument,
-  PublishCmsPageDocument,
-  RebuildCmsPageDocument,
   SetCmsPageRelationshipsDocument,
   SetCmsPageSelectionsDocument,
-  UnpublishCmsPageDocument,
   UpdateCmsPageDocument,
   UpsertCmsPageContentDocument,
   type CmsPageRowFragment,
@@ -50,15 +49,15 @@ import { CmsPreviewPanel } from './CmsPreviewPanel'
 import { parseDocument, serializeDocument, type CmsBlock } from './page-blocks'
 import type { FieldValue } from './DynamicFieldRenderer'
 import { BasicsCard } from './page-detail/BasicsCard'
-import { ContentCard } from './page-detail/ContentCard'
+import { ContentCard, SeoCard } from './page-detail/ContentCard'
 import { SelectionsCard } from './page-detail/SelectionsCard'
 import { RelationshipsCard } from './page-detail/RelationshipsCard'
 import { CmsPageExperimentSection } from './page-detail/ExperimentSection'
-import { CmsPageWorkflowSection, CmsPageCommentsSection } from './page-detail/WorkflowSection'
+import { CmsPageCommentsSection } from './page-detail/Comments'
 import { CmsPageTagsSection } from './page-detail/TagsSection'
 import { CmsPageChannelsSection } from './page-detail/ChannelsSection'
-import { CmsPageHistorySchedule } from './page-detail/HistorySchedule'
-import { workflowLabel } from './page-detail/shared'
+import { CmsPageHistory } from './page-detail/History'
+import { PublishMenu, PublishStatus } from './page-detail/PublishMenu'
 import { PluginSections } from '@/plugins/detail-sections'
 import { pageContentDiff, pageContentSchema, toPageContentValues } from './schemas/page'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
@@ -104,7 +103,7 @@ function CmsPageEditor({
   const { enabled: featureEnabled } = useFeatures()
   const canManage = has('cms.manage')
   const canApprove = has('cms.approve')
-  const { selectedChannel } = useConfigScope()
+  const { selectedChannel, channels, setScope } = useConfigScope()
 
   const refetchList = [CmsPagesDocument]
   const refetchPage = [{ query: CmsPageDocument, variables }]
@@ -114,9 +113,6 @@ function CmsPageEditor({
 
   const [updatePage] = useMutation(UpdateCmsPageDocument, { refetchQueries: refetchPage })
   const [upsertContent] = useMutation(UpsertCmsPageContentDocument, { refetchQueries: refetchPage })
-  const [publishMut] = useMutation(PublishCmsPageDocument, { refetchQueries: [...refetchPage, ...refetchList] })
-  const [unpublishMut] = useMutation(UnpublishCmsPageDocument, { refetchQueries: [...refetchPage, ...refetchList] })
-  const [rebuildMut, { loading: rebuilding }] = useMutation(RebuildCmsPageDocument)
   const [setSelectionsMut] = useMutation(SetCmsPageSelectionsDocument, { refetchQueries: refetchPage })
   const [setRelationshipsMut] = useMutation(SetCmsPageRelationshipsDocument, { refetchQueries: refetchPage })
   const [deletePage, { loading: deleting }] = useMutation(DeleteCmsPageDocument, { refetchQueries: refetchList })
@@ -124,9 +120,11 @@ function CmsPageEditor({
   const { data: aiStatusData } = useQuery(AiStatusDocument)
   const aiEnabled = aiStatusData?.aiStatus.enabled ?? false
   const [translatePage] = useMutation(TranslateCmsPageDocument, { refetchQueries: refetchPage })
+  const { data: commentsData } = useQuery(CmsPageCommentsDocument, { variables: { pageId: p.id } })
+  const openComments = (commentsData?.cmsPageComments ?? []).filter((c) => !c.resolved).length
 
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [panel, setPanel] = useState<'history' | 'comments' | null>(null)
 
   const displayTitle = p.content?.title?.trim() || p.allContent[0]?.title?.trim() || p.slug
 
@@ -203,34 +201,27 @@ function CmsPageEditor({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [selectNonce, setSelectNonce] = useState(0)
 
-  const allLocales = Array.from(new Set([...p.allContent.map((c) => c.locale), editingLocale].filter(Boolean))).sort()
-
-  async function run(fn: () => Promise<unknown>, failure: string, ok?: string) {
-    setFeedback(null)
-    try {
-      await fn()
-      if (ok) setFeedback({ kind: 'ok', msg: ok })
-    } catch (err) {
-      setFeedback({ kind: 'err', msg: err instanceof Error ? err.message : failure })
-    }
-  }
   async function onDelete() {
     await deletePage({ variables: { id: p.id } })
     navigate('/cms/pages', { replace: true })
   }
   async function onDuplicate() {
-    await run(async () => {
+    try {
       const res = await clonePage({ variables: { id: p.id } })
       const newId = res.data?.cloneCMSPage?.id
       if (newId) navigate(`/cms/pages/${newId}`)
-    }, 'Duplicate failed.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Duplicate failed.')
+    }
   }
 
-  // Neutral chip for the active locale - the primary token is for brand, not state
-  const localeChip = (active: boolean) =>
-    active
-      ? 'inline-flex h-7 items-center rounded-md border border-foreground/40 bg-muted px-2 text-xs font-medium text-foreground'
-      : 'inline-flex h-7 items-center rounded-md border px-2 text-xs text-muted-foreground'
+  // Global scope shows the closest locale read-only; offer a scope that can edit it, preferring a channel
+  // the page is already listed on
+  const listed = new Set(p.channelListings.map((l) => l.channelId))
+  const editChannel = channels.find((c) => c.isActive && listed.has(c.id)) ?? channels.find((c) => c.isActive)
+  const editLocale = editChannel && (editChannel.locales.some((l) => l.code === editingLocale) ? editingLocale : editChannel.defaultLocale)
+  const newTranslation = canEditTranslations && !p.allContent.some((c) => c.locale === editingLocale)
+  const chip = 'inline-flex h-7 items-center rounded-md border px-2 text-xs text-muted-foreground'
 
   return (
     <SaveRegistryContext.Provider value={registry.contextValue}>
@@ -252,80 +243,80 @@ function CmsPageEditor({
           backTo="/cms/pages"
           backLabel="Back to pages"
           title={displayTitle}
-          badges={
+          badges={p.workflowState === 'IN_REVIEW' ? <Badge variant="warning">In review</Badge> : null}
+          meta={
             <>
-              {p.isPublished ? (
-                <Badge variant="secondary" className="gap-1">
-                  <CheckCircle2Icon className="size-3" />
-                  Published
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-muted-foreground">
-                  <CircleOffIcon className="size-3" />
-                  Unpublished
-                </Badge>
-              )}
-              {pageType && <Badge variant="outline">{pageType.content?.name ?? pageType.slug}</Badge>}
-              <Badge variant="outline" className="gap-1">
-                <WorkflowIcon className="size-3" />
-                {workflowLabel(p.workflowState)}
-              </Badge>
+              <code className="font-mono">{p.urlPath}</code>
+              {pageType && <span>· {pageType.content?.name ?? pageType.slug}</span>}
             </>
           }
-          meta={<code className="font-mono">{p.urlPath}</code>}
           actions={
-            canManage && (
-              <>
-                <Button type="button" variant="outline" size="sm" onClick={onDuplicate} disabled={cloning}>
-                  <CopyIcon className="size-4" />
-                  {cloning ? 'Duplicating…' : 'Duplicate'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={deleting}
-                >
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </Button>
-                <Button type="button" size="sm" disabled={!registry.isDirty || confirm.saving} onClick={confirm.open}>
-                  {confirm.saving ? 'Saving…' : registry.isDirty ? 'Save changes' : 'No changes'}
-                </Button>
-              </>
-            )
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={openComments > 0 ? `Comments, ${openComments} open` : 'Comments'}
+                title="Comments"
+                onClick={() => setPanel('comments')}
+              >
+                <MessageSquareIcon className="size-4" />
+                {openComments > 0 && <span className="text-xs tabular-nums">{openComments}</span>}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" aria-label="Version history" title="Version history" onClick={() => setPanel('history')}>
+                <HistoryIcon className="size-4" />
+              </Button>
+              {canManage ? (
+                <>
+                  <PublishMenu page={p} canApprove={canApprove} refetchVariables={variables} />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="ghost" size="sm" aria-label="More actions" disabled={cloning || deleting}>
+                        <MoreHorizontalIcon className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => void onDuplicate()}>
+                        <CopyIcon /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                        <Trash2Icon /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button type="button" size="sm" disabled={!registry.isDirty || confirm.saving} onClick={confirm.open}>
+                    {confirm.saving ? 'Saving…' : registry.isDirty ? 'Save changes' : 'No changes'}
+                  </Button>
+                </>
+              ) : (
+                <PublishStatus page={p} />
+              )}
+            </>
           }
         />
 
         <DetailPageBody>
-          {/* Sections ordered content-first: the editing surfaces an author reaches for most
-              (layout -> content -> fields) lead; publishing and governance follow */}
+          {!canEditTranslations && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 px-6 py-3 text-sm">
+              <span className="text-muted-foreground">
+                The layout and content are per language, so global scope shows the <code className="font-mono">{editingLocale}</code> copy read-only.
+              </span>
+              {editChannel && editLocale && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScope({ mode: 'CHANNEL', channelId: editChannel.id, locale: editLocale })}
+                >
+                  <PencilIcon className="size-4" />
+                  Edit in {editChannel.name} · {editLocale}
+                </Button>
+              )}
+            </div>
+          )}
 
-          {/* ---- Page layout (the builder centerpiece) ---- */}
-          <DetailPageSection
-            title="Page layout"
-            description="Build the page from blocks. Click or drag a block from the palette, reorder by dragging, edit the selected block in the inspector - the live preview on the right updates as you go."
-            trailing={
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 items-center rounded-md border px-2 text-xs text-muted-foreground">
-                  {blocks.length} block{blocks.length === 1 ? '' : 's'}
-                </span>
-                <span className={localeChip(true)} title="Layout edits apply to this locale's content">
-                  {editingLocale}
-                </span>
-              </div>
-            }
-          >
-            {!canEditTranslations && (
-              <Alert>
-                <AlertTitle>Read-only in this scope</AlertTitle>
-                <AlertDescription>
-                  Pick a channel + locale in the header to edit the layout. Below is the closest available locale's layout, read-only.
-                </AlertDescription>
-              </Alert>
-            )}
+          <DetailPageSection title="Layout" trailing={<span className={chip}>{blocks.length} block{blocks.length === 1 ? '' : 's'}</span>}>
             <PageBlockCanvas
               blocks={blocks}
               onChange={(next) => contentForm.setFieldValue('blocks', next)}
@@ -335,25 +326,7 @@ function CmsPageEditor({
             />
           </DetailPageSection>
 
-          <DetailPageSection
-            title="Content & SEO"
-            description="Title, SEO, and translatable fields - per locale. The page layout is edited above."
-            trailing={
-              <div className="flex items-center gap-2">
-                {/* Which locales have content - the locale itself is picked in the header */}
-                {allLocales.map((loc) => (
-                  <span key={loc} className={localeChip(loc === editingLocale)}>
-                    {loc}
-                  </span>
-                ))}
-                {canEditTranslations && !p.allContent.some((c) => c.locale === editingLocale) && (
-                  <span className="inline-flex h-7 items-center rounded-md border border-dashed px-2 text-xs text-muted-foreground">
-                    new: {editingLocale}
-                  </span>
-                )}
-              </div>
-            }
-          >
+          <DetailPageSection title="Content" trailing={newTranslation ? <span className={`${chip} border-dashed`}>New translation</span> : null}>
             <ContentCard
               page={p}
               locale={editingLocale}
@@ -366,6 +339,17 @@ function CmsPageEditor({
               onTranslate={async (sourceLocale) => {
                 await translatePage({ variables: { pageId: p.id, sourceLocale, targetLocale: editingLocale } })
               }}
+            />
+          </DetailPageSection>
+
+          <DetailPageSection title="SEO">
+            <SeoCard
+              page={p}
+              locale={editingLocale}
+              form={contentForm}
+              canManage={canManage}
+              canEditTranslations={canEditTranslations}
+              aiEnabled={aiEnabled}
               onSaveSeo={async (s) => {
                 // updateCMSPage replaces the whole metadata map, so keep any non-seo keys and re-send every
                 // seo.* value in one write - they all live in metadata, so separate saves would clobber
@@ -382,7 +366,7 @@ function CmsPageEditor({
             />
           </DetailPageSection>
 
-          <DetailPageSection title="Basics & non-translated fields" description="Slug change auto-creates a 301 redirect.">
+          <DetailPageSection title="Page settings">
             <BasicsCard
               page={p}
               scalarAttrs={scalarAttrs}
@@ -391,26 +375,19 @@ function CmsPageEditor({
                 await updatePage({ variables: { input } })
               }}
             />
-          </DetailPageSection>
-
-          {/* ---- Select / Multiselect ---- */}
-          {selectAttrs.length > 0 && (
-            <DetailPageSection title="Selections" description="Pick options for select / multiselect attributes.">
+            {selectAttrs.length > 0 && (
               <SelectionsCard
                 pageId={p.id}
                 selectAttrs={selectAttrs}
                 selections={p.selections}
+                locale={editingLocale}
                 canManage={canManage}
                 onSave={async (attributeId, valueIds) => {
                   await setSelectionsMut({ variables: { pageId: p.id, attributeId, valueIds } })
                 }}
               />
-            </DetailPageSection>
-          )}
-
-          {/* ---- Relationships ---- */}
-          {relationshipAttrs.length > 0 && (
-            <DetailPageSection title="Relationships" description="Link this page to other entities. Selection order is preserved.">
+            )}
+            {relationshipAttrs.length > 0 && (
               <RelationshipsCard
                 pageId={p.id}
                 relationshipAttrs={relationshipAttrs}
@@ -420,106 +397,55 @@ function CmsPageEditor({
                   await setRelationshipsMut({ variables: { pageId: p.id, attributeId, refs } })
                 }}
               />
-            </DetailPageSection>
-          )}
-
-          <DetailPageSection
-            title="Tags"
-            description="Assign tags from the shared library to organize and filter pages. Manage the tag list under CMS → Tags."
-          >
-            <CmsPageTagsSection pageId={p.id} tags={p.tags} canManage={canManage} refetchVariables={variables} />
-          </DetailPageSection>
-
-          <DetailPageSection
-            title="Channels"
-            description="The page is global. Publish it per channel, and optionally set it as that channel's homepage (served at /)."
-          >
-            <CmsPageChannelsSection pageId={p.id} listings={p.channelListings} canManage={canManage} refetchVariables={variables} />
-          </DetailPageSection>
-
-          {/* Lifecycle - publish/unpublish are non-field actions and apply immediately, outside the
-              staged-save flow */}
-          <DetailPageSection title="Status">
-            {feedback && (
-              <Alert variant={feedback.kind === 'ok' ? 'default' : 'destructive'}>
-                <AlertTitle>{feedback.kind === 'ok' ? 'Saved' : 'Error'}</AlertTitle>
-                <AlertDescription>{feedback.msg}</AlertDescription>
-              </Alert>
             )}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => run(() => publishMut({ variables: { id: p.id } }), 'Publish failed.')}
-                disabled={!canManage || p.isPublished}
-              >
-                <CheckCircle2Icon className="size-4" /> Publish
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => run(() => unpublishMut({ variables: { id: p.id } }), 'Unpublish failed.')}
-                disabled={!canManage || !p.isPublished}
-              >
-                <CircleOffIcon className="size-4" /> Unpublish
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => run(() => rebuildMut({ variables: { id: p.id } }), 'Rebuild failed.', 'Page rebuilt in the storefront cache.')}
-                disabled={!canManage || rebuilding}
-                title="Invalidate this page and re-render it in the storefront cache now"
-              >
-                <RotateCcwIcon className="size-4" /> {rebuilding ? 'Rebuilding…' : 'Rebuild now'}
-              </Button>
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">Tags</span>
+              <CmsPageTagsSection pageId={p.id} tags={p.tags} canManage={canManage} refetchVariables={variables} />
             </div>
           </DetailPageSection>
 
-          <DetailPageSection
-            title="Editorial workflow"
-            description="Move the page through review. When approval is required (CMS settings), a page can only be published once approved."
-          >
-            <CmsPageWorkflowSection
-              pageId={p.id}
-              state={p.workflowState}
-              assignedTo={p.assignedTo ?? null}
-              canManage={canManage}
-              canApprove={canApprove}
-              refetchVariables={variables}
-            />
+          <DetailPageSection title="Channels" description="The page goes live on a channel it's published on, once the page itself is published.">
+            <CmsPageChannelsSection pageId={p.id} listings={p.channelListings} canManage={canManage} refetchVariables={variables} />
           </DetailPageSection>
 
-          {/* Prism is the Signals suite, with no transactional exception - with it off the resolvers
-              refuse, so the section would only render an error */}
-          {featureEnabled('signals') && (
-            <DetailPageSection
-              title="A/B test (Prism)"
-              description="Bind a Prism experiment to serve alternative page layouts as an A/B test. Visitors are assigned server-side; the control is this page's main content."
-            >
+          {/* Prism is the Signals suite and binds per channel - with Signals off the resolvers refuse */}
+          {featureEnabled('signals') && selectedChannel && (
+            <DetailPageSection title="A/B test" description="Serve alternative layouts of this page to a share of visitors.">
               <CmsPageExperimentSection
                 page={p}
                 locale={editingLocale}
-                channelId={selectedChannel?.id ?? null}
+                channelId={selectedChannel.id}
                 canManage={canManage && canEditTranslations}
                 refetchVariables={variables}
               />
             </DetailPageSection>
           )}
-
-          <DetailPageSection title="History & scheduling" description="Schedule a future go-live, and restore an earlier saved version.">
-            <CmsPageHistorySchedule
-              pageId={p.id}
-              locale={editingLocale}
-              scheduledAt={p.scheduledAt as string | null}
-              canManage={canManage}
-              refetchVariables={variables}
-            />
-          </DetailPageSection>
-
-          <DetailPageSection title="Comments" description="Collaboration notes for this page. Resolve a comment once it's addressed.">
-            <CmsPageCommentsSection pageId={p.id} canManage={canManage} />
-          </DetailPageSection>
           <PluginSections target="cms-page" entity={p} mode="edit" />
         </DetailPageBody>
+
+        <Sheet open={panel === 'history'} onOpenChange={(o) => !o && setPanel(null)}>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+            <SheetHeader>
+              <SheetTitle>Version history</SheetTitle>
+              <SheetDescription>Saved versions of the {editingLocale} content. Restoring one saves it as a new version.</SheetDescription>
+            </SheetHeader>
+            <div className="px-4 pb-6">
+              <CmsPageHistory pageId={p.id} locale={editingLocale} canManage={canManage} refetchVariables={variables} />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <Sheet open={panel === 'comments'} onOpenChange={(o) => !o && setPanel(null)}>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Comments</SheetTitle>
+              <SheetDescription>Notes for whoever works on this page. Resolve one once it's handled.</SheetDescription>
+            </SheetHeader>
+            <div className="px-4 pb-6">
+              <CmsPageCommentsSection pageId={p.id} canManage={canManage} />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         <ConfirmDialog
           open={confirmDelete}

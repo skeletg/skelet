@@ -232,7 +232,7 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
         <div className="min-w-0">
           <div className="text-sm font-semibold">Live preview</div>
           <div className="text-xs text-muted-foreground">
-            Block edits stream in as you type. Token lasts ~15 min.
+            Updates as you edit.
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
