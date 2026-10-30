@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
@@ -495,4 +496,84 @@ func TestABundleRuleSelectionCanBeBoughtAndRepriced(t *testing.T) {
 		t.Fatalf("order lines %+v, want the bundle repriced to today's 900", lines)
 	}
 	h.Settle(t)
+}
+
+// Scenario: one mug comes back out of a shipped "mug + tea" bundle - the refund is the mug's share of the bundle, only the
+// mug is restocked, and that bundle can no longer be returned whole on top
+func TestABundleComponentIsReturnedOnItsOwn(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	mug, tea := h.AddProduct(t, f, 600, true, 10), h.AddProduct(t, f, 300, true, 10)
+	b, _ := h.newBundle(t, f, mug, tea)
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 2}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	line := h.OrderLines(t, o.ID)[0]
+	full, err := h.D.Order.GetByID(h.Ctx, o.ID)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	var mugComp uuid.UUID
+	for _, comp := range full.Lines[0].Components {
+		if comp.ProductID == mug.ID {
+			mugComp = comp.ID
+		}
+	}
+	for _, status := range []string{"confirmed", "processing"} {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
+			t.Fatalf("advance to %s: %v", status, err)
+		}
+	}
+	if _, err := h.D.Order.CreateFulfillment(h.Ctx, order.CreateFulfillmentInput{
+		OrderID: o.ID, Lines: []order.FulfillmentLineInput{{OrderLineID: line.ID, Quantity: 2}}, Carrier: "ups", TrackingNumber: "1Z-bundle",
+	}); err != nil {
+		t.Fatalf("fulfill: %v", err)
+	}
+	h.Settle(t)
+	mugBefore, teaBefore := h.onHand(t, mug.ID), h.onHand(t, tea.ID)
+
+	ret, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o.ID, Restock: true, Lines: []order.ReturnLineInput{{OrderLineID: line.ID, ComponentID: &mugComp, Quantity: 1, Reason: "chipped"}},
+	})
+	if err != nil {
+		t.Fatalf("return a mug: %v", err)
+	}
+	if got := ret.Lines[0].RefundUnitCents; got != 600 { // the mug is 600 of the bundle's 900, which charged 900
+		t.Errorf("mug refund = %d, want its 600 share", got)
+	}
+	if _, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o.ID, Lines: []order.ReturnLineInput{{OrderLineID: line.ID, Quantity: 2}},
+	}); err == nil {
+		t.Errorf("both bundles returned whole after a mug already came back - want refused")
+	}
+	if _, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o.ID, Lines: []order.ReturnLineInput{{OrderLineID: line.ID, ComponentID: &mugComp, Quantity: 2}},
+	}); err == nil {
+		t.Errorf("two more mugs from two bundles with one already back - want refused")
+	}
+	if _, err := h.D.Order.ApproveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if _, err := h.D.Order.ReceiveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	h.Settle(t)
+	if got := h.onHand(t, mug.ID); got != mugBefore+1 {
+		t.Errorf("mugs on hand %v, want %v + 1", got, mugBefore)
+	}
+	if got := h.onHand(t, tea.ID); got != teaBefore {
+		t.Errorf("tea on hand %v, want untouched %v", got, teaBefore)
+	}
+	left, err := h.D.Order.ReturnableByOrderLine(h.Ctx, o.ID)
+	if err != nil || left[line.ID] != 1 {
+		t.Errorf("whole bundles still returnable = %v (%v), want the one untouched bundle", left[line.ID], err)
+	}
 }
