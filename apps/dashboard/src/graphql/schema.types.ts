@@ -7195,6 +7195,7 @@ export type OrderReturn = {
 
 export type OrderReturnLine = {
   __typename?: 'OrderReturnLine';
+  componentId?: Maybe<Scalars['ID']['output']>;
   id: Scalars['ID']['output'];
   orderLineId: Scalars['ID']['output'];
   quantity: Scalars['Float']['output'];
@@ -9558,6 +9559,7 @@ export type RetentionCohort = {
 };
 
 export type ReturnLineInput = {
+  componentId?: InputMaybe<Scalars['ID']['input']>;
   orderLineId: Scalars['ID']['input'];
   quantity: Scalars['Float']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;

@@ -50,3 +50,11 @@
   picks: a box with different contents becomes a line of its own, while re-adding the same
   picks updates the line already holding them. Simple and configured lines keep one line per
   SKU. Merging a guest cart, repricing and quantity edits work per configuration.
+- **One item can be returned out of a bundle.** The dashboard's return dialog lists each bundle
+  line's components. Returning one refunds its price share of what the bundle cost, so a
+  discounted bundle refunds discounted, and restocks only that item. An exchange swaps that
+  item rather than the whole bundle. A bundle with an item already back can't also be returned
+  whole, and one request returns a line whole or by its components, not both. The credit memo
+  books the refund as the share of a bundle it was worth. API: `componentId` on
+  `ReturnLineInput` and `OrderReturnLine` in both surfaces. The returns-policy provider request
+  carries it too (contract 0.1.1, additive).
