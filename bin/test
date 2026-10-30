@@ -8,6 +8,10 @@
 # on purpose - and a run that skipped a hundred and fifty tests still ended in "tests OK"
 #
 # --keep reuses last run's databases (migrate still runs, so a new migration lands), --no-frontend skips the frontend bits
+#
+# --changed[=REF] runs what a change since REF can reach - the merge base with develop by default. Go keeps its test
+# cache, which reruns exactly the packages whose code, dependencies or schema changed; each frontend runs only the
+# vitest files that import a changed file, and is skipped when nothing in it changed
 set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
@@ -21,14 +25,31 @@ TEST_CH_URL="clickhouse://skelet:skelet@clickhouse:9000/${TEST_SIG_DB}"
 
 skip_frontend=false
 fresh=true
+changed_ref=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-frontend|--no-dashboard) skip_frontend=true; shift ;;
         --keep) fresh=false; shift ;;
         --fresh) shift ;;
+        --changed) changed_ref=auto; shift ;;
+        --changed=*) changed_ref="${1#--changed=}"; shift ;;
         *) break ;;
     esac
 done
+
+changed_files=""
+if [ -n "$changed_ref" ]; then
+    if [ "$changed_ref" = auto ]; then
+        changed_ref="$(git merge-base HEAD develop 2>/dev/null || git merge-base HEAD origin/develop 2>/dev/null || git rev-parse HEAD)"
+    fi
+    if ! git rev-parse --verify -q "$changed_ref^{commit}" >/dev/null; then
+        echo "--changed: $changed_ref is not a commit" >&2
+        exit 2
+    fi
+    # Committed since REF plus what isn't committed yet, new files included
+    changed_files="$( { git diff --name-only "$changed_ref"; git ls-files --others --exclude-standard; } | sort -u)"
+    echo "==> only what changed since $(git rev-parse --short "$changed_ref") ($(printf '%s' "$changed_files" | grep -c . || true) files)"
+fi
 
 # The databases and go test live in the containers - no docker compose run fallback here, since the run
 # would come up without the db it is about to migrate
@@ -38,7 +59,20 @@ if ! service_running app; then
 fi
 
 acquire_test_lock test
-trap release_test_lock EXIT
+
+# Each clone the Go tests make leaves its pages for a checkpoint to write out, and the next run's DROP DATABASE forces
+# that checkpoint - a minute and more after a full run on a slow disk. Started in the background once the Go tests are
+# done, it runs while the frontends test or the next edit happens, and a run that comes sooner waits only for the rest
+flushed=false
+flush_test_dbs() {
+    $flushed && return
+    flushed=true
+    local svc
+    for svc in db signals-db; do
+        (docker compose exec -T "$svc" psql -U skelet -d postgres -qc CHECKPOINT >/dev/null 2>&1 &)
+    done
+}
+trap 'flush_test_dbs; release_test_lock' EXIT
 
 echo "==> preparing disposable test databases"
 ensure_pg_db db "$TEST_DB" $fresh
@@ -140,14 +174,28 @@ summarize() {
 
 # Core opens no signals database and the suite opens no commerce one - a test on either side that wants the
 # other's data has to get it the way production does, over the contract or off a pushed projection
-core_env=(-e DATABASE_URL="$TEST_DB_URL" -e SIGNALS_DB_URL=)
-sig_env=(-e DATABASE_URL= -e SIGNALS_DB_URL="$TEST_SIG_URL" -e SIGNALS_CH_URL="$ch_dsn" -e SIGNALS_CH_TEST_DSN="$ch_dsn")
+# Every migration file the test databases are built from - testdb reads it, so go test's cache keys on the schema
+schema_hash() {
+    local f
+    for f in $(find apps/backend/core/internal/db/migrations apps/backend/signals/internal/db/migrations \
+        apps/backend/signals/internal/analytics/spinech/migrations -type f -name '*.sql' | sort); do
+        printf '%s\n' "$f"
+        cat "$f"
+    done | cksum | cut -d' ' -f1
+}
+schema_env=(-e SKELET_TEST_SCHEMA="$(schema_hash)")
+# A full run reruns everything; --changed lets the cache answer for what nothing touched
+cache=(-count=1)
+[ -n "$changed_ref" ] && cache=()
+
+core_env=(-e DATABASE_URL="$TEST_DB_URL" -e SIGNALS_DB_URL= "${schema_env[@]}")
+sig_env=(-e DATABASE_URL= -e SIGNALS_DB_URL="$TEST_SIG_URL" -e SIGNALS_CH_URL="$ch_dsn" -e SIGNALS_CH_TEST_DSN="$ch_dsn" "${schema_env[@]}")
 gotest() { # <workdir> [-e VAR=value ...] -- <go test args...>
     local wd="$1"; shift
     local env=()
     while [ "$1" != "--" ]; do env+=("$1"); shift; done
     shift
-    docker compose exec -T "${USER_FLAG[@]}" -w "$wd" "${env[@]}" app go test -json -count=1 "$@"
+    docker compose exec -T "${USER_FLAG[@]}" -w "$wd" "${env[@]}" app go test -json "${cache[@]}" "$@"
 }
 
 echo "==> backend"
@@ -163,24 +211,51 @@ if [ $# -eq 0 ]; then
 else
     gotest /var/www/backend/core "${core_env[@]}" -- "$@" | summarize core
 fi
+flush_test_dbs
+
+# The app's changed files, relative to the app - empty when the change didn't reach it
+app_changes() { printf '%s\n' "$changed_files" | sed -n "s#^$1/##p"; }
+
+# Config, dependencies or the test setup reach every test, so they mean the app's whole suite
+touches_everything() {
+    grep -E '(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vite(st)?\.config\.[cm]?[jt]s)$|^src/test-setup\.ts$' >/dev/null
+}
+
+frontend() { # <label> <app dir> <typecheck script> <runner...> - typecheck then vitest, the whole app or what a change reaches
+    local label="$1" dir="$2" typecheck="$3"; shift 3
+    if [ -z "$changed_ref" ]; then
+        echo "==> $label typecheck"; "$@" run "$typecheck"
+        echo "==> $label unit tests"; "$@" run test
+        return
+    fi
+    local files f related=()
+    files="$(app_changes "$dir")"
+    if [ -z "$files" ]; then
+        echo "==> $label: nothing changed, skipped"
+        return
+    fi
+    echo "==> $label typecheck"; "$@" run "$typecheck"
+    if printf '%s\n' "$files" | touches_everything; then
+        echo "==> $label unit tests (config changed - all of them)"; "$@" run test
+        return
+    fi
+    while IFS= read -r f; do [ -f "$dir/$f" ] && related+=("$f"); done <<<"$files"
+    # Only deletions - the typecheck already caught anything still importing them, and an empty list would run it all
+    if [ ${#related[@]} -eq 0 ]; then
+        echo "==> $label unit tests: only deletions, nothing to run"
+        return
+    fi
+    echo "==> $label unit tests (those that import the ${#related[@]} changed files)"
+    "$@" exec vitest related --run --passWithNoTests "${related[@]}"
+}
 
 if ! $skip_frontend; then
-    echo "==> dashboard typecheck"
-    bin/dash run typecheck:all
-    for sf in apps/channels/*/package.json; do
-        [ -f "$sf" ] || continue
-        name="$(basename "$(dirname "$sf")")"
-        echo "==> $name typecheck"
-        bin/channel "$name" run typecheck
-    done
-    echo "==> dashboard unit tests"
-    bin/dash run test
+    frontend dashboard apps/dashboard typecheck:all bin/dash
     # Per app, like CI - stopping at the dashboard's would leave every storefront untested
     for sf in apps/channels/*/package.json; do
         [ -f "$sf" ] || continue
         name="$(basename "$(dirname "$sf")")"
-        echo "==> $name unit tests"
-        bin/channel "$name" run test
+        frontend "$name" "apps/channels/$name" typecheck bin/channel "$name"
     done
 fi
 

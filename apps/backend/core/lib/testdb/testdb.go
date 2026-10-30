@@ -22,6 +22,10 @@ import (
 
 const marker = "skelet.e2e=allowed"
 
+// Read only so go test's cache keys on it: bin/test sets it to a hash of the migration files, so a schema change
+// reruns the database tests whose cached pass would otherwise vouch for the old one
+const SchemaEnv = "SKELET_TEST_SCHEMA"
+
 // Require returns the commerce database, skipping when DATABASE_URL is unset, unreachable, or
 // unmarked - the connection closes with the test
 func Require(t *testing.T) *sql.DB { return require(t, "DATABASE_URL") }
@@ -69,6 +73,7 @@ var clones sync.Map
 // URL is the DSN this process should use for envVar - the same clone on every call, made on the first - so a
 // harness that opens its own pool lands in the database the tests write to
 func URL(envVar string) (dsn, reason string) {
+	_ = os.Getenv(SchemaEnv)
 	raw := os.Getenv(envVar)
 	if raw == "" {
 		return "", "set " + envVar

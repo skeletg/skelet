@@ -64,7 +64,7 @@ subs_for() {
         db)      echo 'migrate [--signals] up|rollback|status|new <name> | export | import | shell' ;;
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
-        test)    echo '(all) | e2e | storefront [name] [playwright args] | [pkgs] [--keep] [--no-frontend]' ;;
+        test)    echo '(all) | e2e | storefront [name] [playwright args] | [pkgs] [--changed[=REF]] [--keep] [--no-frontend]' ;;
         logs)    echo '[service]' ;;
         pnpm|npm) echo '<app> <pnpm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;

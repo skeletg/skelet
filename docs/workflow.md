@@ -31,10 +31,20 @@ between the two.
 | `./skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `./skelet pnpm dashboard run dev`, `./skelet pnpm dashboard install`) |
 | `./skelet pnpm <name> <args>` | Run a pnpm command inside a storefront container under `apps/channels/` (e.g. `./skelet pnpm vetrina-demo run build`, `./skelet pnpm vetrina-demo run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
 | `./skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` gets its TS docs regenerated (skipped for apps deselected via ./skelet setup). |
-| `./skelet test [pkgs] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. |
+| `./skelet test [pkgs] [--changed[=REF]] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. `--changed` runs only what a change since REF (the merge base with develop by default) can reach - see below. |
 | `./skelet lint` | gofmt + golangci-lint + dashboard ESLint |
 
 Full documentation for every command: [scripts.md](scripts.md).
+
+### Testing only what changed
+
+`./skelet test --changed` is for the loop while you work. The plain `./skelet test` is still the one to run before you push.
+
+- Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `bin/test` passes in and `testdb` reads.
+- Each frontend runs its typecheck, then only the vitest files that import a changed file (`vitest related`). An app nothing touched is skipped, and a change to its `package.json`, lockfile, tsconfig or vite/vitest config runs its whole suite.
+- "Changed" is everything since REF plus whatever isn't committed yet. REF defaults to where the branch left develop, so `--changed=HEAD` is just the uncommitted work.
+
+It can only see what Go and vitest can trace. A test that depends on the date, or a backend change that breaks a frontend through the API, still needs the full run.
 
 ### CLI examples
 
