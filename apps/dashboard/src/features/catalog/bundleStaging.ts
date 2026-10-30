@@ -4,7 +4,7 @@
 // page commits through the product page's global "Save changes (N)" registry rather than its own mutations
 // Ops carry tempIds for entities created this session, resolved to real ids as adds complete
 
-import type { BundleInputType } from '@/graphql/schema.types'
+import type { BundleInputType, BundleStructureOpInput } from '@/graphql/schema.types'
 import { CommitError, collapseOps, isTemp, type OpView } from '@/features/catalog/stagingOps'
 import type { SectionDiffEntry } from './productSaveRegistry'
 import { added, changed, removed } from '@/shared/saving/diff'
@@ -464,4 +464,60 @@ async function commitOne(
       break
     }
   }
+}
+
+// The reduced queue as one setBundleStructure call - the server runs it in order in a single transaction, resolving each
+// tempId to what the add before it created, so a failure leaves nothing half-saved and the whole queue stays for a retry
+export function toStructureOps(ops: readonly PendingOp[], productId: string): BundleStructureOpInput[] {
+  const out: BundleStructureOpInput[] = []
+  for (const op of ops) {
+    switch (op.kind) {
+      case 'add-option':
+        out.push({
+          tempId: op.tempId,
+          addOption: {
+            productId,
+            inputType: op.inputType,
+            isRequired: op.isRequired,
+            sortOrder: op.sortOrder,
+            minSelections: op.minSelections,
+            ...(op.maxSelections !== null ? { maxSelections: op.maxSelections } : {}),
+            locale: op.locale,
+            title: op.title,
+          },
+        })
+        break
+      case 'update-option': {
+        const u: NonNullable<BundleStructureOpInput['updateOption']> = { id: op.id }
+        if (op.inputType !== undefined) u.inputType = op.inputType
+        if (op.isRequired !== undefined) u.isRequired = op.isRequired
+        if (op.sortOrder !== undefined) u.sortOrder = op.sortOrder
+        if (op.minSelections !== undefined) u.minSelections = op.minSelections
+        if (op.maxSelections === null) u.clearMaxSelections = true
+        else if (op.maxSelections !== undefined) u.maxSelections = op.maxSelections
+        if (Object.keys(u).length > 1) out.push({ updateOption: u })
+        if (op.title !== undefined && op.titleLocale) out.push({ upsertContent: { optionId: op.id, locale: op.titleLocale, title: op.title } })
+        break
+      }
+      case 'delete-option':
+        if (!isTemp(op.id)) out.push({ deleteOption: op.id })
+        break
+      case 'delete-content':
+        if (!isTemp(op.id)) out.push({ deleteContent: { optionId: op.id, locale: op.locale } })
+        break
+      case 'add-selection':
+        out.push({
+          tempId: op.tempId,
+          addSelection: { optionId: op.optionRef, productId: op.product.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder },
+        })
+        break
+      case 'update-selection':
+        out.push({ updateSelection: { id: op.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder } })
+        break
+      case 'delete-selection':
+        if (!isTemp(op.id)) out.push({ deleteSelection: op.id })
+        break
+    }
+  }
+  return out
 }

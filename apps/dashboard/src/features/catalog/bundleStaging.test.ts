@@ -15,6 +15,7 @@ import {
   type PendingOp,
   type SelectionProduct,
 } from './bundleStaging'
+import { toStructureOps } from './bundleStaging'
 
 // reduceOps sits between the admin's edits and the mutations that go out, and the diff count the
 // header shows is computed from the same reduced list - so an op it drops or merges wrongly is a
@@ -249,5 +250,27 @@ describe('pick limits', () => {
   it('folds limits set before the first save into the add', () => {
     const [add] = reduceOps([addOption('tmp_o1'), { kind: 'update-option', id: 'tmp_o1', minSelections: 3, maxSelections: 3 }])
     expect(add).toMatchObject({ kind: 'add-option', minSelections: 3, maxSelections: 3 })
+  })
+})
+
+// What this pins: the staged queue becomes one ordered setBundleStructure call - adds carry their tempIds for later edits
+// to name, a title edit becomes a translation write, a cleared bound says so, and edits to never-saved rows are dropped
+describe('toStructureOps', () => {
+  it('turns the queue into one ordered batch', () => {
+    const product = { id: 'p2', sku: 'MUG', name: 'Mug', kind: 'SIMPLE', defaultPrice: 500, defaultCurrencyCode: 'EUR' }
+    const ops = toStructureOps([
+      { kind: 'add-option', tempId: 'tmp_1', title: 'Mug', inputType: 'RADIO', isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, locale: 'en' },
+      { kind: 'add-selection', tempId: 'tmp_2', optionRef: 'tmp_1', product, quantity: 2, isDefault: true, sortOrder: 0 },
+      { kind: 'update-option', id: 'o1', title: 'Cups', titleLocale: 'sr', maxSelections: null },
+      { kind: 'delete-selection', id: 'tmp_9' },
+      { kind: 'delete-selection', id: 's1' },
+    ], 'p1')
+    expect(ops).toEqual([
+      { tempId: 'tmp_1', addOption: { productId: 'p1', inputType: 'RADIO', isRequired: true, sortOrder: 0, minSelections: 0, locale: 'en', title: 'Mug' } },
+      { tempId: 'tmp_2', addSelection: { optionId: 'tmp_1', productId: 'p2', quantity: 2, isDefault: true, sortOrder: 0 } },
+      { updateOption: { id: 'o1', clearMaxSelections: true } },
+      { upsertContent: { optionId: 'o1', locale: 'sr', title: 'Cups' } },
+      { deleteSelection: 's1' },
+    ])
   })
 })

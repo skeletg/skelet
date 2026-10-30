@@ -9,3 +9,8 @@
 - **Bundle selections are edited in their row.** Quantity is a field, default is a switch,
   and a drag handle reorders. All three stage for the page Save, replacing the per-row edit
   dialog. On a pick-one option, switching a new default on turns the old one off.
+- **A bundle editor save is one all-or-nothing call.** The dashboard sends every staged
+  option, translation and selection change through the new `setBundleStructure` mutation, in
+  one transaction, instead of one mutation and one refetch per change. A failure leaves nothing
+  half-saved, and the whole edit stays staged for a retry. The single-edit bundle mutations
+  remain in the API.

@@ -1440,61 +1440,20 @@ fragment BundleOptionFields on BundleOption {
   updatedAt
 }
 
-mutation AddBundleOption($input: AddBundleOptionInput!) {
-  addBundleOption(input: $input) {
+mutation SetBundleStructure($productId: ID!, $ops: [BundleStructureOpInput!]!) {
+  setBundleStructure(productId: $productId, ops: $ops) {
     id
     bundleOptions { ...BundleOptionFields }
   }
 }
 
-mutation UpdateBundleOption($input: UpdateBundleOptionInput!) {
-  updateBundleOption(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation UpsertBundleOptionContent($optionId: ID!, $locale: String!, $title: String!) {
-  upsertBundleOptionContent(optionId: $optionId, locale: $locale, title: $title) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleOptionContent($optionId: ID!, $locale: String!) {
-  deleteBundleOptionContent(optionId: $optionId, locale: $locale) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleOption($id: ID!) {
-  deleteBundleOption(id: $id) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation AddBundleSelection($input: AddBundleSelectionInput!) {
-  addBundleSelection(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation UpdateBundleSelection($input: UpdateBundleSelectionInput!) {
-  updateBundleSelection(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleSelection($id: ID!) {
-  deleteBundleSelection(id: $id) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
+
 
 fragment KitComponentFields on KitComponent {
   id

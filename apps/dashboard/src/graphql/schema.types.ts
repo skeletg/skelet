@@ -886,6 +886,12 @@ export type BundleOptionContent = {
   title: Scalars['String']['output'];
 };
 
+export type BundleOptionContentInput = {
+  locale: Scalars['String']['input'];
+  optionId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
 export type BundlePricing =
   | 'FIXED'
   | 'SUM'
@@ -898,6 +904,18 @@ export type BundleSelection = {
   product: Product;
   quantity: Scalars['Float']['output'];
   sortOrder: Scalars['Int']['output'];
+};
+
+export type BundleStructureOpInput = {
+  addOption?: InputMaybe<AddBundleOptionInput>;
+  addSelection?: InputMaybe<AddBundleSelectionInput>;
+  deleteContent?: InputMaybe<BundleOptionContentInput>;
+  deleteOption?: InputMaybe<Scalars['ID']['input']>;
+  deleteSelection?: InputMaybe<Scalars['ID']['input']>;
+  tempId?: InputMaybe<Scalars['ID']['input']>;
+  updateOption?: InputMaybe<UpdateBundleOptionInput>;
+  updateSelection?: InputMaybe<UpdateBundleSelectionInput>;
+  upsertContent?: InputMaybe<BundleOptionContentInput>;
 };
 
 export type BusinessIdField = {
@@ -4049,6 +4067,7 @@ export type Mutation = {
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
   setBundlePricing: Product;
+  setBundleStructure: Product;
   setCMSPageChannelListing: CmsPage;
   setCMSPageExperiment: CmsPage;
   setCMSPageRelationships: CmsPage;
@@ -5996,6 +6015,12 @@ export type MutationSetBlogPostTagsArgs = {
 
 export type MutationSetBundlePricingArgs = {
   input: SetBundlePricingInput;
+};
+
+
+export type MutationSetBundleStructureArgs = {
+  ops: Array<BundleStructureOpInput>;
+  productId: Scalars['ID']['input'];
 };
 
 

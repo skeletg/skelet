@@ -42,31 +42,22 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCents } from '@/lib/format'
-import type { BundleInputType, BundlePricing, UpdateBundleOptionInput } from '@/graphql/schema.types'
+import type { BundleInputType, BundlePricing } from '@/graphql/schema.types'
 import {
-  AddBundleOptionDocument,
-  AddBundleSelectionDocument,
-  DeleteBundleOptionDocument,
-  DeleteBundleSelectionDocument,
   ProductDocument,
   ProductVariantsDocument,
-  UpdateBundleOptionDocument,
-  UpdateBundleSelectionDocument,
-  DeleteBundleOptionContentDocument,
   SetBundlePricingDocument,
-  UpsertBundleOptionContentDocument,
+  SetBundleStructureDocument,
 } from './Catalog.gql'
 import {
   applyOps,
-  CommitError,
-  commitOps,
   isTemp,
   newTempId,
   opsToDiff,
   reduceOps,
   selectionLimitText,
+  toStructureOps,
   type BundleOption,
-  type Committers,
   type PendingOp,
   type Selection,
   type SelectionProduct,
@@ -189,130 +180,15 @@ export function BundleStructureSection({
   const staged = useMemo(() => applyOps(product.bundleOptions, reduced), [product.bundleOptions, reduced])
   const diff = useMemo(() => opsToDiff(product.bundleOptions, reduced), [product.bundleOptions, reduced])
 
-  // Apollo hooks live up here so the save() closure can call them refetchQueries fires the product page's main query so
-  // the new server state replaces the staged view after a successful commit
   const refetch = [{ query: ProductDocument, variables: { id: product.id } }]
-  const [addOptionMutation] = useMutation(AddBundleOptionDocument, { refetchQueries: refetch })
-  const [updateOptionMutation] = useMutation(UpdateBundleOptionDocument, { refetchQueries: refetch })
-  const [upsertOptionContentMutation] = useMutation(UpsertBundleOptionContentDocument, { refetchQueries: refetch })
-  const [deleteOptionMutation] = useMutation(DeleteBundleOptionDocument, { refetchQueries: refetch })
-  const [addSelectionMutation] = useMutation(AddBundleSelectionDocument, { refetchQueries: refetch })
-  const [updateSelectionMutation] = useMutation(UpdateBundleSelectionDocument, { refetchQueries: refetch })
-  const [deleteSelectionMutation] = useMutation(DeleteBundleSelectionDocument, { refetchQueries: refetch })
-  const [deleteOptionContentMutation] = useMutation(DeleteBundleOptionContentDocument, { refetchQueries: refetch })
+  const [setStructure] = useMutation(SetBundleStructureDocument, { refetchQueries: refetch, awaitRefetchQueries: true })
 
+  // One call, one transaction - it lands whole or not at all, so a failure keeps the whole queue for a retry
   const save = useCallback(async () => {
     if (reduced.length === 0) return
-    // Track ids the server has acked so subsequent add lookups can
-    // pick the truly-new row when multiple adds share a title
-    const knownOptionIds = new Set(product.bundleOptions.map((o) => o.id))
-    const committers: Committers = {
-      addOption: async (op) => {
-        const res = await addOptionMutation({
-          variables: {
-            input: {
-              productId: op.productId,
-              inputType: op.inputType,
-              isRequired: op.isRequired,
-              minSelections: op.minSelections,
-              ...(op.maxSelections !== null ? { maxSelections: op.maxSelections } : {}),
-              locale: op.locale,
-              title: op.title,
-            },
-          },
-        })
-        // The mutation returns the parent Product with all bundle options re-projected - The just-created row is
-        // whichever option's id we haven't seen yet - robust to identical titles being added back-to-back in one save
-        const opts = res.data?.addBundleOption.bundleOptions ?? []
-        const fresh = opts.find((o) => !knownOptionIds.has(o.id))
-        if (!fresh) {
-          throw new Error('Could not resolve newly-added bundle option id from response.')
-        }
-        knownOptionIds.add(fresh.id)
-        return fresh.id
-      },
-      updateOption: async (op) => {
-        const input: UpdateBundleOptionInput = { id: op.id }
-        if (op.inputType !== undefined) input.inputType = op.inputType
-        if (op.isRequired !== undefined) input.isRequired = op.isRequired
-        if (op.sortOrder !== undefined) input.sortOrder = op.sortOrder
-        if (op.minSelections !== undefined) input.minSelections = op.minSelections
-        if (op.maxSelections === null) input.clearMaxSelections = true
-        else if (op.maxSelections !== undefined) input.maxSelections = op.maxSelections
-        // updateBundleOption only takes structural fields; title is
-        // upserted separately by upsertOptionContent below
-        if (Object.keys(input).length > 1) {
-          await updateOptionMutation({ variables: { input } })
-        }
-      },
-      upsertOptionContent: async (op) => {
-        await upsertOptionContentMutation({
-          variables: { optionId: op.optionId, locale: op.locale, title: op.title },
-        })
-      },
-      deleteOption: async (op) => {
-        await deleteOptionMutation({ variables: { id: op.id } })
-      },
-      deleteOptionContent: async (op) => {
-        await deleteOptionContentMutation({ variables: { optionId: op.optionId, locale: op.locale } })
-      },
-      addSelection: async (op) => {
-        const res = await addSelectionMutation({
-          variables: {
-            input: {
-              optionId: op.optionRef,
-              productId: op.product.id,
-              quantity: op.quantity,
-              isDefault: op.isDefault,
-              sortOrder: op.sortOrder,
-            },
-          },
-        })
-        // Product is unique within an option's selections (the picker filters out already-linked rows), so the new
-        // selection is the one whose product.id matches the op
-        const opts = res.data?.addBundleSelection.bundleOptions ?? []
-        const parentOpt = opts.find((o) => o.id === op.optionRef)
-        const fresh = parentOpt?.selections.find((s) => s.product.id === op.product.id)
-        if (!fresh) {
-          throw new Error('Could not resolve newly-added bundle selection id from response.')
-        }
-        return fresh.id
-      },
-      updateSelection: async (op) => {
-        const variables: { input: { id: string; quantity?: number; isDefault?: boolean; sortOrder?: number } } = {
-          input: { id: op.id },
-        }
-        if (op.quantity !== undefined) variables.input.quantity = op.quantity
-        if (op.isDefault !== undefined) variables.input.isDefault = op.isDefault
-        if (op.sortOrder !== undefined) variables.input.sortOrder = op.sortOrder
-        await updateSelectionMutation({ variables })
-      },
-      deleteSelection: async (op) => {
-        await deleteSelectionMutation({ variables: { id: op.id } })
-      },
-    }
-
-    try {
-      await commitOps(reduced, product.id, committers)
-    } catch (e) {
-      // keep only the unapplied tail - a retry resumes instead of re-running committed adds and duplicating selections
-      if (e instanceof CommitError) setPendingOps(e.remaining as PendingOp[])
-      throw e
-    }
+    await setStructure({ variables: { productId: product.id, ops: toStructureOps(reduced, product.id) } })
     setPendingOps([])
-  }, [
-    reduced,
-    product.id,
-    product.bundleOptions,
-    addOptionMutation,
-    updateOptionMutation,
-    upsertOptionContentMutation,
-    deleteOptionMutation,
-    addSelectionMutation,
-    updateSelectionMutation,
-    deleteSelectionMutation,
-    deleteOptionContentMutation,
-  ])
+  }, [reduced, product.id, setStructure])
 
   useProductSaveSection({ id: 'bundle-structure', title: 'Bundle structure', diff, save })
 
