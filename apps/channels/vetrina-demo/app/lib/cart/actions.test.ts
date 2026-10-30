@@ -141,7 +141,7 @@ describe("a bundle add the backend refuses", () => {
   });
 });
 
-// What this pins: the size picked for a configurable bundle selection reaches the cart with the picks
+// What this pins: the size picked for a configurable bundle selection, and a customer-set amount, reach the cart with the picks
 describe("a bundle add with a configurable selection", () => {
   it("sends the picked variant along", async () => {
     const { AddBundleToCartDocument } = await import("./mutations.gql");
@@ -153,9 +153,15 @@ describe("a bundle add with a configurable selection", () => {
     form.set("productSku", "SET-1");
     form.set("selections", JSON.stringify([{ optionId: "o1", selectionIds: ["s1"] }]));
     form.set("variants", JSON.stringify([{ selectionId: "s1", variantId: "hoodie-m" }]));
+    form.set("quantities", JSON.stringify([{ selectionId: "s2", quantity: 3 }]));
     await addBundleToCart(null, form);
     expect(sent(AddBundleToCartDocument)[0]).toMatchObject({
-      input: { sku: "SET-1", selections: [{ optionId: "o1", selectionIds: ["s1"] }], variants: [{ selectionId: "s1", variantId: "hoodie-m" }] },
+      input: {
+        sku: "SET-1",
+        selections: [{ optionId: "o1", selectionIds: ["s1"] }],
+        variants: [{ selectionId: "s1", variantId: "hoodie-m" }],
+        quantities: [{ selectionId: "s2", quantity: 3 }],
+      },
     });
   });
 });

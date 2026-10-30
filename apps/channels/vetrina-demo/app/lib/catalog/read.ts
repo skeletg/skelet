@@ -14,7 +14,7 @@ import {
   CollectionDocument,
   CollectionsDocument,
   ProductDocument,
-  BundleVariantsDocument,
+  BundleSelectionExtrasDocument,
   ProductConfiguratorDocument,
   type ProductConfiguratorPicturesFragment,
   ProductSortOptionsDocument,
@@ -153,6 +153,9 @@ export type BundleSelection = {
   quantity: number;
   isDefault: boolean;
   sortOrder: number;
+  // From BundleSelectionExtras: an add-on deal off this pick, and whether the customer sets how many go in
+  discountPercent?: number;
+  customerQuantity?: boolean;
   product: {
     id: string;
     url: string;
@@ -163,8 +166,7 @@ export type BundleSelection = {
     price: number;
     defaultCurrencyCode: string;
     mainImage: ProductMedia | null;
-    // CONFIGURABLE when the customer picks one of children at add-to-cart
-    kind?: string;
+    // A configurable's variants, one of which the customer picks - empty or absent for a simple product
     children?: { id: string; sku: string; name: string | null; inStock: boolean; price: number }[];
   };
 };
@@ -440,22 +442,29 @@ export const getProduct = cache(async (id: string): Promise<{
   }
 });
 
-// A configurable bundle selection needs its variants to pick from - fetched apart, and only when the bundle has one
+// A bundle's selections' variants, deals and customer quantities - fetched apart, for bundles only
 async function withBundleVariants(
   product: ProductDetail,
   cacheOpts: Parameters<typeof gqlFetch>[2],
 ): Promise<ProductDetail> {
-  const configurable = product.bundleOptions.some((o) => o.selections.some((s) => s.product.kind === "CONFIGURABLE"));
-  if (!configurable) return product;
-  const res = await gqlFetch(BundleVariantsDocument, { id: product.id }, cacheOpts);
-  const kids = new Map(
-    (res.data.product?.bundleOptions ?? []).flatMap((o) => o.selections.map((s) => [s.id, s.product.children] as const)),
+  if (product.bundleOptions.length === 0) return product;
+  const res = await gqlFetch(BundleSelectionExtrasDocument, { id: product.id }, cacheOpts);
+  const extras = new Map(
+    (res.data.product?.bundleOptions ?? []).flatMap((o) => o.selections.map((s) => [s.id, s] as const)),
   );
   return {
     ...product,
     bundleOptions: product.bundleOptions.map((o) => ({
       ...o,
-      selections: o.selections.map((s) => ({ ...s, product: { ...s.product, children: kids.get(s.id) ?? [] } })),
+      selections: o.selections.map((s) => {
+        const x = extras.get(s.id);
+        return {
+          ...s,
+          discountPercent: x?.discountPercent ?? 0,
+          customerQuantity: x?.customerQuantity ?? false,
+          product: { ...s.product, children: x?.product.children ?? [] },
+        };
+      }),
     })),
   };
 }

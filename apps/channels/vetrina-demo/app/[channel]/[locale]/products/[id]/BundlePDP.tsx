@@ -62,6 +62,8 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
   const [picks, setPicks] = useState<Picks>(() => initialPicks(options));
   // selectionId -> the variant picked for a configurable selection
   const [variants, setVariants] = useState<Record<string, string>>({});
+  // selectionId -> how many per bundle, for a selection whose amount the customer sets
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
 
   const togglePick = (option: BundleOption, selectionId: string) => {
     setPicks((prev) => {
@@ -99,23 +101,21 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
     }
   }
   const totalItemsPerBundle = chosen.reduce(
-    (n, c) => n + c.selection.quantity,
+    (n, c) => n + (c.selection.customerQuantity ? (amounts[c.selection.id] ?? c.selection.quantity) : c.selection.quantity),
     0,
   );
   // The cart prices a bundle from the sum of its picked selections - mirror that here so the headline tracks the picks
   // instead of showing the wrapper's own price (0 for dynamically priced bundles)
   // A configurable pick is priced, and charged, as the variant chosen for it
   const variantOf = (sel: BundleSelection) => sel.product.children?.find((v) => v.id === variants[sel.id]);
-  const isConfigurable = (sel: BundleSelection) => sel.product.kind === "CONFIGURABLE";
-  const pickedSum = chosen.reduce(
-    (n, c) =>
-      n +
-      (isConfigurable(c.selection)
-        ? (variantOf(c.selection)?.price ?? 0)
-        : (c.selection.product.price ?? c.selection.product.defaultPrice)) *
-        c.selection.quantity,
-    0,
-  );
+  const isConfigurable = (sel: BundleSelection) => (sel.product.children?.length ?? 0) > 0;
+  const amountOf = (sel: BundleSelection) => (sel.customerQuantity ? (amounts[sel.id] ?? sel.quantity) : sel.quantity);
+  // The cart's per-pick price: the variant's for a configurable, less the pick's own deal rounded half up
+  const unitOf = (sel: BundleSelection) => {
+    const list = isConfigurable(sel) ? (variantOf(sel)?.price ?? 0) : (sel.product.price ?? sel.product.defaultPrice);
+    return list - Math.floor((list * (sel.discountPercent ?? 0) + 50) / 100);
+  };
+  const pickedSum = chosen.reduce((n, c) => n + unitOf(c.selection) * amountOf(c.selection), 0);
   const bundleTotal = bundlePrice(product, pickedSum);
   // An option is unfinished below its minimum, or while a configurable picked in it has no variant yet
   const unsatisfiedRequired = options.filter(
@@ -178,6 +178,8 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                   onToggle={(sid) => togglePick(opt, sid)}
                   variants={variants}
                   onVariant={(sid, vid) => setVariants((prev) => ({ ...prev, [sid]: vid }))}
+                  amounts={amounts}
+                  onAmount={(sid, n) => setAmounts((prev) => ({ ...prev, [sid]: n }))}
                   invalid={invalid}
                 />
               )}
@@ -205,6 +207,15 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
               chosen
                 .filter((c) => isConfigurable(c.selection) && variants[c.selection.id])
                 .map((c) => ({ selectionId: c.selection.id, variantId: variants[c.selection.id] })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="quantities"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => c.selection.customerQuantity)
+                .map((c) => ({ selectionId: c.selection.id, quantity: amountOf(c.selection) })),
             )}
           />
           <PdpQty bounds={qtyBounds} disabled={missingRequired.length > 0} />
@@ -296,6 +307,8 @@ function BundleOptionPanel({
   onToggle,
   variants,
   onVariant,
+  amounts,
+  onAmount,
   invalid = false,
 }: {
   option: BundleOption;
@@ -303,6 +316,8 @@ function BundleOptionPanel({
   onToggle: (selectionId: string) => void;
   variants: Record<string, string>;
   onVariant: (selectionId: string, variantId: string) => void;
+  amounts: Record<string, number>;
+  onAmount: (selectionId: string, amount: number) => void;
   invalid?: boolean;
 }) {
   const sorted = [...option.selections].sort(
@@ -384,6 +399,9 @@ function BundleOptionPanel({
                     sel.product.price ?? sel.product.defaultPrice,
                     sel.product.defaultCurrencyCode,
                   )}
+                  {sel.discountPercent ? (
+                    <span className="ml-1 text-xs font-semibold text-signal">−{sel.discountPercent}%</span>
+                  ) : null}
                   {sel.quantity !== 1 ? (
                     <span className="ml-1 text-xs font-normal text-muted-foreground">
                       ×{sel.quantity}
@@ -391,7 +409,20 @@ function BundleOptionPanel({
                   ) : null}
                 </span>
               </label>
-              {isPicked && sel.product.kind === "CONFIGURABLE" ? (
+              {isPicked && sel.customerQuantity ? (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  {t("howMany")}
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    className="w-20 rounded-lg border border-border bg-background px-2 py-1 tabular-nums"
+                    value={amounts[sel.id] ?? sel.quantity}
+                    onChange={(e) => onAmount(sel.id, Math.max(1, Math.round(Number(e.target.value) || 1)))}
+                  />
+                </label>
+              ) : null}
+              {isPicked && (sel.product.children?.length ?? 0) > 0 ? (
                 <select
                   className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   aria-label={t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}

@@ -39,3 +39,10 @@
   The rows it makes are marked "from the rule" and can't be edited one by one. Their ids stay
   the same, so carts, checkout repricing and reorders treat them like hand-picked ones. API:
   `BundleOption.rule`, `BundleSelection.fromRule`, and `setRule` in `setBundleStructure`.
+- **Bundle selections can carry an add-on deal and a customer-set quantity.** Each selection
+  row has a "% off" field, which the cart takes off that component's price, and a "Customer
+  sets qty" switch. With the switch on, the storefront asks "How many" when the item is
+  picked, starting from the selection's quantity. The price line, the storefront price, the
+  cart, checkout repricing and reorder all follow both. API: `discountPercent` and
+  `customerQuantity` on `BundleSelection` and its inputs, and
+  `AddBundleToCartInput.quantities`.

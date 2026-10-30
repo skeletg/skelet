@@ -749,7 +749,8 @@
       "pickAtLeast": "Pick at least {count}",
       "picked": "{count} picked",
       "bundleSave": "Save {percent}%",
-      "chooseVariant": "Choose {name}"
+      "chooseVariant": "Choose {name}",
+      "howMany": "How many"
     },
     "steps": {
       "progress": "Step {current} of {total}",

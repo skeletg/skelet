@@ -12,8 +12,14 @@ export type Scalars = {
   Time: { input: string; output: string; }
 };
 
+export type AddBundleQuantityInput = {
+  quantity: Scalars['Float']['input'];
+  selectionId: Scalars['ID']['input'];
+};
+
 export type AddBundleToCartInput = {
   cartId: Scalars['ID']['input'];
+  quantities?: InputMaybe<Array<AddBundleQuantityInput>>;
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
   sku: Scalars['String']['input'];
@@ -333,6 +339,8 @@ export type BundlePricing =
 
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  customerQuantity: Scalars['Boolean']['output'];
+  discountPercent: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
   product: Product;

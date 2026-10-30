@@ -134,3 +134,28 @@ test("a configurable selection asks for a size, then adds", async ({ page }) => 
     },
   );
 });
+
+// An add-on deal shows on its pick, and a pick whose amount the customer sets asks how many
+test("a selection's deal and customer-set amount show on the page", async ({ page }) => {
+  await onBundlePage(
+    page,
+    async () => {
+      await expect(option(page).getByText("−50%")).toBeVisible();
+      await card(page, 0).click();
+      const howMany = option(page).getByRole("spinbutton", { name: /How many/ });
+      await expect(howMany).toHaveValue("1");
+      await howMany.fill("3");
+      await expect(main(page)).toContainText("3 items per bundle");
+    },
+    async (admin, bundleId) => {
+      const { product } = await admin.gql<{ product: { bundleOptions: { selections: { id: string; sortOrder: number }[] }[] } }>(
+        `query ($id: ID!) { product(id: $id) { bundleOptions { selections { id sortOrder } } } }`,
+        { id: bundleId },
+      );
+      const first = product.bundleOptions[0].selections.find((s) => s.sortOrder === 0)!;
+      await admin.gql(`mutation ($input: UpdateBundleSelectionInput!) { updateBundleSelection(input: $input) { id } }`, {
+        input: { id: first.id, discountPercent: 50, customerQuantity: true },
+      });
+    },
+  );
+});

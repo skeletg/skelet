@@ -158,9 +158,12 @@ export async function addBundleToCart(
   let selections: { optionId: string; selectionIds: string[] }[];
   // The variant picked for each configurable selection: [{ selectionId, variantId }]
   let variants: { selectionId: string; variantId: string }[];
+  // How many of each customer-quantity selection go in one bundle: [{ selectionId, quantity }]
+  let quantities: { selectionId: string; quantity: number }[];
   try {
     selections = JSON.parse(selectionsJson);
     variants = JSON.parse(String(formData.get("variants") ?? "[]"));
+    quantities = JSON.parse(String(formData.get("quantities") ?? "[]"));
   } catch {
     return { ok: false, error: "invalidBundle" };
   }
@@ -168,7 +171,7 @@ export async function addBundleToCart(
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddBundleToCartDocument, {
-      input: { cartId, sku, quantity, selections, variants },
+      input: { cartId, sku, quantity, selections, variants, quantities },
     });
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
