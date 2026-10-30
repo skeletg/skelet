@@ -376,3 +376,81 @@ func TestATenPercentOffBundleChargesAndTaxesTheDiscountedPrice(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// Scenario: "a hoodie, any size" - the bundle holds the configurable as one selection, the customer picks size M at
+// add-to-cart, and M is what the line snapshots, prices and reserves; a size added later is pickable with no bundle edit
+func TestABundleConfigurableSelectionTakesTheCustomersVariant(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	hoodie, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
+		ProductTypeID: f.Product.ProductTypeID, Locale: "en", Name: "E2E Hoodie", SKU: "e2e-hoodie-" + uuid.NewString()[:8],
+		Kind: catalog.KindConfigurable, DefaultCurrencyCode: "USD",
+	})
+	if err != nil {
+		t.Fatalf("create hoodie: %v", err)
+	}
+	if _, err := h.D.Catalog.SetProductVariantMode(h.Ctx, hoodie.ID, catalog.VariantModeList); err != nil {
+		t.Fatalf("list mode: %v", err)
+	}
+	h.ListOn(t, f.Channel, hoodie.ID, 0)
+	small, medium := h.AddProduct(t, f, 4900, true, 10), h.AddProduct(t, f, 5100, true, 10)
+	for i, v := range []catalog.Product{small, medium} {
+		if _, err := h.D.Catalog.AddProductChild(h.Ctx, hoodie.ID, v.ID, int32(i)); err != nil {
+			t.Fatalf("link variant: %v", err)
+		}
+	}
+	b, opt := h.newBundle(t, f)
+	sel, err := h.D.Catalog.AddBundleSelection(h.Ctx, catalog.AddBundleSelectionInput{OptionID: opt.ID, ProductID: hoodie.ID, Quantity: 1})
+	if err != nil {
+		t.Fatalf("hoodie as a selection: %v", err)
+	}
+	if _, err := h.D.Catalog.AddBundleSelection(h.Ctx, catalog.AddBundleSelectionInput{OptionID: opt.ID, ProductID: hoodie.ID, Quantity: 1, IsDefault: true}); !errors.Is(err, catalog.ErrBundleConfigurableDefault) {
+		t.Errorf("a configurable default = %v, want ErrBundleConfigurableDefault", err)
+	}
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	picks := []cart.AddBundleSelectionInput{{OptionID: opt.ID, SelectionIDs: []uuid.UUID{sel.ID}}}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 1, Selections: picks}); !errors.Is(err, cart.ErrBundleVariantMissing) {
+		t.Fatalf("add without a size = %v, want ErrBundleVariantMissing", err)
+	}
+	got, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{
+		ProductSku: b.SKU, Quantity: 1, Selections: picks, Variants: map[uuid.UUID]uuid.UUID{sel.ID: medium.ID},
+	})
+	if err != nil {
+		t.Fatalf("add size M: %v", err)
+	}
+	if l := got.Lines[0]; l.UnitPrice != 5100 || len(l.Components) != 1 || l.Components[0].ProductSku != medium.SKU {
+		t.Fatalf("line %d with %+v, want size M at 5100", l.UnitPrice, l.Components)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	mItem, err := h.D.Queries.GetInventoryItemByProductID(h.Ctx, medium.ID)
+	if err != nil {
+		t.Fatalf("M item: %v", err)
+	}
+	res, err := h.D.Queries.ListReservationsForOrder(h.Ctx, uuid.NullUUID{UUID: o.ID, Valid: true})
+	if err != nil || len(res) != 1 || res[0].InventoryItemID != mItem.ID || res[0].QuantityDelta != -1 {
+		t.Fatalf("reservations %+v (%v), want one unit of size M", res, err)
+	}
+
+	// A size added after the bundle was built is pickable without touching the bundle
+	large := h.AddProduct(t, f, 5300, true, 10)
+	if _, err := h.D.Catalog.AddProductChild(h.Ctx, hoodie.ID, large.ID, 2); err != nil {
+		t.Fatalf("link L: %v", err)
+	}
+	c2, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c2.ID, nil, cart.AddBundleToCartInput{
+		ProductSku: b.SKU, Quantity: 1, Selections: picks, Variants: map[uuid.UUID]uuid.UUID{sel.ID: large.ID},
+	}); err != nil {
+		t.Fatalf("add the new size L: %v", err)
+	}
+	h.Settle(t)
+}
