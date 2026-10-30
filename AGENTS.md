@@ -108,6 +108,8 @@ let sqlc generate the Go.
   tally: a skip count that isn't near zero means a database went missing, not that
   the tests are fine. One run at a time - a second `./skelet test` refuses while the
   first holds the databases
+- `./skelet test --changed` runs only what a change reaches - Go's test cache keyed on the code and the
+  migrations, plus `vitest related` per frontend. It's for iterating; the full run is still the gate before you finish
 - Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet pnpm dashboard run test`
 - Storefront: Vitest. `./skelet pnpm <name> run test`
 - E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds

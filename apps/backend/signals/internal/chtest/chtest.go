@@ -18,6 +18,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/migfile"
+	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
 const marker = "skelet.e2e=allowed"
@@ -31,6 +32,7 @@ var (
 
 func DSN(t testing.TB) string {
 	t.Helper()
+	_ = os.Getenv(testdb.SchemaEnv) // keys go test's cache on the schema, as testdb does
 	once.Do(func() { dsn, reason = provision(os.Getenv("SIGNALS_CH_TEST_DSN")) })
 	if dsn == "" {
 		t.Skip(reason)

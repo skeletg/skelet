@@ -39,9 +39,11 @@ ensure_ch_db() { # <dbname> <fresh: true|false>
 }
 
 drop_ch_clones() { # <template>
-    for name in $(ch_sql "SELECT name FROM system.databases WHERE startsWith(name, '${1}__pkg')"); do
-        ch_sql "DROP DATABASE IF EXISTS \`$name\`" >/dev/null
-    done
+    local names
+    names="$(ch_sql "SELECT name FROM system.databases WHERE startsWith(name, '${1}__pkg')")"
+    [ -n "$names" ] || return 0
+    docker compose exec -T clickhouse clickhouse-client --user=skelet --password=skelet --multiquery \
+        --query "$(printf 'DROP DATABASE IF EXISTS `%s`;' $names)" >/dev/null
 }
 
 # Keep the dev DBs unmarked so a stray `go test` against dev refuses instead of writing test rows
@@ -51,10 +53,12 @@ unmark_dev_dbs() {
 }
 
 # The per-package clones testdb makes from a template - throwaways of a throwaway, swept before every run
+# One psql for the lot, fed on stdin so each DROP runs on its own as it must - an exec per clone was most of setup
 drop_clones() { # <service> <template>
-    for name in $(admin_sql "$1" "SELECT datname FROM pg_database WHERE datname LIKE '${2}\_\_pkg%'"); do
-        admin_sql "$1" "DROP DATABASE $name WITH (FORCE)" >/dev/null
-    done
+    local names
+    names="$(admin_sql "$1" "SELECT datname FROM pg_database WHERE datname LIKE '${2}\_\_pkg%'")"
+    [ -n "$names" ] || return 0
+    printf 'DROP DATABASE "%s" WITH (FORCE);\n' $names | docker compose exec -T "$1" psql -U skelet -d postgres -v ON_ERROR_STOP=1 -q >/dev/null
 }
 
 service_running() { # <service>
