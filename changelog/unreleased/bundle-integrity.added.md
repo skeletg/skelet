@@ -9,3 +9,9 @@
   €20.00–€35.00, default €25.00". It follows staged edits before the Save.
 - **Product listings in the admin API answer `inStock` per store**, so one query can check
   stock across every store a product is sold on.
+- **The storefront API exposes bundle pick limits and order line components.** `BundleOption`
+  gains `minSelections` and `maxSelections`, and `OrderLine` gains `components`.
+- **The bundle product page keeps to the pick limits.** A "pick up to 3" option says so with a
+  running count, and its other choices lock once three are picked. An option short of its
+  minimum counts as unfinished, like an empty required one.
+- **The order page lists what's in a bundle**, under the line, as the cart does.
