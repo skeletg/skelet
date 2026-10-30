@@ -94,3 +94,21 @@ describe('bundle option pick limits', () => {
     expect(screen.getByText(/customers can’t pick 3 until you add more/)).toBeTruthy()
   })
 })
+
+// What this pins: the health strip names the store and what's wrong there, and prices the bundle per store
+describe('bundle health strip', () => {
+  it('flags an out-of-stock component and shows the store price', async () => {
+    const listings = [{ isPublished: true, channel: { id: 'c1', name: 'EU store', currencyCode: 'EUR' } }]
+    const stocked = { ...widget, listings: [{ channelId: 'c1', isPublished: true, effectivePrice: 500, inStock: true }] }
+    const gone = { ...widget, id: 'p3', name: 'Gadget', listings: [{ channelId: 'c1', isPublished: true, effectivePrice: 900, inStock: false }] }
+    const option = {
+      id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Size', content: [],
+      selections: [{ id: 's1', product: stocked, quantity: 1, isDefault: true, sortOrder: 0 }, { id: 's2', product: gone, quantity: 1, isDefault: false, sortOrder: 1 }],
+    }
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', listings, bundleOptions: [option] }} />)
+    const strip = await screen.findByLabelText('Bundle health')
+    expect(within(strip).getByText('EU store')).toBeTruthy()
+    expect(within(strip).getByText('Gadget in “Size” is out of stock.')).toBeTruthy()
+    expect(strip.textContent).toMatch(/Customers pay .*5\.00.*, default .*5\.00/)
+  })
+})

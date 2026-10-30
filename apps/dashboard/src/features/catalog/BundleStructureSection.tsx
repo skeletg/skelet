@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
 import { useMutation } from '@apollo/client/react'
 import {
+  AlertTriangleIcon,
   CheckCircle2Icon,
   PackagePlusIcon,
   PencilIcon,
@@ -65,6 +66,7 @@ import {
   type Selection,
   type SelectionProduct,
 } from './bundleStaging'
+import { storeHealth, structureIssues, type BundleListing, type HealthIssue } from './bundleHealth'
 import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
 import { defaultColumn, quantityColumn } from './product-picker-columns'
@@ -75,6 +77,7 @@ type Bundle = {
   id: string
   contentLocale?: string | null
   bundleOptions: BundleOption[]
+  listings?: BundleListing[]
 }
 
 // Said as what the customer does - the widget name alone hid that checkbox and multiselect behave the same
@@ -345,6 +348,8 @@ export function BundleStructureSection({
         )}
       </div>
 
+      {sortedOptions.length > 0 && <BundleHealth options={sortedOptions} listings={product.listings ?? []} />}
+
       {sortedOptions.length === 0 ? (
         <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
           No options yet. Add one to start defining what the customer can pick.
@@ -422,6 +427,55 @@ export function BundleStructureSection({
         destructive
         onConfirm={() => { if (confirmingDeleteSelection) onDeleteSelection(confirmingDeleteSelection.selection) }}
       />
+    </div>
+  )
+}
+
+function IssueLine({ issue }: { issue: HealthIssue }) {
+  return (
+    <li className={`flex items-start gap-1.5 text-xs ${issue.level === 'destructive' ? 'text-destructive' : 'text-warning'}`}>
+      <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" />
+      {issue.text}
+    </li>
+  )
+}
+
+// What customers can actually buy on each store the bundle is listed on, from the staged structure so edits show before the save
+function BundleHealth({ options, listings }: { options: BundleOption[]; listings: BundleListing[] }) {
+  const general = useMemo(() => structureIssues(options), [options])
+  const stores = useMemo(() => storeHealth(listings, options), [listings, options])
+  const unsaved = options.some((o) => o.selections.some((s) => !s.product.listings))
+  return (
+    <div className="divide-y rounded-md border text-sm" aria-label="Bundle health">
+      {general.length > 0 && (
+        <ul className="grid gap-1 px-3 py-2">{general.map((i) => <IssueLine key={i.text} issue={i} />)}</ul>
+      )}
+      {stores.length === 0 && (
+        <p className="px-3 py-2 text-xs text-muted-foreground">Not listed on any store yet - list it to see what customers pay.</p>
+      )}
+      {stores.map((st) => (
+        <div key={st.channelId} className="grid gap-1 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium">{st.name}</span>
+            {st.price && (
+              <span className="text-xs text-muted-foreground">
+                Customers pay {formatCents(st.price.min, st.currencyCode)}
+                {st.price.max !== st.price.min && <>–{formatCents(st.price.max, st.currencyCode)}</>}
+                , default {formatCents(st.price.default, st.currencyCode)}
+              </span>
+            )}
+          </div>
+          {st.issues.length === 0 ? (
+            <p className="flex items-center gap-1.5 text-xs text-success">
+              <CheckCircle2Icon className="size-3" />
+              Every selection can be bought here.
+            </p>
+          ) : (
+            <ul className="grid gap-1">{st.issues.map((i) => <IssueLine key={i.text} issue={i} />)}</ul>
+          )}
+        </div>
+      ))}
+      {unsaved && <p className="px-3 py-2 text-xs text-muted-foreground">New selections are checked after you save.</p>}
     </div>
   )
 }
