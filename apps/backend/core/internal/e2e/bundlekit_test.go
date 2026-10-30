@@ -454,3 +454,45 @@ func TestABundleConfigurableSelectionTakesTheCustomersVariant(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// Scenario: an option filled by a category rule - the customer picks a product the rule offered, and the line places and
+// reprices like a hand-picked one, its selection id stable across reads
+func TestABundleRuleSelectionCanBeBoughtAndRepriced(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	cat, err := h.D.Catalog.CreateCategory(h.Ctx, catalog.CreateCategoryInput{Slug: "e2e-mugs-" + uuid.NewString()[:8], IsPublished: true, Locale: "en", Name: "E2E Mugs"})
+	if err != nil {
+		t.Fatalf("category: %v", err)
+	}
+	mug := h.AddProduct(t, f, 700, true, 10)
+	if _, err := h.D.Catalog.AddProductToCategory(h.Ctx, mug.ID, cat.ID, 0, true); err != nil {
+		t.Fatalf("file mug: %v", err)
+	}
+	b, opt := h.newBundle(t, f)
+	if _, err := h.D.Catalog.SetBundleOptionRule(h.Ctx, opt.ID, &catalog.BundleOptionRule{CategoryID: cat.ID, Quantity: 1}); err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	sel := catalog.RuleSelectionID(opt.ID, mug.ID)
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{
+		ProductSku: b.SKU, Quantity: 1, Selections: []cart.AddBundleSelectionInput{{OptionID: opt.ID, SelectionIDs: []uuid.UUID{sel}}},
+	}); err != nil {
+		t.Fatalf("add the rule's mug: %v", err)
+	}
+	price := int64(900)
+	if _, err := h.D.Catalog.SetProductListing(h.Ctx, catalog.ProductChannelListingInput{ProductID: mug.ID, ChannelID: f.Channel.ID, Price: &price, IsPublished: true}); err != nil {
+		t.Fatalf("raise mug: %v", err)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	if lines := h.OrderLines(t, o.ID); len(lines) != 1 || lines[0].UnitPrice != 900 {
+		t.Fatalf("order lines %+v, want the bundle repriced to today's 900", lines)
+	}
+	h.Settle(t)
+}
