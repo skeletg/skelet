@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BundleOption, Selection } from './bundleStaging'
-import { storeHealth, structureIssues } from './bundleHealth'
+import { applyPricing, storeHealth, structureIssues } from './bundleHealth'
 
 // What this pins: the dashboard flags what the cart would refuse, and prices the bundle the way add-to-cart sums it
 
@@ -47,5 +47,27 @@ describe('bundle health', () => {
   it('flags an empty required option and a minimum above the selection count once, for every store', () => {
     const issues = structureIssues([opt([]), opt([sel('a', listed(1))], { inputType: 'CHECKBOX', title: 'Socks', minSelections: 2 })])
     expect(issues.map((i) => i.level)).toEqual(['destructive', 'destructive'])
+  })
+})
+
+// What this pins: the price line follows the store's pricing mode with the cart's rounding, and says what the picks add up to
+describe('bundle pricing modes', () => {
+  it('rounds a percent off the sum the way the cart does', () => {
+    expect(applyPricing(1010, { mode: 'SUM_MINUS_PERCENT', percent: 15 }, null)).toBe(858)
+    expect(applyPricing(3100, { mode: 'SUM', percent: 15 }, null)).toBe(3100)
+    expect(applyPricing(3100, { mode: 'FIXED', percent: 0 }, 2500)).toBe(2500)
+  })
+
+  it('prices 10% off and keeps the sum beside it', () => {
+    const o = opt([sel('a', listed(500), { isDefault: true }), sel('b', listed(1000))])
+    const [h] = storeHealth([{ ...store, bundlePricing: 'SUM_MINUS_PERCENT', bundleDiscountPercent: 10 }], [o])
+    expect(h.price).toEqual({ min: 450, max: 900, default: 450 })
+    expect(h.sum).toEqual({ min: 500, max: 1000 })
+  })
+
+  it('flags a fixed price the store has no price for', () => {
+    const [h] = storeHealth([{ ...store, bundlePricing: 'FIXED', effectivePrice: null }], [opt([sel('a', listed(500))])])
+    expect(h.issues.at(-1)?.level).toBe('destructive')
+    expect(h.price).toBeNull()
   })
 })

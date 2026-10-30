@@ -886,6 +886,11 @@ export type BundleOptionContent = {
   title: Scalars['String']['output'];
 };
 
+export type BundlePricing =
+  | 'FIXED'
+  | 'SUM'
+  | 'SUM_MINUS_PERCENT';
+
 export type BundleSelection = {
   __typename?: 'BundleSelection';
   id: Scalars['ID']['output'];
@@ -4043,6 +4048,7 @@ export type Mutation = {
   setBlogPostCategories: BlogPost;
   setBlogPostChannelListing: BlogPost;
   setBlogPostTags: BlogPost;
+  setBundlePricing: Product;
   setCMSPageChannelListing: CmsPage;
   setCMSPageExperiment: CmsPage;
   setCMSPageRelationships: CmsPage;
@@ -5988,6 +5994,11 @@ export type MutationSetBlogPostTagsArgs = {
 };
 
 
+export type MutationSetBundlePricingArgs = {
+  input: SetBundlePricingInput;
+};
+
+
 export type MutationSetCmsPageChannelListingArgs = {
   input: SetCmsPageChannelListingInput;
 };
@@ -7373,6 +7384,8 @@ export type ProductAttributeValue = {
 
 export type ProductChannelListing = {
   __typename?: 'ProductChannelListing';
+  bundleDiscountPercent: Scalars['Int']['output'];
+  bundlePricing: BundlePricing;
   channel: Channel;
   channelId: Scalars['ID']['output'];
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
@@ -10069,6 +10082,13 @@ export type SetBlogPostChannelListingInput = {
   isPublished: Scalars['Boolean']['input'];
   postId: Scalars['ID']['input'];
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type SetBundlePricingInput = {
+  channelId: Scalars['ID']['input'];
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
+  pricing: BundlePricing;
+  productId: Scalars['ID']['input'];
 };
 
 export type SetCmsPageChannelListingInput = {

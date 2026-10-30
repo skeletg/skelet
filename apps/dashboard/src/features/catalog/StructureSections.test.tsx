@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderSection } from '@/test/page-harness'
+import { describe, expect, it, vi } from 'vitest'
+import { SLOW, captureInput, renderSection } from '@/test/page-harness'
+import { SetBundlePricingDocument } from './Catalog.gql'
 import { BundleStructureSection } from './BundleStructureSection'
 import { GroupedStructureSection } from './GroupedStructureSection'
 import { KitStructureSection } from './KitStructureSection'
@@ -110,5 +111,30 @@ describe('bundle health strip', () => {
     expect(within(strip).getByText('EU store')).toBeTruthy()
     expect(within(strip).getByText('Gadget in “Size” is out of stock.')).toBeTruthy()
     expect(strip.textContent).toMatch(/Customers pay .*5\.00.*, default .*5\.00/)
+  })
+})
+
+// What this pins: a store's bundle discount stages for the page Save, moves the price line at once, and saves only that store
+describe('bundle pricing per store', () => {
+  it('stages a new discount and saves it on Save', async () => {
+    const set = vi.fn()
+    const listings = [{ isPublished: true, effectivePrice: null, bundlePricing: 'SUM_MINUS_PERCENT' as const, bundleDiscountPercent: 10, channel: { id: 'c1', name: 'EU store', currencyCode: 'EUR' } }]
+    const mug = { ...widget, listings: [{ channelId: 'c1', isPublished: true, effectivePrice: 1000, inStock: true }] }
+    const option = {
+      id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Size', content: [],
+      selections: [{ id: 's1', product: mug, quantity: 1, isDefault: true, sortOrder: 0 }],
+    }
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', listings, bundleOptions: [option] }} />, [
+      { request: { query: SetBundlePricingDocument, variables: captureInput(set) }, result: { data: { setBundlePricing: { __typename: 'Product', id: 'p1' } } } },
+    ])
+    const strip = await screen.findByLabelText('Bundle health')
+    expect(strip.textContent).toMatch(/Customers pay .*9\.00/)
+    fireEvent.change(within(strip).getByLabelText('EU store discount percent'), { target: { value: '25' } })
+    expect(strip.textContent).toMatch(/Customers pay .*7\.50.*picks add up to .*10\.00/)
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('25% off the picks')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
+    await vi.waitFor(() => expect(set).toHaveBeenCalledWith({ productId: 'p1', channelId: 'c1', pricing: 'SUM_MINUS_PERCENT', discountPercent: 25 }), SLOW)
   })
 })

@@ -812,6 +812,8 @@ query Product($id: ID!) {
       url
       effectivePrice
       effectiveCurrency
+      bundlePricing
+      bundleDiscountPercent
       channel {
         id
         slug
@@ -1324,6 +1326,12 @@ mutation ClearProductAttribute($productId: ID!, $attributeId: ID!) {
       }
       scalarValue
     }
+  }
+}
+
+mutation SetBundlePricing($input: SetBundlePricingInput!) {
+  setBundlePricing(input: $input) {
+    id
   }
 }
 

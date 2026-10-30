@@ -39,7 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCents } from '@/lib/format'
-import type { BundleInputType, UpdateBundleOptionInput } from '@/graphql/schema.types'
+import type { BundleInputType, BundlePricing, UpdateBundleOptionInput } from '@/graphql/schema.types'
 import {
   AddBundleOptionDocument,
   AddBundleSelectionDocument,
@@ -49,6 +49,7 @@ import {
   UpdateBundleOptionDocument,
   UpdateBundleSelectionDocument,
   DeleteBundleOptionContentDocument,
+  SetBundlePricingDocument,
   UpsertBundleOptionContentDocument,
 } from './Catalog.gql'
 import {
@@ -66,7 +67,7 @@ import {
   type Selection,
   type SelectionProduct,
 } from './bundleStaging'
-import { storeHealth, structureIssues, type BundleListing, type HealthIssue } from './bundleHealth'
+import { storeHealth, structureIssues, type BundleListing, type HealthIssue, type StorePricing } from './bundleHealth'
 import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
 import { defaultColumn, quantityColumn } from './product-picker-columns'
@@ -311,6 +312,43 @@ export function BundleStructureSection({
 
   useProductSaveSection({ id: 'bundle-structure', title: 'Bundle structure', diff, save })
 
+  // Pricing per store, staged like the structure - its own section, saved after the listings so a store listed in the same Save exists by then
+  const listings = useMemo(() => product.listings ?? [], [product.listings])
+  const [stagedPricing, setStagedPricing] = useState<Record<string, StorePricing>>({})
+  const savedPricing = useCallback(
+    (l: BundleListing): StorePricing => ({ mode: l.bundlePricing ?? 'SUM', percent: l.bundleDiscountPercent ?? 0 }),
+    [],
+  )
+  const pricingFor = useCallback((l: BundleListing) => stagedPricing[l.channel.id] ?? savedPricing(l), [stagedPricing, savedPricing])
+  const pricingChanges = useMemo(
+    () =>
+      listings.flatMap((l) => {
+        const next = stagedPricing[l.channel.id]
+        const was = savedPricing(l)
+        return next && (next.mode !== was.mode || (next.mode === 'SUM_MINUS_PERCENT' && next.percent !== was.percent)) ? [{ l, was, next }] : []
+      }),
+    [listings, stagedPricing, savedPricing],
+  )
+  const [setPricingMutation] = useMutation(SetBundlePricingDocument, { refetchQueries: refetch })
+  const savePricing = useCallback(async () => {
+    for (const { l, next } of pricingChanges) {
+      await setPricingMutation({ variables: { input: { productId: product.id, channelId: l.channel.id, pricing: next.mode, discountPercent: next.percent } } })
+      // drop each store as it lands, so a retry after a failure doesn't resend the ones that saved
+      setStagedPricing((prev) => {
+        const rest = { ...prev }
+        delete rest[l.channel.id]
+        return rest
+      })
+    }
+  }, [pricingChanges, setPricingMutation, product.id])
+  useProductSaveSection({
+    id: 'bundle-pricing',
+    title: 'Bundle pricing',
+    priority: 10,
+    diff: pricingChanges.map(({ l, was, next }) => ({ label: `Pricing · ${l.channel.name}`, before: pricingText(was), after: pricingText(next) })),
+    save: savePricing,
+  })
+
   const [addOptionOpen, setAddOptionOpen] = useState(false)
   const [editingOption, setEditingOption] = useState<BundleOption | null>(null)
   const [confirmingDeleteOption, setConfirmingDeleteOption] = useState<BundleOption | null>(null)
@@ -348,7 +386,14 @@ export function BundleStructureSection({
         )}
       </div>
 
-      {sortedOptions.length > 0 && <BundleHealth options={sortedOptions} listings={product.listings ?? []} />}
+      {sortedOptions.length > 0 && (
+        <BundleHealth
+          options={sortedOptions}
+          listings={listings}
+          pricingFor={pricingFor}
+          onPricingChange={canManage ? (channelId, p) => setStagedPricing((prev) => ({ ...prev, [channelId]: p })) : undefined}
+        />
+      )}
 
       {sortedOptions.length === 0 ? (
         <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
@@ -440,10 +485,59 @@ function IssueLine({ issue }: { issue: HealthIssue }) {
   )
 }
 
+const PRICING_LABEL: Record<BundlePricing, string> = {
+  SUM: 'Sum of the picks',
+  FIXED: 'Fixed price',
+  SUM_MINUS_PERCENT: '% off the picks',
+}
+
+function pricingText(p: StorePricing) {
+  return p.mode === 'SUM_MINUS_PERCENT' ? `${p.percent}% off the picks` : PRICING_LABEL[p.mode]
+}
+
+function BundlePricingControl({ store, value, onChange }: { store: string; value: StorePricing; onChange: (p: StorePricing) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Select value={value.mode} onValueChange={(v) => onChange({ mode: v as BundlePricing, percent: v === 'SUM_MINUS_PERCENT' ? value.percent || 10 : 0 })}>
+        <SelectTrigger size="sm" className="h-7 w-40 text-xs" aria-label={`${store} bundle pricing`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(PRICING_LABEL) as BundlePricing[]).map((m) => (
+            <SelectItem key={m} value={m}>{PRICING_LABEL[m]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {value.mode === 'SUM_MINUS_PERCENT' && (
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          className="h-7 w-16 text-xs"
+          aria-label={`${store} discount percent`}
+          value={value.percent}
+          onChange={(e) => onChange({ ...value, percent: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+        />
+      )}
+    </div>
+  )
+}
+
 // What customers can actually buy on each store the bundle is listed on, from the staged structure so edits show before the save
-function BundleHealth({ options, listings }: { options: BundleOption[]; listings: BundleListing[] }) {
+function BundleHealth({
+  options,
+  listings,
+  pricingFor,
+  onPricingChange,
+}: {
+  options: BundleOption[]
+  listings: BundleListing[]
+  pricingFor: (l: BundleListing) => StorePricing
+  onPricingChange?: (channelId: string, p: StorePricing) => void
+}) {
   const general = useMemo(() => structureIssues(options), [options])
-  const stores = useMemo(() => storeHealth(listings, options), [listings, options])
+  const stores = useMemo(() => storeHealth(listings, options, pricingFor), [listings, options, pricingFor])
   const unsaved = options.some((o) => o.selections.some((s) => !s.product.listings))
   return (
     <div className="divide-y rounded-md border text-sm" aria-label="Bundle health">
@@ -453,17 +547,30 @@ function BundleHealth({ options, listings }: { options: BundleOption[]; listings
       {stores.length === 0 && (
         <p className="px-3 py-2 text-xs text-muted-foreground">Not listed on any store yet - list it to see what customers pay.</p>
       )}
-      {stores.map((st) => (
+      {stores.map((st, i) => (
         <div key={st.channelId} className="grid gap-1 px-3 py-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">{st.name}</span>
-            {st.price && (
-              <span className="text-xs text-muted-foreground">
-                Customers pay {formatCents(st.price.min, st.currencyCode)}
-                {st.price.max !== st.price.min && <>–{formatCents(st.price.max, st.currencyCode)}</>}
-                , default {formatCents(st.price.default, st.currencyCode)}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              {st.price && (
+                <span className="text-xs text-muted-foreground">
+                  Customers pay {formatCents(st.price.min, st.currencyCode)}
+                  {st.price.max !== st.price.min && <>–{formatCents(st.price.max, st.currencyCode)}</>}
+                  , default {formatCents(st.price.default, st.currencyCode)}
+                  {st.sum && (
+                    <>
+                      {' '}· picks add up to {formatCents(st.sum.min, st.currencyCode)}
+                      {st.sum.max !== st.sum.min && <>–{formatCents(st.sum.max, st.currencyCode)}</>}
+                    </>
+                  )}
+                </span>
+              )}
+              {onPricingChange ? (
+                <BundlePricingControl store={st.name} value={pricingFor(listings[i])} onChange={(p) => onPricingChange(st.channelId, p)} />
+              ) : (
+                <span className="text-xs text-muted-foreground">{pricingText(pricingFor(listings[i]))}</span>
+              )}
+            </div>
           </div>
           {st.issues.length === 0 ? (
             <p className="flex items-center gap-1.5 text-xs text-success">

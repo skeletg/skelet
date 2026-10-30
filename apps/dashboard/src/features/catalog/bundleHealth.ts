@@ -1,8 +1,21 @@
+import type { BundlePricing } from '@/graphql/schema.types'
 import type { BundleOption, Selection } from './bundleStaging'
 
 export type BundleListing = {
   isPublished: boolean
+  effectivePrice?: number | null
+  bundlePricing?: BundlePricing
+  bundleDiscountPercent?: number
   channel: { id: string; name: string; currencyCode: string }
+}
+
+export type StorePricing = { mode: BundlePricing; percent: number }
+
+// The cart's rule: fixed charges the listing's own price, the percent comes off the whole sum rounded half up
+export function applyPricing(sum: number, p: StorePricing, fixed: number | null | undefined): number | null {
+  if (p.mode === 'FIXED') return fixed ?? null
+  if (p.mode === 'SUM_MINUS_PERCENT') return sum - Math.floor((sum * p.percent + 50) / 100)
+  return sum
 }
 
 export type HealthIssue = { level: 'warning' | 'destructive'; text: string }
@@ -14,6 +27,8 @@ export type StoreHealth = {
   issues: HealthIssue[]
   // Minor units in the store's currency, null when no option has anything buyable to price
   price: { min: number; max: number; default: number } | null
+  // What the picks add up to before a FIXED or SUM_MINUS_PERCENT mode, null under SUM
+  sum: { min: number; max: number } | null
 }
 
 const isSingle = (o: BundleOption) => o.inputType === 'RADIO' || o.inputType === 'DROPDOWN'
@@ -49,8 +64,14 @@ export function structureIssues(options: readonly BundleOption[]): HealthIssue[]
   return out
 }
 
-export function storeHealth(listings: readonly BundleListing[], options: readonly BundleOption[]): StoreHealth[] {
-  return listings.map(({ isPublished, channel }) => {
+export function storeHealth(
+  listings: readonly BundleListing[],
+  options: readonly BundleOption[],
+  // Staged pricing per store, over what the listing has saved
+  pricingFor: (l: BundleListing) => StorePricing = (l) => ({ mode: l.bundlePricing ?? 'SUM', percent: l.bundleDiscountPercent ?? 0 }),
+): StoreHealth[] {
+  return listings.map((listing) => {
+    const { isPublished, channel } = listing
     const issues: HealthIssue[] = []
     if (!isPublished) issues.push({ level: 'warning', text: 'The bundle itself is unpublished on this store.' })
     let min = 0
@@ -85,12 +106,19 @@ export function storeHealth(listings: readonly BundleListing[], options: readonl
       min += prices.slice(0, need).reduce((a, b) => a + b, 0)
       max += prices.slice(-Math.min(allow, prices.length)).reduce((a, b) => a + b, 0)
     }
+    const p = pricingFor(listing)
+    if (p.mode === 'FIXED' && listing.effectivePrice == null) {
+      issues.push({ level: 'destructive', text: 'Fixed price needs a store price in this store’s currency - set one under per-store pricing.' })
+    }
+    const at = (n: number) => applyPricing(n, p, listing.effectivePrice)
+    const lo = at(min), hi = at(max), dflt = at(def)
     return {
       channelId: channel.id,
       name: channel.name,
       currencyCode: channel.currencyCode,
       issues,
-      price: priced ? { min, max, default: def } : null,
+      price: priced && lo !== null && hi !== null && dflt !== null ? { min: lo, max: hi, default: dflt } : null,
+      sum: priced && p.mode !== 'SUM' ? { min, max } : null,
     }
   })
 }
