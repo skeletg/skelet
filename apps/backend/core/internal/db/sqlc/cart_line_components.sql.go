@@ -145,15 +145,15 @@ func (q *Queries) SetBundleLineQuantity(ctx context.Context, arg SetBundleLineQu
 }
 
 const upsertBundleCartLine = `-- name: UpsertBundleCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced, config_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,
       bundle_hook_priced = EXCLUDED.bundle_hook_priced,
       updated_at   = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type UpsertBundleCartLineParams struct {
@@ -163,6 +163,7 @@ type UpsertBundleCartLineParams struct {
 	UnitPrice        int64     `json:"unit_price"`
 	Quantity         float64   `json:"quantity"`
 	BundleHookPriced bool      `json:"bundle_hook_priced"`
+	ConfigKey        string    `json:"config_key"`
 }
 
 // Bundle cart-line upsert: unlike the simple-product path the ON CONFLICT clause REPLACES quantity + price + name rather than summing - when a customer reconfigures the bundle they're submitting a fresh selection set, not adding more units of the previous configuration
@@ -174,6 +175,7 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		arg.UnitPrice,
 		arg.Quantity,
 		arg.BundleHookPriced,
+		arg.ConfigKey,
 	)
 	var i CartLine
 	err := row.Scan(
@@ -191,6 +193,7 @@ func (q *Queries) UpsertBundleCartLine(ctx context.Context, arg UpsertBundleCart
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }

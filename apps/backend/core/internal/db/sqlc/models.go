@@ -629,6 +629,7 @@ type CartLine struct {
 	IsCustom         bool          `json:"is_custom"`
 	TaxClass         string        `json:"tax_class"`
 	BundleHookPriced bool          `json:"bundle_hook_priced"`
+	ConfigKey        string        `json:"config_key"`
 }
 
 type CartLineComponent struct {

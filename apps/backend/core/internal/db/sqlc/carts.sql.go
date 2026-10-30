@@ -572,7 +572,7 @@ func (q *Queries) GetCartByOfferToken(ctx context.Context, offerLinkToken string
 }
 
 const getCartLineByID = `-- name: GetCartLineByID :one
-SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced FROM cart_lines WHERE id = $1 LIMIT 1
+SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key FROM cart_lines WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartLineByID(ctx context.Context, id uuid.UUID) (CartLine, error) {
@@ -593,6 +593,7 @@ func (q *Queries) GetCartLineByID(ctx context.Context, id uuid.UUID) (CartLine, 
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }
@@ -618,7 +619,7 @@ func (q *Queries) GetSavedItem(ctx context.Context, id uuid.UUID) (CartSavedItem
 const insertCustomCartLine = `-- name: InsertCustomCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, price_override, is_custom, tax_class)
 VALUES ($1, $2, $3, $4, $5, true, true, $6)
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type InsertCustomCartLineParams struct {
@@ -655,12 +656,13 @@ func (q *Queries) InsertCustomCartLine(ctx context.Context, arg InsertCustomCart
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }
 
 const listCartLinesByCart = `-- name: ListCartLinesByCart :many
-SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC
+SELECT id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListCartLinesByCart(ctx context.Context, cartID uuid.UUID) ([]CartLine, error) {
@@ -687,6 +689,7 @@ func (q *Queries) ListCartLinesByCart(ctx context.Context, cartID uuid.UUID) ([]
 			&i.IsCustom,
 			&i.TaxClass,
 			&i.BundleHookPriced,
+			&i.ConfigKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1351,7 +1354,7 @@ func (q *Queries) SetCartEmail(ctx context.Context, arg SetCartEmailParams) erro
 }
 
 const setCartLinePrice = `-- name: SetCartLinePrice :one
-UPDATE cart_lines SET unit_price = $2, price_override = $3, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+UPDATE cart_lines SET unit_price = $2, price_override = $3, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type SetCartLinePriceParams struct {
@@ -1378,6 +1381,7 @@ func (q *Queries) SetCartLinePrice(ctx context.Context, arg SetCartLinePricePara
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }
@@ -1512,7 +1516,7 @@ func (q *Queries) SetCartStatus(ctx context.Context, arg SetCartStatusParams) (C
 }
 
 const updateCartLineQuantity = `-- name: UpdateCartLineQuantity :one
-UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type UpdateCartLineQuantityParams struct {
@@ -1538,12 +1542,13 @@ func (q *Queries) UpdateCartLineQuantity(ctx context.Context, arg UpdateCartLine
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }
 
 const updateCartLineQuantityPrice = `-- name: UpdateCartLineQuantityPrice :one
-UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE id = $1 RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type UpdateCartLineQuantityPriceParams struct {
@@ -1571,6 +1576,7 @@ func (q *Queries) UpdateCartLineQuantityPrice(ctx context.Context, arg UpdateCar
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }
@@ -1578,11 +1584,11 @@ func (q *Queries) UpdateCartLineQuantityPrice(ctx context.Context, arg UpdateCar
 const upsertCartLineBySku = `-- name: UpsertCartLineBySku :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity   = cart_lines.quantity + EXCLUDED.quantity,
       unit_price = CASE WHEN cart_lines.price_override THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END, -- an admin-set price is the offer, more of the item doesn't undo it
       updated_at = NOW()
-RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced
+RETURNING id, cart_id, product_name, product_sku, unit_price, quantity, created_at, updated_at, is_gift, offered_by_rule_id, price_override, is_custom, tax_class, bundle_hook_priced, config_key
 `
 
 type UpsertCartLineBySkuParams struct {
@@ -1617,6 +1623,7 @@ func (q *Queries) UpsertCartLineBySku(ctx context.Context, arg UpsertCartLineByS
 		&i.IsCustom,
 		&i.TaxClass,
 		&i.BundleHookPriced,
+		&i.ConfigKey,
 	)
 	return i, err
 }

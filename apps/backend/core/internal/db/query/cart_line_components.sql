@@ -34,9 +34,9 @@ DELETE FROM cart_line_components WHERE cart_line_id = $1;
 
 -- Bundle cart-line upsert: unlike the simple-product path the ON CONFLICT clause REPLACES quantity + price + name rather than summing - when a customer reconfigures the bundle they're submitting a fresh selection set, not adding more units of the previous configuration
 -- name: UpsertBundleCartLine :one
-INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity, bundle_hook_priced, config_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity     = EXCLUDED.quantity,
       unit_price   = EXCLUDED.unit_price,
       product_name = EXCLUDED.product_name,

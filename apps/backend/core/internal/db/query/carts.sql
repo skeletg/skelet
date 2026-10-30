@@ -91,7 +91,7 @@ WHERE c.channel_id = sqlc.arg(channel_id)
 -- name: UpsertCartLineBySku :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (cart_id, product_sku) DO UPDATE
+ON CONFLICT (cart_id, product_sku, config_key) DO UPDATE
   SET quantity   = cart_lines.quantity + EXCLUDED.quantity,
       unit_price = CASE WHEN cart_lines.price_override THEN cart_lines.unit_price ELSE EXCLUDED.unit_price END, -- an admin-set price is the offer, more of the item doesn't undo it
       updated_at = NOW()
