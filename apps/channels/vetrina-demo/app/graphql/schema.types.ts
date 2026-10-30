@@ -313,6 +313,8 @@ export type BundleOption = {
   id: Scalars['ID']['output'];
   inputType: BundleInputType;
   isRequired: Scalars['Boolean']['output'];
+  maxSelections?: Maybe<Scalars['Int']['output']>;
+  minSelections: Scalars['Int']['output'];
   selections: Array<BundleSelection>;
   sortOrder: Scalars['Int']['output'];
   title: Scalars['String']['output'];
@@ -1541,6 +1543,7 @@ export type OrderEvent = {
 
 export type OrderLine = {
   __typename?: 'OrderLine';
+  components: Array<OrderLineComponent>;
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
@@ -1548,6 +1551,15 @@ export type OrderLine = {
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
+  unitPrice: Scalars['Int']['output'];
+};
+
+export type OrderLineComponent = {
+  __typename?: 'OrderLineComponent';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
 

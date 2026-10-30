@@ -171,6 +171,9 @@ export type BundleOption = {
   inputType: BundleInputType;
   isRequired: boolean;
   sortOrder: number;
+  // Pick-count bounds for checkbox/multiselect - 0 is no explicit minimum, null no maximum
+  minSelections: number;
+  maxSelections?: number | null;
   selections: BundleSelection[];
 };
 
