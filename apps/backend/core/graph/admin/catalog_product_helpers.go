@@ -294,6 +294,8 @@ func (r *Resolver) renderProductListings(ctx context.Context, p catalog.Product)
 			effective = &v
 		}
 		out = append(out, &model.ProductChannelListing{
+			ProductID:         p.ID.String(),
+			ChannelID:         row.ChannelID.String(),
 			Channel:           toChannelModel(sv),
 			Price:             priceField,
 			IsPublished:       row.IsPublished,

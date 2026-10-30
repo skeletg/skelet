@@ -43,3 +43,5 @@
 - **Removing a bundle option's translation waits for the page's Save.** It used to delete
   immediately, the one edit in the bundle editor that skipped the save dialog. It's now staged
   like every other change: it shows in the save confirmation, and Discard undoes it.
+- **Product listings in the admin API return their `productId` and `channelId`.** Both came
+  back as empty strings.
