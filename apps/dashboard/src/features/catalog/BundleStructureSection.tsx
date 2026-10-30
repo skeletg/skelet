@@ -563,6 +563,8 @@ function OptionCard({
                 <TableHead className="w-20">Qty</TableHead>
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Default</TableHead>
+                <TableHead className="w-20">% off</TableHead>
+                <TableHead className="w-24">Customer sets qty</TableHead>
                 {canManage && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
@@ -620,6 +622,30 @@ function OptionCard({
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {canManage && !sel.fromRule ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          inputMode="numeric"
+                          className="h-7 w-16 text-xs"
+                          aria-label={`${label} percent off`}
+                          value={sel.discountPercent ?? 0}
+                          onChange={(e) => onStage({ kind: 'update-selection', id: sel.id, discountPercent: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+                        />
+                      ) : (
+                        <span className="font-mono text-xs">{sel.discountPercent ? `${sel.discountPercent}%` : '-'}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={!!sel.customerQuantity}
+                        disabled={!canManage || sel.fromRule}
+                        onCheckedChange={(v) => onStage({ kind: 'update-selection', id: sel.id, customerQuantity: v })}
+                        aria-label={`Customer sets how many ${label}`}
+                      />
                     </TableCell>
                     {canManage && (
                       <TableCell>

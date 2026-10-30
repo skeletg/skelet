@@ -64,6 +64,8 @@ export type AddBundleOptionInput = {
 };
 
 export type AddBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   optionId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
@@ -914,6 +916,8 @@ export type BundlePricing =
 
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  customerQuantity: Scalars['Boolean']['output'];
+  discountPercent: Scalars['Int']['output'];
   fromRule: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
@@ -10841,6 +10845,8 @@ export type UpdateBundleOptionInput = {
 };
 
 export type UpdateBundleSelectionInput = {
+  customerQuantity?: InputMaybe<Scalars['Boolean']['input']>;
+  discountPercent?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   isDefault?: InputMaybe<Scalars['Boolean']['input']>;
   quantity?: InputMaybe<Scalars['Float']['input']>;

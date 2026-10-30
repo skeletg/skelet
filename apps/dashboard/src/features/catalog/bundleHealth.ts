@@ -39,7 +39,8 @@ function buyablePrice(s: Selection, channelId: string): number | null | 'unknown
   if (!s.product.listings) return 'unknown'
   const l = s.product.listings.find((x) => x.channelId === channelId)
   if (!l || !l.isPublished || !l.inStock || l.effectivePrice == null) return null
-  return Math.round(l.effectivePrice * s.quantity)
+  const unit = l.effectivePrice - Math.floor((l.effectivePrice * (s.discountPercent ?? 0) + 50) / 100) // the cart's per-component deal
+  return Math.round(unit * s.quantity)
 }
 
 function unavailableReason(s: Selection, channelId: string): string | null {

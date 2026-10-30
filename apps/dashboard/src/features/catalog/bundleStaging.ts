@@ -28,6 +28,8 @@ export type Selection = {
   sortOrder: number
   // Made by the option's rule on read - the rule is what gets edited, not the row
   fromRule?: boolean
+  discountPercent?: number // whole percent off this component - an add-on deal
+  customerQuantity?: boolean // the customer sets how many go in each bundle
 }
 
 // Every simple product in the category holding all the attribute values, each a selection of quantity per bundle
@@ -99,6 +101,8 @@ export type AddSelectionOp = {
   quantity: number
   isDefault: boolean
   sortOrder: number
+  discountPercent?: number
+  customerQuantity?: boolean
 }
 
 export type UpdateSelectionOp = {
@@ -107,6 +111,8 @@ export type UpdateSelectionOp = {
   quantity?: number
   isDefault?: boolean
   sortOrder?: number
+  discountPercent?: number
+  customerQuantity?: boolean
 }
 
 export type DeleteSelectionOp = {
@@ -205,6 +211,8 @@ function mergeAddWithUpdate(add: AddOptionOp | AddSelectionOp, upd: UpdateOption
       quantity: upd.quantity ?? add.quantity,
       isDefault: upd.isDefault ?? add.isDefault,
       sortOrder: upd.sortOrder ?? add.sortOrder,
+      discountPercent: upd.discountPercent ?? add.discountPercent,
+      customerQuantity: upd.customerQuantity ?? add.customerQuantity,
     }
   }
   // Type checker convinces itself we covered every case above
@@ -296,6 +304,8 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
             if (op.quantity !== undefined) next.quantity = op.quantity
             if (op.isDefault !== undefined) next.isDefault = op.isDefault
             if (op.sortOrder !== undefined) next.sortOrder = op.sortOrder
+            if (op.discountPercent !== undefined) next.discountPercent = op.discountPercent
+            if (op.customerQuantity !== undefined) next.customerQuantity = op.customerQuantity
             return next
           }),
         }))
@@ -376,6 +386,8 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         if (op.quantity !== undefined) push('qty', prev?.selection.quantity, op.quantity)
         if (op.isDefault !== undefined) push('default', prev?.selection.isDefault, op.isDefault)
         if (op.sortOrder !== undefined) push('order', prev?.selection.sortOrder, op.sortOrder)
+        if (op.discountPercent !== undefined) push('% off', prev?.selection.discountPercent ?? 0, op.discountPercent)
+        if (op.customerQuantity !== undefined) push('customer sets qty', prev?.selection.customerQuantity ?? false, op.customerQuantity)
         return rows
       }
       case 'delete-selection': {
@@ -528,11 +540,19 @@ export function toStructureOps(ops: readonly PendingOp[], productId: string): Bu
       case 'add-selection':
         out.push({
           tempId: op.tempId,
-          addSelection: { optionId: op.optionRef, productId: op.product.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder },
+          addSelection: {
+            optionId: op.optionRef, productId: op.product.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder,
+            discountPercent: op.discountPercent, customerQuantity: op.customerQuantity,
+          },
         })
         break
       case 'update-selection':
-        out.push({ updateSelection: { id: op.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder } })
+        out.push({
+          updateSelection: {
+            id: op.id, quantity: op.quantity, isDefault: op.isDefault, sortOrder: op.sortOrder,
+            discountPercent: op.discountPercent, customerQuantity: op.customerQuantity,
+          },
+        })
         break
       case 'delete-selection':
         if (!isTemp(op.id)) out.push({ deleteSelection: op.id })

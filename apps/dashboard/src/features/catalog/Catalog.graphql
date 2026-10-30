@@ -941,6 +941,8 @@ query Product($id: ID!) {
         quantity
         isDefault
         sortOrder
+        discountPercent
+        customerQuantity
       }
       createdAt
       updatedAt
@@ -1447,6 +1449,8 @@ fragment BundleOptionFields on BundleOption {
     quantity
     isDefault
     sortOrder
+    discountPercent
+    customerQuantity
   }
   createdAt
   updatedAt

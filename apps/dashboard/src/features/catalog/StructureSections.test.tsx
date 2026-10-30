@@ -264,3 +264,23 @@ describe('bundle rule selections', () => {
     expect(screen.queryByRole('button', { name: 'Reorder Cup' })).toBeNull()
   })
 })
+
+// What this pins: a row's add-on deal and customer-set quantity stage like its other fields, and the deal moves the price line
+describe('bundle selection deals', () => {
+  it('stages a percent off and a customer quantity', async () => {
+    const listings = [{ isPublished: true, channel: { id: 'c1', name: 'EU store', currencyCode: 'EUR' } }]
+    const mug = { ...widget, name: 'Mug', listings: [{ channelId: 'c1', isPublished: true, effectivePrice: 1000, inStock: true }] }
+    const option = {
+      id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Cup', content: [],
+      selections: [{ id: 's1', product: mug, quantity: 1, isDefault: true, sortOrder: 0 }],
+    }
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', listings, bundleOptions: [option] }} />)
+    fireEvent.change(await screen.findByLabelText('Mug percent off'), { target: { value: '20' } })
+    expect((await screen.findByLabelText('Bundle health')).textContent).toMatch(/Customers pay .*8\.00/)
+    fireEvent.click(screen.getByRole('switch', { name: 'Customer sets how many Mug' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    const text = (await screen.findByRole('alertdialog')).textContent
+    expect(text).toMatch(/Selection · Mug · % off/)
+    expect(text).toMatch(/Selection · Mug · customer sets qty/)
+  })
+})
