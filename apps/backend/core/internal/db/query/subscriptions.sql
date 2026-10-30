@@ -22,9 +22,9 @@ DELETE FROM catalog_subscription_terms WHERE product_id = $1;
 INSERT INTO subscriptions (
     customer_id, product_id, order_id, interval_unit, interval_count,
     price, currency_code, quantity, sku, title,
-    current_period_start, current_period_end, next_billing_at, channel_id
+    current_period_start, current_period_end, next_billing_at, channel_id, billing_anchor
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *;
 
 -- name: GetSubscriptionByID :one
@@ -74,6 +74,7 @@ UPDATE subscriptions
 SET current_period_start = $2,
     current_period_end   = $3,
     next_billing_at      = $4,
+    billing_anchor       = $5,
     updated_at           = NOW()
 WHERE id = $1
 RETURNING *;
