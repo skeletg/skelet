@@ -923,6 +923,12 @@ query Product($id: ID!) {
           kind
           defaultPrice
           defaultCurrencyCode
+          listings {
+            channelId
+            isPublished
+            effectivePrice
+            inStock
+          }
         }
         quantity
         isDefault
@@ -1411,6 +1417,12 @@ fragment BundleOptionFields on BundleOption {
       kind
       defaultPrice
       defaultCurrencyCode
+      listings {
+        channelId
+        isPublished
+        effectivePrice
+        inStock
+      }
     }
     quantity
     isDefault

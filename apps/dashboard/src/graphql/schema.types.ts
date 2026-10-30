@@ -7378,6 +7378,7 @@ export type ProductChannelListing = {
   compareAtPrice?: Maybe<Scalars['Int']['output']>;
   effectiveCurrency: Scalars['String']['output'];
   effectivePrice?: Maybe<Scalars['Int']['output']>;
+  inStock: Scalars['Boolean']['output'];
   isPublished: Scalars['Boolean']['output'];
   price?: Maybe<Scalars['Int']['output']>;
   productId: Scalars['ID']['output'];

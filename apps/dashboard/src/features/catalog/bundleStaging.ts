@@ -16,6 +16,8 @@ export type SelectionProduct = {
   kind: string
   defaultPrice: number
   defaultCurrencyCode: string
+  // Per-store availability for the health check - absent on a pick staged from the picker until the save refetches
+  listings?: { channelId: string; isPublished: boolean; effectivePrice?: number | null; inStock: boolean }[]
 }
 
 export type Selection = {
