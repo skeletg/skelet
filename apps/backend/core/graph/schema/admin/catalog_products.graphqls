@@ -311,6 +311,24 @@ type ProductChannelListing {
   specialTo:           Time
   # Same answer as Product.inStock(channelId) for this listing's store - lets one query check every store
   inStock:             Boolean!
+  # How a bundle is priced on this store, set through setBundlePricing. Every other kind ignores both
+  bundlePricing:         BundlePricing!
+  # Whole percent off the picks' sum, read by SUM_MINUS_PERCENT only
+  bundleDiscountPercent: Int!
+}
+
+enum BundlePricing {
+  SUM                # the picked components' store prices added up
+  FIXED              # the listing's own effective price, whatever is picked
+  SUM_MINUS_PERCENT  # the sum less bundleDiscountPercent
+}
+
+input SetBundlePricingInput {
+  productId:       ID!
+  channelId:       ID!
+  pricing:         BundlePricing!
+  # 0-100, required by SUM_MINUS_PERCENT and cleared by the other modes
+  discountPercent: Int
 }
 
 input SetProductListingInput {
@@ -449,6 +467,8 @@ extend type Mutation {
   # Per-store listing operations. setProductListing creates or updates the listing for (product, store). clearProductListing removes the listing, which un-publishes the product on that store.
   setProductListing(input: SetProductListingInput!): Product!
   clearProductListing(productId: ID!, channelId: ID!): Boolean!
+  # A bundle's pricing on a store it's already listed on - its own call, so a listing save never resets it
+  setBundlePricing(input: SetBundlePricingInput!): Product!
 }
 
 

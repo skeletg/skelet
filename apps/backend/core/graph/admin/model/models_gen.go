@@ -3602,19 +3602,21 @@ type ProductAttributeValue struct {
 }
 
 type ProductChannelListing struct {
-	ProductID         string     `json:"productId"`
-	ChannelID         string     `json:"channelId"`
-	Channel           *Channel   `json:"channel"`
-	Price             *int32     `json:"price,omitempty"`
-	IsPublished       bool       `json:"isPublished"`
-	URL               *string    `json:"url,omitempty"`
-	EffectivePrice    *int32     `json:"effectivePrice,omitempty"`
-	EffectiveCurrency string     `json:"effectiveCurrency"`
-	CompareAtPrice    *int32     `json:"compareAtPrice,omitempty"`
-	SpecialPrice      *int32     `json:"specialPrice,omitempty"`
-	SpecialFrom       *time.Time `json:"specialFrom,omitempty"`
-	SpecialTo         *time.Time `json:"specialTo,omitempty"`
-	InStock           bool       `json:"inStock"`
+	ProductID             string        `json:"productId"`
+	ChannelID             string        `json:"channelId"`
+	Channel               *Channel      `json:"channel"`
+	Price                 *int32        `json:"price,omitempty"`
+	IsPublished           bool          `json:"isPublished"`
+	URL                   *string       `json:"url,omitempty"`
+	EffectivePrice        *int32        `json:"effectivePrice,omitempty"`
+	EffectiveCurrency     string        `json:"effectiveCurrency"`
+	CompareAtPrice        *int32        `json:"compareAtPrice,omitempty"`
+	SpecialPrice          *int32        `json:"specialPrice,omitempty"`
+	SpecialFrom           *time.Time    `json:"specialFrom,omitempty"`
+	SpecialTo             *time.Time    `json:"specialTo,omitempty"`
+	InStock               bool          `json:"inStock"`
+	BundlePricing         BundlePricing `json:"bundlePricing"`
+	BundleDiscountPercent int32         `json:"bundleDiscountPercent"`
 }
 
 type ProductContent struct {
@@ -4642,6 +4644,13 @@ type SetBlogPostChannelListingInput struct {
 	ChannelID   string `json:"channelId"`
 	IsPublished bool   `json:"isPublished"`
 	SeoNoindex  *bool  `json:"seoNoindex,omitempty"`
+}
+
+type SetBundlePricingInput struct {
+	ProductID       string        `json:"productId"`
+	ChannelID       string        `json:"channelId"`
+	Pricing         BundlePricing `json:"pricing"`
+	DiscountPercent *int32        `json:"discountPercent,omitempty"`
 }
 
 type SetCMSPageChannelListingInput struct {
@@ -6445,6 +6454,63 @@ func (e *BundleInputType) UnmarshalJSON(b []byte) error {
 }
 
 func (e BundleInputType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BundlePricing string
+
+const (
+	BundlePricingSum             BundlePricing = "SUM"
+	BundlePricingFixed           BundlePricing = "FIXED"
+	BundlePricingSumMinusPercent BundlePricing = "SUM_MINUS_PERCENT"
+)
+
+var AllBundlePricing = []BundlePricing{
+	BundlePricingSum,
+	BundlePricingFixed,
+	BundlePricingSumMinusPercent,
+}
+
+func (e BundlePricing) IsValid() bool {
+	switch e {
+	case BundlePricingSum, BundlePricingFixed, BundlePricingSumMinusPercent:
+		return true
+	}
+	return false
+}
+
+func (e BundlePricing) String() string {
+	return string(e)
+}
+
+func (e *BundlePricing) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BundlePricing(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BundlePricing", str)
+	}
+	return nil
+}
+
+func (e BundlePricing) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BundlePricing) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BundlePricing) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -574,6 +574,37 @@ func (r *mutationResolver) ClearProductListing(ctx context.Context, productID st
 	return true, nil
 }
 
+// SetBundlePricing is the resolver for the setBundlePricing field.
+func (r *mutationResolver) SetBundlePricing(ctx context.Context, input model.SetBundlePricingInput) (*model.Product, error) {
+	productID, err := parseID(input.ProductID, "product")
+	if err != nil {
+		return nil, err
+	}
+	channelID, err := parseID(input.ChannelID, "channel")
+	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "catalog.manage", channelID, nil); err != nil {
+		return nil, err
+	}
+	var percent int16
+	if input.DiscountPercent != nil {
+		if *input.DiscountPercent < 0 || *input.DiscountPercent > 100 {
+			return nil, catalog.ErrInvalidBundlePricing
+		}
+		percent = int16(*input.DiscountPercent)
+	}
+	mode := catalog.BundlePricing(strings.ToLower(string(input.Pricing)))
+	if _, err := r.CatalogSvc.SetBundlePricing(ctx, productID, channelID, mode, percent); err != nil {
+		return nil, err
+	}
+	product, err := r.CatalogSvc.GetProduct(ctx, productID, "")
+	if err != nil {
+		return nil, err
+	}
+	return r.renderProduct(ctx, product)
+}
+
 func (r *mutationResolver) SetProductGroupPrices(ctx context.Context, productID string, prices []*model.ProductGroupPriceInput) ([]*model.ProductGroupPrice, error) {
 	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
 		return nil, err
