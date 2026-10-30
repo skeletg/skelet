@@ -509,6 +509,8 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 				UnitPrice:         sel.ProductDefaultPrice,
 				QuantityPerBundle: sel.Quantity,
 				IsDefault:         sel.IsDefault,
+				DiscountPercent:   sel.DiscountPercent,
+				CustomerQuantity:  sel.CustomerQuantity,
 			}
 		}
 		snap.Options[i] = os

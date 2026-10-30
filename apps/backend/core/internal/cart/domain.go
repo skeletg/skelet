@@ -139,6 +139,8 @@ type BundleSelectionSnapshot struct {
 	// Set when the selection is a configurable - the customer picks one of these at add-to-cart, and that variant is
 	// what the component row holds, prices and reserves
 	Variants []BundleVariantSnapshot
+	DiscountPercent  int16 // whole percent off the component's store price
+	CustomerQuantity bool  // the customer may set QuantityPerBundle themselves
 }
 
 type BundleVariantSnapshot struct {

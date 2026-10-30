@@ -22,6 +22,13 @@ type AddBundleToCartInput struct { // the bundle counterpart to AddCartLineInput
 	Quantity   float64
 	Selections []AddBundleSelectionInput
 	Variants   map[uuid.UUID]uuid.UUID // configurable selection -> the variant picked for it
+	Quantities map[uuid.UUID]float64   // customer-quantity selection -> how many go in each bundle
+}
+
+// What a pick carries beyond its selection id - the variant of a configurable, the amount of a customer-quantity selection
+type pickExtras struct {
+	Variants   map[uuid.UUID]uuid.UUID
+	Quantities map[uuid.UUID]float64
 }
 
 func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, input AddBundleToCartInput) (Cart, error) { // prices the line from the picked components - re-adding the same SKU REPLACES the prior selection set
@@ -45,7 +52,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	if err != nil {
 		return Cart{}, fmt.Errorf("%w: %w", ErrProductNotBundle, err)
 	}
-	picked, err := bundlePicks(snap, input.Selections, input.Variants)
+	picked, err := bundlePicks(snap, input.Selections, pickExtras{Variants: input.Variants, Quantities: input.Quantities})
 	if err != nil {
 		return Cart{}, err
 	}
@@ -125,6 +132,7 @@ func (s *Service) priceBundle(ctx context.Context, c Cart, picked []pickedSelect
 		case errors.Is(perr, ErrProductNotPublished), errors.Is(perr, ErrProductNotPurchasable):
 			return nil, nil, 0, fmt.Errorf("bundle component %s: %w", sel.ProductSKU, perr)
 		}
+		compUnit -= (compUnit*int64(sel.DiscountPercent) + 50) / 100 // an add-on deal comes off the component, rounded half up like the bundle's own percent
 		components = append(components, AddCartLineComponentInput{
 			BundleOptionID:    sel.optionID,
 			BundleSelectionID: sel.ID,
@@ -147,7 +155,7 @@ func (s *Service) liveBundleLine(ctx context.Context, c Cart, l CartLine) (unitP
 	if err != nil {
 		return 0, nil, false
 	}
-	picked, err := bundlePicks(snap, picksFromComponents(snap, l.Components), variantsFromComponents(l.Components))
+	picked, err := bundlePicks(snap, picksFromComponents(snap, l.Components), extrasFromLine(l))
 	if err != nil {
 		return 0, nil, false
 	}
@@ -185,7 +193,7 @@ type pickedSelection struct {
 
 // Resolves the customer's picks against the bundle's own structure, in option order - each option at most once and each selection at most once, since a repeat would slip a second pick past a single-select or count one pick twice toward min_selections
 // Untouched options take their defaults, and a supplied option always wins, even an explicit empty list, so a customer can deselect an optional default
-func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput, variants map[uuid.UUID]uuid.UUID) ([]pickedSelection, error) {
+func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput, extras pickExtras) ([]pickedSelection, error) {
 	optByID := make(map[uuid.UUID]BundleOptionSnapshot, len(snap.Options))
 	for _, o := range snap.Options {
 		optByID[o.ID] = o
@@ -246,12 +254,19 @@ func bundlePicks(snap BundleSnapshot, inputs []AddBundleSelectionInput, variants
 				return nil, fmt.Errorf("%w: selection %s on option %s", ErrBundleSelectionInvalid, id, opt.ID)
 			}
 			if sel.Variants != nil {
-				v, ok := variantOf(sel, variants[sel.ID])
+				v, ok := variantOf(sel, extras.Variants[sel.ID])
 				if !ok {
 					return nil, fmt.Errorf("%w: selection %s", ErrBundleVariantMissing, sel.ID)
 				}
 				// The component is the variant from here on - its SKU prices, its stock is reserved, its name is on the order
 				sel.ProductID, sel.ProductSKU, sel.ProductName, sel.UnitPrice = v.ProductID, v.ProductSKU, v.ProductName, v.UnitPrice
+			}
+			// Only a customer-quantity selection takes the shopper's amount - any other keeps the bundle's, so a stored line follows a merchant's change
+			if q, ok := extras.Quantities[sel.ID]; ok && sel.CustomerQuantity {
+				if q <= 0 || math.IsNaN(q) || math.IsInf(q, 0) {
+					return nil, fmt.Errorf("%w: selection %s needs a quantity above zero", ErrBundleSelectionInvalid, sel.ID)
+				}
+				sel.QuantityPerBundle = q
 			}
 			out = append(out, pickedSelection{BundleSelectionSnapshot: sel, optionID: opt.ID})
 		}
@@ -292,11 +307,14 @@ func variantOf(sel BundleSelectionSnapshot, id uuid.UUID) (BundleVariantSnapshot
 	return BundleVariantSnapshot{}, false
 }
 
-// A stored line's variant per selection - the component row holds the variant, so it is what gets rechecked against today's variants
-func variantsFromComponents(comps []CartLineComponent) map[uuid.UUID]uuid.UUID {
-	out := make(map[uuid.UUID]uuid.UUID, len(comps))
-	for _, c := range comps {
-		out[c.BundleSelectionID] = c.ProductID
+// A stored line's extras per selection - the component row holds the variant and the amount, which get rechecked against today's bundle
+func extrasFromLine(l CartLine) pickExtras {
+	out := pickExtras{Variants: make(map[uuid.UUID]uuid.UUID, len(l.Components)), Quantities: make(map[uuid.UUID]float64, len(l.Components))}
+	for _, c := range l.Components {
+		out.Variants[c.BundleSelectionID] = c.ProductID
+		if l.Quantity > 0 {
+			out.Quantities[c.BundleSelectionID] = c.Quantity / l.Quantity // rows hold line totals
+		}
 	}
 	return out
 }
