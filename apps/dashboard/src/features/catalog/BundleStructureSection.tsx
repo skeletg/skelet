@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
 import { useMutation } from '@apollo/client/react'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
+  GripVerticalIcon,
   PackagePlusIcon,
   PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -353,7 +356,6 @@ export function BundleStructureSection({
   const [editingOption, setEditingOption] = useState<BundleOption | null>(null)
   const [confirmingDeleteOption, setConfirmingDeleteOption] = useState<BundleOption | null>(null)
   const [pickerOption, setPickerOption] = useState<BundleOption | null>(null)
-  const [editingSelection, setEditingSelection] = useState<{ option: BundleOption; selection: Selection } | null>(null)
   const [confirmingDeleteSelection, setConfirmingDeleteSelection] = useState<{ option: BundleOption; selection: Selection } | null>(null)
 
   const sortedOptions = useMemo(
@@ -409,7 +411,7 @@ export function BundleStructureSection({
               onEditOption={() => setEditingOption(opt)}
               onDeleteOption={() => setConfirmingDeleteOption(opt)}
               onAddSelection={() => setPickerOption(opt)}
-              onEditSelection={(sel) => setEditingSelection({ option: opt, selection: sel })}
+              onStage={stage}
               onDeleteSelection={(sel) => setConfirmingDeleteSelection({ option: opt, selection: sel })}
             />
           ))}
@@ -440,15 +442,6 @@ export function BundleStructureSection({
           productId={product.id}
           open
           onOpenChange={(v) => { if (!v) setPickerOption(null) }}
-          onStage={stage}
-        />
-      )}
-      {canManage && editingSelection && (
-        <EditSelectionDialog
-          option={editingSelection.option}
-          selection={editingSelection.selection}
-          open
-          onOpenChange={(v) => { if (!v) setEditingSelection(null) }}
           onStage={stage}
         />
       )}
@@ -593,7 +586,7 @@ function OptionCard({
   onEditOption,
   onDeleteOption,
   onAddSelection,
-  onEditSelection,
+  onStage,
   onDeleteSelection,
 }: {
   option: BundleOption
@@ -601,7 +594,7 @@ function OptionCard({
   onEditOption: () => void
   onDeleteOption: () => void
   onAddSelection: () => void
-  onEditSelection: (sel: Selection) => void
+  onStage: (op: PendingOp) => void
   onDeleteSelection: (sel: Selection) => void
 }) {
   const pending = isTemp(option.id)
@@ -609,6 +602,29 @@ function OptionCard({
     () => [...option.selections].sort((a, b) => a.sortOrder - b.sortOrder),
     [option.selections],
   )
+  const sensors = useSensors(
+    // The distance keeps the row's own inputs clickable
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  // A drop renumbers the rows in their new order and stages only the ones whose position changed
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return
+    const ids = sortedSelections.map((s) => s.id)
+    const next = arrayMove(sortedSelections, ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id)))
+    next.forEach((sel, i) => {
+      if (sel.sortOrder !== i) onStage({ kind: 'update-selection', id: sel.id, sortOrder: i })
+    })
+  }
+  // A pick-one option has at most one default, so turning one on turns the other off
+  const setDefault = (sel: Selection, on: boolean) => {
+    if (on && isSingleSelect(option.inputType)) {
+      for (const other of option.selections) {
+        if (other.id !== sel.id && other.isDefault) onStage({ kind: 'update-selection', id: other.id, isDefault: false })
+      }
+    }
+    onStage({ kind: 'update-selection', id: sel.id, isDefault: on })
+  }
   return (
     <Card className="grid gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -653,22 +669,26 @@ function OptionCard({
         </p>
       ) : (
         <div className="rounded-md border">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <Table>
             <TableHeader>
               <TableRow>
+                {canManage && <TableHead className="w-8" />}
                 <TableHead>Product</TableHead>
                 <TableHead className="w-20">SKU</TableHead>
                 <TableHead className="w-20">Qty</TableHead>
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Default</TableHead>
-                {canManage && <TableHead className="w-20" />}
+                {canManage && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
+            <SortableContext items={sortedSelections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <TableBody>
               {sortedSelections.map((sel) => {
                 const selPending = isTemp(sel.id)
+                const label = sel.product.name ?? sel.product.sku ?? ''
                 return (
-                  <TableRow key={sel.id} className={selPending ? 'bg-warning-soft' : ''}>
+                  <SortableSelectionRow key={sel.id} id={sel.id} label={label} canManage={canManage} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
                       {selPending && <span className="ml-2 text-xs text-warning">· unsaved</span>}
@@ -680,12 +700,28 @@ function OptionCard({
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{sel.quantity}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {canManage ? (
+                        <Input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          className="h-7 w-16 text-xs"
+                          aria-label={`${label} quantity`}
+                          value={sel.quantity}
+                          onChange={(e) => onStage({ kind: 'update-selection', id: sel.id, quantity: Math.max(1, Number(e.target.value) || 1) })}
+                        />
+                      ) : (
+                        sel.quantity
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
                       {formatCents(sel.product.defaultPrice, sel.product.defaultCurrencyCode)}
                     </TableCell>
                     <TableCell>
-                      {sel.isDefault ? (
+                      {canManage ? (
+                        <Switch checked={sel.isDefault} onCheckedChange={(v) => setDefault(sel, v)} aria-label={`${label} is a default`} />
+                      ) : sel.isDefault ? (
                         <CheckCircle2Icon className="size-4 text-primary" />
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
@@ -694,20 +730,19 @@ function OptionCard({
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-7" onClick={() => onEditSelection(sel)} aria-label="Edit selection">
-                            <PencilIcon className="size-3.5" />
-                          </Button>
                           <Button variant="ghost" size="icon" className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteSelection(sel)} aria-label="Remove selection">
                             <Trash2Icon className="size-3.5" />
                           </Button>
                         </div>
                       </TableCell>
                     )}
-                  </TableRow>
+                  </SortableSelectionRow>
                 )
               })}
             </TableBody>
+            </SortableContext>
           </Table>
+          </DndContext>
         </div>
       )}
 
@@ -961,106 +996,41 @@ function EditOptionDialog({
   )
 }
 
-// ──────────────────────── Edit selection ────────────────────────
-
-function EditSelectionDialog({
-  option,
-  selection,
-  open,
-  onOpenChange,
-  onStage,
+function SortableSelectionRow({
+  id,
+  label,
+  canManage,
+  className,
+  children,
 }: {
-  option: BundleOption
-  selection: Selection
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  onStage: (op: PendingOp) => void
+  id: string
+  label: string
+  canManage: boolean
+  className: string
+  children: React.ReactNode
 }) {
-  const [quantity, setQuantity] = useState(selection.quantity)
-  const [isDefault, setIsDefault] = useState(selection.isDefault)
-  const [sortOrder, setSortOrder] = useState(selection.sortOrder)
-  const [err, setErr] = useState<string | null>(null)
-
-  const otherDefaultExists = useMemo(
-    () => option.selections.some((s) => s.id !== selection.id && s.isDefault),
-    [option.selections, selection.id],
-  )
-  const blockedByCardinality = isSingleSelect(option.inputType) && isDefault && !selection.isDefault && otherDefaultExists
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setErr(null)
-    if (blockedByCardinality) {
-      setErr('A pick-one option accepts at most one default selection - clear the other default first.')
-      return
-    }
-    const op = {
-      kind: 'update-selection' as const,
-      id: selection.id,
-      ...(quantity !== selection.quantity ? { quantity } : {}),
-      ...(isDefault !== selection.isDefault ? { isDefault } : {}),
-      ...(sortOrder !== selection.sortOrder ? { sortOrder } : {}),
-    }
-    if (Object.keys(op).length > 2) onStage(op)
-    onOpenChange(false)
-  }
-
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !canManage })
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit selection</DialogTitle>
-          <DialogDescription>
-            {selection.product.name ?? selection.product.sku ?? ''}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form id="edit-bundle-selection" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="sel-quantity-edit">Quantity</Label>
-              <Input
-                id="sel-quantity-edit"
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="sel-sort-edit">Sort order</Label>
-              <Input
-                id="sel-sort-edit"
-                type="number"
-                inputMode="numeric"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="grid gap-0.5">
-              <Label htmlFor="sel-default-edit" className="text-sm">Default</Label>
-              <p className="text-xs text-muted-foreground">Pre-checked when the customer opens this bundle.</p>
-            </div>
-            <Switch id="sel-default-edit" checked={isDefault} onCheckedChange={setIsDefault} />
-          </div>
-
-          {err && (
-            <Alert variant="destructive">
-              <AlertTitle>Can't stage</AlertTitle>
-              <AlertDescription>{err}</AlertDescription>
-            </Alert>
-          )}
-        </form>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="edit-bundle-selection">Stage edit</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <TableRow
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`${className} ${isDragging ? 'relative z-10 bg-background shadow-md' : ''}`}
+    >
+      {canManage && (
+        <TableCell className="w-8 px-1">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${label}`}
+            className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          >
+            <GripVerticalIcon className="size-4" />
+          </button>
+        </TableCell>
+      )}
+      {children}
+    </TableRow>
   )
 }
 

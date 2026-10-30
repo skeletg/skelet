@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderSection } from '@/test/page-harness'
 import { SetBundlePricingDocument } from './Catalog.gql'
@@ -136,5 +136,74 @@ describe('bundle pricing per store', () => {
     expect(within(dialog).getByText('25% off the picks')).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(() => expect(set).toHaveBeenCalledWith({ productId: 'p1', channelId: 'c1', pricing: 'SUM_MINUS_PERCENT', discountPercent: 25 }), SLOW)
+  })
+})
+
+// What this pins: quantity, default and order are edited in the row itself and staged for the page Save - a pick-one
+// option's new default takes the old one's place
+describe('bundle selection rows edit in place', () => {
+  const mk = (id: string, name: string, isDefault: boolean, sortOrder: number) => ({ id, product: { ...widget, id: `p-${id}`, name }, quantity: 1, isDefault, sortOrder })
+  const render = () =>
+    renderSection(
+      <BundleStructureSection
+        canManage
+        product={{
+          id: 'p1',
+          bundleOptions: [{
+            id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Size', content: [],
+            selections: [mk('s1', 'Small', true, 0), mk('s2', 'Large', false, 1)],
+          }],
+        }}
+      />,
+    )
+  const saveDialog = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    return screen.findByRole('alertdialog')
+  }
+
+  it('stages a quantity typed into the row', async () => {
+    render()
+    fireEvent.change(await screen.findByLabelText('Large quantity'), { target: { value: '3' } })
+    expect((screen.getByLabelText('Large quantity') as HTMLInputElement).value).toBe('3')
+    expect((await saveDialog()).textContent).toMatch(/Selection · Large · qty/)
+  })
+
+  it('moves a pick-one default to the row switched on', async () => {
+    render()
+    fireEvent.click(await screen.findByRole('switch', { name: 'Large is a default' }))
+    expect(screen.getByRole('switch', { name: 'Large is a default' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Small is a default' }).getAttribute('aria-checked')).toBe('false')
+    const text = (await saveDialog()).textContent
+    expect(text).toMatch(/Selection · Large · default/)
+    expect(text).toMatch(/Selection · Small · default/)
+  })
+
+  it('reorders by keyboard drag', async () => {
+    // jsdom lays nothing out, so give each row a place for the sensor to measure - as RecommendationRows.test does
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const row = this.closest('tr')
+      const index = row ? Array.from(row.parentElement!.children).indexOf(row) : 0
+      return { x: 0, y: index * 80, top: index * 80, bottom: index * 80 + 80, left: 0, right: 300, width: 300, height: 80, toJSON: () => ({}) }
+    })
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(80)
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(300)
+    try {
+      render()
+      const handle = await screen.findByRole('button', { name: 'Reorder Small' })
+      handle.focus()
+      fireEvent.keyDown(handle, { key: ' ', code: 'Space' })
+      await vi.waitFor(() => expect(handle.getAttribute('aria-pressed')).toBe('true'), SLOW)
+      await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+      fireEvent.keyDown(handle, { key: 'ArrowDown', code: 'ArrowDown' })
+      await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+      fireEvent.keyDown(handle, { key: ' ', code: 'Space' })
+      const order = () => screen.getAllByRole('button', { name: /^Reorder / }).map((b) => b.getAttribute('aria-label'))
+      await vi.waitFor(() => expect(order()).toEqual(['Reorder Large', 'Reorder Small']), SLOW)
+      expect((await saveDialog()).textContent).toMatch(/Selection · Small · order/)
+    } finally {
+      rect.mockRestore()
+      height.mockRestore()
+      width.mockRestore()
+    }
   })
 })
