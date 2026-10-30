@@ -774,11 +774,13 @@ func toBundleOptionModels(opts []catalog.BundleOption) []*model.BundleOption {
 				prod.Name = &name
 			}
 			sels[j] = &model.BundleSelection{
-				ID:        s.ID.String(),
-				Product:   prod,
-				Quantity:  s.Quantity,
-				IsDefault: s.IsDefault,
-				SortOrder: s.SortOrder,
+				ID:               s.ID.String(),
+				Product:          prod,
+				Quantity:         s.Quantity,
+				IsDefault:        s.IsDefault,
+				SortOrder:        s.SortOrder,
+				DiscountPercent:  int32(s.DiscountPercent),
+				CustomerQuantity: s.CustomerQuantity,
 			}
 		}
 		out[i] = &model.BundleOption{

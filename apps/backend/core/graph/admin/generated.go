@@ -614,12 +614,14 @@ type ComplexityRoot struct {
 	}
 
 	BundleSelection struct {
-		FromRule  func(childComplexity int) int
-		ID        func(childComplexity int) int
-		IsDefault func(childComplexity int) int
-		Product   func(childComplexity int) int
-		Quantity  func(childComplexity int) int
-		SortOrder func(childComplexity int) int
+		CustomerQuantity func(childComplexity int) int
+		DiscountPercent  func(childComplexity int) int
+		FromRule         func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsDefault        func(childComplexity int) int
+		Product          func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		SortOrder        func(childComplexity int) int
 	}
 
 	BusinessIdField struct {
@@ -7960,6 +7962,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BundleOptionRule.Quantity(childComplexity), true
 
+	case "BundleSelection.customerQuantity":
+		if e.ComplexityRoot.BundleSelection.CustomerQuantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleSelection.CustomerQuantity(childComplexity), true
+	case "BundleSelection.discountPercent":
+		if e.ComplexityRoot.BundleSelection.DiscountPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleSelection.DiscountPercent(childComplexity), true
 	case "BundleSelection.fromRule":
 		if e.ComplexityRoot.BundleSelection.FromRule == nil {
 			break
@@ -32893,6 +32907,10 @@ type BundleSelection {
   sortOrder: Int!
   # Made by the option's rule, not stored - change the rule to change it
   fromRule:  Boolean!
+  # Whole percent off this component's price - an add-on deal
+  discountPercent:  Int!
+  # The customer sets how many go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # Every SIMPLE product in the category holding all the attribute values, each a selection of quantity per bundle
@@ -32940,6 +32958,8 @@ input AddBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
 }
 
 input UpdateBundleSelectionInput {
@@ -32947,6 +32967,8 @@ input UpdateBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
 }
 
 # One staged edit for setBundleStructure - set tempId plus exactly one of the rest. Any option or selection id may be a
@@ -41120,6 +41142,10 @@ func (ec *executionContext) childFields_BundleSelection(ctx context.Context, fie
 		return ec.fieldContext_BundleSelection_sortOrder(ctx, field)
 	case "fromRule":
 		return ec.fieldContext_BundleSelection_fromRule(ctx, field)
+	case "discountPercent":
+		return ec.fieldContext_BundleSelection_discountPercent(ctx, field)
+	case "customerQuantity":
+		return ec.fieldContext_BundleSelection_customerQuantity(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BundleSelection", field.Name)
 }
@@ -71032,6 +71058,52 @@ func (ec *executionContext) _BundleSelection_fromRule(ctx context.Context, field
 	)
 }
 func (ec *executionContext) fieldContext_BundleSelection_fromRule(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _BundleSelection_discountPercent(ctx context.Context, field graphql.CollectedField, obj *model.BundleSelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleSelection_discountPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DiscountPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BundleSelection_discountPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BundleSelection_customerQuantity(ctx context.Context, field graphql.CollectedField, obj *model.BundleSelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleSelection_customerQuantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerQuantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BundleSelection_customerQuantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -161451,7 +161523,7 @@ func (ec *executionContext) unmarshalInputAddBundleSelectionInput(ctx context.Co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"optionId", "productId", "quantity", "isDefault", "sortOrder"}
+	fieldsInOrder := [...]string{"optionId", "productId", "quantity", "isDefault", "sortOrder", "discountPercent", "customerQuantity"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -161493,6 +161565,20 @@ func (ec *executionContext) unmarshalInputAddBundleSelectionInput(ctx context.Co
 				return it, err
 			}
 			it.SortOrder = data
+		case "discountPercent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("discountPercent"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DiscountPercent = data
+		case "customerQuantity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerQuantity"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerQuantity = data
 		}
 	}
 	return it, nil
@@ -171919,7 +172005,7 @@ func (ec *executionContext) unmarshalInputUpdateBundleSelectionInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "quantity", "isDefault", "sortOrder"}
+	fieldsInOrder := [...]string{"id", "quantity", "isDefault", "sortOrder", "discountPercent", "customerQuantity"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -171954,6 +172040,20 @@ func (ec *executionContext) unmarshalInputUpdateBundleSelectionInput(ctx context
 				return it, err
 			}
 			it.SortOrder = data
+		case "discountPercent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("discountPercent"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DiscountPercent = data
+		case "customerQuantity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerQuantity"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerQuantity = data
 		}
 	}
 	return it, nil
@@ -180069,6 +180169,16 @@ func (ec *executionContext) _BundleSelection(ctx context.Context, sel ast.Select
 			}
 		case "fromRule":
 			out.Values[i] = ec._BundleSelection_fromRule(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "discountPercent":
+			out.Values[i] = ec._BundleSelection_discountPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerQuantity":
+			out.Values[i] = ec._BundleSelection_customerQuantity(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

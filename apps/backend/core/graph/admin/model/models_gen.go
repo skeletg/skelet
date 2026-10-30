@@ -55,11 +55,13 @@ type AddBundleOptionInput struct {
 }
 
 type AddBundleSelectionInput struct {
-	OptionID  string   `json:"optionId"`
-	ProductID string   `json:"productId"`
-	Quantity  *float64 `json:"quantity,omitempty"`
-	IsDefault *bool    `json:"isDefault,omitempty"`
-	SortOrder *int32   `json:"sortOrder,omitempty"`
+	OptionID         string   `json:"optionId"`
+	ProductID        string   `json:"productId"`
+	Quantity         *float64 `json:"quantity,omitempty"`
+	IsDefault        *bool    `json:"isDefault,omitempty"`
+	SortOrder        *int32   `json:"sortOrder,omitempty"`
+	DiscountPercent  *int32   `json:"discountPercent,omitempty"`
+	CustomerQuantity *bool    `json:"customerQuantity,omitempty"`
 }
 
 type AddGroupedMemberInput struct {
@@ -793,12 +795,14 @@ type BundleOptionRuleInput struct {
 }
 
 type BundleSelection struct {
-	ID        string   `json:"id"`
-	Product   *Product `json:"product"`
-	Quantity  float64  `json:"quantity"`
-	IsDefault bool     `json:"isDefault"`
-	SortOrder int32    `json:"sortOrder"`
-	FromRule  bool     `json:"fromRule"`
+	ID               string   `json:"id"`
+	Product          *Product `json:"product"`
+	Quantity         float64  `json:"quantity"`
+	IsDefault        bool     `json:"isDefault"`
+	SortOrder        int32    `json:"sortOrder"`
+	FromRule         bool     `json:"fromRule"`
+	DiscountPercent  int32    `json:"discountPercent"`
+	CustomerQuantity bool     `json:"customerQuantity"`
 }
 
 type BundleStructureOpInput struct {
@@ -5317,10 +5321,12 @@ type UpdateBundleOptionInput struct {
 }
 
 type UpdateBundleSelectionInput struct {
-	ID        string   `json:"id"`
-	Quantity  *float64 `json:"quantity,omitempty"`
-	IsDefault *bool    `json:"isDefault,omitempty"`
-	SortOrder *int32   `json:"sortOrder,omitempty"`
+	ID               string   `json:"id"`
+	Quantity         *float64 `json:"quantity,omitempty"`
+	IsDefault        *bool    `json:"isDefault,omitempty"`
+	SortOrder        *int32   `json:"sortOrder,omitempty"`
+	DiscountPercent  *int32   `json:"discountPercent,omitempty"`
+	CustomerQuantity *bool    `json:"customerQuantity,omitempty"`
 }
 
 type UpdateCMSAttributeInput struct {

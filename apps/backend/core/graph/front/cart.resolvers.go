@@ -121,11 +121,20 @@ func (r *mutationResolver) AddBundleToCart(ctx context.Context, input model1.Add
 		}
 		variants[sel] = variant
 	}
+	quantities := make(map[uuid.UUID]float64, len(input.Quantities))
+	for _, q := range input.Quantities {
+		sel, err := uuid.Parse(q.SelectionID)
+		if err != nil {
+			return nil, invalidID("selection")
+		}
+		quantities[sel] = q.Quantity
+	}
 	c, err := r.CartSvc.AddBundleToCart(ctx, cid, channel.OptionalCustomerID(ctx), cart.AddBundleToCartInput{
 		ProductSku: input.Sku,
 		Quantity:   input.Quantity,
 		Selections: selections,
 		Variants:   variants,
+		Quantities: quantities,
 	})
 	if err != nil {
 		return nil, err

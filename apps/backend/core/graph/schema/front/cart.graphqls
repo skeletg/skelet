@@ -458,6 +458,13 @@ input AddBundleToCartInput {
   selections: [AddBundleToCartSelectionInput!]!
   # The variant picked for each configurable selection - one of that selection's product's children
   variants:   [AddBundleVariantPickInput!]
+  # How many of each customer-quantity selection go in one bundle
+  quantities: [AddBundleQuantityInput!]
+}
+
+input AddBundleQuantityInput {
+  selectionId: ID!
+  quantity:    Float!
 }
 
 input AddBundleVariantPickInput {

@@ -76,12 +76,14 @@ func toBundleSelectionModel(s catalog.BundleSelection) *model.BundleSelection {
 		prod.Name = &name
 	}
 	return &model.BundleSelection{
-		ID:        s.ID.String(),
-		Product:   prod,
-		Quantity:  s.Quantity,
-		IsDefault: s.IsDefault,
-		SortOrder: s.SortOrder,
-		FromRule:  s.FromRule,
+		ID:               s.ID.String(),
+		Product:          prod,
+		Quantity:         s.Quantity,
+		IsDefault:        s.IsDefault,
+		SortOrder:        s.SortOrder,
+		FromRule:         s.FromRule,
+		DiscountPercent:  int32(s.DiscountPercent),
+		CustomerQuantity: s.CustomerQuantity,
 	}
 }
 
@@ -239,9 +241,11 @@ func applyBundleOp(ctx context.Context, e catalog.BundleEditor, productID uuid.U
 		}
 		sel, err := e.AddBundleSelection(ctx, catalog.AddBundleSelectionInput{
 			OptionID: optionID, ProductID: pid,
-			Quantity:  float64Or(in.Quantity, catalog.DefaultStructureQuantity),
-			IsDefault: boolOrFalse(in.IsDefault),
-			SortOrder: int32Or(in.SortOrder, 0),
+			Quantity:         float64Or(in.Quantity, catalog.DefaultStructureQuantity),
+			IsDefault:        boolOrFalse(in.IsDefault),
+			SortOrder:        int32Or(in.SortOrder, 0),
+			DiscountPercent:  ptrOr(discountPtr(in.DiscountPercent), 0),
+			CustomerQuantity: boolOrFalse(in.CustomerQuantity),
 		})
 		if err == nil {
 			name(sel.ID, refs.selections)
@@ -253,7 +257,10 @@ func applyBundleOp(ctx context.Context, e catalog.BundleEditor, productID uuid.U
 		if err != nil {
 			return err
 		}
-		_, err = e.UpdateBundleSelection(ctx, catalog.UpdateBundleSelectionInput{ID: id, Quantity: in.Quantity, IsDefault: in.IsDefault, SortOrder: in.SortOrder})
+		_, err = e.UpdateBundleSelection(ctx, catalog.UpdateBundleSelectionInput{
+			ID: id, Quantity: in.Quantity, IsDefault: in.IsDefault, SortOrder: in.SortOrder,
+			DiscountPercent: discountPtr(in.DiscountPercent), CustomerQuantity: in.CustomerQuantity,
+		})
 		return err
 	case op.SetRule != nil:
 		in := op.SetRule
@@ -283,4 +290,20 @@ func applyBundleOp(ctx context.Context, e catalog.BundleEditor, productID uuid.U
 		return e.DeleteBundleSelection(ctx, id)
 	}
 	return errEmptyBundleOp
+}
+
+// A selection's discount as the catalog takes it - the catalog refuses anything outside 0-100
+func discountPtr(v *int32) *int16 {
+	if v == nil {
+		return nil
+	}
+	d := int16(max(min(*v, 101), -1)) // clamped just past the bounds, so the catalog still refuses it rather than it wrapping
+	return &d
+}
+
+func ptrOr[T any](p *T, def T) T {
+	if p == nil {
+		return def
+	}
+	return *p
 }

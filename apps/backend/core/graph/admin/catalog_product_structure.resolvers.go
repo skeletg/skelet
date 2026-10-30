@@ -127,11 +127,13 @@ func (r *mutationResolver) AddBundleSelection(ctx context.Context, input model.A
 		return nil, err
 	}
 	sel, err := r.CatalogSvc.AddBundleSelection(ctx, catalog.AddBundleSelectionInput{
-		OptionID:  optionID,
-		ProductID: productID,
-		Quantity:  float64Or(input.Quantity, catalog.DefaultStructureQuantity),
-		IsDefault: boolOrFalse(input.IsDefault),
-		SortOrder: int32Or(input.SortOrder, 0),
+		OptionID:         optionID,
+		ProductID:        productID,
+		Quantity:         float64Or(input.Quantity, catalog.DefaultStructureQuantity),
+		IsDefault:        boolOrFalse(input.IsDefault),
+		SortOrder:        int32Or(input.SortOrder, 0),
+		DiscountPercent:  ptrOr(discountPtr(input.DiscountPercent), 0),
+		CustomerQuantity: boolOrFalse(input.CustomerQuantity),
 	})
 	if err != nil {
 		return nil, err
@@ -152,10 +154,12 @@ func (r *mutationResolver) UpdateBundleSelection(ctx context.Context, input mode
 		return nil, err
 	}
 	sel, err := r.CatalogSvc.UpdateBundleSelection(ctx, catalog.UpdateBundleSelectionInput{
-		ID:        id,
-		Quantity:  input.Quantity,
-		IsDefault: input.IsDefault,
-		SortOrder: input.SortOrder,
+		ID:               id,
+		Quantity:         input.Quantity,
+		IsDefault:        input.IsDefault,
+		SortOrder:        input.SortOrder,
+		DiscountPercent:  discountPtr(input.DiscountPercent),
+		CustomerQuantity: input.CustomerQuantity,
 	})
 	if err != nil {
 		return nil, err

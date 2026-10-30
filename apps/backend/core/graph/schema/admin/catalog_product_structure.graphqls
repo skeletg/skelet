@@ -40,6 +40,10 @@ type BundleSelection {
   sortOrder: Int!
   # Made by the option's rule, not stored - change the rule to change it
   fromRule:  Boolean!
+  # Whole percent off this component's price - an add-on deal
+  discountPercent:  Int!
+  # The customer sets how many go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # Every SIMPLE product in the category holding all the attribute values, each a selection of quantity per bundle
@@ -87,6 +91,8 @@ input AddBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
 }
 
 input UpdateBundleSelectionInput {
@@ -94,6 +100,8 @@ input UpdateBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
 }
 
 # One staged edit for setBundleStructure - set tempId plus exactly one of the rest. Any option or selection id may be a

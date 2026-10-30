@@ -216,6 +216,10 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Whole percent off this pick's price - the cart charges it already discounted
+  discountPercent:  Int!
+  # The customer sets how many of it go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # One member SIMPLE product attached to a GROUPED parent. The customer sees each member rendered with its own image/name/qty input on the PDP and can adjust how many of each to add at once.

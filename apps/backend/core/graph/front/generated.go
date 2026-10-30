@@ -255,11 +255,13 @@ type ComplexityRoot struct {
 	}
 
 	BundleSelection struct {
-		ID        func(childComplexity int) int
-		IsDefault func(childComplexity int) int
-		Product   func(childComplexity int) int
-		Quantity  func(childComplexity int) int
-		SortOrder func(childComplexity int) int
+		CustomerQuantity func(childComplexity int) int
+		DiscountPercent  func(childComplexity int) int
+		ID               func(childComplexity int) int
+		IsDefault        func(childComplexity int) int
+		Product          func(childComplexity int) int
+		Quantity         func(childComplexity int) int
+		SortOrder        func(childComplexity int) int
 	}
 
 	BusinessIdField struct {
@@ -2666,6 +2668,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BundleOption.Title(childComplexity), true
 
+	case "BundleSelection.customerQuantity":
+		if e.ComplexityRoot.BundleSelection.CustomerQuantity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleSelection.CustomerQuantity(childComplexity), true
+	case "BundleSelection.discountPercent":
+		if e.ComplexityRoot.BundleSelection.DiscountPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BundleSelection.DiscountPercent(childComplexity), true
 	case "BundleSelection.id":
 		if e.ComplexityRoot.BundleSelection.ID == nil {
 			break
@@ -9053,6 +9067,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputAddBundleQuantityInput,
 		ec.unmarshalInputAddBundleToCartInput,
 		ec.unmarshalInputAddBundleToCartSelectionInput,
 		ec.unmarshalInputAddBundleVariantPickInput,
@@ -9739,6 +9754,13 @@ input AddBundleToCartInput {
   selections: [AddBundleToCartSelectionInput!]!
   # The variant picked for each configurable selection - one of that selection's product's children
   variants:   [AddBundleVariantPickInput!]
+  # How many of each customer-quantity selection go in one bundle
+  quantities: [AddBundleQuantityInput!]
+}
+
+input AddBundleQuantityInput {
+  selectionId: ID!
+  quantity:    Float!
 }
 
 input AddBundleVariantPickInput {
@@ -10047,6 +10069,10 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Whole percent off this pick's price - the cart charges it already discounted
+  discountPercent:  Int!
+  # The customer sets how many of it go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # One member SIMPLE product attached to a GROUPED parent. The customer sees each member rendered with its own image/name/qty input on the PDP and can adjust how many of each to add at once.
@@ -12099,6 +12125,10 @@ func (ec *executionContext) childFields_BundleSelection(ctx context.Context, fie
 		return ec.fieldContext_BundleSelection_isDefault(ctx, field)
 	case "sortOrder":
 		return ec.fieldContext_BundleSelection_sortOrder(ctx, field)
+	case "discountPercent":
+		return ec.fieldContext_BundleSelection_discountPercent(ctx, field)
+	case "customerQuantity":
+		return ec.fieldContext_BundleSelection_customerQuantity(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BundleSelection", field.Name)
 }
@@ -20326,6 +20356,52 @@ func (ec *executionContext) _BundleSelection_sortOrder(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_BundleSelection_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BundleSelection_discountPercent(ctx context.Context, field graphql.CollectedField, obj *model.BundleSelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleSelection_discountPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DiscountPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BundleSelection_discountPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BundleSelection_customerQuantity(ctx context.Context, field graphql.CollectedField, obj *model.BundleSelection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BundleSelection_customerQuantity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerQuantity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BundleSelection_customerQuantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BundleSelection", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _BusinessIdField_key(ctx context.Context, field graphql.CollectedField, obj *model.BusinessIDField) (ret graphql.Marshaler) {
@@ -46808,6 +46884,43 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAddBundleQuantityInput(ctx context.Context, obj any) (model1.AddBundleQuantityInput, error) {
+	var it model1.AddBundleQuantityInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"selectionId", "quantity"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "selectionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SelectionID = data
+		case "quantity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quantity = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Context, obj any) (model1.AddBundleToCartInput, error) {
 	var it model1.AddBundleToCartInput
 	if obj == nil {
@@ -46819,7 +46932,7 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "selections", "variants"}
+	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "selections", "variants", "quantities"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -46861,6 +46974,13 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 				return it, err
 			}
 			it.Variants = data
+		case "quantities":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantities"))
+			data, err := ec.unmarshalOAddBundleQuantityInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleQuantityInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quantities = data
 		}
 	}
 	return it, nil
@@ -49513,6 +49633,16 @@ func (ec *executionContext) _BundleSelection(ctx context.Context, sel ast.Select
 			}
 		case "sortOrder":
 			out.Values[i] = ec._BundleSelection_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "discountPercent":
+			out.Values[i] = ec._BundleSelection_discountPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerQuantity":
+			out.Values[i] = ec._BundleSelection_customerQuantity(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -62105,6 +62235,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAddBundleQuantityInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleQuantityInput(ctx context.Context, v any) (*model1.AddBundleQuantityInput, error) {
+	res, err := ec.unmarshalInputAddBundleQuantityInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNAddBundleToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleToCartInput(ctx context.Context, v any) (model1.AddBundleToCartInput, error) {
 	res, err := ec.unmarshalInputAddBundleToCartInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -65597,6 +65732,23 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalOAddBundleQuantityInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleQuantityInputᚄ(ctx context.Context, v any) ([]*model1.AddBundleQuantityInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model1.AddBundleQuantityInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAddBundleQuantityInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleQuantityInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOAddBundleVariantPickInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleVariantPickInputᚄ(ctx context.Context, v any) ([]*model1.AddBundleVariantPickInput, error) {
