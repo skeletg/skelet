@@ -32,3 +32,10 @@
   selection unless Each variant is ticked. A configurable selection can't be a default. The
   storefront API takes the choice as `AddBundleToCartInput.variants`, and a missing one is
   refused with `BUNDLE_VARIANT_MISSING`.
+- **A bundle option can fill itself from a category.** Edit an option, turn on "Fill from a
+  category" and pick the category. You can narrow it to products holding chosen attribute
+  values and set a quantity for each. Every simple product it matches is offered after the
+  hand-picked selections, and products joining the category later show up without an edit.
+  The rows it makes are marked "from the rule" and can't be edited one by one. Their ids stay
+  the same, so carts, checkout repricing and reorders treat them like hand-picked ones. API:
+  `BundleOption.rule`, `BundleSelection.fromRule`, and `setRule` in `setBundleStructure`.

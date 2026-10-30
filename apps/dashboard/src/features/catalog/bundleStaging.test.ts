@@ -274,3 +274,17 @@ describe('toStructureOps', () => {
     ])
   })
 })
+
+// What this pins: a rule staged on a new option follows its add in the batch, and dropping one sends a null category
+describe('toStructureOps with rules', () => {
+  it('sets and drops option rules', () => {
+    const rule = { categoryId: 'c1', attributeValueIds: ['v1'], quantity: 2 }
+    expect(toStructureOps([
+      { kind: 'add-option', tempId: 'tmp_1', title: 'Cups', inputType: 'CHECKBOX', isRequired: false, sortOrder: 0, minSelections: 0, maxSelections: null, locale: 'en', rule },
+      { kind: 'update-option', id: 'o2', rule: null },
+    ], 'p1').slice(1)).toEqual([
+      { setRule: { optionId: 'tmp_1', categoryId: 'c1', attributeValueIds: ['v1'], quantity: 2 } },
+      { setRule: { optionId: 'o2', categoryId: null } },
+    ])
+  })
+})

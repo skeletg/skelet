@@ -915,8 +915,14 @@ query Product($id: ID!) {
         locale
         title
       }
+      rule {
+        categoryId
+        attributeValueIds
+        quantity
+      }
       selections {
         id
+        fromRule
         product {
           id
           url
@@ -1415,8 +1421,14 @@ fragment BundleOptionFields on BundleOption {
     locale
     title
   }
+  rule {
+    categoryId
+    attributeValueIds
+    quantity
+  }
   selections {
     id
+    fromRule
     product {
       id
       url

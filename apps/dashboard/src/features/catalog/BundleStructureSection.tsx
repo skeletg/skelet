@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { useApolloClient, useMutation } from '@apollo/client/react'
+import { useApolloClient, useMutation, useQuery } from '@apollo/client/react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -44,6 +44,7 @@ import {
 import { formatCents } from '@/lib/format'
 import type { BundleInputType, BundlePricing } from '@/graphql/schema.types'
 import {
+  AttributesDocument,
   ProductDocument,
   ProductVariantsDocument,
   SetBundlePricingDocument,
@@ -57,7 +58,9 @@ import {
   reduceOps,
   selectionLimitText,
   toStructureOps,
+  ruleText,
   type BundleOption,
+  type OptionRule,
   type PendingOp,
   type Selection,
   type SelectionProduct,
@@ -68,6 +71,7 @@ import { ProductPickerDialog, type PickExtra, type PickerProduct } from './Produ
 import { defaultColumn, eachVariantColumn, quantityColumn } from './product-picker-columns'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { CategorySelect } from './category-picker/CategorySelect'
 
 type Bundle = {
   id: string
@@ -487,8 +491,10 @@ function OptionCard({
   // A drop renumbers the rows in their new order and stages only the ones whose position changed
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return
-    const ids = sortedSelections.map((s) => s.id)
-    const next = arrayMove(sortedSelections, ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id)))
+    const own = sortedSelections.filter((s) => !s.fromRule)
+    const ids = own.map((s) => s.id)
+    if (!ids.includes(String(e.over.id))) return
+    const next = arrayMove(own, ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id)))
     next.forEach((sel, i) => {
       if (sel.sortOrder !== i) onStage({ kind: 'update-selection', id: sel.id, sortOrder: i })
     })
@@ -513,6 +519,7 @@ function OptionCard({
             {!isSingleSelect(option.inputType) && selectionLimitText(option.minSelections, option.maxSelections) && (
               <Badge variant="outline" className="font-normal">{selectionLimitText(option.minSelections, option.maxSelections)}</Badge>
             )}
+            {option.rule && <Badge variant="outline" className="font-normal">fills from {ruleText(option.rule)}</Badge>}
             {option.isRequired ? (
               <Badge variant="secondary" className="font-normal">Required</Badge>
             ) : (
@@ -565,9 +572,10 @@ function OptionCard({
                 const selPending = isTemp(sel.id)
                 const label = sel.product.name ?? sel.product.sku ?? ''
                 return (
-                  <SortableSelectionRow key={sel.id} id={sel.id} label={label} canManage={canManage} className={selPending ? 'bg-warning-soft' : ''}>
+                  <SortableSelectionRow key={sel.id} id={sel.id} label={label} canManage={canManage} locked={!!sel.fromRule} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
+                      {sel.fromRule && <Badge variant="outline" className="ml-2 font-normal">from the rule</Badge>}
                       {sel.product.kind === 'CONFIGURABLE' && (
                         <Badge variant="outline" className="ml-2 font-normal">customer picks the variant</Badge>
                       )}
@@ -581,7 +589,7 @@ function OptionCard({
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {canManage ? (
+                      {canManage && !sel.fromRule ? (
                         <Input
                           type="number"
                           min={1}
@@ -603,7 +611,7 @@ function OptionCard({
                         <Switch
                           checked={sel.isDefault}
                           onCheckedChange={(v) => setDefault(sel, v)}
-                          disabled={sel.product.kind === 'CONFIGURABLE'}
+                          disabled={sel.product.kind === 'CONFIGURABLE' || sel.fromRule}
                           title={sel.product.kind === 'CONFIGURABLE' ? 'The customer picks the variant, so there is nothing to pre-pick' : undefined}
                           aria-label={`${label} is a default`}
                         />
@@ -616,9 +624,9 @@ function OptionCard({
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteSelection(sel)} aria-label="Remove selection">
+                          {!sel.fromRule && <Button variant="ghost" size="icon" className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteSelection(sel)} aria-label="Remove selection">
                             <Trash2Icon className="size-3.5" />
-                          </Button>
+                          </Button>}
                         </div>
                       </TableCell>
                     )}
@@ -778,6 +786,9 @@ function EditOptionDialog({
   // No translation yet shows the fallback title - left as is, it stages nothing, typed over, it adds the locale
   const initialTitle = option.content.find((c) => c.locale === locale)?.title ?? option.title
   const [title, setTitle] = useState(initialTitle)
+  const [rule, setRule] = useState<OptionRule | null>(option.rule ?? null)
+  const ruleChanged = JSON.stringify(rule) !== JSON.stringify(option.rule ?? null)
+  const ruleIncomplete = rule !== null && !rule.categoryId
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -790,8 +801,9 @@ function EditOptionDialog({
       ...(sortOrder !== option.sortOrder ? { sortOrder } : {}),
       ...(bounds.min !== option.minSelections ? { minSelections: bounds.min } : {}),
       ...(bounds.max !== option.maxSelections ? { maxSelections: bounds.max } : {}),
+      ...(ruleChanged ? { rule } : {}),
     }
-    if (limitsErr) return
+    if (limitsErr || ruleIncomplete) return
     // Only stage when there's something to change
     if (Object.keys(op).length > 2) {
       onStage(op)
@@ -856,6 +868,8 @@ function EditOptionDialog({
           {!isSingleSelect(inputType) && (
             <SelectionLimitsFields idPrefix="opt-edit" value={limits} onChange={setLimits} error={limitsErr} selectionCount={option.selections.length} />
           )}
+
+          <RuleFields value={rule} onChange={setRule} />
         </form>
 
         {!isTemp(option.id) && (
@@ -875,10 +889,82 @@ function EditOptionDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="edit-bundle-option" disabled={!!limitsErr}>Stage edit</Button>
+          <Button type="submit" form="edit-bundle-option" disabled={!!limitsErr || ruleIncomplete}>Stage edit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Fills the option from a category - optionally only products holding every chosen attribute value - on top of its hand-picked selections
+function RuleFields({ value, onChange }: { value: OptionRule | null; onChange: (r: OptionRule | null) => void }) {
+  const { data } = useQuery(AttributesDocument, { skip: !value })
+  const values = useMemo(
+    () => (data?.attributes ?? []).flatMap((a) => (a.values ?? []).map((v) => ({ id: v.id, label: `${a.name}: ${v.name}` }))),
+    [data],
+  )
+  const labelOf = (id: string) => values.find((v) => v.id === id)?.label ?? id
+  return (
+    <div className="grid gap-3 rounded-md border p-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="grid gap-0.5">
+          <Label htmlFor="opt-rule-on" className="text-sm">Fill from a category</Label>
+          <p className="text-xs text-muted-foreground">Every simple product in it becomes a selection, and new ones join without an edit.</p>
+        </div>
+        <Switch
+          id="opt-rule-on"
+          checked={value !== null}
+          onCheckedChange={(on) => onChange(on ? { categoryId: '', attributeValueIds: [], quantity: 1 } : null)}
+        />
+      </div>
+      {value && (
+        <>
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-category">Category</Label>
+            <CategorySelect id="opt-rule-category" value={value.categoryId} onChange={(categoryId) => onChange({ ...value, categoryId })} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-filter">Only with</Label>
+            <Select value="" onValueChange={(id) => onChange({ ...value, attributeValueIds: [...new Set([...value.attributeValueIds, id])] })}>
+              <SelectTrigger id="opt-rule-filter">
+                <SelectValue placeholder="Any attribute value" />
+              </SelectTrigger>
+              <SelectContent>
+                {values.filter((v) => !value.attributeValueIds.includes(v.id)).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {value.attributeValueIds.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {value.attributeValueIds.map((id) => (
+                  <Badge key={id} variant="outline" className="gap-1 font-normal">
+                    {labelOf(id)}
+                    <button
+                      type="button"
+                      aria-label={`Drop ${labelOf(id)}`}
+                      onClick={() => onChange({ ...value, attributeValueIds: value.attributeValueIds.filter((x) => x !== id) })}
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-qty">Quantity each</Label>
+            <Input
+              id="opt-rule-qty"
+              type="number"
+              min={1}
+              value={value.quantity}
+              onChange={(e) => onChange({ ...value, quantity: Math.max(1, Number(e.target.value) || 1) })}
+            />
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -886,16 +972,19 @@ function SortableSelectionRow({
   id,
   label,
   canManage,
+  locked = false,
   className,
   children,
 }: {
   id: string
   label: string
   canManage: boolean
+  // A rule's row sits where the rule puts it
+  locked?: boolean
   className: string
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !canManage })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !canManage || locked })
   return (
     <TableRow
       ref={setNodeRef}
@@ -904,7 +993,7 @@ function SortableSelectionRow({
     >
       {canManage && (
         <TableCell className="w-8 px-1">
-          <button
+          {!locked && <button
             type="button"
             {...attributes}
             {...listeners}
@@ -912,7 +1001,7 @@ function SortableSelectionRow({
             className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
           >
             <GripVerticalIcon className="size-4" />
-          </button>
+          </button>}
         </TableCell>
       )}
       {children}

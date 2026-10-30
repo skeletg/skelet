@@ -244,3 +244,23 @@ describe('bundle picker and configurables', () => {
     expect(screen.getByLabelText('Hoodie M quantity')).toBeTruthy()
   })
 })
+
+// What this pins: a selection the option's rule made is shown as such and can't be edited, removed or dragged - the rule is
+describe('bundle rule selections', () => {
+  it('locks the rows a rule made', async () => {
+    const option = {
+      id: 'o1', inputType: 'CHECKBOX' as const, isRequired: false, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Cups', content: [],
+      rule: { categoryId: 'c1', attributeValueIds: [], quantity: 1 },
+      selections: [
+        { id: 's1', product: { ...widget, name: 'Mug' }, quantity: 1, isDefault: false, sortOrder: 0 },
+        { id: 'r1', product: { ...widget, id: 'p9', name: 'Cup' }, quantity: 1, isDefault: false, sortOrder: 1, fromRule: true },
+      ],
+    }
+    renderSection(<BundleStructureSection canManage product={{ id: 'p1', bundleOptions: [option] }} />)
+    expect(await screen.findByText('from the rule')).toBeTruthy()
+    expect(screen.getByText(/fills from a category/)).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Remove selection' })).toHaveLength(1)
+    expect(screen.queryByLabelText('Cup quantity')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reorder Cup' })).toBeNull()
+  })
+})

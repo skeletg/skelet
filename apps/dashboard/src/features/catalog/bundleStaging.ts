@@ -26,6 +26,17 @@ export type Selection = {
   quantity: number
   isDefault: boolean
   sortOrder: number
+  // Made by the option's rule on read - the rule is what gets edited, not the row
+  fromRule?: boolean
+}
+
+// Every simple product in the category holding all the attribute values, each a selection of quantity per bundle
+export type OptionRule = { categoryId: string; attributeValueIds: string[]; quantity: number }
+
+export function ruleText(r: OptionRule | null | undefined): string {
+  if (!r) return 'none'
+  const filters = r.attributeValueIds.length ? ` · ${r.attributeValueIds.length} filter${r.attributeValueIds.length === 1 ? '' : 's'}` : ''
+  return `a category${filters} · ${r.quantity} each`
 }
 
 export type OptionContent = { locale: string; title: string }
@@ -40,6 +51,7 @@ export type BundleOption = {
   maxSelections: number | null
   title: string
   content: OptionContent[]
+  rule?: OptionRule | null
   selections: Selection[]
 }
 
@@ -57,6 +69,7 @@ export type AddOptionOp = {
   minSelections: number
   maxSelections: number | null
   locale: string
+  rule?: OptionRule | null
 }
 
 export type UpdateOptionOp = {
@@ -70,6 +83,7 @@ export type UpdateOptionOp = {
   sortOrder?: number
   minSelections?: number
   maxSelections?: number | null // null clears the bound
+  rule?: OptionRule | null // null drops the rule
 }
 
 export type DeleteOptionOp = {
@@ -182,6 +196,7 @@ function mergeAddWithUpdate(add: AddOptionOp | AddSelectionOp, upd: UpdateOption
       sortOrder: upd.sortOrder ?? add.sortOrder,
       minSelections: upd.minSelections ?? add.minSelections,
       maxSelections: upd.maxSelections !== undefined ? upd.maxSelections : add.maxSelections,
+      rule: upd.rule !== undefined ? upd.rule : add.rule,
     }
   }
   if (add.kind === 'add-selection' && upd.kind === 'update-selection') {
@@ -219,6 +234,7 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           minSelections: op.minSelections,
           maxSelections: op.maxSelections,
           content: [{ locale: op.locale, title: op.title }],
+          rule: op.rule ?? null,
           selections: [],
         })
         break
@@ -232,6 +248,7 @@ export function applyOps(original: readonly BundleOption[], ops: readonly Pendin
           if (op.sortOrder !== undefined) next.sortOrder = op.sortOrder
           if (op.minSelections !== undefined) next.minSelections = op.minSelections
           if (op.maxSelections !== undefined) next.maxSelections = op.maxSelections
+          if (op.rule !== undefined) next.rule = op.rule
           if (op.title !== undefined && op.titleLocale) {
             const locale = op.titleLocale
             const existing = next.content.findIndex((c) => c.locale === locale)
@@ -335,6 +352,7 @@ export function opsToDiff(original: readonly BundleOption[], ops: readonly Pendi
         if (op.sortOrder !== undefined) push('order', prev?.sortOrder, op.sortOrder)
         if (op.minSelections !== undefined) push('at least', prev?.minSelections, op.minSelections)
         if (op.maxSelections !== undefined) push('at most', limitText(prev?.maxSelections), limitText(op.maxSelections))
+        if (op.rule !== undefined) push('fill from', ruleText(prev?.rule), ruleText(op.rule))
         return rows
       }
       case 'delete-option': {
@@ -486,6 +504,7 @@ export function toStructureOps(ops: readonly PendingOp[], productId: string): Bu
             title: op.title,
           },
         })
+        if (op.rule) out.push({ setRule: ruleInput(op.tempId, op.rule) })
         break
       case 'update-option': {
         const u: NonNullable<BundleStructureOpInput['updateOption']> = { id: op.id }
@@ -497,6 +516,7 @@ export function toStructureOps(ops: readonly PendingOp[], productId: string): Bu
         else if (op.maxSelections !== undefined) u.maxSelections = op.maxSelections
         if (Object.keys(u).length > 1) out.push({ updateOption: u })
         if (op.title !== undefined && op.titleLocale) out.push({ upsertContent: { optionId: op.id, locale: op.titleLocale, title: op.title } })
+        if (op.rule !== undefined) out.push({ setRule: ruleInput(op.id, op.rule) })
         break
       }
       case 'delete-option':
@@ -520,4 +540,8 @@ export function toStructureOps(ops: readonly PendingOp[], productId: string): Bu
     }
   }
   return out
+}
+
+function ruleInput(optionId: string, r: OptionRule | null): NonNullable<BundleStructureOpInput['setRule']> {
+  return r ? { optionId, categoryId: r.categoryId, attributeValueIds: r.attributeValueIds, quantity: r.quantity } : { optionId, categoryId: null }
 }

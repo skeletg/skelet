@@ -874,6 +874,7 @@ export type BundleOption = {
   isRequired: Scalars['Boolean']['output'];
   maxSelections?: Maybe<Scalars['Int']['output']>;
   minSelections: Scalars['Int']['output'];
+  rule?: Maybe<BundleOptionRule>;
   selections: Array<BundleSelection>;
   sortOrder: Scalars['Int']['output'];
   title: Scalars['String']['output'];
@@ -892,6 +893,20 @@ export type BundleOptionContentInput = {
   title?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type BundleOptionRule = {
+  __typename?: 'BundleOptionRule';
+  attributeValueIds: Array<Scalars['ID']['output']>;
+  categoryId: Scalars['ID']['output'];
+  quantity: Scalars['Float']['output'];
+};
+
+export type BundleOptionRuleInput = {
+  attributeValueIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  optionId: Scalars['ID']['input'];
+  quantity?: InputMaybe<Scalars['Float']['input']>;
+};
+
 export type BundlePricing =
   | 'FIXED'
   | 'SUM'
@@ -899,6 +914,7 @@ export type BundlePricing =
 
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  fromRule: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
   product: Product;
@@ -912,6 +928,7 @@ export type BundleStructureOpInput = {
   deleteContent?: InputMaybe<BundleOptionContentInput>;
   deleteOption?: InputMaybe<Scalars['ID']['input']>;
   deleteSelection?: InputMaybe<Scalars['ID']['input']>;
+  setRule?: InputMaybe<BundleOptionRuleInput>;
   tempId?: InputMaybe<Scalars['ID']['input']>;
   updateOption?: InputMaybe<UpdateBundleOptionInput>;
   updateSelection?: InputMaybe<UpdateBundleSelectionInput>;
