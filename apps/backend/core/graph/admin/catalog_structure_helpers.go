@@ -30,7 +30,16 @@ func toBundleOptionModel(o catalog.BundleOption) *model.BundleOption {
 	for i, s := range o.Selections {
 		selections[i] = toBundleSelectionModel(s)
 	}
+	var rule *model.BundleOptionRule
+	if o.Rule != nil {
+		values := make([]string, len(o.Rule.AttributeValueIDs))
+		for i, v := range o.Rule.AttributeValueIDs {
+			values[i] = v.String()
+		}
+		rule = &model.BundleOptionRule{CategoryID: o.Rule.CategoryID.String(), AttributeValueIds: values, Quantity: o.Rule.Quantity}
+	}
 	return &model.BundleOption{
+		Rule:          rule,
 		ID:            o.ID.String(),
 		InputType:     model.BundleInputType(strings.ToUpper(string(o.InputType))),
 		IsRequired:    o.IsRequired,
@@ -72,6 +81,7 @@ func toBundleSelectionModel(s catalog.BundleSelection) *model.BundleSelection {
 		Quantity:  s.Quantity,
 		IsDefault: s.IsDefault,
 		SortOrder: s.SortOrder,
+		FromRule:  s.FromRule,
 	}
 }
 
@@ -244,6 +254,26 @@ func applyBundleOp(ctx context.Context, e catalog.BundleEditor, productID uuid.U
 			return err
 		}
 		_, err = e.UpdateBundleSelection(ctx, catalog.UpdateBundleSelectionInput{ID: id, Quantity: in.Quantity, IsDefault: in.IsDefault, SortOrder: in.SortOrder})
+		return err
+	case op.SetRule != nil:
+		in := op.SetRule
+		id, err := refs.option(in.OptionID)
+		if err != nil {
+			return err
+		}
+		var rule *catalog.BundleOptionRule
+		if in.CategoryID != nil {
+			cat, err := parseID(*in.CategoryID, "category")
+			if err != nil {
+				return err
+			}
+			values, err := parseUUIDs(in.AttributeValueIds)
+			if err != nil {
+				return errInvalidID("attributeValueIds", err)
+			}
+			rule = &catalog.BundleOptionRule{CategoryID: cat, AttributeValueIDs: values, Quantity: float64Or(in.Quantity, catalog.DefaultStructureQuantity)}
+		}
+		_, err = e.SetBundleOptionRule(ctx, id, rule)
 		return err
 	case op.DeleteSelection != nil:
 		id, err := refs.selection(*op.DeleteSelection)

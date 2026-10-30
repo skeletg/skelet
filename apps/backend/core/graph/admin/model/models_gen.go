@@ -762,6 +762,7 @@ type BundleOption struct {
 	MaxSelections *int32                 `json:"maxSelections,omitempty"`
 	Title         string                 `json:"title"`
 	Content       []*BundleOptionContent `json:"content"`
+	Rule          *BundleOptionRule      `json:"rule,omitempty"`
 	Selections    []*BundleSelection     `json:"selections"`
 	CreatedAt     time.Time              `json:"createdAt"`
 	UpdatedAt     time.Time              `json:"updatedAt"`
@@ -778,12 +779,26 @@ type BundleOptionContentInput struct {
 	Title    *string `json:"title,omitempty"`
 }
 
+type BundleOptionRule struct {
+	CategoryID        string   `json:"categoryId"`
+	AttributeValueIds []string `json:"attributeValueIds"`
+	Quantity          float64  `json:"quantity"`
+}
+
+type BundleOptionRuleInput struct {
+	OptionID          string   `json:"optionId"`
+	CategoryID        *string  `json:"categoryId,omitempty"`
+	AttributeValueIds []string `json:"attributeValueIds,omitempty"`
+	Quantity          *float64 `json:"quantity,omitempty"`
+}
+
 type BundleSelection struct {
 	ID        string   `json:"id"`
 	Product   *Product `json:"product"`
 	Quantity  float64  `json:"quantity"`
 	IsDefault bool     `json:"isDefault"`
 	SortOrder int32    `json:"sortOrder"`
+	FromRule  bool     `json:"fromRule"`
 }
 
 type BundleStructureOpInput struct {
@@ -796,6 +811,7 @@ type BundleStructureOpInput struct {
 	AddSelection    *AddBundleSelectionInput    `json:"addSelection,omitempty"`
 	UpdateSelection *UpdateBundleSelectionInput `json:"updateSelection,omitempty"`
 	DeleteSelection *string                     `json:"deleteSelection,omitempty"`
+	SetRule         *BundleOptionRuleInput      `json:"setRule,omitempty"`
 }
 
 type BusinessIDField struct {

@@ -19,7 +19,9 @@ type BundleOption {
   title:      String!
   # Every locale's title for admin views.
   content:    [BundleOptionContent!]!
-  # The menu of SIMPLE products that can fill this option.
+  # Fills the option from a category on every read - null when it has no rule
+  rule:       BundleOptionRule
+  # The menu of products that can fill this option, the rule's after the hand-picked ones
   selections: [BundleSelection!]!
   createdAt:  Time!
   updatedAt:  Time!
@@ -36,6 +38,23 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Made by the option's rule, not stored - change the rule to change it
+  fromRule:  Boolean!
+}
+
+# Every SIMPLE product in the category holding all the attribute values, each a selection of quantity per bundle
+type BundleOptionRule {
+  categoryId:        ID!
+  attributeValueIds: [ID!]!
+  quantity:          Float!
+}
+
+input BundleOptionRuleInput {
+  optionId:          ID!
+  # Null drops the rule
+  categoryId:        ID
+  attributeValueIds: [ID!]
+  quantity:          Float
 }
 
 input AddBundleOptionInput {
@@ -89,6 +108,7 @@ input BundleStructureOpInput {
   addSelection:    AddBundleSelectionInput
   updateSelection: UpdateBundleSelectionInput
   deleteSelection: ID
+  setRule:         BundleOptionRuleInput
 }
 
 input BundleOptionContentInput {
