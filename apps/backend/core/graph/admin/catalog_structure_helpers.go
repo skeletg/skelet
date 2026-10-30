@@ -45,12 +45,20 @@ func toBundleOptionModel(o catalog.BundleOption) *model.BundleOption {
 	}
 }
 
+// A configurable selection says so, for the picker and the health check - every other row is the SIMPLE it has to be
+func selectionKind(s catalog.BundleSelection) model.ProductKind {
+	if s.ProductKind == "" {
+		return model.ProductKindSimple
+	}
+	return model.ProductKind(strings.ToUpper(string(s.ProductKind)))
+}
+
 func toBundleSelectionModel(s catalog.BundleSelection) *model.BundleSelection {
 	prod := &model.Product{
 		ID:                  s.ProductID.String(),
 		URL:                 s.ProductURL,
 		Sku:                 s.ProductSKU,
-		Kind:                model.ProductKindSimple,
+		Kind:                selectionKind(s),
 		DefaultPrice:        int32(s.ProductDefaultPrice),
 		DefaultCurrencyCode: s.ProductCurrency,
 	}

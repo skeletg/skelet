@@ -456,6 +456,13 @@ input AddBundleToCartInput {
   sku:        String!
   quantity:   Float!
   selections: [AddBundleToCartSelectionInput!]!
+  # The variant picked for each configurable selection - one of that selection's product's children
+  variants:   [AddBundleVariantPickInput!]
+}
+
+input AddBundleVariantPickInput {
+  selectionId: ID!
+  variantId:   ID!
 }
 
 extend type Query {

@@ -118,8 +118,10 @@ func reorderConfiguredInput(line order.OrderLine) cart.AddConfiguredToCartInput 
 // Name/price ride along but AddToCart overwrites both from the current catalog row, so the stale order-snapshot price never sticks
 func reorderBundleInput(line order.OrderLine) cart.AddBundleToCartInput {
 	byOption := map[uuid.UUID][]uuid.UUID{}
+	variants := map[uuid.UUID]uuid.UUID{} // a configurable pick's variant is the component's product
 	var optionOrder []uuid.UUID
 	for _, c := range line.Components {
+		variants[c.BundleSelectionID] = c.ProductID
 		if _, seen := byOption[c.BundleOptionID]; !seen {
 			optionOrder = append(optionOrder, c.BundleOptionID)
 		}
@@ -129,7 +131,7 @@ func reorderBundleInput(line order.OrderLine) cart.AddBundleToCartInput {
 	for _, optID := range optionOrder {
 		sels = append(sels, cart.AddBundleSelectionInput{OptionID: optID, SelectionIDs: byOption[optID]})
 	}
-	return cart.AddBundleToCartInput{ProductSku: line.ProductSku, Quantity: line.Quantity, Selections: sels}
+	return cart.AddBundleToCartInput{ProductSku: line.ProductSku, Quantity: line.Quantity, Selections: sels, Variants: variants}
 }
 
 func toSavedPaymentMethod(m paymentvault.Method) *frontmodel.SavedPaymentMethod {

@@ -17,11 +17,17 @@ type AddBundleToCartInput struct {
 	Sku        string                           `json:"sku"`
 	Quantity   float64                          `json:"quantity"`
 	Selections []*AddBundleToCartSelectionInput `json:"selections"`
+	Variants   []*AddBundleVariantPickInput     `json:"variants,omitempty"`
 }
 
 type AddBundleToCartSelectionInput struct {
 	OptionID     string   `json:"optionId"`
 	SelectionIds []string `json:"selectionIds"`
+}
+
+type AddBundleVariantPickInput struct {
+	SelectionID string `json:"selectionId"`
+	VariantID   string `json:"variantId"`
 }
 
 type AddConfiguredToCartInput struct {

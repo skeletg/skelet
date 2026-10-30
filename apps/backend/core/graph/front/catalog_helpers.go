@@ -766,6 +766,9 @@ func toBundleOptionModels(opts []catalog.BundleOption) []*model.BundleOption {
 				Price:               int32(s.ProductDefaultPrice),
 				DefaultCurrencyCode: s.ProductCurrency,
 			}
+			if s.ProductKind == catalog.KindConfigurable {
+				prod.Kind = model.ProductKindConfigurable // the storefront offers its variants to pick from
+			}
 			if s.ProductName != "" {
 				name := s.ProductName
 				prod.Name = &name

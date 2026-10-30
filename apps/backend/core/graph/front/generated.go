@@ -9055,6 +9055,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAddBundleToCartInput,
 		ec.unmarshalInputAddBundleToCartSelectionInput,
+		ec.unmarshalInputAddBundleVariantPickInput,
 		ec.unmarshalInputAddConfiguredToCartInput,
 		ec.unmarshalInputAddressInput,
 		ec.unmarshalInputAttributeFilterInput,
@@ -9736,6 +9737,13 @@ input AddBundleToCartInput {
   sku:        String!
   quantity:   Float!
   selections: [AddBundleToCartSelectionInput!]!
+  # The variant picked for each configurable selection - one of that selection's product's children
+  variants:   [AddBundleVariantPickInput!]
+}
+
+input AddBundleVariantPickInput {
+  selectionId: ID!
+  variantId:   ID!
 }
 
 extend type Query {
@@ -46811,7 +46819,7 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "selections"}
+	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "selections", "variants"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -46846,6 +46854,13 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 				return it, err
 			}
 			it.Selections = data
+		case "variants":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variants"))
+			data, err := ec.unmarshalOAddBundleVariantPickInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleVariantPickInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Variants = data
 		}
 	}
 	return it, nil
@@ -46883,6 +46898,43 @@ func (ec *executionContext) unmarshalInputAddBundleToCartSelectionInput(ctx cont
 				return it, err
 			}
 			it.SelectionIds = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAddBundleVariantPickInput(ctx context.Context, obj any) (model1.AddBundleVariantPickInput, error) {
+	var it model1.AddBundleVariantPickInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"selectionId", "variantId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "selectionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SelectionID = data
+		case "variantId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variantId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VariantID = data
 		}
 	}
 	return it, nil
@@ -62077,6 +62129,11 @@ func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚖgithubᚗ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNAddBundleVariantPickInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleVariantPickInput(ctx context.Context, v any) (*model1.AddBundleVariantPickInput, error) {
+	res, err := ec.unmarshalInputAddBundleVariantPickInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNAddConfiguredToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddConfiguredToCartInput(ctx context.Context, v any) (model1.AddConfiguredToCartInput, error) {
 	res, err := ec.unmarshalInputAddConfiguredToCartInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -65540,6 +65597,23 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalOAddBundleVariantPickInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleVariantPickInputᚄ(ctx context.Context, v any) ([]*model1.AddBundleVariantPickInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model1.AddBundleVariantPickInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAddBundleVariantPickInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐAddBundleVariantPickInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
