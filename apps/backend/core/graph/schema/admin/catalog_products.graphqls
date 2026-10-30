@@ -309,6 +309,8 @@ type ProductChannelListing {
   specialPrice:        Int
   specialFrom:         Time
   specialTo:           Time
+  # Same answer as Product.inStock(channelId) for this listing's store - lets one query check every store
+  inStock:             Boolean!
 }
 
 input SetProductListingInput {

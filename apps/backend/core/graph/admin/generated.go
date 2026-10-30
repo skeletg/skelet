@@ -44,6 +44,7 @@ type ResolverRoot interface {
 	OptionTemplate() OptionTemplateResolver
 	Order() OrderResolver
 	Product() ProductResolver
+	ProductChannelListing() ProductChannelListingResolver
 	ProductMemberships() ProductMembershipsResolver
 	ProductType() ProductTypeResolver
 	PromotionRule() PromotionRuleResolver
@@ -3197,6 +3198,7 @@ type ComplexityRoot struct {
 		CompareAtPrice    func(childComplexity int) int
 		EffectiveCurrency func(childComplexity int) int
 		EffectivePrice    func(childComplexity int) int
+		InStock           func(childComplexity int) int
 		IsPublished       func(childComplexity int) int
 		Price             func(childComplexity int) int
 		ProductID         func(childComplexity int) int
@@ -5334,6 +5336,9 @@ type ProductResolver interface {
 	ConfiguratorLayout(ctx context.Context, obj *model.Product) (model.ConfiguratorLayout, error)
 	OptionRules(ctx context.Context, obj *model.Product) ([]*model.ProductOptionRule, error)
 	PartOf(ctx context.Context, obj *model.Product) (*model.ProductMemberships, error)
+}
+type ProductChannelListingResolver interface {
+	InStock(ctx context.Context, obj *model.ProductChannelListing) (bool, error)
 }
 type ProductMembershipsResolver interface {
 	Configurable(ctx context.Context, obj *model.ProductMemberships) (*model.ConfigurableMembership, error)
@@ -22488,6 +22493,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProductChannelListing.EffectivePrice(childComplexity), true
+	case "ProductChannelListing.inStock":
+		if e.ComplexityRoot.ProductChannelListing.InStock == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductChannelListing.InStock(childComplexity), true
 	case "ProductChannelListing.isPublished":
 		if e.ComplexityRoot.ProductChannelListing.IsPublished == nil {
 			break
@@ -33313,6 +33324,8 @@ type ProductChannelListing {
   specialPrice:        Int
   specialFrom:         Time
   specialTo:           Time
+  # Same answer as Product.inStock(channelId) for this listing's store - lets one query check every store
+  inStock:             Boolean!
 }
 
 input SetProductListingInput {
@@ -45104,6 +45117,8 @@ func (ec *executionContext) childFields_ProductChannelListing(ctx context.Contex
 		return ec.fieldContext_ProductChannelListing_specialFrom(ctx, field)
 	case "specialTo":
 		return ec.fieldContext_ProductChannelListing_specialTo(ctx, field)
+	case "inStock":
+		return ec.fieldContext_ProductChannelListing_inStock(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ProductChannelListing", field.Name)
 }
@@ -128745,6 +128760,29 @@ func (ec *executionContext) fieldContext_ProductChannelListing_specialTo(_ conte
 	return graphql.NewScalarFieldContext("ProductChannelListing", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _ProductChannelListing_inStock(ctx context.Context, field graphql.CollectedField, obj *model.ProductChannelListing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductChannelListing_inStock(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ProductChannelListing().InStock(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductChannelListing_inStock(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProductChannelListing", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _ProductContent_locale(ctx context.Context, field graphql.CollectedField, obj *model.ProductContent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -197996,63 +198034,101 @@ func (ec *executionContext) _ProductChannelListing(ctx context.Context, sel ast.
 		case "productId":
 			out.Values[i] = ec._ProductChannelListing_productId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "channelId":
 			out.Values[i] = ec._ProductChannelListing_channelId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "channel":
 			out.Values[i] = ec._ProductChannelListing_channel(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "price":
 			out.Values[i] = ec._ProductChannelListing_price(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isPublished":
 			out.Values[i] = ec._ProductChannelListing_isPublished(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._ProductChannelListing_url(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "effectivePrice":
 			out.Values[i] = ec._ProductChannelListing_effectivePrice(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "effectiveCurrency":
 			out.Values[i] = ec._ProductChannelListing_effectiveCurrency(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "compareAtPrice":
 			out.Values[i] = ec._ProductChannelListing_compareAtPrice(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "specialPrice":
 			out.Values[i] = ec._ProductChannelListing_specialPrice(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "specialFrom":
 			out.Values[i] = ec._ProductChannelListing_specialFrom(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "specialTo":
 			out.Values[i] = ec._ProductChannelListing_specialTo(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "inStock":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ProductChannelListing_inStock(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

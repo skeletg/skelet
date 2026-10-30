@@ -50,6 +50,10 @@ models:
     fields:
       # Lazy member page - a plain model field answers [] for every segment, and list rows only carry the count
       members: { resolver: true }
+  ProductChannelListing:
+    fields:
+      # Lazy stock read - only the bundle health check selects it
+      inStock: { resolver: true }
   Collection:
     fields:
       # Lazy membership load - mapping it eagerly means a hardcoded empty

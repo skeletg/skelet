@@ -3614,6 +3614,7 @@ type ProductChannelListing struct {
 	SpecialPrice      *int32     `json:"specialPrice,omitempty"`
 	SpecialFrom       *time.Time `json:"specialFrom,omitempty"`
 	SpecialTo         *time.Time `json:"specialTo,omitempty"`
+	InStock           bool       `json:"inStock"`
 }
 
 type ProductContent struct {

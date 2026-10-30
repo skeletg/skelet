@@ -738,6 +738,11 @@ func (r *productResolver) ProductOptions(ctx context.Context, obj *model.Product
 	return out, nil
 }
 
+// InStock is the resolver for the inStock field. Product.inStock pinned to this listing's store
+func (r *productChannelListingResolver) InStock(ctx context.Context, obj *model.ProductChannelListing) (bool, error) {
+	return (&productResolver{r.Resolver}).InStock(ctx, &model.Product{ID: obj.ProductID}, &obj.ChannelID)
+}
+
 // Products is the resolver for the products field. When channelId is set, the result is restricted to products with a
 // listing on that store (header-driven admin uses this in CHANNEL mode)
 func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*model.Product, error) {
@@ -910,4 +915,11 @@ func (r *queryResolver) ProductLinks(ctx context.Context, productID string, kind
 
 func (r *Resolver) Product() ProductResolver { return &productResolver{r} }
 
-type productResolver struct{ *Resolver }
+func (r *Resolver) ProductChannelListing() ProductChannelListingResolver {
+	return &productChannelListingResolver{r}
+}
+
+type (
+	productResolver               struct{ *Resolver }
+	productChannelListingResolver struct{ *Resolver }
+)
