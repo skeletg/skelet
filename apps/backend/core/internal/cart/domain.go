@@ -138,7 +138,7 @@ type BundleSelectionSnapshot struct {
 	IsDefault         bool
 	// Set when the selection is a configurable - the customer picks one of these at add-to-cart, and that variant is
 	// what the component row holds, prices and reserves
-	Variants []BundleVariantSnapshot
+	Variants         []BundleVariantSnapshot
 	DiscountPercent  int16 // whole percent off the component's store price
 	CustomerQuantity bool  // the customer may set QuantityPerBundle themselves
 }
@@ -288,10 +288,12 @@ type CartLine struct {
 	PriceOverride bool // an admin set the price on an offer - repricing leaves it alone
 	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
 	BundleHookPriced bool
-	IsCustom         bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
-	TaxClass         string // a custom line's own tax class, empty on catalog lines (they take their product's)
-	IsGift           bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
-	Components       []CartLineComponent
+	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
+	ConfigKey  string
+	IsCustom   bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
+	TaxClass   string // a custom line's own tax class, empty on catalog lines (they take their product's)
+	IsGift     bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
+	Components []CartLineComponent
 	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
 	StockParts []CartLineStockPart `json:"-"`
 	Options    []CartLineOption
@@ -401,6 +403,7 @@ type AddBundleLineInput struct {
 	Quantity    float64
 	Components  []AddCartLineComponentInput
 	HookPriced  bool
+	ConfigKey   string // the picks' key - a line rewritten in place passes the key it already has
 }
 
 type AddConfiguredLineInput struct {

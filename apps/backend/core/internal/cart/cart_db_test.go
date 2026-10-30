@@ -553,3 +553,38 @@ func TestTwoTabsGetTheSameCustomerCart(t *testing.T) {
 		t.Fatalf("%d carts for one customer, want one: %v", len(seen), fmt.Sprint(seen))
 	}
 }
+
+// What this pins: one bundle in two different mixes is two lines, and re-adding a mix rewrites its own line - the other
+// keeps its picks, and repricing touches each in place
+func TestOneBundleInSeveralConfigurations(t *testing.T) {
+	snap, mugs, coasters, mugSel, coasterSel := mugSet()
+	r := newDBRig(t, catalogStub{bundles: map[string]BundleSnapshot{"set": snap}, prices: map[string]SimplePricing{"mug": {UnitPrice: 1000}, "coaster": {UnitPrice: 200}}})
+	ctx := context.Background()
+	c := r.guestCart(t)
+	plain := []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}, {OptionID: coasters}}
+	full := []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}, {OptionID: coasters, SelectionIDs: []uuid.UUID{coasterSel}}}
+	add := func(sels []AddBundleSelectionInput, qty float64) Cart {
+		t.Helper()
+		got, err := r.svc.AddBundleToCart(ctx, c.ID, nil, AddBundleToCartInput{ProductSku: "set", Quantity: qty, Selections: sels})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	add(plain, 1)
+	got := add(full, 2)
+	if len(got.Lines) != 2 {
+		t.Fatalf("%d lines, want the two mixes apart", len(got.Lines))
+	}
+	got = add(plain, 3)
+	byComps := map[int]float64{}
+	for _, l := range got.Lines {
+		byComps[len(l.Components)] = l.Quantity
+	}
+	if len(got.Lines) != 2 || byComps[1] != 3 || byComps[2] != 2 {
+		t.Fatalf("lines by component count %v, want the mug-only mix at 3 and the full mix still at 2", byComps)
+	}
+	if again := r.svc.RepriceCartLines(ctx, got); len(again.Lines) != 2 {
+		t.Fatalf("repricing left %d lines, want 2", len(again.Lines))
+	}
+}

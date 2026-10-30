@@ -365,6 +365,7 @@ func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uu
 		UnitPrice:        input.UnitPrice,
 		Quantity:         input.Quantity,
 		BundleHookPriced: input.HookPriced,
+		ConfigKey:        input.ConfigKey,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -761,6 +762,7 @@ func toCartLine(row db.CartLine) CartLine {
 		Quantity:         row.Quantity,
 		PriceOverride:    row.PriceOverride,
 		BundleHookPriced: row.BundleHookPriced,
+		ConfigKey:        row.ConfigKey,
 		IsCustom:         row.IsCustom,
 		TaxClass:         row.TaxClass,
 		CreatedAt:        row.CreatedAt,

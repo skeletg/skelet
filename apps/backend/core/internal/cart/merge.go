@@ -125,13 +125,13 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 	snapshotted := make(map[string]bool)
 	for _, el := range existing {
 		if len(el.Options) > 0 || len(el.Components) > 0 {
-			snapshotted[el.ProductSku] = true
+			snapshotted[el.ProductSku+"\x00"+el.ConfigKey] = true
 		} else {
 			plain[el.ProductSku] = true
 		}
 	}
 	for _, l := range lines {
-		if snapshotted[l.ProductSku] {
+		if snapshotted[l.ProductSku+"\x00"+l.ConfigKey] {
 			continue
 		}
 		var err error
@@ -147,6 +147,7 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 				Quantity:    l.Quantity,
 				Components:  componentInputs(l.Components),
 				HookPriced:  l.BundleHookPriced,
+				ConfigKey:   l.ConfigKey,
 			})
 		case len(l.Options) > 0:
 			if plain[l.ProductSku] {

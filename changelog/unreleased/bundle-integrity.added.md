@@ -46,3 +46,7 @@
   cart, checkout repricing and reorder all follow both. API: `discountPercent` and
   `customerQuantity` on `BundleSelection` and its inputs, and
   `AddBundleToCartInput.quantities`.
+- **A cart can hold one bundle in several configurations.** A bundle line is keyed by its
+  picks: a box with different contents becomes a line of its own, while re-adding the same
+  picks updates the line already holding them. Simple and configured lines keep one line per
+  SKU. Merging a guest cart, repricing and quantity edits work per configuration.

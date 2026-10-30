@@ -2,9 +2,13 @@ package cart
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -101,6 +105,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 			Quantity:    bundleQty,
 			Components:  components,
 			HookPriced:  hookPriced,
+			ConfigKey:   bundleConfigKey(components, perBundle),
 		})
 		return err
 	}); err != nil {
@@ -184,6 +189,18 @@ func bundleLineDrifted(l CartLine, unitPrice int64, components []AddCartLineComp
 		}
 	}
 	return false
+}
+
+// Names a set of picks - selection, the product it holds (a configurable's variant) and how many per bundle - so the
+// same picks always land on the same line and different ones on a line of their own
+func bundleConfigKey(comps []AddCartLineComponentInput, perBundle []float64) string {
+	parts := make([]string, len(comps))
+	for i, c := range comps {
+		parts[i] = fmt.Sprintf("%s:%s:%g", c.BundleSelectionID, c.ProductID, perBundle[i])
+	}
+	sort.Strings(parts)
+	sum := sha1.Sum([]byte(strings.Join(parts, "|")))
+	return hex.EncodeToString(sum[:])
 }
 
 type pickedSelection struct {

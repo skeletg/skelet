@@ -652,6 +652,7 @@ func (s *Service) repriceBundleLine(ctx context.Context, c Cart, l *CartLine) {
 			Quantity:    l.Quantity,
 			Components:  components,
 			HookPriced:  l.BundleHookPriced,
+			ConfigKey:   l.ConfigKey,
 		})
 		return err
 	}); err != nil {
