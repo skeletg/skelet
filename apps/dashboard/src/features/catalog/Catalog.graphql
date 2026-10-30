@@ -2057,3 +2057,18 @@ query ProductFilterOptions {
     name
   }
 }
+
+# A configurable's variants, for the bundle picker's "add all variants"
+query ProductVariants($id: ID!) {
+  product(id: $id) {
+    id
+    children {
+      id
+      name
+      sku
+      kind
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}

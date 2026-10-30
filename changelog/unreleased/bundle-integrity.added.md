@@ -22,3 +22,6 @@
   on it. The storefront shows the saving with the picks' sum struck through. The admin API
   takes it through `setBundlePricing`. The storefront API exposes it as
   `Product.bundlePricing` and `bundleDiscountPercent`.
+- **The bundle picker adds all of a configurable's variants in one pick.** Configurables are
+  offered beside simple products, and picking one stages each variant not already in the
+  option as its own selection, with the row's quantity.

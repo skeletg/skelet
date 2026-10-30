@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { useMutation } from '@apollo/client/react'
+import { useApolloClient, useMutation } from '@apollo/client/react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -49,6 +49,7 @@ import {
   DeleteBundleOptionDocument,
   DeleteBundleSelectionDocument,
   ProductDocument,
+  ProductVariantsDocument,
   UpdateBundleOptionDocument,
   UpdateBundleSelectionDocument,
   DeleteBundleOptionContentDocument,
@@ -1049,6 +1050,7 @@ function SelectionPickerSheet({
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
+  const client = useApolloClient()
   const takenIds = useMemo(() => new Set(option.selections.map((s) => s.product.id)), [option.selections])
   const selfId = useMemo(() => new Set([productId]), [productId])
   const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean }>>(
@@ -1061,8 +1063,8 @@ function SelectionPickerSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={`Add selections to "${option.title}"`}
-      description="Pick one or more simple products. Per row, set how many of that product the bundle includes and whether it's the default. Stages until the page-level save."
-      kinds={['SIMPLE']}
+      description="Pick one or more simple products, or a configurable to add all its variants. Per row, set how many of that product the bundle includes and whether it's the default. Stages until the page-level save."
+      kinds={['SIMPLE', 'CONFIGURABLE']}
       takenIds={takenIds}
       takenLabel="In this option"
       excludeIds={selfId}
@@ -1078,19 +1080,25 @@ function SelectionPickerSheet({
           ? `${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default.`
           : null
       }}
-      onConfirm={(picks) => {
-        let nextSort = option.selections.length
+      onConfirm={async (picks) => {
+        // A configurable stands for its variants - each becomes a selection with the row's quantity, the first one taking its default
+        const expanded: { product: SelectionProduct; quantity: number; isDefault: boolean }[] = []
         for (const { product, extra: params } of picks) {
-          onStage({
-            kind: 'add-selection',
-            tempId: newTempId(),
-            optionRef: option.id,
-            product: toSelectionProduct(product),
-            quantity: params.quantity,
-            isDefault: params.isDefault,
-            sortOrder: nextSort,
-          })
-          nextSort++
+          if (product.kind !== 'CONFIGURABLE') {
+            expanded.push({ product: toSelectionProduct(product), ...params })
+            continue
+          }
+          const { data } = await client.query({ query: ProductVariantsDocument, variables: { id: product.id } })
+          const variants = (data?.product?.children ?? []).filter((v) => !takenIds.has(v.id))
+          if (variants.length === 0) return { rowErrors: { [product.id]: 'No variants left to add.' } }
+          variants.forEach((v, i) => expanded.push({ product: v, quantity: params.quantity, isDefault: params.isDefault && i === 0 }))
+        }
+        let nextSort = option.selections.length
+        const seen = new Set<string>()
+        for (const { product, quantity, isDefault } of expanded) {
+          if (seen.has(product.id)) continue // the same variant picked directly and through its configurable
+          seen.add(product.id)
+          onStage({ kind: 'add-selection', tempId: newTempId(), optionRef: option.id, product, quantity, isDefault, sortOrder: nextSort++ })
         }
       }}
     />
