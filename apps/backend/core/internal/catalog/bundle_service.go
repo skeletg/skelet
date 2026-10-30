@@ -176,6 +176,28 @@ func (s *bundleService) DeleteBundleOptionContent(ctx context.Context, optionID 
 	return s.repo.DeleteBundleOptionContent(ctx, optionID, locale)
 }
 
+// BundleEditor is the bundle structure writes - EditBundle hands one out bound to a single transaction
+type BundleEditor interface {
+	AddBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error)
+	UpdateBundleOption(ctx context.Context, input UpdateBundleOptionInput) (BundleOption, error)
+	DeleteBundleOption(ctx context.Context, id uuid.UUID) error
+	UpsertBundleOptionContent(ctx context.Context, input UpsertBundleOptionContentInput) (BundleOptionContent, error)
+	DeleteBundleOptionContent(ctx context.Context, optionID uuid.UUID, locale string) error
+	AddBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error)
+	UpdateBundleSelection(ctx context.Context, input UpdateBundleSelectionInput) (BundleSelection, error)
+	DeleteBundleSelection(ctx context.Context, id uuid.UUID) error
+}
+
+// EditBundle runs fn's writes in one transaction, so a staged save of many edits lands whole or not at all. The editor is
+// this service bound to the transaction - every method keeps its own checks, and its inTx just joins the open one
+func (s *bundleService) EditBundle(ctx context.Context, fn func(BundleEditor) error) error {
+	return s.inTx(ctx, func(r Repository) error {
+		c := *s.core
+		c.repo, c.tx = r, nil
+		return fn(&bundleService{core: &c, repo: r})
+	})
+}
+
 // ==================== Bundle selections ====================
 
 func (s *bundleService) AddBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error) { // the parent must be a BUNDLE and the linked product SIMPLE (no nested bundles in v1) and not the bundle itself
