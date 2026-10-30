@@ -196,9 +196,31 @@ func TestRepriceBundleLines(t *testing.T) {
 		}
 	})
 	t.Run("a hook-priced bundle keeps its price while its components refresh", func(t *testing.T) {
-		got, writes, current := run(t, snap(2), 1200, line(1500))
+		hooked := line(1500)
+		hooked.BundleHookPriced = true
+		got, writes, current := run(t, snap(2), 1200, hooked)
 		if got.UnitPrice != 1500 || current != 1500 || len(writes) != 1 || got.Components[0].UnitPrice != 1200 {
 			t.Fatalf("line %d, current %d, component %d - want the hook's 1500 kept and the component at 1200", got.UnitPrice, current, got.Components[0].UnitPrice)
+		}
+	})
+	t.Run("a line off its components' sum without the hook flag follows them", func(t *testing.T) {
+		if got, _, _ := run(t, snap(2), 1200, line(1500)); got.UnitPrice != 2400 {
+			t.Fatalf("line %d, want the 2400 sum - only the flag keeps a price", got.UnitPrice)
+		}
+	})
+	t.Run("a discounted bundle reprices under its mode", func(t *testing.T) {
+		s := snap(2)
+		s.Pricing, s.DiscountPercent = "sum_minus_percent", 10
+		got, _, current := run(t, s, 1200, line(1800))
+		if got.UnitPrice != 2160 || current != 2160 {
+			t.Fatalf("line %d, current %d - want 2400 less 10%% = 2160", got.UnitPrice, current)
+		}
+	})
+	t.Run("a discount change since the add reaches the line", func(t *testing.T) {
+		s := snap(2)
+		s.Pricing, s.DiscountPercent = "sum_minus_percent", 20
+		if got, _, _ := run(t, s, 1000, line(1800)); got.UnitPrice != 1600 {
+			t.Fatalf("line %d, want 2000 less 20%% = 1600", got.UnitPrice)
 		}
 	})
 	t.Run("an unchanged bundle is not rewritten", func(t *testing.T) {

@@ -484,6 +484,12 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 		ProductName: p.SKU, // cart falls back to SKU if this is empty; slug is a reasonable display
 		Options:     make([]cart.BundleOptionSnapshot, len(opts)),
 	}
+	for i := range listings {
+		if l := &listings[i]; l.ChannelID == channelID {
+			snap.Pricing, snap.DiscountPercent = string(l.BundlePricing), l.BundleDiscountPercent
+			snap.FixedPrice = pricing.Resolve(catalog.EffectivePricingInputs(p, l), time.Now()).Price // the same price a simple product's listing resolves to, specials included
+		}
+	}
 	for i, o := range opts {
 		os := cart.BundleOptionSnapshot{
 			ID:            o.ID,

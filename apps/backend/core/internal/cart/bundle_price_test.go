@@ -76,3 +76,39 @@ func TestAddBundleToCartUsesChannelPricing(t *testing.T) {
 		t.Fatalf("unresolvable component = %d, want the 700 snapshot fallback", prices["comp-ghost"])
 	}
 }
+
+// What this pins: each pricing mode turns the picks' sum into the bundle's price - the percent off the whole, rounded half up
+func TestBundleUnitPriceModes(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		snap BundleSnapshot
+		sum  int64
+		want int64
+	}{
+		{"no mode is the sum", BundleSnapshot{}, 3100, 3100},
+		{"sum", BundleSnapshot{Pricing: "sum", DiscountPercent: 10}, 3100, 3100},
+		{"fixed ignores the picks", BundleSnapshot{Pricing: "fixed", FixedPrice: 2500}, 3100, 2500},
+		{"10% off", BundleSnapshot{Pricing: "sum_minus_percent", DiscountPercent: 10}, 3100, 2790},
+		{"a half cent of discount rounds up", BundleSnapshot{Pricing: "sum_minus_percent", DiscountPercent: 15}, 1010, 858}, // 151.5 off -> 152
+		{"100% off is free", BundleSnapshot{Pricing: "sum_minus_percent", DiscountPercent: 100}, 999, 0},
+	} {
+		if got := c.snap.UnitPrice(c.sum); got != c.want {
+			t.Errorf("%s: %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+// What this pins: add-to-cart charges the discounted price, and a mode's price is not mistaken for a hook's
+func TestAddBundleToCartAppliesThePricingMode(t *testing.T) {
+	cartID, optID, selID := uuid.New(), uuid.New(), uuid.New()
+	repo := &mergeRepo{carts: map[uuid.UUID]Cart{cartID: {ID: cartID, ChannelID: uuid.New(), Status: "active"}}, linesByCart: map[uuid.UUID][]CartLine{}, activeByCust: map[uuid.UUID]Cart{}}
+	snap := BundleSnapshot{ProductID: uuid.New(), Pricing: "sum_minus_percent", DiscountPercent: 10, Options: []BundleOptionSnapshot{{ID: optID, InputType: "radio", IsRequired: true,
+		Selections: []BundleSelectionSnapshot{{ID: selID, ProductID: uuid.New(), ProductSKU: "mug", QuantityPerBundle: 2}}}}}
+	svc := NewService(repo, nil, bundlePricer{prices: map[string]SimplePricing{"mug": {UnitPrice: 1000}}, snap: snap})
+	if _, err := svc.AddBundleToCart(context.Background(), cartID, nil, AddBundleToCartInput{ProductSku: "set", Quantity: 1, Selections: []AddBundleSelectionInput{{OptionID: optID, SelectionIDs: []uuid.UUID{selID}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if b := repo.bundles[0]; b.UnitPrice != 1800 || b.HookPriced {
+		t.Fatalf("price %d, hook-priced %v - want 2000 less 10%% = 1800, not hook-priced", b.UnitPrice, b.HookPriced)
+	}
+}

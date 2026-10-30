@@ -173,6 +173,36 @@ func TestABundleHookQuantityReachesTheComponents(t *testing.T) {
 	}
 }
 
+// The flag is what keeps a hook's price at checkout now that a discounted bundle no longer equals its components' sum - it has to survive the round trip through the line row
+func TestABundleHookPriceIsStoredAndKeptAtReprice(t *testing.T) {
+	snap, mugs, _, mugSel, _ := mugSet()
+	snap.Pricing, snap.DiscountPercent = "sum_minus_percent", 10
+	prices := map[string]SimplePricing{"mug": {UnitPrice: 1000}}
+	r := newDBRig(t, catalogStub{bundles: map[string]BundleSnapshot{"set": snap}, prices: prices})
+	bus := events.NewBus()
+	bus.SubscribeSync(EventBundleAdding, 0, func(_ context.Context, e events.Event) error {
+		return e.(*BundleAdding).SetLineUnitPrice(1500)
+	})
+	r.svc.SetEventBus(bus)
+	ctx := context.Background()
+	c := r.guestCart(t)
+	if _, err := r.svc.AddBundleToCart(ctx, c.ID, nil, AddBundleToCartInput{ProductSku: "set", Quantity: 1, Selections: []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}}}); err != nil {
+		t.Fatal(err)
+	}
+	prices["mug"] = SimplePricing{UnitPrice: 1200}
+	stored, err := r.svc.GetCart(ctx, c.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lineBySku(t, stored, "set"); !l.BundleHookPriced || l.UnitPrice != 1500 {
+		t.Fatalf("stored line %d, hook-priced %v - want the hook's 1500, flagged", l.UnitPrice, l.BundleHookPriced)
+	}
+	l := lineBySku(t, r.svc.RepriceCartLines(ctx, stored), "set")
+	if l.UnitPrice != 1500 || l.Components[0].UnitPrice != 1200 {
+		t.Fatalf("repriced line %d, component %d - want the hook's 1500 kept and the component refreshed to 1200", l.UnitPrice, l.Components[0].UnitPrice)
+	}
+}
+
 // Line, component delete and component inserts are separate statements - a failure part-way used to leave a full-priced line short of components
 func TestAFailedBundleAddLeavesNoHalfWrittenLine(t *testing.T) {
 	snap, mugs, coasters, mugSel, coasterSel := mugSet()

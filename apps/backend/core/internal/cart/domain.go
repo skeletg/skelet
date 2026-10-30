@@ -99,6 +99,21 @@ type BundleSnapshot struct { // typed strings and ints so the cart doesn't impor
 	ProductID   uuid.UUID
 	ProductName string
 	Options     []BundleOptionSnapshot
+	// The channel's pricing mode for the bundle - "sum", "fixed" or "sum_minus_percent", empty reads as sum
+	Pricing         string
+	DiscountPercent int16 // whole percent, read by sum_minus_percent
+	FixedPrice      int64 // the bundle listing's effective price, read by fixed
+}
+
+// The bundle's unit price from its picks' sum under the channel's pricing mode - the percent comes off the whole, rounded half up to the minor unit
+func (b BundleSnapshot) UnitPrice(sum int64) int64 {
+	switch b.Pricing {
+	case "fixed":
+		return b.FixedPrice
+	case "sum_minus_percent":
+		return sum - (sum*int64(b.DiscountPercent)+50)/100
+	}
+	return sum
 }
 
 type BundleOptionSnapshot struct {
@@ -255,11 +270,13 @@ type CartLine struct {
 	ProductSku    string
 	UnitPrice     int64
 	Quantity      float64
-	PriceOverride bool   // an admin set the price on an offer - repricing leaves it alone
-	IsCustom      bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
-	TaxClass      string // a custom line's own tax class, empty on catalog lines (they take their product's)
-	IsGift        bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
-	Components    []CartLineComponent
+	PriceOverride bool // an admin set the price on an offer - repricing leaves it alone
+	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
+	BundleHookPriced bool
+	IsCustom         bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
+	TaxClass         string // a custom line's own tax class, empty on catalog lines (they take their product's)
+	IsGift           bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
+	Components       []CartLineComponent
 	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
 	StockParts []CartLineStockPart `json:"-"`
 	Options    []CartLineOption
@@ -368,6 +385,7 @@ type AddBundleLineInput struct {
 	UnitPrice   int64
 	Quantity    float64
 	Components  []AddCartLineComponentInput
+	HookPriced  bool
 }
 
 type AddConfiguredLineInput struct {

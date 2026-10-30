@@ -49,10 +49,12 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 		return Cart{}, err
 	}
 
-	components, perBundle, unitPrice, err := s.priceBundle(ctx, cart, picked)
+	components, perBundle, sum, err := s.priceBundle(ctx, cart, picked)
 	if err != nil {
 		return Cart{}, err
 	}
+	unitPrice := snap.UnitPrice(sum)
+	priced := unitPrice
 
 	bundleName := snap.ProductName
 	if bundleName == "" {
@@ -77,6 +79,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 		}
 		unitPrice, bundleQty = valueOr(adding.UnitPrice, unitPrice), valueOr(adding.Quantity, bundleQty) // read off the event, since the SDK setters and a webhook response swap the pointer rather than write through it
 	}
+	hookPriced := unitPrice != priced
 	for i := range components {
 		components[i].Quantity = perBundle[i] * bundleQty
 	}
@@ -89,6 +92,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 			UnitPrice:   unitPrice,
 			Quantity:    bundleQty,
 			Components:  components,
+			HookPriced:  hookPriced,
 		})
 		return err
 	}); err != nil {
@@ -109,7 +113,7 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	return loadCartWithLines(ctx, s.repo, cart.ID)
 }
 
-// Prices each pick at its channel price and sums them into the bundle's unit price - perBundle is each component's quantity per bundle unit, left for the caller to scale once the line quantity is final
+// Prices each pick at its channel price and sums them - the bundle's pricing mode turns the sum into its unit price, and perBundle is each component's quantity per bundle unit, left for the caller to scale once the line quantity is final
 func (s *Service) priceBundle(ctx context.Context, c Cart, picked []pickedSelection) (components []AddCartLineComponentInput, perBundle []float64, unitPrice int64, err error) {
 	for _, sel := range picked {
 		compUnit := sel.UnitPrice // the snapshot's catalog default misses listing overrides, specials and remote pricing, so a channel-priced deployment would charge the wrong bundle total - fail-open back to it so a pricing hiccup never blocks the add
@@ -136,7 +140,7 @@ func (s *Service) priceBundle(ctx context.Context, c Cart, picked []pickedSelect
 }
 
 // A stored bundle line re-resolved against today's bundle - component prices, and quantities per bundle, as add-to-cart would set them now. ok is false when the line can't be re-resolved (the bundle or a pick is gone, or a component left the channel), which checkout refuses separately
-// A line whose price isn't its stored components' sum was priced by the cart.bundle.adding hook, and that price is the plugin's to keep - only its components refresh. A hook price that happens to equal the sum reads as unpriced, and follows the components
+// A line the cart.bundle.adding hook priced keeps that price, the plugin's to keep - only its components refresh. Every other line takes today's pricing mode over today's sum
 func (s *Service) liveBundleLine(ctx context.Context, c Cart, l CartLine) (unitPrice int64, components []AddCartLineComponentInput, ok bool) {
 	snap, err := s.products.ResolveBundleBySKU(ctx, c.ChannelID, l.ProductSku)
 	if err != nil {
@@ -153,21 +157,10 @@ func (s *Service) liveBundleLine(ctx context.Context, c Cart, l CartLine) (unitP
 	for i := range components {
 		components[i].Quantity = perBundle[i] * l.Quantity
 	}
-	if storedComponentSum(l) != l.UnitPrice {
+	if l.BundleHookPriced {
 		return l.UnitPrice, components, true
 	}
-	return sum, components, true
-}
-
-func storedComponentSum(l CartLine) int64 {
-	if l.Quantity <= 0 {
-		return 0
-	}
-	var sum int64
-	for _, c := range l.Components {
-		sum += money.LineTotal(c.UnitPrice, c.Quantity/l.Quantity) // rows hold line totals, so divide back to the per-bundle quantity
-	}
-	return sum
+	return snap.UnitPrice(sum), components, true
 }
 
 // Whether the re-resolved line differs from what the cart stored, in price or in any component's price, quantity or identity
