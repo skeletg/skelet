@@ -39,6 +39,12 @@ function isSingleSelect(t: BundleOption["inputType"]) {
   return t === "RADIO" || t === "DROPDOWN";
 }
 
+// The add-to-cart bounds: a required option needs one even with no explicit minimum, single-select takes exactly one
+export function pickBounds(o: BundleOption): { min: number; max: number | null } {
+  if (isSingleSelect(o.inputType)) return { min: o.isRequired ? 1 : 0, max: 1 };
+  return { min: Math.max(o.minSelections, o.isRequired ? 1 : 0), max: o.maxSelections ?? null };
+}
+
 function initialPicks(options: BundleOption[]): Picks {
   const picks: Picks = {};
   for (const opt of options) {
@@ -77,9 +83,13 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
         if (bucket.has(selectionId) && option.isRequired) return prev;
         bucket.clear();
         if (!prev[option.id]?.has(selectionId)) bucket.add(selectionId);
+      } else if (bucket.has(selectionId)) {
+        bucket.delete(selectionId);
       } else {
-        if (bucket.has(selectionId)) bucket.delete(selectionId);
-        else bucket.add(selectionId);
+        const { max } = pickBounds(option);
+        // The cart refuses more than the maximum, so a further tick does nothing rather than failing at add
+        if (max !== null && bucket.size >= max) return prev;
+        bucket.add(selectionId);
       }
       next[option.id] = bucket;
       return next;
@@ -109,7 +119,7 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
     0,
   );
   const unsatisfiedRequired = options.filter(
-    (o) => o.isRequired && (picks[o.id]?.size ?? 0) === 0,
+    (o) => (picks[o.id]?.size ?? 0) < pickBounds(o).min,
   );
   const missingRequired = unsatisfiedRequired.map((o) => o.title);
   const missingRequiredIds = unsatisfiedRequired.map((o) => o.id);
@@ -273,6 +283,20 @@ function BundleOptionPanel({
   );
   const multi = !isSingleSelect(option.inputType);
   const tc = useTranslations("common");
+  const t = useTranslations("product.pdp");
+  const { min, max } = pickBounds(option);
+  const full = multi && max !== null && picked.size >= max;
+  const limit = !multi
+    ? null
+    : max !== null && min === max
+      ? t("pickExactly", { count: max })
+      : max !== null && min > 0
+        ? t("pickBetween", { min, max })
+        : max !== null
+          ? t("pickUpTo", { count: max })
+          : min > 1
+            ? t("pickAtLeast", { count: min })
+            : null;
 
   return (
     <fieldset>
@@ -283,17 +307,24 @@ function BundleOptionPanel({
         ) : (
           <span className="ml-1 normal-case text-muted-foreground">(optional)</span>
         )}
+        {limit ? (
+          <span className="ml-2 normal-case font-normal text-muted-foreground">
+            {limit} · {t("picked", { count: picked.size })}
+          </span>
+        ) : null}
       </legend>
       <ul className="mt-2 space-y-2">
         {sorted.map((sel) => {
           const isPicked = picked.has(sel.id);
+          const locked = full && !isPicked;
           return (
             <li key={sel.id}>
-              <label className={`${optionCardClass(isPicked, invalid)} cursor-pointer`}>
+              <label className={`${optionCardClass(isPicked, invalid)} ${locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
                 <input
                   type={multi ? "checkbox" : "radio"}
                   name={`bundle-${option.id}`}
                   checked={isPicked}
+                  disabled={locked}
                   onChange={() => onToggle(sel.id)}
                   className="sr-only"
                 />

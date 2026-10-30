@@ -741,7 +741,12 @@
       "qtyLockedTotal": "Quantity {qty} - set by your selection · <total></total> total",
       "ruleAdjustment": "Adjustment",
       "ruleUnavailable": "This combination can't be bought in this store.",
-      "ruleBlocked": "Not available here"
+      "ruleBlocked": "Not available here",
+      "pickExactly": "Pick {count}",
+      "pickBetween": "Pick {min}–{max}",
+      "pickUpTo": "Pick up to {count}",
+      "pickAtLeast": "Pick at least {count}",
+      "picked": "{count} picked"
     },
     "steps": {
       "progress": "Step {current} of {total}",
