@@ -262,6 +262,7 @@ query Product($id: ID!) {
           url
           sku
           name
+          kind
           inStock
           defaultPrice
           price
@@ -540,6 +541,30 @@ query ProductConfigurator($id: ID!) {
           ...ProductCustomOptionRuleFields
         }
         options { ...ProductConfiguratorPictures }
+      }
+    }
+  }
+}
+
+# A bundle's configurable selections' variants, which the customer picks from - a query of its own because the Product
+# query sits at the front surface's complexity cap
+query BundleVariants($id: ID!) {
+  product(id: $id) {
+    id
+    bundleOptions {
+      id
+      selections {
+        id
+        product {
+          id
+          children {
+            id
+            sku
+            name
+            inStock
+            price
+          }
+        }
       }
     }
   }

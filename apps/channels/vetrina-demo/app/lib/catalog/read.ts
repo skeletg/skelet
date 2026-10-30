@@ -14,6 +14,7 @@ import {
   CollectionDocument,
   CollectionsDocument,
   ProductDocument,
+  BundleVariantsDocument,
   ProductConfiguratorDocument,
   type ProductConfiguratorPicturesFragment,
   ProductSortOptionsDocument,
@@ -162,6 +163,9 @@ export type BundleSelection = {
     price: number;
     defaultCurrencyCode: string;
     mainImage: ProductMedia | null;
+    // CONFIGURABLE when the customer picks one of children at add-to-cart
+    kind?: string;
+    children?: { id: string; sku: string; name: string | null; inStock: boolean; price: number }[];
   };
 };
 
@@ -422,7 +426,7 @@ export const getProduct = cache(async (id: string): Promise<{
     });
     const res = await gqlFetch(ProductDocument, { id }, cacheOpts);
     const product = res.data.product as unknown as ProductDetail | null;
-    return { product: product ? await withConfigurator(product, cacheOpts) : null };
+    return { product: product ? await withBundleVariants(await withConfigurator(product, cacheOpts), cacheOpts) : null };
   } catch (err) {
     // The backend returns a GraphQL error (not a null product) when the ID doesn't
     // exist or isn't visible to the storefront
@@ -435,6 +439,26 @@ export const getProduct = cache(async (id: string): Promise<{
     throw err;
   }
 });
+
+// A configurable bundle selection needs its variants to pick from - fetched apart, and only when the bundle has one
+async function withBundleVariants(
+  product: ProductDetail,
+  cacheOpts: Parameters<typeof gqlFetch>[2],
+): Promise<ProductDetail> {
+  const configurable = product.bundleOptions.some((o) => o.selections.some((s) => s.product.kind === "CONFIGURABLE"));
+  if (!configurable) return product;
+  const res = await gqlFetch(BundleVariantsDocument, { id: product.id }, cacheOpts);
+  const kids = new Map(
+    (res.data.product?.bundleOptions ?? []).flatMap((o) => o.selections.map((s) => [s.id, s.product.children] as const)),
+  );
+  return {
+    ...product,
+    bundleOptions: product.bundleOptions.map((o) => ({
+      ...o,
+      selections: o.selections.map((s) => ({ ...s, product: { ...s.product, children: kids.get(s.id) ?? [] } })),
+    })),
+  };
+}
 
 // The Product query sits at the front surface's complexity cap, so option rules and pictures come in a query of their
 // own - and only when the product, a variant or a grouped member has options for them to belong to

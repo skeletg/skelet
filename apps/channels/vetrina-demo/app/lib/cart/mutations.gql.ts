@@ -10,11 +10,17 @@ export type AddBundleToCartInput = {
   quantity: number;
   selections: Array<AddBundleToCartSelectionInput>;
   sku: string;
+  variants?: Array<AddBundleVariantPickInput> | null | undefined;
 };
 
 export type AddBundleToCartSelectionInput = {
   optionId: string | number;
   selectionIds: Array<string | number>;
+};
+
+export type AddBundleVariantPickInput = {
+  selectionId: string | number;
+  variantId: string | number;
 };
 
 export type AddConfiguredToCartInput = {

@@ -17,11 +17,17 @@ export type AddBundleToCartInput = {
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
   sku: Scalars['String']['input'];
+  variants?: InputMaybe<Array<AddBundleVariantPickInput>>;
 };
 
 export type AddBundleToCartSelectionInput = {
   optionId: Scalars['ID']['input'];
   selectionIds: Array<Scalars['ID']['input']>;
+};
+
+export type AddBundleVariantPickInput = {
+  selectionId: Scalars['ID']['input'];
+  variantId: Scalars['ID']['input'];
 };
 
 export type AddConfiguredToCartInput = {

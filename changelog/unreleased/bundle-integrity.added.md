@@ -25,3 +25,10 @@
 - **The bundle picker adds all of a configurable's variants in one pick.** Configurables are
   offered beside simple products, and picking one stages each variant not already in the
   option as its own selection, with the row's quantity.
+- **A bundle selection can be a configurable product whose variant the customer picks.**
+  "A hoodie, any size" is one selection. The storefront asks for the size once the hoodie is
+  picked, and the cart line prices, snapshots and reserves that size. A size added to the
+  hoodie later is offered without editing the bundle. In the picker, a configurable stays one
+  selection unless Each variant is ticked. A configurable selection can't be a default. The
+  storefront API takes the choice as `AddBundleToCartInput.variants`, and a missing one is
+  refused with `BUNDLE_VARIANT_MISSING`.

@@ -42,6 +42,7 @@
       "missingProduct": "Missing product details.",
       "invalidBundle": "Invalid bundle selection.",
       "bundleSelectionMissing": "Pick an item for every required choice.",
+      "bundleVariantMissing": "Pick a size or variant for every item that needs one.",
       "bundleSelectionCount": "Check how many items each choice allows.",
       "bundleOutdated": "This bundle has changed. Reload the page and pick again.",
       "bundleChanged": "A bundle in your cart has changed since you added it. Remove it and add it again.",
@@ -747,7 +748,8 @@
       "pickUpTo": "Pick up to {count}",
       "pickAtLeast": "Pick at least {count}",
       "picked": "{count} picked",
-      "bundleSave": "Save {percent}%"
+      "bundleSave": "Save {percent}%",
+      "chooseVariant": "Choose {name}"
     },
     "steps": {
       "progress": "Step {current} of {total}",

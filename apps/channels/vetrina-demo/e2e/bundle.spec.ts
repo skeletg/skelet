@@ -103,3 +103,34 @@ test("a discounted bundle shows its saving against the picks", async ({ page }) 
       }),
   );
 });
+
+// "A hoodie, any size": a configurable selection asks for its variant before the bundle can go in the cart
+test("a configurable selection asks for a size, then adds", async ({ page }) => {
+  await onBundlePage(
+    page,
+    async () => {
+      const box = option(page);
+      const hoodie = box.locator("li").filter({ has: page.getByText(/hoodie/i) }).first();
+      await hoodie.locator(".tabular-nums").first().click();
+      const size = hoodie.getByRole("combobox");
+      await expect(size).toBeVisible();
+      await expect(main(page).getByRole("button", { name: "Add bundle to cart" })).toHaveCount(0);
+      const firstInStock = await size.locator("option:not([disabled])").first().getAttribute("value");
+      await size.selectOption(firstInStock!);
+      await main(page).getByRole("button", { name: "Add bundle to cart" }).click();
+      await expect(page.getByRole("heading", { name: /Your cart/ })).toBeVisible();
+    },
+    async (admin, bundleId) => {
+      const { products } = await admin.gql<{ products: { id: string; kind: string; children: { id: string }[] }[] }>(
+        `query ($ch: ID!) { products(channelId: $ch) { id kind children { id } } }`,
+        { ch: admin.channelId },
+      );
+      const hoodie = products.find((p) => p.kind === "CONFIGURABLE" && p.children.length > 0);
+      expect(hoodie, "the dev catalogue needs a configurable with variants").toBeTruthy();
+      const { product } = await admin.gql<{ product: { bundleOptions: { id: string }[] } }>(`query ($id: ID!) { product(id: $id) { bundleOptions { id } } }`, { id: bundleId });
+      await admin.gql(`mutation ($input: AddBundleSelectionInput!) { addBundleSelection(input: $input) { id } }`, {
+        input: { optionId: product.bundleOptions[0].id, productId: hoodie!.id, quantity: 1, sortOrder: 9 },
+      });
+    },
+  );
+});

@@ -60,6 +60,8 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
   );
 
   const [picks, setPicks] = useState<Picks>(() => initialPicks(options));
+  // selectionId -> the variant picked for a configurable selection
+  const [variants, setVariants] = useState<Record<string, string>>({});
 
   const togglePick = (option: BundleOption, selectionId: string) => {
     setPicks((prev) => {
@@ -102,16 +104,24 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
   );
   // The cart prices a bundle from the sum of its picked selections - mirror that here so the headline tracks the picks
   // instead of showing the wrapper's own price (0 for dynamically priced bundles)
+  // A configurable pick is priced, and charged, as the variant chosen for it
+  const variantOf = (sel: BundleSelection) => sel.product.children?.find((v) => v.id === variants[sel.id]);
+  const isConfigurable = (sel: BundleSelection) => sel.product.kind === "CONFIGURABLE";
   const pickedSum = chosen.reduce(
     (n, c) =>
       n +
-      (c.selection.product.price ?? c.selection.product.defaultPrice) *
+      (isConfigurable(c.selection)
+        ? (variantOf(c.selection)?.price ?? 0)
+        : (c.selection.product.price ?? c.selection.product.defaultPrice)) *
         c.selection.quantity,
     0,
   );
   const bundleTotal = bundlePrice(product, pickedSum);
+  // An option is unfinished below its minimum, or while a configurable picked in it has no variant yet
   const unsatisfiedRequired = options.filter(
-    (o) => (picks[o.id]?.size ?? 0) < pickBounds(o).min,
+    (o) =>
+      (picks[o.id]?.size ?? 0) < pickBounds(o).min ||
+      o.selections.some((sel) => picks[o.id]?.has(sel.id) && isConfigurable(sel) && !variantOf(sel)),
   );
   const missingRequired = unsatisfiedRequired.map((o) => o.title);
   const missingRequiredIds = unsatisfiedRequired.map((o) => o.id);
@@ -166,6 +176,8 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                   option={opt}
                   picked={picks[opt.id] ?? new Set()}
                   onToggle={(sid) => togglePick(opt, sid)}
+                  variants={variants}
+                  onVariant={(sid, vid) => setVariants((prev) => ({ ...prev, [sid]: vid }))}
                   invalid={invalid}
                 />
               )}
@@ -184,6 +196,15 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                 optionId: o.id,
                 selectionIds: Array.from(picks[o.id] ?? []),
               })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="variants"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => isConfigurable(c.selection) && variants[c.selection.id])
+                .map((c) => ({ selectionId: c.selection.id, variantId: variants[c.selection.id] })),
             )}
           />
           <PdpQty bounds={qtyBounds} disabled={missingRequired.length > 0} />
@@ -273,11 +294,15 @@ function BundleOptionPanel({
   option,
   picked,
   onToggle,
+  variants,
+  onVariant,
   invalid = false,
 }: {
   option: BundleOption;
   picked: Set<string>;
   onToggle: (selectionId: string) => void;
+  variants: Record<string, string>;
+  onVariant: (selectionId: string, variantId: string) => void;
   invalid?: boolean;
 }) {
   const sorted = [...option.selections].sort(
@@ -366,6 +391,24 @@ function BundleOptionPanel({
                   ) : null}
                 </span>
               </label>
+              {isPicked && sel.product.kind === "CONFIGURABLE" ? (
+                <select
+                  className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  aria-label={t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  value={variants[sel.id] ?? ""}
+                  onChange={(e) => onVariant(sel.id, e.target.value)}
+                >
+                  <option value="" disabled>
+                    {t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  </option>
+                  {(sel.product.children ?? []).map((v) => (
+                    <option key={v.id} value={v.id} disabled={!v.inStock}>
+                      {displayName(v.name, v.sku)} · {formatPrice(v.price, sel.product.defaultCurrencyCode)}
+                      {v.inStock ? "" : ` · ${tc("outOfStock")}`}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
             </li>
           );
         })}

@@ -126,6 +126,7 @@ describe("a bundle add the backend refuses", () => {
   it.each([
     ["BUNDLE_SELECTION_INVALID", "bundleOutdated"],
     ["BUNDLE_SELECTION_CARDINALITY", "bundleSelectionCount"],
+    ["BUNDLE_VARIANT_MISSING", "bundleVariantMissing"],
     ["PRODUCT_NOT_PUBLISHED", "productNotSold"],
   ])("says %s in the shopper's words, never the ids", async (code, key) => {
     refuse(code, "add to cart: bundle selection not on this option: 01a18981-5a5b-7d4a-9ed7-08fe87d64256");
@@ -137,5 +138,24 @@ describe("a bundle add the backend refuses", () => {
   it("keeps an uncoded message", async () => {
     refuse(undefined, "add to cart rejected: sold out in your region");
     await expect(addBundle()).resolves.toMatchObject({ ok: false, error: "sold out in your region" });
+  });
+});
+
+// What this pins: the size picked for a configurable bundle selection reaches the cart with the picks
+describe("a bundle add with a configurable selection", () => {
+  it("sends the picked variant along", async () => {
+    const { AddBundleToCartDocument } = await import("./mutations.gql");
+    mocks.gqlFetch.mockImplementation(async (doc: unknown) => {
+      if (doc === CreateGuestCartDocument) return { data: { createGuestCart: { id: "new-guest" } } };
+      return { data: { addBundleToCart: { id: "added" } } };
+    });
+    const form = new FormData();
+    form.set("productSku", "SET-1");
+    form.set("selections", JSON.stringify([{ optionId: "o1", selectionIds: ["s1"] }]));
+    form.set("variants", JSON.stringify([{ selectionId: "s1", variantId: "hoodie-m" }]));
+    await addBundleToCart(null, form);
+    expect(sent(AddBundleToCartDocument)[0]).toMatchObject({
+      input: { sku: "SET-1", selections: [{ optionId: "o1", selectionIds: ["s1"] }], variants: [{ selectionId: "s1", variantId: "hoodie-m" }] },
+    });
   });
 });

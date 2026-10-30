@@ -105,6 +105,7 @@ export type AddToCartResult = {
 // Backend codes said by the storefront instead - their messages carry option and selection ids a shopper can't act on
 const ADD_CODE_KEYS: Record<string, string> = {
   BUNDLE_SELECTION_MISSING: "bundleSelectionMissing",
+  BUNDLE_VARIANT_MISSING: "bundleVariantMissing",
   BUNDLE_SELECTION_CARDINALITY: "bundleSelectionCount",
   BUNDLE_SELECTION_INVALID: "bundleOutdated",
   BUNDLE_OPTION_UNKNOWN: "bundleOutdated",
@@ -155,8 +156,11 @@ export async function addBundleToCart(
   // [selectionIds] shape. Shape: [{ optionId, selectionIds: [...] }]
   const selectionsJson = String(formData.get("selections") ?? "[]");
   let selections: { optionId: string; selectionIds: string[] }[];
+  // The variant picked for each configurable selection: [{ selectionId, variantId }]
+  let variants: { selectionId: string; variantId: string }[];
   try {
     selections = JSON.parse(selectionsJson);
+    variants = JSON.parse(String(formData.get("variants") ?? "[]"));
   } catch {
     return { ok: false, error: "invalidBundle" };
   }
@@ -164,7 +168,7 @@ export async function addBundleToCart(
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddBundleToCartDocument, {
-      input: { cartId, sku, quantity, selections },
+      input: { cartId, sku, quantity, selections, variants },
     });
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
