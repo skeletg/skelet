@@ -209,14 +209,15 @@ describe('bundle selection rows edit in place', () => {
   })
 })
 
-// What this pins: picking a configurable adds every one of its variants as a selection, so "any size" is one pick
-describe('bundle picker adds all variants', () => {
-  it('stages each variant of a picked configurable', async () => {
-    const hoodie = {
-      __typename: 'Product' as const, id: 'cfg', name: 'Hoodie', sku: 'HOODIE', kind: 'CONFIGURABLE' as const, defaultPrice: 4900, defaultCurrencyCode: 'EUR',
-      productType: { __typename: 'ProductType' as const, id: 'pt', slug: 'top', name: 'Top' }, thumbnail: null, displayImage: null,
-    }
-    const variant = (id: string, name: string) => ({ __typename: 'Product' as const, id, name, sku: id.toUpperCase(), kind: 'SIMPLE' as const, defaultPrice: 4900, defaultCurrencyCode: 'EUR' })
+// What this pins: a picked configurable stays one selection whose variant the customer picks, or - with Each variant
+// ticked - is split into a selection per variant, so "any size" is one pick either way
+describe('bundle picker and configurables', () => {
+  const hoodie = {
+    __typename: 'Product' as const, id: 'cfg', name: 'Hoodie', sku: 'HOODIE', kind: 'CONFIGURABLE' as const, defaultPrice: 4900, defaultCurrencyCode: 'EUR',
+    productType: { __typename: 'ProductType' as const, id: 'pt', slug: 'top', name: 'Top' }, thumbnail: null, displayImage: null,
+  }
+  const variant = (id: string, name: string) => ({ __typename: 'Product' as const, id, name, sku: id.toUpperCase(), kind: 'SIMPLE' as const, defaultPrice: 4900, defaultCurrencyCode: 'EUR' })
+  const pickHoodie = async (eachVariant: boolean) => {
     const option = { id: 'o1', inputType: 'RADIO' as const, isRequired: true, sortOrder: 0, minSelections: 0, maxSelections: null, title: 'Size', content: [], selections: [] }
     renderSection(<PrefsContext.Provider value=""><BundleStructureSection canManage product={{ id: 'p1', bundleOptions: [option] }} /></PrefsContext.Provider>, [
       { request: { query: ProductPickerPagedDocument, variables: () => true }, result: { data: { productsPaged: { __typename: 'ProductPage' as const, totalCount: 1, items: [hoodie] } } }, maxUsageCount: 10 },
@@ -226,7 +227,19 @@ describe('bundle picker adds all variants', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add selection' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Select Hoodie' }, SLOW))
+    if (eachVariant) fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Add each variant as its own selection' }))
     fireEvent.click(within(dialog).getByRole('button', { name: /Stage 1 selection/ }))
+  }
+
+  it('keeps a configurable as one selection the customer picks a variant of', async () => {
+    await pickHoodie(false)
+    expect(await screen.findByText('customer picks the variant', undefined, SLOW)).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Hoodie is a default' })).toHaveProperty('disabled', true)
+    expect(screen.queryByLabelText('Hoodie S quantity')).toBeNull()
+  })
+
+  it('stages each variant when asked to', async () => {
+    await pickHoodie(true)
     expect(await screen.findByLabelText('Hoodie S quantity', undefined, SLOW)).toBeTruthy()
     expect(screen.getByLabelText('Hoodie M quantity')).toBeTruthy()
   })

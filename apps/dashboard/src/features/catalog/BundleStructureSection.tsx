@@ -65,7 +65,7 @@ import {
 import { storeHealth, structureIssues, type BundleListing, type HealthIssue, type StorePricing } from './bundleHealth'
 import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
-import { defaultColumn, quantityColumn } from './product-picker-columns'
+import { defaultColumn, eachVariantColumn, quantityColumn } from './product-picker-columns'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 
@@ -568,6 +568,9 @@ function OptionCard({
                   <SortableSelectionRow key={sel.id} id={sel.id} label={label} canManage={canManage} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
+                      {sel.product.kind === 'CONFIGURABLE' && (
+                        <Badge variant="outline" className="ml-2 font-normal">customer picks the variant</Badge>
+                      )}
                       {selPending && <span className="ml-2 text-xs text-warning">· unsaved</span>}
                     </TableCell>
                     <TableCell>
@@ -597,7 +600,13 @@ function OptionCard({
                     </TableCell>
                     <TableCell>
                       {canManage ? (
-                        <Switch checked={sel.isDefault} onCheckedChange={(v) => setDefault(sel, v)} aria-label={`${label} is a default`} />
+                        <Switch
+                          checked={sel.isDefault}
+                          onCheckedChange={(v) => setDefault(sel, v)}
+                          disabled={sel.product.kind === 'CONFIGURABLE'}
+                          title={sel.product.kind === 'CONFIGURABLE' ? 'The customer picks the variant, so there is nothing to pre-pick' : undefined}
+                          aria-label={`${label} is a default`}
+                        />
                       ) : sel.isDefault ? (
                         <CheckCircle2Icon className="size-4 text-primary" />
                       ) : (
@@ -929,8 +938,8 @@ function SelectionPickerSheet({
   const client = useApolloClient()
   const takenIds = useMemo(() => new Set(option.selections.map((s) => s.product.id)), [option.selections])
   const selfId = useMemo(() => new Set([productId]), [productId])
-  const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean }>>(
-    () => ({ initial: () => ({ quantity: 1, isDefault: false }), columns: [quantityColumn(), defaultColumn()] }),
+  const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean; eachVariant: boolean }>>(
+    () => ({ initial: () => ({ quantity: 1, isDefault: false, eachVariant: false }), columns: [quantityColumn(), defaultColumn(), eachVariantColumn()] }),
     [],
   )
 
@@ -939,7 +948,7 @@ function SelectionPickerSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={`Add selections to "${option.title}"`}
-      description="Pick one or more simple products, or a configurable to add all its variants. Per row, set how many of that product the bundle includes and whether it's the default. Stages until the page-level save."
+      description="Pick simple products, or a configurable for the customer to choose its variant - tick Each variant to add its variants as separate selections instead. Per row, set how many the bundle includes and whether it's the default. Stages until the page-level save."
       kinds={['SIMPLE', 'CONFIGURABLE']}
       takenIds={takenIds}
       takenLabel="In this option"
@@ -957,11 +966,13 @@ function SelectionPickerSheet({
           : null
       }}
       onConfirm={async (picks) => {
-        // A configurable stands for its variants - each becomes a selection with the row's quantity, the first one taking its default
+        // A configurable is one selection whose variant the customer picks - it can't be pre-picked, so it is never a default.
+        // With Each variant ticked it stands for its variants instead, each a selection with the row's quantity, the first taking its default
         const expanded: { product: SelectionProduct; quantity: number; isDefault: boolean }[] = []
         for (const { product, extra: params } of picks) {
-          if (product.kind !== 'CONFIGURABLE') {
-            expanded.push({ product: toSelectionProduct(product), ...params })
+          if (product.kind !== 'CONFIGURABLE' || !params.eachVariant) {
+            const isDefault = product.kind === 'CONFIGURABLE' ? false : params.isDefault
+            expanded.push({ product: toSelectionProduct(product), quantity: params.quantity, isDefault })
             continue
           }
           const { data } = await client.query({ query: ProductVariantsDocument, variables: { id: product.id } })
