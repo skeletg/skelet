@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -329,6 +331,48 @@ func TestAHiddenDefaultIsNotPickedForTheCustomer(t *testing.T) {
 	}
 	if comps := got.Lines[0].Components; len(comps) != 1 || comps[0].ProductID != shown.ID || got.Lines[0].UnitPrice != 500 {
 		t.Fatalf("components = %+v at %d, want only the listed default at 500", comps, got.Lines[0].UnitPrice)
+	}
+	h.Settle(t)
+}
+
+// Scenario: a bundle sold at 10% off its picks on this store - the cart line, the order line and the tax all come from
+// the discounted price, while the component rows keep their own prices
+func TestATenPercentOffBundleChargesAndTaxesTheDiscountedPrice(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	h.newTaxRule(t, f.Channel.ID, 875, tax.Condition{Type: "core.jurisdiction", Params: json.RawMessage(`{"country_code":"US"}`)})
+	b, _ := h.newBundle(t, f, h.AddProduct(t, f, 500, true, 10), h.AddProduct(t, f, 250, true, 10))
+	if _, err := h.D.Catalog.SetBundlePricing(h.Ctx, b.ID, f.Channel.ID, catalog.BundlePricingSumMinusPercent, 10); err != nil {
+		t.Fatalf("set pricing: %v", err)
+	}
+
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	got, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, nil, cart.AddBundleToCartInput{ProductSku: b.SKU, Quantity: 2})
+	if err != nil {
+		t.Fatalf("add bundle: %v", err)
+	}
+	if got.Lines[0].UnitPrice != 675 {
+		t.Fatalf("cart line = %d, want 750 less 10%% = 675", got.Lines[0].UnitPrice)
+	}
+	o, err := h.TryPlace(t, f.Channel, c.ID)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	if lines := h.OrderLines(t, o.ID); len(lines) != 1 || lines[0].UnitPrice != 675 {
+		t.Fatalf("order lines = %+v, want the bundle at 675", lines)
+	}
+	if o.SubtotalAmount != 1350 || o.TaxAmount != 118 { // round(1350 * 875 / 10000)
+		t.Errorf("subtotal %d, tax %d - want 2 x 675 = 1350 and 118 tax on it", o.SubtotalAmount, o.TaxAmount)
+	}
+	if o.TotalAmount != o.SubtotalAmount-o.DiscountAmount+o.TaxAmount+o.ShippingAmount {
+		t.Errorf("total %d doesn't add up from %+v", o.TotalAmount, o)
+	}
+	var compSum int64
+	if err := h.D.DB.QueryRowContext(h.Ctx, `SELECT sum(oc.unit_price) FROM order_line_components oc JOIN order_lines ol ON ol.id = oc.order_line_id WHERE ol.order_id = $1`, o.ID).Scan(&compSum); err != nil || compSum != 750 {
+		t.Errorf("component prices sum to %d (%v), want their own 500 + 250", compSum, err)
 	}
 	h.Settle(t)
 }
