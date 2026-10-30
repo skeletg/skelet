@@ -15,3 +15,10 @@
   running count, and its other choices lock once three are picked. An option short of its
   minimum counts as unfinished, like an empty required one.
 - **The order page lists what's in a bundle**, under the line, as the cart does.
+- **Bundles can be priced per store: sum of the picks, a fixed price, or the sum less a
+  percentage.** Each store row in the bundle editor has a pricing choice, saved with the page,
+  and the price line follows it ("Customers pay €18.00–€27.00 · picks add up to €20.00–€30.00").
+  The cart, checkout repricing and the order all charge the chosen price, and tax is worked out
+  on it. The storefront shows the saving with the picks' sum struck through. The admin API
+  takes it through `setBundlePricing`. The storefront API exposes it as
+  `Product.bundlePricing` and `bundleDiscountPercent`.

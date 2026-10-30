@@ -16,6 +16,7 @@ import type {
   ProductDetail,
 } from "@/app/lib/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
+import { bundlePrice, isSingleSelect, pickBounds } from "@/app/lib/catalog/bundle";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
@@ -34,16 +35,6 @@ import {
 import { PdpBuyBox, PdpMetaRow, PdpQty, PdpShell } from "./pdp-shell";
 
 type Picks = Record<string, Set<string>>; // optionId → selectionIds
-
-function isSingleSelect(t: BundleOption["inputType"]) {
-  return t === "RADIO" || t === "DROPDOWN";
-}
-
-// The add-to-cart bounds: a required option needs one even with no explicit minimum, single-select takes exactly one
-export function pickBounds(o: BundleOption): { min: number; max: number | null } {
-  if (isSingleSelect(o.inputType)) return { min: o.isRequired ? 1 : 0, max: 1 };
-  return { min: Math.max(o.minSelections, o.isRequired ? 1 : 0), max: o.maxSelections ?? null };
-}
 
 function initialPicks(options: BundleOption[]): Picks {
   const picks: Picks = {};
@@ -109,15 +100,16 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
     (n, c) => n + c.selection.quantity,
     0,
   );
-  // The cart prices a bundle as the sum of its picked selections - mirror that here so the headline tracks the picks
+  // The cart prices a bundle from the sum of its picked selections - mirror that here so the headline tracks the picks
   // instead of showing the wrapper's own price (0 for dynamically priced bundles)
-  const bundleTotal = chosen.reduce(
+  const pickedSum = chosen.reduce(
     (n, c) =>
       n +
       (c.selection.product.price ?? c.selection.product.defaultPrice) *
         c.selection.quantity,
     0,
   );
+  const bundleTotal = bundlePrice(product, pickedSum);
   const unsatisfiedRequired = options.filter(
     (o) => (picks[o.id]?.size ?? 0) < pickBounds(o).min,
   );
@@ -141,6 +133,16 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
       <PdpBuyBox>
         <p className="text-2xl font-bold tracking-tight">
           {formatPrice(bundleTotal, product.defaultCurrencyCode)}
+          {chosen.length > 0 && bundleTotal < pickedSum ? (
+            <span className="ml-2 align-middle text-lg font-normal text-muted-foreground line-through">
+              {formatPrice(pickedSum, product.defaultCurrencyCode)}
+            </span>
+          ) : null}
+          {product.bundlePricing === "SUM_MINUS_PERCENT" && product.bundleDiscountPercent > 0 ? (
+            <span className="ml-2 inline-block -translate-y-1 rounded-sm bg-signal px-2.5 py-0.5 align-middle font-mono text-xs font-semibold uppercase tracking-wider text-white">
+              {t("bundleSave", { percent: product.bundleDiscountPercent })}
+            </span>
+          ) : null}
           {chosen.length === 0 && product.defaultPrice > 0
             ? ` ${t("from", { price: formatPrice(product.defaultPrice, product.defaultCurrencyCode) })}`
             : null}

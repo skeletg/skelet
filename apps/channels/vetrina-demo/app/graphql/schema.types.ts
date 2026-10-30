@@ -320,6 +320,11 @@ export type BundleOption = {
   title: Scalars['String']['output'];
 };
 
+export type BundlePricing =
+  | 'FIXED'
+  | 'SUM'
+  | 'SUM_MINUS_PERCENT';
+
 export type BundleSelection = {
   __typename?: 'BundleSelection';
   id: Scalars['ID']['output'];
@@ -1678,7 +1683,9 @@ export type Product = {
   alsoBought: Array<Product>;
   attributeValues: Array<ProductAttributeValue>;
   backorderable: Scalars['Boolean']['output'];
+  bundleDiscountPercent: Scalars['Int']['output'];
   bundleOptions: Array<BundleOption>;
+  bundlePricing: BundlePricing;
   canonicalUrl?: Maybe<Scalars['String']['output']>;
   categories: Array<Category>;
   children: Array<Product>;

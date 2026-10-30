@@ -263,6 +263,9 @@ export type ProductDetail = ProductSummary & {
     configurable: { parent: { id: string } } | null;
   };
   bundleOptions: BundleOption[];
+  // How the store prices this bundle - SUM adds up the picks, FIXED charges price, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum
+  bundlePricing: "SUM" | "FIXED" | "SUM_MINUS_PERCENT";
+  bundleDiscountPercent: number;
   groupedMembers: GroupedMember[];
   options: ProductCustomOption[];
   optionRules: ProductOptionRule[];

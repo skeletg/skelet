@@ -242,6 +242,8 @@ query Product($id: ID!) {
         }
       }
     }
+    bundlePricing
+    bundleDiscountPercent
     bundleOptions {
       id
       title

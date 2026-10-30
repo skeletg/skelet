@@ -746,7 +746,8 @@
       "pickBetween": "Pick {min}–{max}",
       "pickUpTo": "Pick up to {count}",
       "pickAtLeast": "Pick at least {count}",
-      "picked": "{count} picked"
+      "picked": "{count} picked",
+      "bundleSave": "Save {percent}%"
     },
     "steps": {
       "progress": "Step {current} of {total}",
