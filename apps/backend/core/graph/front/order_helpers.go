@@ -75,6 +75,10 @@ func toOrderReturnModel(r order.OrderReturn) *model.OrderReturn {
 			Reason:          l.Reason,
 			RefundUnitCents: int32(l.RefundUnitCents),
 		}
+		if l.ComponentID != nil {
+			id := l.ComponentID.String()
+			lines[i].ComponentID = &id
+		}
 	}
 	return &model.OrderReturn{
 		ID:           r.ID.String(),

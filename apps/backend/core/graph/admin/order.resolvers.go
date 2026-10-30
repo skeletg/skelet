@@ -475,6 +475,13 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 		if l.Reason != nil {
 			li.Reason = *l.Reason
 		}
+		if l.ComponentID != nil {
+			cid, err := parseID(*l.ComponentID, "component")
+			if err != nil {
+				return nil, err
+			}
+			li.ComponentID = &cid
+		}
 		lines = append(lines, li)
 	}
 	in := order.RequestReturnInput{OrderID: orderID, Lines: lines, Restock: true}

@@ -164,6 +164,8 @@ type OrderReturnLine {
   quantity:        Float!
   reason:          String!
   refundUnitCents: Int!
+  # Set when one component of a bundle line came back on its own
+  componentId:     ID
 }
 
 # One promotion the engine applied at placement, with the code the shopper typed
@@ -347,6 +349,9 @@ input ReturnLineInput {
   orderLineId: ID!
   quantity:    Float!
   reason:      String
+  # One component of a bundle line, from its OrderLine.components - quantity then counts that component's units, the
+  # refund is its share of the line, and only it is restocked. A line is returned whole or by components, not both at once
+  componentId: ID
 }
 
 input CreateDraftOrderInput {

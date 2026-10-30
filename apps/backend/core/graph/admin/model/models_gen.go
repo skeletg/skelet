@@ -3450,6 +3450,7 @@ type OrderReturnLine struct {
 	Quantity        float64 `json:"quantity"`
 	Reason          string  `json:"reason"`
 	RefundUnitCents int32   `json:"refundUnitCents"`
+	ComponentID     *string `json:"componentId,omitempty"`
 }
 
 type OrderShipment struct {
@@ -4200,6 +4201,7 @@ type ReturnLineInput struct {
 	OrderLineID string  `json:"orderLineId"`
 	Quantity    float64 `json:"quantity"`
 	Reason      *string `json:"reason,omitempty"`
+	ComponentID *string `json:"componentId,omitempty"`
 }
 
 type Review struct {

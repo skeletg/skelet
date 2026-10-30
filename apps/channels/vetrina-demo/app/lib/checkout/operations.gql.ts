@@ -91,6 +91,7 @@ export type RequirementStatus =
   | 'SATISFIED';
 
 export type ReturnLineInput = {
+  componentId?: string | number | null | undefined;
   orderLineId: string | number;
   quantity: number;
   reason?: string | null | undefined;

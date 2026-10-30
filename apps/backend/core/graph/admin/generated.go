@@ -3018,6 +3018,7 @@ type ComplexityRoot struct {
 	}
 
 	OrderReturnLine struct {
+		ComponentID     func(childComplexity int) int
 		ID              func(childComplexity int) int
 		OrderLineID     func(childComplexity int) int
 		Quantity        func(childComplexity int) int
@@ -21633,6 +21634,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.OrderReturn.UpdatedAt(childComplexity), true
 
+	case "OrderReturnLine.componentId":
+		if e.ComplexityRoot.OrderReturnLine.ComponentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderReturnLine.ComponentID(childComplexity), true
 	case "OrderReturnLine.id":
 		if e.ComplexityRoot.OrderReturnLine.ID == nil {
 			break
@@ -36889,6 +36896,8 @@ type OrderReturnLine {
   quantity:        Float!
   reason:          String!
   refundUnitCents: Int!
+  # Set when one component of a bundle line came back on its own
+  componentId:     ID
 }
 
 # One promotion the engine applied at placement, with the code the shopper typed
@@ -37072,6 +37081,9 @@ input ReturnLineInput {
   orderLineId: ID!
   quantity:    Float!
   reason:      String
+  # One component of a bundle line, from its OrderLine.components - quantity then counts that component's units, the
+  # refund is its share of the line, and only it is restocked. A line is returned whole or by components, not both at once
+  componentId: ID
 }
 
 input CreateDraftOrderInput {
@@ -44918,6 +44930,8 @@ func (ec *executionContext) childFields_OrderReturnLine(ctx context.Context, fie
 		return ec.fieldContext_OrderReturnLine_reason(ctx, field)
 	case "refundUnitCents":
 		return ec.fieldContext_OrderReturnLine_refundUnitCents(ctx, field)
+	case "componentId":
+		return ec.fieldContext_OrderReturnLine_componentId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderReturnLine", field.Name)
 }
@@ -125343,6 +125357,29 @@ func (ec *executionContext) fieldContext_OrderReturnLine_refundUnitCents(_ conte
 	return graphql.NewScalarFieldContext("OrderReturnLine", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _OrderReturnLine_componentId(ctx context.Context, field graphql.CollectedField, obj *model.OrderReturnLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderReturnLine_componentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ComponentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OrderReturnLine_componentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderReturnLine", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
 func (ec *executionContext) _OrderShipment_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderShipment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -169415,7 +169452,7 @@ func (ec *executionContext) unmarshalInputReturnLineInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"orderLineId", "quantity", "reason"}
+	fieldsInOrder := [...]string{"orderLineId", "quantity", "reason", "componentId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -169443,6 +169480,13 @@ func (ec *executionContext) unmarshalInputReturnLineInput(ctx context.Context, o
 				return it, err
 			}
 			it.Reason = data
+		case "componentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("componentId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ComponentID = data
 		}
 	}
 	return it, nil
@@ -197437,6 +197481,11 @@ func (ec *executionContext) _OrderReturnLine(ctx context.Context, sel ast.Select
 		case "refundUnitCents":
 			out.Values[i] = ec._OrderReturnLine_refundUnitCents(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "componentId":
+			out.Values[i] = ec._OrderReturnLine_componentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
