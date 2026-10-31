@@ -141,7 +141,7 @@ layout keeps them apart because they carry different promises:
 - `signalsapi/` is the wire contract: the vocabulary both modules share, with the
   code generated from `proto/` under `signalsapi/v1/`, checked for breaking changes
   against `main` - the deployed core that a new Signals has to keep answering.
-  `bin/contract-check` runs it in CI against `origin/main` and fails when that ref
+  `skelet check contracts` runs it in CI against `origin/main` and fails when that ref
   is missing, rather than passing with nothing to compare. Until `main` carries the
   proto, it compares against `develop` instead.
 - `lib/` is the infrastructure the Signals module builds on: `apperr`, `auth`,

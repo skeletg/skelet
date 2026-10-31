@@ -1,5 +1,5 @@
 // Package contract carries the published remote-provider wire contract - a JSON Schema and an example request per kind, generated from the adapter structs by cmd/providerschema
-// Baked into the binary so bin/provider-check has the examples wherever it runs, and so a stale checkout cannot post a payload the running core no longer accepts
+// Baked into the binary so skelet provider has the examples wherever it runs, and so a stale checkout cannot post a payload the running core no longer accepts
 package contract
 
 import (

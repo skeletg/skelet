@@ -182,7 +182,7 @@ before it white-screens the dashboard. It is
 **not** in the pre-commit hook - it needs the container, and steps 3 and 4
 need the backend, so gating every commit on a running stack is the wrong
 trade. Run it yourself before a PR that touched a `.sql`, `.graphqls` or
-`.graphql` file. The hook runs `bin/check`, which is greps only.
+`.graphql` file. The hook runs `skelet check`, which needs no backend.
 
 ## Cross-app contracts
 
@@ -195,7 +195,7 @@ frontends from `internal/cart/options_visibility.go`), and the security
 headers the backend and the dashboard's nginx both set.
 
 Each end carries a `SYNC` or `SYNC SENTINEL` comment, and
-`bin/contract-check` enforces the mechanical part - including that the
+`skelet check contracts` enforces the mechanical part - including that the
 paths those comments name still exist, since a `SYNC` comment pointing at
 a moved file is worth nothing. It runs on the host, because the app
 containers each mount only their own tree and no single test runner can

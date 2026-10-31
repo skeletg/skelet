@@ -31,8 +31,8 @@ var jobRunCmd = &cobra.Command{
 	Long: `Pulls the named job's next run forward to now. The running app or worker process
 executes it, records the run like any other, and the regular schedule resumes after.
 
-  bin/cli job run customer-roster-push
-  bin/cli job run trait-compute`,
+  skelet cli job run customer-roster-push
+  skelet cli job run trait-compute`,
 	Args: cobra.ExactArgs(1),
 	RunE: runJobRun,
 }

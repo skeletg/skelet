@@ -34,7 +34,7 @@ import { TrackView } from "./TrackView";
 // Dynamic *_grid blocks are async server components; static ones render synchronously
 //
 // SYNC SENTINEL - registry keys are a three-way contract with backend
-// internal/blockkit BuiltinTypes and dashboard features/cms, checked by bin/contract-check
+// internal/blockkit BuiltinTypes and dashboard features/cms, checked by skelet check contracts
 // ref is the one backend type with no renderer here - it's listed in that script's RENDERER_GAPS
 type BlockRenderer = (props: { block: Block }) => ReactNode | Promise<ReactNode>;
 

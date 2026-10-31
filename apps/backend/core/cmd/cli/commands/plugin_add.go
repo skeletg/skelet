@@ -19,8 +19,8 @@ var pluginAddCmd = &cobra.Command{
 	Long: `Installs a plugin the way Go installs anything else: as a versioned module
 dependency. Nothing is copied into this repo.
 
-  bin/cli plugin add github.com/skeletg/lang-sr@v0.1.0
-  bin/cli plugin add github.com/skeletg/lang-sr            # latest
+  skelet cli plugin add github.com/skeletg/lang-sr@v0.1.0
+  skelet cli plugin add github.com/skeletg/lang-sr            # latest
 
 A plugin with no published module is written in plugins/<slug>/ instead, by
 plugin new. Those two are the only layouts - there is no replace-to-a-checkout
@@ -134,7 +134,7 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 			}
 			_ = pluginset.Generate(".")
 			_ = pluginset.WriteGraphSchemas(".")
-			return fmt.Errorf("smoke build failed - left disabled, fix and run: bin/cli plugin enable %s\n%s", slug, out)
+			return fmt.Errorf("smoke build failed - left disabled, fix and run: skelet cli plugin enable %s\n%s", slug, out)
 		}
 	}
 
@@ -149,7 +149,7 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 			fmt.Printf("     %s\n", l)
 		}
 	}
-	printStep("Audit it: bin/cli plugin list shows the manifest, but capabilities",
+	printStep("Audit it: skelet cli plugin list shows the manifest, but capabilities",
 		"are a disclosure, not a sandbox - read the code")
 	if hasGraphql {
 		printStep("bin/codegen - it ships graphql/, which must merge into the schema",
@@ -161,7 +161,7 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 		printStep("bin/codegen - regenerates the docs/config references it registers")
 	}
 	if _, err := os.Stat(filepath.Join(modDir, "migrations")); err == nil {
-		printStep(fmt.Sprintf("bin/cli plugin migrate up %s - it ships migrations", slug))
+		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))
 	}
 	for _, half := range []struct{ dir, dest string }{
 		{"_dashboard", "apps/dashboard/src/plugins/" + slug + "/"},

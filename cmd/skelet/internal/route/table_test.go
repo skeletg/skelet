@@ -10,7 +10,7 @@ import (
 
 const repoRoot = "../../../.."
 
-// The front door and bin/ agree in both directions, and bin/repo-check can count the routes by grepping this file
+// The front door and bin/ agree in both directions, and skelet check structure can count the routes by grepping this file
 func TestTableAndBinAgree(t *testing.T) {
 	routed := map[string]bool{}
 	scripts := 0
@@ -33,7 +33,8 @@ func TestTableAndBinAgree(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), "_") && !routed[e.Name()] {
+		// bin/check only hands hooks from before skelet hooks to the CLI, and has no verb of its own
+		if !strings.HasPrefix(e.Name(), "_") && !routed[e.Name()] && e.Name() != "check" {
 			t.Errorf("bin/%s has no verb", e.Name())
 		}
 	}
@@ -43,6 +44,6 @@ func TestTableAndBinAgree(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := len(regexp.MustCompile(`Script: "[a-z][a-z0-9-]*"`).FindAll(src, -1)); n != scripts {
-		t.Errorf("bin/repo-check's grep finds %d routes in table.go, the table holds %d - keep one Script: per route", n, scripts)
+		t.Errorf("skelet check structure's grep finds %d routes in table.go, the table holds %d - keep one Script: per route", n, scripts)
 	}
 }

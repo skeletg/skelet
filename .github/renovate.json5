@@ -1,8 +1,8 @@
 // Dependency bumps. Renovate rather than Dependabot because it finds manifests itself - the app
 // set stays a directory listing here, the way bin/*, the CI matrices and push-images all treat it
 //
-// The grouping below is not cosmetic: bin/pin-check requires several versions to be identical
-// across two or three files, and a bump that arrives as two PRs fails bin/check on both
+// The grouping below is not cosmetic: skelet check pins requires several versions to be identical
+// across two or three files, and a bump that arrives as two PRs fails skelet check on both
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
@@ -61,7 +61,7 @@
       "groupName": "go modules"
     },
     {
-      // Our own images, built by bin/push-images - there is no upstream to check
+      // Our own images, built by skelet release - there is no upstream to check
       "matchPackageNames": ["skelet-app", "skelet-dashboard", "skelet-vetrina-demo"],
       "enabled": false
     },

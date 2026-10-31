@@ -1,5 +1,5 @@
 # Backend + frontend test gate - the service containers are here so the env-gated integration suites run on every push, not only when someone exports the DSNs
-# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by bin/pin-check - the queue round-trip embeds nats-server and needs no service
+# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by skelet check pins - the queue round-trip embeds nats-server and needs no service
 name: CI
 
 on:
@@ -170,7 +170,7 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: ${{ matrix.dir }}/package.json
-      # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
+      # .nvmrc is the pin - skelet check pins keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
         with:

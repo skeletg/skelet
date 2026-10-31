@@ -157,7 +157,7 @@ fails when a script has no route or a route has no script.
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
 | `setup`, `doctor`, `hooks`, `down`, `stop`, `restart`, `ps`, `logs`, `serve`, `sh`, `cli`, `psql`, `db ...`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
 
-`bin/repo-check` fails if `skelet` routes to a script that doesn't exist, so
+`skelet check structure` fails if `skelet` routes to a script that doesn't exist, so
 the table above can't quietly rot when a script is renamed.
 
 ---

@@ -205,7 +205,7 @@ codegen outright.
   there is one, else the `golang` image - and every later run starts the cached binary. Its routes are one
   line each in `cmd/skelet/internal/route/table.go`, and `./skelet check structure` holds them to `bin/` both ways
 - Containers run as your uid via `SKELET_UID`, which only `bin/_lib` exports. A script
-  that runs `docker compose run` or `up` must source it, and `bin/repo-check` enforces that
+  that runs `docker compose run` or `up` must source it, and `skelet check structure` enforces that
 
 ## 9. Before you finish
 

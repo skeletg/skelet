@@ -2,10 +2,12 @@
 package route
 
 import (
+	"github.com/skeletg/skelet/cmd/skelet/internal/changelog"
 	"github.com/skeletg/skelet/cmd/skelet/internal/container"
 	"github.com/skeletg/skelet/cmd/skelet/internal/db"
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
 	"github.com/skeletg/skelet/cmd/skelet/internal/fixperms"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gates"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/release"
 	"github.com/skeletg/skelet/cmd/skelet/internal/search"
@@ -13,7 +15,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
 )
 
-// Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check
+// Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. skelet check structure
 // greps the Script fields of this file, so every script the front door reaches is named here, one route per line
 type Route struct {
 	Verb    string
@@ -48,7 +50,7 @@ var routes = []Route{
 	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
 	{Verb: "fixperms", Go: fixperms.Run, About: fixperms.About},
 	{Verb: "provider", Go: container.Provider, About: container.ProviderAbout},
-	{Verb: "changelog", Script: "changelog"},
+	{Verb: "changelog", Go: changelog.Run, About: changelog.About},
 	{Verb: "add", Script: "new"},
 	{Verb: "rm", Script: "remove"},
 	{Verb: "pnpm", Sub: "dashboard", Script: "dash"},
@@ -62,10 +64,10 @@ var routes = []Route{
 	{Verb: "gen", Sub: "sqlc", Script: "sqlc"},
 	{Verb: "gen", Sub: "gqlgen", Script: "gqlgen"},
 	{Verb: "gen", Sub: "buf", Script: "buf"},
-	{Verb: "check", Script: "check"},
-	{Verb: "check", Sub: "pins", Script: "pin-check"},
-	{Verb: "check", Sub: "structure", Script: "repo-check"},
-	{Verb: "check", Sub: "contracts", Script: "contract-check"},
+	{Verb: "check", Go: gates.Check, About: gates.CheckAbout},
+	{Verb: "check", Sub: "pins", Go: gates.Pins, About: gates.PinsAbout},
+	{Verb: "check", Sub: "structure", Go: gates.Repo, About: gates.RepoAbout},
+	{Verb: "check", Sub: "contracts", Go: gates.Contracts, About: gates.ContractsAbout},
 	{Verb: "check", Sub: "codegen", Script: "codegen", Prepend: []string{"--check"}},
 	{Verb: "test", Script: "test"},
 	{Verb: "test", Sub: "e2e", Script: "test-e2e"},

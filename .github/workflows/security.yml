@@ -61,11 +61,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Any app's packageManager will do - bin/pin-check holds them all to one version
+      # Any app's packageManager will do - skelet check pins holds them all to one version
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: apps/dashboard/package.json
-      # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
+      # .nvmrc is the pin - skelet check pins keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
         with:

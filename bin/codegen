@@ -86,7 +86,7 @@ echo "==> docs reference tables"
 (cd apps/backend/core && go run ./cmd/docsref)
 
 # The nginx and Caddy copies of the CSP and Permissions-Policy, rewritten from the constants in lib/httpx/securityheaders.go
-# bin/contract-check re-verifies the same equality with plain greps, so a hand-edited copy still fails CI's toolchain-free gate
+# skelet check contracts re-verifies the same equality, so a hand-edited copy still fails the gate even when codegen was skipped
 echo "==> security headers"
 (cd apps/backend/core && go run ./cmd/secheadgen)
 
