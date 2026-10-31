@@ -233,7 +233,7 @@ func TestProblemsAreReported(t *testing.T) {
 			[]string{"warn  nothing running - start with skelet up"}},
 		{"the old hook", func(t *testing.T, root string) {
 			put(t, root, ".git/hooks/pre-commit", "#!/bin/sh\n# Installed by bin/install-hooks.\nexec ./bin/check\n")
-		}, 0, []string{"warn  the pre-commit hook still runs bin/check"}},
+		}, 1, []string{"FAIL  the pre-commit hook still runs bin/check, which is gone"}},
 		{"a hook of your own that calls bin/", func(t *testing.T, root string) {
 			put(t, root, ".git/hooks/pre-commit", "#!/bin/sh\nbin/lint\n")
 		}, 0, []string{"warn  the pre-commit hook is your own and calls bin/ scripts"}},

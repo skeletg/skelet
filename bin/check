@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# Kept for pre-commit hooks written before skelet hooks, which run ./bin/check - it hands them to the CLI. Any skelet
-# command upgrades such a hook, and skelet hooks writes the current one
-exec "$(cd "$(dirname "$0")/.." && pwd)/skelet" check "$@"

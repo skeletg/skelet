@@ -1,4 +1,4 @@
-// Package route maps a skelet command line onto the bin/ script that carries it out
+// Package route maps a skelet command line onto the verb that carries it out
 package route
 
 import (
@@ -20,16 +20,13 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/testrun"
 )
 
-// Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. skelet check structure
-// greps the Script fields of this file, so every script the front door reaches is named here, one route per line
+// Route sends a verb, or a verb's subcommand, to the Go that carries it out, with the text skelet help prints for it
 type Route struct {
-	Verb    string
-	Sub     string
-	Flag    string
-	Script  string
-	Prepend []string
-	Go      func(root string, args []string) int
-	About   string
+	Verb  string
+	Sub   string
+	Flag  string
+	Go    func(root string, args []string) int
+	About string
 }
 
 // AnyApp is the pnpm route taken by any storefront name - the storefront exists when apps/channels/<name> does
@@ -95,7 +92,7 @@ var subs = map[string]string{
 	"changelog": "(preview) | check | release <version> [date]",
 }
 
-// Routes is the table, for the tests and gates that hold it to bin/
+// Routes is the table, for the tests that hold it together
 func Routes() []Route { return routes }
 
 func lookup(verb, sub string) (Route, bool) {

@@ -8,7 +8,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-// Set with -ldflags -X. The checkout shim builds with mode=checkout; anything else is the released binary
+// Set with -ldflags -X. The launcher builds a project's own CLI with mode=checkout; anything else is the released binary
 var (
 	version = "dev"
 	mode    = "global"

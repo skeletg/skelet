@@ -366,10 +366,10 @@ func hygiene(r *report, root string) {
 	case hooks.Current:
 		r.pass("pre-commit hook runs skelet check")
 	case hooks.Old:
-		r.note("the pre-commit hook still runs bin/check - skelet hooks updates it")
+		r.bad("the pre-commit hook still runs bin/check, which is gone - skelet hooks updates it")
 	default:
 		if strings.Contains(string(raw), "bin/") {
-			r.note("the pre-commit hook is your own and calls bin/ scripts, which skelet commands are replacing")
+			r.note("the pre-commit hook is your own and calls bin/ scripts, which are gone - each is a skelet verb now")
 		} else {
 			r.pass("pre-commit hook is your own - skelet hooks --force would replace it")
 		}

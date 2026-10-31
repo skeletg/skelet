@@ -69,8 +69,8 @@ func tools(r *report, root string) {
 	}
 }
 
-// cli is the skelet on the PATH. A link to a checkout's ./skelet, the bash front door from before the CLI, worked
-// as one - and stops working once a release takes that file away
+// cli is the skelet on the PATH. A link to a checkout's ./skelet, the bash front door from before the CLI, worked as
+// one, and dangles in any checkout new enough not to have that file
 func cli(r *report) {
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		p := filepath.Join(dir, "skelet")
@@ -84,14 +84,14 @@ func cli(r *report) {
 				target = filepath.Join(dir, target)
 			}
 			if shim(filepath.Dir(target)) {
-				r.note("skelet on the PATH links to %s, the ./skelet that goes away - install the CLI the README's way, with --force to replace the link", target)
+				r.note("skelet on the PATH links to %s, a ./skelet front door projects no longer have - install the CLI the README's way, with --force to replace the link", target)
 				return
 			}
 		}
 		r.pass("skelet %s", p)
 		return
 	}
-	r.note("no skelet on the PATH - ./skelet goes away, so install the CLI the README's way")
+	r.note("no skelet on the PATH - install the CLI the README's way")
 }
 
 // shim says dir is a checkout whose root skelet is the bash front door

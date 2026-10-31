@@ -15,11 +15,9 @@ starts the cached build straight away. A verb that ends by running something - `
 as if you'd run it yourself. With Go and nothing installed, `go -C cmd/skelet run . <verb>`
 does the same, though it reports any failure as exit 1.
 
-**`./skelet`.** The bash front door from before the CLI, still at the root of a project for
-one more release. The installed CLI hands a project that has it to it, so nothing changes
-until it's removed, and running it yourself says so. A symlink of it onto your PATH (`ln -s
-"$PWD/skelet" ~/.local/bin/skelet`) stops working once it's gone - `skelet doctor` warns
-about one, and the installer replaces it with `--force`.
+**Projects from before the CLI** had a bash `./skelet` at the root, and the installed CLI
+still hands one to it. A symlink of such a `./skelet` onto your PATH dangles in anything
+newer - `skelet doctor` warns about one, and the installer replaces it with `--force`.
 
 Every verb runs from the repo root whatever directory you're in, and three
 things hold for all of them:
@@ -91,7 +89,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `skelet check pins` | Version pins that live in several files at once: postgres, clickhouse, dbmate, golangci-lint, node (plus `.nvmrc`), alpine, and the `golang:` images against `go.mod`. Prints every site when they disagree. Add a pin here when you introduce one more than one file has to know. |
 | `skelet check structure` | Structural invariants a fresh clone or a forked storefront leans on: every `bin/*` script parses and is executable, no doc or workflow names a script that doesn't exist, every compose `env_file` has a committed `.example`. |
 | `skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, and the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
-| `skelet hooks` | Installs a pre-commit hook that runs `skelet check`. Opt-in; skip it once with `git commit --no-verify`. The hook finds the CLI on its own - `skelet` on the PATH, `~/.local/bin/skelet`, the one you installed it with, then `go run` from the checkout - because git GUIs often run hooks without your shell's PATH. A hook of your own is left alone unless you pass `--force`, and the hook an older `skelet hooks` wrote, which ran `bin/check`, is updated the next time you run any `skelet` command. |
+| `skelet hooks` | Installs a pre-commit hook that runs `skelet check`. Opt-in; skip it once with `git commit --no-verify`. The hook finds the CLI on its own - `skelet` on the PATH, `~/.local/bin/skelet`, the one you installed it with, then `go run` from the checkout - because git GUIs often run hooks without your shell's PATH. A hook of your own is left alone unless you pass `--force`, and the hook an older `skelet hooks` wrote, which ran a script that's gone, is updated the next time you run any `skelet` command. |
 
 ## Codegen, lint and tests
 
@@ -144,10 +142,8 @@ Each verb is one line in `cmd/skelet/internal/route/table.go`, naming the Go fun
 carries it out and the help text `skelet help` prints. `pnpm` takes `npm` as an alias from
 before the switch, and `new channel` is `add channel`'s old name.
 
-`bin/` is down to two files while the `./skelet` shim lasts. `bin/check` is for the hooks an
-older `skelet hooks` wrote, and hands them to `skelet check` - any `skelet` command rewrites
-such a hook to the current one. `bin/_lib` runs nothing any more; beside the shim it tells an
-installed `skelet` to hand this checkout to `./skelet`.
+A pre-commit hook an older `skelet hooks` wrote ran a script that's gone - any `skelet` command
+rewrites such a hook to the current one, and `skelet doctor` fails on one that's left.
 
 ---
 

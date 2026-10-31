@@ -27,7 +27,7 @@ type gate struct {
 var checks = []gate{
 	{"pins", "one version per pin across the compose files, Dockerfiles and workflows", "skelet check pins",
 		func(root string) int { return pinCheck(root, os.Stdout) }},
-	{"structure", "bin/* parse and are executable, env templates exist", "skelet check structure",
+	{"structure", "the installer, env templates, the changelog", "skelet check structure",
 		func(root string) int { return repoCheck(root, os.Stdout) }},
 	{"contracts", "the SYNC sentinels: lists that must agree across backend, dashboard and storefront", "skelet check contracts",
 		func(root string) int { return contractCheck(root, os.Stdout) }},

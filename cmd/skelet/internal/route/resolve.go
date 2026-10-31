@@ -7,10 +7,8 @@ import (
 	"strings"
 )
 
-// Action is what a command line resolves to: a bin/ script to exec with Args, a Go verb to run with them, or output
-// and an exit code
+// Action is what a command line resolves to: a verb to run with Args, or output and an exit code
 type Action struct {
-	Script string
 	Go     func(root string, args []string) int
 	Args   []string
 	Notice string
@@ -73,12 +71,12 @@ func simple(verb string, rest []string) Action {
 }
 
 // to is the one place a route becomes an Action, so a Go verb's handler survives every path - sub-routes, flags, apps
-func to(r Route, args []string) Action { return Action{Script: r.Script, Go: r.Go, Args: args} }
+func to(r Route, args []string) Action { return Action{Go: r.Go, Args: args} }
 
 func withSubs(verb string, rest []string) Action {
 	if len(rest) > 0 && rest[0] != "" {
 		if r, ok := lookup(verb, rest[0]); ok {
-			return to(r, append(slices.Clone(r.Prepend), rest[1:]...))
+			return to(r, rest[1:])
 		}
 	}
 	return simple(verb, rest)

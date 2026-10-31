@@ -63,13 +63,6 @@ of the product, so it sits at the root, not under `apps/`. Its own Go module, st
 imports nothing from the backend - `cmd/skelet` because Go names a binary after
 its directory, so `go install` gives you `skelet`.
 
-### `bin/` and `./skelet`
-
-What's left of the bash front door from before the CLI: `./skelet`, which builds and
-runs `cmd/skelet`, and `bin/check`, which hands a pre-commit hook an older `skelet hooks`
-wrote to `skelet check`. Both stay a release while installs move over to the CLI, then
-go. Every verb is Go now - full command reference: [scripts.md](scripts.md).
-
 ## The ones that hold configuration
 
 ### `env/`
@@ -119,8 +112,9 @@ minimum deployable tenant, and `docker-compose.prod.yml` the full split-tier
 shape; both are described under Deploying in the README. `.nvmrc` pins Node and is what CI reads (`node-version-file`),
 `.gitattributes` locks every text file to LF so a Windows checkout cannot rewrite
 line endings, `.gitignore` and `.dockerignore` keep build contexts and commits
-clean. `.skelet/` is git-ignored scratch for the CLI - builds the `./skelet` shim caches,
-one per source version, among them - delete it whenever you like. `README.md`, `AGENTS.md`
+clean. `.skelet/` is git-ignored scratch for the CLI - the build cache it falls back to
+when your user cache directory isn't writable, among other things - delete it whenever
+you like. `README.md`, `AGENTS.md`
 and `CHANGELOG.md` are the only pages up here - everything else belongs in `docs/`.
 
 Never edit the tracked compose files to add your own service. Docker Compose

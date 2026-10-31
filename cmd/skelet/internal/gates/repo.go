@@ -15,23 +15,16 @@ import (
 )
 
 const RepoAbout = `Structural invariants a fresh clone or a forked storefront leans on - the class of breakage that only
-shows up for someone else, long after the commit that caused it: the scripts parse and run, the
-installer is POSIX sh, every verb's script exists and every script has a verb, every script that
-creates containers sources bin/_lib, no tracked file names a bin/ script that's gone, every compose
-env_file has a template, the root .env.example covers what prod compose demands, and the changelog
-is well-formed.`
+shows up for someone else, long after the commit that caused it: the installer is POSIX sh, no tracked file
+names a bin/ script (they're all gone), every compose env_file has a template, the root .env.example covers
+what prod compose demands, and the changelog is well-formed.`
 
-const table = "cmd/skelet/internal/route/table.go"
-
-// forwarders are scripts kept only to hand an old caller to the CLI, with no verb of their own - bin/check is what
-// hooks written before skelet hooks run
-var forwarders = []string{"check"}
-
-// Files that name a retired script on purpose: the hooks package recognises the hook the old installer script wrote,
-// test fixtures hold that hook and an old profile's header as they were, and this gate's own test names missing
-// scripts to see them caught
+// Files that name a retired script on purpose: the hooks package and the doctor recognise the hook the old installer
+// script wrote, test fixtures hold that hook and an old profile's header as they were, and this gate's own test names
+// a missing script to see it caught
 var retiredOnPurpose = []string{
 	"cmd/skelet/internal/hooks",
+	"cmd/skelet/internal/doctor/checkout.go",
 	"cmd/skelet/internal/doctor/doctor_test.go",
 	"cmd/skelet/internal/profile/profile_test.go",
 	"cmd/skelet/internal/gates/repo_test.go",
@@ -41,32 +34,6 @@ func Repo(root string, _ []string) int { return repoCheck(root, os.Stdout) }
 
 func repoCheck(root string, out io.Writer) int {
 	r := &report{out: out}
-	scripts, _ := filepath.Glob(filepath.Join(root, "bin", "*"))
-	slices.Sort(scripts)
-
-	r.section("bin/* parse and are executable")
-	before := r.failed
-	n := 0
-	for _, p := range append([]string{filepath.Join(root, "skelet")}, scripts...) {
-		rel := "./skelet"
-		if p != filepath.Join(root, "skelet") {
-			rel, _ = filepath.Rel(root, p)
-		}
-		if msg, err := exec.Command("bash", "-n", p).CombinedOutput(); err != nil {
-			fmt.Fprint(out, string(msg))
-			r.bad("%s is not valid bash", rel)
-		}
-		// core.fileMode is false on WSL clones, so a lost +x bit is invisible to git diff and only surfaces when
-		// someone else checks the file out
-		if fi, err := os.Stat(p); err != nil || fi.Mode().Perm()&0o111 == 0 {
-			r.bad("%s is not executable (git update-index --chmod=+x %s)", rel, rel)
-		}
-		n++
-	}
-	if r.failed == before {
-		r.pass("%d scripts", n)
-	}
-
 	// It runs as curl ... | sh, and sh is dash on Debian and Ubuntu - so dash when there is one, since bash -n waves
 	// bashisms through
 	r.section("the CLI installer is POSIX sh")
@@ -80,8 +47,6 @@ func repoCheck(root string, out io.Writer) int {
 		r.bad("cmd/skelet/install.sh is not valid sh")
 	}
 
-	routes(r, root, scripts)
-	sourcesLib(r, root, scripts)
 	references(r, root)
 	envTemplates(r, root)
 	required(r, root)
@@ -102,87 +67,13 @@ func repoCheck(root string, out io.Writer) int {
 	return r.code()
 }
 
-var (
-	scriptRoute = regexp.MustCompile(`Script: "([a-z][a-z0-9-]*)"`)
-	goRoute     = regexp.MustCompile(`Go: [a-z]+\.[A-Z]`)
-)
-
-// routes reads the route table as text, not a second list, so it can't drift - and a floor over every route, scripts
-// and Go verbs alike, so a refactor that stops matching fails loudly instead of passing vacuously
-func routes(r *report, root string, scripts []string) {
-	r.section("./skelet and bin/* agree")
-	src, _ := os.ReadFile(filepath.Join(root, table))
-	var routed []string
-	for _, m := range scriptRoute.FindAllSubmatch(src, -1) {
-		if s := string(m[1]); !slices.Contains(routed, s) {
-			routed = append(routed, s)
-		}
-	}
-	slices.Sort(routed)
-	if total := len(routed) + len(goRoute.FindAll(src, -1)); total < 30 {
-		r.bad("only %d routes found in %s - the table or this check moved, not the scripts", total, table)
-		return
-	}
-	missing := false
-	for _, s := range routed {
-		if fi, err := os.Stat(filepath.Join(root, "bin", s)); err != nil || fi.Mode().Perm()&0o111 == 0 {
-			r.bad("the route table sends a verb to bin/%s, which is missing or not executable", s)
-			missing = true
-		}
-	}
-	if !missing {
-		r.pass("%d routed scripts all present", len(routed))
-	}
-	// The other direction - a new script nobody wired into the front door is invisible to anyone reading skelet help,
-	// the only list a newcomer sees
-	unreachable := false
-	for _, p := range scripts {
-		b := filepath.Base(p)
-		if strings.HasPrefix(b, "_") || slices.Contains(routed, b) || slices.Contains(forwarders, b) {
-			continue
-		}
-		r.bad("bin/%s has no skelet verb - add a route in %s, or the front door is incomplete", b, table)
-		unreachable = true
-	}
-	if !unreachable {
-		r.pass("every bin script is reachable through a verb")
-	}
-}
-
-var createsContainers = regexp.MustCompilePOSIX(`docker compose ([a-z-]+ )*(run|up)([^a-zA-Z0-9_]|$)`)
-
-// sourcesLib - run and up are the verbs that create a container, and the uid it runs as comes from SKELET_UID, which
-// only bin/_lib exports. exec and ps against one that already exists don't care, so it's scoped to those two
-func sourcesLib(r *report, root string, scripts []string) {
-	r.section("container-creating scripts source bin/_lib")
-	missing := false
-	for _, p := range scripts {
-		if strings.HasPrefix(filepath.Base(p), "_") {
-			continue
-		}
-		raw, _ := os.ReadFile(p)
-		if !createsContainers.Match(raw) {
-			continue
-		}
-		if !regexp.MustCompile(`(?m)^\. bin/_lib`).Match(raw) {
-			rel, _ := filepath.Rel(root, p)
-			r.bad("%s creates containers without sourcing bin/_lib - they would run as the wrong uid", rel)
-			missing = true
-		}
-	}
-	if !missing {
-		r.pass("every one of them does")
-	}
-}
-
 var binReference = regexp.MustCompile(`(^|[^A-Za-z0-9_./-])(bin/[a-z0-9][a-z0-9_-]*)`)
 
 // references checks every tracked text file - released changelogs aside, which record what was true then - for a
-// bin/ script that no longer exists. Each port deletes scripts, so this is what makes it reword their mentions too
+// bin/ script, since every one became a skelet verb and a mention would send someone to a file that isn't there
 func references(r *report, root string) {
-	r.section("every referenced bin/* script exists")
-	args := []string{"grep", "-IhoE", `(^|[^A-Za-z0-9_./-])bin/[a-z0-9][a-z0-9_-]*`, "--", ".",
-		":!changelog/[0-9]*.md", ":!cmd/skelet/internal/route/testdata"}
+	r.section("no tracked file names a bin/ script")
+	args := []string{"grep", "-IhoE", `(^|[^A-Za-z0-9_./-])bin/[a-z0-9][a-z0-9_-]*`, "--", ".", ":!changelog/[0-9]*.md"}
 	for _, f := range retiredOnPurpose {
 		args = append(args, ":!"+f)
 	}

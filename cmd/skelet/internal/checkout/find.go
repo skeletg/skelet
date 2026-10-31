@@ -12,14 +12,14 @@ type Kind int
 
 const (
 	None Kind = iota
-	// Shim has the bash front door at its root - every release so far, and this tree until that's retired
+	// Shim has the bash front door at its root - every release before the CLI took its place
 	Shim
 	// Native has only cmd/skelet, which the installed skelet builds and runs itself
 	Native
 )
 
-// Locate walks up from dir to the first checkout - the one you stand in wins, the same rule the shim applies, so an
-// installed binary acts on the repo you're in
+// Locate walks up from dir to the first checkout - the one you stand in wins, so an installed binary acts on the repo
+// you're in
 func Locate(dir string) (string, Kind) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

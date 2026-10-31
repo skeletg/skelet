@@ -29,20 +29,6 @@ func TestUsageGolden(t *testing.T) {
 	}
 }
 
-func TestHeader(t *testing.T) {
-	cases := []struct{ script, want string }{
-		{"#!/usr/bin/env bash\n# Line one\n#  indented\n#\n# after a blank\nset -e\n# not this\n", "Line one\n indented\n\nafter a blank"},
-		{"#!/usr/bin/env bash\n# Top\n\nfoo() { :; }\n# still header\nset -e\n", "Top\nstill header"},
-		{"#!/usr/bin/env bash\nset -e\n", ""},
-		{"#!/bin/sh\n#no space\n", "no space"},
-	}
-	for _, c := range cases {
-		if got := Header(c.script); got != c.want {
-			t.Errorf("Header(%q) = %q, want %q", c.script, got, c.want)
-		}
-	}
-}
-
 func TestHelp(t *testing.T) {
 	root := fakeRoot(t)
 	cases := []struct{ verb, want string }{

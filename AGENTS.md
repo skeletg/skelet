@@ -19,7 +19,6 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
 | `cmd/skelet/` | The `skelet` CLI: the front door here, every dev verb, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
-| `./skelet`, `bin/` | The bash front door from before the CLI, and the hook forwarder - kept a release while installs move over, then removed |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
 Full tree: [docs/architecture.md](docs/architecture.md). What each root directory is

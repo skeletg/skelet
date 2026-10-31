@@ -26,46 +26,45 @@ func TestResolveRoutes(t *testing.T) {
 	root := fakeRoot(t)
 	cases := []struct {
 		args   []string
-		script string
 		want   []string
 		notice string
 	}{
-		{[]string{"up", "--lean"}, "", []string{"--lean"}, ""},
-		{[]string{"sh"}, "", nil, ""},
-		{[]string{"logs", "app"}, "", []string{"app"}, ""},
-		{[]string{"pnpm", "dashboard", "run", "lint"}, "", []string{"run", "lint"}, ""},
-		{[]string{"pnpm", "vetrina", "run", "dev"}, "", []string{"vetrina", "run", "dev"}, ""},
-		{[]string{"npm", "dashboard", "x"}, "", []string{"x"}, "(skelet npm is skelet pnpm now - running pnpm)"},
-		{[]string{"go", "--signals", "test", "./..."}, "", []string{"--signals", "test", "./..."}, ""},
-		{[]string{"db", "migrate", "up", "--signals"}, "", []string{"up"}, ""},
-		{[]string{"db", "migrate", "--signals", "status"}, "", []string{"status"}, ""},
-		{[]string{"db", "migrate", "status"}, "", []string{"status"}, ""},
-		{[]string{"db", "export", "out.dump"}, "", []string{"out.dump"}, ""},
-		{[]string{"db", "shell"}, "", nil, ""},
-		{[]string{"gen"}, "", nil, ""},
-		{[]string{"gen", "--check"}, "", []string{"--check"}, ""},
-		{[]string{"gen", "sqlc", "x"}, "", []string{"x"}, ""},
-		{[]string{"gen", "buf"}, "", nil, ""},
-		{[]string{"check"}, "", nil, ""},
-		{[]string{"check", "codegen", "--no-frontend"}, "", []string{"--no-frontend"}, ""},
-		{[]string{"check", "pins"}, "", nil, ""},
-		{[]string{"test"}, "", nil, ""},
-		{[]string{"test", "--changed"}, "", []string{"--changed"}, ""},
-		{[]string{"test", "./internal/x", "-run", "X"}, "", []string{"./internal/x", "-run", "X"}, ""},
-		{[]string{"test", "e2e", "-run", "X"}, "", []string{"-run", "X"}, ""},
-		{[]string{"test", "storefront", "vetrina"}, "", []string{"vetrina"}, ""},
-		{[]string{"add", "channel", "shop"}, "", []string{"channel", "shop"}, ""},
-		{[]string{"new", "channel", "shop"}, "", []string{"channel", "shop"}, "(skelet new channel is skelet add channel now - running it)"},
-		{[]string{"rm", "channel", "shop", "-y"}, "", []string{"channel", "shop", "-y"}, ""},
-		{[]string{"search", "status"}, "", []string{"status"}, ""},
-		{[]string{"release"}, "", nil, ""},
-		{[]string{"provider", "http://x"}, "", []string{"http://x"}, ""},
+		{[]string{"up", "--lean"}, []string{"--lean"}, ""},
+		{[]string{"sh"}, nil, ""},
+		{[]string{"logs", "app"}, []string{"app"}, ""},
+		{[]string{"pnpm", "dashboard", "run", "lint"}, []string{"run", "lint"}, ""},
+		{[]string{"pnpm", "vetrina", "run", "dev"}, []string{"vetrina", "run", "dev"}, ""},
+		{[]string{"npm", "dashboard", "x"}, []string{"x"}, "(skelet npm is skelet pnpm now - running pnpm)"},
+		{[]string{"go", "--signals", "test", "./..."}, []string{"--signals", "test", "./..."}, ""},
+		{[]string{"db", "migrate", "up", "--signals"}, []string{"up"}, ""},
+		{[]string{"db", "migrate", "--signals", "status"}, []string{"status"}, ""},
+		{[]string{"db", "migrate", "status"}, []string{"status"}, ""},
+		{[]string{"db", "export", "out.dump"}, []string{"out.dump"}, ""},
+		{[]string{"db", "shell"}, nil, ""},
+		{[]string{"gen"}, nil, ""},
+		{[]string{"gen", "--check"}, []string{"--check"}, ""},
+		{[]string{"gen", "sqlc", "x"}, []string{"x"}, ""},
+		{[]string{"gen", "buf"}, nil, ""},
+		{[]string{"check"}, nil, ""},
+		{[]string{"check", "codegen", "--no-frontend"}, []string{"--no-frontend"}, ""},
+		{[]string{"check", "pins"}, nil, ""},
+		{[]string{"test"}, nil, ""},
+		{[]string{"test", "--changed"}, []string{"--changed"}, ""},
+		{[]string{"test", "./internal/x", "-run", "X"}, []string{"./internal/x", "-run", "X"}, ""},
+		{[]string{"test", "e2e", "-run", "X"}, []string{"-run", "X"}, ""},
+		{[]string{"test", "storefront", "vetrina"}, []string{"vetrina"}, ""},
+		{[]string{"add", "channel", "shop"}, []string{"channel", "shop"}, ""},
+		{[]string{"new", "channel", "shop"}, []string{"channel", "shop"}, "(skelet new channel is skelet add channel now - running it)"},
+		{[]string{"rm", "channel", "shop", "-y"}, []string{"channel", "shop", "-y"}, ""},
+		{[]string{"search", "status"}, []string{"status"}, ""},
+		{[]string{"release"}, nil, ""},
+		{[]string{"provider", "http://x"}, []string{"http://x"}, ""},
 	}
-	// An empty script is a Go verb: it has to resolve to its handler
+	// Each resolves to its Go handler
 	for _, c := range cases {
 		a := Resolve(root, c.args)
-		if a.Script != c.script || (c.script == "") != (a.Go != nil) || !slices.Equal(a.Args, c.want) || a.Notice != c.notice || a.Code != 0 {
-			t.Errorf("%q -> %+v, want bin/%s %q notice %q", c.args, a, c.script, c.want, c.notice)
+		if a.Go == nil || !slices.Equal(a.Args, c.want) || a.Notice != c.notice || a.Code != 0 {
+			t.Errorf("%q -> %+v, want %q notice %q", c.args, a, c.want, c.notice)
 		}
 	}
 }
@@ -85,7 +84,7 @@ func TestResolveRefusals(t *testing.T) {
 	}
 	for _, c := range cases {
 		a := Resolve(root, c.args)
-		if a.Script != "" || a.Stderr != c.stderr || a.Code != 2 {
+		if a.Go != nil || a.Stderr != c.stderr || a.Code != 2 {
 			t.Errorf("%q -> %+v, want refusal %q", c.args, a, c.stderr)
 		}
 	}
@@ -93,7 +92,7 @@ func TestResolveRefusals(t *testing.T) {
 
 func TestResolveUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {""}, {"help"}, {"-h"}, {"--help"}, {"help", ""}} {
-		if a := Resolve(fakeRoot(t), args); a.Stdout != Usage() || a.Code != 0 || a.Script != "" {
+		if a := Resolve(fakeRoot(t), args); a.Stdout != Usage() || a.Code != 0 || a.Go != nil {
 			t.Errorf("%q did not print the usage", args)
 		}
 	}
@@ -101,7 +100,7 @@ func TestResolveUsage(t *testing.T) {
 
 func TestGoVerbsResolveToTheirHandler(t *testing.T) {
 	for _, verb := range []string{"setup", "doctor", "hooks"} {
-		if a := Resolve(fakeRoot(t), []string{verb, "--x"}); a.Go == nil || a.Script != "" || !slices.Equal(a.Args, []string{"--x"}) {
+		if a := Resolve(fakeRoot(t), []string{verb, "--x"}); a.Go == nil || !slices.Equal(a.Args, []string{"--x"}) {
 			t.Errorf("%s -> %+v", verb, a)
 		}
 	}

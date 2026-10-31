@@ -89,7 +89,7 @@ func ExitCode(err error) int {
 	return ee.ExitCode()
 }
 
-// Env is the environment the scripts get: this one, minus what the shim and the launcher pass the CLI
+// Env is the environment a child gets: this one, minus what the launcher, or an older project's shim, passes the CLI
 func Env() []string {
 	var env []string
 	for _, kv := range os.Environ() {

@@ -1,7 +1,5 @@
-// Package compose gives the CLI's own docker compose calls what bin/_lib gives the scripts: the profiles that follow
-// .skelet-apps, .skelet-tools and SIGNALS_ENABLED, the locale, and the uid containers run as. None of it reaches a
-// script's environment - _lib keeps an inherited COMPOSE_PROFILES, so a leaked one would override what the script
-// works out for itself (--lean included)
+// Package compose gives every docker compose call the CLI makes the same setup: the profiles that follow .skelet-apps,
+// .skelet-tools and SIGNALS_ENABLED, the locale, and the uid containers run as
 package compose
 
 import (
@@ -16,7 +14,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-// Lib is what bin/_lib works out
+// Lib is the compose setup worked out for a checkout
 type Lib struct {
 	root     string
 	Profiles string
@@ -136,7 +134,7 @@ func Command(root string, env []string, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// Running reports whether service has a running container in this project - an exact name, where the scripts' grep
+// Running reports whether service has a running container in this project - an exact name, where the old bash scripts' grep
 // for skelet-<service> also matched longer names and ignored COMPOSE_PROJECT_NAME
 func (l Lib) Running(service string) bool {
 	out, _ := Command(l.root, l.Env(), "ps", "--services", "--status", "running").Output()
