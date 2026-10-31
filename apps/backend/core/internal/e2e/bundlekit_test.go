@@ -587,3 +587,50 @@ func TestABundleComponentIsReturnedOnItsOwn(t *testing.T) {
 		t.Errorf("whole bundles still returnable = %v (%v), want the one untouched bundle", left[line.ID], err)
 	}
 }
+
+// A kit listed on the store at price, holding qty of each given component per kit
+func (h *harness) newKit(t *testing.T, f *store, price int64, comps map[uuid.UUID]float64) (catalog.Product, []catalog.KitComponent) {
+	t.Helper()
+	k, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
+		ProductTypeID: f.Product.ProductTypeID, Locale: "en",
+		Name: "E2E Kit " + uuid.NewString()[:8], SKU: "e2e-kit-" + uuid.NewString()[:8],
+		Kind: catalog.KindKit, DefaultCurrencyCode: "USD", DefaultPrice: price,
+	})
+	if err != nil {
+		t.Fatalf("create kit: %v", err)
+	}
+	h.ListOn(t, f.Channel, k.ID, price)
+	var out []catalog.KitComponent
+	for id, qty := range comps {
+		c, err := h.D.Catalog.AddKitComponent(h.Ctx, catalog.AddKitComponentInput{ProductID: k.ID, ComponentProductID: id, Quantity: qty, SortOrder: int32(len(out))})
+		if err != nil {
+			t.Fatalf("kit component: %v", err)
+		}
+		out = append(out, c)
+	}
+	return k, out
+}
+
+// Scenario: a kit with no components would sell an empty box - add-to-cart refuses it, and so does checkout when the merchant empties a kit already in a cart
+func TestAnEmptyKitIsRefused(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	empty, _ := h.newKit(t, f, 900, nil)
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, empty.SKU, 1); apperr.CodeOf(err) != "PRODUCT_NOT_PURCHASABLE" {
+		t.Errorf("adding an empty kit = %v, want PRODUCT_NOT_PURCHASABLE", err)
+	}
+
+	k, comps := h.newKit(t, f, 900, map[uuid.UUID]float64{h.AddProduct(t, f, 400, true, 10).ID: 1})
+	cartID := h.NewGuestCartSKU(t, f, k.SKU, 1)
+	if err := h.D.Catalog.DeleteKitComponent(h.Ctx, comps[0].ID); err != nil {
+		t.Fatalf("empty the kit: %v", err)
+	}
+	if _, err := h.TryPlace(t, f.Channel, cartID); apperr.CodeOf(err) != "PRODUCT_NOT_PURCHASABLE" {
+		t.Errorf("placing a kit emptied in the cart = %v, want PRODUCT_NOT_PURCHASABLE", err)
+	}
+	h.Settle(t)
+}
