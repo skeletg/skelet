@@ -147,6 +147,8 @@ type Product {
   bundleDiscountPercent: Int!
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
+  # Empty unless kind == KIT - what is in the box, per kit. A component this store doesn't sell on its own has no url.
+  kitComponents:       [KitComponent!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
   # Pass the customer's picks to addConfiguredToCart. Empty when none.
   options:             [ProductCustomOption!]!
@@ -228,6 +230,14 @@ type GroupedMember {
   member:          Product!
   defaultQuantity: Float!
   sortOrder:       Int!
+}
+
+# One item in a KIT's fixed contents - quantity is how many come in one kit.
+type KitComponent {
+  id:        ID!
+  component: Product!
+  quantity:  Float!
+  sortOrder: Int!
 }
 
 # A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent"), resolved to this channel's surcharge - an option whose fixed surcharge has no amount in this channel's currency is left out.
