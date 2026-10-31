@@ -13,7 +13,7 @@ cover the logic; these cover the wiring - server actions, the real backend, hydr
 
 ## How it runs
 
-`bin/test-storefront` starts Microsoft's Playwright image inside the storefront container's network namespace, so
+`skelet test storefront` starts Microsoft's Playwright image inside the storefront container's network namespace, so
 the host needs no Node and no browser, and the browser reaches the dev server as `localhost:3000`. That matters:
 `next dev` only serves its `/_next` chunks to localhost and `allowedDevOrigins`, and under any other host the page
 never hydrates - forms then post natively and everything looks half-working. The image tag follows the

@@ -34,7 +34,7 @@ func Resolve(root string, args []string) Action {
 	switch verb {
 	case "help", "-h", "--help":
 		if len(rest) > 0 && rest[0] != "" {
-			return Help(root, rest[0])
+			return Help(root, rest[0], rest[1:]...)
 		}
 		return Action{Stdout: Usage()}
 	case "pnpm", "npm":

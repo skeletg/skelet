@@ -103,7 +103,7 @@ type Deps struct {
 	Admin         *admin.Service
 	AdminPrefs    *adminprefs.Service
 	Notification  *notification.Service
-	SignalsClient *signalsclient.Client // core's plug into the suite, which bin/test-e2e runs beside this harness - flows and saved emails are driven through it
+	SignalsClient *signalsclient.Client // core's plug into the suite, which skelet test e2e runs beside this harness - flows and saved emails are driven through it
 	Flows         *enroll.Enroller
 	Root          wiring.RootHandler
 }
@@ -254,7 +254,7 @@ func New(t TB) *Harness {
 		_ = conn.Close()
 	}
 	// The app container's own SIGNALS_GRPC_ADDR is the dev stack's Signals process - reading it would push this run's channels,
-	// flows and enrollments into the dev suite, so the address arrives under a name only bin/test-e2e sets
+	// flows and enrollments into the dev suite, so the address arrives under a name only skelet test e2e sets
 	signalsAddr := os.Getenv("E2E_SIGNALS_GRPC_ADDR")
 	if signalsAddr == "" {
 		t.Skip("E2E_SIGNALS_GRPC_ADDR is unset - run the e2e suite with ./skelet test e2e, which starts a Signals process of its own")
@@ -272,7 +272,7 @@ func New(t TB) *Harness {
 		// Every scenario posts from 127.0.0.1, and the checkout ones save dozens of steps between them
 		setenvDefault("CHECKOUT_RATE_LIMIT_PER_MIN", "100000")
 
-		// Core reaches the suite over the contract even here, so it talks to the Signals process bin/test-e2e started for this run's database
+		// Core reaches the suite over the contract even here, so it talks to the Signals process skelet test e2e started for this run's database
 		os.Setenv("SIGNALS_GRPC_ADDR", signalsAddr)
 
 		ctx := context.Background()

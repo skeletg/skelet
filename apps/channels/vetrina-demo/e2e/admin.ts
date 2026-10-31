@@ -1,6 +1,6 @@
 import { request, type APIRequestContext } from "@playwright/test";
 
-// The admin API for specs that set the store up - bin/test-storefront makes a superuser for the run and passes its
+// The admin API for specs that set the store up - skelet test storefront makes a superuser for the run and passes its
 // credentials, the admin endpoint and the storefront's channel in the environment
 export type Admin = { gql: <T = Record<string, unknown>>(query: string, variables?: Record<string, unknown>) => Promise<T>; channelId: string; dispose: () => Promise<void> };
 

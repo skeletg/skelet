@@ -96,7 +96,7 @@ jobs:
         working-directory: apps/backend/core
         # -race, because the bus dispatches to detached goroutines and the outbox relay runs eight concurrent workers
         # -timeout past go's 10m default - CI builds its databases fresh, but -race is a different animal
-        # internal/e2e sits out, as in bin/test - bin/test-e2e gives it its own databases and a Signals process
+        # internal/e2e sits out, as in skelet test - skelet test e2e gives it its own databases and a Signals process
         run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
       # The Signals module is its own go.mod, replacing core's by relative path - a change in a core
       # package the suite imports has to fail here, not on the suite's image build

@@ -45,7 +45,7 @@ services:
       - "8080:8080"
     volumes:
       # The three Go modules together, so the relative replaces between them resolve - bin/go --signals
-      # and bin/test-e2e build the suite in this container
+      # and skelet test e2e build the suite in this container
       - ./apps/backend:/var/www/backend
       - ./.git:/var/www/.git:ro
       # The core-to-Signals wire contract, owned by neither side - buf runs in here and generates into the backend

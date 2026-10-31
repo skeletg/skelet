@@ -10,16 +10,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-// Main is a test package's TestMain: in the child it runs the verb named by the environment and exits with its code
+// Main is a test package's TestMain: in the child it runs the verb named by the environment and exits with its code,
+// through sys.Exit as the CLI does, so a verb's AtExit cleanups run
 func Main(m *testing.M, verbs map[string]func(root string, args []string) int) {
 	if name := os.Getenv("VERBTEST_VERB"); name != "" {
 		var args []string
 		if a := os.Getenv("VERBTEST_ARGS"); a != "" {
 			args = strings.Split(a, "\x1f")
 		}
-		os.Exit(verbs[name](os.Getenv("VERBTEST_ROOT"), args))
+		sys.Exit(verbs[name](os.Getenv("VERBTEST_ROOT"), args))
 	}
 	os.Exit(m.Run())
 }

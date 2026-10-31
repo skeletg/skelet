@@ -65,10 +65,13 @@ func handle() {
 }
 
 // Run starts cmd and waits for it, counted as a running child for HandleInterrupts
-func Run(cmd *exec.Cmd) error {
+func Run(cmd *exec.Cmd) error { return Child(cmd.Run) }
+
+// Child runs f - which starts a command and waits for it, reading its output as it goes - counted as a running child
+func Child(f func() error) error {
 	children.Add(1)
 	defer children.Add(-1)
-	return cmd.Run()
+	return f()
 }
 
 // ExitCode is the code a shell would report for a finished command: its own, or 128+n when signal n killed it
@@ -98,4 +101,10 @@ func Env() []string {
 		}
 	}
 	return env
+}
+
+// Detach lets a command outlive the CLI and ignore its terminal's Ctrl-C: its own session, no stdio, never waited on
+func Detach(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
 }

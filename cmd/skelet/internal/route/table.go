@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
 	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
+	"github.com/skeletg/skelet/cmd/skelet/internal/testrun"
 )
 
 // Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. skelet check structure
@@ -71,9 +72,9 @@ var routes = []Route{
 	{Verb: "check", Sub: "structure", Go: gates.Repo, About: gates.RepoAbout},
 	{Verb: "check", Sub: "contracts", Go: gates.Contracts, About: gates.ContractsAbout},
 	{Verb: "check", Sub: "codegen", Go: gen.Check, About: gen.About},
-	{Verb: "test", Script: "test"},
-	{Verb: "test", Sub: "e2e", Script: "test-e2e"},
-	{Verb: "test", Sub: "storefront", Script: "test-storefront"},
+	{Verb: "test", Go: testrun.Test, About: testrun.TestAbout},
+	{Verb: "test", Sub: "e2e", Go: testrun.E2E, About: testrun.E2EAbout},
+	{Verb: "test", Sub: "storefront", Go: testrun.Storefront, About: testrun.StorefrontAbout},
 }
 
 // The shape of each compound verb's arguments, for help and the usage errors

@@ -42,7 +42,7 @@ Full documentation for every command: [scripts.md](scripts.md).
 
 `skelet test --changed` is for the loop while you work. The plain `skelet test` is still the one to run before you push.
 
-- Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `bin/test` passes in and `testdb` reads.
+- Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `skelet test` passes in and `testdb` reads.
 - Each frontend runs its typecheck, then only the vitest files that import a changed file (`vitest related`). An app nothing touched is skipped, and a change to its `package.json`, lockfile, tsconfig or vite/vitest config runs its whole suite.
 - "Changed" is everything since REF plus whatever isn't committed yet. REF defaults to where the branch left develop, so `--changed=HEAD` is just the uncommitted work.
 

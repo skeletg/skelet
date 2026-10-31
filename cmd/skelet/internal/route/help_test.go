@@ -4,9 +4,12 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/skeletg/skelet/cmd/skelet/internal/gates"
 	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
+	"github.com/skeletg/skelet/cmd/skelet/internal/testrun"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/usage.golden")
@@ -63,6 +66,18 @@ func TestHelp(t *testing.T) {
 	for _, c := range cases {
 		if a := Help(root, c.verb); a.Stdout != c.want || a.Code != 0 {
 			t.Errorf("help %s = %+v, want %q", c.verb, a, c.want)
+		}
+	}
+	// A subcommand with a route of its own describes itself; one without falls back to its verb
+	for _, c := range []struct{ args, want string }{
+		{"test e2e", "skelet test e2e\n\n" + testrun.E2EAbout + "\n"},
+		{"check pins", "skelet check pins\n\n" + gates.PinsAbout + "\n"},
+		{"test ./internal/x", "skelet test   " + subs["test"] + "\n\n" + testrun.TestAbout + "\n"},
+		{"db nope", "skelet db   " + subs["db"] + "\n\n"},
+	} {
+		f := strings.Fields(c.args)
+		if a := Resolve(root, append([]string{"help"}, f...)); a.Stdout != c.want || a.Code != 0 {
+			t.Errorf("help %s = %+v, want %q", c.args, a, c.want)
 		}
 	}
 	if a := Help(root, "nope"); a.Code != 2 || a.Stderr != `Unknown command "nope" - try: skelet help` {
