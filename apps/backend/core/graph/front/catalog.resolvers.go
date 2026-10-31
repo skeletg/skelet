@@ -245,6 +245,10 @@ func (r *productResolver) GroupedMembers(ctx context.Context, obj *model.Product
 	return r.productGroupedMembers(ctx, obj)
 }
 
+func (r *productResolver) KitComponents(ctx context.Context, obj *model.Product) ([]*model.KitComponent, error) {
+	return r.productKitComponents(ctx, obj)
+}
+
 func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error) {
 	if r.CatalogSvc == nil || obj == nil {
 		return []*model1.ProductCustomOption{}, nil

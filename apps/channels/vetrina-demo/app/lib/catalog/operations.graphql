@@ -446,6 +446,24 @@ query BrowseProductsSlim(
 }
 
 
+# A kit's fixed contents for "In the box" - its own query, since the Product query sits at the front surface's complexity
+# cap. A component this store doesn't sell has no url
+query ProductKitContents($id: ID!) {
+  product(id: $id) {
+    id
+    kitComponents {
+      id
+      quantity
+      component {
+        id
+        url
+        sku
+        name
+      }
+    }
+  }
+}
+
 query ProductRecommendations($id: ID!) {
   product(id: $id) {
     id

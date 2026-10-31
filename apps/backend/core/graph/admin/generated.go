@@ -2974,11 +2974,12 @@ type ComplexityRoot struct {
 	}
 
 	OrderLineComponent struct {
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Quantity  func(childComplexity int) int
-		Sku       func(childComplexity int) int
-		UnitPrice func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Returnable func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -3128,6 +3129,7 @@ type ComplexityRoot struct {
 		InStock                 func(childComplexity int, channelID *string) int
 		Kind                    func(childComplexity int) int
 		KitComponents           func(childComplexity int) int
+		KitItemsReturnable      func(childComplexity int) int
 		LengthMm                func(childComplexity int) int
 		Listings                func(childComplexity int) int
 		MainImage               func(childComplexity int) int
@@ -21473,6 +21475,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.Quantity(childComplexity), true
+	case "OrderLineComponent.returnable":
+		if e.ComplexityRoot.OrderLineComponent.Returnable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Returnable(childComplexity), true
 	case "OrderLineComponent.sku":
 		if e.ComplexityRoot.OrderLineComponent.Sku == nil {
 			break
@@ -22163,6 +22171,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Product.KitComponents(childComplexity), true
+	case "Product.kitItemsReturnable":
+		if e.ComplexityRoot.Product.KitItemsReturnable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Product.KitItemsReturnable(childComplexity), true
 	case "Product.lengthMm":
 		if e.ComplexityRoot.Product.LengthMm == nil {
 			break
@@ -33304,6 +33318,9 @@ type Product {
   groupedMembers:       [GroupedMember!]!
   # Kit components - populated for products with kind=KIT. Each entry is one SIMPLE product the kit decrements at fulfillment. Sorted by sortOrder.
   kitComponents:        [KitComponent!]!
+  # KIT only - whether a customer can return the kit's items one at a time, or only the whole kit. Each sale keeps the
+  # setting it was sold under.
+  kitItemsReturnable:   Boolean!
   # Downloadable files this product delivers (digital products). Purchasing
   # grants the buyer token-gated access to each. Sorted by sortOrder.
   downloads:            [ProductDownload!]!
@@ -33442,6 +33459,8 @@ input UpdateProductInput {
   # Unit cost. null = no change; 0 is a real cost (a free sample); clearCostCents removes it.
   costCents:            Int
   clearCostCents:       Boolean
+  # KIT only - null = no change.
+  kitItemsReturnable:   Boolean
   sku:                  String
   seoNoindex:           Boolean
   canonicalUrl:         String
@@ -36964,6 +36983,8 @@ type OrderLineComponent {
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
+  # Whether it can be returned on its own - always for a bundle pick, a kit's setting at sale for a kit item
+  returnable:  Boolean!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
@@ -44842,6 +44863,8 @@ func (ec *executionContext) childFields_OrderLineComponent(ctx context.Context, 
 		return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
 	case "quantity":
 		return ec.fieldContext_OrderLineComponent_quantity(ctx, field)
+	case "returnable":
+		return ec.fieldContext_OrderLineComponent_returnable(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderLineComponent", field.Name)
 }
@@ -45184,6 +45207,8 @@ func (ec *executionContext) childFields_Product(ctx context.Context, field graph
 		return ec.fieldContext_Product_groupedMembers(ctx, field)
 	case "kitComponents":
 		return ec.fieldContext_Product_kitComponents(ctx, field)
+	case "kitItemsReturnable":
+		return ec.fieldContext_Product_kitItemsReturnable(ctx, field)
 	case "downloads":
 		return ec.fieldContext_Product_downloads(ctx, field)
 	case "subscriptionTerms":
@@ -124672,6 +124697,29 @@ func (ec *executionContext) fieldContext_OrderLineComponent_quantity(_ context.C
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLineComponent_returnable(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_returnable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Returnable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_returnable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLineOption_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineOption) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -127874,6 +127922,29 @@ func (ec *executionContext) fieldContext_Product_kitComponents(_ context.Context
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Product_kitItemsReturnable(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Product_kitItemsReturnable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KitItemsReturnable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Product_kitItemsReturnable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Product", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Product_downloads(ctx context.Context, field graphql.CollectedField, obj *model.Product) (ret graphql.Marshaler) {
@@ -173740,7 +173811,7 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "kitItemsReturnable", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -173866,6 +173937,13 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 				return it, err
 			}
 			it.ClearCostCents = data
+		case "kitItemsReturnable":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kitItemsReturnable"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.KitItemsReturnable = data
 		case "sku":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -197173,6 +197251,11 @@ func (ec *executionContext) _OrderLineComponent(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "returnable":
+			out.Values[i] = ec._OrderLineComponent_returnable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -198358,6 +198441,11 @@ func (ec *executionContext) _Product(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "kitComponents":
 			out.Values[i] = ec._Product_kitComponents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "kitItemsReturnable":
+			out.Values[i] = ec._Product_kitItemsReturnable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

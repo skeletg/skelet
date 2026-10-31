@@ -8,6 +8,8 @@ import {
   BrowseProductsSlimDocument,
   type BrowseProductsSlimQuery,
   ProductRecommendationsDocument,
+  ProductKitContentsDocument,
+  type ProductKitContentsQuery,
   type BrowseProductsQuery,
   type BrowseProductsQueryVariables,
   CategoryDocument,
@@ -93,7 +95,7 @@ export type ProductSummary = {
   sku: string;
   name: string | null;
   inStock: boolean;
-  kind: "SIMPLE" | "CONFIGURABLE" | "BUNDLE" | "GROUPED";
+  kind: "SIMPLE" | "CONFIGURABLE" | "BUNDLE" | "GROUPED" | "KIT";
   defaultPrice: number;
   defaultCurrencyCode: string;
   // Effective sell price (channel listing + active specials)
@@ -636,6 +638,21 @@ export const getRecommendations = cache(async (productId: string): Promise<Produ
       if (out.length >= 8) break;
     }
     return out;
+  } catch {
+    return [];
+  }
+});
+
+export type KitContents = NonNullable<ProductKitContentsQuery["product"]>["kitComponents"];
+
+// A kit's "In the box" list - display only, so a failed fetch drops the list rather than the page
+export const getKitContents = cache(async (productId: string): Promise<KitContents> => {
+  try {
+    const cacheOpts = await surfaceCacheOpts(PRODUCT_SURFACE, {
+      tags: ["catalog:product", `catalog:product:${productId}`],
+    });
+    const res = await gqlFetch(ProductKitContentsDocument, { id: productId }, cacheOpts);
+    return res.data.product?.kitComponents ?? [];
   } catch {
     return [];
   }

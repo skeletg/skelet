@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 
 import {
   getProduct,
+  getKitContents,
   getRecommendations,
   type ProductDetail,
 } from "@/app/lib/catalog/read";
@@ -15,6 +16,7 @@ import { displayName } from "@/app/lib/display";
 import { getChannel } from "@/app/lib/channel/read";
 import { priceCurrency, toMajor } from "@/app/lib/format";
 import { categoryHref, productHref } from "@/app/lib/entity-href";
+import { Link } from "@/app/components/LocaleLink";
 import { getSignalsEnabled, getVariantOwnUrl } from "@/app/lib/config/read";
 import { productJsonLd, breadcrumbJsonLd } from "@/app/lib/json-ld";
 import { getProductWithReviews } from "@/app/lib/reviews/read";
@@ -207,6 +209,8 @@ export default async function ProductPage(
         />
       )}
 
+      {product.kind === "KIT" && <KitContents productId={product.id} />}
+
       <ReviewStateProvider productId={id}>
         <ReviewsSection
           productId={id}
@@ -226,6 +230,28 @@ export default async function ProductPage(
       <RecentlyViewedRail excludeId={product.id} />
       <RecordView productId={product.id} />
     </main>
+  );
+}
+
+async function KitContents({ productId }: { productId: string }) {
+  const [items, t] = await Promise.all([getKitContents(productId), getTranslations("product")]);
+  if (items.length === 0) return null;
+  return (
+    <section className="mt-12" aria-labelledby="kit-contents">
+      <h2 id="kit-contents" className="text-lg font-semibold tracking-tight">{t("inTheBox")}</h2>
+      <ul className="mt-4 divide-y rounded-md border">
+        {items.map(({ id, quantity, component: c }) => (
+          <li key={id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+            {c.url ? (
+              <Link href={productHref(c)} className="hover:underline">{c.name || c.sku}</Link>
+            ) : (
+              <span>{c.name || c.sku}</span>
+            )}
+            <span className="tabular-nums text-muted-foreground">× {quantity}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

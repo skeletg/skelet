@@ -1832,17 +1832,18 @@ type OrderLine struct {
 }
 
 type OrderLineComponent struct {
-	ID                uuid.UUID `json:"id"`
-	OrderLineID       uuid.UUID `json:"order_line_id"`
-	BundleOptionID    uuid.UUID `json:"bundle_option_id"`
-	BundleSelectionID uuid.UUID `json:"bundle_selection_id"`
-	ProductID         uuid.UUID `json:"product_id"`
-	ProductSku        string    `json:"product_sku"`
-	ProductName       string    `json:"product_name"`
-	UnitPrice         int64     `json:"unit_price"`
-	Quantity          float64   `json:"quantity"`
-	SortOrder         int32     `json:"sort_order"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                uuid.UUID     `json:"id"`
+	OrderLineID       uuid.UUID     `json:"order_line_id"`
+	BundleOptionID    uuid.NullUUID `json:"bundle_option_id"`
+	BundleSelectionID uuid.NullUUID `json:"bundle_selection_id"`
+	ProductID         uuid.UUID     `json:"product_id"`
+	ProductSku        string        `json:"product_sku"`
+	ProductName       string        `json:"product_name"`
+	UnitPrice         int64         `json:"unit_price"`
+	Quantity          float64       `json:"quantity"`
+	SortOrder         int32         `json:"sort_order"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Returnable        bool          `json:"returnable"`
 }
 
 type OrderLineOption struct {
@@ -2024,6 +2025,7 @@ type Product struct {
 	MaxOrderQty             sql.NullFloat64    `json:"max_order_qty"`
 	CostCents               sql.NullInt64      `json:"cost_cents"`
 	ConfiguratorLayout      string             `json:"configurator_layout"`
+	KitItemsReturnable      bool               `json:"kit_items_returnable"`
 }
 
 type ProductAlsoBought struct {

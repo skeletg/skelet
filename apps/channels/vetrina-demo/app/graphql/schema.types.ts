@@ -1014,6 +1014,14 @@ export type GroupedMembership = {
   sortOrder: Scalars['Int']['output'];
 };
 
+export type KitComponent = {
+  __typename?: 'KitComponent';
+  component: Product;
+  id: Scalars['ID']['output'];
+  quantity: Scalars['Float']['output'];
+  sortOrder: Scalars['Int']['output'];
+};
+
 export type Locale = {
   __typename?: 'Locale';
   code: Scalars['String']['output'];
@@ -1578,6 +1586,7 @@ export type OrderLineComponent = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  returnable: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -1717,6 +1726,7 @@ export type Product = {
   id: Scalars['ID']['output'];
   inStock: Scalars['Boolean']['output'];
   kind: ProductKind;
+  kitComponents: Array<KitComponent>;
   linkedProducts: Array<Product>;
   mainImage?: Maybe<ProductMedia>;
   maxOrderQty?: Maybe<Scalars['Float']['output']>;

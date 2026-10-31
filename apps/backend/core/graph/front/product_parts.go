@@ -2,6 +2,8 @@ package front
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -121,4 +123,49 @@ func (r *Resolver) productGroupedMembers(ctx context.Context, obj *model.Product
 		return nil, err
 	}
 	return r.renderGroupedMembers(ctx, pid)
+}
+
+// A kit's whole contents, so the box is described truthfully - a component this store doesn't sell keeps its name but
+// loses its url, since its page would 404 here
+func (r *Resolver) productKitComponents(ctx context.Context, obj *model.Product) ([]*model.KitComponent, error) {
+	if obj.Kind != model.ProductKindKit {
+		return []*model.KitComponent{}, nil
+	}
+	pid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	comps, err := r.CatalogSvc.ListKitComponents(ctx, pid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("load kit components: %w", err)
+	}
+	ids := make([]uuid.UUID, len(comps))
+	for i, c := range comps {
+		ids[i] = c.ComponentProductID
+	}
+	sold, err := keepVisibleByChannel(ctx, r, slices.Clone(ids), func(id uuid.UUID) uuid.UUID { return id })
+	if err != nil {
+		return nil, fmt.Errorf("filter kit components: %w", err)
+	}
+	out := make([]*model.KitComponent, len(comps))
+	for i, c := range comps {
+		if !slices.Contains(sold, c.ComponentProductID) {
+			c.ComponentURL = ""
+		}
+		prod := &model.Product{
+			ID:                  c.ComponentProductID.String(),
+			URL:                 c.ComponentURL,
+			Sku:                 c.ComponentSKU,
+			Kind:                model.ProductKindSimple,
+			DefaultPrice:        int32(c.ComponentDefaultPrice),
+			Price:               int32(c.ComponentDefaultPrice),
+			DefaultCurrencyCode: c.ComponentCurrency,
+		}
+		if c.ComponentName != "" {
+			name := c.ComponentName
+			prod.Name = &name
+		}
+		out[i] = &model.KitComponent{ID: c.ID.String(), Component: prod, Quantity: c.Quantity, SortOrder: c.SortOrder}
+	}
+	return out, nil
 }

@@ -114,6 +114,7 @@ SET default_price              = $2,
     min_order_qty              = $23,
     max_order_qty              = $24,
     cost_cents                 = $25,
+    kit_items_returnable       = $26,
     updated_at                 = NOW()
 WHERE id = $1
 RETURNING *;
@@ -311,9 +312,21 @@ SELECT sku, tax_class FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductDimensionsBySKUs :many
--- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates
-SELECT sku, weight_grams, length_mm, width_mm, height_mm, product_type_id FROM catalog_products
-WHERE sku = ANY(sqlc.arg(skus)::text[]);
+-- What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
+-- its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless
+SELECT p.sku,
+       COALESCE(CASE
+           WHEN p.kind = 'kit' AND COALESCE(p.weight_grams, 0) = 0 AND COALESCE(p.length_mm, 0) = 0
+                AND COALESCE(p.width_mm, 0) = 0 AND COALESCE(p.height_mm, 0) = 0
+           THEN (SELECT ROUND(SUM(COALESCE(c.weight_grams, 0) * k.quantity))
+                 FROM catalog_product_kit_components k
+                 JOIN catalog_products c ON c.id = k.component_product_id
+                 WHERE k.product_id = p.id)
+           ELSE p.weight_grams
+       END, 0)::int AS weight_grams,
+       p.length_mm, p.width_mm, p.height_mm, p.product_type_id
+FROM catalog_products p
+WHERE p.sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductCostsBySKUs :many
 -- Order-placement COGS snapshot: resolve each cart line's unit cost from its SKU in one query (mirrors GetProductTaxClassesBySKUs) instead of a per-line pricing round-trip - rows with NULL cost_cents are omitted, so a present key always carries a real cost

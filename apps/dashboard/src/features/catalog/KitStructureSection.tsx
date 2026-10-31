@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -28,7 +29,9 @@ import {
   ProductDocument,
   RemoveKitComponentDocument,
   UpdateKitComponentDocument,
+  UpdateProductDocument,
 } from './Catalog.gql'
+import { changed } from '@/shared/saving/diff'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
 // Kit components share the grouped staging layer - same (member, qty, order)
 // shape, only the copy and the committed mutations differ
@@ -58,11 +61,17 @@ type KitComponentRow = {
 
 type Kit = {
   id: string
+  kitItemsReturnable: boolean
   kitComponents: KitComponentRow[]
 }
 
+const returnsLabel = (byItem: boolean) => (byItem ? 'Whole kit or single items' : 'Whole kit only')
+
 export function KitStructureSection({ product, canManage }: { product: Kit; canManage: boolean }) {
   const [pendingOps, setPendingOps] = useState<PendingOp[]>([])
+  // null = unchanged; staged like the components and applied by the page Save
+  const [stagedReturnable, setStagedReturnable] = useState<boolean | null>(null)
+  const itemsReturnable = stagedReturnable ?? product.kitItemsReturnable
 
   const stage = useCallback((op: PendingOp) => {
     setPendingOps((prev) => reduceOps([...prev, op]))
@@ -82,14 +91,23 @@ export function KitStructureSection({ product, canManage }: { product: Kit; canM
 
   const reduced = useMemo(() => reduceOps(pendingOps), [pendingOps])
   const staged = useMemo(() => applyOps(asMembers, reduced), [asMembers, reduced])
-  const diff = useMemo(() => opsToDiff(asMembers, reduced), [asMembers, reduced])
+  const returnsChange = stagedReturnable !== null && stagedReturnable !== product.kitItemsReturnable
+  const diff = useMemo(() => {
+    const returns = returnsChange ? changed('Returns', returnsLabel(product.kitItemsReturnable), returnsLabel(itemsReturnable)) : null
+    return [...opsToDiff(asMembers, reduced), ...(returns ? [returns] : [])]
+  }, [asMembers, reduced, returnsChange, product.kitItemsReturnable, itemsReturnable])
 
   const refetch = [{ query: ProductDocument, variables: { id: product.id } }]
   const [addComponent] = useMutation(AddKitComponentDocument, { refetchQueries: refetch })
   const [updateComponent] = useMutation(UpdateKitComponentDocument, { refetchQueries: refetch })
   const [removeComponent] = useMutation(RemoveKitComponentDocument, { refetchQueries: refetch })
+  const [updateProduct] = useMutation(UpdateProductDocument, { refetchQueries: refetch })
 
   const save = useCallback(async () => {
+    if (returnsChange) {
+      await updateProduct({ variables: { input: { id: product.id, kitItemsReturnable: stagedReturnable } } })
+      setStagedReturnable(null)
+    }
     if (reduced.length === 0) return
     const knownIds = new Set(product.kitComponents.map((c) => c.id))
     const committers: Committers = {
@@ -128,7 +146,7 @@ export function KitStructureSection({ product, canManage }: { product: Kit; canM
       throw e
     }
     setPendingOps([])
-  }, [reduced, product.id, product.kitComponents, addComponent, updateComponent, removeComponent])
+  }, [reduced, product.id, product.kitComponents, addComponent, updateComponent, removeComponent, returnsChange, stagedReturnable, updateProduct])
 
   useProductSaveSection({ id: 'kit-structure', title: 'Kit components', diff, save })
 
@@ -155,6 +173,22 @@ export function KitStructureSection({ product, canManage }: { product: Kit; canM
             Add components
           </Button>
         )}
+      </div>
+
+      <div className="flex items-start justify-between gap-4 rounded-md border px-4 py-3">
+        <div className="grid gap-1">
+          <Label htmlFor="kit-items-returnable">Return items separately</Label>
+          <p className="text-sm text-muted-foreground">
+            Let a customer return one item out of the kit, refunded at its share of the kit price. Off, the kit only
+            comes back whole. Each order keeps the setting it was placed under.
+          </p>
+        </div>
+        <Switch
+          id="kit-items-returnable"
+          checked={itemsReturnable}
+          onCheckedChange={(v) => setStagedReturnable(v === product.kitItemsReturnable ? null : v)}
+          disabled={!canManage}
+        />
       </div>
 
       {sorted.length === 0 ? (
