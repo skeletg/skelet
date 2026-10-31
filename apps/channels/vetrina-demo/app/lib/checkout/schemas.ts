@@ -176,6 +176,8 @@ export function paymentStepSchema(mode: PaymentMode) {
     savedPaymentMethodId: optionalText(),
     // The cart note allows 2000, and checkout carries the same note
     note: optionalText(2000),
+    // Email offers, signed-in shoppers only - unticked by default, and leaving it unticked changes nothing they chose before
+    marketingOptIn: z.boolean().optional(),
     tos:
       mode.consent === "checkbox"
         ? z.boolean({ error: "tosRequired" }).refine((v) => v, "tosRequired")

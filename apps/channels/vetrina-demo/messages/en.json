@@ -961,7 +961,8 @@
       "addNote": "Add a note to your order",
       "tosNotice": "By placing your order you agree to the <terms>terms of service</terms> and <privacy>privacy policy</privacy>.",
       "pay": "Pay {amount}",
-      "placeCovered": "Place order"
+      "placeCovered": "Place order",
+      "marketingOptIn": "Send me occasional offers by email."
     },
     "giftCards": {
       "title": "Gift card",
