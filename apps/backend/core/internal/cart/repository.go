@@ -359,11 +359,13 @@ func (r *postgresRepository) UpsertCartLineBySku(ctx context.Context, cartID uui
 // Writes the bundle line then replaces its components, OVERWRITING quantity/price/name on a SKU conflict (the simple upsert sums instead) - several statements, so callers run it in a transaction
 func (r *postgresRepository) UpsertBundleCartLine(ctx context.Context, cartID uuid.UUID, input AddBundleLineInput) (CartLine, error) {
 	row, err := r.queries.UpsertBundleCartLine(ctx, db.UpsertBundleCartLineParams{
-		CartID:      cartID,
-		ProductName: input.ProductName,
-		ProductSku:  input.ProductSku,
-		UnitPrice:   input.UnitPrice,
-		Quantity:    input.Quantity,
+		CartID:           cartID,
+		ProductName:      input.ProductName,
+		ProductSku:       input.ProductSku,
+		UnitPrice:        input.UnitPrice,
+		Quantity:         input.Quantity,
+		BundleHookPriced: input.HookPriced,
+		ConfigKey:        input.ConfigKey,
 	})
 	if err != nil {
 		return CartLine{}, fmt.Errorf("upsert bundle cart line: %w", err)
@@ -752,17 +754,19 @@ func decodeAddress(n pqtype.NullRawMessage) *Address {
 
 func toCartLine(row db.CartLine) CartLine {
 	return CartLine{
-		ID:            row.ID,
-		CartID:        row.CartID,
-		ProductName:   row.ProductName,
-		ProductSku:    row.ProductSku,
-		UnitPrice:     row.UnitPrice,
-		Quantity:      row.Quantity,
-		PriceOverride: row.PriceOverride,
-		IsCustom:      row.IsCustom,
-		TaxClass:      row.TaxClass,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		ID:               row.ID,
+		CartID:           row.CartID,
+		ProductName:      row.ProductName,
+		ProductSku:       row.ProductSku,
+		UnitPrice:        row.UnitPrice,
+		Quantity:         row.Quantity,
+		PriceOverride:    row.PriceOverride,
+		BundleHookPriced: row.BundleHookPriced,
+		ConfigKey:        row.ConfigKey,
+		IsCustom:         row.IsCustom,
+		TaxClass:         row.TaxClass,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}
 }
 

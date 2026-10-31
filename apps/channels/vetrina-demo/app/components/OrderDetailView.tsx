@@ -127,6 +127,15 @@ export function OrderDetailView({
                   {formatPrice(line.unitPrice, order.currencyCode)} ×{" "}
                   {line.quantity}
                 </p>
+                {line.components.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                    {line.components.map((c) => (
+                      <li key={c.id}>
+                        ↳ {displayName(c.name, c.sku)} ×{c.quantity}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {line.options.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                     {line.options.map((o) => (

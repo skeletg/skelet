@@ -246,6 +246,7 @@ type Repository interface {
 	UpdateReturnStatus(ctx context.Context, id uuid.UUID, from, status string) (OrderReturn, error)
 	MarkReturnRefunded(ctx context.Context, id uuid.UUID, refundAmount int64, giftCardID *uuid.UUID) (OrderReturn, error)
 	ReturnedByOrderLine(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
+	ReturnedByComponent(ctx context.Context, orderID uuid.UUID) (map[uuid.UUID]float64, error)
 
 	// Tax breakdown - replaced wholesale on an edit, since a recompute invalidates the old rows
 	InsertTaxLine(ctx context.Context, orderID uuid.UUID, line TaxLine) error
@@ -400,4 +401,6 @@ type OrderReturnLine struct {
 	Quantity        float64
 	Reason          string
 	RefundUnitCents int64
+	// Set when the line returns one component of a bundle line - Quantity then counts that component's units
+	ComponentID *uuid.UUID
 }

@@ -12,16 +12,28 @@ export type Scalars = {
   Time: { input: string; output: string; }
 };
 
+export type AddBundleQuantityInput = {
+  quantity: Scalars['Float']['input'];
+  selectionId: Scalars['ID']['input'];
+};
+
 export type AddBundleToCartInput = {
   cartId: Scalars['ID']['input'];
+  quantities?: InputMaybe<Array<AddBundleQuantityInput>>;
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
   sku: Scalars['String']['input'];
+  variants?: InputMaybe<Array<AddBundleVariantPickInput>>;
 };
 
 export type AddBundleToCartSelectionInput = {
   optionId: Scalars['ID']['input'];
   selectionIds: Array<Scalars['ID']['input']>;
+};
+
+export type AddBundleVariantPickInput = {
+  selectionId: Scalars['ID']['input'];
+  variantId: Scalars['ID']['input'];
 };
 
 export type AddConfiguredToCartInput = {
@@ -313,13 +325,22 @@ export type BundleOption = {
   id: Scalars['ID']['output'];
   inputType: BundleInputType;
   isRequired: Scalars['Boolean']['output'];
+  maxSelections?: Maybe<Scalars['Int']['output']>;
+  minSelections: Scalars['Int']['output'];
   selections: Array<BundleSelection>;
   sortOrder: Scalars['Int']['output'];
   title: Scalars['String']['output'];
 };
 
+export type BundlePricing =
+  | 'FIXED'
+  | 'SUM'
+  | 'SUM_MINUS_PERCENT';
+
 export type BundleSelection = {
   __typename?: 'BundleSelection';
+  customerQuantity: Scalars['Boolean']['output'];
+  discountPercent: Scalars['Int']['output'];
   id: Scalars['ID']['output'];
   isDefault: Scalars['Boolean']['output'];
   product: Product;
@@ -1541,6 +1562,7 @@ export type OrderEvent = {
 
 export type OrderLine = {
   __typename?: 'OrderLine';
+  components: Array<OrderLineComponent>;
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
@@ -1548,6 +1570,15 @@ export type OrderLine = {
   quantity: Scalars['Float']['output'];
   sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
+  unitPrice: Scalars['Int']['output'];
+};
+
+export type OrderLineComponent = {
+  __typename?: 'OrderLineComponent';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
 
@@ -1578,6 +1609,7 @@ export type OrderReturn = {
 
 export type OrderReturnLine = {
   __typename?: 'OrderReturnLine';
+  componentId?: Maybe<Scalars['ID']['output']>;
   id: Scalars['ID']['output'];
   orderLineId: Scalars['ID']['output'];
   quantity: Scalars['Float']['output'];
@@ -1666,7 +1698,9 @@ export type Product = {
   alsoBought: Array<Product>;
   attributeValues: Array<ProductAttributeValue>;
   backorderable: Scalars['Boolean']['output'];
+  bundleDiscountPercent: Scalars['Int']['output'];
   bundleOptions: Array<BundleOption>;
+  bundlePricing: BundlePricing;
   canonicalUrl?: Maybe<Scalars['String']['output']>;
   categories: Array<Category>;
   children: Array<Product>;
@@ -2405,6 +2439,7 @@ export type RequirementStatus =
   | 'SATISFIED';
 
 export type ReturnLineInput = {
+  componentId?: InputMaybe<Scalars['ID']['input']>;
   orderLineId: Scalars['ID']['input'];
   quantity: Scalars['Float']['input'];
   reason?: InputMaybe<Scalars['String']['input']>;

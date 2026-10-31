@@ -333,6 +333,7 @@ func (o *OrderFulfillmentCreated) EventChannelID() uuid.UUID { return o.ChannelI
 type ReturnLineQty struct {
 	OrderLineID uuid.UUID
 	Quantity    float64
+	ProductID   *uuid.UUID `json:",omitempty"` // one component of a bundle line - only it is restocked, Quantity in its units
 }
 
 // Fires post-commit through the outbox when a restock-flagged return's goods are received, so inventory adds the quantities back - non-restock returns don't emit it

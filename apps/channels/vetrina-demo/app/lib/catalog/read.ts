@@ -14,6 +14,7 @@ import {
   CollectionDocument,
   CollectionsDocument,
   ProductDocument,
+  BundleSelectionExtrasDocument,
   ProductConfiguratorDocument,
   type ProductConfiguratorPicturesFragment,
   ProductSortOptionsDocument,
@@ -152,6 +153,9 @@ export type BundleSelection = {
   quantity: number;
   isDefault: boolean;
   sortOrder: number;
+  // From BundleSelectionExtras: an add-on deal off this pick, and whether the customer sets how many go in
+  discountPercent?: number;
+  customerQuantity?: boolean;
   product: {
     id: string;
     url: string;
@@ -162,6 +166,8 @@ export type BundleSelection = {
     price: number;
     defaultCurrencyCode: string;
     mainImage: ProductMedia | null;
+    // A configurable's variants, one of which the customer picks - empty or absent for a simple product
+    children?: { id: string; sku: string; name: string | null; inStock: boolean; price: number }[];
   };
 };
 
@@ -171,6 +177,9 @@ export type BundleOption = {
   inputType: BundleInputType;
   isRequired: boolean;
   sortOrder: number;
+  // Pick-count bounds for checkbox/multiselect - 0 is no explicit minimum, null no maximum
+  minSelections: number;
+  maxSelections?: number | null;
   selections: BundleSelection[];
 };
 
@@ -260,6 +269,9 @@ export type ProductDetail = ProductSummary & {
     configurable: { parent: { id: string } } | null;
   };
   bundleOptions: BundleOption[];
+  // How the store prices this bundle - SUM adds up the picks, FIXED charges price, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum
+  bundlePricing: "SUM" | "FIXED" | "SUM_MINUS_PERCENT";
+  bundleDiscountPercent: number;
   groupedMembers: GroupedMember[];
   options: ProductCustomOption[];
   optionRules: ProductOptionRule[];
@@ -416,7 +428,7 @@ export const getProduct = cache(async (id: string): Promise<{
     });
     const res = await gqlFetch(ProductDocument, { id }, cacheOpts);
     const product = res.data.product as unknown as ProductDetail | null;
-    return { product: product ? await withConfigurator(product, cacheOpts) : null };
+    return { product: product ? await withBundleVariants(await withConfigurator(product, cacheOpts), cacheOpts) : null };
   } catch (err) {
     // The backend returns a GraphQL error (not a null product) when the ID doesn't
     // exist or isn't visible to the storefront
@@ -429,6 +441,33 @@ export const getProduct = cache(async (id: string): Promise<{
     throw err;
   }
 });
+
+// A bundle's selections' variants, deals and customer quantities - fetched apart, for bundles only
+async function withBundleVariants(
+  product: ProductDetail,
+  cacheOpts: Parameters<typeof gqlFetch>[2],
+): Promise<ProductDetail> {
+  if (product.bundleOptions.length === 0) return product;
+  const res = await gqlFetch(BundleSelectionExtrasDocument, { id: product.id }, cacheOpts);
+  const extras = new Map(
+    (res.data.product?.bundleOptions ?? []).flatMap((o) => o.selections.map((s) => [s.id, s] as const)),
+  );
+  return {
+    ...product,
+    bundleOptions: product.bundleOptions.map((o) => ({
+      ...o,
+      selections: o.selections.map((s) => {
+        const x = extras.get(s.id);
+        return {
+          ...s,
+          discountPercent: x?.discountPercent ?? 0,
+          customerQuantity: x?.customerQuantity ?? false,
+          product: { ...s.product, children: x?.product.children ?? [] },
+        };
+      }),
+    })),
+  };
+}
 
 // The Product query sits at the front surface's complexity cap, so option rules and pictures come in a query of their
 // own - and only when the product, a variant or a grouped member has options for them to belong to

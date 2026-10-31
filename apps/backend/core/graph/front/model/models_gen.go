@@ -12,16 +12,28 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 )
 
+type AddBundleQuantityInput struct {
+	SelectionID string  `json:"selectionId"`
+	Quantity    float64 `json:"quantity"`
+}
+
 type AddBundleToCartInput struct {
 	CartID     string                           `json:"cartId"`
 	Sku        string                           `json:"sku"`
 	Quantity   float64                          `json:"quantity"`
 	Selections []*AddBundleToCartSelectionInput `json:"selections"`
+	Variants   []*AddBundleVariantPickInput     `json:"variants,omitempty"`
+	Quantities []*AddBundleQuantityInput        `json:"quantities,omitempty"`
 }
 
 type AddBundleToCartSelectionInput struct {
 	OptionID     string   `json:"optionId"`
 	SelectionIds []string `json:"selectionIds"`
+}
+
+type AddBundleVariantPickInput struct {
+	SelectionID string `json:"selectionId"`
+	VariantID   string `json:"variantId"`
 }
 
 type AddConfiguredToCartInput struct {

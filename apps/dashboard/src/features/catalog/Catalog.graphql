@@ -812,6 +812,8 @@ query Product($id: ID!) {
       url
       effectivePrice
       effectiveCurrency
+      bundlePricing
+      bundleDiscountPercent
       channel {
         id
         slug
@@ -906,13 +908,21 @@ query Product($id: ID!) {
       inputType
       isRequired
       sortOrder
+      minSelections
+      maxSelections
       title
       content {
         locale
         title
       }
+      rule {
+        categoryId
+        attributeValueIds
+        quantity
+      }
       selections {
         id
+        fromRule
         product {
           id
           url
@@ -921,10 +931,18 @@ query Product($id: ID!) {
           kind
           defaultPrice
           defaultCurrencyCode
+          listings {
+            channelId
+            isPublished
+            effectivePrice
+            inStock
+          }
         }
         quantity
         isDefault
         sortOrder
+        discountPercent
+        customerQuantity
       }
       createdAt
       updatedAt
@@ -1319,6 +1337,12 @@ mutation ClearProductAttribute($productId: ID!, $attributeId: ID!) {
   }
 }
 
+mutation SetBundlePricing($input: SetBundlePricingInput!) {
+  setBundlePricing(input: $input) {
+    id
+  }
+}
+
 mutation SetProductListing($input: SetProductListingInput!) {
   setProductListing(input: $input) {
     id
@@ -1392,13 +1416,21 @@ fragment BundleOptionFields on BundleOption {
   inputType
   isRequired
   sortOrder
+  minSelections
+  maxSelections
   title
   content {
     locale
     title
   }
+  rule {
+    categoryId
+    attributeValueIds
+    quantity
+  }
   selections {
     id
+    fromRule
     product {
       id
       url
@@ -1407,70 +1439,37 @@ fragment BundleOptionFields on BundleOption {
       kind
       defaultPrice
       defaultCurrencyCode
+      listings {
+        channelId
+        isPublished
+        effectivePrice
+        inStock
+      }
     }
     quantity
     isDefault
     sortOrder
+    discountPercent
+    customerQuantity
   }
   createdAt
   updatedAt
 }
 
-mutation AddBundleOption($input: AddBundleOptionInput!) {
-  addBundleOption(input: $input) {
+mutation SetBundleStructure($productId: ID!, $ops: [BundleStructureOpInput!]!) {
+  setBundleStructure(productId: $productId, ops: $ops) {
     id
     bundleOptions { ...BundleOptionFields }
   }
 }
 
-mutation UpdateBundleOption($input: UpdateBundleOptionInput!) {
-  updateBundleOption(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation UpsertBundleOptionContent($optionId: ID!, $locale: String!, $title: String!) {
-  upsertBundleOptionContent(optionId: $optionId, locale: $locale, title: $title) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleOptionContent($optionId: ID!, $locale: String!) {
-  deleteBundleOptionContent(optionId: $optionId, locale: $locale) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleOption($id: ID!) {
-  deleteBundleOption(id: $id) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation AddBundleSelection($input: AddBundleSelectionInput!) {
-  addBundleSelection(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation UpdateBundleSelection($input: UpdateBundleSelectionInput!) {
-  updateBundleSelection(input: $input) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
 
-mutation DeleteBundleSelection($id: ID!) {
-  deleteBundleSelection(id: $id) {
-    id
-    bundleOptions { ...BundleOptionFields }
-  }
-}
+
 
 fragment KitComponentFields on KitComponent {
   id
@@ -2031,5 +2030,20 @@ query ProductFilterOptions {
   collections {
     id
     name
+  }
+}
+
+# A configurable's variants, for the bundle picker's "add all variants"
+query ProductVariants($id: ID!) {
+  product(id: $id) {
+    id
+    children {
+      id
+      name
+      sku
+      kind
+      defaultPrice
+      defaultCurrencyCode
+    }
   }
 }

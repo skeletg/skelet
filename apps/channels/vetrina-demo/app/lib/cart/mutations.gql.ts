@@ -5,16 +5,28 @@ export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' |
 import type * as Types from '../../graphql/schema.types';
 
 import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type AddBundleQuantityInput = {
+  quantity: number;
+  selectionId: string | number;
+};
+
 export type AddBundleToCartInput = {
   cartId: string | number;
+  quantities?: Array<AddBundleQuantityInput> | null | undefined;
   quantity: number;
   selections: Array<AddBundleToCartSelectionInput>;
   sku: string;
+  variants?: Array<AddBundleVariantPickInput> | null | undefined;
 };
 
 export type AddBundleToCartSelectionInput = {
   optionId: string | number;
   selectionIds: Array<string | number>;
+};
+
+export type AddBundleVariantPickInput = {
+  selectionId: string | number;
+  variantId: string | number;
 };
 
 export type AddConfiguredToCartInput = {

@@ -225,6 +225,22 @@ func (r *productResolver) BundleOptions(ctx context.Context, obj *model.Product)
 	return r.productBundleOptions(ctx, obj)
 }
 
+func (r *productResolver) BundlePricing(ctx context.Context, obj *model.Product) (model.BundlePricing, error) {
+	l, err := r.bundleListingOf(ctx, obj)
+	if err != nil || l == nil || l.BundlePricing == "" {
+		return model.BundlePricingSum, err
+	}
+	return model.BundlePricing(strings.ToUpper(string(l.BundlePricing))), nil
+}
+
+func (r *productResolver) BundleDiscountPercent(ctx context.Context, obj *model.Product) (int32, error) {
+	l, err := r.bundleListingOf(ctx, obj)
+	if err != nil || l == nil {
+		return 0, err
+	}
+	return int32(l.BundleDiscountPercent), nil
+}
+
 func (r *productResolver) GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error) {
 	return r.productGroupedMembers(ctx, obj)
 }

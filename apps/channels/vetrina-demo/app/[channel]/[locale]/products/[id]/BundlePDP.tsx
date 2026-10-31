@@ -16,6 +16,7 @@ import type {
   ProductDetail,
 } from "@/app/lib/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
+import { bundlePrice, isSingleSelect, pickBounds } from "@/app/lib/catalog/bundle";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
@@ -34,10 +35,6 @@ import {
 import { PdpBuyBox, PdpMetaRow, PdpQty, PdpShell } from "./pdp-shell";
 
 type Picks = Record<string, Set<string>>; // optionId → selectionIds
-
-function isSingleSelect(t: BundleOption["inputType"]) {
-  return t === "RADIO" || t === "DROPDOWN";
-}
 
 function initialPicks(options: BundleOption[]): Picks {
   const picks: Picks = {};
@@ -63,6 +60,10 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
   );
 
   const [picks, setPicks] = useState<Picks>(() => initialPicks(options));
+  // selectionId -> the variant picked for a configurable selection
+  const [variants, setVariants] = useState<Record<string, string>>({});
+  // selectionId -> how many per bundle, for a selection whose amount the customer sets
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
 
   const togglePick = (option: BundleOption, selectionId: string) => {
     setPicks((prev) => {
@@ -77,9 +78,13 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
         if (bucket.has(selectionId) && option.isRequired) return prev;
         bucket.clear();
         if (!prev[option.id]?.has(selectionId)) bucket.add(selectionId);
+      } else if (bucket.has(selectionId)) {
+        bucket.delete(selectionId);
       } else {
-        if (bucket.has(selectionId)) bucket.delete(selectionId);
-        else bucket.add(selectionId);
+        const { max } = pickBounds(option);
+        // The cart refuses more than the maximum, so a further tick does nothing rather than failing at add
+        if (max !== null && bucket.size >= max) return prev;
+        bucket.add(selectionId);
       }
       next[option.id] = bucket;
       return next;
@@ -96,20 +101,27 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
     }
   }
   const totalItemsPerBundle = chosen.reduce(
-    (n, c) => n + c.selection.quantity,
+    (n, c) => n + (c.selection.customerQuantity ? (amounts[c.selection.id] ?? c.selection.quantity) : c.selection.quantity),
     0,
   );
-  // The cart prices a bundle as the sum of its picked selections - mirror that here so the headline tracks the picks
+  // The cart prices a bundle from the sum of its picked selections - mirror that here so the headline tracks the picks
   // instead of showing the wrapper's own price (0 for dynamically priced bundles)
-  const bundleTotal = chosen.reduce(
-    (n, c) =>
-      n +
-      (c.selection.product.price ?? c.selection.product.defaultPrice) *
-        c.selection.quantity,
-    0,
-  );
+  // A configurable pick is priced, and charged, as the variant chosen for it
+  const variantOf = (sel: BundleSelection) => sel.product.children?.find((v) => v.id === variants[sel.id]);
+  const isConfigurable = (sel: BundleSelection) => (sel.product.children?.length ?? 0) > 0;
+  const amountOf = (sel: BundleSelection) => (sel.customerQuantity ? (amounts[sel.id] ?? sel.quantity) : sel.quantity);
+  // The cart's per-pick price: the variant's for a configurable, less the pick's own deal rounded half up
+  const unitOf = (sel: BundleSelection) => {
+    const list = isConfigurable(sel) ? (variantOf(sel)?.price ?? 0) : (sel.product.price ?? sel.product.defaultPrice);
+    return list - Math.floor((list * (sel.discountPercent ?? 0) + 50) / 100);
+  };
+  const pickedSum = chosen.reduce((n, c) => n + unitOf(c.selection) * amountOf(c.selection), 0);
+  const bundleTotal = bundlePrice(product, pickedSum);
+  // An option is unfinished below its minimum, or while a configurable picked in it has no variant yet
   const unsatisfiedRequired = options.filter(
-    (o) => o.isRequired && (picks[o.id]?.size ?? 0) === 0,
+    (o) =>
+      (picks[o.id]?.size ?? 0) < pickBounds(o).min ||
+      o.selections.some((sel) => picks[o.id]?.has(sel.id) && isConfigurable(sel) && !variantOf(sel)),
   );
   const missingRequired = unsatisfiedRequired.map((o) => o.title);
   const missingRequiredIds = unsatisfiedRequired.map((o) => o.id);
@@ -131,6 +143,16 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
       <PdpBuyBox>
         <p className="text-2xl font-bold tracking-tight">
           {formatPrice(bundleTotal, product.defaultCurrencyCode)}
+          {chosen.length > 0 && bundleTotal < pickedSum ? (
+            <span className="ml-2 align-middle text-lg font-normal text-muted-foreground line-through">
+              {formatPrice(pickedSum, product.defaultCurrencyCode)}
+            </span>
+          ) : null}
+          {product.bundlePricing === "SUM_MINUS_PERCENT" && product.bundleDiscountPercent > 0 ? (
+            <span className="ml-2 inline-block -translate-y-1 rounded-sm bg-signal px-2.5 py-0.5 align-middle font-mono text-xs font-semibold uppercase tracking-wider text-white">
+              {t("bundleSave", { percent: product.bundleDiscountPercent })}
+            </span>
+          ) : null}
           {chosen.length === 0 && product.defaultPrice > 0
             ? ` ${t("from", { price: formatPrice(product.defaultPrice, product.defaultCurrencyCode) })}`
             : null}
@@ -154,6 +176,10 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                   option={opt}
                   picked={picks[opt.id] ?? new Set()}
                   onToggle={(sid) => togglePick(opt, sid)}
+                  variants={variants}
+                  onVariant={(sid, vid) => setVariants((prev) => ({ ...prev, [sid]: vid }))}
+                  amounts={amounts}
+                  onAmount={(sid, n) => setAmounts((prev) => ({ ...prev, [sid]: n }))}
                   invalid={invalid}
                 />
               )}
@@ -172,6 +198,24 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                 optionId: o.id,
                 selectionIds: Array.from(picks[o.id] ?? []),
               })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="variants"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => isConfigurable(c.selection) && variants[c.selection.id])
+                .map((c) => ({ selectionId: c.selection.id, variantId: variants[c.selection.id] })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="quantities"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => c.selection.customerQuantity)
+                .map((c) => ({ selectionId: c.selection.id, quantity: amountOf(c.selection) })),
             )}
           />
           <PdpQty bounds={qtyBounds} disabled={missingRequired.length > 0} />
@@ -261,11 +305,19 @@ function BundleOptionPanel({
   option,
   picked,
   onToggle,
+  variants,
+  onVariant,
+  amounts,
+  onAmount,
   invalid = false,
 }: {
   option: BundleOption;
   picked: Set<string>;
   onToggle: (selectionId: string) => void;
+  variants: Record<string, string>;
+  onVariant: (selectionId: string, variantId: string) => void;
+  amounts: Record<string, number>;
+  onAmount: (selectionId: string, amount: number) => void;
   invalid?: boolean;
 }) {
   const sorted = [...option.selections].sort(
@@ -273,6 +325,20 @@ function BundleOptionPanel({
   );
   const multi = !isSingleSelect(option.inputType);
   const tc = useTranslations("common");
+  const t = useTranslations("product.pdp");
+  const { min, max } = pickBounds(option);
+  const full = multi && max !== null && picked.size >= max;
+  const limit = !multi
+    ? null
+    : max !== null && min === max
+      ? t("pickExactly", { count: max })
+      : max !== null && min > 0
+        ? t("pickBetween", { min, max })
+        : max !== null
+          ? t("pickUpTo", { count: max })
+          : min > 1
+            ? t("pickAtLeast", { count: min })
+            : null;
 
   return (
     <fieldset>
@@ -283,17 +349,24 @@ function BundleOptionPanel({
         ) : (
           <span className="ml-1 normal-case text-muted-foreground">(optional)</span>
         )}
+        {limit ? (
+          <span className="ml-2 normal-case font-normal text-muted-foreground">
+            {limit} · {t("picked", { count: picked.size })}
+          </span>
+        ) : null}
       </legend>
       <ul className="mt-2 space-y-2">
         {sorted.map((sel) => {
           const isPicked = picked.has(sel.id);
+          const locked = full && !isPicked;
           return (
             <li key={sel.id}>
-              <label className={`${optionCardClass(isPicked, invalid)} cursor-pointer`}>
+              <label className={`${optionCardClass(isPicked, invalid)} ${locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
                 <input
                   type={multi ? "checkbox" : "radio"}
                   name={`bundle-${option.id}`}
                   checked={isPicked}
+                  disabled={locked}
                   onChange={() => onToggle(sel.id)}
                   className="sr-only"
                 />
@@ -326,6 +399,9 @@ function BundleOptionPanel({
                     sel.product.price ?? sel.product.defaultPrice,
                     sel.product.defaultCurrencyCode,
                   )}
+                  {sel.discountPercent ? (
+                    <span className="ml-1 text-xs font-semibold text-signal">−{sel.discountPercent}%</span>
+                  ) : null}
                   {sel.quantity !== 1 ? (
                     <span className="ml-1 text-xs font-normal text-muted-foreground">
                       ×{sel.quantity}
@@ -333,6 +409,37 @@ function BundleOptionPanel({
                   ) : null}
                 </span>
               </label>
+              {isPicked && sel.customerQuantity ? (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  {t("howMany")}
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    className="w-20 rounded-lg border border-border bg-background px-2 py-1 tabular-nums"
+                    value={amounts[sel.id] ?? sel.quantity}
+                    onChange={(e) => onAmount(sel.id, Math.max(1, Math.round(Number(e.target.value) || 1)))}
+                  />
+                </label>
+              ) : null}
+              {isPicked && (sel.product.children?.length ?? 0) > 0 ? (
+                <select
+                  className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  aria-label={t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  value={variants[sel.id] ?? ""}
+                  onChange={(e) => onVariant(sel.id, e.target.value)}
+                >
+                  <option value="" disabled>
+                    {t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  </option>
+                  {(sel.product.children ?? []).map((v) => (
+                    <option key={v.id} value={v.id} disabled={!v.inStock}>
+                      {displayName(v.name, v.sku)} · {formatPrice(v.price, sel.product.defaultCurrencyCode)}
+                      {v.inStock ? "" : ` · ${tc("outOfStock")}`}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
             </li>
           );
         })}

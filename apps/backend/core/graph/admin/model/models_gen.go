@@ -55,11 +55,13 @@ type AddBundleOptionInput struct {
 }
 
 type AddBundleSelectionInput struct {
-	OptionID  string   `json:"optionId"`
-	ProductID string   `json:"productId"`
-	Quantity  *float64 `json:"quantity,omitempty"`
-	IsDefault *bool    `json:"isDefault,omitempty"`
-	SortOrder *int32   `json:"sortOrder,omitempty"`
+	OptionID         string   `json:"optionId"`
+	ProductID        string   `json:"productId"`
+	Quantity         *float64 `json:"quantity,omitempty"`
+	IsDefault        *bool    `json:"isDefault,omitempty"`
+	SortOrder        *int32   `json:"sortOrder,omitempty"`
+	DiscountPercent  *int32   `json:"discountPercent,omitempty"`
+	CustomerQuantity *bool    `json:"customerQuantity,omitempty"`
 }
 
 type AddGroupedMemberInput struct {
@@ -762,6 +764,7 @@ type BundleOption struct {
 	MaxSelections *int32                 `json:"maxSelections,omitempty"`
 	Title         string                 `json:"title"`
 	Content       []*BundleOptionContent `json:"content"`
+	Rule          *BundleOptionRule      `json:"rule,omitempty"`
 	Selections    []*BundleSelection     `json:"selections"`
 	CreatedAt     time.Time              `json:"createdAt"`
 	UpdatedAt     time.Time              `json:"updatedAt"`
@@ -772,12 +775,47 @@ type BundleOptionContent struct {
 	Title  string `json:"title"`
 }
 
+type BundleOptionContentInput struct {
+	OptionID string  `json:"optionId"`
+	Locale   string  `json:"locale"`
+	Title    *string `json:"title,omitempty"`
+}
+
+type BundleOptionRule struct {
+	CategoryID        string   `json:"categoryId"`
+	AttributeValueIds []string `json:"attributeValueIds"`
+	Quantity          float64  `json:"quantity"`
+}
+
+type BundleOptionRuleInput struct {
+	OptionID          string   `json:"optionId"`
+	CategoryID        *string  `json:"categoryId,omitempty"`
+	AttributeValueIds []string `json:"attributeValueIds,omitempty"`
+	Quantity          *float64 `json:"quantity,omitempty"`
+}
+
 type BundleSelection struct {
-	ID        string   `json:"id"`
-	Product   *Product `json:"product"`
-	Quantity  float64  `json:"quantity"`
-	IsDefault bool     `json:"isDefault"`
-	SortOrder int32    `json:"sortOrder"`
+	ID               string   `json:"id"`
+	Product          *Product `json:"product"`
+	Quantity         float64  `json:"quantity"`
+	IsDefault        bool     `json:"isDefault"`
+	SortOrder        int32    `json:"sortOrder"`
+	FromRule         bool     `json:"fromRule"`
+	DiscountPercent  int32    `json:"discountPercent"`
+	CustomerQuantity bool     `json:"customerQuantity"`
+}
+
+type BundleStructureOpInput struct {
+	TempID          *string                     `json:"tempId,omitempty"`
+	AddOption       *AddBundleOptionInput       `json:"addOption,omitempty"`
+	UpdateOption    *UpdateBundleOptionInput    `json:"updateOption,omitempty"`
+	DeleteOption    *string                     `json:"deleteOption,omitempty"`
+	UpsertContent   *BundleOptionContentInput   `json:"upsertContent,omitempty"`
+	DeleteContent   *BundleOptionContentInput   `json:"deleteContent,omitempty"`
+	AddSelection    *AddBundleSelectionInput    `json:"addSelection,omitempty"`
+	UpdateSelection *UpdateBundleSelectionInput `json:"updateSelection,omitempty"`
+	DeleteSelection *string                     `json:"deleteSelection,omitempty"`
+	SetRule         *BundleOptionRuleInput      `json:"setRule,omitempty"`
 }
 
 type BusinessIDField struct {
@@ -3412,6 +3450,7 @@ type OrderReturnLine struct {
 	Quantity        float64 `json:"quantity"`
 	Reason          string  `json:"reason"`
 	RefundUnitCents int32   `json:"refundUnitCents"`
+	ComponentID     *string `json:"componentId,omitempty"`
 }
 
 type OrderShipment struct {
@@ -3602,18 +3641,21 @@ type ProductAttributeValue struct {
 }
 
 type ProductChannelListing struct {
-	ProductID         string     `json:"productId"`
-	ChannelID         string     `json:"channelId"`
-	Channel           *Channel   `json:"channel"`
-	Price             *int32     `json:"price,omitempty"`
-	IsPublished       bool       `json:"isPublished"`
-	URL               *string    `json:"url,omitempty"`
-	EffectivePrice    *int32     `json:"effectivePrice,omitempty"`
-	EffectiveCurrency string     `json:"effectiveCurrency"`
-	CompareAtPrice    *int32     `json:"compareAtPrice,omitempty"`
-	SpecialPrice      *int32     `json:"specialPrice,omitempty"`
-	SpecialFrom       *time.Time `json:"specialFrom,omitempty"`
-	SpecialTo         *time.Time `json:"specialTo,omitempty"`
+	ProductID             string        `json:"productId"`
+	ChannelID             string        `json:"channelId"`
+	Channel               *Channel      `json:"channel"`
+	Price                 *int32        `json:"price,omitempty"`
+	IsPublished           bool          `json:"isPublished"`
+	URL                   *string       `json:"url,omitempty"`
+	EffectivePrice        *int32        `json:"effectivePrice,omitempty"`
+	EffectiveCurrency     string        `json:"effectiveCurrency"`
+	CompareAtPrice        *int32        `json:"compareAtPrice,omitempty"`
+	SpecialPrice          *int32        `json:"specialPrice,omitempty"`
+	SpecialFrom           *time.Time    `json:"specialFrom,omitempty"`
+	SpecialTo             *time.Time    `json:"specialTo,omitempty"`
+	InStock               bool          `json:"inStock"`
+	BundlePricing         BundlePricing `json:"bundlePricing"`
+	BundleDiscountPercent int32         `json:"bundleDiscountPercent"`
 }
 
 type ProductContent struct {
@@ -4159,6 +4201,7 @@ type ReturnLineInput struct {
 	OrderLineID string  `json:"orderLineId"`
 	Quantity    float64 `json:"quantity"`
 	Reason      *string `json:"reason,omitempty"`
+	ComponentID *string `json:"componentId,omitempty"`
 }
 
 type Review struct {
@@ -4641,6 +4684,13 @@ type SetBlogPostChannelListingInput struct {
 	ChannelID   string `json:"channelId"`
 	IsPublished bool   `json:"isPublished"`
 	SeoNoindex  *bool  `json:"seoNoindex,omitempty"`
+}
+
+type SetBundlePricingInput struct {
+	ProductID       string        `json:"productId"`
+	ChannelID       string        `json:"channelId"`
+	Pricing         BundlePricing `json:"pricing"`
+	DiscountPercent *int32        `json:"discountPercent,omitempty"`
 }
 
 type SetCMSPageChannelListingInput struct {
@@ -5273,10 +5323,12 @@ type UpdateBundleOptionInput struct {
 }
 
 type UpdateBundleSelectionInput struct {
-	ID        string   `json:"id"`
-	Quantity  *float64 `json:"quantity,omitempty"`
-	IsDefault *bool    `json:"isDefault,omitempty"`
-	SortOrder *int32   `json:"sortOrder,omitempty"`
+	ID               string   `json:"id"`
+	Quantity         *float64 `json:"quantity,omitempty"`
+	IsDefault        *bool    `json:"isDefault,omitempty"`
+	SortOrder        *int32   `json:"sortOrder,omitempty"`
+	DiscountPercent  *int32   `json:"discountPercent,omitempty"`
+	CustomerQuantity *bool    `json:"customerQuantity,omitempty"`
 }
 
 type UpdateCMSAttributeInput struct {
@@ -6444,6 +6496,63 @@ func (e *BundleInputType) UnmarshalJSON(b []byte) error {
 }
 
 func (e BundleInputType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type BundlePricing string
+
+const (
+	BundlePricingSum             BundlePricing = "SUM"
+	BundlePricingFixed           BundlePricing = "FIXED"
+	BundlePricingSumMinusPercent BundlePricing = "SUM_MINUS_PERCENT"
+)
+
+var AllBundlePricing = []BundlePricing{
+	BundlePricingSum,
+	BundlePricingFixed,
+	BundlePricingSumMinusPercent,
+}
+
+func (e BundlePricing) IsValid() bool {
+	switch e {
+	case BundlePricingSum, BundlePricingFixed, BundlePricingSumMinusPercent:
+		return true
+	}
+	return false
+}
+
+func (e BundlePricing) String() string {
+	return string(e)
+}
+
+func (e *BundlePricing) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = BundlePricing(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid BundlePricing", str)
+	}
+	return nil
+}
+
+func (e BundlePricing) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *BundlePricing) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e BundlePricing) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

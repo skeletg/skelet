@@ -1,13 +1,17 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { useMutation } from '@apollo/client/react'
+import { useApolloClient, useMutation, useQuery } from '@apollo/client/react'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
+  AlertTriangleIcon,
   CheckCircle2Icon,
+  GripVerticalIcon,
   PackagePlusIcon,
   PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -38,54 +42,127 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCents } from '@/lib/format'
-import type { BundleInputType } from '@/graphql/schema.types'
+import type { BundleInputType, BundlePricing } from '@/graphql/schema.types'
 import {
-  AddBundleOptionDocument,
-  AddBundleSelectionDocument,
-  DeleteBundleOptionDocument,
-  DeleteBundleSelectionDocument,
+  AttributesDocument,
   ProductDocument,
-  UpdateBundleOptionDocument,
-  UpdateBundleSelectionDocument,
-  DeleteBundleOptionContentDocument,
-  UpsertBundleOptionContentDocument,
+  ProductVariantsDocument,
+  SetBundlePricingDocument,
+  SetBundleStructureDocument,
 } from './Catalog.gql'
 import {
   applyOps,
-  commitOps,
   isTemp,
   newTempId,
   opsToDiff,
   reduceOps,
+  selectionLimitText,
+  toStructureOps,
+  ruleText,
   type BundleOption,
-  type Committers,
+  type OptionRule,
   type PendingOp,
   type Selection,
   type SelectionProduct,
 } from './bundleStaging'
+import { storeHealth, structureIssues, type BundleListing, type HealthIssue, type StorePricing } from './bundleHealth'
 import { useProductSaveSection } from './productSaveRegistry'
 import { ProductPickerDialog, type PickExtra, type PickerProduct } from './ProductPickerDialog'
-import { defaultColumn, quantityColumn } from './product-picker-columns'
+import { defaultColumn, eachVariantColumn, quantityColumn } from './product-picker-columns'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import { ConfirmDialog } from '@/shared/dialogs/ConfirmDialog'
+import { CategorySelect } from './category-picker/CategorySelect'
 
 type Bundle = {
   id: string
   contentLocale?: string | null
   bundleOptions: BundleOption[]
+  listings?: BundleListing[]
 }
 
+// Said as what the customer does - the widget name alone hid that checkbox and multiselect behave the same
 const INPUT_TYPE_LABEL: Record<BundleInputType, string> = {
-  RADIO: 'Radio',
-  DROPDOWN: 'Dropdown',
-  CHECKBOX: 'Checkbox',
-  MULTISELECT: 'Multiselect',
+  RADIO: 'Pick one · radio',
+  DROPDOWN: 'Pick one · dropdown',
+  CHECKBOX: 'Pick several · checkboxes',
+  MULTISELECT: 'Pick several · list',
 }
 const INPUT_TYPES: BundleInputType[] = ['RADIO', 'DROPDOWN', 'CHECKBOX', 'MULTISELECT']
 const SINGLE_SELECT_TYPES: BundleInputType[] = ['RADIO', 'DROPDOWN']
 
 function isSingleSelect(t: BundleInputType) {
   return SINGLE_SELECT_TYPES.includes(t)
+}
+
+type Limits = { min: number; max: number | null }
+const NO_LIMITS: Limits = { min: 0, max: null }
+
+// The backend refuses counts above one on a single-select option, so switching to one drops the limits
+function effectiveLimits(t: BundleInputType, l: Limits): Limits {
+  return isSingleSelect(t) ? NO_LIMITS : l
+}
+
+// The same bounds the database enforces, said before the save rather than after it
+function limitsError({ min, max }: Limits): string | null {
+  if (!Number.isInteger(min) || min < 0) return 'At least must be 0 or more.'
+  if (max === null) return null
+  if (!Number.isInteger(max) || max < 1) return 'At most must be 1 or more, or left empty for no limit.'
+  if (max < min) return 'At most can’t be lower than at least.'
+  return null
+}
+
+function SelectionLimitsFields({
+  idPrefix,
+  value,
+  onChange,
+  error,
+  selectionCount,
+}: {
+  idPrefix: string
+  value: Limits
+  onChange: (l: Limits) => void
+  error: string | null
+  selectionCount?: number
+}) {
+  const shortBy = selectionCount !== undefined && value.min > selectionCount
+  return (
+    <div className="grid gap-2 rounded-md border p-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-min`}>At least</Label>
+          <Input
+            id={`${idPrefix}-min`}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={value.min}
+            onChange={(e) => onChange({ ...value, min: Number(e.target.value) || 0 })}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-max`}>At most</Label>
+          <Input
+            id={`${idPrefix}-max`}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            placeholder="No limit"
+            value={value.max ?? ''}
+            onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        How many items the customer picks here. 0 and empty mean no limit - a required option still needs one.
+      </p>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {!error && shortBy && (
+        <p className="text-xs text-warning">
+          Only {selectionCount} selection(s) so far - customers can’t pick {value.min} until you add more.
+        </p>
+      )}
+    </div>
+  )
 }
 
 export function BundleStructureSection({
@@ -107,124 +184,59 @@ export function BundleStructureSection({
   const staged = useMemo(() => applyOps(product.bundleOptions, reduced), [product.bundleOptions, reduced])
   const diff = useMemo(() => opsToDiff(product.bundleOptions, reduced), [product.bundleOptions, reduced])
 
-  // Apollo hooks live up here so the save() closure can call them refetchQueries fires the product page's main query so
-  // the new server state replaces the staged view after a successful commit
   const refetch = [{ query: ProductDocument, variables: { id: product.id } }]
-  const [addOptionMutation] = useMutation(AddBundleOptionDocument, { refetchQueries: refetch })
-  const [updateOptionMutation] = useMutation(UpdateBundleOptionDocument, { refetchQueries: refetch })
-  const [upsertOptionContentMutation] = useMutation(UpsertBundleOptionContentDocument, { refetchQueries: refetch })
-  const [deleteOptionMutation] = useMutation(DeleteBundleOptionDocument, { refetchQueries: refetch })
-  const [addSelectionMutation] = useMutation(AddBundleSelectionDocument, { refetchQueries: refetch })
-  const [updateSelectionMutation] = useMutation(UpdateBundleSelectionDocument, { refetchQueries: refetch })
-  const [deleteSelectionMutation] = useMutation(DeleteBundleSelectionDocument, { refetchQueries: refetch })
+  const [setStructure] = useMutation(SetBundleStructureDocument, { refetchQueries: refetch, awaitRefetchQueries: true })
 
+  // One call, one transaction - it lands whole or not at all, so a failure keeps the whole queue for a retry
   const save = useCallback(async () => {
     if (reduced.length === 0) return
-    // Track ids the server has acked so subsequent add lookups can
-    // pick the truly-new row when multiple adds share a title
-    const knownOptionIds = new Set(product.bundleOptions.map((o) => o.id))
-    const committers: Committers = {
-      addOption: async (op) => {
-        const res = await addOptionMutation({
-          variables: {
-            input: {
-              productId: op.productId,
-              inputType: op.inputType,
-              isRequired: op.isRequired,
-              locale: op.locale,
-              title: op.title,
-            },
-          },
-        })
-        // The mutation returns the parent Product with all bundle options re-projected - The just-created row is
-        // whichever option's id we haven't seen yet - robust to identical titles being added back-to-back in one save
-        const opts = res.data?.addBundleOption.bundleOptions ?? []
-        const fresh = opts.find((o) => !knownOptionIds.has(o.id))
-        if (!fresh) {
-          throw new Error('Could not resolve newly-added bundle option id from response.')
-        }
-        knownOptionIds.add(fresh.id)
-        return fresh.id
-      },
-      updateOption: async (op) => {
-        const variables: { input: { id: string; inputType?: BundleInputType; isRequired?: boolean; sortOrder?: number } } = {
-          input: { id: op.id },
-        }
-        if (op.inputType !== undefined) variables.input.inputType = op.inputType
-        if (op.isRequired !== undefined) variables.input.isRequired = op.isRequired
-        if (op.sortOrder !== undefined) variables.input.sortOrder = op.sortOrder
-        // updateBundleOption only takes structural fields; title is
-        // upserted separately by upsertOptionContent below
-        if (variables.input.inputType !== undefined || variables.input.isRequired !== undefined || variables.input.sortOrder !== undefined) {
-          await updateOptionMutation({ variables })
-        }
-      },
-      upsertOptionContent: async (op) => {
-        await upsertOptionContentMutation({
-          variables: { optionId: op.optionId, locale: op.locale, title: op.title },
-        })
-      },
-      deleteOption: async (op) => {
-        await deleteOptionMutation({ variables: { id: op.id } })
-      },
-      addSelection: async (op) => {
-        const res = await addSelectionMutation({
-          variables: {
-            input: {
-              optionId: op.optionRef,
-              productId: op.product.id,
-              quantity: op.quantity,
-              isDefault: op.isDefault,
-              sortOrder: op.sortOrder,
-            },
-          },
-        })
-        // Product is unique within an option's selections (the picker filters out already-linked rows), so the new
-        // selection is the one whose product.id matches the op
-        const opts = res.data?.addBundleSelection.bundleOptions ?? []
-        const parentOpt = opts.find((o) => o.id === op.optionRef)
-        const fresh = parentOpt?.selections.find((s) => s.product.id === op.product.id)
-        if (!fresh) {
-          throw new Error('Could not resolve newly-added bundle selection id from response.')
-        }
-        return fresh.id
-      },
-      updateSelection: async (op) => {
-        const variables: { input: { id: string; quantity?: number; isDefault?: boolean; sortOrder?: number } } = {
-          input: { id: op.id },
-        }
-        if (op.quantity !== undefined) variables.input.quantity = op.quantity
-        if (op.isDefault !== undefined) variables.input.isDefault = op.isDefault
-        if (op.sortOrder !== undefined) variables.input.sortOrder = op.sortOrder
-        await updateSelectionMutation({ variables })
-      },
-      deleteSelection: async (op) => {
-        await deleteSelectionMutation({ variables: { id: op.id } })
-      },
-    }
-
-    await commitOps(reduced, product.id, committers)
+    await setStructure({ variables: { productId: product.id, ops: toStructureOps(reduced, product.id) } })
     setPendingOps([])
-  }, [
-    reduced,
-    product.id,
-    product.bundleOptions,
-    addOptionMutation,
-    updateOptionMutation,
-    upsertOptionContentMutation,
-    deleteOptionMutation,
-    addSelectionMutation,
-    updateSelectionMutation,
-    deleteSelectionMutation,
-  ])
+  }, [reduced, product.id, setStructure])
 
   useProductSaveSection({ id: 'bundle-structure', title: 'Bundle structure', diff, save })
+
+  // Pricing per store, staged like the structure - its own section, saved after the listings so a store listed in the same Save exists by then
+  const listings = useMemo(() => product.listings ?? [], [product.listings])
+  const [stagedPricing, setStagedPricing] = useState<Record<string, StorePricing>>({})
+  const savedPricing = useCallback(
+    (l: BundleListing): StorePricing => ({ mode: l.bundlePricing ?? 'SUM', percent: l.bundleDiscountPercent ?? 0 }),
+    [],
+  )
+  const pricingFor = useCallback((l: BundleListing) => stagedPricing[l.channel.id] ?? savedPricing(l), [stagedPricing, savedPricing])
+  const pricingChanges = useMemo(
+    () =>
+      listings.flatMap((l) => {
+        const next = stagedPricing[l.channel.id]
+        const was = savedPricing(l)
+        return next && (next.mode !== was.mode || (next.mode === 'SUM_MINUS_PERCENT' && next.percent !== was.percent)) ? [{ l, was, next }] : []
+      }),
+    [listings, stagedPricing, savedPricing],
+  )
+  const [setPricingMutation] = useMutation(SetBundlePricingDocument, { refetchQueries: refetch })
+  const savePricing = useCallback(async () => {
+    for (const { l, next } of pricingChanges) {
+      await setPricingMutation({ variables: { input: { productId: product.id, channelId: l.channel.id, pricing: next.mode, discountPercent: next.percent } } })
+      // drop each store as it lands, so a retry after a failure doesn't resend the ones that saved
+      setStagedPricing((prev) => {
+        const rest = { ...prev }
+        delete rest[l.channel.id]
+        return rest
+      })
+    }
+  }, [pricingChanges, setPricingMutation, product.id])
+  useProductSaveSection({
+    id: 'bundle-pricing',
+    title: 'Bundle pricing',
+    priority: 10,
+    diff: pricingChanges.map(({ l, was, next }) => ({ label: `Pricing · ${l.channel.name}`, before: pricingText(was), after: pricingText(next) })),
+    save: savePricing,
+  })
 
   const [addOptionOpen, setAddOptionOpen] = useState(false)
   const [editingOption, setEditingOption] = useState<BundleOption | null>(null)
   const [confirmingDeleteOption, setConfirmingDeleteOption] = useState<BundleOption | null>(null)
   const [pickerOption, setPickerOption] = useState<BundleOption | null>(null)
-  const [editingSelection, setEditingSelection] = useState<{ option: BundleOption; selection: Selection } | null>(null)
   const [confirmingDeleteSelection, setConfirmingDeleteSelection] = useState<{ option: BundleOption; selection: Selection } | null>(null)
 
   const sortedOptions = useMemo(
@@ -257,6 +269,15 @@ export function BundleStructureSection({
         )}
       </div>
 
+      {sortedOptions.length > 0 && (
+        <BundleHealth
+          options={sortedOptions}
+          listings={listings}
+          pricingFor={pricingFor}
+          onPricingChange={canManage ? (channelId, p) => setStagedPricing((prev) => ({ ...prev, [channelId]: p })) : undefined}
+        />
+      )}
+
       {sortedOptions.length === 0 ? (
         <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
           No options yet. Add one to start defining what the customer can pick.
@@ -271,7 +292,7 @@ export function BundleStructureSection({
               onEditOption={() => setEditingOption(opt)}
               onDeleteOption={() => setConfirmingDeleteOption(opt)}
               onAddSelection={() => setPickerOption(opt)}
-              onEditSelection={(sel) => setEditingSelection({ option: opt, selection: sel })}
+              onStage={stage}
               onDeleteSelection={(sel) => setConfirmingDeleteSelection({ option: opt, selection: sel })}
             />
           ))}
@@ -290,7 +311,7 @@ export function BundleStructureSection({
       {canManage && editingOption && (
         <EditOptionDialog
           option={editingOption}
-          productId={product.id}
+          locale={product.contentLocale ?? 'en'}
           open
           onOpenChange={(v) => { if (!v) setEditingOption(null) }}
           onStage={stage}
@@ -302,15 +323,6 @@ export function BundleStructureSection({
           productId={product.id}
           open
           onOpenChange={(v) => { if (!v) setPickerOption(null) }}
-          onStage={stage}
-        />
-      )}
-      {canManage && editingSelection && (
-        <EditSelectionDialog
-          option={editingSelection.option}
-          selection={editingSelection.selection}
-          open
-          onOpenChange={(v) => { if (!v) setEditingSelection(null) }}
           onStage={stage}
         />
       )}
@@ -338,13 +350,124 @@ export function BundleStructureSection({
   )
 }
 
+function IssueLine({ issue }: { issue: HealthIssue }) {
+  return (
+    <li className={`flex items-start gap-1.5 text-xs ${issue.level === 'destructive' ? 'text-destructive' : 'text-warning'}`}>
+      <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" />
+      {issue.text}
+    </li>
+  )
+}
+
+const PRICING_LABEL: Record<BundlePricing, string> = {
+  SUM: 'Sum of the picks',
+  FIXED: 'Fixed price',
+  SUM_MINUS_PERCENT: '% off the picks',
+}
+
+function pricingText(p: StorePricing) {
+  return p.mode === 'SUM_MINUS_PERCENT' ? `${p.percent}% off the picks` : PRICING_LABEL[p.mode]
+}
+
+function BundlePricingControl({ store, value, onChange }: { store: string; value: StorePricing; onChange: (p: StorePricing) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Select value={value.mode} onValueChange={(v) => onChange({ mode: v as BundlePricing, percent: v === 'SUM_MINUS_PERCENT' ? value.percent || 10 : 0 })}>
+        <SelectTrigger size="sm" className="h-7 w-40 text-xs" aria-label={`${store} bundle pricing`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(PRICING_LABEL) as BundlePricing[]).map((m) => (
+            <SelectItem key={m} value={m}>{PRICING_LABEL[m]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {value.mode === 'SUM_MINUS_PERCENT' && (
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          className="h-7 w-16 text-xs"
+          aria-label={`${store} discount percent`}
+          value={value.percent}
+          onChange={(e) => onChange({ ...value, percent: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+        />
+      )}
+    </div>
+  )
+}
+
+// What customers can actually buy on each store the bundle is listed on, from the staged structure so edits show before the save
+function BundleHealth({
+  options,
+  listings,
+  pricingFor,
+  onPricingChange,
+}: {
+  options: BundleOption[]
+  listings: BundleListing[]
+  pricingFor: (l: BundleListing) => StorePricing
+  onPricingChange?: (channelId: string, p: StorePricing) => void
+}) {
+  const general = useMemo(() => structureIssues(options), [options])
+  const stores = useMemo(() => storeHealth(listings, options, pricingFor), [listings, options, pricingFor])
+  const unsaved = options.some((o) => o.selections.some((s) => !s.product.listings))
+  return (
+    <div className="divide-y rounded-md border text-sm" aria-label="Bundle health">
+      {general.length > 0 && (
+        <ul className="grid gap-1 px-3 py-2">{general.map((i) => <IssueLine key={i.text} issue={i} />)}</ul>
+      )}
+      {stores.length === 0 && (
+        <p className="px-3 py-2 text-xs text-muted-foreground">Not listed on any store yet - list it to see what customers pay.</p>
+      )}
+      {stores.map((st, i) => (
+        <div key={st.channelId} className="grid gap-1 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium">{st.name}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {st.price && (
+                <span className="text-xs text-muted-foreground">
+                  Customers pay {formatCents(st.price.min, st.currencyCode)}
+                  {st.price.max !== st.price.min && <>–{formatCents(st.price.max, st.currencyCode)}</>}
+                  , default {formatCents(st.price.default, st.currencyCode)}
+                  {st.sum && (
+                    <>
+                      {' '}· picks add up to {formatCents(st.sum.min, st.currencyCode)}
+                      {st.sum.max !== st.sum.min && <>–{formatCents(st.sum.max, st.currencyCode)}</>}
+                    </>
+                  )}
+                </span>
+              )}
+              {onPricingChange ? (
+                <BundlePricingControl store={st.name} value={pricingFor(listings[i])} onChange={(p) => onPricingChange(st.channelId, p)} />
+              ) : (
+                <span className="text-xs text-muted-foreground">{pricingText(pricingFor(listings[i]))}</span>
+              )}
+            </div>
+          </div>
+          {st.issues.length === 0 ? (
+            <p className="flex items-center gap-1.5 text-xs text-success">
+              <CheckCircle2Icon className="size-3" />
+              Every selection can be bought here.
+            </p>
+          ) : (
+            <ul className="grid gap-1">{st.issues.map((i) => <IssueLine key={i.text} issue={i} />)}</ul>
+          )}
+        </div>
+      ))}
+      {unsaved && <p className="px-3 py-2 text-xs text-muted-foreground">New selections are checked after you save.</p>}
+    </div>
+  )
+}
+
 function OptionCard({
   option,
   canManage,
   onEditOption,
   onDeleteOption,
   onAddSelection,
-  onEditSelection,
+  onStage,
   onDeleteSelection,
 }: {
   option: BundleOption
@@ -352,7 +475,7 @@ function OptionCard({
   onEditOption: () => void
   onDeleteOption: () => void
   onAddSelection: () => void
-  onEditSelection: (sel: Selection) => void
+  onStage: (op: PendingOp) => void
   onDeleteSelection: (sel: Selection) => void
 }) {
   const pending = isTemp(option.id)
@@ -360,6 +483,31 @@ function OptionCard({
     () => [...option.selections].sort((a, b) => a.sortOrder - b.sortOrder),
     [option.selections],
   )
+  const sensors = useSensors(
+    // The distance keeps the row's own inputs clickable
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  // A drop renumbers the rows in their new order and stages only the ones whose position changed
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return
+    const own = sortedSelections.filter((s) => !s.fromRule)
+    const ids = own.map((s) => s.id)
+    if (!ids.includes(String(e.over.id))) return
+    const next = arrayMove(own, ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id)))
+    next.forEach((sel, i) => {
+      if (sel.sortOrder !== i) onStage({ kind: 'update-selection', id: sel.id, sortOrder: i })
+    })
+  }
+  // A pick-one option has at most one default, so turning one on turns the other off
+  const setDefault = (sel: Selection, on: boolean) => {
+    if (on && isSingleSelect(option.inputType)) {
+      for (const other of option.selections) {
+        if (other.id !== sel.id && other.isDefault) onStage({ kind: 'update-selection', id: other.id, isDefault: false })
+      }
+    }
+    onStage({ kind: 'update-selection', id: sel.id, isDefault: on })
+  }
   return (
     <Card className="grid gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -368,6 +516,10 @@ function OptionCard({
             <PackagePlusIcon className="size-4 text-muted-foreground" />
             <span className="font-medium">{option.title || <span className="text-muted-foreground">Untitled option</span>}</span>
             <Badge variant="outline" className="font-normal">{INPUT_TYPE_LABEL[option.inputType]}</Badge>
+            {!isSingleSelect(option.inputType) && selectionLimitText(option.minSelections, option.maxSelections) && (
+              <Badge variant="outline" className="font-normal">{selectionLimitText(option.minSelections, option.maxSelections)}</Badge>
+            )}
+            {option.rule && <Badge variant="outline" className="font-normal">fills from {ruleText(option.rule)}</Badge>}
             {option.isRequired ? (
               <Badge variant="secondary" className="font-normal">Required</Badge>
             ) : (
@@ -401,24 +553,34 @@ function OptionCard({
         </p>
       ) : (
         <div className="rounded-md border">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <Table>
             <TableHeader>
               <TableRow>
+                {canManage && <TableHead className="w-8" />}
                 <TableHead>Product</TableHead>
                 <TableHead className="w-20">SKU</TableHead>
                 <TableHead className="w-20">Qty</TableHead>
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Default</TableHead>
-                {canManage && <TableHead className="w-20" />}
+                <TableHead className="w-20">% off</TableHead>
+                <TableHead className="w-24">Customer sets qty</TableHead>
+                {canManage && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
+            <SortableContext items={sortedSelections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <TableBody>
               {sortedSelections.map((sel) => {
                 const selPending = isTemp(sel.id)
+                const label = sel.product.name ?? sel.product.sku ?? ''
                 return (
-                  <TableRow key={sel.id} className={selPending ? 'bg-warning-soft' : ''}>
+                  <SortableSelectionRow key={sel.id} id={sel.id} label={label} canManage={canManage} locked={!!sel.fromRule} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
+                      {sel.fromRule && <Badge variant="outline" className="ml-2 font-normal">from the rule</Badge>}
+                      {sel.product.kind === 'CONFIGURABLE' && (
+                        <Badge variant="outline" className="ml-2 font-normal">customer picks the variant</Badge>
+                      )}
                       {selPending && <span className="ml-2 text-xs text-warning">· unsaved</span>}
                     </TableCell>
                     <TableCell>
@@ -428,34 +590,79 @@ function OptionCard({
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{sel.quantity}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {canManage && !sel.fromRule ? (
+                        <Input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          className="h-7 w-16 text-xs"
+                          aria-label={`${label} quantity`}
+                          value={sel.quantity}
+                          onChange={(e) => onStage({ kind: 'update-selection', id: sel.id, quantity: Math.max(1, Number(e.target.value) || 1) })}
+                        />
+                      ) : (
+                        sel.quantity
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
                       {formatCents(sel.product.defaultPrice, sel.product.defaultCurrencyCode)}
                     </TableCell>
                     <TableCell>
-                      {sel.isDefault ? (
+                      {canManage ? (
+                        <Switch
+                          checked={sel.isDefault}
+                          onCheckedChange={(v) => setDefault(sel, v)}
+                          disabled={sel.product.kind === 'CONFIGURABLE' || sel.fromRule}
+                          title={sel.product.kind === 'CONFIGURABLE' ? 'The customer picks the variant, so there is nothing to pre-pick' : undefined}
+                          aria-label={`${label} is a default`}
+                        />
+                      ) : sel.isDefault ? (
                         <CheckCircle2Icon className="size-4 text-primary" />
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {canManage && !sel.fromRule ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          inputMode="numeric"
+                          className="h-7 w-16 text-xs"
+                          aria-label={`${label} percent off`}
+                          value={sel.discountPercent ?? 0}
+                          onChange={(e) => onStage({ kind: 'update-selection', id: sel.id, discountPercent: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+                        />
+                      ) : (
+                        <span className="font-mono text-xs">{sel.discountPercent ? `${sel.discountPercent}%` : '-'}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={!!sel.customerQuantity}
+                        disabled={!canManage || sel.fromRule}
+                        onCheckedChange={(v) => onStage({ kind: 'update-selection', id: sel.id, customerQuantity: v })}
+                        aria-label={`Customer sets how many ${label}`}
+                      />
+                    </TableCell>
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-7" onClick={() => onEditSelection(sel)} aria-label="Edit selection">
-                            <PencilIcon className="size-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteSelection(sel)} aria-label="Remove selection">
+                          {!sel.fromRule && <Button variant="ghost" size="icon" className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteSelection(sel)} aria-label="Remove selection">
                             <Trash2Icon className="size-3.5" />
-                          </Button>
+                          </Button>}
                         </div>
                       </TableCell>
                     )}
-                  </TableRow>
+                  </SortableSelectionRow>
                 )
               })}
             </TableBody>
+            </SortableContext>
           </Table>
+          </DndContext>
         </div>
       )}
 
@@ -489,9 +696,13 @@ function AddOptionDialog({
   const [title, setTitle] = useState('')
   const [inputType, setInputType] = useState<BundleInputType>('RADIO')
   const [isRequired, setIsRequired] = useState(true)
+  const [limits, setLimits] = useState<Limits>(NO_LIMITS)
+  const bounds = effectiveLimits(inputType, limits)
+  const limitsErr = limitsError(bounds)
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (limitsErr) return
     onStage({
       kind: 'add-option',
       tempId: newTempId(),
@@ -499,11 +710,14 @@ function AddOptionDialog({
       inputType,
       isRequired,
       sortOrder: existingMaxSort + 1,
+      minSelections: bounds.min,
+      maxSelections: bounds.max,
       locale,
     })
     setTitle('')
     setInputType('RADIO')
     setIsRequired(true)
+    setLimits(NO_LIMITS)
     onOpenChange(false)
   }
 
@@ -533,7 +747,7 @@ function AddOptionDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="opt-input">Selection style</Label>
+            <Label htmlFor="opt-input">Customer picks</Label>
             <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
               <SelectTrigger id="opt-input">
                 <SelectValue />
@@ -542,7 +756,6 @@ function AddOptionDialog({
                 {INPUT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
                     {INPUT_TYPE_LABEL[t]}
-                    {SINGLE_SELECT_TYPES.includes(t) ? ' · single-select' : ' · multi-select'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -558,11 +771,13 @@ function AddOptionDialog({
             </div>
             <Switch id="opt-required" checked={isRequired} onCheckedChange={setIsRequired} />
           </div>
+
+          {!isSingleSelect(inputType) && <SelectionLimitsFields idPrefix="opt" value={limits} onChange={setLimits} error={limitsErr} />}
         </form>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="add-bundle-option" disabled={!title.trim()}>
+          <Button type="submit" form="add-bundle-option" disabled={!title.trim() || !!limitsErr}>
             Stage add
           </Button>
         </DialogFooter>
@@ -575,36 +790,46 @@ function AddOptionDialog({
 
 function EditOptionDialog({
   option,
-  productId,
+  locale,
   open,
   onOpenChange,
   onStage,
 }: {
   option: BundleOption
-  productId: string
+  // The page's content locale - the title is read and written in it, so editing in a translated view never overwrites another locale
+  locale: string
   open: boolean
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
-  const [deleteOptionContent] = useMutation(DeleteBundleOptionContentDocument, {
-    refetchQueries: [{ query: ProductDocument, variables: { id: productId } }],
-  })
   const [inputType, setInputType] = useState<BundleInputType>(option.inputType)
   const [isRequired, setIsRequired] = useState(option.isRequired)
   const [sortOrder, setSortOrder] = useState(option.sortOrder)
-  const [title, setTitle] = useState(option.title)
-  const [titleLocale] = useState(option.content[0]?.locale ?? 'en')
+  const [limits, setLimits] = useState<Limits>({ min: option.minSelections, max: option.maxSelections })
+  const bounds = effectiveLimits(inputType, limits)
+  const limitsErr = limitsError(bounds)
+  const titleLocale = locale
+  // No translation yet shows the fallback title - left as is, it stages nothing, typed over, it adds the locale
+  const initialTitle = option.content.find((c) => c.locale === locale)?.title ?? option.title
+  const [title, setTitle] = useState(initialTitle)
+  const [rule, setRule] = useState<OptionRule | null>(option.rule ?? null)
+  const ruleChanged = JSON.stringify(rule) !== JSON.stringify(option.rule ?? null)
+  const ruleIncomplete = rule !== null && !rule.categoryId
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const op = {
       kind: 'update-option' as const,
       id: option.id,
-      ...(title.trim() !== option.title ? { title: title.trim(), titleLocale } : {}),
+      ...(title.trim() !== initialTitle ? { title: title.trim(), titleLocale } : {}),
       ...(inputType !== option.inputType ? { inputType } : {}),
       ...(isRequired !== option.isRequired ? { isRequired } : {}),
       ...(sortOrder !== option.sortOrder ? { sortOrder } : {}),
+      ...(bounds.min !== option.minSelections ? { minSelections: bounds.min } : {}),
+      ...(bounds.max !== option.maxSelections ? { maxSelections: bounds.max } : {}),
+      ...(ruleChanged ? { rule } : {}),
     }
+    if (limitsErr || ruleIncomplete) return
     // Only stage when there's something to change
     if (Object.keys(op).length > 2) {
       onStage(op)
@@ -618,7 +843,7 @@ function EditOptionDialog({
         <DialogHeader>
           <DialogTitle>Edit option</DialogTitle>
           <DialogDescription>
-            Default-locale title, selection style, required flag, and sort order. Stages until the page-level save.
+            Title in the page's locale, how the customer picks, required flag, and sort order. Stages until the page-level save.
           </DialogDescription>
         </DialogHeader>
 
@@ -634,7 +859,7 @@ function EditOptionDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="opt-input-edit">Selection style</Label>
+              <Label htmlFor="opt-input-edit">Customer picks</Label>
               <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
                 <SelectTrigger className="w-full" id="opt-input-edit">
                   <SelectValue />
@@ -665,10 +890,14 @@ function EditOptionDialog({
             </div>
             <Switch id="opt-required-edit" checked={isRequired} onCheckedChange={setIsRequired} />
           </div>
+
+          {!isSingleSelect(inputType) && (
+            <SelectionLimitsFields idPrefix="opt-edit" value={limits} onChange={setLimits} error={limitsErr} selectionCount={option.selections.length} />
+          )}
+
+          <RuleFields value={rule} onChange={setRule} />
         </form>
 
-        {/* Immediate, unlike the staged title edit above - a translation
-            delete has no representation in the staged diff */}
         {!isTemp(option.id) && (
           <TranslationLocales
             locale={titleLocale}
@@ -676,123 +905,133 @@ function EditOptionDialog({
             entityLabel="bundle option"
             canManage
             defaultLocaleLocked
+            staged
             onRemove={async () => {
-              await deleteOptionContent({
-                variables: { optionId: option.id, locale: titleLocale },
-              })
+              onStage({ kind: 'delete-content', id: option.id, locale: titleLocale })
+              onOpenChange(false)
             }}
           />
         )}
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="edit-bundle-option">Stage edit</Button>
+          <Button type="submit" form="edit-bundle-option" disabled={!!limitsErr || ruleIncomplete}>Stage edit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
-// ──────────────────────── Edit selection ────────────────────────
-
-function EditSelectionDialog({
-  option,
-  selection,
-  open,
-  onOpenChange,
-  onStage,
-}: {
-  option: BundleOption
-  selection: Selection
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  onStage: (op: PendingOp) => void
-}) {
-  const [quantity, setQuantity] = useState(selection.quantity)
-  const [isDefault, setIsDefault] = useState(selection.isDefault)
-  const [sortOrder, setSortOrder] = useState(selection.sortOrder)
-  const [err, setErr] = useState<string | null>(null)
-
-  const otherDefaultExists = useMemo(
-    () => option.selections.some((s) => s.id !== selection.id && s.isDefault),
-    [option.selections, selection.id],
+// Fills the option from a category - optionally only products holding every chosen attribute value - on top of its hand-picked selections
+function RuleFields({ value, onChange }: { value: OptionRule | null; onChange: (r: OptionRule | null) => void }) {
+  const { data } = useQuery(AttributesDocument, { skip: !value })
+  const values = useMemo(
+    () => (data?.attributes ?? []).flatMap((a) => (a.values ?? []).map((v) => ({ id: v.id, label: `${a.name}: ${v.name}` }))),
+    [data],
   )
-  const blockedByCardinality = isSingleSelect(option.inputType) && isDefault && !selection.isDefault && otherDefaultExists
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setErr(null)
-    if (blockedByCardinality) {
-      setErr(`${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default selection - clear the other default first.`)
-      return
-    }
-    const op = {
-      kind: 'update-selection' as const,
-      id: selection.id,
-      ...(quantity !== selection.quantity ? { quantity } : {}),
-      ...(isDefault !== selection.isDefault ? { isDefault } : {}),
-      ...(sortOrder !== selection.sortOrder ? { sortOrder } : {}),
-    }
-    if (Object.keys(op).length > 2) onStage(op)
-    onOpenChange(false)
-  }
-
+  const labelOf = (id: string) => values.find((v) => v.id === id)?.label ?? id
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit selection</DialogTitle>
-          <DialogDescription>
-            {selection.product.name ?? selection.product.sku ?? ''}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form id="edit-bundle-selection" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="sel-quantity-edit">Quantity</Label>
-              <Input
-                id="sel-quantity-edit"
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="sel-sort-edit">Sort order</Label>
-              <Input
-                id="sel-sort-edit"
-                type="number"
-                inputMode="numeric"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-              />
-            </div>
+    <div className="grid gap-3 rounded-md border p-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="grid gap-0.5">
+          <Label htmlFor="opt-rule-on" className="text-sm">Fill from a category</Label>
+          <p className="text-xs text-muted-foreground">Every simple product in it becomes a selection, and new ones join without an edit.</p>
+        </div>
+        <Switch
+          id="opt-rule-on"
+          checked={value !== null}
+          onCheckedChange={(on) => onChange(on ? { categoryId: '', attributeValueIds: [], quantity: 1 } : null)}
+        />
+      </div>
+      {value && (
+        <>
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-category">Category</Label>
+            <CategorySelect id="opt-rule-category" value={value.categoryId} onChange={(categoryId) => onChange({ ...value, categoryId })} />
           </div>
-
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="grid gap-0.5">
-              <Label htmlFor="sel-default-edit" className="text-sm">Default</Label>
-              <p className="text-xs text-muted-foreground">Pre-checked when the customer opens this bundle.</p>
-            </div>
-            <Switch id="sel-default-edit" checked={isDefault} onCheckedChange={setIsDefault} />
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-filter">Only with</Label>
+            <Select value="" onValueChange={(id) => onChange({ ...value, attributeValueIds: [...new Set([...value.attributeValueIds, id])] })}>
+              <SelectTrigger id="opt-rule-filter">
+                <SelectValue placeholder="Any attribute value" />
+              </SelectTrigger>
+              <SelectContent>
+                {values.filter((v) => !value.attributeValueIds.includes(v.id)).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {value.attributeValueIds.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {value.attributeValueIds.map((id) => (
+                  <Badge key={id} variant="outline" className="gap-1 font-normal">
+                    {labelOf(id)}
+                    <button
+                      type="button"
+                      aria-label={`Drop ${labelOf(id)}`}
+                      onClick={() => onChange({ ...value, attributeValueIds: value.attributeValueIds.filter((x) => x !== id) })}
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="opt-rule-qty">Quantity each</Label>
+            <Input
+              id="opt-rule-qty"
+              type="number"
+              min={1}
+              value={value.quantity}
+              onChange={(e) => onChange({ ...value, quantity: Math.max(1, Number(e.target.value) || 1) })}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
-          {err && (
-            <Alert variant="destructive">
-              <AlertTitle>Can't stage</AlertTitle>
-              <AlertDescription>{err}</AlertDescription>
-            </Alert>
-          )}
-        </form>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="edit-bundle-selection">Stage edit</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+function SortableSelectionRow({
+  id,
+  label,
+  canManage,
+  locked = false,
+  className,
+  children,
+}: {
+  id: string
+  label: string
+  canManage: boolean
+  // A rule's row sits where the rule puts it
+  locked?: boolean
+  className: string
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !canManage || locked })
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`${className} ${isDragging ? 'relative z-10 bg-background shadow-md' : ''}`}
+    >
+      {canManage && (
+        <TableCell className="w-8 px-1">
+          {!locked && <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${label}`}
+            className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          >
+            <GripVerticalIcon className="size-4" />
+          </button>}
+        </TableCell>
+      )}
+      {children}
+    </TableRow>
   )
 }
 
@@ -811,10 +1050,11 @@ function SelectionPickerSheet({
   onOpenChange: (v: boolean) => void
   onStage: (op: PendingOp) => void
 }) {
+  const client = useApolloClient()
   const takenIds = useMemo(() => new Set(option.selections.map((s) => s.product.id)), [option.selections])
   const selfId = useMemo(() => new Set([productId]), [productId])
-  const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean }>>(
-    () => ({ initial: () => ({ quantity: 1, isDefault: false }), columns: [quantityColumn(), defaultColumn()] }),
+  const extra = useMemo<PickExtra<{ quantity: number; isDefault: boolean; eachVariant: boolean }>>(
+    () => ({ initial: () => ({ quantity: 1, isDefault: false, eachVariant: false }), columns: [quantityColumn(), defaultColumn(), eachVariantColumn()] }),
     [],
   )
 
@@ -823,8 +1063,8 @@ function SelectionPickerSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={`Add selections to "${option.title}"`}
-      description="Pick one or more simple products. Per row, set how many of that product the bundle includes and whether it's the default. Stages until the page-level save."
-      kinds={['SIMPLE']}
+      description="Pick simple products, or a configurable for the customer to choose its variant - tick Each variant to add its variants as separate selections instead. Per row, set how many the bundle includes and whether it's the default. Stages until the page-level save."
+      kinds={['SIMPLE', 'CONFIGURABLE']}
       takenIds={takenIds}
       takenLabel="In this option"
       excludeIds={selfId}
@@ -840,19 +1080,27 @@ function SelectionPickerSheet({
           ? `${INPUT_TYPE_LABEL[option.inputType]} options accept at most one default.`
           : null
       }}
-      onConfirm={(picks) => {
-        let nextSort = option.selections.length
+      onConfirm={async (picks) => {
+        // A configurable is one selection whose variant the customer picks - it can't be pre-picked, so it is never a default.
+        // With Each variant ticked it stands for its variants instead, each a selection with the row's quantity, the first taking its default
+        const expanded: { product: SelectionProduct; quantity: number; isDefault: boolean }[] = []
         for (const { product, extra: params } of picks) {
-          onStage({
-            kind: 'add-selection',
-            tempId: newTempId(),
-            optionRef: option.id,
-            product: toSelectionProduct(product),
-            quantity: params.quantity,
-            isDefault: params.isDefault,
-            sortOrder: nextSort,
-          })
-          nextSort++
+          if (product.kind !== 'CONFIGURABLE' || !params.eachVariant) {
+            const isDefault = product.kind === 'CONFIGURABLE' ? false : params.isDefault
+            expanded.push({ product: toSelectionProduct(product), quantity: params.quantity, isDefault })
+            continue
+          }
+          const { data } = await client.query({ query: ProductVariantsDocument, variables: { id: product.id } })
+          const variants = (data?.product?.children ?? []).filter((v) => !takenIds.has(v.id))
+          if (variants.length === 0) return { rowErrors: { [product.id]: 'No variants left to add.' } }
+          variants.forEach((v, i) => expanded.push({ product: v, quantity: params.quantity, isDefault: params.isDefault && i === 0 }))
+        }
+        let nextSort = option.selections.length
+        const seen = new Set<string>()
+        for (const { product, quantity, isDefault } of expanded) {
+          if (seen.has(product.id)) continue // the same variant picked directly and through its configurable
+          seen.add(product.id)
+          onStage({ kind: 'add-selection', tempId: newTempId(), optionRef: option.id, product, quantity, isDefault, sortOrder: nextSort++ })
         }
       }}
     />

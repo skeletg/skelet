@@ -130,11 +130,19 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 		if err != nil {
 			return nil, invalidID("order line")
 		}
-		lines = append(lines, order.ReturnLineInput{
+		li := order.ReturnLineInput{
 			OrderLineID: olID,
 			Quantity:    l.Quantity,
 			Reason:      ptr.Deref(l.Reason),
-		})
+		}
+		if l.ComponentID != nil {
+			cid, err := uuid.Parse(*l.ComponentID)
+			if err != nil {
+				return nil, invalidID("component")
+			}
+			li.ComponentID = &cid
+		}
+		lines = append(lines, li)
 	}
 	ret, err := r.OrderSvc.RequestReturn(ctx, order.RequestReturnInput{
 		OrderID:      oid,

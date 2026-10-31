@@ -51,6 +51,10 @@ var ErrProductNotPublished = errors.New("product is not published on this store"
 
 var ErrBundleSelectionMissing = errors.New("bundle requires a selection for a required option")
 
+// A configurable selection was picked without one of its own variants
+var ErrBundleVariantMissing = errors.New("bundle selection needs one of its variants picked")
+var ErrBundleChanged = errors.New("bundle changed since it was added to the cart") // checkout's answer when stored picks no longer fit the live bundle - one code for the shopper, the specific rule only in the message
+
 var ErrBundleSelectionInvalid = errors.New("bundle selection does not belong to this bundle")
 
 var ErrBundleSelectionCardinality = errors.New("bundle option does not allow this many selections")
@@ -98,6 +102,21 @@ type BundleSnapshot struct { // typed strings and ints so the cart doesn't impor
 	ProductID   uuid.UUID
 	ProductName string
 	Options     []BundleOptionSnapshot
+	// The channel's pricing mode for the bundle - "sum", "fixed" or "sum_minus_percent", empty reads as sum
+	Pricing         string
+	DiscountPercent int16 // whole percent, read by sum_minus_percent
+	FixedPrice      int64 // the bundle listing's effective price, read by fixed
+}
+
+// The bundle's unit price from its picks' sum under the channel's pricing mode - the percent comes off the whole, rounded half up to the minor unit
+func (b BundleSnapshot) UnitPrice(sum int64) int64 {
+	switch b.Pricing {
+	case "fixed":
+		return b.FixedPrice
+	case "sum_minus_percent":
+		return sum - (sum*int64(b.DiscountPercent)+50)/100
+	}
+	return sum
 }
 
 type BundleOptionSnapshot struct {
@@ -117,6 +136,18 @@ type BundleSelectionSnapshot struct {
 	UnitPrice         int64
 	QuantityPerBundle float64
 	IsDefault         bool
+	// Set when the selection is a configurable - the customer picks one of these at add-to-cart, and that variant is
+	// what the component row holds, prices and reserves
+	Variants         []BundleVariantSnapshot
+	DiscountPercent  int16 // whole percent off the component's store price
+	CustomerQuantity bool  // the customer may set QuantityPerBundle themselves
+}
+
+type BundleVariantSnapshot struct {
+	ProductID   uuid.UUID
+	ProductSKU  string
+	ProductName string
+	UnitPrice   int64
 }
 
 // CustomerID is nil for guests - every cart belongs to one store, and a customer holds one active shopper cart per store, plus any number of offers
@@ -254,11 +285,15 @@ type CartLine struct {
 	ProductSku    string
 	UnitPrice     int64
 	Quantity      float64
-	PriceOverride bool   // an admin set the price on an offer - repricing leaves it alone
-	IsCustom      bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
-	TaxClass      string // a custom line's own tax class, empty on catalog lines (they take their product's)
-	IsGift        bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
-	Components    []CartLineComponent
+	PriceOverride bool // an admin set the price on an offer - repricing leaves it alone
+	// A cart.bundle.adding hook set the bundle's price - checkout refreshes the components but keeps that price
+	BundleHookPriced bool
+	// Names a bundle line's picks, so one bundle can sit in the cart in several configurations - empty on every other line
+	ConfigKey  string
+	IsCustom   bool   // a free-form charge an admin added to an offer - no catalog product, never ships, nothing to reserve
+	TaxClass   string // a custom line's own tax class, empty on catalog lines (they take their product's)
+	IsGift     bool   // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
+	Components []CartLineComponent
 	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
 	StockParts []CartLineStockPart `json:"-"`
 	Options    []CartLineOption
@@ -285,6 +320,18 @@ func OwnsStock(parts []CartLineStockPart) bool {
 		}
 	}
 	return true
+}
+
+// The products a bundle line's components take stock from, per line unit - the rows hold line totals, so divide back by the line quantity
+func ComponentStockParts(l CartLine) []CartLineStockPart {
+	if l.Quantity <= 0 {
+		return nil
+	}
+	out := make([]CartLineStockPart, 0, len(l.Components))
+	for _, c := range l.Components {
+		out = append(out, CartLineStockPart{ProductID: c.ProductID, Quantity: c.Quantity / l.Quantity})
+	}
+	return out
 }
 
 // The linked sources a configured line's picks take stock from, per line unit
@@ -355,6 +402,8 @@ type AddBundleLineInput struct {
 	UnitPrice   int64
 	Quantity    float64
 	Components  []AddCartLineComponentInput
+	HookPriced  bool
+	ConfigKey   string // the picks' key - a line rewritten in place passes the key it already has
 }
 
 type AddConfiguredLineInput struct {

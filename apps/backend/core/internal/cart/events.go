@@ -135,6 +135,8 @@ type BundleAdding struct { // fires BEFORE a bundle line is upserted, like LineA
 	ProductName string
 	UnitPrice   *int64   // mutable: bundle's summed component price; plugin can override
 	Quantity    *float64 // mutable
+	// The components the bundle takes, per bundle unit, so the stock guard can check them - the bundle itself holds no stock
+	StockParts []CartLineStockPart `json:"-"`
 }
 
 func (*BundleAdding) Type() string                { return EventBundleAdding }

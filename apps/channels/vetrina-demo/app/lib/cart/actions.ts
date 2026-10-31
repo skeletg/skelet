@@ -102,7 +102,18 @@ export type AddToCartResult = {
   code?: string;
   cart?: Cart | null;
 };
+// Backend codes said by the storefront instead - their messages carry option and selection ids a shopper can't act on
+const ADD_CODE_KEYS: Record<string, string> = {
+  BUNDLE_SELECTION_MISSING: "bundleSelectionMissing",
+  BUNDLE_VARIANT_MISSING: "bundleVariantMissing",
+  BUNDLE_SELECTION_CARDINALITY: "bundleSelectionCount",
+  BUNDLE_SELECTION_INVALID: "bundleOutdated",
+  BUNDLE_OPTION_UNKNOWN: "bundleOutdated",
+  PRODUCT_NOT_PUBLISHED: "productNotSold",
+};
 function formatAddError(err: unknown): string {
+  const key = ADD_CODE_KEYS[addErrorCode(err) ?? ""];
+  if (key) return key;
   if (err instanceof GraphQLRequestError) {
     const msg = err.errors[0]?.message ?? err.message;
     return msg.replace(/^add to cart(?: rejected)?:\s*/i, "");
@@ -145,8 +156,14 @@ export async function addBundleToCart(
   // [selectionIds] shape. Shape: [{ optionId, selectionIds: [...] }]
   const selectionsJson = String(formData.get("selections") ?? "[]");
   let selections: { optionId: string; selectionIds: string[] }[];
+  // The variant picked for each configurable selection: [{ selectionId, variantId }]
+  let variants: { selectionId: string; variantId: string }[];
+  // How many of each customer-quantity selection go in one bundle: [{ selectionId, quantity }]
+  let quantities: { selectionId: string; quantity: number }[];
   try {
     selections = JSON.parse(selectionsJson);
+    variants = JSON.parse(String(formData.get("variants") ?? "[]"));
+    quantities = JSON.parse(String(formData.get("quantities") ?? "[]"));
   } catch {
     return { ok: false, error: "invalidBundle" };
   }
@@ -154,12 +171,12 @@ export async function addBundleToCart(
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddBundleToCartDocument, {
-      input: { cartId, sku, quantity, selections },
+      input: { cartId, sku, quantity, selections, variants, quantities },
     });
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addBundleToCart };
   } catch (err) {
-    return { ok: false, error: formatAddError(err) };
+    return { ok: false, error: formatAddError(err), code: addErrorCode(err) };
   }
 }
 

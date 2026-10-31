@@ -2,6 +2,9 @@
   "$defs": {
     "order.remoteReturnReqLine": {
       "properties": {
+        "componentId": {
+          "type": "string"
+        },
         "orderLineId": {
           "type": "string"
         },

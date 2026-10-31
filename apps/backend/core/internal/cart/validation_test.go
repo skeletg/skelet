@@ -18,6 +18,9 @@ func TestBundlePicks(t *testing.T) {
 	min2 := snap
 	min2.Options = append([]BundleOptionSnapshot(nil), snap.Options...)
 	min2.Options[1].MinSelections = 2
+	optional := snap
+	optional.Options = append([]BundleOptionSnapshot(nil), snap.Options...)
+	optional.Options[0].IsRequired = false
 
 	for _, tc := range []struct {
 		name    string
@@ -34,9 +37,11 @@ func TestBundlePicks(t *testing.T) {
 		{"two values on a radio", snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel, uuid.New()}}}, 0, ErrBundleSelectionCardinality},
 		{"a selection from nowhere", snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{uuid.New()}}}, 0, ErrBundleSelectionInvalid},
 		{"an option from nowhere", snap, []AddBundleSelectionInput{{OptionID: uuid.New()}}, 0, ErrBundleOptionUnknown},
+		{"every optional option left empty", optional, []AddBundleSelectionInput{{OptionID: mugs}, {OptionID: coasters}}, 0, ErrBundleSelectionMissing},
+		{"no options at all", BundleSnapshot{}, nil, 0, ErrBundleSelectionMissing},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := bundlePicks(tc.snap, tc.in)
+			got, err := bundlePicks(tc.snap, tc.in, pickExtras{})
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err %v, want %v", err, tc.wantErr)
 			}
@@ -50,11 +55,11 @@ func TestBundlePicks(t *testing.T) {
 func TestBundlePicksAppliesDefaultsOnlyToUntouchedOptions(t *testing.T) {
 	snap, mugs, coasters, mugSel, _ := mugSet()
 	snap.Options[1].Selections[0].IsDefault = true
-	got, err := bundlePicks(snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}})
+	got, err := bundlePicks(snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}}, pickExtras{})
 	if err != nil || len(got) != 2 {
 		t.Fatalf("untouched default not applied: %v %v", got, err)
 	}
-	got, err = bundlePicks(snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}, {OptionID: coasters}})
+	got, err = bundlePicks(snap, []AddBundleSelectionInput{{OptionID: mugs, SelectionIDs: []uuid.UUID{mugSel}}, {OptionID: coasters}}, pickExtras{})
 	if err != nil || len(got) != 1 {
 		t.Fatalf("an explicit empty pick kept the default: %v %v", got, err)
 	}
@@ -177,5 +182,66 @@ func TestALostSavedItemClaimAddsNothing(t *testing.T) {
 	}
 	if repo.upserts != 0 {
 		t.Fatalf("%d adds from a move that lost the claim, want none", repo.upserts)
+	}
+}
+
+// Checkout re-runs the add-time rules on the line's stored picks against today's bundle
+func TestStoredPicksAgainstAChangedBundle(t *testing.T) {
+	snap, mugs, coasters, mugSel, coasterSel := mugSet()
+	snap.Options[1].Selections[0].IsDefault = true
+	line := []CartLineComponent{{BundleOptionID: mugs, BundleSelectionID: mugSel}, {BundleOptionID: coasters, BundleSelectionID: coasterSel}}
+	only := func(o ...BundleOptionSnapshot) BundleSnapshot { return BundleSnapshot{Options: o} }
+	noCoaster := snap.Options[1]
+	noCoaster.Selections = nil
+	required := BundleOptionSnapshot{ID: uuid.New(), InputType: "radio", IsRequired: true, Selections: []BundleSelectionSnapshot{{ID: uuid.New(), IsDefault: true}}}
+
+	for _, tc := range []struct {
+		name    string
+		snap    BundleSnapshot
+		comps   []CartLineComponent
+		wantErr error
+	}{
+		{"unchanged", snap, line, nil},
+		{"the picked selection was removed", only(snap.Options[0], noCoaster), line, ErrBundleSelectionInvalid},
+		{"the picked option was removed", only(snap.Options[0]), line, ErrBundleOptionUnknown},
+		{"a required option was added", only(snap.Options[0], snap.Options[1], required), line, ErrBundleSelectionMissing},
+		{"an untouched default is not slipped in", snap, line[:1], nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := bundlePicks(tc.snap, picksFromComponents(tc.snap, tc.comps), pickExtras{})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err %v, want %v", err, tc.wantErr)
+			}
+			if err == nil && len(got) != len(tc.comps) {
+				t.Fatalf("%d picks from %d stored components", len(got), len(tc.comps))
+			}
+		})
+	}
+}
+
+// What this pins: a configurable selection stands for its variants - the customer has to name one of them, and that
+// variant becomes the component the line prices and reserves
+func TestBundlePicksTakeAVariantForAConfigurableSelection(t *testing.T) {
+	opt, sel, small, medium := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	snap := BundleSnapshot{Options: []BundleOptionSnapshot{{ID: opt, InputType: "radio", IsRequired: true, Selections: []BundleSelectionSnapshot{{
+		ID: sel, ProductID: uuid.New(), ProductSKU: "hoodie", QuantityPerBundle: 1,
+		Variants: []BundleVariantSnapshot{{ProductID: small, ProductSKU: "hoodie-s", UnitPrice: 4900}, {ProductID: medium, ProductSKU: "hoodie-m", UnitPrice: 5100}},
+	}}}}}
+	pick := []AddBundleSelectionInput{{OptionID: opt, SelectionIDs: []uuid.UUID{sel}}}
+
+	if _, err := bundlePicks(snap, pick, pickExtras{}); !errors.Is(err, ErrBundleVariantMissing) {
+		t.Fatalf("no variant = %v, want ErrBundleVariantMissing", err)
+	}
+	if _, err := bundlePicks(snap, pick, pickExtras{Variants: map[uuid.UUID]uuid.UUID{sel: uuid.New()}}); !errors.Is(err, ErrBundleVariantMissing) {
+		t.Fatalf("someone else's variant = %v, want ErrBundleVariantMissing", err)
+	}
+	got, err := bundlePicks(snap, pick, pickExtras{Variants: map[uuid.UUID]uuid.UUID{sel: medium}})
+	if err != nil || len(got) != 1 || got[0].ProductID != medium || got[0].ProductSKU != "hoodie-m" || got[0].UnitPrice != 5100 || got[0].ID != sel {
+		t.Fatalf("picked %+v (%v), want selection %s holding variant hoodie-m", got, err, sel)
+	}
+	// A stored line rechecks the variant its component row holds
+	comps := []CartLineComponent{{BundleOptionID: opt, BundleSelectionID: sel, ProductID: medium}}
+	if got, err := bundlePicks(snap, picksFromComponents(snap, comps), extrasFromLine(CartLine{Quantity: 1, Components: comps})); err != nil || got[0].ProductSKU != "hoodie-m" {
+		t.Fatalf("re-resolved %+v (%v), want hoodie-m again", got, err)
 	}
 }

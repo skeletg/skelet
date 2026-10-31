@@ -1,4 +1,4 @@
-import { useMemo, useState, useId } from 'react'
+import { useMemo, useState, useId, Fragment } from 'react'
 import { useMutation } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -67,7 +67,13 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
   const [restock, setRestock] = useState(true)
   const [refundTarget, setRefundTarget] = useState<'original' | 'gift_card'>('original')
 
-  const nameOf = (lineId: string) => order.lines.find((l) => l.id === lineId)?.name ?? lineId
+  const nameOf = (lineId: string, componentId?: string | null) => {
+    const line = order.lines.find((l) => l.id === lineId)
+    const comp = componentId ? line?.components.find((c) => c.id === componentId) : undefined
+    return comp ? `${comp.name || comp.sku} (from ${line?.name ?? lineId})` : (line?.name ?? lineId)
+  }
+  // A draft per whole line, and per component of a bundle line - a component comes back on its own, in its own units
+  const draftKey = (lineId: string, componentId?: string) => (componentId ? `${lineId}:${componentId}` : lineId)
 
   // Only shipped orders can be returned (backend enforces too)
   const shippable = order.status === 'FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
@@ -78,7 +84,12 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
     setRestock(true)
     setRefundTarget('original')
     setLineDrafts(
-      Object.fromEntries(order.lines.map((l) => [l.id, { checked: false, quantity: String(l.quantity) }])),
+      Object.fromEntries(
+        order.lines.flatMap((l) => [
+          [l.id, { checked: false, quantity: String(l.quantity) }],
+          ...l.components.map((c) => [draftKey(l.id, c.id), { checked: false, quantity: '1' }]),
+        ]),
+      ),
     )
     setOpen(true)
   }
@@ -86,8 +97,12 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
   const selectedLines = useMemo(
     () =>
       order.lines
-        .filter((l) => lineDrafts[l.id]?.checked)
-        .map((l) => ({ orderLineId: l.id, quantity: Number(lineDrafts[l.id]?.quantity ?? '0') }))
+        .flatMap((l) => [
+          { key: l.id, orderLineId: l.id, componentId: null as string | null },
+          ...l.components.map((c) => ({ key: draftKey(l.id, c.id), orderLineId: l.id, componentId: c.id as string | null })),
+        ])
+        .filter((x) => lineDrafts[x.key]?.checked)
+        .map((x) => ({ orderLineId: x.orderLineId, componentId: x.componentId, quantity: Number(lineDrafts[x.key]?.quantity ?? '0') }))
         .filter((l) => l.quantity > 0),
     [order.lines, lineDrafts],
   )
@@ -103,7 +118,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
         variables: {
           input: {
             orderId: order.id,
-            lines: selectedLines.map((l) => ({ orderLineId: l.orderLineId, quantity: l.quantity })),
+            lines: selectedLines.map((l) => ({ orderLineId: l.orderLineId, componentId: l.componentId, quantity: l.quantity })),
             reason: reason.trim() || null,
             restock,
             refundTarget,
@@ -198,7 +213,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                   <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                     {r.lines.map((l) => (
                       <li key={l.id}>
-                        {nameOf(l.orderLineId)} × <span className="tabular-nums">{l.quantity}</span>
+                        {nameOf(l.orderLineId, l.componentId)} × <span className="tabular-nums">{l.quantity}</span>
                         {' · '}
                         {formatCents(l.refundUnitCents, order.currencyCode)}/unit
                       </li>
@@ -225,7 +240,8 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
               {order.lines.map((l) => {
                 const draft = lineDrafts[l.id] ?? { checked: false, quantity: String(l.quantity) }
                 return (
-                  <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
+                  <Fragment key={l.id}>
+                  <div className="flex items-center gap-3 rounded border px-3 py-2">
                     <Checkbox
                       checked={draft.checked}
                       onCheckedChange={(v) =>
@@ -249,6 +265,35 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                       className="w-24 tabular-nums"
                     />
                   </div>
+                  {l.components.map((c) => {
+                    const key = draftKey(l.id, c.id)
+                    const cd = lineDrafts[key] ?? { checked: false, quantity: '1' }
+                    return (
+                      <div key={key} className="ml-6 flex items-center gap-3 rounded border border-dashed px-3 py-2">
+                        <Checkbox
+                          aria-label={`Return ${c.name || c.sku} on its own`}
+                          checked={cd.checked}
+                          onCheckedChange={(v) => setLineDrafts((prev) => ({ ...prev, [key]: { ...cd, checked: !!v } }))}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{c.name || c.sku}</div>
+                          <div className="text-[10px] text-muted-foreground">one item from the bundle - refunded at its share</div>
+                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={c.quantity}
+                          step="any"
+                          aria-label={`${c.name || c.sku} quantity to return`}
+                          value={cd.quantity}
+                          disabled={!cd.checked}
+                          onChange={(e) => setLineDrafts((prev) => ({ ...prev, [key]: { ...cd, quantity: e.target.value } }))}
+                          className="w-24 tabular-nums"
+                        />
+                      </div>
+                    )
+                  })}
+                  </Fragment>
                 )
               })}
             </div>
