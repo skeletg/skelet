@@ -13,6 +13,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/launch"
 	"github.com/skeletg/skelet/cmd/skelet/internal/project"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
@@ -21,6 +22,7 @@ import (
 var (
 	replace   = sys.Replace
 	newSource = func(repo string) project.Source { return project.Git{URL: repo} }
+	launchRun = launch.Run
 )
 
 const usage = `skelet - start and run Skelet projects
@@ -45,8 +47,13 @@ and main is your branch, starting at the release.
 `
 
 func Main(version string, args []string) int {
+	// Reached through a shim or the launcher means this was meant to be a checkout build - running on would launch again
 	if os.Getenv("SKELET_SHIM") != "" {
 		fmt.Fprintln(os.Stderr, "skelet: a release build is sitting in this checkout's CLI cache - remove .skelet/bin and run ./skelet again")
+		return 1
+	}
+	if os.Getenv("SKELET_LAUNCHED") != "" {
+		fmt.Fprintln(os.Stderr, "skelet: the project's CLI was built as a release binary - cmd/skelet's main.mode and the launcher's build flags disagree")
 		return 1
 	}
 	verb := ""
@@ -62,8 +69,8 @@ func Main(version string, args []string) int {
 		return create(version, args[1:])
 	}
 	cwd, _ := os.Getwd()
-	if root, ok := checkout.Find(cwd); ok {
-		return handOff(root, args)
+	if root, kind := checkout.Locate(cwd); kind != checkout.None {
+		return enter(root, kind, args)
 	}
 	switch {
 	case verb == "" || verb == "help" || verb == "-h" || verb == "--help":
@@ -104,13 +111,22 @@ func create(version string, args []string) int {
 		return 1
 	}
 	fmt.Fprintf(os.Stderr, "==> running setup in %s\n", dir)
-	return handOff(dir, append([]string{"setup"}, o.Setup...))
+	_, kind := checkout.Locate(dir)
+	return enter(dir, kind, append([]string{"setup"}, o.Setup...))
 }
 
 // predatesCLI is a project from a release before the Go CLI existed, whose setup is still bash
 func predatesCLI(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "cmd", "skelet", "go.mod"))
 	return err != nil
+}
+
+// enter runs args in the project's own CLI: through its shim while it has one, else built and run by the launcher
+func enter(root string, kind checkout.Kind, args []string) int {
+	if kind == checkout.Native {
+		return launchRun(root, args)
+	}
+	return handOff(root, args)
 }
 
 func handOff(root string, args []string) int {
@@ -120,5 +136,15 @@ func handOff(root string, args []string) int {
 		fmt.Fprintln(os.Stderr, "skelet: a Skelet project's front door is a bash script, and there's no bash on the PATH")
 		return 1
 	}
-	return replace(bash, append([]string{"bash", filepath.Join(root, "skelet")}, args...), os.Environ())
+	return replace(bash, append([]string{"bash", filepath.Join(root, "skelet")}, args...), handOffEnv())
+}
+
+// handOffEnv carries this binary's path to the project's CLI, so skelet hooks can write it into the hook for git
+// clients that start hooks without your PATH. Not under go run, whose binary is a temp file deleted afterwards
+func handOffEnv() []string {
+	env := os.Environ()
+	if self, err := os.Executable(); err == nil && !strings.Contains(self, string(filepath.Separator)+"go-build") {
+		env = append(env, "SKELET_CLI="+self)
+	}
+	return env
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
 	"github.com/skeletg/skelet/cmd/skelet/internal/global"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/route"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
@@ -35,6 +36,7 @@ func Main(cfg Config, args []string) int {
 		fmt.Printf("skelet %s (checkout %s)\n", cfg.Version, root)
 		return 0
 	}
+	hooks.Upgrade(root, os.Stderr)
 	return run(root, route.Resolve(root, args))
 }
 

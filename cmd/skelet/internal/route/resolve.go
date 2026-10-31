@@ -69,13 +69,16 @@ func simple(verb string, rest []string) Action {
 	if !ok {
 		return die(`Unknown command "` + verb + `" - try: skelet help`)
 	}
-	return Action{Script: r.Script, Go: r.Go, Args: rest}
+	return to(r, rest)
 }
+
+// to is the one place a route becomes an Action, so a Go verb's handler survives every path - sub-routes, flags, apps
+func to(r Route, args []string) Action { return Action{Script: r.Script, Go: r.Go, Args: args} }
 
 func withSubs(verb string, rest []string) Action {
 	if len(rest) > 0 && rest[0] != "" {
 		if r, ok := lookup(verb, rest[0]); ok {
-			return Action{Script: r.Script, Args: append(slices.Clone(r.Prepend), rest[1:]...)}
+			return to(r, append(slices.Clone(r.Prepend), rest[1:]...))
 		}
 	}
 	return simple(verb, rest)
@@ -91,13 +94,13 @@ func db(rest []string) Action {
 		args := slices.DeleteFunc(slices.Clone(rest), func(a string) bool { return a == "--signals" })
 		if len(args) != len(rest) {
 			r, _ := flagged("db", "migrate", "--signals")
-			return Action{Script: r.Script, Args: args}
+			return to(r, args)
 		}
 		r, _ := lookup("db", "migrate")
-		return Action{Script: r.Script, Args: args}
+		return to(r, args)
 	case "export", "import", "shell":
 		r, _ := lookup("db", sub)
-		return Action{Script: r.Script, Args: rest}
+		return to(r, rest)
 	}
 	return die("skelet db " + subs["db"])
 }
@@ -110,7 +113,7 @@ func pnpm(root string, rest []string) Action {
 	switch app {
 	case "dashboard":
 		r, _ := lookup("pnpm", "dashboard")
-		return Action{Script: r.Script, Args: rest}
+		return to(r, rest)
 	case "":
 		return die("skelet pnpm <app> <pnpm args> - apps: " + appsList(root))
 	}
@@ -118,7 +121,7 @@ func pnpm(root string, rest []string) Action {
 		return die(`skelet pnpm: unknown app "` + app + `" - apps: ` + appsList(root))
 	}
 	r, _ := lookup("pnpm", AnyApp)
-	return Action{Script: r.Script, Args: append([]string{app}, rest...)}
+	return to(r, append([]string{app}, rest...))
 }
 
 func appsList(root string) string {

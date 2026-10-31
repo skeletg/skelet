@@ -26,16 +26,17 @@ command -v dash >/dev/null 2>&1 && posix_sh=dash
 if $posix_sh -n cmd/skelet/install.sh; then pass "cmd/skelet/install.sh parses with $posix_sh"; else bad "cmd/skelet/install.sh is not valid sh"; fi
 
 echo "==> ./skelet and bin/* agree"
-# Read off the front door's route table, not a second list, so it can't drift - one Script field per route, a shape
-# the table's own Go test holds it to, so this stays a grep and the gates still need no Go
+# Read off the front door's route table, not a second list, so it can't drift - one Script or Go field per route, a
+# shape the table's own Go test holds it to, so this stays a grep and the gates still need no Go
 table=cmd/skelet/internal/route/table.go
 routed="$(grep -oE 'Script: "[a-z][a-z0-9-]*"' "$table" | sed -E 's/.*"(.*)"/\1/' | sort -u)"
 
-# A floor, so a refactor that stops matching fails loudly instead of passing vacuously -
-# the same reason contract-check's extractors each assert they found something
+# A floor over every route, scripts and Go verbs alike, so a refactor that stops matching fails loudly instead of
+# passing vacuously - and porting scripts to Go doesn't wear it down. contract-check's extractors assert the same way
 n_routed=$(printf '%s\n' "$routed" | grep -c .)
-if [ "$n_routed" -lt 30 ]; then
-    bad "only $n_routed routes found in $table - the table or this grep moved, not the scripts"
+n_go=$(grep -cE 'Go: [a-z]+\.Run' "$table")
+if [ $((n_routed + n_go)) -lt 30 ]; then
+    bad "only $((n_routed + n_go)) routes found in $table - the table or this grep moved, not the scripts"
 else
     missing=0
     for s in $routed; do

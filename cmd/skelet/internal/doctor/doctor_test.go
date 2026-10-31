@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
-)
 
-const repoRoot = "../../../.."
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+)
 
 // The host tools doctor calls, as scripts answering from FAKE_* variables. A tool left out of the map is missing:
 // PATH holds these and the few real commands bin/_lib needs, nothing else
@@ -76,11 +76,6 @@ func put(t *testing.T, root, rel, body string) {
 func healthy(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	lib, err := os.ReadFile(filepath.Join(repoRoot, "bin", "_lib"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	put(t, root, "bin/_lib", string(lib))
 	put(t, root, "apps/backend/core/go.mod", "module x\n\ngo 1.27.3\n")
 	put(t, root, "docker-compose.yml", "services:\n  app:\n    image: app:${APP_TAG}\n")
 	put(t, root, ".env", "APP_TAG=dev\n")
@@ -93,7 +88,10 @@ func healthy(t *testing.T) string {
 	put(t, root, "apps/dashboard/package.json", `{"packageManager": "pnpm@12.6.0"}`)
 	put(t, root, "apps/backend/core/plugins/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
 	put(t, root, "apps/backend/core/plugins/plugins.json", "{\n  \"plugins\": {\n    \"example\": {\n      \"enabled\": true\n    }\n  }\n}\n")
-	put(t, root, ".git/hooks/pre-commit", "#!/bin/sh\nexec ./bin/check\n")
+	put(t, root, ".git/hooks/pre-commit", hooks.Script(""))
+	if err := os.Chmod(filepath.Join(root, ".git/hooks/pre-commit"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	path(t)
 	t.Setenv("SKELET_UID", "1000")
 	t.Setenv("SKELET_GID", "1000")
@@ -232,6 +230,15 @@ func TestProblemsAreReported(t *testing.T) {
 		}},
 		{"nothing running", func(t *testing.T, _ string) { t.Setenv("FAKE_RUNNING", "") }, 0,
 			[]string{"warn  nothing running - start with skelet up"}},
+		{"the old hook", func(t *testing.T, root string) {
+			put(t, root, ".git/hooks/pre-commit", "#!/bin/sh\n# Installed by bin/install-hooks.\nexec ./bin/check\n")
+		}, 0, []string{"warn  the pre-commit hook still runs bin/check"}},
+		{"a hook of your own that calls bin/", func(t *testing.T, root string) {
+			put(t, root, ".git/hooks/pre-commit", "#!/bin/sh\nbin/lint\n")
+		}, 0, []string{"warn  the pre-commit hook is your own and calls bin/ scripts"}},
+		{"a hook that lost its +x", func(t *testing.T, root string) {
+			_ = os.Chmod(filepath.Join(root, ".git/hooks/pre-commit"), 0o644)
+		}, 0, []string{"warn  the pre-commit hook isn't executable"}},
 		{"no hook", func(t *testing.T, root string) { _ = os.Remove(filepath.Join(root, ".git/hooks/pre-commit")) }, 0,
 			[]string{"ok    no pre-commit hook - skelet hooks adds one"}},
 	}

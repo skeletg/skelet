@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
@@ -17,23 +18,14 @@ import (
 // boot is the dev target's second half: the stack up, the schema in place, the plugin bridge regenerated when the
 // set changed, the host apps installed, and the first admin login offered while you're still at the prompt
 func boot(root string, a answers, w written, ask prompter) int {
-	script := func(name string, args ...string) error {
-		cmd := exec.Command(filepath.Join(root, "bin", name), args...)
-		cmd.Dir, cmd.Env = root, sys.Env()
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		return sys.Run(cmd)
-	}
+	script := func(name string, args ...string) error { return legacy.Run(root, name, args...) }
 
 	fmt.Println("==> Starting containers...")
 	// --lean: migrating needs only db and app, and the sidecars arrive with skelet up
 	if err := script("dev", "--lean"); err != nil {
 		return sys.ExitCode(err)
 	}
-	lib, err := compose.Load(root)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "skelet setup:", err)
-		return 1
-	}
+	lib := compose.Load(root)
 	dc := func(args ...string) *exec.Cmd { return compose.Command(root, lib.Env(), args...) }
 
 	fmt.Println("==> Waiting for db...")

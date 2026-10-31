@@ -197,7 +197,7 @@ cli_test() { # <go test args...>
         (cd cmd/skelet && GOWORK=off go test "$@")
     else
         docker run --rm -v "$PWD:/repo:ro" -v skelet-cli-gocache:/root/.cache/go-build -w /repo/cmd/skelet \
-            -e GOFLAGS=-buildvcs=false "$(grep -oE 'golang:[0-9][0-9.]*-alpine' skelet)" go test "$@"
+            -e GOFLAGS=-buildvcs=false "golang:$(sed -n 's/^go //p' cmd/skelet/go.mod | head -1)-alpine" go test "$@"
     fi
 }
 gotest() { # <workdir> [-e VAR=value ...] -- <go test args...>

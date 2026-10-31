@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -55,7 +56,6 @@ func TestResolveRoutes(t *testing.T) {
 		{[]string{"rm", "channel", "shop", "-y"}, "remove", []string{"channel", "shop", "-y"}, ""},
 		{[]string{"search", "status"}, "opensearch", []string{"status"}, ""},
 		{[]string{"release"}, "push-images", nil, ""},
-		{[]string{"hooks"}, "install-hooks", nil, ""},
 		{[]string{"provider", "http://x"}, "provider-check", []string{"http://x"}, ""},
 	}
 	for _, c := range cases {
@@ -91,6 +91,51 @@ func TestResolveUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {""}, {"help"}, {"-h"}, {"--help"}, {"help", ""}} {
 		if a := Resolve(fakeRoot(t), args); a.Stdout != Usage() || a.Code != 0 || a.Script != "" {
 			t.Errorf("%q did not print the usage", args)
+		}
+	}
+}
+
+func TestGoVerbsResolveToTheirHandler(t *testing.T) {
+	for _, verb := range []string{"setup", "doctor", "hooks"} {
+		if a := Resolve(fakeRoot(t), []string{verb, "--x"}); a.Go == nil || a.Script != "" || !slices.Equal(a.Args, []string{"--x"}) {
+			t.Errorf("%s -> %+v", verb, a)
+		}
+	}
+}
+
+// Every path that resolves a route - plain, sub-route, flagged, app - hands a Go verb its handler
+func TestGoRoutesSurviveEveryPath(t *testing.T) {
+	root := fakeRoot(t)
+	saved := slices.Clone(routes)
+	t.Cleanup(func() { routes = saved })
+	called := ""
+	verb := func(name string) func(string, []string) int {
+		return func(string, []string) int { called = name; return 0 }
+	}
+	for i, r := range routes {
+		switch {
+		case r.Verb == "check" && r.Sub == "pins":
+			routes[i] = Route{Verb: "check", Sub: "pins", Go: verb("pins"), About: "x"}
+		case r.Verb == "db" && r.Flag == "--signals":
+			routes[i] = Route{Verb: "db", Sub: "migrate", Flag: "--signals", Go: verb("signals"), About: "x"}
+		case r.Verb == "db" && r.Sub == "export":
+			routes[i] = Route{Verb: "db", Sub: "export", Go: verb("export"), About: "x"}
+		case r.Verb == "pnpm" && r.Sub == AnyApp:
+			routes[i] = Route{Verb: "pnpm", Sub: AnyApp, Go: verb("channel"), About: "x"}
+		}
+	}
+	for args, want := range map[string]string{
+		"check pins": "pins", "db migrate --signals status": "signals", "db export f": "export", "pnpm vetrina i": "channel",
+	} {
+		called = ""
+		a := Resolve(root, strings.Fields(args))
+		if a.Go == nil {
+			t.Errorf("%q resolved to %+v - the Go handler was dropped", args, a)
+			continue
+		}
+		a.Go(root, a.Args)
+		if called != want {
+			t.Errorf("%q ran %q, want %q", args, called, want)
 		}
 	}
 }

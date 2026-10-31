@@ -27,9 +27,10 @@ done
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
-GO_IMAGE=golang:1.27.3-alpine
 src="$root/cmd/skelet"
 [ -f "$src/go.mod" ] || die "skelet: $src is missing - the front door's own source has to be in the checkout"
+# The image a Docker build uses follows the go directive, so it can't fall behind the Go the module asks for
+GO_IMAGE="golang:$(sed -n 's/^go //p' "$src/go.mod" | head -1)-alpine"
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 case "$(uname -m)" in

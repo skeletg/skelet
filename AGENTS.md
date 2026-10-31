@@ -34,7 +34,9 @@ arguments lists every verb; `./skelet help <verb>` explains one. The `bin/` scri
 underneath are the implementation: read one when you need the detail, but drive the
 repo through the verbs so there's a single vocabulary. The docs write plain `skelet`, the
 installed CLI, which hands each command to the checkout's `./skelet` - so the two are the
-same, and `./skelet` is the one that needs nothing installed.
+same, and `./skelet` is the one that needs nothing installed. CI runs the verbs as
+`go -C cmd/skelet run . <verb>`, which reaches the same build with only Go - but it reports any
+failure as exit 1, and relative paths in arguments resolve from `cmd/skelet`.
 
 ```bash
 ./skelet setup            # first run: picks apps, writes env, migrates, boots

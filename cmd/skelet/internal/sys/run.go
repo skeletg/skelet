@@ -7,12 +7,43 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 )
 
-var children atomic.Int32
+var (
+	children atomic.Int32
+
+	cleanupMu sync.Mutex
+	cleanups  []func()
+)
+
+// AtExit registers f to run when the CLI exits through Exit or an interrupt - os.Exit skips deferred calls, so a lock
+// or a background process released in a defer would outlive Ctrl-C. Cleanups run last-registered first, once
+func AtExit(f func()) {
+	cleanupMu.Lock()
+	defer cleanupMu.Unlock()
+	cleanups = append(cleanups, f)
+}
+
+func runCleanups() {
+	cleanupMu.Lock()
+	fs := cleanups
+	cleanups = nil
+	cleanupMu.Unlock()
+	for _, f := range slices.Backward(fs) {
+		f()
+	}
+}
+
+// Exit runs the AtExit cleanups, then exits with code
+func Exit(code int) {
+	runCleanups()
+	os.Exit(code)
+}
 
 // HandleInterrupts is for a verb that runs several commands in turn. Ctrl-C reaches the running child from the
 // terminal on its own, so this process waits for it and then exits the way it did; with no child running, an
@@ -23,7 +54,7 @@ func HandleInterrupts() {
 	go func() {
 		for s := range ch {
 			if children.Load() == 0 {
-				os.Exit(128 + int(s.(syscall.Signal)))
+				Exit(128 + int(s.(syscall.Signal)))
 			}
 		}
 	}()
@@ -51,11 +82,14 @@ func ExitCode(err error) int {
 	return ee.ExitCode()
 }
 
-// Env is the environment the scripts get: this one, minus the shim's own variables
+// Env is the environment the scripts get: this one, minus what the shim and the launcher pass the CLI
 func Env() []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "SKELET_ROOT=") && !strings.HasPrefix(kv, "SKELET_SHIM=") {
+		name, _, _ := strings.Cut(kv, "=")
+		switch name {
+		case "SKELET_ROOT", "SKELET_SHIM", "SKELET_LAUNCHED", "SKELET_CLI":
+		default:
 			env = append(env, kv)
 		}
 	}

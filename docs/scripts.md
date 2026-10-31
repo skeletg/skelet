@@ -93,7 +93,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `skelet check pins` | Version pins that live in several files at once: postgres, clickhouse, dbmate, golangci-lint, node (plus `.nvmrc`), alpine, and the `golang:` images against `go.mod`. Prints every site when they disagree. Add a pin here when you introduce one more than one file has to know. |
 | `skelet check structure` | Structural invariants a fresh clone or a forked storefront leans on: every `bin/*` script parses and is executable, no doc or workflow names a script that doesn't exist, every compose `env_file` has a committed `.example`. |
 | `skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, and the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
-| `skelet hooks` | Points `.git/hooks/pre-commit` at `skelet check`. Opt-in; bypass once with `git commit --no-verify`. |
+| `skelet hooks` | Installs a pre-commit hook that runs `skelet check`. Opt-in; skip it once with `git commit --no-verify`. The hook finds the CLI on its own - `skelet` on the PATH, `~/.local/bin/skelet`, the one you installed it with, then `go run` from the checkout - because git GUIs often run hooks without your shell's PATH. A hook of your own is left alone unless you pass `--force`, and the hook an older `skelet hooks` wrote, which ran `bin/check`, is updated the next time you run any `skelet` command. |
 
 ## Codegen, lint and tests
 
@@ -156,8 +156,8 @@ fails when a script has no route or a route has no script.
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
 | `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `setup`, `doctor` | nothing - they're Go, in `cmd/skelet/internal/setup` and `internal/doctor` |
-| `hooks`, `fixperms` | `install-hooks`, `fixperms` |
+| `setup`, `doctor`, `hooks` | nothing - they're Go, under `cmd/skelet/internal/` |
+| `fixperms` | `fixperms` |
 | `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
 

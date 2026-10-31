@@ -13,6 +13,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
@@ -239,10 +240,7 @@ func pluginSet(r *report, root string) {
 
 func containers(r *report, root string) compose.Lib {
 	r.section("containers")
-	lib, err := compose.Load(root)
-	if err != nil {
-		r.note("%v - the checks below use compose's defaults", err)
-	}
+	lib := compose.Load(root)
 	ps, _ := compose.Command(root, lib.Env(), "ps", "--status", "running", "--format", "{{.Service}}").Output()
 	running := strings.Fields(string(ps))
 	slices.Sort(running)
@@ -357,17 +355,28 @@ func endpoints(r *report, ours []string, p probes) {
 // hygiene is the checkout's own state: the opt-in pre-commit hook, and a WSL clone on the Windows drive
 func hygiene(r *report, root string) {
 	r.section("checkout")
-	hook, err := output(root, "git", "rev-parse", "--git-path", "hooks/pre-commit")
-	if err == nil && !filepath.IsAbs(hook) {
-		hook = filepath.Join(root, hook)
+	hook, err := hooks.Path(root)
+	if err != nil {
+		hook = filepath.Join(root, ".git", "hooks", "pre-commit")
 	}
-	switch raw, err := os.ReadFile(hook); {
-	case err != nil:
+	raw, _ := os.ReadFile(hook)
+	switch hooks.Classify(hook) {
+	case hooks.Missing:
 		r.pass("no pre-commit hook - skelet hooks adds one that runs skelet check, if you want it")
-	case strings.Contains(string(raw), "bin/check"):
+	case hooks.Current:
 		r.pass("pre-commit hook runs skelet check")
+	case hooks.Old:
+		r.note("the pre-commit hook still runs bin/check - skelet hooks updates it")
 	default:
-		r.pass("pre-commit hook is your own - skelet hooks would replace it")
+		if strings.Contains(string(raw), "bin/") {
+			r.note("the pre-commit hook is your own and calls bin/ scripts, which skelet commands are replacing")
+		} else {
+			r.pass("pre-commit hook is your own - skelet hooks --force would replace it")
+		}
+	}
+	// core.fileMode is off on WSL clones, so a hook can lose its +x without git noticing - and git then skips it
+	if fi, err := os.Stat(hook); err == nil && fi.Mode().Perm()&0o111 == 0 {
+		r.note("the pre-commit hook isn't executable, so git skips it - chmod +x %s", hook)
 	}
 	if release, _ := os.ReadFile("/proc/sys/kernel/osrelease"); strings.Contains(strings.ToLower(string(release)), "microsoft") {
 		if strings.HasPrefix(root, "/mnt/") {

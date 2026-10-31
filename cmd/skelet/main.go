@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/app"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 // Set with -ldflags -X. The checkout shim builds with mode=checkout; anything else is the released binary
@@ -14,5 +15,5 @@ var (
 )
 
 func main() {
-	os.Exit(app.Main(app.Config{Version: version, Mode: mode}, os.Args[1:]))
+	sys.Exit(app.Main(app.Config{Version: version, Mode: mode}, os.Args[1:]))
 }

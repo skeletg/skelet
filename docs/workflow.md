@@ -16,7 +16,7 @@ built on first use - a couple of seconds with host Go, a few more through Docker
 |---|---|
 | `skelet setup` | Guided first-run: asks what you want, writes the env files and secrets, boots, migrates. `--yes` for defaults, `--profile FILE` to replay answers |
 | `skelet check [--codegen] [--list]` | **Every gate that can fail a commit, in one command** - version pins, repo structure, cross-app contracts. Under a second, no Docker, no backend. What the pre-commit hook and CI both run; `--list` explains each gate, `--codegen` adds the generated-file check |
-| `skelet hooks` | Point `.git/hooks/pre-commit` at `bin/check`. Opt-in, and deliberately not the `--codegen` variant: needing a running backend to make a commit is a bad trade |
+| `skelet hooks` | Install a pre-commit hook that runs `skelet check`. Opt-in, and deliberately not the `--codegen` variant: needing a running backend to make a commit is a bad trade |
 | `skelet up` | Start the full dev stack (ports exposed, hot reload, `APP_ENV=development`, all sidecars) |
 | `skelet stop` | `docker compose stop` - halt without removing |
 | `skelet down` | `docker compose down` - remove containers (volumes preserved) |

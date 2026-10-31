@@ -3,6 +3,7 @@ package route
 
 import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
 )
 
@@ -38,7 +39,7 @@ var routes = []Route{
 	{Verb: "lint", Script: "lint"},
 	{Verb: "search", Script: "opensearch"},
 	{Verb: "release", Script: "push-images"},
-	{Verb: "hooks", Script: "install-hooks"},
+	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
 	{Verb: "fixperms", Script: "fixperms"},
 	{Verb: "provider", Script: "provider-check"},
 	{Verb: "changelog", Script: "changelog"},

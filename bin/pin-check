@@ -69,12 +69,11 @@ else
 fi
 
 # The toolchain that builds the images has to be the one every go.mod declares, and CI reads
-# go.mod directly - so a Dockerfile bump, or the image ./skelet builds the CLI in, is the half that gets forgotten
+# go.mod directly - so a Dockerfile bump is the half that gets forgotten. The CLI's build image is read off go.mod itself
 echo "==> golang images match go.mod"
 GOMODS=(apps/*/go.mod apps/backend/*/go.mod cmd/*/go.mod)
 gomods=$(grep -hoE '^go [0-9][0-9.]*' "${GOMODS[@]}" | cut -d' ' -f2 | sort -u)
-images=$( { grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}"; grep -hoE 'golang:[0-9][0-9.]*-alpine' skelet; } \
-    | sed -E 's/.*golang://; s/-alpine$//' | sort -u)
+images=$(grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}" | sed -E 's/.*golang://' | sort -u)
 n_mods=$(printf '%s\n' "$gomods" | grep -c . || true)
 n=$(printf '%s\n' "$images" | grep -c . || true)
 if [ "$n_mods" -eq 1 ] && [ "$n" -eq 1 ] && [ "$images" = "$gomods" ]; then
@@ -83,7 +82,6 @@ else
     printf '  FAIL  %-16s go.mod files say %s, golang images say %s\n' "go" "$(printf '%s' "$gomods" | tr '\n' ' ')" "$(printf '%s' "$images" | tr '\n' ' ')"
     grep -nE '^go [0-9][0-9.]*' "${GOMODS[@]}" | sed 's/^/          /'
     grep -rnE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}" | sed 's/^/          /'
-    grep -nE 'golang:[0-9][0-9.]*-alpine' skelet | sed 's/^/          skelet:/'
     fail=1
 fi
 

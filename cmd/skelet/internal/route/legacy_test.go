@@ -46,7 +46,7 @@ func TestMatchesTheBashDispatcher(t *testing.T) {
 	cases := [][]string{
 		{"up", "--lean"}, {"serve", "dashboard"}, {"down"}, {"stop"}, {"restart"}, {"ps"}, {"logs", "app"},
 		{"sh"}, {"go", "test", "./..."}, {"cli", "admin", "list"}, {"psql"}, {"lint"}, {"search", "status"},
-		{"release"}, {"hooks"}, {"fixperms"}, {"provider", "u"}, {"changelog", "check"},
+		{"release"}, {"fixperms"}, {"provider", "u"}, {"changelog", "check"},
 		{"rm", "channel", "x"}, {"new", "channel", "x", "--from", "vetrina"},
 		{"pnpm", "dashboard", "run", "lint"}, {"pnpm", "vetrina", "i"}, {"pnpm"}, {"pnpm", "nope", "x"},
 		{"npm", "dashboard", "x"}, {"npm"},
