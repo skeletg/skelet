@@ -8,9 +8,9 @@ import {
   FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import { registerAction } from "@/app/lib/auth/actions";
-import { registerSchema } from "@/app/lib/auth/schemas";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { registerAction } from "@skelet/storefront-next/auth/actions";
+import { registerSchema } from "@skelet/storefront-next/auth/schemas";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export function RegisterForm({
   returnTo,

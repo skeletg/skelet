@@ -12,13 +12,13 @@ import {
   placeOrderAction,
   removeGiftCardAction,
   setStoreCreditAction,
-} from "@/app/lib/checkout/actions";
-import type { CheckoutState, PaymentMethodOption } from "@/app/lib/checkout/read";
-import { giftCardSchema, paymentStepSchema } from "@/app/lib/checkout/schemas";
-import type { CheckoutSettings } from "@/app/lib/checkout/settings";
-import { formatPrice } from "@/app/lib/format";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
-import type { SavedPaymentMethod } from "@/app/lib/payment-methods/actions";
+} from "@skelet/storefront-next/checkout/actions";
+import type { CheckoutState, PaymentMethodOption } from "@skelet/storefront-next/checkout/read";
+import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-next/checkout/schemas";
+import type { CheckoutSettings } from "@skelet/storefront-next/checkout/settings";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import type { SavedPaymentMethod } from "@skelet/storefront-next/payment-methods/actions";
 
 import { ChoiceCard } from "./fields";
 

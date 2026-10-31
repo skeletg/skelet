@@ -2,7 +2,7 @@
 
 import { Link } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
-import { hrefForPage } from "@/app/lib/pagination";
+import { hrefForPage } from "@skelet/storefront-next/pagination";
 
 type Props = {
   totalCount: number;

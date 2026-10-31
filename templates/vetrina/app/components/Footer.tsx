@@ -1,9 +1,9 @@
 import { Link } from "@/app/components/LocaleLink";
 
-import { loadMenu } from "@/app/lib/menus/read";
-import type { MenuItem } from "@/app/lib/menus/read";
-import { getStoreName } from "@/app/lib/channel/read";
-import { getBranding } from "@/app/lib/config/read";
+import { loadMenu } from "@skelet/storefront-next/menus/read";
+import type { MenuItem } from "@skelet/storefront-next/menus/read";
+import { getStoreName } from "@skelet/storefront-next/channel/read";
+import { getBranding } from "@skelet/storefront-next/config/read";
 
 // Driven by the "footer" menu - columns when any top-level item has children, a single row when none do. Copyright +
 // support row always renders, so a store with no menu still gets a usable footer

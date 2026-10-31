@@ -9,11 +9,11 @@ import {
   blogTagHref,
   getBlogTaxonomy,
   type BlogPostSummary,
-} from "@/app/lib/blog/read";
-import { displayName } from "@/app/lib/display";
-import { blogPostHref } from "@/app/lib/entity-href";
-import { formatDate } from "@/app/lib/format";
-import { renderJsonText } from "@/app/lib/json-text";
+} from "@skelet/storefront-next/blog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { blogPostHref } from "@skelet/storefront-next/entity-href";
+import { formatDate } from "@skelet/storefront-next/format";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
 
 export async function BlogPostList({
   posts,

@@ -1,5 +1,5 @@
-import { getSiteUrl, requireRequestChannel } from "@/app/lib/channel/site";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { getSiteUrl, requireRequestChannel } from "@skelet/storefront-next/channel/site";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
 
 // A route handler, not robots.ts, so a non-blank operator override is served verbatim - Next's robots.ts only emits the
 // structured allow/disallow shape, which can't carry arbitrary directives (comments, Crawl-delay, per-bot blocks)

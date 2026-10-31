@@ -11,10 +11,10 @@ let atRefresh: string[] | null = null;
 const refresh = vi.fn(() => { atRefresh = local(); });
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/components/CartUIProvider", () => ({ useCartUI: () => ({ open: vi.fn() }) }));
-vi.mock("@/app/lib/cart/store", () => ({ useCartStore: () => ({ applyServerCart: vi.fn() }) }));
+vi.mock("@skelet/storefront-next/cart/store", () => ({ useCartStore: () => ({ applyServerCart: vi.fn() }) }));
 const moveToCartAction = vi.fn();
 const toggleWishlistAction = vi.fn(async () => ({ authed: true }));
-vi.mock("@/app/lib/wishlist/actions", () => ({ moveToCartAction, toggleWishlistAction }));
+vi.mock("@skelet/storefront-next/wishlist/actions", () => ({ moveToCartAction, toggleWishlistAction }));
 
 const { MoveToCartButton } = await import("./MoveToCartButton");
 const { WishlistMerge } = await import("./WishlistMerge");

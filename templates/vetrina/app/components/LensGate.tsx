@@ -2,8 +2,8 @@
 
 import { LensTracker } from "@/app/components/LensTracker";
 import { LensReplay } from "@/app/components/LensReplay";
-import { useMarketingConsent } from "@/app/lib/consent/use-consent";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
+import { useMarketingConsent } from "@skelet/storefront-next/consent/use-consent";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 
 // Consent and identity resolve in the browser so the layout reads no cookie - off until then, which is the right GDPR default anyway
 export function LensGate({ signalsEnabled, channelId }: { signalsEnabled: boolean; channelId: string }) {

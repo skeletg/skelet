@@ -1,15 +1,7 @@
 "use client";
 
 import { createContext, useContext, useSyncExternalStore } from "react";
-
-export type PresentmentCurrency = {
-  code: string;
-  name: string;
-  symbol: string;
-  decimals: number;
-  symbolPosition: string;
-  factorFromBase: number;
-};
+import type { PresentmentCurrency } from "@skelet/storefront-next/presentment/types";
 
 type PresentmentContextValue = {
   options: PresentmentCurrency[];

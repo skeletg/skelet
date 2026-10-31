@@ -3,14 +3,14 @@
 import { Link } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { ProductListShell } from "@/app/components/ProductListShell";
 import {
-  parsePageFromSegments, parseFilterSegments, parseSortFromSegments } from "@/app/lib/filter-path";
-import { searchProducts } from "@/app/lib/search/read";
+  parsePageFromSegments, parseFilterSegments, parseSortFromSegments } from "@skelet/storefront-next/filter-path";
+import { searchProducts } from "@skelet/storefront-next/search/read";
 
 export const dynamic = "force-dynamic";
 

@@ -4,13 +4,13 @@ import { redirect } from "next/navigation";
 import { TagIcon } from "lucide-react";
 
 import { AccountCard, AccountPageHeader, EmptyState } from "@/app/components/account/AccountUI";
-import { openAccountOffer } from "@/app/lib/cart/offer-actions";
-import { MyCartOffersDocument, type MyCartOffersQuery } from "@/app/lib/cart/offer.gql";
-import { getChannel } from "@/app/lib/channel/read";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { formatPrice } from "@/app/lib/format";
-import { gqlFetch, loadErrorMessage } from "@/app/lib/graphql";
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { openAccountOffer } from "@skelet/storefront-next/cart/offer-actions";
+import { MyCartOffersDocument, type MyCartOffersQuery } from "@skelet/storefront-next/cart/offer.gql";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 export async function generateMetadata({ params }: PageProps<"/[channel]/[locale]/account/offers">): Promise<Metadata> {
   const { locale } = await params;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
-import type { StoresFormResult } from "@/app/lib/stores/actions";
-import { readPreference, savePreference } from "@/app/lib/stores/types";
+import type { StoresFormResult } from "@skelet/storefront-next/stores/actions";
+import { readPreference, savePreference } from "@skelet/storefront-next/stores/types";
 
 // savePreference announces changes in this tab; "storage" carries them from other tabs
 function subscribe(onChange: () => void) {

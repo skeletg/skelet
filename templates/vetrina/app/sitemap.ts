@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
 
-import { requireRequestChannel } from "@/app/lib/channel/site";
-import { getSeoConfig } from "@/app/lib/config/read";
-import { absUrl, applySitemapExclusions, getSiteUrl } from "@/app/lib/sitemap/read";
-import { getHomePage, listCMSPagesForSitemap } from "@/app/lib/cms/read";
+import { requireRequestChannel } from "@skelet/storefront-next/channel/site";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
+import { absUrl, applySitemapExclusions, getSiteUrl } from "@skelet/storefront-next/sitemap/read";
+import { getHomePage, listCMSPagesForSitemap } from "@skelet/storefront-next/cms/read";
 import {
   blogAuthorHref,
   blogCategoryHref,
@@ -11,7 +11,7 @@ import {
   getBlogTaxonomy,
   listBlogAuthorsForSitemap,
   listBlogPostsForSitemap,
-} from "@/app/lib/blog/read";
+} from "@skelet/storefront-next/blog/read";
 
 // Per request: the host decides the channel, and so the origin and the entries
 export const dynamic = "force-dynamic";

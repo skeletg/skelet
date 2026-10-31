@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 import { Link } from "@/app/components/LocaleLink";
-import { OFFER_CHECKOUT_COOKIE } from "@/app/lib/cart/offer-cookie";
+import { OFFER_CHECKOUT_COOKIE } from "@skelet/storefront-next/cart/offer-cookie";
 
 // Drop the legacy browser-wide checkout marker on cart navigation. Current checkout
 // uses explicit offer URLs, so another tab cannot change the cart this link selects.

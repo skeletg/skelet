@@ -2,8 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loginSchema } from "@/app/lib/auth/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { loginSchema } from "@skelet/storefront-next/auth/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
 import { localeLinkMock } from "@/app/test/locale-link-mock";
 import { renderWithIntl } from "@/app/test/render";
 
@@ -25,7 +25,7 @@ const loginAction = vi.fn(
   },
 );
 const resendVerificationAction = vi.fn(async (fd: FormData) => void fd);
-vi.mock("@/app/lib/auth/actions", () => ({
+vi.mock("@skelet/storefront-next/auth/actions", () => ({
   loginAction: (prev: FormResult | undefined, fd: FormData) => loginAction(prev, fd),
   resendVerificationAction: (fd: FormData) => resendVerificationAction(fd),
 }));

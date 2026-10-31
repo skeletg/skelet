@@ -1,30 +1,31 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { getSiteUrl } from "@/app/lib/channel/site";
-import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
+import { getSiteUrl } from "@skelet/storefront-next/channel/site";
+import { canonicalPathMapper, localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 import { Link } from "@/app/components/LocaleLink";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
 import { ProductListShell } from "@/app/components/ProductListShell";
-import { getCategory, productSortOptions } from "@/app/lib/catalog/read";
-import { listingIndexability } from "@/app/lib/catalog/indexability";
-import { getSeoConfig } from "@/app/lib/config/read";
-import { displayName } from "@/app/lib/display";
-import { categoryHref } from "@/app/lib/entity-href";
-import { breadcrumbJsonLd } from "@/app/lib/json-ld";
+import { getCategory, productSortOptions } from "@skelet/storefront-next/catalog/read";
+import { listingIndexability } from "@skelet/storefront-next/catalog/indexability";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { categoryHref } from "@skelet/storefront-next/entity-href";
+import { breadcrumbJsonLd } from "@skelet/storefront-next/json-ld";
 import {
-  isPagedUrlIndexable, parsePageFromSegments, withPageSegment } from "@/app/lib/filter-path";
-import { absUrl } from "@/app/lib/sitemap/read";
+  isPagedUrlIndexable, parsePageFromSegments, withPageSegment } from "@skelet/storefront-next/filter-path";
+import { absUrl } from "@skelet/storefront-next/sitemap/read";
 import {
   assembleH1,
   isSortUrlIndexable,
   parseFilterSegments,
   parseSortFromSegments,
-} from "@/app/lib/filter-path";
+} from "@skelet/storefront-next/filter-path";
 import { Description } from "@/app/[channel]/[locale]/products/[id]/parts";
-import { LexicalRichText, lexicalHasContent } from "@/app/lib/lexical-render";
+import { LexicalRichText } from "@/app/lib/lexical-render";
+import { lexicalHasContent } from "@skelet/storefront-next/lexical";
 
 export async function generateMetadata(
   props: {

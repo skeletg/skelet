@@ -9,8 +9,8 @@
 import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
-import { MASQUERADE_COOKIE } from "@/app/lib/auth/cookies";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
+import { MASQUERADE_COOKIE } from "@skelet/storefront-next/auth/cookies";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 
 const noopSubscribe = () => () => {}; // the cookie never pushes - same shape as useMarketingConsent
 

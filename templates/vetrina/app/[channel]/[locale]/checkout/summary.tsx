@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Link } from "@/app/components/LocaleLink";
-import type { StepStatus } from "@/app/lib/checkout/step";
+import type { StepStatus } from "@skelet/storefront-next/checkout/step";
 
 // Presentational pieces with no state - the page renders the step cards, and the step forms reuse the address block
 

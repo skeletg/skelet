@@ -4,11 +4,11 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 
-import type { ProductSummary } from "@/app/lib/catalog/read";
-import { mediaSrcSet, mediaThumb } from "@/app/lib/media-thumb";
-import { displayName } from "@/app/lib/display";
-import { productHref } from "@/app/lib/entity-href";
-import { formatPrice } from "@/app/lib/format";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
+import { mediaSrcSet, mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { displayName } from "@skelet/storefront-next/display";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { productImageTransitionName } from "@/app/lib/view-transition";
 import { AddToCartForm } from "./AddToCartForm";
 import { RatingStars } from "./RatingStars";

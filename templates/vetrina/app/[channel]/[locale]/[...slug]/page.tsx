@@ -6,9 +6,9 @@ export const dynamicParams = true;
 
 // Catch-all route: every path the storefront doesn't have a typed page for lands here
 
-import { getSiteUrl } from "@/app/lib/channel/site";
+import { getSiteUrl } from "@skelet/storefront-next/channel/site";
 import type { Metadata } from "next";
-import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
+import { canonicalPathMapper, localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 import type { ReactNode } from "react";
 import { Link } from "@/app/components/LocaleLink";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
@@ -16,24 +16,24 @@ import BlogPostPage, { generateMetadata as blogPostMetadata } from "@/app/[chann
 import CategoryPage, { generateMetadata as categoryMetadata } from "@/app/[channel]/[locale]/categories/[id]/[[...filter]]/CategoryView";
 import CollectionPage, { generateMetadata as collectionMetadata } from "@/app/[channel]/[locale]/collections/[id]/[[...filter]]/CollectionView";
 import ProductPage, { generateMetadata as productMetadata } from "@/app/[channel]/[locale]/products/[id]/ProductView";
-import { blogTaxonomyHrefById, getBlogPostById } from "@/app/lib/blog/read";
-import { getCategory, getCollection } from "@/app/lib/catalog/read";
-import { categoryHref, collectionHref } from "@/app/lib/entity-href";
-import { getCMSPage, getHomePage, type CMSPage } from "@/app/lib/cms/read";
-import { cmsPageMetadata } from "@/app/lib/seo-metadata";
-import { displayName } from "@/app/lib/display";
-import { PAGE_MARKER, splitSlug } from "@/app/lib/filter-path";
-import { renderJsonText } from "@/app/lib/json-text";
+import { blogTaxonomyHrefById, getBlogPostById } from "@skelet/storefront-next/blog/read";
+import { getCategory, getCollection } from "@skelet/storefront-next/catalog/read";
+import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
+import { getCMSPage, getHomePage, type CMSPage } from "@skelet/storefront-next/cms/read";
+import { cmsPageMetadata } from "@skelet/storefront-next/seo-metadata";
+import { displayName } from "@skelet/storefront-next/display";
+import { PAGE_MARKER, splitSlug } from "@skelet/storefront-next/filter-path";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
-import { resolveRoute } from "@/app/lib/url-resolver/read";
+import { resolveRoute } from "@skelet/storefront-next/url-resolver/read";
 import { CmsBlocks } from "@/app/components/cms/CmsBlocks";
 import { parseDocument } from "@/app/components/cms/blocks";
 import { JsonLd } from "@/app/components/JsonLd";
 import { CmsVariantPicker } from "@/app/components/cms/CmsVariantPicker";
-import { cmsPageJsonLd, breadcrumbJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@/app/lib/json-ld";
+import { cmsPageJsonLd, breadcrumbJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@skelet/storefront-next/json-ld";
 
 type DelegatePage = (props: {
   params: Promise<Record<string, string | string[] | undefined>>;

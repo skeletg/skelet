@@ -1,0 +1,45 @@
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../graphql/schema.types';
+
+import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type CartOfferLock =
+  | 'BILLING'
+  | 'COUPONS'
+  | 'DELIVERY'
+  | 'LINES'
+  | 'SHIPPING';
+
+export type CartOfferState =
+  | 'COMPLETED'
+  | 'DRAFT'
+  | 'EXPIRED'
+  | 'OPENED'
+  | 'REVOKED'
+  | 'SENT';
+
+export type OpenCartOfferMutationVariables = Exact<{
+  token: string;
+}>;
+
+
+export type OpenCartOfferMutation = { openCartOffer: { cartId: string, state: Types.CartOfferState, requiresLogin: boolean } };
+
+export type MyCartOffersQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MyCartOffersQuery = { myCartOffers: Array<{ id: string, note: string, subtotal: number, totalDiscount: number, savedItems: Array<{ id: string, sku: string, name: string, imageUrl: string | null, quantity: number }>, appliedCodes: Array<{ code: string, ruleName: string, publicLabel: string, subtotalDiscount: number, freeShipping: boolean, invalidatedReason: string, requiresCode: boolean, freeGifts: Array<{ productId: string | null, sku: string, quantity: number, inCart: boolean, href: string | null }> }>, lines: Array<{ id: string, name: string, sku: string, imageUrl: string | null, unitPrice: number, quantity: number, totalPrice: number, availableQuantity: number | null, currentUnitPrice: number | null, isCustom: boolean, components: Array<{ id: string, optionId: string, selectionId: string, sku: string, name: string, unitPrice: number, quantity: number, sortOrder: number }>, options: Array<{ id: string, productOptionId: string, optionValueId: string | null, inputType: string, optionTitle: string, valueLabel: string, textValue: string, priceDelta: number, quantity: number, fileUrl: string }> }>, offer: { expiresAt: string, message: string, state: Types.CartOfferState, locks: Array<Types.CartOfferLock>, paymentMethods: Array<string>, isGuest: boolean } | null }> };
+
+export type MarkCartOfferOpenedMutationVariables = Exact<{
+  cartId: string | number;
+}>;
+
+
+export type MarkCartOfferOpenedMutation = { markCartOfferOpened: boolean };
+
+
+export const OpenCartOfferDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"OpenCartOffer"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"token"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"openCartOffer"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"token"},"value":{"kind":"Variable","name":{"kind":"Name","value":"token"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cartId"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"requiresLogin"}}]}}]}}]} as unknown as DocumentNode<OpenCartOfferMutation, OpenCartOfferMutationVariables>;
+export const MyCartOffersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"MyCartOffers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"myCartOffers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CartFull"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CartFull"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Cart"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"note"}},{"kind":"Field","name":{"kind":"Name","value":"savedItems"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrl"}},{"kind":"Field","name":{"kind":"Name","value":"quantity"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtotal"}},{"kind":"Field","name":{"kind":"Name","value":"totalDiscount"}},{"kind":"Field","name":{"kind":"Name","value":"appliedCodes"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"ruleName"}},{"kind":"Field","name":{"kind":"Name","value":"publicLabel"}},{"kind":"Field","name":{"kind":"Name","value":"subtotalDiscount"}},{"kind":"Field","name":{"kind":"Name","value":"freeShipping"}},{"kind":"Field","name":{"kind":"Name","value":"invalidatedReason"}},{"kind":"Field","name":{"kind":"Name","value":"requiresCode"}},{"kind":"Field","name":{"kind":"Name","value":"freeGifts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"productId"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"quantity"}},{"kind":"Field","name":{"kind":"Name","value":"inCart"}},{"kind":"Field","name":{"kind":"Name","value":"href"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"lines"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrl"}},{"kind":"Field","name":{"kind":"Name","value":"unitPrice"}},{"kind":"Field","name":{"kind":"Name","value":"quantity"}},{"kind":"Field","name":{"kind":"Name","value":"totalPrice"}},{"kind":"Field","name":{"kind":"Name","value":"availableQuantity"}},{"kind":"Field","name":{"kind":"Name","value":"currentUnitPrice"}},{"kind":"Field","name":{"kind":"Name","value":"components"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"optionId"}},{"kind":"Field","name":{"kind":"Name","value":"selectionId"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"unitPrice"}},{"kind":"Field","name":{"kind":"Name","value":"quantity"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}}]}},{"kind":"Field","name":{"kind":"Name","value":"options"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"productOptionId"}},{"kind":"Field","name":{"kind":"Name","value":"optionValueId"}},{"kind":"Field","name":{"kind":"Name","value":"inputType"}},{"kind":"Field","name":{"kind":"Name","value":"optionTitle"}},{"kind":"Field","name":{"kind":"Name","value":"valueLabel"}},{"kind":"Field","name":{"kind":"Name","value":"textValue"}},{"kind":"Field","name":{"kind":"Name","value":"priceDelta"}},{"kind":"Field","name":{"kind":"Name","value":"quantity"}},{"kind":"Field","name":{"kind":"Name","value":"fileUrl"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isCustom"}}]}},{"kind":"Field","name":{"kind":"Name","value":"offer"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"locks"}},{"kind":"Field","name":{"kind":"Name","value":"paymentMethods"}},{"kind":"Field","name":{"kind":"Name","value":"isGuest"}}]}}]}}]} as unknown as DocumentNode<MyCartOffersQuery, MyCartOffersQueryVariables>;
+export const MarkCartOfferOpenedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"MarkCartOfferOpened"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"cartId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"markCartOfferOpened"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"cartId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"cartId"}}}]}]}}]} as unknown as DocumentNode<MarkCartOfferOpenedMutation, MarkCartOfferOpenedMutationVariables>;

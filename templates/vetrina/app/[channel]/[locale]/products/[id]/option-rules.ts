@@ -1,8 +1,8 @@
-import { formatPrice, roundHalfAwayFromZero } from "@/app/lib/format";
+import { formatPrice, roundHalfAwayFromZero } from "@skelet/storefront-next/format";
 import type {
   ProductCustomOption,
   ProductCustomOptionValue,
-} from "@/app/lib/catalog/read";
+} from "@skelet/storefront-next/catalog/read";
 
 const SELECT_TYPES = ["dropdown", "radio", "checkbox", "multiselect"];
 const SINGLE_SELECT_TYPES = ["dropdown", "radio"];

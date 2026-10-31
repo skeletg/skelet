@@ -5,10 +5,10 @@ import { NewspaperIcon } from "lucide-react";
 import type { Block } from "./blocks";
 import { readNumber, readString } from "./blocks";
 import { CmsSection } from "./Section";
-import { listBlogPosts } from "@/app/lib/blog/read";
-import { displayName } from "@/app/lib/display";
-import { formatDate } from "@/app/lib/format";
-import { renderJsonText } from "@/app/lib/json-text";
+import { listBlogPosts } from "@skelet/storefront-next/blog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatDate } from "@skelet/storefront-next/format";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
 
 export async function BlogGridBlock({ block }: { block: Block }) {
   const heading = readString(block.props, "heading");

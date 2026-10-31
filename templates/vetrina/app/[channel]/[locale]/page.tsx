@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { getSiteUrl } from "@/app/lib/channel/site";
+import { getSiteUrl } from "@skelet/storefront-next/channel/site";
 import { Link } from "@/app/components/LocaleLink";
 import {
   ArrowRightIcon,
@@ -17,19 +17,19 @@ import { ValueStrip } from "@/app/components/ValueStrip";
 import { CmsBlocks } from "@/app/components/cms/CmsBlocks";
 import { parseDocument } from "@/app/components/cms/blocks";
 import { JsonLd } from "@/app/components/JsonLd";
-import { listBlogPosts } from "@/app/lib/blog/read";
-import { listRailProducts } from "@/app/lib/catalog/read";
-import { getHomePage } from "@/app/lib/cms/read";
-import { displayName } from "@/app/lib/display";
-import { categoryHref, collectionHref, productHref } from "@/app/lib/entity-href";
-import { formatDate, formatPrice } from "@/app/lib/format";
-import { loadHeader } from "@/app/lib/header/read";
-import type { HeaderCategory } from "@/app/lib/header/read";
-import { getStoreName } from "@/app/lib/channel/read";
-import { cmsPageJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@/app/lib/json-ld";
-import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
-import { cmsPageMetadata } from "@/app/lib/seo-metadata";
-import { renderJsonText } from "@/app/lib/json-text";
+import { listBlogPosts } from "@skelet/storefront-next/blog/read";
+import { listRailProducts } from "@skelet/storefront-next/catalog/read";
+import { getHomePage } from "@skelet/storefront-next/cms/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { categoryHref, collectionHref, productHref } from "@skelet/storefront-next/entity-href";
+import { formatDate, formatPrice } from "@skelet/storefront-next/format";
+import { loadHeader } from "@skelet/storefront-next/header/read";
+import type { HeaderCategory } from "@skelet/storefront-next/header/read";
+import { getStoreName } from "@skelet/storefront-next/channel/read";
+import { cmsPageJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@skelet/storefront-next/json-ld";
+import { canonicalPathMapper, localizedAlternates } from "@skelet/storefront-next/locale/alternates";
+import { cmsPageMetadata } from "@skelet/storefront-next/seo-metadata";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
 
 // A CMS homepage carries the same operator SEO fields as any CMS page (noindex/
 // nofollow, canonical override, OG copy) - without this they were silently dropped

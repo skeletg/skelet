@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { useExperiment } from "@/app/lib/experiments/client";
+import { useExperiment } from "@skelet/storefront-next/experiments/client";
 
 // Assigns client-side - server assignment would pin one arm onto the shared cache entry
 export function ExperimentGate({

@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { BlogPostList } from "./BlogPostList";
 import { Breadcrumbs } from "./Breadcrumbs";
-import type { BlogPostSummary } from "@/app/lib/blog/read";
+import type { BlogPostSummary } from "@skelet/storefront-next/blog/read";
 
 export function BlogArchive({
   eyebrow,

@@ -7,9 +7,9 @@ import {
   FormErrors,
   inputClass,
 } from "@/app/components/account/AccountUI";
-import { requestReturnAction } from "@/app/lib/account/actions";
-import { returnRequestSchema } from "@/app/lib/account/schemas";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { requestReturnAction } from "@skelet/storefront-next/account/actions";
+import { returnRequestSchema } from "@skelet/storefront-next/account/schemas";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export type ReturnableItem = {
   orderLineId: string;

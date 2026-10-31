@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 
 import { useEffect, useRef } from "react";
 
-import { redactPath } from "@/app/lib/analytics/redact";
-import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@/app/lib/analytics/recording-policy";
-import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
+import { redactPath } from "@skelet/storefront-next/analytics/redact";
+import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@skelet/storefront-next/analytics/recording-policy";
+import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@skelet/storefront-next/analytics/visitor";
 import { randomId } from "@skelet/storefront-next/random-id";
-import { beaconFetch } from "@/app/lib/beacons/client";
-import { BEACON } from "@/app/lib/beacons/paths";
+import { beaconFetch } from "@skelet/storefront-next/beacons/client";
+import { BEACON } from "@skelet/storefront-next/beacons/paths";
 
 const FLUSH_MS = 5000;
 const MOVE_THROTTLE_MS = 50;

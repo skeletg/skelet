@@ -1,9 +1,9 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signupSchema } from "@/app/lib/beacons/schemas";
-import type { SignupResult } from "@/app/lib/beacons/actions";
-import { parseForm, replyReset } from "@/app/lib/forms/schema";
+import { signupSchema } from "@skelet/storefront-next/beacons/schemas";
+import type { SignupResult } from "@skelet/storefront-next/beacons/actions";
+import { parseForm, replyReset } from "@skelet/storefront-next/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 // Same schema and SubmissionResult shape as the real action, minus the backend
@@ -13,7 +13,7 @@ const submit = vi.fn(async (_prev: SignupResult | undefined, formData: FormData)
   if (submission.status !== "success") return submission.reply();
   return reply === "ok" ? { ...replyReset(submission), message: "Welcome aboard" } : submission.reply({ formErrors: ["signup form not found"] });
 });
-vi.mock("@/app/lib/beacons/actions", () => ({
+vi.mock("@skelet/storefront-next/beacons/actions", () => ({
   submitSignupAction: (prev: SignupResult | undefined, fd: FormData) => submit(prev, fd),
 }));
 

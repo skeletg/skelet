@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import type { Cart } from "@/app/lib/cart/types";
-import { useCartStore } from "@/app/lib/cart/store";
-import { loadCartAction } from "@/app/lib/cart/actions";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
+import type { Cart } from "@skelet/storefront-next/cart/types";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
+import { loadCartAction } from "@skelet/storefront-next/cart/actions";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 
 // Cheap structural signature - enough to notice a server-side change without a deep
 // compare

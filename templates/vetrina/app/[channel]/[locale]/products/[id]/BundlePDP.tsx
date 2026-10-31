@@ -6,15 +6,15 @@ import { useMemo, useState, useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
-import { addBundleToCart } from "@/app/lib/cart/actions";
-import { displayName } from "@/app/lib/display";
-import { productHref } from "@/app/lib/entity-href";
-import { formatPrice } from "@/app/lib/format";
+import { addBundleToCart } from "@skelet/storefront-next/cart/actions";
+import { displayName } from "@skelet/storefront-next/display";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import { formatPrice } from "@skelet/storefront-next/format";
 import type {
   BundleOption,
   BundleSelection,
   ProductDetail,
-} from "@/app/lib/catalog/read";
+} from "@skelet/storefront-next/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";

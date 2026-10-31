@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { readPublicStores } from "@/app/lib/stores/read";
+import { readPublicStores } from "@skelet/storefront-next/stores/read";
 import { StoresPage } from "@/app/components/stores/StoresPage";
 
 export const dynamic = "force-dynamic";

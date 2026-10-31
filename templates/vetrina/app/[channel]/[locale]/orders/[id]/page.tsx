@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import { Link } from "@/app/components/LocaleLink";
 import { getLocale, getTranslations } from "next-intl/server";
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { notFound, redirect } from "next/navigation";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@/app/lib/consent/read";
-import { displayName } from "@/app/lib/display";
-import { getCustomerOrNull } from "@/app/lib/customer/read";
-import { gqlFetch } from "@/app/lib/graphql";
-import { GuestOrderDocument } from "@/app/lib/checkout/operations.gql";
+import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
+import { GuestOrderDocument } from "@skelet/storefront-next/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
-import { toMajor } from "@/app/lib/format";
+import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
+import { toMajor } from "@skelet/storefront-next/format";
 
 export async function generateMetadata({
   params,

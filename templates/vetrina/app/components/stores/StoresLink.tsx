@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/app/components/LocaleLink";
-import { getStoreAvailabilityEnabled } from "@/app/lib/config/read";
+import { getStoreAvailabilityEnabled } from "@skelet/storefront-next/config/read";
 
 export async function StoresLink() {
   if (!(await getStoreAvailabilityEnabled())) return null;

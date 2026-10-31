@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { HeartIcon } from "lucide-react";
 
-import { toggleWishlistAction } from "@/app/lib/wishlist/actions";
+import { toggleWishlistAction } from "@skelet/storefront-next/wishlist/actions";
 
 // Heart toggle for product cards + PDP. State strategy: localStorage is the instant source of truth for the FILLED
 // state (works for guests and avoids per-card server fetches); signed-in customers also persist via the server action

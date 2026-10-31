@@ -5,10 +5,10 @@ import { getTranslations } from "next-intl/server";
 
 import { Link } from "@/app/components/LocaleLink";
 
-import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
-import { VerifyEmailDocument } from "@/app/lib/auth/operations.gql";
-import { getCustomerOrNull } from "@/app/lib/customer/read";
-import { gqlFetch } from "@/app/lib/graphql";
+import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
+import { VerifyEmailDocument } from "@skelet/storefront-next/auth/operations.gql";
+import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function generateMetadata({
   params,

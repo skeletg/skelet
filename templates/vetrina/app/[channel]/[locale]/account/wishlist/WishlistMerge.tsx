@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { readLocalWishlist } from "@/app/components/WishlistButton";
-import { toggleWishlistAction } from "@/app/lib/wishlist/actions";
+import { toggleWishlistAction } from "@skelet/storefront-next/wishlist/actions";
 
 export function WishlistMerge({ serverIds }: { serverIds: string[] }) {
   const ran = useRef(false);

@@ -3,8 +3,8 @@ import { getTranslations } from "next-intl/server";
 import type { Block } from "./blocks";
 import { readNumber, readString } from "./blocks";
 import { getContainer, getLayout, getProductCard } from "./variants";
-import { browseProducts } from "@/app/lib/catalog/read";
-import type { ProductSummary } from "@/app/lib/catalog/read";
+import { browseProducts } from "@skelet/storefront-next/catalog/read";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
 
 // product_grid - newest / collection / category, all through the deduped browseProducts
 // loader (OpenSearch-backed, degrades to empty on outage so the page still renders)

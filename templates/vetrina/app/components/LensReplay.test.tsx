@@ -1,7 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BEACON } from "@/app/lib/beacons/paths";
+import { BEACON } from "@skelet/storefront-next/beacons/paths";
 
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
@@ -18,7 +18,7 @@ const beaconFetch = vi.fn<(path: string, opts: unknown) => Promise<Response>>(as
     ? new Response(JSON.stringify({ replayEnabled: true, replaySamplingRate: 100 }))
     : new Response(null),
 );
-vi.mock("@/app/lib/beacons/client", () => ({ beaconFetch: (p: string, o: unknown) => beaconFetch(p, o) }));
+vi.mock("@skelet/storefront-next/beacons/client", () => ({ beaconFetch: (p: string, o: unknown) => beaconFetch(p, o) }));
 
 const { LensReplay } = await import("@/app/components/LensReplay");
 

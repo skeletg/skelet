@@ -11,12 +11,12 @@ import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
 
-import { useCustomerIdentity } from "@/app/lib/customer/client";
-import { voteReviewAction } from "@/app/lib/reviews/actions";
-import { loadReviewsPage } from "@/app/lib/reviews/actions-client";
-import type { ReviewSort } from "@/app/lib/reviews/operations.gql";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
+import { voteReviewAction } from "@skelet/storefront-next/reviews/actions";
+import { loadReviewsPage } from "@skelet/storefront-next/reviews/actions-client";
+import type { ReviewSort } from "@skelet/storefront-next/reviews/operations.gql";
 import { useReviewState } from "./ReviewStateProvider";
-import type { ProductReviews, ReviewListItem } from "@/app/lib/reviews/read";
+import type { ProductReviews, ReviewListItem } from "@skelet/storefront-next/reviews/read";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 

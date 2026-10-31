@@ -2,7 +2,7 @@
 
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { localizedAlternates } from "@/app/lib/locale/alternates";
+import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BlogArchive } from "@/app/components/BlogArchive";
 import {
@@ -12,9 +12,9 @@ import {
   getBlogCategory,
   listBlogPostsBy,
   parseBlogPage,
-} from "@/app/lib/blog/read";
-import { displayName } from "@/app/lib/display";
-import { renderJsonText } from "@/app/lib/json-text";
+} from "@skelet/storefront-next/blog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
 
 // The requested path as the backend stores it (no leading slash) plus the slug to look
 // the category up by

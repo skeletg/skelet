@@ -4,15 +4,15 @@ import { redirect } from "next/navigation";
 
 import { Link } from "@/app/components/LocaleLink";
 import { MarkOfferOpened } from "@/app/components/offer/MarkOfferOpened";
-import { getAccessToken } from "@/app/lib/auth/session";
-import { continueOfferCheckout, removeOfferLine, updateOfferLine } from "@/app/lib/cart/offer-actions";
-import { getOfferSession, readOffer } from "@/app/lib/cart/offer";
-import { withLocalePrefix } from "@/app/lib/locale/path";
-import { offerLocks, type CartOfferLock } from "@/app/lib/cart/types";
-import { getChannel } from "@/app/lib/channel/read";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
-import { mediaThumb } from "@/app/lib/media-thumb";
+import { getAccessToken } from "@skelet/storefront-next/auth/session";
+import { continueOfferCheckout, removeOfferLine, updateOfferLine } from "@skelet/storefront-next/cart/offer-actions";
+import { getOfferSession, readOffer } from "@skelet/storefront-next/cart/offer";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
+import { offerLocks, type CartOfferLock } from "@skelet/storefront-next/cart/types";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
 
 export async function generateMetadata({ params }: PageProps<"/[channel]/[locale]/cart/offer">): Promise<Metadata> {
   const { locale } = await params;

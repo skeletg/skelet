@@ -8,9 +8,9 @@ import {
   FormSuccess,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import { changePasswordAction } from "@/app/lib/auth/actions";
-import { changePasswordSchema } from "@/app/lib/auth/schemas";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { changePasswordAction } from "@skelet/storefront-next/auth/actions";
+import { changePasswordSchema } from "@skelet/storefront-next/auth/schemas";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export function PasswordForm() {
   const t = useTranslations("account.password");

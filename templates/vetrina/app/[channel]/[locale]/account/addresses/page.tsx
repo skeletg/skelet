@@ -2,7 +2,7 @@ import { Link } from "@/app/components/LocaleLink";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { redirect } from "next/navigation";
 import { MapPinIcon, PlusIcon } from "lucide-react";
 
@@ -17,9 +17,9 @@ import {
   deleteAddressAction,
   setDefaultBillingAction,
   setDefaultShippingAction,
-} from "@/app/lib/auth/actions";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { formatPhone } from "@/app/lib/forms/phone";
+} from "@skelet/storefront-next/auth/actions";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { formatPhone } from "@skelet/storefront-next/forms/phone";
 
 export async function generateMetadata({
   params,

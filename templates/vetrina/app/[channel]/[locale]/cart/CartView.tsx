@@ -12,17 +12,17 @@ import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { CartLineNotice } from "@/app/components/CartLineNotice";
 import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { useChannel } from "@/app/components/ChannelProvider";
-import { mergePendingRemovals, useCartStore } from "@/app/lib/cart/store";
-import type { CartLine } from "@/app/lib/cart/types";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
+import { mergePendingRemovals, useCartStore } from "@skelet/storefront-next/cart/store";
+import type { CartLine } from "@skelet/storefront-next/cart/types";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { Slots } from "@/app/plugins/Slots";
 import { Skeleton, SkeletonRegion } from "@/app/components/Skeleton";
 import { SaveForLaterButton, SavedForLater } from "./SavedForLater";
 import { CartEstimator } from "./CartEstimator";
 import { CartNote } from "./CartNote";
-import { mediaThumb } from "@/app/lib/media-thumb";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
 
 const FALLBACK_CURRENCY = "USD";
 

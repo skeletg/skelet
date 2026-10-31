@@ -19,13 +19,13 @@ func contractTree(t *testing.T) string {
 		dashBlocks:                        "export const BLOCKS = [\n  {\n    type: 'hero',\n  },\n  {\n    type: 'text',\n  },\n  {\n    type: 'ref',\n  },\n]\n",
 		"apps/channels/shop/package.json": "{}",
 		"apps/channels/shop/app/components/cms/CmsBlocks.tsx": "const REGISTRY: Record<string, BlockRenderer> = {\n  hero: Hero,\n  text: Text,\n};\n",
-		responseCache: "var frontCacheableOps = map[string]bool{\n\t\"Products\": true,\n\t\"Menu\": true,\n}\n",
-		"apps/channels/shop/app/lib/public-ops.ts":      "export const PUBLIC_OPS = new Set([\n  \"Menu\",\n  \"Products\",\n])\n",
-		dashLexical + "/image.tsx":                      "class ImageNode {\n  static getType() {\n    return 'image'\n  }\n}\n",
-		dashLexical + "/structured.tsx":                 "type StructuredBlockType =\n  | 'pros-cons'\n  | 'faq'\n\nexport {}\n",
+		responseCache:                   "var frontCacheableOps = map[string]bool{\n\t\"Products\": true,\n\t\"Menu\": true,\n}\n",
+		publicOps:                       "export const PUBLIC_OPS = new Set([\n  \"Menu\",\n  \"Products\",\n])\n",
+		dashLexical + "/image.tsx":      "class ImageNode {\n  static getType() {\n    return 'image'\n  }\n}\n",
+		dashLexical + "/structured.tsx": "type StructuredBlockType =\n  | 'pros-cons'\n  | 'faq'\n\nexport {}\n",
 		"apps/channels/shop/app/lib/lexical-render.tsx": "switch (t) {\n  case \"image\":\n  case \"pros-cons\":\n  case \"faq\":\n}\n",
 		dashOptVis: "export function visible(o: { a?: string }) {\n  return o.a === \"x\"; // shown when x\n}\n",
-		"apps/channels/shop/app/lib/optionVisibility.ts": "export function visible(o: {a?:string}) { return o.a === 'x' }\n",
+		pkgOptVis:  "export function visible(o: {a?:string}) { return o.a === 'x' }\n",
 		secHeaders: "package httpx\n\nconst ContentSecurityPolicy = \"default-src 'self'; \" +\n\t\"img-src 'self'\"\n\nconst PermissionsPolicy = `camera=(), geolocation=()`\n",
 		nginxConf:  "add_header Content-Security-Policy \"default-src 'self'; img-src 'self' ${UPLOAD_ORIGINS}\" always;\nadd_header Permissions-Policy \"camera=(), geolocation=()\" always;\n",
 		caddyfile:  "header Content-Security-Policy \"default-src 'self'; img-src 'self' {$UPLOAD_ORIGINS}\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n",
@@ -62,9 +62,9 @@ func TestContractsHealthy(t *testing.T) {
 		"ok    1 referenced paths resolve",
 		"ok    backend BuiltinTypes == dashboard palette (3 types)",
 		"ok    shop renderer covers every type but the declared gaps (ref)",
-		"ok    shop PUBLIC_OPS == frontCacheableOps (2 ops)",
+		"ok    storefront-next PUBLIC_OPS == frontCacheableOps (2 ops)",
 		"ok    shop renders all 3 authored node types and variants",
-		"ok    shop evaluator matches the dashboard's, modulo formatting",
+		"ok    storefront-next evaluator matches the dashboard's, modulo formatting",
 		"ok    Content-Security-Policy matches " + nginxConf,
 		"ok    Permissions-Policy matches " + caddyfile,
 		"ok    all 1 requested widgets are registered",
@@ -90,12 +90,12 @@ func TestContractFailures(t *testing.T) {
 			"FAIL  shop has no renderer for backend type 'text'"},
 		{"a storefront rendering a type the backend rejects", map[string]string{"apps/channels/shop/app/components/cms/CmsBlocks.tsx": "const REGISTRY: Record<string, BlockRenderer> = {\n  hero: Hero,\n  text: Text,\n  video: Video,\n};\n"},
 			"FAIL  shop renders types the backend rejects: video"},
-		{"a public op the backend doesn't cache", map[string]string{"apps/channels/shop/app/lib/public-ops.ts": "new Set([\n  \"Menu\",\n  \"Products\",\n  \"Cart\",\n])\n"},
-			"FAIL  shop PUBLIC_OPS != frontCacheableOps"},
+		{"a public op the backend doesn't cache", map[string]string{publicOps: "new Set([\n  \"Menu\",\n  \"Products\",\n  \"Cart\",\n])\n"},
+			"FAIL  storefront-next PUBLIC_OPS != frontCacheableOps"},
 		{"an authored node with no case", map[string]string{"apps/channels/shop/app/lib/lexical-render.tsx": "case \"image\":\ncase \"faq\":\n"},
 			"FAIL  shop has no case for: pros-cons"},
-		{"an evaluator that changed meaning", map[string]string{"apps/channels/shop/app/lib/optionVisibility.ts": "export function visible(o: {a?:string}) { return o.a !== 'x' }\n"},
-			"FAIL  shop evaluator has diverged"},
+		{"an evaluator that changed meaning", map[string]string{pkgOptVis: "export function visible(o: {a?:string}) { return o.a !== 'x' }\n"},
+			"FAIL  storefront-next evaluator has diverged"},
 		{"an edge CSP edited by hand", map[string]string{caddyfile: "header Content-Security-Policy \"default-src *\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n"},
 			"FAIL  Content-Security-Policy differs between " + secHeaders + " and " + caddyfile},
 		{"a widget nobody registered", map[string]string{"apps/backend/core/internal/rules/more.go": "package rules\n\nvar t = `{\"x-widget\": \"ghost\"}`\n"},
@@ -113,6 +113,26 @@ func TestContractFailures(t *testing.T) {
 				t.Errorf("exit %d, want %q in:\n%s", code, c.want, out)
 			}
 		})
+	}
+}
+
+// A package file that moved fails rather than skipping; a checkout without the package at all has nothing to check
+func TestAMovedPackageFileFails(t *testing.T) {
+	for _, f := range []string{publicOps, pkgOptVis} {
+		root := contractTree(t)
+		if err := os.Remove(filepath.Join(root, f)); err != nil {
+			t.Fatal(err)
+		}
+		if out, code := contractsOut(t, root); code != 1 || !strings.Contains(out, "FAIL  "+f+" is gone but "+storefrontPkg+" is here") {
+			t.Errorf("%s: exit %d:\n%s", f, code, out)
+		}
+	}
+	root := contractTree(t)
+	if err := os.RemoveAll(filepath.Join(root, storefrontPkg)); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := contractsOut(t, root); code != 0 || !strings.Contains(out, "--    no "+storefrontPkg+" in this checkout") {
+		t.Errorf("no package: exit %d:\n%s", code, out)
 	}
 }
 

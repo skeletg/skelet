@@ -3,11 +3,11 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { ProductListShell } from "@/app/components/ProductListShell";
-import { localizedAlternates } from "@/app/lib/locale/alternates";
+import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 
-import { productSortOptions } from "@/app/lib/catalog/read";
-import { listingIndexability } from "@/app/lib/catalog/indexability";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { productSortOptions } from "@skelet/storefront-next/catalog/read";
+import { listingIndexability } from "@skelet/storefront-next/catalog/indexability";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
 import {
   isPagedUrlIndexable,
   parsePageFromSegments,
@@ -18,7 +18,7 @@ import {
   isSortUrlIndexable,
   parseFilterSegments,
   parseSortFromSegments,
-} from "@/app/lib/filter-path";
+} from "@skelet/storefront-next/filter-path";
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 

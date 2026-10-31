@@ -8,7 +8,7 @@ import {
   submitWebFormAction,
   type WebFormFile,
   type WebFormSubmitResult,
-} from "@/app/lib/webforms/actions";
+} from "@skelet/storefront-next/webforms/actions";
 import {
   isLayout,
   isSectionVisible,

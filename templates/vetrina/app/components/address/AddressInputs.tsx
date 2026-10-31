@@ -3,8 +3,8 @@
 import { useTranslations } from "next-intl";
 
 import { FieldErrors, inputClass, type FieldMeta } from "@/app/components/account/AccountUI";
-import type { CountryOption, RegionOption } from "@/app/lib/countries/read";
-import { subdivisionsFor } from "@/app/lib/states";
+import type { CountryOption, RegionOption } from "@skelet/storefront-next/countries/read";
+import { subdivisionsFor } from "@skelet/storefront-next/states";
 
 // The address inputs that need more than a text box - shared by the checkout's address step and the account address
 // book, so both pick a country from the store's list and a region from the country's own. Labels come from

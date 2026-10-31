@@ -4,10 +4,19 @@
   "private": true,
   "packageManager": "pnpm@12.6.0",
   "type": "module",
-  "sideEffects": false,
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@conform-to/react": "^1.21.1",
+    "@conform-to/zod": "^1.21.1",
+    "@graphql-typed-document-node/core": "catalog:",
+    "graphql": "catalog:",
+    "libphonenumber-js": "^1.13.14",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "next": "catalog:",
@@ -15,8 +24,17 @@
     "react": "catalog:"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^7.3.1",
+    "@graphql-codegen/near-operation-file-preset": "^5.2.2",
+    "@graphql-codegen/typed-document-node": "^7.1.0",
+    "@graphql-codegen/typescript": "^6.1.0",
+    "@graphql-codegen/typescript-operations": "^6.1.6",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
     "next": "catalog:",
     "next-intl": "catalog:",
     "react": "catalog:",

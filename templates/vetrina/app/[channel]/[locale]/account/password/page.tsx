@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import {
   AccountCard,
   AccountPageHeader,
 } from "@/app/components/account/AccountUI";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { PasswordForm } from "./PasswordForm";
 
 export async function generateMetadata({

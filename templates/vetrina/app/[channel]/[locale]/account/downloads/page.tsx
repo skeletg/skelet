@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { DownloadIcon } from "lucide-react";
 
 import {
@@ -10,9 +10,9 @@ import {
   AccountPageHeader,
   EmptyState,
 } from "@/app/components/account/AccountUI";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { gqlFetch, loadErrorMessage } from "@/app/lib/graphql";
-import { MyDownloadsDocument } from "@/app/lib/customer/operations.gql";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
+import { MyDownloadsDocument } from "@skelet/storefront-next/customer/operations.gql";
 
 export async function generateMetadata({
   params,

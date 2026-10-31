@@ -3,7 +3,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ACCESS_TOKEN_COOKIE, MASQUERADE_COOKIE } from "@/app/lib/auth/session";
+import { ACCESS_TOKEN_COOKIE, MASQUERADE_COOKIE } from "@skelet/storefront-next/auth/session";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token") ?? "";

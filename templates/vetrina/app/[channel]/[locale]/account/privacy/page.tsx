@@ -1,14 +1,14 @@
 import { Link } from "@/app/components/LocaleLink";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { AccountPageHeader } from "@/app/components/account/AccountUI";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { getChannel } from "@/app/lib/channel/read";
-import { supportEmailFrom } from "@/app/lib/channel/support";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { supportEmailFrom } from "@skelet/storefront-next/channel/support";
 
 export async function generateMetadata({
   params,

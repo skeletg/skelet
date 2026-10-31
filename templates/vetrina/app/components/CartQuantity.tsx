@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { useCartStore } from "@/app/lib/cart/store";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
 
 // Debounce for typed input so we don't fire a mutation on every keystroke
 const TYPE_DEBOUNCE_MS = 550;

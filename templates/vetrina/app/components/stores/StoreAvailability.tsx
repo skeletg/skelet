@@ -3,7 +3,7 @@ import { startTransition, useActionState, useCallback, useEffect, useRef, useSta
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { useChannelId } from "@/app/components/LocaleLink";
-import { findStoresAction } from "@/app/lib/stores/actions";
+import { findStoresAction } from "@skelet/storefront-next/stores/actions";
 import { useForgetMissingPreference, usePreferredStore } from "./usePreferredStore";
 import { StoreStatus } from "./StoreRows";
 import { StoreFinder } from "./StoreFinder";

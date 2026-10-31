@@ -9,13 +9,13 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import { Drawer } from "@/app/components/Drawer";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
-import { mediaThumb } from "@/app/lib/media-thumb";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
 import type {
   ConfigurableOption,
   ProductVariant,
-} from "@/app/lib/catalog/read";
+} from "@skelet/storefront-next/catalog/read";
 import { ChoiceIndicator, optionAnchorId, optionCardClass } from "./parts";
 
 export type Selection = Record<string, string | undefined>;

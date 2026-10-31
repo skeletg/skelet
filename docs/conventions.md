@@ -206,7 +206,14 @@ convention is the one most code comments point at.
   `templates/vetrina/node_modules/next/dist/docs/` before writing code;
   APIs, conventions, and file layout differ from older versions. Heed
   deprecation notices.
-- **Server-only GraphQL.** `app/lib/graphql.ts` is RSC/route-handler
+- **Logic in the package, design in the template.** What a storefront
+  does - the GraphQL client and operations, auth, cart, checkout, channel
+  and locale resolution - is `packages/storefront-next`, imported as
+  `@skelet/storefront-next/<module>`. A template keeps its pages,
+  components and styles, so a fork changes how it looks without taking
+  on code that upstream keeps fixing. Inside the package imports are
+  relative - a storefront's `@/` alias would resolve against the storefront.
+- **Server-only GraphQL.** The package's `graphql.ts` is RSC/route-handler
   only - the browser can't reach `BACKEND_INTERNAL_URL`. If you need
   client-side data, expose it via a Next.js route handler instead of
   leaking the internal URL into the client bundle.
@@ -215,20 +222,19 @@ convention is the one most code comments point at.
   `cache: "no-store"` - every request hits the backend. Don't introduce
   Full Route Cache / ISR without a deliberate per-route decision.
 - **Operations are colocated.** `*.graphql` files live next to their
-  consumers under `app/lib/` (or feature dirs); codegen produces
-  `*.gql.ts` siblings. The shared baseline is
-  `app/graphql/schema.types.ts` (DO NOT EDIT).
+  consumers in the package; codegen produces `*.gql.ts` siblings. The
+  shared baseline is the package's `graphql/schema.types.ts` (DO NOT EDIT).
 - **Channel + locale are server-resolved.** `getChannel()`
-  (`app/lib/channel/read.ts`) and
-  `getCurrentLocale()`/`getCurrentChannelId()` (`app/lib/locale/read.ts`)
+  (`channel/read.ts`) and
+  `getCurrentLocale()`/`getCurrentChannelId()` (`locale/read.ts`)
   are the source of truth; pass results down via the `ChannelProvider`
   for client components.
-- **JWT in cookies, not localStorage.** `app/lib/auth.ts` reads
+- **JWT in cookies, not localStorage.** The package's `auth/` reads
   customer tokens from the cookie store; `gqlFetch` attaches
   `Authorization: Bearer <token>` automatically when present.
 - **URL routing is backend-driven.** The catch-all `[...slug]` route
   resolves arbitrary paths via the front `urlResolver` query
-  (`app/lib/url-resolver.graphql`) so canonical URLs + 301s defined in
+  (`url-resolver/operations.graphql`) so canonical URLs + 301s defined in
   `internal/urlrewrite/` work end-to-end.
 - **HMR over bind mounts.** If file changes don't trigger reloads,
   confirm `CHOKIDAR_USEPOLLING` / `WATCHPACK_POLLING` are still set in

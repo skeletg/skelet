@@ -1,7 +1,7 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithIntl } from "@/app/test/render";
-import type { ProductCustomOption } from "@/app/lib/catalog/read";
+import type { ProductCustomOption } from "@skelet/storefront-next/catalog/read";
 import { OPTION_JUMP_EVENT } from "./focus-intent";
 import { answerText, OptionsLayout } from "./OptionsLayout";
 

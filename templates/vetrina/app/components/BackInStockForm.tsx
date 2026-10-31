@@ -4,10 +4,10 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
-import { notifyBackInStockAction } from "@/app/lib/beacons/actions";
-import { backInStockSchema } from "@/app/lib/beacons/schemas";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { notifyBackInStockAction } from "@skelet/storefront-next/beacons/actions";
+import { backInStockSchema } from "@skelet/storefront-next/beacons/schemas";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export function BackInStockForm({ productId, defaultEmail = "" }: { productId: string; defaultEmail?: string }) {
   const t = useTranslations("product.backInStock");

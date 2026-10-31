@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useChannelId } from "@/app/components/LocaleLink";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
-import { findStoresAction } from "@/app/lib/stores/actions";
-import { storeFiltersSchema } from "@/app/lib/stores/schemas";
-import { STORE_PAGE_SIZE } from "@/app/lib/stores/types";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { findStoresAction } from "@skelet/storefront-next/stores/actions";
+import { storeFiltersSchema } from "@skelet/storefront-next/stores/schemas";
+import { STORE_PAGE_SIZE } from "@skelet/storefront-next/stores/types";
 import { useForgetMissingPreference, usePreferredStore } from "./usePreferredStore";
 import { StoreRows } from "./StoreRows";
 

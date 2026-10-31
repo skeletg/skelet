@@ -2,13 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
-import { getProduct } from "@/app/lib/catalog/read";
-import { getCustomerOrNull } from "@/app/lib/customer/read";
-import { productHref } from "@/app/lib/entity-href";
-import { loadMyReviewState } from "@/app/lib/reviews/actions-client";
-import { getProductWithReviews } from "@/app/lib/reviews/read";
+import { getProduct } from "@skelet/storefront-next/catalog/read";
+import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import { loadMyReviewState } from "@skelet/storefront-next/reviews/actions-client";
+import { getProductWithReviews } from "@skelet/storefront-next/reviews/read";
 import { ReviewForm } from "./ReviewForm";
 
 type Params = { id: string };

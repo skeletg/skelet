@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { RefreshCwIcon } from "lucide-react";
 
 import {
@@ -14,15 +14,15 @@ import {
 } from "@/app/components/account/AccountUI";
 import { StatusChip, humanizeStatus } from "@/app/components/account/StatusChip";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { formatPrice } from "@/app/lib/format";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { loadErrorMessage } from "@/app/lib/graphql";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { loadErrorMessage } from "@skelet/storefront-next/graphql";
 import {
   cancelSubscriptionAction,
   setSubscriptionPaymentMethodAction,
-} from "@/app/lib/subscriptions/actions";
-import { getMySubscriptions, type Subscription } from "@/app/lib/subscriptions/read";
-import { getMyPaymentMethods } from "@/app/lib/payment-methods/actions";
+} from "@skelet/storefront-next/subscriptions/actions";
+import { getMySubscriptions, type Subscription } from "@skelet/storefront-next/subscriptions/read";
+import { getMyPaymentMethods } from "@skelet/storefront-next/payment-methods/actions";
 
 export async function generateMetadata({
   params,

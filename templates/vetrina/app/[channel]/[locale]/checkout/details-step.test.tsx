@@ -2,10 +2,10 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CheckoutAddress, CheckoutState } from "@/app/lib/checkout/read";
-import { DEFAULT_CHECKOUT_SETTINGS } from "@/app/lib/checkout/settings";
-import type { PhoneSettings } from "@/app/lib/countries/read";
-import type { Address } from "@/app/lib/customer/read";
+import type { CheckoutAddress, CheckoutState } from "@skelet/storefront-next/checkout/read";
+import { DEFAULT_CHECKOUT_SETTINGS } from "@skelet/storefront-next/checkout/settings";
+import type { PhoneSettings } from "@skelet/storefront-next/countries/read";
+import type { Address } from "@skelet/storefront-next/customer/read";
 import { renderWithIntl } from "@/app/test/render";
 
 vi.mock("next/navigation", () => ({
@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/checkout",
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("@/app/lib/checkout/actions", () => ({ saveDetailsStep: async () => ({}) }));
+vi.mock("@skelet/storefront-next/checkout/actions", () => ({ saveDetailsStep: async () => ({}) }));
 
 const { DetailsStep } = await import("@/app/[channel]/[locale]/checkout/details-step");
 

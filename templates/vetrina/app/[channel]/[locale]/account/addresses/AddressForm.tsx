@@ -9,11 +9,11 @@ import {
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
 import { CountrySelect, StateField } from "@/app/components/address/AddressInputs";
-import { addAddressAction, updateAddressAction } from "@/app/lib/auth/actions";
-import { addressSchema } from "@/app/lib/auth/schemas";
-import type { AddressFormOptions } from "@/app/lib/countries/read";
-import { phoneFieldFor } from "@/app/lib/forms/phone";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { addAddressAction, updateAddressAction } from "@skelet/storefront-next/auth/actions";
+import { addressSchema } from "@skelet/storefront-next/auth/schemas";
+import type { AddressFormOptions } from "@skelet/storefront-next/countries/read";
+import { phoneFieldFor } from "@skelet/storefront-next/forms/phone";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export type AddressInitial = {
   firstName?: string;

@@ -4,12 +4,12 @@ import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
-import { formatPrice } from "@/app/lib/cart/read";
-import type { Cart } from "@/app/lib/cart/types";
-import type { CheckoutState } from "@/app/lib/checkout/read";
-import { displayName } from "@/app/lib/display";
-import { mediaThumb } from "@/app/lib/media-thumb";
-import { describeAppliedCode, giftSummary } from "@/app/lib/promotions/applied-code";
+import { formatPrice } from "@skelet/storefront-next/cart/read";
+import type { Cart } from "@skelet/storefront-next/cart/types";
+import type { CheckoutState } from "@skelet/storefront-next/checkout/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { describeAppliedCode, giftSummary } from "@skelet/storefront-next/promotions/applied-code";
 
 import { CheckoutCoupon } from "./coupon";
 

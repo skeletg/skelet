@@ -91,18 +91,19 @@ skelet/
 │       │   │                          dotted paths, so they never get the locale rewrite
 │       │   ├── api/                 ← route handlers (e.g. hud-debug)
 │       │   ├── components/          ← server + client components, no vendored UI kit
-│       │   ├── lib/
-│       │   │   ├── graphql.ts       ← server-side gqlFetch (BACKEND_INTERNAL_URL)
-│       │   │   ├── auth.ts          ← JWT cookie handling, getAccessToken
-│       │   │   ├── locale/, channel/  ← active channel/locale resolution
-│       │   │   ├── *.graphql        ← operation docs (codegen input)
-│       │   │   └── *.gql.ts         ← codegen output
-│       │   └── graphql/schema.types.ts ← codegen baseline (DO NOT EDIT)
-│       ├── codegen.ts               ← graphql-codegen; hits /api/front/graphql
+│       │   └── lib/                 ← design helpers only: the Lexical renderer, cn, view transitions
 │       ├── next.config.ts
 │       └── package.json
 ├── packages/
-│   └── storefront-next/             ← TypeScript the storefronts share, as source - no build step
+│   └── storefront-next/             ← a Next storefront's logic, as source - no build step
+│       ├── graphql.ts               ← server-side gqlFetch (BACKEND_INTERNAL_URL)
+│       ├── auth/                    ← JWT cookie handling, getAccessToken
+│       ├── locale/, channel/        ← active channel/locale resolution
+│       ├── cart/, checkout/, …      ← server actions and reads, one directory per domain
+│       ├── *.graphql                ← operation docs (codegen input), beside their module
+│       ├── *.gql.ts                 ← codegen output
+│       ├── graphql/schema.types.ts  ← codegen baseline (DO NOT EDIT)
+│       └── codegen.ts               ← graphql-codegen; hits /api/front/graphql
 ├── cmd/skelet/                      ← the skelet CLI, every dev operation
 ├── env/                             ← *.env.example committed; *.env gitignored (docs/env.md documents every var)
 ├── .gitattributes                   ← LF normalization, prevents Windows CRLF
@@ -224,7 +225,7 @@ stay in sync; the storefront has its own codegen step
   primitives are hand-written against the design tokens in `app/globals.css`,
   and interaction that would normally pull a library in (carousels, drawers,
   the search modal) is CSS scroll-snap and `<dialog>`. No Apollo either: a
-  thin server-side `gqlFetch` in `app/lib/graphql.ts` POSTs to
+  thin server-side `gqlFetch` in `packages/storefront-next/graphql.ts` POSTs to
   `/api/front/graphql`, `cache: "no-store"` by default and `force-cache` with
   `next: { tags, revalidate }` when the caller opts into ISR. **Caveat:** Next.js 16 has breaking changes vs.
   the version in your training data - read

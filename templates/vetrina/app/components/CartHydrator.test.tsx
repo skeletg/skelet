@@ -1,17 +1,17 @@
 import { screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import type { Cart } from "@/app/lib/cart/types";
+import type { Cart } from "@skelet/storefront-next/cart/types";
 import { renderWithIntl } from "@/app/test/render";
 
 const mocks = vi.hoisted(() => ({
   identity: { identity: null as { id: string } | null, resolved: false },
   load: vi.fn(),
 }));
-vi.mock("@/app/lib/customer/client", () => ({ useCustomerIdentity: () => mocks.identity }));
-vi.mock("@/app/lib/cart/actions", () => ({ loadCartAction: mocks.load }));
+vi.mock("@skelet/storefront-next/customer/client", () => ({ useCustomerIdentity: () => mocks.identity }));
+vi.mock("@skelet/storefront-next/cart/actions", () => ({ loadCartAction: mocks.load }));
 
-const { CartStoreProvider, useCartStore } = await import("@/app/lib/cart/store");
+const { CartStoreProvider, useCartStore } = await import("@skelet/storefront-next/cart/store");
 const { CartHydrator } = await import("./CartHydrator");
 
 const cart = (id: string): Cart => ({ id, note: "", subtotal: 0, totalDiscount: 0, appliedCodes: [], lines: [], savedItems: [] });

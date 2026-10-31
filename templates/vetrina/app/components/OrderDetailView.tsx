@@ -2,15 +2,15 @@ import type { ReactNode } from "react";
 import { PackageIcon, TruckIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import type { OrderSummaryFieldsFragment } from "@/app/lib/checkout/operations.gql";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
+import type { OrderSummaryFieldsFragment } from "@skelet/storefront-next/checkout/operations.gql";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
 import {
   PaymentChip,
   StatusChip,
   humanizeStatus,
 } from "./account/StatusChip";
-import { formatPhone } from "@/app/lib/forms/phone";
+import { formatPhone } from "@skelet/storefront-next/forms/phone";
 
 type OrderEvent = { id: string; message: string; createdAt: string };
 

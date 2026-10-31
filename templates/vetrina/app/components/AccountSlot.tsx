@@ -4,7 +4,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { UserIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useCustomerIdentity } from "@/app/lib/customer/client";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 import { SignInButton } from "@/app/components/SignInButton";
 
 // Same 9x9 footprint in every state, so resolving identity after hydration never shifts the header

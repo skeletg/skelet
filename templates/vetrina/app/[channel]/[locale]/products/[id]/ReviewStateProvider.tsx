@@ -11,7 +11,7 @@ import {
 import {
   loadMyReviewState,
   type MyReviewState,
-} from "@/app/lib/reviews/actions-client";
+} from "@skelet/storefront-next/reviews/actions-client";
 
 type State = MyReviewState & { resolved: boolean };
 

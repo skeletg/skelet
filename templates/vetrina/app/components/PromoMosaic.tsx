@@ -2,10 +2,10 @@ import { Link } from "@/app/components/LocaleLink";
 import { ArrowRightIcon, SparklesIcon, TagIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import type { ProductSummary } from "@/app/lib/catalog/read";
-import type { HeaderCategory, HeaderCollection } from "@/app/lib/header/read";
-import { displayName } from "@/app/lib/display";
-import { categoryHref, collectionHref } from "@/app/lib/entity-href";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
+import type { HeaderCategory, HeaderCollection } from "@skelet/storefront-next/header/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
 
 export function PromoMosaic({
   deals,

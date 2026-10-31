@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ProductsByIdsDocument } from "@/app/lib/catalog/operations.gql";
-import { gqlFetch } from "@/app/lib/graphql";
+import { ProductsByIdsDocument } from "@skelet/storefront-next/catalog/operations.gql";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function GET(req: NextRequest) {
   const ids = (req.nextUrl.searchParams.get("ids") ?? "")

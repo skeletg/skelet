@@ -23,12 +23,12 @@ import type {
   HeaderCategory,
   HeaderCollection,
   HeaderLocale,
-} from "@/app/lib/header/read";
-import { displayName } from "@/app/lib/display";
-import { categoryHref, collectionHref } from "@/app/lib/entity-href";
-import { parseFilterSegments } from "@/app/lib/filter-path";
-import { setLocale } from "@/app/lib/locale/actions";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
+} from "@skelet/storefront-next/header/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
+import { parseFilterSegments } from "@skelet/storefront-next/filter-path";
+import { setLocale } from "@skelet/storefront-next/locale/actions";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 import { Drawer } from "./Drawer";
 
 type Props = {

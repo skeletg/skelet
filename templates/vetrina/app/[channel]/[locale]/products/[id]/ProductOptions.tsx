@@ -5,11 +5,11 @@ import { useTranslations } from "next-intl";
 
 import { useErrorText } from "@/app/components/account/AccountUI";
 
-import { displayName } from "@/app/lib/display";
+import { displayName } from "@skelet/storefront-next/display";
 import type {
   ProductCustomOption,
   ProductCustomOptionValue,
-} from "@/app/lib/catalog/read";
+} from "@skelet/storefront-next/catalog/read";
 import { acceptAttr, formatBytes, type FileEntry } from "./option-files";
 import { isSelect, isSingleSelect, priceLabel, textInputType } from "./option-rules";
 import {

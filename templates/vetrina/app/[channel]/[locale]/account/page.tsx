@@ -2,7 +2,7 @@ import { Link } from "@/app/components/LocaleLink";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { redirect } from "next/navigation";
 import {
   CreditCardIcon,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { AccountBadge } from "@/app/components/account/AccountBadge";
-import { getAccountCounts } from "@/app/lib/account/read";
+import { getAccountCounts } from "@skelet/storefront-next/account/read";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import {
   AccountCard,
@@ -27,18 +27,18 @@ import {
 } from "@/app/components/account/AccountUI";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { PaymentChip } from "@/app/components/account/StatusChip";
-import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
-import { getResolvedConsent } from "@/app/lib/consent/read";
-import { getChannel } from "@/app/lib/channel/read";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
+import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
+import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import {
   getLoyaltyStatus,
   getMyReferral,
   redeemLoyaltyPointsAction,
-} from "@/app/lib/loyalty/actions";
-import { gqlFetch } from "@/app/lib/graphql";
-import { MyOrdersDocument } from "@/app/lib/checkout/operations.gql";
-import { formatPrice } from "@/app/lib/format";
+} from "@skelet/storefront-next/loyalty/actions";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
+import { MyOrdersDocument } from "@skelet/storefront-next/checkout/operations.gql";
+import { formatPrice } from "@skelet/storefront-next/format";
 
 export async function generateMetadata({
   params,

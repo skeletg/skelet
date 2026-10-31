@@ -33,6 +33,10 @@ const (
 	nginxConf     = "apps/dashboard/nginx.conf.template"
 	caddyfile     = "deploy/caddy/Caddyfile"
 	widgetReg     = "apps/dashboard/src/features/promotions/widgets/registry.ts"
+	// The storefront logic every template shares - checked once, here, rather than per storefront
+	storefrontPkg = "packages/storefront-next"
+	publicOps     = storefrontPkg + "/public-ops.ts"
+	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
 	// This gate's own source talks about SYNC comments, so it stays out of the scan for them
 	self = "cmd/skelet/internal/gates"
 )
@@ -275,24 +279,33 @@ func (c contracts) cacheableOps() {
 		c.r.bad("frontCacheableOps extraction came back empty - %s moved", responseCache)
 		return
 	}
-	for _, sf := range c.storefronts() {
-		name := sf.Name
-		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "public-ops.ts")
-		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
-			c.skip("%s has no public-ops list", name)
-			continue
-		}
-		sf := set(between(c.read(f), setStart, setEnd), quotedOp)
-		switch {
-		case len(sf) == 0:
-			c.r.bad("%s: PUBLIC_OPS extraction came back empty", name)
-		case slices.Equal(ops, sf):
-			c.r.pass("%s PUBLIC_OPS == frontCacheableOps (%d ops)", name, len(ops))
-		default:
-			c.r.bad("%s PUBLIC_OPS != frontCacheableOps", name)
-			c.sides(ops, sf)
-		}
+	if !c.inPackage(publicOps) {
+		return
 	}
+	sf := set(between(c.read(publicOps), setStart, setEnd), quotedOp)
+	switch {
+	case len(sf) == 0:
+		c.r.bad("PUBLIC_OPS extraction came back empty - %s changed shape", publicOps)
+	case slices.Equal(ops, sf):
+		c.r.pass("storefront-next PUBLIC_OPS == frontCacheableOps (%d ops)", len(ops))
+	default:
+		c.r.bad("storefront-next PUBLIC_OPS != frontCacheableOps")
+		c.sides(ops, sf)
+	}
+}
+
+// inPackage says the storefront package holds f. A checkout without the package - a backend-only sparse clone - has
+// nothing to check; one with the package and not the file has a stale path here, and fails rather than going quiet
+func (c contracts) inPackage(f string) bool {
+	if _, err := os.Stat(filepath.Join(c.root, f)); err == nil {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(c.root, storefrontPkg)); err != nil {
+		c.skip("no %s in this checkout", storefrontPkg)
+		return false
+	}
+	c.r.bad("%s is gone but %s is here - the path in cmd/skelet/internal/gates/contracts.go is stale", f, storefrontPkg)
+	return false
 }
 
 var (
@@ -392,19 +405,13 @@ func (c contracts) evaluators() {
 		c.r.bad("%s is gone - update cmd/skelet/internal/gates/contracts.go", dashOptVis)
 		return
 	}
-	ref := normEvaluator(c.read(dashOptVis))
-	for _, sf := range c.storefronts() {
-		name := sf.Name
-		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "optionVisibility.ts")
-		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
-			c.skip("%s has no option-visibility port", name)
-			continue
-		}
-		if normEvaluator(c.read(f)) == ref {
-			c.r.pass("%s evaluator matches the dashboard's, modulo formatting", name)
-		} else {
-			c.r.bad("%s evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", name, dashOptVis)
-		}
+	if !c.inPackage(pkgOptVis) {
+		return
+	}
+	if normEvaluator(c.read(pkgOptVis)) == normEvaluator(c.read(dashOptVis)) {
+		c.r.pass("storefront-next evaluator matches the dashboard's, modulo formatting")
+	} else {
+		c.r.bad("storefront-next evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", dashOptVis)
 	}
 }
 

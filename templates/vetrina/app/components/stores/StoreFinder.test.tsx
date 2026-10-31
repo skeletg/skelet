@@ -1,9 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseForm } from "@/app/lib/forms/schema";
-import { productPickSchema, productSearchSchema, storeFiltersSchema } from "@/app/lib/stores/schemas";
-import { preferenceKey, type StoreProduct, type StoresResult } from "@/app/lib/stores/types";
-import type { ProductPickResult, ProductSearchResult, StoresFormResult } from "@/app/lib/stores/actions";
+import { parseForm } from "@skelet/storefront-next/forms/schema";
+import { productPickSchema, productSearchSchema, storeFiltersSchema } from "@skelet/storefront-next/stores/schemas";
+import { preferenceKey, type StoreProduct, type StoresResult } from "@skelet/storefront-next/stores/types";
+import type { ProductPickResult, ProductSearchResult, StoresFormResult } from "@skelet/storefront-next/stores/actions";
 import { localeLinkMock } from "@/app/test/locale-link-mock";
 import { renderWithIntl } from "@/app/test/render";
 
@@ -32,7 +32,7 @@ const pickProduct = vi.fn(async (_prev: ProductPickResult | undefined, formData:
   const submission = parseForm(formData, productPickSchema);
   return submission.status === "success" ? { ...submission.reply(), product: hoodie } : submission.reply();
 });
-vi.mock("@/app/lib/stores/actions", () => ({
+vi.mock("@skelet/storefront-next/stores/actions", () => ({
   findStoresAction: (prev: StoresFormResult | undefined, fd: FormData) => findStores(prev, fd),
   searchStoreProductsAction: (prev: ProductSearchResult | undefined, fd: FormData) => searchProducts(prev, fd),
   pickStoreProductAction: (prev: ProductPickResult | undefined, fd: FormData) => pickProduct(prev, fd),

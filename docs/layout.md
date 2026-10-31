@@ -51,7 +51,9 @@ shop in `apps/channels/`, so merging a skelet release never collides with it.
 ### `packages/`
 
 TypeScript every storefront shares, as source - Next and Vite compile workspace
-packages themselves, so there's no build step. `storefront-next` is the first.
+packages themselves, so there's no build step. `storefront-next` is a Next
+storefront's logic - the GraphQL client and operations, auth, cart, checkout,
+channel and locale - which a template builds its design on.
 The storefronts, the templates and these are one pnpm workspace: the root
 `pnpm-workspace.yaml` lists them and pins the versions they share in its catalog,
 so a package and the app using it resolve the same React, and the one root

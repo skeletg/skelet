@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPrice } from "@/app/lib/format";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { convertMinor, usePresentment } from "./PresentmentProvider";
 
 export function ApproxPrice({

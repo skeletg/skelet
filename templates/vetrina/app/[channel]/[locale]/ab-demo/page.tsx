@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { LensTrack } from "@/app/components/LensTrack";
-import { assignExperiment, forcedFor } from "@/app/lib/experiments/server";
+import { assignExperiment, forcedFor } from "@skelet/storefront-next/experiments/server";
 import { AbHero } from "./AbHero";
 
 export const metadata: Metadata = {

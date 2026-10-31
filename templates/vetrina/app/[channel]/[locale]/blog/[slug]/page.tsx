@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { getSiteUrl } from "@/app/lib/channel/site";
-import { localizedAlternates } from "@/app/lib/locale/alternates";
+import { getSiteUrl } from "@skelet/storefront-next/channel/site";
+import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 import { Link } from "@/app/components/LocaleLink";
 import { notFound } from "next/navigation";
 
@@ -14,19 +14,15 @@ import {
   blogTagHref,
   getBlogPost,
   getBlogTaxonomy,
-} from "@/app/lib/blog/read";
-import { displayName } from "@/app/lib/display";
-import { formatDate } from "@/app/lib/format";
-import { blogPostHref } from "@/app/lib/entity-href";
-import { absUrl } from "@/app/lib/sitemap/read";
-import { blogPostingJsonLd, breadcrumbJsonLd } from "@/app/lib/json-ld";
-import { canonicalPathMapper } from "@/app/lib/locale/alternates";
-import {
-  LexicalRichText,
-  lexicalHasContent,
-  lexicalPlainText,
-  lexicalSummary,
-} from "@/app/lib/lexical-render";
+} from "@skelet/storefront-next/blog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatDate } from "@skelet/storefront-next/format";
+import { blogPostHref } from "@skelet/storefront-next/entity-href";
+import { absUrl } from "@skelet/storefront-next/sitemap/read";
+import { blogPostingJsonLd, breadcrumbJsonLd } from "@skelet/storefront-next/json-ld";
+import { canonicalPathMapper } from "@skelet/storefront-next/locale/alternates";
+import { LexicalRichText } from "@/app/lib/lexical-render";
+import { lexicalHasContent, lexicalPlainText, lexicalSummary } from "@skelet/storefront-next/lexical";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/[slug]">,

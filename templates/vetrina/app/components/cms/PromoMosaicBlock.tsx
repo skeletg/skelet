@@ -1,6 +1,6 @@
 import { PromoMosaic } from "@/app/components/PromoMosaic";
-import { listRailProducts } from "@/app/lib/catalog/read";
-import { loadHeader } from "@/app/lib/header/read";
+import { listRailProducts } from "@skelet/storefront-next/catalog/read";
+import { loadHeader } from "@skelet/storefront-next/header/read";
 
 export async function PromoMosaicBlock() {
   const { categories, collections } = await loadHeader();

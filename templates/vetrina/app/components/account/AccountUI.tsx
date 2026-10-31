@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 import { PasswordInput } from "@/app/components/account/PasswordInput";
 import { PhoneInput } from "@/app/components/account/PhoneInput";
-import type { PhoneFieldSetup } from "@/app/lib/forms/phone";
+import type { PhoneFieldSetup } from "@skelet/storefront-next/forms/phone";
 
 export function AccountPageHeader({
   title,

@@ -3,9 +3,9 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { GiftCardBalanceDocument } from "@/app/lib/checkout/operations.gql";
-import { formatPrice } from "@/app/lib/format";
-import { gqlFetch } from "@/app/lib/graphql";
+import { GiftCardBalanceDocument } from "@skelet/storefront-next/checkout/operations.gql";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function generateMetadata({
   params,

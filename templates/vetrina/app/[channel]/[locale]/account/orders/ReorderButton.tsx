@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useErrorText } from "@/app/components/account/AccountUI";
-import { reorderAction, type ReorderResult } from "@/app/lib/account/actions";
+import { reorderAction, type ReorderResult } from "@skelet/storefront-next/account/actions";
 
 export function ReorderButton({ orderId }: { orderId: string }) {
   const [state, formAction, pending] = useActionState<ReorderResult | null, FormData>(

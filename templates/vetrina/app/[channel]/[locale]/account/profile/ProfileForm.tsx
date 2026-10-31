@@ -9,11 +9,11 @@ import {
   buttonPrimary,
   inputClass,
 } from "@/app/components/account/AccountUI";
-import { updateProfileAction } from "@/app/lib/auth/actions";
-import { profileSchema } from "@/app/lib/auth/schemas";
-import type { PhoneSettings } from "@/app/lib/countries/read";
-import { phoneFieldFor } from "@/app/lib/forms/phone";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { updateProfileAction } from "@skelet/storefront-next/auth/actions";
+import { profileSchema } from "@skelet/storefront-next/auth/schemas";
+import type { PhoneSettings } from "@skelet/storefront-next/countries/read";
+import { phoneFieldFor } from "@skelet/storefront-next/forms/phone";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 type Props = {
   firstName: string;

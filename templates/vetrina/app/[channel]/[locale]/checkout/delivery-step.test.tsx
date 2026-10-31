@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithIntl } from "@/app/test/render";
-import type { CheckoutState, DeliveryChoice, DeliveryPointsResult } from "@/app/lib/checkout/read";
+import type { CheckoutState, DeliveryChoice, DeliveryPointsResult } from "@skelet/storefront-next/checkout/read";
 
 const actions = vi.hoisted(() => ({ saveGroupDeliveryAction: vi.fn(async () => ({})) }));
-vi.mock("@/app/lib/checkout/actions", () => ({
+vi.mock("@skelet/storefront-next/checkout/actions", () => ({
   ...actions,
   saveDestinationStep: vi.fn(async () => ({})),
   saveDeliveryPointAction: vi.fn(async () => ({})),

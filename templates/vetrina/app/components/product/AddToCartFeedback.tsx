@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 
 import { useErrorText } from "@/app/components/account/AccountUI";
 import { useCartUI } from "@/app/components/CartUIProvider";
-import { useCartStore } from "@/app/lib/cart/store";
-import type { AddToCartResult } from "@/app/lib/cart/actions";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
+import type { AddToCartResult } from "@skelet/storefront-next/cart/actions";
 
 export function AddToCartFeedback({ state }: { state: AddToCartResult | null }) {
   const { open } = useCartUI();

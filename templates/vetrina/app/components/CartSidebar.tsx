@@ -6,13 +6,13 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 import { clearOfferCheckout } from "@/app/components/offer/LeaveOfferCheckout";
 
-import { cartRecommendationsAction, type CartRecoItem } from "@/app/lib/cart/actions";
-import { mergePendingRemovals, useCartStore } from "@/app/lib/cart/store";
-import type { CartLine } from "@/app/lib/cart/types";
+import { cartRecommendationsAction, type CartRecoItem } from "@skelet/storefront-next/cart/actions";
+import { mergePendingRemovals, useCartStore } from "@skelet/storefront-next/cart/store";
+import type { CartLine } from "@skelet/storefront-next/cart/types";
 import { CartQuantity } from "./CartQuantity";
 import { CartRemovedRow } from "./CartRemovedRow";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { useCartUI } from "./CartUIProvider";
 import { Drawer } from "./Drawer";
 import { useChannel } from "./ChannelProvider";
@@ -20,7 +20,7 @@ import { ApproxPrice } from "./ApproxPrice";
 import { FreeShippingBar } from "./FreeShippingBar";
 import { CartLineNotice } from "./CartLineNotice";
 import { CartLineOptionsList } from "./CartLineOptionsList";
-import { mediaThumb } from "@/app/lib/media-thumb";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
 
 // Cart lines don't carry their own currency on the response - every line is assumed to
 // be in the active store's currency, enforced by catalog listings

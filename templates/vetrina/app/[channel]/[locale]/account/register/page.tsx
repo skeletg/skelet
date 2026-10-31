@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { AuthCard } from "@/app/components/account/AccountUI";
-import { getCustomerOrNull } from "@/app/lib/customer/read";
-import { safeReturnTo } from "@/app/lib/auth/return-to";
+import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
+import { safeReturnTo } from "@skelet/storefront-next/auth/return-to";
 import { RegisterForm } from "@/app/components/auth/RegisterForm";
 
 export async function generateMetadata({

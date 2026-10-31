@@ -9,9 +9,9 @@ import {
   buttonPrimary,
   buttonSecondary,
 } from "@/app/components/account/AccountUI";
-import { loginAction, resendVerificationAction } from "@/app/lib/auth/actions";
-import { loginSchema } from "@/app/lib/auth/schemas";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { loginAction, resendVerificationAction } from "@skelet/storefront-next/auth/actions";
+import { loginSchema } from "@skelet/storefront-next/auth/schemas";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 export function LoginForm({
   returnTo,

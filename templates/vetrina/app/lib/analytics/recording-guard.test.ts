@@ -3,7 +3,7 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { isPrivateRecordingPath } from "@/app/lib/analytics/recording-policy";
+import { isPrivateRecordingPath } from "@skelet/storefront-next/analytics/recording-policy";
 
 // Guards the rule that customer identity never reaches session replay or heatmap snapshots. A component that renders a
 // shopper's name, email or phone must sit under a private route (recording-policy), carry lens-block / lens-mask, or

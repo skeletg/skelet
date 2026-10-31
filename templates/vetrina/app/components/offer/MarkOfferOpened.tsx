@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { markOfferOpened } from "@/app/lib/cart/offer-actions";
+import { markOfferOpened } from "@skelet/storefront-next/cart/offer-actions";
 
 // Reports the recipient's first look from the browser once the offer shows - mail scanners fetch the link and
 // may render the page, but rarely run its scripts, so they don't mark an offer opened

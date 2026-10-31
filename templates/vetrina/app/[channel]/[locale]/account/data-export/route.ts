@@ -4,11 +4,11 @@
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
-import { getAccessToken } from "@/app/lib/auth/session";
-import { MyDataExportDocument } from "@/app/lib/customer/operations.gql";
-import { gqlFetch } from "@/app/lib/graphql";
+import { getAccessToken } from "@skelet/storefront-next/auth/session";
+import { MyDataExportDocument } from "@skelet/storefront-next/customer/operations.gql";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function GET() {
   if (!(await getAccessToken())) {

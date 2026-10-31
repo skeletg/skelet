@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import type { ProductSummary } from "@/app/lib/catalog/read";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
 import { ProductCard } from "./ProductCard";
 
 // Recently-viewed products, tracked client-side in localStorage (guests and signed-in alike) and hydrated through

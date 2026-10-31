@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { OpenCartOfferDocument } from "@/app/lib/cart/offer.gql";
-import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@/app/lib/cart/offer-cookie";
-import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
+import { OpenCartOfferDocument } from "@skelet/storefront-next/cart/offer.gql";
+import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@skelet/storefront-next/cart/offer-cookie";
+import { gqlFetch, GraphQLRequestError } from "@skelet/storefront-next/graphql";
 
 // Where an offer email's link lands. A followed link is kept in an httpOnly cookie and the shopper goes on to the
 // offer page - an offer made out to an account asks them to sign in first, then comes back here. The backend says

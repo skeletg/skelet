@@ -5,10 +5,10 @@ import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { addConfiguredToCart } from "@/app/lib/cart/actions";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
-import type { ProductDetail } from "@/app/lib/catalog/read";
+import { addConfiguredToCart } from "@skelet/storefront-next/cart/actions";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
+import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { deriveQtyBounds } from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";

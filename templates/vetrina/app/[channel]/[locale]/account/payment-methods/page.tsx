@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { CreditCardIcon } from "lucide-react";
 
 import {
@@ -12,12 +12,12 @@ import {
   FormError,
 } from "@/app/components/account/AccountUI";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import {
   deletePaymentMethodAction,
   getMyPaymentMethods,
-} from "@/app/lib/payment-methods/actions";
-import { getActiveSubscriptionsByCard } from "@/app/lib/subscriptions/read";
+} from "@skelet/storefront-next/payment-methods/actions";
+import { getActiveSubscriptionsByCard } from "@skelet/storefront-next/subscriptions/read";
 
 export async function generateMetadata({
   params,

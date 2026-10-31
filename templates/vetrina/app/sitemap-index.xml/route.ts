@@ -1,6 +1,6 @@
-import { getSeoConfig } from "@/app/lib/config/read";
-import { requireRequestChannel } from "@/app/lib/channel/site";
-import { absUrl, chunkCount, getSiteUrl, getSitemapCounts } from "@/app/lib/sitemap/read";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
+import { requireRequestChannel } from "@skelet/storefront-next/channel/site";
+import { absUrl, chunkCount, getSiteUrl, getSitemapCounts } from "@skelet/storefront-next/sitemap/read";
 
 export const dynamic = "force-dynamic";
 

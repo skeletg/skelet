@@ -2,7 +2,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { localizedAlternates } from "@/app/lib/locale/alternates";
+import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 
 import { BlogPostList } from "@/app/components/BlogPostList";
 import { BlogTaxonomyChip } from "@/app/components/BlogTaxonomyChip";
@@ -11,10 +11,10 @@ import {
   blogTagHref,
   getBlogTaxonomy,
   listBlogPosts,
-} from "@/app/lib/blog/read";
-import { displayName } from "@/app/lib/display";
-import { formatDate } from "@/app/lib/format";
-import { searchBlogPosts } from "@/app/lib/search/read";
+} from "@skelet/storefront-next/blog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatDate } from "@skelet/storefront-next/format";
+import { searchBlogPosts } from "@skelet/storefront-next/search/read";
 
 type SearchParams = {
   q?: string;

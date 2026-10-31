@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { profileSchema } from "@/app/lib/auth/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { profileSchema } from "@skelet/storefront-next/auth/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 // Stands in for the server action, parsing with the same schema so a submission that gets here was valid
@@ -11,7 +11,7 @@ const updateProfileAction = vi.fn(async (_prev: FormResult | undefined, formData
   const submission = parseForm(formData, profileSchema);
   return submission.status === "success" ? { ...submission.reply(), status: "success" as const } : submission.reply();
 });
-vi.mock("@/app/lib/auth/actions", () => ({
+vi.mock("@skelet/storefront-next/auth/actions", () => ({
   updateProfileAction: (prev: FormResult | undefined, fd: FormData) => updateProfileAction(prev, fd),
 }));
 

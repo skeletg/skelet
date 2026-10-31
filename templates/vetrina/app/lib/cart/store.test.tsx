@@ -1,7 +1,7 @@
 import { act, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Cart, CartLine } from "@/app/lib/cart/types";
+import type { Cart, CartLine } from "@skelet/storefront-next/cart/types";
 import { renderWithIntl } from "@/app/test/render";
 
 // Each action returns a promise the test settles by hand, so it controls the order responses land in
@@ -17,7 +17,7 @@ const calls = {
   restore: [] as Deferred<{ cart: Cart | null; error?: string }>[],
   load: async (): Promise<Cart | null> => null,
 };
-vi.mock("@/app/lib/cart/actions", () => ({
+vi.mock("@skelet/storefront-next/cart/actions", () => ({
   setCartLineQuantity: () => {
     const d = deferred<{ cart: Cart | null; error?: string }>();
     calls.setQty.push(d);
@@ -37,7 +37,7 @@ vi.mock("@/app/lib/cart/actions", () => ({
   loadCartAction: () => calls.load(),
 }));
 
-const { CartStoreProvider, useCartStore } = await import("@/app/lib/cart/store");
+const { CartStoreProvider, useCartStore } = await import("@skelet/storefront-next/cart/store");
 
 const line = (id: string, unitPrice: number, quantity: number): CartLine => ({
   id,

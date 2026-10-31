@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { getCart, getFreeShippingThreshold } from "@/app/lib/cart/read";
-import { getCartRecommendations } from "@/app/lib/catalog/read";
+import { getCart, getFreeShippingThreshold } from "@skelet/storefront-next/cart/read";
+import { getCartRecommendations } from "@skelet/storefront-next/catalog/read";
 import { ProductCard } from "@/app/components/ProductCard";
 import { CartView } from "./CartView";
 

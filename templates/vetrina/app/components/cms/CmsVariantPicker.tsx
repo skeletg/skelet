@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { useExperimentAssignment } from "@/app/lib/experiments/client";
+import { useExperimentAssignment } from "@skelet/storefront-next/experiments/client";
 
 // The page is cached HTML, so the arm can't be chosen on the server - every variant is
 // rendered up front and this picks one after hydration, which also fires the exposure

@@ -2,8 +2,8 @@
 
 import { notFound } from "next/navigation";
 
-import { PreviewBlogPostDocument } from "@/app/lib/blog/operations.gql";
-import { gqlFetch } from "@/app/lib/graphql";
+import { PreviewBlogPostDocument } from "@skelet/storefront-next/blog/operations.gql";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 import { PreviewClient } from "./PreviewClient";
 

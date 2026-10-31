@@ -12,9 +12,9 @@ import {
   saveDestinationStep,
   saveGroupDeliveryAction,
   saveSplitDeliveryAction,
-} from "@/app/lib/checkout/actions";
-import { groupRequirements, type Requirement } from "@/app/lib/checkout/asks";
-import { choiceKey, choiceLabel } from "@/app/lib/checkout/choice";
+} from "@skelet/storefront-next/checkout/actions";
+import { groupRequirements, type Requirement } from "@skelet/storefront-next/checkout/asks";
+import { choiceKey, choiceLabel } from "@skelet/storefront-next/checkout/choice";
 import type {
   CheckoutDestination,
   CheckoutState,
@@ -22,16 +22,16 @@ import type {
   DeliveryGroup,
   DeliveryPoint,
   DeliveryPointsResult,
-} from "@/app/lib/checkout/read";
+} from "@skelet/storefront-next/checkout/read";
 import {
   deliveryPointSchema,
   destinationSchema,
   groupDeliverySchema,
   splitDeliverySchema,
-} from "@/app/lib/checkout/schemas";
-import type { CountryOption } from "@/app/lib/countries/read";
-import { formatPrice } from "@/app/lib/format";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+} from "@skelet/storefront-next/checkout/schemas";
+import type { CountryOption } from "@skelet/storefront-next/countries/read";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 import { ChoiceCard, CountrySelect } from "./fields";
 

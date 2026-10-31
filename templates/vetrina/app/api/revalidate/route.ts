@@ -1,11 +1,11 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { timingSafeEqual } from "node:crypto";
 
-import { PINNED_CHANNEL_ID, WARM_CHANNEL_HEADER, isChannelId } from "@/app/lib/channel";
-import { channelRoutePaths, isPagePath } from "@/app/lib/channel-routing";
-import { getChannelLocales } from "@/app/lib/locale/backend-locales";
-import { localesByChannel, warmAcrossChannels, type WarmFailure } from "@/app/lib/revalidate-fanout";
-import { warmUntilRendered } from "@/app/lib/warm";
+import { PINNED_CHANNEL_ID, WARM_CHANNEL_HEADER, isChannelId } from "@skelet/storefront-next/channel";
+import { channelRoutePaths, isPagePath } from "@skelet/storefront-next/channel-routing";
+import { getChannelLocales } from "@skelet/storefront-next/locale/backend-locales";
+import { localesByChannel, warmAcrossChannels, type WarmFailure } from "@skelet/storefront-next/revalidate-fanout";
+import { warmUntilRendered } from "@skelet/storefront-next/warm";
 
 // Backend POSTs here on CMS publish/unpublish to bust Data Cache tags, and for on-demand rebuilds. tags/paths invalidate lazily; warm
 // re-GETs each path now Auth is a constant-time compared X-Revalidate-Secret - never cache this handler

@@ -2,16 +2,16 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@/app/lib/consent/read";
-import { displayName } from "@/app/lib/display";
-import { formatPrice, toMajor } from "@/app/lib/format";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { gqlFetch, isBackendFailure } from "@/app/lib/graphql";
-import { MyOrderDocument } from "@/app/lib/checkout/operations.gql";
+import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice, toMajor } from "@skelet/storefront-next/format";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { gqlFetch, isBackendFailure } from "@skelet/storefront-next/graphql";
+import { MyOrderDocument } from "@skelet/storefront-next/checkout/operations.gql";
 import { ReorderButton } from "@/app/[channel]/[locale]/account/orders/ReorderButton";
 import { ReturnRequestForm, type ReturnableItem } from "@/app/[channel]/[locale]/account/orders/ReturnRequestForm";
 

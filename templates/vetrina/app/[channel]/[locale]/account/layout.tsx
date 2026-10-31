@@ -1,10 +1,10 @@
 import { getTranslations } from "next-intl/server";
 
-import { getAccountCounts } from "@/app/lib/account/read";
+import { getAccountCounts } from "@skelet/storefront-next/account/read";
 import { AccountNav } from "@/app/components/account/AccountNav";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { logoutAction } from "@/app/lib/auth/actions";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { logoutAction } from "@skelet/storefront-next/auth/actions";
 
 export default async function AccountLayout({
   children,

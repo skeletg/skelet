@@ -4,8 +4,8 @@ import { Fragment, useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
-import { addSimpleToCart } from "@/app/lib/cart/actions";
-import { productHref } from "@/app/lib/entity-href";
+import { addSimpleToCart } from "@skelet/storefront-next/cart/actions";
+import { productHref } from "@skelet/storefront-next/entity-href";
 import { AddToCartButton } from "@/app/components/product/AddToCartButton";
 import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
 import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";

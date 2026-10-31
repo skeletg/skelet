@@ -36,9 +36,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // skelet gen output - regenerated wholesale, so a finding here has nothing to fix by hand
-    "app/**/*.gql.ts",
-    "app/graphql/schema.types.ts",
   ]),
 ]);
 

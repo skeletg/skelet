@@ -7,11 +7,11 @@ import {
   moveSavedToCartAction,
   removeSavedItemAction,
   saveForLaterAction,
-} from "@/app/lib/cart/actions";
-import { useCartStore } from "@/app/lib/cart/store";
-import { displayName } from "@/app/lib/display";
-import type { SavedItem } from "@/app/lib/cart/types";
-import { mediaThumb } from "@/app/lib/media-thumb";
+} from "@skelet/storefront-next/cart/actions";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
+import { displayName } from "@skelet/storefront-next/display";
+import type { SavedItem } from "@skelet/storefront-next/cart/types";
+import { mediaThumb } from "@skelet/storefront-next/media-thumb";
 
 export function SaveForLaterButton({ lineId }: { lineId: string }) {
   const t = useTranslations("cart.saved");

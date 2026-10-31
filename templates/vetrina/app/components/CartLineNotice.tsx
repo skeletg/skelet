@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 
-import { formatPrice, type CurrencyInfo } from "@/app/lib/format";
-import type { CartLine } from "@/app/lib/cart/types";
+import { formatPrice, type CurrencyInfo } from "@skelet/storefront-next/format";
+import type { CartLine } from "@skelet/storefront-next/cart/types";
 
 export function CartLineNotice({
   line,

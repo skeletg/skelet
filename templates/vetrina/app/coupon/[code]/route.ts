@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ApplyCouponDocument } from "@/app/lib/cart/mutations.gql";
-import { getOwnCartId, PROMO_PENDING_COOKIE } from "@/app/lib/cart/read";
-import { gqlFetch } from "@/app/lib/graphql";
+import { ApplyCouponDocument } from "@skelet/storefront-next/cart/mutations.gql";
+import { getOwnCartId, PROMO_PENDING_COOKIE } from "@skelet/storefront-next/cart/read";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function GET(
   _req: NextRequest,

@@ -3,8 +3,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
-import { VIDEO_EMBED_ORIGINS } from "@/app/lib/video-embed";
+import { DASHBOARD_ORIGIN } from "@skelet/storefront-next/dashboard-origin";
+import { VIDEO_EMBED_ORIGINS } from "@skelet/storefront-next/video-embed";
 
 // App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
 // SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: no gateway SDK runs here, so no host earns a slot

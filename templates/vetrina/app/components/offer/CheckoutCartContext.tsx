@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { checkoutHref } from "@/app/lib/checkout/path";
+import { checkoutHref } from "@skelet/storefront-next/checkout/path";
 
 const CheckoutCartContext = createContext({ cartId: "", offerId: undefined as string | undefined });
 

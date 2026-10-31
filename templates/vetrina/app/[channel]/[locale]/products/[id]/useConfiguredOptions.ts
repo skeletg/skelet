@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 
-import { requestProductOptionFileUploadAction } from "@/app/lib/cart/actions";
-import { roundHalfAwayFromZero } from "@/app/lib/format";
-import type { ProductCustomOption } from "@/app/lib/catalog/read";
-import { evaluateOptionRules, type ProductOptionRule } from "@/app/lib/optionRules";
-import { visibleOptionPicks } from "@/app/lib/optionVisibility";
+import { requestProductOptionFileUploadAction } from "@skelet/storefront-next/cart/actions";
+import { roundHalfAwayFromZero } from "@skelet/storefront-next/format";
+import type { ProductCustomOption } from "@skelet/storefront-next/catalog/read";
+import { evaluateOptionRules, type ProductOptionRule } from "@skelet/storefront-next/optionRules";
+import { visibleOptionPicks } from "@skelet/storefront-next/optionVisibility";
 import { validateFile, type FileEntry } from "./option-files";
 import {
   isSelect,

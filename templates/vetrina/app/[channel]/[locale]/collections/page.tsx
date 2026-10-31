@@ -3,11 +3,11 @@ import { SparklesIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { listCollections } from "@/app/lib/catalog/read";
-import { displayName, MISSING_NAME } from "@/app/lib/display";
-import { collectionHref } from "@/app/lib/entity-href";
-import { renderJsonText } from "@/app/lib/json-text";
-import { localizedAlternates } from "@/app/lib/locale/alternates";
+import { listCollections } from "@skelet/storefront-next/catalog/read";
+import { displayName, MISSING_NAME } from "@skelet/storefront-next/display";
+import { collectionHref } from "@skelet/storefront-next/entity-href";
+import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 
 export async function generateMetadata({
   params,

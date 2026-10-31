@@ -6,10 +6,10 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
-import { displayName } from "@/app/lib/display";
-import { productHref } from "@/app/lib/entity-href";
-import type { ProductSearchHit } from "@/app/lib/search/read";
-import { searchProductsAction } from "@/app/lib/search/actions";
+import { displayName } from "@skelet/storefront-next/display";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import type { ProductSearchHit } from "@skelet/storefront-next/search/read";
+import { searchProductsAction } from "@skelet/storefront-next/search/actions";
 
 const DEBOUNCE_MS = 180;
 

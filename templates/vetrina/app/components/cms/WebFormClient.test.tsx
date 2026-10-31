@@ -1,14 +1,14 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WebFormSubmitResult } from "@/app/lib/webforms/actions";
+import type { WebFormSubmitResult } from "@skelet/storefront-next/webforms/actions";
 import { renderWithIntl } from "@/app/test/render";
 import type { InlineForm } from "./webform";
 
 // The backend validates CMS-defined fields, so the mock answers the way it does: field errors, a general one, or ok
 let answer: WebFormSubmitResult = { ok: true, successMessage: "Got it", errors: [] };
 const submit = vi.fn<(input: unknown) => Promise<WebFormSubmitResult>>(async () => answer);
-vi.mock("@/app/lib/webforms/actions", () => ({
+vi.mock("@skelet/storefront-next/webforms/actions", () => ({
   submitWebFormAction: (input: unknown) => submit(input),
   presignWebFormUploadAction: vi.fn(),
 }));

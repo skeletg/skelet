@@ -2,8 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { addressSchema } from "@/app/lib/auth/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { addressSchema } from "@skelet/storefront-next/auth/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
 import { localeLinkMock } from "@/app/test/locale-link-mock";
 import { renderWithIntl } from "@/app/test/render";
 
@@ -15,7 +15,7 @@ const addAddressAction = vi.fn(async (_prev: FormResult | undefined, formData: F
   if (submission.status !== "success") return submission.reply();
   return submission.reply({ formErrors: ["Postal code does not match the city."] });
 });
-vi.mock("@/app/lib/auth/actions", () => ({
+vi.mock("@skelet/storefront-next/auth/actions", () => ({
   addAddressAction: (prev: FormResult | undefined, fd: FormData) => addAddressAction(prev, fd),
   updateAddressAction: async () => ({}),
 }));

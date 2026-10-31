@@ -5,8 +5,8 @@ import { Link, useRouter } from "@/app/components/LocaleLink";
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { ProductSortOption } from "@/app/lib/catalog/read";
-import { joinBasePathWithFilters } from "@/app/lib/filter-path";
+import type { ProductSortOption } from "@skelet/storefront-next/catalog/read";
+import { joinBasePathWithFilters } from "@skelet/storefront-next/filter-path";
 
 export function SortSelect({
   options,

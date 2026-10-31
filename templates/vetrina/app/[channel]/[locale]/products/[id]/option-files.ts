@@ -1,6 +1,6 @@
 import type { useTranslations } from "next-intl";
 
-import type { ProductCustomOption } from "@/app/lib/catalog/read";
+import type { ProductCustomOption } from "@skelet/storefront-next/catalog/read";
 
 export type FileEntry =
   | { status: "uploading"; filename: string }

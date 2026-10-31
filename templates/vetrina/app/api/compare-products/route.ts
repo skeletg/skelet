@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CompareProductsDocument } from "@/app/lib/catalog/operations.gql";
-import { gqlFetch } from "@/app/lib/graphql";
-import { getChannel } from "@/app/lib/channel/read";
+import { CompareProductsDocument } from "@skelet/storefront-next/catalog/operations.gql";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
+import { getChannel } from "@skelet/storefront-next/channel/read";
 
 export async function GET(req: NextRequest) {
   const ids = (req.nextUrl.searchParams.get("ids") ?? "")

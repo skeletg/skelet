@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import {
   AccountCard,
   AccountPageHeader,
 } from "@/app/components/account/AccountUI";
-import { getPhoneSettings } from "@/app/lib/countries/read";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
+import { getPhoneSettings } from "@skelet/storefront-next/countries/read";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { ProfileForm } from "./ProfileForm";
 
 export async function generateMetadata({

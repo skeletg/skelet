@@ -7,8 +7,8 @@ import {
   UNDO_WINDOW_MS,
   useCartStore,
   type PendingRemoval,
-} from "@/app/lib/cart/store";
-import { displayName } from "@/app/lib/display";
+} from "@skelet/storefront-next/cart/store";
+import { displayName } from "@skelet/storefront-next/display";
 
 const EXIT_MS = 220;
 

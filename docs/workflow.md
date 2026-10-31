@@ -30,7 +30,7 @@ through Docker.
 | `skelet cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `skelet psql` | psql shell into the dev database |
 | `skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `skelet pnpm dashboard run dev`, `skelet pnpm dashboard install`) |
-| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm vetrina run build`, `skelet pnpm vetrina run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
+| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm vetrina run build`, `skelet pnpm vetrina run test`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
 | `skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` and `templates/`, and every package under `packages/` with a codegen script, gets its TS docs regenerated (skipped for apps deselected via skelet setup). |
 | `skelet test [pkgs] [--changed[=REF]] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. `--changed` runs only what a change since REF (the merge base with develop by default) can reach - see below. |
 | `skelet lint` | gofmt + golangci-lint + dashboard ESLint |
@@ -169,9 +169,10 @@ dashboard, so treat every schema/query change as "must regenerate":
 3. **`*.graphql` in `apps/dashboard/src/features/<domain>/`** →
    `skelet pnpm dashboard run codegen` (backend must be running - codegen fetches
    the live admin schema over HTTP).
-4. **`*.graphql` in a storefront's `app/`** (`templates/vetrina/app/`, or a shop's under
-   `apps/channels/`) → `skelet pnpm <name> run codegen` (backend must be running - codegen
-   fetches the live front schema at `app:8080/api/front/graphql`).
+4. **`*.graphql` in `packages/storefront-next/`**, beside the module that runs them → `skelet gen`,
+   which runs the package's codegen in a storefront's container (backend must be running - codegen
+   fetches the live front schema at `app:8080/api/front/graphql`). A storefront with operations of its
+   own gives itself a `codegen` script, and `skelet gen` runs that too.
 
 `skelet gen` runs all four, discovering storefronts from
 `apps/channels/` and `templates/` rather than naming them. Steps 3 and 4 introspect a

@@ -5,12 +5,12 @@ import { useEffect, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
 import { FieldErrors } from "@/app/components/account/AccountUI";
-import { applyCoupon, removeCouponAction } from "@/app/lib/cart/actions";
-import { couponSchema } from "@/app/lib/cart/schemas";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
-import { useCartStore } from "@/app/lib/cart/store";
-import type { AppliedPromotionCode } from "@/app/lib/cart/types";
-import { formatPrice } from "@/app/lib/format";
+import { applyCoupon, removeCouponAction } from "@skelet/storefront-next/cart/actions";
+import { couponSchema } from "@skelet/storefront-next/cart/schemas";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
+import type { AppliedPromotionCode } from "@skelet/storefront-next/cart/types";
+import { formatPrice } from "@skelet/storefront-next/format";
 
 // Three promotion shapes: typed codes (removable), fired auto-rules whose free gifts aren't in the cart yet (a nudge, not a discount), and
 // everything else (applied, no Remove). Removal is fire-and-forget - there's no failure the customer could act on

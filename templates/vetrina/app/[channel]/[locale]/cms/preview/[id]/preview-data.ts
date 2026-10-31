@@ -1,8 +1,8 @@
 // Token-gated draft fetch shared by the preview page and its render action - the token
 // is the only credential, so both surfaces must validate through the same query
 
-import { PreviewCmsPageDocument, type PreviewCmsPageQuery } from "@/app/lib/cms/operations.gql";
-import { gqlFetch } from "@/app/lib/graphql";
+import { PreviewCmsPageDocument, type PreviewCmsPageQuery } from "@skelet/storefront-next/cms/operations.gql";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export type PreviewPage = NonNullable<PreviewCmsPageQuery["previewCMSPage"]>;
 

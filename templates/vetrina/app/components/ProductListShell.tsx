@@ -3,7 +3,7 @@
 // selections layer on top and each checkbox is a Link, so the URL drives re-renders
 // Page-specific chrome goes in the header/prefix slots, not in here
 
-import { getSiteUrl } from "@/app/lib/channel/site";
+import { getSiteUrl } from "@skelet/storefront-next/channel/site";
 import type { ReactNode } from "react";
 import { permanentRedirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -21,17 +21,17 @@ import {
   synapseTrackedSlugs,
   type BrowseProductsItem,
   type ProductSummary,
-} from "@/app/lib/catalog/read";
+} from "@skelet/storefront-next/catalog/read";
 import { LoadMore } from "./LoadMore";
-import { getSeoConfig } from "@/app/lib/config/read";
-import { getBrowsePageSize, getPlpPaginationStyle } from "@/app/lib/config/read";
-import type { BrowseProductsQueryVariables } from "@/app/lib/catalog/operations.gql";
-import { joinBasePathWithFilters } from "@/app/lib/filter-path";
-import { hrefForPage, mergeSlices, parsePage, planSlices } from "@/app/lib/pagination";
-import { withLocalePrefix } from "@/app/lib/locale/path";
-import { canonicalPathMapper } from "@/app/lib/locale/alternates";
-import { productHref } from "@/app/lib/entity-href";
-import { itemListJsonLd } from "@/app/lib/json-ld";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
+import { getBrowsePageSize, getPlpPaginationStyle } from "@skelet/storefront-next/config/read";
+import type { BrowseProductsQueryVariables } from "@skelet/storefront-next/catalog/operations.gql";
+import { joinBasePathWithFilters } from "@skelet/storefront-next/filter-path";
+import { hrefForPage, mergeSlices, parsePage, planSlices } from "@skelet/storefront-next/pagination";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
+import { canonicalPathMapper } from "@skelet/storefront-next/locale/alternates";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import { itemListJsonLd } from "@skelet/storefront-next/json-ld";
 import { JsonLd } from "./JsonLd";
 import { LensTrack } from "./LensTrack";
 

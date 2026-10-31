@@ -4,10 +4,10 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
-import { askQuestionAction } from "@/app/lib/qna/actions";
-import { askQuestionSchema } from "@/app/lib/qna/schemas";
-import { useCustomerIdentity } from "@/app/lib/customer/client";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { askQuestionAction } from "@skelet/storefront-next/qna/actions";
+import { askQuestionSchema } from "@skelet/storefront-next/qna/schemas";
+import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 const FIELD =
   "rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground";

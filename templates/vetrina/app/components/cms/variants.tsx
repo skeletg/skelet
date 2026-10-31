@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import { Link } from "@/app/components/LocaleLink";
 import { ArrowRightIcon, SparklesIcon, TagIcon } from "lucide-react";
 
-import { browseProducts } from "@/app/lib/catalog/read";
-import type { ProductSummary } from "@/app/lib/catalog/read";
-import type { HeaderCategory, HeaderCollection } from "@/app/lib/header/read";
-import { displayName } from "@/app/lib/display";
-import { categoryHref, collectionHref, productHref } from "@/app/lib/entity-href";
-import { formatPrice } from "@/app/lib/format";
+import { browseProducts } from "@skelet/storefront-next/catalog/read";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
+import type { HeaderCategory, HeaderCollection } from "@skelet/storefront-next/header/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { categoryHref, collectionHref, productHref } from "@skelet/storefront-next/entity-href";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { ProductCard } from "@/app/components/ProductCard";
 import { RailArrows, RailFrame, RailProvider } from "@/app/components/Rail";
 import { CmsSection } from "./Section";

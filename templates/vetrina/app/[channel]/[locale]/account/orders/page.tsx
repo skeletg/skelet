@@ -1,6 +1,6 @@
 import { Link } from "@/app/components/LocaleLink";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
@@ -12,11 +12,11 @@ import {
   EmptyState,
 } from "@/app/components/account/AccountUI";
 import { PaymentChip, StatusChip, humanizeStatus } from "@/app/components/account/StatusChip";
-import { formatPrice } from "@/app/lib/format";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { getChannel } from "@/app/lib/channel/read";
-import { gqlFetch, loadErrorMessage } from "@/app/lib/graphql";
-import { MyOrdersDocument } from "@/app/lib/checkout/operations.gql";
+import { formatPrice } from "@skelet/storefront-next/format";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
+import { MyOrdersDocument } from "@skelet/storefront-next/checkout/operations.gql";
 
 export async function generateMetadata({
   params,

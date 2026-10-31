@@ -4,9 +4,9 @@
 import type { ComponentProps, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
-import type { ProductDetail } from "@/app/lib/catalog/read";
-import { displayName } from "@/app/lib/display";
-import { formatPrice } from "@/app/lib/format";
+import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { formatPrice } from "@skelet/storefront-next/format";
 import { CompareButton } from "@/app/components/CompareButton";
 import { QtySelector } from "@/app/components/QtySelector";
 import { RatingStars } from "@/app/components/RatingStars";

@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
-import { trackOrderSchema } from "@/app/lib/order/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
+import { trackOrderSchema } from "@skelet/storefront-next/order/schemas";
 import { renderWithIntl } from "@/app/test/render";
 
 // Same schema as the real action, answering the way it does when nothing matched
@@ -12,7 +12,7 @@ const trackOrderAction = vi.fn(async (_prev: FormResult | undefined, formData: F
   if (submission.status !== "success") return submission.reply();
   return submission.reply({ formErrors: ["orderNotFound"] });
 });
-vi.mock("@/app/lib/order/actions", () => ({
+vi.mock("@skelet/storefront-next/order/actions", () => ({
   trackOrderAction: (prev: FormResult | undefined, fd: FormData) => trackOrderAction(prev, fd),
 }));
 

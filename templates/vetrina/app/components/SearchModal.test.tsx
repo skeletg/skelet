@@ -11,7 +11,7 @@ vi.mock("@/app/components/LocaleLink", () => ({
 // Each call parks until the test resolves it, so responses can be finished in any order
 type Pending = { q: string; resolve: (names: string[]) => void };
 const inFlight: Pending[] = [];
-vi.mock("@/app/lib/search/actions", () => ({
+vi.mock("@skelet/storefront-next/search/actions", () => ({
   searchProductsAction: (q: string) =>
     new Promise((done) => {
       inFlight.push({

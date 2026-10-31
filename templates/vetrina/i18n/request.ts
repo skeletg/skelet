@@ -1,6 +1,6 @@
 import { getRequestConfig } from "next-intl/server";
 
-import { getCurrentChannelLocales } from "@/app/lib/locale/read";
+import { getCurrentChannelLocales } from "@skelet/storefront-next/locale/read";
 import en from "@/messages/en.json";
 
 // Per-request i18n config. `locale` comes from the [locale] route segment, which means it is part

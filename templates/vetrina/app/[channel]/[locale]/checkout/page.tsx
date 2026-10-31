@@ -2,34 +2,34 @@ import type { Metadata } from "next";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { CheckoutCartProvider } from "@/app/components/offer/CheckoutCartContext";
-import { checkoutHref } from "@/app/lib/checkout/path";
+import { checkoutHref } from "@skelet/storefront-next/checkout/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
-import { formatPrice, getFreeShippingThreshold } from "@/app/lib/cart/read";
-import { getCheckoutCart } from "@/app/lib/cart/offer";
-import { offerLocks, type CartOfferLock } from "@/app/lib/cart/types";
+import { formatPrice, getFreeShippingThreshold } from "@skelet/storefront-next/cart/read";
+import { getCheckoutCart } from "@skelet/storefront-next/cart/offer";
+import { offerLocks, type CartOfferLock } from "@skelet/storefront-next/cart/types";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
-import { detailsAsks } from "@/app/lib/checkout/asks";
-import { choiceKey, choiceLabel } from "@/app/lib/checkout/choice";
+import { detailsAsks } from "@skelet/storefront-next/checkout/asks";
+import { choiceKey, choiceLabel } from "@skelet/storefront-next/checkout/choice";
 import {
   getCheckoutState,
   getDeliveryPoints,
   checkoutPaymentMethods,
   type CheckoutState,
   type DeliveryPointsResult,
-} from "@/app/lib/checkout/read";
-import { businessIdFieldsFor, companyCountry } from "@/app/lib/checkout/business-ids";
-import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@/app/lib/checkout/step";
-import { getResolvedConsent } from "@/app/lib/consent/read";
-import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@/app/lib/countries/read";
-import { getCheckoutSettings, getGuestCheckoutAllowed } from "@/app/lib/config/read";
-import { displayName } from "@/app/lib/display";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { getMyPaymentMethods } from "@/app/lib/payment-methods/actions";
-import { getChannel } from "@/app/lib/channel/read";
-import { toMajor } from "@/app/lib/format";
+} from "@skelet/storefront-next/checkout/read";
+import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-next/checkout/business-ids";
+import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-next/checkout/step";
+import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
+import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@skelet/storefront-next/countries/read";
+import { getCheckoutSettings, getGuestCheckoutAllowed } from "@skelet/storefront-next/config/read";
+import { displayName } from "@skelet/storefront-next/display";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { getMyPaymentMethods } from "@skelet/storefront-next/payment-methods/actions";
+import { getChannel } from "@skelet/storefront-next/channel/read";
+import { toMajor } from "@skelet/storefront-next/format";
 
 import { DeliveryStep, type LineInfo } from "./delivery-step";
 import { DetailsStep } from "./details-step";

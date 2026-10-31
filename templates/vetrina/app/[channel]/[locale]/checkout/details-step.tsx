@@ -6,16 +6,16 @@ import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 import { Field, FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
-import { saveDetailsStep } from "@/app/lib/checkout/actions";
-import type { DetailsAsks } from "@/app/lib/checkout/asks";
-import type { CheckoutAddress, CheckoutState, DeliveryPoint } from "@/app/lib/checkout/read";
-import { businessIdFieldsFor, GENERIC_TAX_ID } from "@/app/lib/checkout/business-ids";
-import { billingIsShown, detailsCompanyCountry, detailsStepSchema, type DetailsMode } from "@/app/lib/checkout/schemas";
-import type { CheckoutSettings } from "@/app/lib/checkout/settings";
-import type { BusinessIdField, CountryOption, PhoneSettings, RegionOption } from "@/app/lib/countries/read";
-import { phoneFieldFor } from "@/app/lib/forms/phone";
-import type { Address } from "@/app/lib/customer/read";
-import { useActionForm } from "@/app/lib/forms/use-action-form";
+import { saveDetailsStep } from "@skelet/storefront-next/checkout/actions";
+import type { DetailsAsks } from "@skelet/storefront-next/checkout/asks";
+import type { CheckoutAddress, CheckoutState, DeliveryPoint } from "@skelet/storefront-next/checkout/read";
+import { businessIdFieldsFor, GENERIC_TAX_ID } from "@skelet/storefront-next/checkout/business-ids";
+import { billingIsShown, detailsCompanyCountry, detailsStepSchema, type DetailsMode } from "@skelet/storefront-next/checkout/schemas";
+import type { CheckoutSettings } from "@skelet/storefront-next/checkout/settings";
+import type { BusinessIdField, CountryOption, PhoneSettings, RegionOption } from "@skelet/storefront-next/countries/read";
+import { phoneFieldFor } from "@skelet/storefront-next/forms/phone";
+import type { Address } from "@skelet/storefront-next/customer/read";
+import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
 
 import { AddressFields, ChoiceCard, ContinueButton, useReturnToNextStep, type ValueField } from "./fields";
 import { AddressLines } from "./summary";

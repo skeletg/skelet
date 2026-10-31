@@ -1,12 +1,12 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { backInStockSchema } from "@/app/lib/beacons/schemas";
-import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
+import { backInStockSchema } from "@skelet/storefront-next/beacons/schemas";
+import { parseForm, replyReset, type FormResult } from "@skelet/storefront-next/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 let identity: { email: string } | null = null;
-vi.mock("@/app/lib/customer/client", () => ({ useCustomerIdentity: () => ({ identity, resolved: true }) }));
+vi.mock("@skelet/storefront-next/customer/client", () => ({ useCustomerIdentity: () => ({ identity, resolved: true }) }));
 
 // Same schema and SubmissionResult shape as the real action, minus the backend
 let fails = false;
@@ -15,7 +15,7 @@ const notify = vi.fn(async (_prev: FormResult | undefined, formData: FormData): 
   if (submission.status !== "success") return submission.reply();
   return fails ? submission.reply({ formErrors: ["notifyFailed"] }) : replyReset(submission);
 });
-vi.mock("@/app/lib/beacons/actions", () => ({
+vi.mock("@skelet/storefront-next/beacons/actions", () => ({
   notifyBackInStockAction: (prev: FormResult | undefined, fd: FormData) => notify(prev, fd),
 }));
 

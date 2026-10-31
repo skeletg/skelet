@@ -19,7 +19,7 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | The project's own storefronts, each forked from a template with `skelet add channel` |
 | `templates/<name>/` | Storefront templates. `vetrina` is the full Next.js 16 one (App Router, RSC) the dev stack runs |
-| `packages/<name>/` | TypeScript the storefronts share, `storefront-next` so far. Source only, no build step |
+| `packages/<name>/` | TypeScript the storefronts share. `storefront-next` is a Next storefront's logic - GraphQL, auth, cart, checkout - which templates build their design on. Source only, no build step |
 | `cmd/skelet/` | The `skelet` CLI: the front door here, every dev verb, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
@@ -179,8 +179,10 @@ through the `success` / `warning` / `info` / `destructive` tokens as plain utili
 
 **Storefront:** Next.js 16, which differs from most training data - read
 `templates/vetrina/node_modules/next/dist/docs/` before writing App Router code.
-GraphQL is server-only, channel and locale are resolved server-side, and routing is
-backend-driven through the `[...slug]` catch-all and the URL-rewrite resolver.
+Logic lives in `packages/storefront-next` (imported as `@skelet/storefront-next/<module>`, relative
+imports inside it) and a template keeps only its design. GraphQL is server-only, channel and locale
+are resolved server-side, and routing is backend-driven through the `[...slug]` catch-all and the
+URL-rewrite resolver.
 
 **Plugins** are compiled in from `plugins/plugins.json`, which is the decision file.
 Anything writing it must MERGE, never rewrite - `skelet cli plugin install|enable`

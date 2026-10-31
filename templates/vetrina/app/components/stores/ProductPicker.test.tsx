@@ -1,9 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { parseForm } from "@/app/lib/forms/schema";
-import { productPickSchema, productSearchSchema } from "@/app/lib/stores/schemas";
-import type { StoreProduct } from "@/app/lib/stores/types";
-import type { ProductPickResult, ProductSearchResult } from "@/app/lib/stores/actions";
+import { parseForm } from "@skelet/storefront-next/forms/schema";
+import { productPickSchema, productSearchSchema } from "@skelet/storefront-next/stores/schemas";
+import type { StoreProduct } from "@skelet/storefront-next/stores/types";
+import type { ProductPickResult, ProductSearchResult } from "@skelet/storefront-next/stores/actions";
 import { renderWithIntl } from "@/app/test/render";
 
 const simpleId = "1f8b64d2-96f1-4fbd-8252-f42bd396f9c1";
@@ -27,7 +27,7 @@ const pickProduct = vi.fn(async (_prev: ProductPickResult | undefined, formData:
   const submission = parseForm(formData, productPickSchema);
   return submission.status === "success" ? { ...submission.reply(), product: products[submission.value.productId] ?? null } : submission.reply();
 });
-vi.mock("@/app/lib/stores/actions", () => ({
+vi.mock("@skelet/storefront-next/stores/actions", () => ({
   searchStoreProductsAction: (prev: ProductSearchResult | undefined, fd: FormData) => searchProducts(prev, fd),
   pickStoreProductAction: (prev: ProductPickResult | undefined, fd: FormData) => pickProduct(prev, fd),
 }));

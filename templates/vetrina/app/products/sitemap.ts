@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
-import { requireRequestChannel } from "@/app/lib/channel/site";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { requireRequestChannel } from "@skelet/storefront-next/channel/site";
+import { getSeoConfig } from "@skelet/storefront-next/config/read";
 import {
   absUrl,
   applySitemapExclusions,
@@ -9,7 +9,7 @@ import {
   getSitemapCounts,
   getSiteUrl,
   listSitemapEntries,
-} from "@/app/lib/sitemap/read";
+} from "@skelet/storefront-next/sitemap/read";
 
 export const dynamic = "force-dynamic";
 

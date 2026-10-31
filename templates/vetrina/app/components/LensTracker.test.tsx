@@ -1,7 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BEACON } from "@/app/lib/beacons/paths";
+import { BEACON } from "@skelet/storefront-next/beacons/paths";
 
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
@@ -13,7 +13,7 @@ vi.mock("web-vitals", () => ({ onLCP: () => {}, onCLS: () => {}, onINP: () => {}
 const beaconFetch = vi.fn<(path: string, opts: { body?: string }) => Promise<Response>>(async (path) =>
   path === BEACON.config ? new Response(JSON.stringify({ enabled: true, samplingRate: 100 })) : new Response(null),
 );
-vi.mock("@/app/lib/beacons/client", () => ({
+vi.mock("@skelet/storefront-next/beacons/client", () => ({
   beaconFetch: (p: string, o: { body?: string }) => beaconFetch(p, o),
 }));
 

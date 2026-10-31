@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
-import { setCartNoteAction } from "@/app/lib/cart/actions";
+import { setCartNoteAction } from "@skelet/storefront-next/cart/actions";
 
 export function CartNote({ initial }: { initial: string }) {
   const t = useTranslations("cart.note");

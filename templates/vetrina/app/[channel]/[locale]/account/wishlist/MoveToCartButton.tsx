@@ -7,8 +7,8 @@ import { useTranslations } from "next-intl";
 import { useErrorText } from "@/app/components/account/AccountUI";
 import { useCartUI } from "@/app/components/CartUIProvider";
 import { removeLocalWishlistItem } from "@/app/components/WishlistButton";
-import { useCartStore } from "@/app/lib/cart/store";
-import { moveToCartAction } from "@/app/lib/wishlist/actions";
+import { useCartStore } from "@skelet/storefront-next/cart/store";
+import { moveToCartAction } from "@skelet/storefront-next/wishlist/actions";
 
 export function MoveToCartButton({ productId }: { productId: string }) {
   const t = useTranslations("account.wishlist");

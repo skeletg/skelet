@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import type { Block } from "./blocks";
 import { readNumber, readString } from "./blocks";
 import { getCollectionCard, getContainer, getLayout } from "./variants";
-import { loadHeader } from "@/app/lib/header/read";
+import { loadHeader } from "@skelet/storefront-next/header/read";
 
 export async function CollectionGridBlock({ block }: { block: Block }) {
   const heading = readString(block.props, "heading");

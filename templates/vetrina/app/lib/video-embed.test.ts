@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { VIDEO_EMBED_ORIGINS, videoEmbedUrl } from "./video-embed";
+import { VIDEO_EMBED_ORIGINS, videoEmbedUrl } from "@skelet/storefront-next/video-embed";
 
 describe("videoEmbedUrl", () => {
   it.each([

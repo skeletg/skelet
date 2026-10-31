@@ -12,11 +12,11 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 
-import { addConfiguredToCart, addSimpleToCart } from "@/app/lib/cart/actions";
-import { displayName } from "@/app/lib/display";
-import { productHref } from "@/app/lib/entity-href";
-import { formatPrice } from "@/app/lib/format";
-import type { ProductDetail } from "@/app/lib/catalog/read";
+import { addConfiguredToCart, addSimpleToCart } from "@skelet/storefront-next/cart/actions";
+import { displayName } from "@skelet/storefront-next/display";
+import { productHref } from "@skelet/storefront-next/entity-href";
+import { formatPrice } from "@skelet/storefront-next/format";
+import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";

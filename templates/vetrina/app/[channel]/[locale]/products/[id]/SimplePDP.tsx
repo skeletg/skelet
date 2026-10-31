@@ -3,8 +3,8 @@
 import { StoreAvailability } from "@/app/components/stores/StoreAvailability";
 import { getTranslations } from "next-intl/server";
 
-import { formatPrice } from "@/app/lib/cart/read";
-import type { ProductDetail } from "@/app/lib/catalog/read";
+import { formatPrice } from "@skelet/storefront-next/cart/read";
+import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { AddToCartForm } from "@/app/components/AddToCartForm";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { BackInStockForm } from "@/app/components/BackInStockForm";

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
-import { withLocalePrefix } from "@/app/lib/locale/path";
+import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { HeartIcon } from "lucide-react";
 
 import {
@@ -10,15 +10,15 @@ import {
   EmptyState,
 } from "@/app/components/account/AccountUI";
 import { ProductCard } from "@/app/components/ProductCard";
-import { getCurrentCustomer } from "@/app/lib/customer/read";
-import { gqlFetch } from "@/app/lib/graphql";
+import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
+import { gqlFetch } from "@skelet/storefront-next/graphql";
 import {
   MyWishlistDocument,
   MyWishlistShareTokenDocument,
-} from "@/app/lib/wishlist/operations.gql";
+} from "@skelet/storefront-next/wishlist/operations.gql";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { MoveToCartButton } from "./MoveToCartButton";
-import type { ProductSummary } from "@/app/lib/catalog/read";
+import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
 import { WishlistMerge } from "./WishlistMerge";
 
 export async function generateMetadata({

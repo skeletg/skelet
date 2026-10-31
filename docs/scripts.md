@@ -68,7 +68,7 @@ things hold for all of them:
 | `skelet go` | Run go in the app container - `skelet go build ./...`, `skelet go test ./internal/...`. `--signals` or `--sdk` first runs it in that module instead. |
 | `skelet cli` | The skelet ops CLI - `skelet cli admin list`, `skelet cli media-migrate ...`, `skelet cli job run customer-roster-push` to run a scheduled job now. Works with pipes and CI (only grabs a TTY when there is one). |
 | `skelet pnpm dashboard` | pnpm in the dashboard container - `skelet pnpm dashboard run codegen`, `skelet pnpm dashboard run lint`. Vite is already running via `skelet up`, so no need for `run dev`. |
-| `skelet pnpm <name>` | Same for storefronts (`apps/channels/<name>/` or `templates/<name>/`) - `skelet pnpm <name> [name] run codegen`, `run build`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
+| `skelet pnpm <name>` | Same for storefronts (`apps/channels/<name>/` or `templates/<name>/`) - `skelet pnpm <name> run build`, `run test`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
 | `skelet psql` | psql shell into the dev database. |
 
 If the stack is up, these exec into the running container (instant). If
