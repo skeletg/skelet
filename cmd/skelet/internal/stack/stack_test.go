@@ -10,7 +10,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	verbtest.Main(m, map[string]func(string, []string) int{"down": Down, "stop": Stop, "restart": Restart, "ps": Ps, "logs": Logs})
+	verbtest.Main(m, map[string]func(string, []string) int{"down": Down, "stop": Stop, "restart": Restart, "ps": Ps, "logs": Logs, "up": Up})
 }
 
 // Each passthrough becomes docker compose with your arguments after its own, from the checkout, carrying the

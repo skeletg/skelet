@@ -20,22 +20,32 @@ import (
 type Lib struct {
 	root     string
 	Profiles string
-	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .skelet-tools
-	Apps, Tools string
+	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .skelet-tools.
+	// Picked is .skelet-tools whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
+	Apps, Tools, Picked string
 }
 
 var signalsOff = regexp.MustCompile(`(?im)^[ \t]*SIGNALS_ENABLED[ \t]*=[ \t]*(false|0|f|no|off)[ \t]*$`)
 
 // Load works the profiles out. Set-but-empty and unset differ: SKELET_SIDECARS= is --lean, while an unset one means
 // the search sidecar; an inherited COMPOSE_PROFILES, even an empty one, wins over all of it
-func Load(root string) Lib {
-	l := Lib{root: root, Apps: squeeze(root, ".skelet-apps"), Tools: squeeze(root, ".skelet-tools")}
+func Load(root string) Lib { return load(root, false) }
+
+// LoadLean is skelet up --lean: no sidecars and no dev tools, while the apps still start
+func LoadLean(root string) Lib { return load(root, true) }
+
+func load(root string, lean bool) Lib {
+	l := Lib{root: root, Apps: squeeze(root, ".skelet-apps"), Picked: squeeze(root, ".skelet-tools")}
+	l.Tools = l.Picked
 	if v, ok := os.LookupEnv("SKELET_TOOLS"); ok {
 		l.Tools = v
 	}
 	sidecars, ok := os.LookupEnv("SKELET_SIDECARS")
 	if !ok {
 		sidecars = "search"
+	}
+	if lean {
+		sidecars, l.Tools = "", ""
 	}
 	var p []string
 	for _, v := range []string{sidecars, l.Apps, l.Tools} {

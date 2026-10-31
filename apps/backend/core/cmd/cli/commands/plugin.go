@@ -318,7 +318,7 @@ func runPluginNew(cmd *cobra.Command, args []string) error {
 	fmt.Println("     so there is no resolver to write outside your own package.")
 	fmt.Println()
 	step++
-	fmt.Printf("  %d. bin/dev (or restart) to load the plugin into the running server.\n", step)
+	fmt.Printf("  %d. skelet up (or skelet restart app) to load the plugin into the running server.\n", step)
 	return nil
 }
 
@@ -672,7 +672,7 @@ After scaffolding the plugin, add the blank-import line to:
 Then run:
 
     skelet cli plugin migrate up %s    # if you have migrations
-    bin/dev           # restart server to load the plugin
+    skelet up         # restart server to load the plugin
 `,
 		t.Name,
 		conditional(t.PaymentProvider, "- provider.go - PaymentProvider implementation (Authorize/Capture/Refund/Void/HandleWebhook).\n"),

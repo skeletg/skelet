@@ -37,7 +37,7 @@ const AnyApp = "*"
 var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
 	{Verb: "doctor", Go: doctor.Run, About: doctor.About},
-	{Verb: "up", Script: "dev"},
+	{Verb: "up", Go: stack.Up, About: stack.UpAbout},
 	{Verb: "serve", Go: stack.Serve, About: stack.ServeAbout},
 	{Verb: "down", Go: stack.Down, About: stack.DownAbout},
 	{Verb: "stop", Go: stack.Stop, About: stack.StopAbout},

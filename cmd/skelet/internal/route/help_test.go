@@ -52,13 +52,14 @@ func TestHelp(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "new"), []byte("#!/usr/bin/env bash\n# Forks a storefront\nset -e\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bin, "dev"), []byte("#!/usr/bin/env bash\nset -e\ndocker compose up\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "remove"), []byte("#!/usr/bin/env bash\nset -e\ndocker compose rm\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct{ verb, want string }{
 		{"add", "skelet add   channel <name> [--from <storefront>] [--tracked]\n\nruns bin/new\n\nForks a storefront\n"},
 		{"new", "skelet new   channel <name> [--from <storefront>] [--tracked]\n\nruns bin/new\n\nForks a storefront\n"},
-		{"up", "runs bin/dev\n\n(no description - it is 3 lines, just read bin/dev)\n"},
+		{"rm", "skelet rm   channel <name> [-y] [--volumes]\n\nruns bin/remove\n\n(no description - it is 3 lines, just read bin/remove)\n"},
+		{"up", stack.UpAbout + "\n"},
 		{"down", stack.DownAbout + "\n"},
 		{"pnpm", "skelet pnpm   <app> <pnpm args>\n\n"},
 		{"db", "skelet db   " + subs["db"] + "\n\n"},

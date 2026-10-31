@@ -30,7 +30,7 @@ func TestResolveRoutes(t *testing.T) {
 		want   []string
 		notice string
 	}{
-		{[]string{"up", "--lean"}, "dev", []string{"--lean"}, ""},
+		{[]string{"up", "--lean"}, "", []string{"--lean"}, ""},
 		{[]string{"sh"}, "", nil, ""},
 		{[]string{"logs", "app"}, "", []string{"app"}, ""},
 		{[]string{"pnpm", "dashboard", "run", "lint"}, "", []string{"run", "lint"}, ""},

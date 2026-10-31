@@ -14,11 +14,11 @@ else
 fi
 
 # Optional dev tools (mailpit, webhook-tester, grafana, garage-webui) - .skelet-tools if there is one, else none
-# Each is a compose profile of its own name, and bin/dev --lean empties SKELET_TOOLS along with the sidecars
+# Each is a compose profile of its own name, and skelet up --lean empties SKELET_TOOLS along with the sidecars
 _skelet_tools_picked="$(tr -d '[:space:]' < "$_skelet_root/.skelet-tools" 2>/dev/null || true)"
 SKELET_TOOLS="${SKELET_TOOLS-$_skelet_tools_picked}"
 
-# Sidecar profiles - bin/dev --lean empties SKELET_SIDECARS
+# Sidecar profiles - skelet up --lean empties SKELET_SIDECARS
 _skelet_sidecars="${SKELET_SIDECARS-search}"
 _skelet_profiles="$_skelet_sidecars"
 if [ -n "$SKELET_APPS" ]; then

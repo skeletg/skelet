@@ -491,7 +491,7 @@ services:
   # Heap capped so the JVM doesn't eat the laptop
   opensearch:
     image: opensearchproject/opensearch:3.8.0
-    # Heaviest sidecar (~600MB JVM) - bin/dev --lean skips it, search returns empty
+    # Heaviest sidecar (~600MB JVM) - skelet up --lean skips it, search returns empty
     profiles: ["search"]
     environment:
       - discovery.type=single-node

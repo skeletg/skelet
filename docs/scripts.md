@@ -147,9 +147,8 @@ fails when a script has no route or a route has no script.
 
 | Verb | Runs |
 |---|---|
-| `up` | `dev` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
-| everything else - `setup`, `doctor`, `check` and its gates, `gen` and its tools, `lint`, `test` and its suites, `go`, `pnpm` (`npm` is kept as an alias from before the switch), `changelog`, `hooks`, the stack and container verbs, `db`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
+| everything else - `setup`, `up`, `doctor`, `check` and its gates, `gen` and its tools, `lint`, `test` and its suites, `go`, `pnpm` (`npm` is kept as an alias from before the switch), `changelog`, `hooks`, the stack and container verbs, `db`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
 
 `skelet check structure` fails if `skelet` routes to a script that doesn't exist, so
 the table above can't quietly rot when a script is renamed.
