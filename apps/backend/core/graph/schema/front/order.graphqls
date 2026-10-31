@@ -76,6 +76,8 @@ type OrderLineComponent {
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
+  # Whether it can be returned on its own - always for a bundle pick, a kit's setting at sale for a kit item
+  returnable:  Boolean!
 }
 
 # A single product custom-option pick snapshotted onto an order line.

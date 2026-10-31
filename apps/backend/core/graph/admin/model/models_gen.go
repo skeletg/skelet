@@ -3401,11 +3401,12 @@ type OrderLine struct {
 }
 
 type OrderLineComponent struct {
-	ID        string  `json:"id"`
-	Sku       string  `json:"sku"`
-	Name      string  `json:"name"`
-	UnitPrice int32   `json:"unitPrice"`
-	Quantity  float64 `json:"quantity"`
+	ID         string  `json:"id"`
+	Sku        string  `json:"sku"`
+	Name       string  `json:"name"`
+	UnitPrice  int32   `json:"unitPrice"`
+	Quantity   float64 `json:"quantity"`
+	Returnable bool    `json:"returnable"`
 }
 
 type OrderLineOption struct {
@@ -3577,6 +3578,7 @@ type Product struct {
 	BundleOptions           []*BundleOption          `json:"bundleOptions"`
 	GroupedMembers          []*GroupedMember         `json:"groupedMembers"`
 	KitComponents           []*KitComponent          `json:"kitComponents"`
+	KitItemsReturnable      bool                     `json:"kitItemsReturnable"`
 	Downloads               []*ProductDownload       `json:"downloads"`
 	SubscriptionTerms       *SubscriptionTerms       `json:"subscriptionTerms,omitempty"`
 	ProductOptions          []*ProductOption         `json:"productOptions"`
@@ -5575,6 +5577,7 @@ type UpdateProductInput struct {
 	MaxOrderQty                  *float64         `json:"maxOrderQty,omitempty"`
 	CostCents                    *int32           `json:"costCents,omitempty"`
 	ClearCostCents               *bool            `json:"clearCostCents,omitempty"`
+	KitItemsReturnable           *bool            `json:"kitItemsReturnable,omitempty"`
 	Sku                          *string          `json:"sku,omitempty"`
 	SeoNoindex                   *bool            `json:"seoNoindex,omitempty"`
 	CanonicalURL                 *string          `json:"canonicalUrl,omitempty"`

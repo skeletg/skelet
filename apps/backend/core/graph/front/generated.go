@@ -960,11 +960,12 @@ type ComplexityRoot struct {
 	}
 
 	OrderLineComponent struct {
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Quantity  func(childComplexity int) int
-		Sku       func(childComplexity int) int
-		UnitPrice func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Returnable func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -6202,6 +6203,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.Quantity(childComplexity), true
+	case "OrderLineComponent.returnable":
+		if e.ComplexityRoot.OrderLineComponent.Returnable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Returnable(childComplexity), true
 	case "OrderLineComponent.sku":
 		if e.ComplexityRoot.OrderLineComponent.Sku == nil {
 			break
@@ -10994,6 +11001,8 @@ type OrderLineComponent {
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
+  # Whether it can be returned on its own - always for a bundle pick, a kit's setting at sale for a kit item
+  returnable:  Boolean!
 }
 
 # A single product custom-option pick snapshotted onto an order line.
@@ -13375,6 +13384,8 @@ func (ec *executionContext) childFields_OrderLineComponent(ctx context.Context, 
 		return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
 	case "quantity":
 		return ec.fieldContext_OrderLineComponent_quantity(ctx, field)
+	case "returnable":
+		return ec.fieldContext_OrderLineComponent_returnable(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OrderLineComponent", field.Name)
 }
@@ -34304,6 +34315,29 @@ func (ec *executionContext) fieldContext_OrderLineComponent_quantity(_ context.C
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _OrderLineComponent_returnable(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrderLineComponent_returnable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Returnable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrderLineComponent_returnable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _OrderLineOption_id(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineOption) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -54979,6 +55013,11 @@ func (ec *executionContext) _OrderLineComponent(ctx context.Context, sel ast.Sel
 			}
 		case "quantity":
 			out.Values[i] = ec._OrderLineComponent_quantity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "returnable":
+			out.Values[i] = ec._OrderLineComponent_returnable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

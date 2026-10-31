@@ -1578,6 +1578,7 @@ export type OrderLineComponent = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  returnable: Scalars['Boolean']['output'];
   sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
