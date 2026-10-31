@@ -114,6 +114,7 @@ SET default_price              = $2,
     min_order_qty              = $23,
     max_order_qty              = $24,
     cost_cents                 = $25,
+    kit_items_returnable       = $26,
     updated_at                 = NOW()
 WHERE id = $1
 RETURNING *;

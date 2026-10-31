@@ -869,14 +869,15 @@ func (r *postgresRepository) AddOrderLine(ctx context.Context, line OrderLine) (
 func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderLineComponent) (OrderLineComponent, error) {
 	row, err := r.queries.InsertOrderLineComponent(ctx, db.InsertOrderLineComponentParams{
 		OrderLineID:       c.OrderLineID,
-		BundleOptionID:    c.BundleOptionID,
-		BundleSelectionID: c.BundleSelectionID,
+		BundleOptionID:    uuid.NullUUID{UUID: c.BundleOptionID, Valid: c.BundleOptionID != uuid.Nil},
+		BundleSelectionID: uuid.NullUUID{UUID: c.BundleSelectionID, Valid: c.BundleSelectionID != uuid.Nil},
 		ProductID:         c.ProductID,
 		ProductSku:        c.ProductSku,
 		ProductName:       c.ProductName,
 		UnitPrice:         c.UnitPrice,
 		Quantity:          c.Quantity,
 		SortOrder:         c.SortOrder,
+		Returnable:        c.Returnable,
 	})
 	if err != nil {
 		return OrderLineComponent{}, fmt.Errorf("add order line component: %w", err)
@@ -1314,14 +1315,15 @@ func toOrderLineComponent(row db.OrderLineComponent) OrderLineComponent {
 	return OrderLineComponent{
 		ID:                row.ID,
 		OrderLineID:       row.OrderLineID,
-		BundleOptionID:    row.BundleOptionID,
-		BundleSelectionID: row.BundleSelectionID,
+		BundleOptionID:    row.BundleOptionID.UUID,
+		BundleSelectionID: row.BundleSelectionID.UUID,
 		ProductID:         row.ProductID,
 		ProductSku:        row.ProductSku,
 		ProductName:       row.ProductName,
 		UnitPrice:         row.UnitPrice,
 		Quantity:          row.Quantity,
 		SortOrder:         row.SortOrder,
+		Returnable:        row.Returnable,
 		CreatedAt:         row.CreatedAt,
 	}
 }

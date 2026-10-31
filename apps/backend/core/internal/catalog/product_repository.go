@@ -662,6 +662,11 @@ func mergeProductUpdate(current db.Product, input UpdateProductInput) db.UpdateP
 		costCents = sql.NullInt64{Int64: *input.CostCents, Valid: true}
 	}
 
+	kitItemsReturnable := current.KitItemsReturnable
+	if input.KitItemsReturnable != nil {
+		kitItemsReturnable = *input.KitItemsReturnable
+	}
+
 	return db.UpdateProductParams{
 		ID:                      input.ID,
 		DefaultPrice:            defaultPrice,
@@ -688,6 +693,7 @@ func mergeProductUpdate(current db.Product, input UpdateProductInput) db.UpdateP
 		MinOrderQty:             qtyCol(current.MinOrderQty, input.MinOrderQty),
 		MaxOrderQty:             qtyCol(current.MaxOrderQty, input.MaxOrderQty),
 		CostCents:               costCents,
+		KitItemsReturnable:      kitItemsReturnable,
 	}
 }
 
@@ -994,6 +1000,7 @@ func toProduct(row db.Product) Product {
 		PrivateMetadata:     metadataFromJSON(row.PrivateMetadata),
 		CreatedAt:           row.CreatedAt,
 		UpdatedAt:           row.UpdatedAt,
+		KitItemsReturnable:  row.KitItemsReturnable,
 	}
 	if row.CanonicalUrl.Valid {
 		p.CanonicalURL = &row.CanonicalUrl.String

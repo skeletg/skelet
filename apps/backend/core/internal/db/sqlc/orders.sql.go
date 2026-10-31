@@ -1833,21 +1833,31 @@ func (q *Queries) UpdateOrderAmounts(ctx context.Context, arg UpdateOrderAmounts
 }
 
 const updateOrderLineQuantity = `-- name: UpdateOrderLineQuantity :one
-UPDATE order_lines
-SET    quantity = $2, total_price = $3
-WHERE  id = $1 AND removed_at IS NULL
-RETURNING id, order_id, product_name, product_sku, unit_price, quantity, total_price, created_at, discount_cents, is_gift, offered_by_rule_id, removed_at, cost_cents, is_custom, tax_class
+WITH old AS (
+    SELECT ol.id, ol.quantity FROM order_lines ol WHERE ol.id = $3 AND ol.removed_at IS NULL FOR UPDATE
+), scaled AS (
+    UPDATE order_line_components c
+    SET quantity = ROUND(c.quantity * $1::numeric / old.quantity, 4)
+    FROM old
+    WHERE c.order_line_id = old.id
+)
+UPDATE order_lines l
+SET    quantity = $1::numeric, total_price = $2::bigint
+FROM   old
+WHERE  l.id = old.id
+RETURNING l.id, l.order_id, l.product_name, l.product_sku, l.unit_price, l.quantity, l.total_price, l.created_at, l.discount_cents, l.is_gift, l.offered_by_rule_id, l.removed_at, l.cost_cents, l.is_custom, l.tax_class
 `
 
 type UpdateOrderLineQuantityParams struct {
-	ID         uuid.UUID `json:"id"`
 	Quantity   float64   `json:"quantity"`
 	TotalPrice int64     `json:"total_price"`
+	ID         uuid.UUID `json:"id"`
 }
 
-// Edit a line's quantity + recomputed line total - guarded to active lines
+// Edit a line's quantity + recomputed line total - guarded to active lines. Component rows hold line totals, so a kit
+// line's items rescale by new/old in the same statement (a bundle line's quantity can't be edited)
 func (q *Queries) UpdateOrderLineQuantity(ctx context.Context, arg UpdateOrderLineQuantityParams) (OrderLine, error) {
-	row := q.db.QueryRowContext(ctx, updateOrderLineQuantity, arg.ID, arg.Quantity, arg.TotalPrice)
+	row := q.db.QueryRowContext(ctx, updateOrderLineQuantity, arg.Quantity, arg.TotalPrice, arg.ID)
 	var i OrderLine
 	err := row.Scan(
 		&i.ID,

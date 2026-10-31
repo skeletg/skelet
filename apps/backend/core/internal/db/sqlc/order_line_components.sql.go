@@ -16,26 +16,28 @@ const insertOrderLineComponent = `-- name: InsertOrderLineComponent :one
 
 INSERT INTO order_line_components (
     order_line_id, bundle_option_id, bundle_selection_id,
-    product_id, product_sku, product_name, unit_price, quantity, sort_order
+    product_id, product_sku, product_name, unit_price, quantity, sort_order, returnable
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, order_line_id, bundle_option_id, bundle_selection_id, product_id, product_sku, product_name, unit_price, quantity, sort_order, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, order_line_id, bundle_option_id, bundle_selection_id, product_id, product_sku, product_name, unit_price, quantity, sort_order, created_at, returnable
 `
 
 type InsertOrderLineComponentParams struct {
-	OrderLineID       uuid.UUID `json:"order_line_id"`
-	BundleOptionID    uuid.UUID `json:"bundle_option_id"`
-	BundleSelectionID uuid.UUID `json:"bundle_selection_id"`
-	ProductID         uuid.UUID `json:"product_id"`
-	ProductSku        string    `json:"product_sku"`
-	ProductName       string    `json:"product_name"`
-	UnitPrice         int64     `json:"unit_price"`
-	Quantity          float64   `json:"quantity"`
-	SortOrder         int32     `json:"sort_order"`
+	OrderLineID       uuid.UUID     `json:"order_line_id"`
+	BundleOptionID    uuid.NullUUID `json:"bundle_option_id"`
+	BundleSelectionID uuid.NullUUID `json:"bundle_selection_id"`
+	ProductID         uuid.UUID     `json:"product_id"`
+	ProductSku        string        `json:"product_sku"`
+	ProductName       string        `json:"product_name"`
+	UnitPrice         int64         `json:"unit_price"`
+	Quantity          float64       `json:"quantity"`
+	SortOrder         int32         `json:"sort_order"`
+	Returnable        bool          `json:"returnable"`
 }
 
 // Order line components - mirrors cart_line_components but keyed on order_line_id - PlaceOrder copies the cart side
-// over so the order snapshot preserves the customer's bundle configuration
+// over so the order snapshot preserves the customer's bundle configuration, and snapshots a kit's recipe the same way
+// with no bundle option or selection
 func (q *Queries) InsertOrderLineComponent(ctx context.Context, arg InsertOrderLineComponentParams) (OrderLineComponent, error) {
 	row := q.db.QueryRowContext(ctx, insertOrderLineComponent,
 		arg.OrderLineID,
@@ -47,6 +49,7 @@ func (q *Queries) InsertOrderLineComponent(ctx context.Context, arg InsertOrderL
 		arg.UnitPrice,
 		arg.Quantity,
 		arg.SortOrder,
+		arg.Returnable,
 	)
 	var i OrderLineComponent
 	err := row.Scan(
@@ -61,6 +64,7 @@ func (q *Queries) InsertOrderLineComponent(ctx context.Context, arg InsertOrderL
 		&i.Quantity,
 		&i.SortOrder,
 		&i.CreatedAt,
+		&i.Returnable,
 	)
 	return i, err
 }
@@ -90,7 +94,7 @@ func (q *Queries) InsertOrderLineStockPart(ctx context.Context, arg InsertOrderL
 }
 
 const listOrderLineComponentsByOrderLineIDs = `-- name: ListOrderLineComponentsByOrderLineIDs :many
-SELECT id, order_line_id, bundle_option_id, bundle_selection_id, product_id, product_sku, product_name, unit_price, quantity, sort_order, created_at FROM order_line_components
+SELECT id, order_line_id, bundle_option_id, bundle_selection_id, product_id, product_sku, product_name, unit_price, quantity, sort_order, created_at, returnable FROM order_line_components
 WHERE order_line_id = ANY($1::uuid[])
 ORDER BY order_line_id, sort_order, created_at
 `
@@ -116,6 +120,7 @@ func (q *Queries) ListOrderLineComponentsByOrderLineIDs(ctx context.Context, dol
 			&i.Quantity,
 			&i.SortOrder,
 			&i.CreatedAt,
+			&i.Returnable,
 		); err != nil {
 			return nil, err
 		}
