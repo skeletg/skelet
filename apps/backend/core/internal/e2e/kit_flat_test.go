@@ -129,6 +129,19 @@ func TestFlatKitEditDoesNotDoubleDeduct(t *testing.T) {
 	}
 	h.Settle(t)
 	h.wantFlat(t, "after edit", map[uuid.UUID]float64{a: 18, b: 16, c: 20})
+	// The items shown on the order follow the new quantity, from the recipe it was sold with
+	edited, err := h.D.Order.GetByID(h.Ctx, o.ID)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	if n := len(edited.Lines[0].Components); n != 2 {
+		t.Fatalf("kit items on the order = %d, want 2", n)
+	}
+	for _, comp := range edited.Lines[0].Components {
+		if want := map[uuid.UUID]float64{a: 2, b: 4}[comp.ProductID]; comp.Quantity != want {
+			t.Errorf("kit item %s quantity = %v after editing to 2 kits, want %v", comp.ProductSku, comp.Quantity, want)
+		}
+	}
 
 	h.Cancel(t, o.ID)
 	h.Settle(t)
