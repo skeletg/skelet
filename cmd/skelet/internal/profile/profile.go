@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 )
 
 const File = ".skelet-profile"

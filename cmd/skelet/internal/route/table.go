@@ -2,8 +2,8 @@
 package route
 
 import (
-	"github.com/skeletg/skelet/apps/skelet/internal/doctor"
-	"github.com/skeletg/skelet/apps/skelet/internal/setup"
+	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
 )
 
 // Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check

@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 // Lib is what bin/_lib works out

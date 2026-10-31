@@ -19,17 +19,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/skelet/go.mod
+          go-version-file: cmd/skelet/go.mod
           cache: false
       # ci.yml gates pull requests into main, and a tag can be pushed from anywhere - the binaries ship only if their
       # own tests pass on the commit they're built from
       - name: Vet + test
-        working-directory: apps/skelet
+        working-directory: cmd/skelet
         run: |
           go vet ./...
           go test ./... -count=1 -race
       - name: Build
-        working-directory: apps/skelet
+        working-directory: cmd/skelet
         env:
           TAG: ${{ github.ref_name }}
         run: |

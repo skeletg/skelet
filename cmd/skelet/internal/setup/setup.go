@@ -10,9 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/gitx"
-	"github.com/skeletg/skelet/apps/skelet/internal/profile"
-	"github.com/skeletg/skelet/apps/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--docker-apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"

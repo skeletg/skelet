@@ -194,9 +194,9 @@ sig_env=(-e DATABASE_URL= -e SIGNALS_DB_URL="$TEST_SIG_URL" -e SIGNALS_CH_URL="$
 # with the repo read-only since its tests check the route table against bin/
 cli_test() { # <go test args...>
     if command -v go >/dev/null 2>&1; then
-        (cd apps/skelet && GOWORK=off go test "$@")
+        (cd cmd/skelet && GOWORK=off go test "$@")
     else
-        docker run --rm -v "$PWD:/repo:ro" -v skelet-cli-gocache:/root/.cache/go-build -w /repo/apps/skelet \
+        docker run --rm -v "$PWD:/repo:ro" -v skelet-cli-gocache:/root/.cache/go-build -w /repo/cmd/skelet \
             -e GOFLAGS=-buildvcs=false "$(grep -oE 'golang:[0-9][0-9.]*-alpine' skelet)" go test "$@"
     fi
 }

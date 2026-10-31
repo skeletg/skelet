@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/compose"
-	"github.com/skeletg/skelet/apps/skelet/internal/node"
-	"github.com/skeletg/skelet/apps/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/node"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 // boot is the dev target's second half: the stack up, the schema in place, the plugin bridge regenerated when the

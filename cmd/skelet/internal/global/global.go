@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/checkout"
-	"github.com/skeletg/skelet/apps/skelet/internal/doctor"
-	"github.com/skeletg/skelet/apps/skelet/internal/project"
-	"github.com/skeletg/skelet/apps/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
+	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/project"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 // Seams for the tests: replacing the process ends a test binary, and fetching a release needs a remote
@@ -95,7 +95,7 @@ func create(version string, args []string) int {
 		fmt.Fprintf(os.Stderr, "skelet new: %v\n", err)
 		return 1
 	}
-	if _, err := os.Stat(filepath.Join(dir, "apps", "skelet", "go.mod")); err != nil {
+	if predatesCLI(dir) {
 		fmt.Fprintf(os.Stderr, "skelet new: %s predates the Go CLI, so its setup is the bash one - it needs OpenSSL 1.1.1+, which stock macOS lacks (brew install openssl)\n", tag)
 	}
 	// The shim acts on the checkout you stand in, so setup runs in the new project whatever path it was reached by
@@ -105,6 +105,12 @@ func create(version string, args []string) int {
 	}
 	fmt.Fprintf(os.Stderr, "==> running setup in %s\n", dir)
 	return handOff(dir, append([]string{"setup"}, o.Setup...))
+}
+
+// predatesCLI is a project from a release before the Go CLI existed, whose setup is still bash
+func predatesCLI(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "cmd", "skelet", "go.mod"))
+	return err != nil
 }
 
 func handOff(root string, args []string) int {

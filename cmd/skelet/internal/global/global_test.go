@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/project"
+	"github.com/skeletg/skelet/cmd/skelet/internal/project"
 )
 
 type call struct {
@@ -50,7 +50,7 @@ func useSource(t *testing.T, s *stubSource) {
 }
 
 func makeCheckout(root string) error {
-	for _, f := range []string{"skelet", "bin/_lib", "apps/skelet/go.mod"} {
+	for _, f := range []string{"skelet", "bin/_lib", "cmd/skelet/go.mod"} {
 		p := filepath.Join(root, f)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
@@ -80,7 +80,7 @@ func tempDir(t *testing.T) string {
 
 func TestInsideAProjectTheProjectAnswers(t *testing.T) {
 	root := newCheckout(t)
-	t.Chdir(filepath.Join(root, "apps", "skelet"))
+	t.Chdir(filepath.Join(root, "cmd", "skelet"))
 	for _, args := range [][]string{{"up", "--lean"}, {"help"}, {}, {"new", "channel", "eu"}, {"doctor"}} {
 		calls := recordExec(t)
 		if code := Main("v1.2.3", args); code != 0 {
@@ -149,6 +149,13 @@ func TestNewFetchesItsOwnReleaseAndRunsSetupInsideIt(t *testing.T) {
 	want := []string{"bash", filepath.Join(dir, "skelet"), "setup", "--yes", "--apps", "dashboard"}
 	if len(*calls) != 1 || (*calls)[0].cwd != dir || !slices.Equal((*calls)[0].argv, want) {
 		t.Errorf("exec'd %v, want %q from %s", *calls, want, dir)
+	}
+}
+
+func TestPredatesCLI(t *testing.T) {
+	old, current := tempDir(t), newCheckout(t)
+	if !predatesCLI(old) || predatesCLI(current) {
+		t.Errorf("predatesCLI: a tree without cmd/skelet = %v, a current one = %v", predatesCLI(old), predatesCLI(current))
 	}
 }
 

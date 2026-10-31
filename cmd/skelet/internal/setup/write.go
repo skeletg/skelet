@@ -11,10 +11,10 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/envfile"
-	"github.com/skeletg/skelet/apps/skelet/internal/plugins"
-	"github.com/skeletg/skelet/apps/skelet/internal/profile"
-	"github.com/skeletg/skelet/apps/skelet/internal/secret"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
 )
 
 // What a write leaves for the boot and the summary

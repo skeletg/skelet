@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/app"
+	"github.com/skeletg/skelet/cmd/skelet/internal/app"
 )
 
 // Set with -ldflags -X. The checkout shim builds with mode=checkout; anything else is the released binary

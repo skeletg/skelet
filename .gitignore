@@ -4,9 +4,9 @@
 .skelet-profile
 # Per-clone compose additions (custom storefront services) - see README
 docker-compose.override.yml
-# The front door's builds of apps/skelet, one per source change, and a stray `go build` in the module
+# The front door's builds of cmd/skelet, one per source change, and a stray `go build` in the module
 .skelet/
-apps/skelet/skelet
+cmd/skelet/skelet
 
 # compose's auto-read local defaults - machine-local, like env/*.env
 .env

@@ -71,7 +71,7 @@ fi
 # The toolchain that builds the images has to be the one every go.mod declares, and CI reads
 # go.mod directly - so a Dockerfile bump, or the image ./skelet builds the CLI in, is the half that gets forgotten
 echo "==> golang images match go.mod"
-GOMODS=(apps/*/go.mod apps/backend/*/go.mod)
+GOMODS=(apps/*/go.mod apps/backend/*/go.mod cmd/*/go.mod)
 gomods=$(grep -hoE '^go [0-9][0-9.]*' "${GOMODS[@]}" | cut -d' ' -f2 | sort -u)
 images=$( { grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}"; grep -hoE 'golang:[0-9][0-9.]*-alpine' skelet; } \
     | sed -E 's/.*golang://; s/-alpine$//' | sort -u)

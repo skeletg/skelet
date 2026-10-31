@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The front door - every dev command, grouped by intent instead of by filename
-# The commands live in apps/skelet, a Go program this builds once per change and keeps in .skelet/bin. Verbs still
+# The commands live in cmd/skelet, a Go program this builds once per change and keeps in .skelet/bin. Verbs still
 # route onto bin/*, which keep working directly and unchanged, so a command that worked yesterday works the same
 set -e
 
@@ -28,7 +28,7 @@ done
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
 GO_IMAGE=golang:1.27.3-alpine
-src="$root/apps/skelet"
+src="$root/cmd/skelet"
 [ -f "$src/go.mod" ] || die "skelet: $src is missing - the front door's own source has to be in the checkout"
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -38,7 +38,7 @@ case "$(uname -m)" in
     *)             arch="$(uname -m)" ;;
 esac
 
-# Named by its sources, so a branch switch that leaves apps/skelet alone reuses the build and one that changes it builds once
+# Named by its sources, so a branch switch that leaves cmd/skelet alone reuses the build and one that changes it builds once
 key="$(cd "$src" && {
     printf '%s %s %s\n' "$GO_IMAGE" "$os" "$arch"
     find . -type f \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) ! -path '*/testdata/*' \
@@ -50,7 +50,7 @@ bin="$cache/skelet-$key"
 build() {
     local tmp="$cache/.build-$key-$$" log="$cache/build.log" ld="-s -w -X main.mode=checkout"
     mkdir -p "$cache"
-    echo "==> building the skelet CLI for this checkout (once per change to apps/skelet)" >&2
+    echo "==> building the skelet CLI for this checkout (once per change to cmd/skelet)" >&2
     if command -v go >/dev/null 2>&1 \
         && (cd "$src" && GOWORK=off GOFLAGS=-buildvcs=false CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
             go build -trimpath -ldflags "$ld" -o "$tmp" .) >"$log" 2>&1; then

@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/checkout"
+	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
 )
 
 // Options is one skelet new <dir>

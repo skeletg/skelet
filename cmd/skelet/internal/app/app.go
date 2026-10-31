@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/checkout"
-	"github.com/skeletg/skelet/apps/skelet/internal/global"
-	"github.com/skeletg/skelet/apps/skelet/internal/route"
-	"github.com/skeletg/skelet/apps/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
+	"github.com/skeletg/skelet/cmd/skelet/internal/global"
+	"github.com/skeletg/skelet/cmd/skelet/internal/route"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 type Config struct {

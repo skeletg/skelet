@@ -8,6 +8,7 @@ lives, start here.
 skelet/
 ├── apps/          the applications and the Signals module - everything else supports these
 ├── proto/         the core-to-Signals wire contract, owned by neither side
+├── cmd/skelet/    the skelet command line - the dev front door, and the binary releases ship
 ├── bin/           one script per dev operation
 ├── docs/          you are here
 ├── env/           environment templates, one file per service
@@ -29,7 +30,6 @@ The applications, and the only place product code lives.
 | `apps/backend/sdk/` | The plugin SDK as its own Go module - what plugin repositories build against, beside core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | The React admin panel (Vite) |
 | `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
-| `apps/skelet/` | The `skelet` command line: the program a checkout's `./skelet` runs, and the binary each release ships, which starts projects. Its own Go module, standard library only, and it imports nothing from the backend |
 
 Two of these are optional: `skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
@@ -53,6 +53,15 @@ plugins run and where the output lands (`apps/backend/core/signalsapi/v1/`,
 never hand-edited). `skelet gen` regenerates; `skelet check contracts`
 refuses a change that would break a deployed peer, since the two processes
 deploy separately and an old core will meet a new Signals.
+
+### `cmd/skelet/`
+
+The `skelet` command line: the program a checkout's `./skelet` runs, and the
+binary each release ships, which installs and starts projects. It's the tooling
+that drives the repo rather than part of the product, so it sits at the root
+beside `bin/`, not under `apps/`. Its own Go module, standard library only, and it
+imports nothing from the backend - `cmd/skelet` because Go names a binary after
+its directory, so `go install` gives you `skelet`.
 
 ### `bin/`
 

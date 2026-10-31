@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/gitx"
-	"github.com/skeletg/skelet/apps/skelet/internal/node"
-	"github.com/skeletg/skelet/apps/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
+	"github.com/skeletg/skelet/cmd/skelet/internal/node"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 )
 
 // Everything setup decides before it writes a file

@@ -12,7 +12,7 @@ with a different release's code - and `./skelet` is also all you need in a clone
 where nothing is installed. The two behave the same.
 
 **What `./skelet` is.** A small bash shim in front of a Go program in
-`apps/skelet`. The first run, and the first after anything in there changes, builds it
+`cmd/skelet`. The first run, and the first after anything in there changes, builds it
 into `.skelet/bin/` - with your own Go if you have it, otherwise inside the `golang`
 image, so Docker alone is enough - and every run after that starts the cached binary
 straight away. The program maps the verb onto its `bin/` script and execs it, so Ctrl-C,
@@ -142,7 +142,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 
 ## The scripts behind the verbs
 
-Each route is one line in `apps/skelet/internal/route/table.go`, and `skelet check structure`
+Each route is one line in `cmd/skelet/internal/route/table.go`, and `skelet check structure`
 fails when a script has no route or a route has no script.
 
 | Verb | Runs |
@@ -156,7 +156,7 @@ fails when a script has no route or a route has no script.
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
 | `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `setup`, `doctor` | nothing - they're Go, in `apps/skelet/internal/setup` and `internal/doctor` |
+| `setup`, `doctor` | nothing - they're Go, in `cmd/skelet/internal/setup` and `internal/doctor` |
 | `hooks`, `fixperms` | `install-hooks`, `fixperms` |
 | `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |

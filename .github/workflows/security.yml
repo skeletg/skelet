@@ -51,7 +51,7 @@ jobs:
       # scan is what says whether the suite's image is affected. The CLI's is the standard library alone
       - name: Scan
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk apps/skelet; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             echo "==> $mod"
             (cd "$mod" && govulncheck ./...) || exit 1
           done

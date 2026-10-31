@@ -115,7 +115,7 @@ jobs:
         run: go test ./... -count=1 -race
       # The skelet CLI is stdlib-only and imports none of the backend - its route tests read bin/ from the checkout
       - name: Vet + test (skelet CLI)
-        working-directory: apps/skelet
+        working-directory: cmd/skelet
         run: |
           go vet ./...
           go test ./... -count=1 -race
@@ -302,7 +302,7 @@ jobs:
             apps/backend/sdk/go.sum
       - name: gofmt
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk apps/skelet; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             unformatted=$(cd "$mod" && gofmt -l .)
             if [ -n "$unformatted" ]; then
               echo "gofmt would reformat in $mod:" && echo "$unformatted" && exit 1
@@ -311,7 +311,7 @@ jobs:
       # same pin as bin/lint - the two must agree or CI and local disagree
       - name: golangci-lint
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk apps/skelet; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             echo "==> $mod"
             (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...) || exit 1
           done

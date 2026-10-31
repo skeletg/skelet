@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/skeletg/skelet/apps/skelet/internal/gitx"
-	"github.com/skeletg/skelet/apps/skelet/internal/plugins"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
+	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 )
 
 // What this checkout can be set up with
