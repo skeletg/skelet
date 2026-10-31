@@ -190,6 +190,16 @@ cache=(-count=1)
 
 core_env=(-e DATABASE_URL="$TEST_DB_URL" -e SIGNALS_DB_URL= "${schema_env[@]}")
 sig_env=(-e DATABASE_URL= -e SIGNALS_DB_URL="$TEST_SIG_URL" -e SIGNALS_CH_URL="$ch_dsn" -e SIGNALS_CH_TEST_DSN="$ch_dsn" "${schema_env[@]}")
+# The front door's own module runs on the host, where it's built - host Go, else the image ./skelet builds it in,
+# with the repo read-only since its tests check the route table against bin/
+cli_test() { # <go test args...>
+    if command -v go >/dev/null 2>&1; then
+        (cd apps/skelet && GOWORK=off go test "$@")
+    else
+        docker run --rm -v "$PWD:/repo:ro" -v skelet-cli-gocache:/root/.cache/go-build -w /repo/apps/skelet \
+            -e GOFLAGS=-buildvcs=false "$(grep -oE 'golang:[0-9][0-9.]*-alpine' skelet)" go test "$@"
+    fi
+}
 gotest() { # <workdir> [-e VAR=value ...] -- <go test args...>
     local wd="$1"; shift
     local env=()
@@ -207,6 +217,8 @@ if [ $# -eq 0 ]; then
     gotest /var/www/backend/signals "${sig_env[@]}" -- $(bin/go --signals list ./... | grep -v '/internal/e2e$') | summarize signals
     echo "==> sdk module"
     gotest /var/www/backend/sdk "${core_env[@]}" -- ./... | summarize sdk
+    echo "==> skelet CLI module"
+    cli_test -json "${cache[@]}" ./... | summarize skelet
     echo "==> (e2e suites skipped - run them against their throwaway DBs with bin/test-e2e)"
 else
     gotest /var/www/backend/core "${core_env[@]}" -- "$@" | summarize core

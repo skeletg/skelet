@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# The front door - every dev command, grouped by intent instead of by filename
+# Verbs route onto bin/*, which keep working directly and unchanged, so a command that worked yesterday works the same through this
+set -e
+
+# Follow symlinks by hand so a PATH install works - macOS has no readlink -f. Bounded because
+# a symlink cycle would otherwise hang the front door with no output at all
+self="$0"
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+    link="$(readlink "$self")"
+    case "$link" in
+        /*) self="$link" ;;
+        *)  self="$(dirname "$self")/$link" ;;
+    esac
+    hops=$((hops + 1))
+done
+root="$(cd "$(dirname "$self")" && pwd)"
+
+# Standing inside a checkout wins over the one $0 came from, so a PATH install acts on the repo you're in rather than whichever clone got symlinked. $0 can't tell us how we were called - the shell expands a PATH hit to a full path before exec
+d="$PWD"
+while [ "$d" != / ]; do
+    [ -f "$d/bin/_lib" ] && [ -f "$d/skelet" ] && { root="$d"; break; }
+    d="$(dirname "$d")"
+done
+
+# Never cd - bin/db-export and bin/db-import resolve relative paths against your pwd,
+# and exec keeps signals, exit codes and the tty attached to the real script
+run() { exec "$root/bin/$1" "${@:2}"; }
+die() { printf '%s\n' "$*" >&2; exit 2; }
+
+# A case rather than an associative array on purpose - macOS ships bash 3.2, and this is
+# the one file every command goes through, so it must not be where a clone dies
+script_for() {
+    case "$1" in
+        setup)    echo setup ;;
+        doctor)   echo doctor ;;
+        up)       echo dev ;;
+        serve)    echo serve ;;
+        down)     echo down ;;
+        stop)     echo stop ;;
+        restart)  echo restart ;;
+        ps)       echo ps ;;
+        sh)       echo bash ;;
+        go)       echo go ;;
+        cli)      echo cli ;;
+        psql)     echo psql ;;
+        lint)     echo lint ;;
+        search)   echo opensearch ;;
+        release)  echo push-images ;;
+        hooks)    echo install-hooks ;;
+        fixperms) echo fixperms ;;
+        provider) echo provider-check ;;
+        changelog) echo changelog ;;
+        new)      echo new ;;
+        rm)       echo remove ;;
+        *)        return 1 ;;
+    esac
+}
+
+# Compound verbs and what they fan out to - drives the help, the usage list and the errors
+subs_for() {
+    case "$1" in
+        db)      echo 'migrate [--signals] up|rollback|status|new <name> | export | import | shell' ;;
+        gen)     echo '(all) | sqlc | gqlgen | buf' ;;
+        check)   echo '(all) | pins | structure | contracts | codegen' ;;
+        test)    echo '(all) | e2e | storefront [name] [playwright args] | [pkgs] [--changed[=REF]] [--keep] [--no-frontend]' ;;
+        logs)    echo '[service]' ;;
+        pnpm|npm) echo '<app> <pnpm args>' ;;
+        new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
+        rm)      echo 'channel <name> [-y] [--volumes]' ;;
+        changelog) echo '(preview) | check | release <version> [date]' ;;
+        *)       return 1 ;;
+    esac
+}
+
+apps_list() {
+    local out="dashboard" d
+    for d in "$root"/apps/channels/*/package.json; do
+        [ -f "$d" ] && out="$out, $(basename "$(dirname "$d")")"
+    done
+    printf '%s' "$out"
+}
+
+usage() {
+    cat <<EOF
+skelet - the dev commands for this repo
+
+Common
+  setup      configure this clone (run this first)
+  up         start the dev stack          [--lean skips OpenSearch, Signals, dev tools]
+  serve      a frontend on the host       [skelet serve dashboard]
+  down       stop and remove containers
+  logs       tail service logs            [skelet logs app]
+  check      every gate that can fail a commit
+  doctor     diagnose your environment
+
+Containers
+  sh         shell into the app container
+  go         go inside the app            [skelet go test ./internal/...]
+  cli        the ops CLI                  [skelet cli admin create-superuser]
+  pnpm       pnpm in a frontend           [skelet pnpm dashboard run lint]
+  psql       psql on the dev database
+
+Database
+  db         $(subs_for db)
+
+Codegen
+  gen        $(subs_for gen)
+
+Quality
+  test       go test + frontend typechecks + unit tests   [test e2e: money paths, test storefront: browser]
+  lint       gofmt + golangci-lint + eslint
+  changelog  $(subs_for changelog)
+
+Scaffold
+  new        $(subs_for new)
+  rm         $(subs_for rm)
+
+Rarely
+  ps, stop, restart, search, release, fixperms, hooks, provider
+
+  skelet help <command>   detail on one command
+  bin/<script>            the script a verb runs, if you need the source
+EOF
+}
+
+# Prints the target script's own header comment, so this file never restates what
+# the script already documents about itself
+help_for() {
+    local verb="$1"
+    local script subs header
+    script="$(script_for "$verb" || true)"
+    subs="$(subs_for "$verb" || true)"
+    [ -n "$subs" ] && printf 'skelet %s   %s\n\n' "$verb" "$subs"
+    [ -n "$script" ] || { [ -n "$subs" ] && return 0; die "Unknown command \"$verb\" - try: skelet help"; }
+    printf 'runs bin/%s\n\n' "$script"
+    # awk, not sed - BSD sed on macOS chokes on a one-line {} block with semicolons
+    header="$(awk 'NR == 1 { next } /^set / { exit } /^#/ { sub(/^#[ ]?/, ""); print }' "$root/bin/$script")"
+    # A script with no header comment of its own - point at the source rather than inventing one
+    printf '%s\n' "${header:-(no description - it is $(wc -l < "$root/bin/$script" | tr -d ' ') lines, just read bin/$script)}"
+}
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+    help|-h|--help)
+        [ -n "${1:-}" ] && { help_for "$1"; exit 0; }
+        usage; exit 0 ;;
+
+    logs)
+        run logs "$@" ;;
+
+    # npm is the verb from before the switch to pnpm, kept so old muscle memory still lands
+    pnpm|npm)
+        [ "$cmd" = npm ] && echo "(skelet npm is skelet pnpm now - running pnpm)" >&2
+        app="${1:-}"
+        [ $# -gt 0 ] && shift
+        case "$app" in
+            dashboard) run dash "$@" ;;
+            "")        die "skelet pnpm <app> <pnpm args> - apps: $(apps_list)" ;;
+            *)
+                [ -d "$root/apps/channels/$app" ] \
+                    || die "skelet pnpm: unknown app \"$app\" - apps: $(apps_list)"
+                run channel "$app" "$@" ;;
+        esac ;;
+
+    db)
+        sub="${1:-}"
+        [ $# -gt 0 ] && shift
+        case "$sub" in
+            migrate)
+                # --signals anywhere in the args swaps the target database
+                args=(); sig=0
+                for a in "$@"; do
+                    [ "$a" = --signals ] && { sig=1; continue; }
+                    args+=("$a")
+                done
+                [ "$sig" = 1 ] && run migrate-signals ${args[@]+"${args[@]}"}
+                run migrate ${args[@]+"${args[@]}"} ;;
+            export) run db-export "$@" ;;
+            import) run db-import "$@" ;;
+            shell)  run psql "$@" ;;
+            *)      die "skelet db $(subs_for db)" ;;
+        esac ;;
+
+    gen)
+        case "${1:-}" in
+            sqlc)   shift; run sqlc "$@" ;;
+            gqlgen) shift; run gqlgen "$@" ;;
+            buf)    shift; run buf "$@" ;;
+            *)      run codegen "$@" ;;
+        esac ;;
+
+    check)
+        case "${1:-}" in
+            pins)      shift; run pin-check "$@" ;;
+            structure) shift; run repo-check "$@" ;;
+            contracts) shift; run contract-check "$@" ;;
+            codegen)   shift; run codegen --check "$@" ;;
+            *)         run check "$@" ;;
+        esac ;;
+
+    test)
+        [ "${1:-}" = e2e ] && { shift; run test-e2e "$@"; }
+        [ "${1:-}" = storefront ] && { shift; run test-storefront "$@"; }
+        run test "$@" ;;
+
+    *)
+        script="$(script_for "$cmd" || true)"
+        [ -n "$script" ] || die "Unknown command \"$cmd\" - try: skelet help"
+        run "$script" "$@" ;;
+esac

@@ -29,6 +29,7 @@ The applications, and the only place product code lives.
 | `apps/backend/sdk/` | The plugin SDK as its own Go module - what plugin repositories build against, beside core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | The React admin panel (Vite) |
 | `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
+| `apps/skelet/` | The `skelet` command line, the program `./skelet` runs. Its own Go module, standard library only, and it imports nothing from the backend |
 
 Two of these are optional: `./skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
@@ -113,8 +114,9 @@ minimum deployable tenant, and `docker-compose.prod.yml` the full split-tier
 shape; both are described under Deploying in the README. `.nvmrc` pins Node and is what CI reads (`node-version-file`),
 `.gitattributes` locks every text file to LF so a Windows checkout cannot rewrite
 line endings, `.gitignore` and `.dockerignore` keep build contexts and commits
-clean. `README.md`, `AGENTS.md` and `CHANGELOG.md` are the only pages up here -
-everything else belongs in `docs/`.
+clean. `.skelet/` is git-ignored and holds the CLI builds `./skelet` caches,
+one per source version - delete it whenever you like. `README.md`, `AGENTS.md`
+and `CHANGELOG.md` are the only pages up here - everything else belongs in `docs/`.
 
 Never edit the tracked compose files to add your own service. Docker Compose
 auto-merges a git-ignored `docker-compose.override.yml`, which is where a shop

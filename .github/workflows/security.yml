@@ -47,11 +47,11 @@ jobs:
       # Pinned, not @latest - a scanner release can't silently change what merges
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
-      # Both Go modules - the Signals one pulls in only part of core's dependency graph, so its own
-      # scan is what says whether the suite's image is affected
+      # Every Go module - the Signals one pulls in only part of core's dependency graph, so its own
+      # scan is what says whether the suite's image is affected. The CLI's is the standard library alone
       - name: Scan
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk apps/skelet; do
             echo "==> $mod"
             (cd "$mod" && govulncheck ./...) || exit 1
           done

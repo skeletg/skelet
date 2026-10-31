@@ -120,6 +120,14 @@
       "datasourceTemplate": "go"
     },
     {
+      // The image the ./skelet shim builds the CLI in when the host has no Go. depName golang puts
+      // it in the go toolchain group with go.mod and the Dockerfiles
+      "customType": "regex",
+      "managerFilePatterns": ["/^skelet$/"],
+      "matchStrings": ["GO_IMAGE=(?<depName>golang):(?<currentValue>[0-9][0-9.]*-alpine)"],
+      "datasourceTemplate": "docker"
+    },
+    {
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)Dockerfile(\\.prod)?$/"],
       "matchStrings": ["npm install -g pnpm@(?<currentValue>[0-9][0-9.]*)"],

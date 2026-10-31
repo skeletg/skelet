@@ -1,0 +1,22 @@
+# golangci-lint configuration for the skelet CLI - the SDK's floor, minus the database linters a CLI has no use for
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - modernize
+    - errorlint
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: SA5011
+        path: _test\.go
+      - linters:
+          - staticcheck
+        text: QF1001

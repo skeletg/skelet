@@ -3,9 +3,9 @@
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
-# Both Go modules, each on its own go.mod - the Signals module replaces core's by relative path, so a
+# Every Go module, each on its own go.mod - the Signals module replaces core's by relative path, so a
 # lint run there type-checks core's public packages too
-MODULES=(apps/backend/core apps/backend/signals apps/backend/sdk)
+MODULES=(apps/backend/core apps/backend/signals apps/backend/sdk apps/skelet)
 
 for mod in "${MODULES[@]}"; do
     echo "==> gofmt ($mod)"

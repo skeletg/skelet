@@ -1,0 +1,38 @@
+skelet - the dev commands for this repo
+
+Common
+  setup      configure this clone (run this first)
+  up         start the dev stack          [--lean skips OpenSearch, Signals, dev tools]
+  serve      a frontend on the host       [skelet serve dashboard]
+  down       stop and remove containers
+  logs       tail service logs            [skelet logs app]
+  check      every gate that can fail a commit
+  doctor     diagnose your environment
+
+Containers
+  sh         shell into the app container
+  go         go inside the app            [skelet go test ./internal/...]
+  cli        the ops CLI                  [skelet cli admin create-superuser]
+  pnpm       pnpm in a frontend           [skelet pnpm dashboard run lint]
+  psql       psql on the dev database
+
+Database
+  db         migrate [--signals] up|rollback|status|new <name> | export | import | shell
+
+Codegen
+  gen        (all) | sqlc | gqlgen | buf
+
+Quality
+  test       go test + frontend typechecks + unit tests   [test e2e: money paths, test storefront: browser]
+  lint       gofmt + golangci-lint + eslint
+  changelog  (preview) | check | release <version> [date]
+
+Scaffold
+  add        channel <name> [--from <storefront>] [--tracked]
+  rm         channel <name> [-y] [--volumes]
+
+Rarely
+  ps, stop, restart, search, release, fixperms, hooks, provider, version
+
+  skelet help <command>   detail on one command
+  bin/<script>            the script a verb runs, if you need the source

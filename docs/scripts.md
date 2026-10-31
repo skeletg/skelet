@@ -7,6 +7,14 @@ between them is at the bottom, for when you're reading the source.
 
 They all `cd` to the repo root on their own, so you can run them from anywhere.
 
+**What `./skelet` actually is.** A small bash shim in front of a Go program in
+`apps/skelet`. The first run, and the first after anything in there changes, builds it
+into `.skelet/bin/` - with your own Go if you have it, otherwise inside the `golang`
+image, so Docker alone is enough - and every run after that starts the cached binary
+straight away. The program maps the verb onto its `bin/` script and execs it, so Ctrl-C,
+exit codes and the terminal behave exactly as if you'd run the script yourself. With
+neither Go nor Docker running the shim says so, and `bin/<script>` still works on its own.
+
 **Running it without the `./`.** Symlink it into a directory already on your PATH:
 
 ```bash
@@ -121,12 +129,15 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | Command | What it does |
 |---|---|
 | `./skelet search` | Query the search cluster without writing the DSL by hand: `status`, `products <q>`, `blog <q>`, `show products <id>`, `raw GET /_cluster/health`. Reindexing lives in `./skelet cli search reindex`. |
-| `./skelet new` | Scaffold a storefront: `./skelet new channel <name> [--from <storefront>] [--tracked]`. Forks an existing shop under `apps/channels/`, allocates the first free dev and small-tier ports across every compose file, and copies the source's compose service rather than templating one here, so it inherits wiring changes instead of drifting. The service lands in the git-ignored `docker-compose.override.yml` (the convention in [workflow.md](workflow.md) - it keeps upstream pulls conflict-free) along with any YAML anchors it references, since those don't cross compose files. `--tracked` writes the dev, prod and small files instead, for adding a storefront to skelet itself. Nothing is written until every generated file passes `docker compose config`, so a failure leaves the tree untouched. |
-| `./skelet rm` | Undo a scaffold: `./skelet rm channel <name> [-y] [--volumes]`. Finds the service wherever `new` put it, strips it and its volume declarations, deletes the directory and env templates, stops the container, and drops `.skelet-apps` back. Prints everything it will delete with sizes and asks first, saying whether the directory is committed (recoverable) or untracked (not). Volumes are **kept** unless you pass `--volumes` - that's the part you can't undo, and a storefront's `.next` cache runs to gigabytes. Validates the edited compose files before writing, same as `new`; an override left with no services is deleted rather than written empty. |
+| `./skelet add` | Scaffold a storefront: `./skelet add channel <name> [--from <storefront>] [--tracked]`. Forks an existing shop under `apps/channels/`, allocates the first free dev and small-tier ports across every compose file, and copies the source's compose service rather than templating one here, so it inherits wiring changes instead of drifting. The service lands in the git-ignored `docker-compose.override.yml` (the convention in [workflow.md](workflow.md) - it keeps upstream pulls conflict-free) along with any YAML anchors it references, since those don't cross compose files. `--tracked` writes the dev, prod and small files instead, for adding a storefront to skelet itself. Nothing is written until every generated file passes `docker compose config`, so a failure leaves the tree untouched. `new channel` still works and says it's `add channel` now. |
+| `./skelet rm` | Undo a scaffold: `./skelet rm channel <name> [-y] [--volumes]`. Finds the service wherever `add` put it, strips it and its volume declarations, deletes the directory and env templates, stops the container, and drops `.skelet-apps` back. Prints everything it will delete with sizes and asks first, saying whether the directory is committed (recoverable) or untracked (not). Volumes are **kept** unless you pass `--volumes` - that's the part you can't undo, and a storefront's `.next` cache runs to gigabytes. Validates the edited compose files before writing, same as `add`; an override left with no services is deleted rather than written empty. |
 | `./skelet fixperms` | Find and fix root-owned files under `apps/` left behind by container writes. Only asks for sudo when there's something to fix. |
 | `./skelet doctor` | Sanity-check the environment: docker up, env files present, containers running, ports answering, backend /health, `*.localhost` resolution, disk space. Run it when something feels off. |
 
 ## The scripts behind the verbs
+
+Each route is one line in `apps/skelet/internal/route/table.go`, and `./skelet check structure`
+fails when a script has no route or a route has no script.
 
 | Verb | Runs |
 |---|---|
@@ -141,7 +152,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
 | `setup`, `doctor`, `hooks`, `fixperms` | `setup`, `doctor`, `install-hooks`, `fixperms` |
 | `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
-| `new channel <name>`, `rm channel <name>` | `new`, `remove` |
+| `add channel <name>`, `rm channel <name>` | `new`, `remove` |
 
 `bin/repo-check` fails if `./skelet` routes to a script that doesn't exist, so
 the table above can't quietly rot when a script is renamed.

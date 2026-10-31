@@ -18,8 +18,9 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
+| `apps/skelet/` | The `skelet` CLI behind the front door, its own `go.mod`: standard library only, imports nothing from the backend |
 | `bin/` | What those verbs run, one script per operation |
-| `./skelet` | Front door - every dev command goes through it |
+| `./skelet` | Front door - a shim that builds `apps/skelet` and runs it. Every dev command goes through it |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
 Full tree: [docs/architecture.md](docs/architecture.md). What each root directory is
@@ -196,6 +197,9 @@ codegen outright.
 - `core.fileMode` is off here, so `chmod +x` on a `bin/` script needs
   `git update-index --chmod=+x <file>` to stick
 - Air's hot reload misses changes on WSL2 - `docker compose restart app`
+- The first `./skelet` after a change under `apps/skelet` rebuilds the CLI into `.skelet/bin/` - host Go if
+  there is one, else the `golang` image - and every later run starts the cached binary. Its routes are one
+  line each in `apps/skelet/internal/route/table.go`, and `./skelet check structure` holds them to `bin/` both ways
 - Containers run as your uid via `SKELET_UID`, which only `bin/_lib` exports. A script
   that runs `docker compose run` or `up` must source it, and `bin/repo-check` enforces that
 

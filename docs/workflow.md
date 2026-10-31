@@ -8,7 +8,8 @@ generated, and the cross-app contracts a change has to keep.
 `./skelet` is the front door - bare for a grouped list of every command,
 `./skelet help <command>` for one. The scripts under `bin/` are what it runs,
 and [scripts.md](scripts.md) has the detail on each command plus the map
-between the two.
+between the two. The front door itself is a Go program under `apps/skelet`,
+built on first use - a couple of seconds with host Go, a few more through Docker.
 
 | Command | Action |
 |---|---|
@@ -121,7 +122,7 @@ of the same app pinned to it - same source, same image, its own port and `.next`
 volume - published at that channel's `public_url` so the dashboard's preview links
 and the backend's Host-based channel resolution both line up. Put it in your
 git-ignored `docker-compose.override.yml`; there's a worked example there if this
-clone has one, and `./skelet new channel` writes services in the same shape.
+clone has one, and `./skelet add channel` writes services in the same shape.
 
 There is deliberately no cookie or query-param channel switcher. Anything
 request-scoped can't decide the channel, because the routes that serve most of the
@@ -297,7 +298,7 @@ git checkout main
 One directory per shop under `apps/channels/<name>/`; the directory name
 doubles as the compose service and profile name.
 
-`skelet new channel <your-shop>` does steps 1 and 2 for you - it forks a
+`skelet add channel <your-shop>` does steps 1 and 2 for you - it forks a
 storefront, gives it the first free ports, copies the compose service out of the
 existing one (so it inherits changes to the demo's wiring rather than a snapshot
 taken once), and writes nothing until the result parses. `--tracked` puts the
