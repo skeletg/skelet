@@ -77,8 +77,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 			return false, err
 		}
 		if len(comps) == 0 {
-			// No components = nothing to gate, same as an untracked simple
-			return true, nil
+			return false, nil // an empty kit can't be added, same as a bundle with nothing to pick
 		}
 		ids := make([]uuid.UUID, len(comps))
 		for i, c := range comps {
