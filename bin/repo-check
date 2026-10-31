@@ -19,6 +19,12 @@ for f in ./skelet bin/*; do
 done
 [ "$fail" -eq 0 ] && pass "$n scripts"
 
+echo "==> the CLI installer is POSIX sh"
+# It runs as curl ... | sh, and sh is dash on Debian and Ubuntu - so dash when there is one, since bash -n waves bashisms through
+posix_sh=sh
+command -v dash >/dev/null 2>&1 && posix_sh=dash
+if $posix_sh -n apps/skelet/install.sh; then pass "apps/skelet/install.sh parses with $posix_sh"; else bad "apps/skelet/install.sh is not valid sh"; fi
+
 echo "==> ./skelet and bin/* agree"
 # Read off the front door's route table, not a second list, so it can't drift - one Script field per route, a shape
 # the table's own Go test holds it to, so this stays a grep and the gates still need no Go

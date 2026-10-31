@@ -11,7 +11,7 @@ could be running in production.
 **`develop` is where work integrates.** Feature branches cut from it and merge
 back into it. It is not expected to be released, and CI does not gate it - the
 suite runs on pull requests into `main`, so a develop→main PR is where a
-regression surfaces. Run `./skelet check` and `./skelet test e2e` locally before merging
+regression surfaces. Run `skelet check` and `skelet test e2e` locally before merging
 anything sizeable, or the release PR is the first time anyone finds out.
 
 Nothing else is long-lived. Feature branches are short and get deleted after they
@@ -28,7 +28,7 @@ A fix that cannot wait for the next release branches from `main`, merges to
 
 ## Version numbers, and which is which
 
-Four things carry versions, and they move independently. Conflating them is the
+Several things carry versions, and they move independently. Conflating them is the
 mistake to avoid:
 
 | | Where | What it means |
@@ -38,6 +38,7 @@ mistake to avoid:
 | **SDK** | `sdk.Version`, tagged `apps/backend/sdk/vX.Y.Z` | the plugin API surface |
 | **Provider contract** | `contract.Version` | the remote-provider wire format |
 | **Plugins** | each plugin's `Manifest.Version` | that plugin |
+| **CLI** | stamped from the release tag when the release workflow builds it | the same number as the release - `skelet version` shows it |
 
 They all read `0.1.0` today because everything starts there. They will diverge on
 the first release that changes one and not the others, and that is correct - the
@@ -54,10 +55,10 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 2. **Decide the version.** Look at what changed since the last tag. Breaking
    change in `0.x` means a MINOR bump.
 
-3. **Write the changelog.** `./skelet changelog` shows what the release will say,
+3. **Write the changelog.** `skelet changelog` shows what the release will say,
    gathered from the fragments in `changelog/unreleased/`. Read it through, fix any
    entry that needs it in its fragment, and add a `summary` fragment if the release
-   deserves an opening paragraph. Then `./skelet changelog release <version>` writes
+   deserves an opening paragraph. Then `skelet changelog release <version>` writes
    `changelog/<version>.md` dated today, lists it in [CHANGELOG.md](../CHANGELOG.md)
    and deletes the fragments. Commit all of it.
 
@@ -65,8 +66,8 @@ the PATCH. There is no compatibility promise until `1.0.0`.
    the SDK surface moved, `contract.Version` only if the wire format did. Do not
    bump them in sympathy with the product version.
 
-5. **Run the gates.** `./skelet check`, `./skelet lint`, `./skelet test e2e`, and
-   `./skelet gen --check`. All of them, not the fast ones.
+5. **Run the gates.** `skelet check`, `skelet lint`, `skelet test e2e`, and
+   `skelet gen --check`. All of them, not the fast ones.
 
 6. **Merge `develop` into `main`.** No squash - `main`'s history should show what
    went into the release.
@@ -80,6 +81,13 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 
    Annotated, not lightweight: `git describe` and the SDK gate both want a real
    tag object.
+
+   The push runs `.github/workflows/release.yml`, which tests the CLI, builds it
+   for macOS and Linux, and publishes the GitHub release - `changelog/X.Y.Z.md`
+   as the notes, with the binaries, `checksums.txt` and `install.sh` attached.
+   The README's one-line install takes the newest release, so check the run goes
+   green: until it does, new installs get the previous one. A release you made by
+   hand first just gets the files added.
 
    The Go modules take tags of their own, prefixed with their directory, because
    that's how Go finds a module that isn't at the repo root. Core's always matches
@@ -98,7 +106,7 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 8. **Publish images**, if you are shipping them:
 
    ```
-   REGISTRY=registry.example.com ./skelet release v0.1.0
+   REGISTRY=registry.example.com skelet release v0.1.0
    ```
 
 9. **Merge `main` back into `develop`** so the changelog and any release-time

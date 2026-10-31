@@ -11,7 +11,7 @@ DOCKERFILES=()
 while IFS= read -r f; do DOCKERFILES+=("$f"); done \
     < <(find apps -maxdepth 3 -name 'Dockerfile*' -not -path '*/node_modules/*' | sort)
 COMPOSE=(docker-compose.yml docker-compose.small.yml docker-compose.prod.yml)
-WORKFLOWS=(.github/workflows/ci.yml .github/workflows/security.yml)
+WORKFLOWS=(.github/workflows/*.yml)
 PACKAGE_JSONS=()
 while IFS= read -r f; do PACKAGE_JSONS+=("$f"); done \
     < <(find apps -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)

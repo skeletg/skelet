@@ -15,11 +15,11 @@ convention is the one most code comments point at.
   types (Customer, Product, Order, …); cart-only types live in
   `apps/backend/core/graph/front/model`.
 - Migrations in `apps/backend/core/internal/db/migrations/` - one dbmate file
-  each, `<timestamp>_<name>.sql` from `./skelet db migrate new <name>`, holding its
+  each, `<timestamp>_<name>.sql` from `skelet db migrate new <name>`, holding its
   `-- migrate:up` and `-- migrate:down` halves.
 - Every stream applies itself: the processes that open a database migrate it as
   they boot, before anything reads it, so nothing runs against a stale schema. Adding
-  a migration means restarting the app, not remembering to run `./skelet db migrate` -
+  a migration means restarting the app, not remembering to run `skelet db migrate` -
   see [database.md](database.md).
 
 ## Dashboard hygiene

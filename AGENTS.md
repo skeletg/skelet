@@ -18,7 +18,7 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
-| `apps/skelet/` | The `skelet` CLI behind the front door, its own `go.mod`: standard library only, imports nothing from the backend |
+| `apps/skelet/` | The `skelet` CLI: the front door here, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
 | `bin/` | What those verbs run, one script per operation |
 | `./skelet` | Front door - a shim that builds `apps/skelet` and runs it. Every dev command goes through it |
 | `docs/` | One file per question, indexed in `docs/README.md` |
@@ -32,7 +32,9 @@ for: [docs/layout.md](docs/layout.md).
 container, the right database URL and the right node_modules. `./skelet` with no
 arguments lists every verb; `./skelet help <verb>` explains one. The `bin/` scripts
 underneath are the implementation: read one when you need the detail, but drive the
-repo through the verbs so there's a single vocabulary.
+repo through the verbs so there's a single vocabulary. The docs write plain `skelet`, the
+installed CLI, which hands each command to the checkout's `./skelet` - so the two are the
+same, and `./skelet` is the one that needs nothing installed.
 
 ```bash
 ./skelet setup            # first run: picks apps, writes env, migrates, boots

@@ -77,6 +77,7 @@ func TestResolveRefusals(t *testing.T) {
 		{[]string{"db"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"db", "--signals"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"nope"}, `Unknown command "nope" - try: skelet help`},
+		{[]string{"new", "my-shop", "--yes"}, newProject},
 	}
 	for _, c := range cases {
 		a := Resolve(root, c.args)

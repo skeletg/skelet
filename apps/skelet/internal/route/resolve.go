@@ -46,6 +46,9 @@ func Resolve(root string, args []string) Action {
 	case "gen", "check", "test":
 		return withSubs(verb, rest)
 	case "new":
+		if len(rest) > 0 && rest[0] != "channel" && !strings.HasPrefix(rest[0], "-") {
+			return die(newProject)
+		}
 		a := simple("add", rest)
 		if len(rest) > 0 && rest[0] == "channel" {
 			a.Notice = "(skelet new channel is skelet add channel now - running it)"
@@ -54,6 +57,10 @@ func Resolve(root string, args []string) Action {
 	}
 	return simple(verb, rest)
 }
+
+// What the docs' skelet new <dir> meets when it's typed as ./skelet in a clone, where new is add channel's old name
+const newProject = "skelet new <dir> starts a project, and only the installed CLI does that (the README's Quickstart). " +
+	"To add a storefront to this one: skelet add channel <name>"
 
 func simple(verb string, rest []string) Action {
 	r, ok := lookup(verb, "")
