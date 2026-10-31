@@ -50,8 +50,17 @@ type Tracker struct {
 	orders orderLookup
 }
 
-func NewTracker(rec *signalsclient.Client, orders *order.Service) *Tracker {
+func NewTracker(rec *signalsclient.Client, orders orderLookup) *Tracker {
 	return &Tracker{rec: rec, orders: orders}
+}
+
+// BackfillOrder replays a past order's placement at its original time, for orders that never reached the suite - the
+// dedupe key makes a re-run, or an order the suite already holds, a no-op
+func (t *Tracker) BackfillOrder(ctx context.Context, o order.Order) error {
+	return t.onOrderPlaced(events.WithEmittedAt(ctx, o.CreatedAt), &order.OrderPlaced{
+		OrderID: o.ID, OrderNumber: o.Number, CustomerID: o.CustomerID, Email: o.Email, AnonID: o.AnonID,
+		ChannelID: o.ChannelID, TotalCents: o.TotalAmount, Currency: o.CurrencyCode,
+	})
 }
 
 func (t *Tracker) Subscribe(bus *events.Bus) {
