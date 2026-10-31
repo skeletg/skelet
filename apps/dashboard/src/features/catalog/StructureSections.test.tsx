@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderSection } from '@/test/page-harness'
 import { PrefsContext } from '@/lib/admin-prefs'
-import { ProductPickerPagedDocument, ProductTypesDocument, ProductVariantsDocument, SetBundlePricingDocument } from './Catalog.gql'
+import { ProductPickerPagedDocument, ProductTypesDocument, ProductVariantsDocument, SetBundlePricingDocument, UpdateProductDocument } from './Catalog.gql'
 import { BundleStructureSection } from './BundleStructureSection'
 import { GroupedStructureSection } from './GroupedStructureSection'
 import { KitStructureSection } from './KitStructureSection'
@@ -27,7 +27,7 @@ describe('structure section remove confirms', () => {
   })
 
   it('stages a kit component removal', async () => {
-    renderSection(<KitStructureSection canManage product={{ id: 'p1', kitComponents: [{ id: 'kc1', component: widget, quantity: 1, sortOrder: 0 }] }} />)
+    renderSection(<KitStructureSection canManage product={{ id: 'p1', kitItemsReturnable: false, kitComponents: [{ id: 'kc1', component: widget, quantity: 1, sortOrder: 0 }] }} />)
     await confirmIn('Remove component', 'Stage remove')
   })
 
@@ -137,6 +137,23 @@ describe('bundle pricing per store', () => {
     expect(within(dialog).getByText('25% off the picks')).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(() => expect(set).toHaveBeenCalledWith({ productId: 'p1', channelId: 'c1', pricing: 'SUM_MINUS_PERCENT', discountPercent: 25 }), SLOW)
+  })
+})
+
+// What this pins: whether a kit's items come back one at a time is staged like its components and applied by the page Save
+describe('kit item returns', () => {
+  it('stages the setting and saves it on Save', async () => {
+    const update = vi.fn()
+    renderSection(<KitStructureSection canManage product={{ id: 'p1', kitItemsReturnable: false, kitComponents: [{ id: 'kc1', component: widget, quantity: 1, sortOrder: 0 }] }} />, [
+      { request: { query: UpdateProductDocument, variables: captureInput(update) }, result: { data: { updateProduct: { __typename: 'Product', id: 'p1', kitItemsReturnable: true } } } },
+    ])
+    fireEvent.click(await screen.findByRole('switch', { name: 'Return items separately' }))
+    expect(update).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Whole kit or single items')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
+    await vi.waitFor(() => expect(update).toHaveBeenCalledWith({ id: 'p1', kitItemsReturnable: true }), SLOW)
   })
 })
 

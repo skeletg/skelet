@@ -947,6 +947,7 @@ query Product($id: ID!) {
       createdAt
       updatedAt
     }
+    kitItemsReturnable
     kitComponents {
       id
       component {
@@ -1016,6 +1017,7 @@ mutation CreateProduct($input: CreateProductInput!) {
 mutation UpdateProduct($input: UpdateProductInput!) {
   updateProduct(input: $input) {
     id
+    kitItemsReturnable
     sku
     defaultPrice
     defaultCurrencyCode
