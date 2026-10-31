@@ -8,7 +8,9 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
 	"github.com/skeletg/skelet/cmd/skelet/internal/fixperms"
 	"github.com/skeletg/skelet/cmd/skelet/internal/gates"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/lint"
 	"github.com/skeletg/skelet/cmd/skelet/internal/release"
 	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
@@ -44,7 +46,7 @@ var routes = []Route{
 	{Verb: "go", Script: "go"},
 	{Verb: "cli", Go: container.CLI, About: container.CLIAbout},
 	{Verb: "psql", Go: db.Shell, About: db.ShellAbout},
-	{Verb: "lint", Script: "lint"},
+	{Verb: "lint", Go: lint.Run, About: lint.About},
 	{Verb: "search", Go: search.Run, About: search.About},
 	{Verb: "release", Go: release.Run, About: release.About},
 	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
@@ -60,7 +62,7 @@ var routes = []Route{
 	{Verb: "db", Sub: "export", Go: db.Export, About: db.ExportAbout},
 	{Verb: "db", Sub: "import", Go: db.Import, About: db.ImportAbout},
 	{Verb: "db", Sub: "shell", Go: db.Shell, About: db.ShellAbout},
-	{Verb: "gen", Script: "codegen"},
+	{Verb: "gen", Go: gen.Run, About: gen.About},
 	{Verb: "gen", Sub: "sqlc", Script: "sqlc"},
 	{Verb: "gen", Sub: "gqlgen", Script: "gqlgen"},
 	{Verb: "gen", Sub: "buf", Script: "buf"},
@@ -68,7 +70,7 @@ var routes = []Route{
 	{Verb: "check", Sub: "pins", Go: gates.Pins, About: gates.PinsAbout},
 	{Verb: "check", Sub: "structure", Go: gates.Repo, About: gates.RepoAbout},
 	{Verb: "check", Sub: "contracts", Go: gates.Contracts, About: gates.ContractsAbout},
-	{Verb: "check", Sub: "codegen", Script: "codegen", Prepend: []string{"--check"}},
+	{Verb: "check", Sub: "codegen", Go: gen.Check, About: gen.About},
 	{Verb: "test", Script: "test"},
 	{Verb: "test", Sub: "e2e", Script: "test-e2e"},
 	{Verb: "test", Sub: "storefront", Script: "test-storefront"},

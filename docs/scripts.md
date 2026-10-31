@@ -150,12 +150,10 @@ fails when a script has no route or a route has no script.
 | `up` | `dev` |
 | `go` | `go` |
 | `pnpm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` - `npm` is kept as an alias from before the switch |
-| `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
-| `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
-| `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `changelog` | `changelog` |
+| `gen sqlc`, `gen gqlgen`, `gen buf` | `sqlc`, `gqlgen`, `buf` |
+| `test`, `test e2e`, `test storefront` | `test`, `test-e2e`, `test-storefront` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
-| `setup`, `doctor`, `hooks`, `down`, `stop`, `restart`, `ps`, `logs`, `serve`, `sh`, `cli`, `psql`, `db ...`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
+| everything else - `setup`, `doctor`, `check` and its gates, `gen`, `lint`, `changelog`, `hooks`, the stack and container verbs, `db`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
 
 `skelet check structure` fails if `skelet` routes to a script that doesn't exist, so
 the table above can't quietly rot when a script is renamed.

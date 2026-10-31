@@ -39,7 +39,7 @@ version, a checksum in go.sum, one copy instead of two, and go get -u as the upg
 path. Reach for install only when the plugin has no module - no go.mod, or no repo you
 can fetch from.
 
-A plugin shipping graphql/ needs bin/codegen before the tree builds, so the smoke
+A plugin shipping graphql/ needs skelet gen before the tree builds, so the smoke
 build is skipped for those and the checklist says what is left.
 
 This compiles CODE into your binary with full privileges. Read it first - capabilities
@@ -152,13 +152,13 @@ func runPluginAdd(cmd *cobra.Command, args []string) error {
 	printStep("Audit it: skelet cli plugin list shows the manifest, but capabilities",
 		"are a disclosure, not a sandbox - read the code")
 	if hasGraphql {
-		printStep("bin/codegen - it ships graphql/, which must merge into the schema",
+		printStep("skelet gen - it ships graphql/, which must merge into the schema",
 			"before anything builds")
 		printStep("If it adds PUBLIC queries or mutations, the authz tripwires will name them:",
 			"add reviewed entries to graph/admin/authz_coverage_test.go,",
 			"graph/front/authz_coverage_test.go and graph/front/schema_exposure_test.go")
 	} else {
-		printStep("bin/codegen - regenerates the docs/config references it registers")
+		printStep("skelet gen - regenerates the docs/config references it registers")
 	}
 	if _, err := os.Stat(filepath.Join(modDir, "migrations")); err == nil {
 		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))

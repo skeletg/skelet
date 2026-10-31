@@ -168,7 +168,7 @@ func setPluginState(slug string, on bool) error {
 	if on {
 		state = "enabled"
 	}
-	fmt.Printf("%s %s in %s - run bin/codegen, then rebuild\n", slug, state, pluginset.StateFile)
+	fmt.Printf("%s %s in %s - run skelet gen, then rebuild\n", slug, state, pluginset.StateFile)
 	return nil
 }
 
@@ -314,7 +314,7 @@ func runPluginNew(cmd *cobra.Command, args []string) error {
 		step++
 	}
 	fmt.Printf("  %d. If it extends GraphQL, drop the SDL in plugins/%s/graphql/{admin,front}/\n", step, slug)
-	fmt.Println("     and run bin/codegen - the core-side delegation and interfaces are generated,")
+	fmt.Println("     and run skelet gen - the core-side delegation and interfaces are generated,")
 	fmt.Println("     so there is no resolver to write outside your own package.")
 	fmt.Println()
 	step++

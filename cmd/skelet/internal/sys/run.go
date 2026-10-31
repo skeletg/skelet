@@ -48,7 +48,11 @@ func Exit(code int) {
 // HandleInterrupts is for a verb that runs several commands in turn. Ctrl-C reaches the running child from the
 // terminal on its own, so this process waits for it and then exits the way it did; with no child running, an
 // interrupt ends the verb at once. Notify rather than Ignore - an ignored signal would be inherited
-func HandleInterrupts() {
+func HandleInterrupts() { handleOnce.Do(handle) }
+
+var handleOnce sync.Once
+
+func handle() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {

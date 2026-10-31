@@ -14,7 +14,7 @@ server {
     # such location repeats what it needs (see /assets/ below).
     #
     # SYNC: the CSP and Permissions-Policy lines are GENERATED from
-    # apps/backend/core/lib/httpx/securityheaders.go by bin/codegen (cmd/secheadgen) and
+    # apps/backend/core/lib/httpx/securityheaders.go by skelet gen (cmd/secheadgen) and
     # gated by skelet check contracts, so edit them there - the storefront's next.config.ts
     # is deliberately narrower
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ${UPLOAD_ORIGINS}; frame-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" always;

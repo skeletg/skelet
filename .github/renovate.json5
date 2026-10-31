@@ -114,7 +114,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.yml$/", "/^bin/lint$/"],
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.yml$/", "/^cmd/skelet/internal/lint/lint\\.go$/"],
       "matchStrings": ["golangci-lint/v2/cmd/golangci-lint@(?<currentValue>v[0-9][0-9.]*)"],
       "depNameTemplate": "github.com/golangci/golangci-lint/v2",
       "datasourceTemplate": "go"

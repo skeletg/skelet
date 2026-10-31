@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 )
 
 const CheckAbout = `Every gate that can fail a commit, in one command - what the pre-commit hook and CI both run, so
@@ -64,7 +64,7 @@ func Check(root string, args []string) int {
 	// command rather than editing a file
 	if codegen {
 		fmt.Println("\n>>> codegen (generated files match their sources)")
-		if legacy.Run(root, "codegen", "--check") != nil {
+		if gen.Check(root, nil) != 0 {
 			failed = append(failed, "skelet check codegen")
 		}
 	}

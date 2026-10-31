@@ -32,7 +32,7 @@ func pinTree(t *testing.T) string {
 		".github/workflows/ci.yml": "jobs:\n  x:\n    services:\n      postgres:\n        image: postgres:18\n    steps:\n" +
 			"      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run\n" +
 			"      - uses: actions/setup-node@v4\n        with:\n          node-version:   24\n",
-		"bin/lint":                          "GCL=(go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0)\n",
+		"cmd/skelet/internal/lint/lint.go":  "const Golangci = \"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0\"\n",
 		"apps/backend/core/Dockerfile.prod": "# builder on alpine3.24\nFROM golang:1.27.3-alpine3.24 AS build\nRUN go install github.com/amacneil/dbmate/v2@v2.36.0\nFROM alpine:3.24\n",
 		"apps/dashboard/Dockerfile":         "FROM node:24-alpine\nRUN npm install -g pnpm@12.6.0\n",
 		"apps/dashboard/package.json":       `{"packageManager": "pnpm@12.6.0"}` + "\n",

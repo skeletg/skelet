@@ -11,6 +11,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/container"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
@@ -49,7 +50,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 
 	if w.pluginsChanged {
 		fmt.Println("==> Regenerating the plugin GraphQL delegation (skelet gen)...")
-		if err := script("codegen"); err != nil {
+		if gen.Run(root, nil) != 0 {
 			fmt.Println("    codegen failed - run skelet gen once the stack is warm")
 		}
 	}

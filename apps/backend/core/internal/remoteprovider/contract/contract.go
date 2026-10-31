@@ -18,7 +18,7 @@ var files embed.FS
 func ExampleRequest(kind string) ([]byte, error) {
 	b, err := files.ReadFile(kind + ".request.json")
 	if err != nil {
-		return nil, fmt.Errorf("no generated example for kind %q (run bin/codegen)", kind)
+		return nil, fmt.Errorf("no generated example for kind %q (run skelet gen)", kind)
 	}
 	return b, nil
 }

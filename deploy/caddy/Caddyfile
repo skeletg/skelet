@@ -18,7 +18,7 @@
 # omit it, since asserting it over plain http would wrongly pin a browser for a year
 #
 # The CSP and Permissions-Policy lines are GENERATED from apps/backend/core/lib/httpx/securityheaders.go
-# by bin/codegen (cmd/secheadgen) and gated by skelet check contracts, so edit them there.
+# by skelet gen (cmd/secheadgen) and gated by skelet check contracts, so edit them there.
 # Payment SDK hosts (Stripe/Braintree/PayPal) need their script + frame origins; inline
 # styles/scripts stay allowed because Next and Vite inject them
 (security_headers) {

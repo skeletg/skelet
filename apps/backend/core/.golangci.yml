@@ -70,7 +70,7 @@ linters:
           - staticcheck
         text: QF1001
       # gqlgen writes resolver stubs with interface{} and rewrites them every codegen run, so
-      # fixing these just makes the next bin/codegen fail lint again - the signatures aren't ours
+      # fixing these just makes the next skelet gen fail lint again - the signatures aren't ours
       - linters:
           - modernize
         text: interface\{\} can be replaced by any

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# gqlgen inside the app container - bin/codegen drives it, this is for a single config
+# gqlgen inside the app container - skelet gen drives it, this is for a single config
 set -e
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
 
-# No arguments means both surfaces, as bin/codegen runs them
+# No arguments means both surfaces, as skelet gen runs them
 if [ $# -eq 0 ]; then
     "$0" generate --config gqlgen.admin.yml
     exec "$0" generate --config gqlgen.front.yml

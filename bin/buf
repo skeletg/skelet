@@ -14,7 +14,7 @@ run() {
     fi
 }
 
-# No arguments means what bin/codegen does with it: lint the contract, then generate into the backend
+# No arguments means what skelet gen does with it: lint the contract, then generate into the backend
 if [ $# -eq 0 ]; then
     "$0" lint /var/www/proto
     exec "$0" generate --template /var/www/proto/buf.gen.yaml /var/www/proto

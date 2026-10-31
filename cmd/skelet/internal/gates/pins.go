@@ -27,7 +27,7 @@ var pins = []pin{
 	{"postgres", `postgres:[0-9][0-9.]*(-alpine)?`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
 	{"clickhouse", `clickhouse/clickhouse-server:[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows) }},
 	{"dbmate", `amacneil/dbmate/v2@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.compose, f.workflows, f.dockerfiles) }},
-	{"golangci", `golangci-lint@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.workflows, []string{"bin/lint"}) }},
+	{"golangci", `golangci-lint@v[0-9][0-9.]*`, func(f fileSet) []string { return cat(f.workflows, []string{"cmd/skelet/internal/lint/lint.go"}) }},
 	{"node", nodePattern, func(f fileSet) []string { return cat(f.workflows, f.dockerfiles) }},
 	{"alpine", `alpine3?[:.][0-9][0-9.]*`, func(fileSet) []string { return []string{"apps/backend/core/Dockerfile.prod"} }},
 	{"caddy", `caddy:[0-9][0-9.]*`, func(f fileSet) []string { return f.compose }},
