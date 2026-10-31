@@ -315,8 +315,12 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 		}
 		key := returnKey{line: l.ID}
 		if rl.ComponentID != nil {
-			if c, ok := compByID[*rl.ComponentID]; !ok || c.OrderLineID != l.ID {
+			c, ok := compByID[*rl.ComponentID]
+			if !ok || c.OrderLineID != l.ID {
 				return OrderReturn{}, apperr.New("RETURN_UNKNOWN_LINE", apperr.ClassValidation, "return component does not belong to that line")
+			}
+			if !c.Returnable {
+				return OrderReturn{}, apperr.New("RETURN_KIT_WHOLE_ONLY", apperr.ClassValidation, "this kit was sold to be returned whole, not by its items")
 			}
 			key.component = *rl.ComponentID
 		}
