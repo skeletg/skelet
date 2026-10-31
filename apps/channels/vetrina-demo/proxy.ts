@@ -124,6 +124,7 @@ import { getChannelLocales } from "@/app/lib/locale/backend-locales";
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 import { CHANNEL_HEADER, WARM_CHANNEL_HEADER, channelForHost, isChannelId } from "@/app/lib/channel";
 import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@/app/lib/channel-routing";
+import { clearRewriteMark, isOwnRewrite, markRewrite } from "@/app/lib/rewrite-mark";
 
 // A rewrite, not a redirect: the /<channel>/<locale>/ path is the cache key and the browser keeps the clean url
 async function channelRewrite(req: NextRequest, channelId: string): Promise<URL | null> {
@@ -152,13 +153,21 @@ function requestChannel(req: NextRequest): string {
 
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
   const pathname = req.nextUrl.pathname;
-  if (isChannelTreePath(pathname)) return new NextResponse("Not found", { status: 404 });
+  // The /<channel>/ tree is reached only through the rewrite below. Production runs the proxy again on that rewrite,
+  // and that pass - marked by the first - goes straight through: a second session refresh or crawl report would be wrong
+  if (isChannelTreePath(pathname)) {
+    if (!isOwnRewrite(req.headers)) return new NextResponse("Not found", { status: 404 });
+    const headers = new Headers(req.headers);
+    clearRewriteMark(headers);
+    return NextResponse.next({ request: { headers } });
+  }
   const channelId = requestChannel(req);
 
   // Route handlers and files only need the channel stamped; one arriving on a host no channel claims passes through bare
   if (!isLegacyMatched(pathname)) {
     const headers = new Headers(req.headers);
     headers.delete(WARM_CHANNEL_HEADER);
+    clearRewriteMark(headers);
     if (channelId) headers.set(CHANNEL_HEADER, channelId);
     else headers.delete(CHANNEL_HEADER);
     return NextResponse.next({ request: { headers } });
@@ -223,6 +232,8 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   headers.delete(WARM_CHANNEL_HEADER);
   if (channelId) headers.set(CHANNEL_HEADER, channelId);
   else headers.delete(CHANNEL_HEADER);
+  if (rewriteTo) markRewrite(headers);
+  else clearRewriteMark(headers);
   if (Object.keys(forward).length > 0) {
     headers.set("cookie", buildForwardedCookie(headers.get("cookie"), forward));
   }
