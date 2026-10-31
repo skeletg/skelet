@@ -4,7 +4,9 @@ package activity
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -145,7 +147,21 @@ func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (orderRef
 	if err != nil {
 		return orderRef{}, fmt.Errorf("load order %s: %w", orderID, err)
 	}
-	return orderRef{cust: o.CustomerID, anon: o.AnonID, number: o.Number, channel: o.ChannelID}, nil
+	return orderRef{cust: o.CustomerID, anon: orderActor(o.CustomerID, o.AnonID, o.Email), number: o.Number, channel: o.ChannelID}, nil
+}
+
+// orderActor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt email,
+// so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person
+func orderActor(cust *uuid.UUID, anon, email string) string {
+	if cust != nil || anon != "" {
+		return anon
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(email))
+	return "guest_" + hex.EncodeToString(sum[:16])
 }
 
 func (t *Tracker) emitOrder(ctx context.Context, name string, o orderRef, dedupe string, props map[string]any) error {
@@ -162,10 +178,14 @@ func ref(id uuid.UUID) *uuid.UUID { return &id }
 
 func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*order.OrderPlaced)
-	if !ok || (ev.CustomerID == nil && ev.AnonID == "") {
+	if !ok {
 		return nil
 	}
-	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	anon := orderActor(ev.CustomerID, ev.AnonID, ev.Email)
+	if ev.CustomerID == nil && anon == "" {
+		return nil
+	}
+	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, anon,
 		"act:order_placed:"+ev.OrderID.String(),
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
 		return err
@@ -179,7 +199,7 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
 	}
 	if o.GiftCardAmount > 0 {
-		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, anon,
 			"act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})
 	}

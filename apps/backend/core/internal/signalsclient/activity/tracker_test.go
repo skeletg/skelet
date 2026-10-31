@@ -209,6 +209,27 @@ func TestTracker_GuestCommerceByAnon(t *testing.T) {
 	})
 }
 
+// Admin drafts, headless shops and API clients send no visitor - the order must still land, keyed on the receipt email
+func TestAGuestOrderWithoutAVisitorLandsUnderItsEmail(t *testing.T) {
+	ch := uuid.New()
+	tr, fr := newTracker(order.Order{Number: "1100", ChannelID: ch, Email: "Shopper@Example.com "})
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), OrderNumber: "1100", Email: "shopper@example.com", ChannelID: ch, TotalCents: 1500, Currency: "USD"})
+	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: uuid.New(), ToStatus: "cancelled"})
+	if len(fr.calls) != 2 {
+		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
+	}
+	placed, cancelled := fr.calls[0], fr.calls[1]
+	if !strings.HasPrefix(placed.AnonID, "guest_") || len(placed.AnonID) != len("guest_")+32 || placed.CustomerID != nil {
+		t.Fatalf("order_placed actor = %q (customer %v), want a guest_ email hash", placed.AnonID, placed.CustomerID)
+	}
+	if cancelled.AnonID != placed.AnonID {
+		t.Errorf("cancellation actor %q != placement actor %q - case and spaces in the email must not split one guest", cancelled.AnonID, placed.AnonID)
+	}
+	if strings.Contains(placed.AnonID, "example") {
+		t.Errorf("actor %q leaks the email", placed.AnonID)
+	}
+}
+
 func TestTracker_SkipsUnattributable(t *testing.T) {
 	ch := uuid.New()
 
