@@ -1,6 +1,6 @@
 import { request, type APIRequestContext } from "@playwright/test";
 
-// The admin API for specs that set the store up - bin/test-storefront makes a superuser for the run and passes its
+// The admin API for specs that set the store up - skelet test storefront makes a superuser for the run and passes its
 // credentials, the admin endpoint and the storefront's channel in the environment
 export type Admin = { gql: <T = Record<string, unknown>>(query: string, variables?: Record<string, unknown>) => Promise<T>; channelId: string; dispose: () => Promise<void> };
 
@@ -10,7 +10,7 @@ export async function adminSession(): Promise<Admin> {
   const password = process.env.E2E_ADMIN_PASSWORD;
   const channelId = process.env.E2E_CHANNEL_ID;
   if (!url || !email || !password || !channelId) {
-    throw new Error("E2E_ADMIN_* / E2E_CHANNEL_ID are unset - run the browser tests through ./skelet test storefront");
+    throw new Error("E2E_ADMIN_* / E2E_CHANNEL_ID are unset - run the browser tests through skelet test storefront");
   }
   const ctx: APIRequestContext = await request.newContext();
   let token = "";

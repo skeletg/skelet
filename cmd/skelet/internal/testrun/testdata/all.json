@@ -1,0 +1,63 @@
+{"Time":"2026-10-31T19:15:47.333176026+01:00","Action":"start","Package":"sumgen/ok"}
+{"Time":"2026-10-31T19:15:47.334525703+01:00","Action":"run","Package":"sumgen/ok","Test":"TestPass"}
+{"Time":"2026-10-31T19:15:47.334568119+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"=== RUN   TestPass\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334580647+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"    ok_test.go:5: noise that a pass hides\n"}
+{"Time":"2026-10-31T19:15:47.334584017+01:00","Action":"output","Package":"sumgen/ok","Test":"TestPass","Output":"--- PASS: TestPass (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334586037+01:00","Action":"pass","Package":"sumgen/ok","Test":"TestPass","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334590026+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipDB"}
+{"Time":"2026-10-31T19:15:47.33459116+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"=== RUN   TestSkipDB\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334593618+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"    ok_test.go:6: no database marked disposable\n"}
+{"Time":"2026-10-31T19:15:47.334596286+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB","Output":"--- SKIP: TestSkipDB (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334597622+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipDB","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334598933+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipDB2"}
+{"Time":"2026-10-31T19:15:47.334599989+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"=== RUN   TestSkipDB2\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334601326+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"    ok_test.go:7: no database marked disposable\n"}
+{"Time":"2026-10-31T19:15:47.334602832+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipDB2","Output":"--- SKIP: TestSkipDB2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.33460411+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipDB2","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334605233+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSkipQuiet"}
+{"Time":"2026-10-31T19:15:47.334606708+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipQuiet","Output":"=== RUN   TestSkipQuiet\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334608223+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSkipQuiet","Output":"--- SKIP: TestSkipQuiet (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334609876+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSkipQuiet","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334613936+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSub"}
+{"Time":"2026-10-31T19:15:47.334615369+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub","Output":"=== RUN   TestSub\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334617052+01:00","Action":"run","Package":"sumgen/ok","Test":"TestSub/inner"}
+{"Time":"2026-10-31T19:15:47.334618479+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"=== RUN   TestSub/inner\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334619823+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"    ok_test.go:10: clickhouse is down\n"}
+{"Time":"2026-10-31T19:15:47.334623271+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub/inner","Output":"--- SKIP: TestSub/inner (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334624995+01:00","Action":"skip","Package":"sumgen/ok","Test":"TestSub/inner","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.33462692+01:00","Action":"output","Package":"sumgen/ok","Test":"TestSub","Output":"--- PASS: TestSub (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334628597+01:00","Action":"pass","Package":"sumgen/ok","Test":"TestSub","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.334630086+01:00","Action":"output","Package":"sumgen/ok","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.334817757+01:00","Action":"output","Package":"sumgen/ok","Output":"ok  \tsumgen/ok\t0.001s\n"}
+{"Time":"2026-10-31T19:15:47.334845707+01:00","Action":"pass","Package":"sumgen/ok","Elapsed":0.002}
+{"Time":"2026-10-31T19:15:47.581788913+01:00","Action":"start","Package":"sumgen/fail"}
+{"Time":"2026-10-31T19:15:47.583247256+01:00","Action":"run","Package":"sumgen/fail","Test":"TestPasses"}
+{"Time":"2026-10-31T19:15:47.583300002+01:00","Action":"output","Package":"sumgen/fail","Test":"TestPasses","Output":"=== RUN   TestPasses\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.58331663+01:00","Action":"output","Package":"sumgen/fail","Test":"TestPasses","Output":"--- PASS: TestPasses (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583318889+01:00","Action":"pass","Package":"sumgen/fail","Test":"TestPasses","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.583322282+01:00","Action":"run","Package":"sumgen/fail","Test":"TestFails"}
+{"Time":"2026-10-31T19:15:47.583323393+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"=== RUN   TestFails\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583324822+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"    fail_test.go:7: context \u003ca \u0026 b\u003e with a \\n kept literal\n"}
+{"Time":"2026-10-31T19:15:47.58332767+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"    fail_test.go:8: boom:\n","OutputType":"error"}
+{"Time":"2026-10-31T19:15:47.583329024+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"        \tsecond line\n","OutputType":"error-continue"}
+{"Time":"2026-10-31T19:15:47.583330834+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"--- FAIL: TestFails (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583332137+01:00","Action":"fail","Package":"sumgen/fail","Test":"TestFails","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.583333337+01:00","Action":"output","Package":"sumgen/fail","Output":"FAIL\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583699565+01:00","Action":"output","Package":"sumgen/fail","Output":"FAIL\tsumgen/fail\t0.002s\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583731237+01:00","Action":"fail","Package":"sumgen/fail","Elapsed":0.002}
+{"Time":"2026-10-31T19:15:47.789095371+01:00","Action":"start","Package":"sumgen/panics"}
+{"Time":"2026-10-31T19:15:47.792511731+01:00","Action":"output","Package":"sumgen/panics","Output":"panic: database gone\n"}
+{"Time":"2026-10-31T19:15:47.792586947+01:00","Action":"output","Package":"sumgen/panics","Output":"\n"}
+{"Time":"2026-10-31T19:15:47.792590313+01:00","Action":"output","Package":"sumgen/panics","Output":"goroutine 1 [running]:\n"}
+{"Time":"2026-10-31T19:15:47.792594357+01:00","Action":"output","Package":"sumgen/panics","Output":"sumgen/panics.TestMain(...)\n"}
+{"Time":"2026-10-31T19:15:47.792597963+01:00","Action":"output","Package":"sumgen/panics","Output":"\t/src/sumgen/panics/panics_test.go:5\n"}
+{"Time":"2026-10-31T19:15:47.792600677+01:00","Action":"output","Package":"sumgen/panics","Output":"main.main()\n"}
+{"Time":"2026-10-31T19:15:47.79260199+01:00","Action":"output","Package":"sumgen/panics","Output":"\t_testmain.go:48 +0xaa\n"}
+{"Time":"2026-10-31T19:15:47.792763852+01:00","Action":"output","Package":"sumgen/panics","Output":"FAIL\tsumgen/panics\t0.003s\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.792791725+01:00","Action":"fail","Package":"sumgen/panics","Elapsed":0.004}
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-output","Output":"# sumgen/broken [sumgen/broken.test]\n"}
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-output","Output":"broken/broken_test.go:5:33: undefined: undefined\n"}
+{"ImportPath":"sumgen/broken [sumgen/broken.test]","Action":"build-fail"}
+{"Time":"2026-10-31T19:15:47.926366747+01:00","Action":"start","Package":"sumgen/broken"}
+{"Time":"2026-10-31T19:15:47.926665568+01:00","Action":"output","Package":"sumgen/broken","Output":"FAIL\tsumgen/broken [build failed]\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.926701795+01:00","Action":"fail","Package":"sumgen/broken","Elapsed":0,"FailedBuild":"sumgen/broken [sumgen/broken.test]"}

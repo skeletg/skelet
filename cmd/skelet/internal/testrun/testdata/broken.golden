@@ -1,0 +1,5 @@
+# sumgen/broken [sumgen/broken.test]
+broken/broken_test.go:5:33: undefined: undefined
+FAIL	sumgen/broken [build failed]
+==> broken: 0 passed, 0 failed, 0 skipped, 1 package broken
+    broken: sumgen/broken (build failed)

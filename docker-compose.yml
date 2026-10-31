@@ -3,7 +3,7 @@
 name: skelet
 
 # json-file is unbounded by default, and a dev stack left up for days (air reload spam, Next.js request logs, ClickHouse
-# query logs) quietly eats disk - same 10 MB x 3 cap as prod, and `bin/logs` still shows plenty of history
+# query logs) quietly eats disk - same 10 MB x 3 cap as prod, and `skelet logs` still shows plenty of history
 x-logging: &logging
   driver: json-file
   options:
@@ -44,8 +44,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # The three Go modules together, so the relative replaces between them resolve - bin/go --signals
-      # and bin/test-e2e build the suite in this container
+      # The three Go modules together, so the relative replaces between them resolve - skelet go --signals
+      # and skelet test e2e build the suite in this container
       - ./apps/backend:/var/www/backend
       - ./.git:/var/www/.git:ro
       # The core-to-Signals wire contract, owned by neither side - buf runs in here and generates into the backend
@@ -270,7 +270,7 @@ services:
       # Vite's /api proxy target - non-VITE_ prefix on purpose, VITE_ vars get
       # inlined into the browser bundle
       - API_PROXY=http://app:8080
-      # codegen.ts reads this - in-network so bin/dash run codegen just works
+      # codegen.ts reads this - in-network so skelet pnpm dashboard run codegen just works
       - GRAPHQL_CODEGEN_URL=${GRAPHQL_CODEGEN_URL:-http://app:8080/api/admin/graphql}
       # Set both to /api/admin/<ADMIN_API_SLUG>/graphql when the backend slug is on, or the SPA 404s
       - VITE_GRAPHQL_URL=${VITE_GRAPHQL_URL:-/api/admin/graphql}
@@ -319,9 +319,9 @@ services:
       # A storefront is pinned to one channel in every environment - the default is the uuid
       # the baseline migration seeds, override in the root .env if your channels differ
       - STOREFRONT_CHANNEL_ID=${STOREFRONT_CHANNEL_ID:-56d051bc-0131-4476-bc0b-121d80290684}
-      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - ./skelet setup copies it into the root .env
+      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - skelet setup copies it into the root .env
       - STOREFRONT_REVALIDATE_SECRET=${STOREFRONT_REVALIDATE_SECRET:-dev-revalidate-secret-change-me}
-      # The review-vote key core verifies with - ./skelet setup copies env/go.env's into the root .env
+      # The review-vote key core verifies with - skelet setup copies env/go.env's into the root .env
       - REVIEW_VOTER_TOKEN_SECRET=${REVIEW_VOTER_TOKEN_SECRET:-}
       # Same polling reason as the dashboard
       - CHOKIDAR_USEPOLLING=true
@@ -428,7 +428,7 @@ services:
     logging: *logging
 
   # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
-  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `./skelet up <name>`
+  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `skelet up <name>`
 
   # SMTP catcher - anything mailed lands in the web UI on :8025
   mailpit:
@@ -491,7 +491,7 @@ services:
   # Heap capped so the JVM doesn't eat the laptop
   opensearch:
     image: opensearchproject/opensearch:3.8.0
-    # Heaviest sidecar (~600MB JVM) - bin/dev --lean skips it, search returns empty
+    # Heaviest sidecar (~600MB JVM) - skelet up --lean skips it, search returns empty
     profiles: ["search"]
     environment:
       - discovery.type=single-node

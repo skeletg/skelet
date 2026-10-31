@@ -1,21 +1,32 @@
-// Package route maps a skelet command line onto the bin/ script that carries it out
+// Package route maps a skelet command line onto the verb that carries it out
 package route
 
 import (
+	"github.com/skeletg/skelet/cmd/skelet/internal/changelog"
+	"github.com/skeletg/skelet/cmd/skelet/internal/container"
+	"github.com/skeletg/skelet/cmd/skelet/internal/db"
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/fixperms"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gates"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
+	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/lint"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/release"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
+	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
+	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
+	"github.com/skeletg/skelet/cmd/skelet/internal/testrun"
 )
 
-// Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check
-// greps the Script fields of this file, so every script the front door reaches is named here, one route per line
+// Route sends a verb, or a verb's subcommand, to the Go that carries it out, with the text skelet help prints for it
 type Route struct {
-	Verb    string
-	Sub     string
-	Flag    string
-	Script  string
-	Prepend []string
-	Go      func(root string, args []string) int
-	About   string
+	Verb  string
+	Sub   string
+	Flag  string
+	Go    func(root string, args []string) int
+	About string
 }
 
 // AnyApp is the pnpm route taken by any storefront name - the storefront exists when apps/channels/<name> does
@@ -24,45 +35,45 @@ const AnyApp = "*"
 var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
 	{Verb: "doctor", Go: doctor.Run, About: doctor.About},
-	{Verb: "up", Script: "dev"},
-	{Verb: "serve", Script: "serve"},
-	{Verb: "down", Script: "down"},
-	{Verb: "stop", Script: "stop"},
-	{Verb: "restart", Script: "restart"},
-	{Verb: "ps", Script: "ps"},
-	{Verb: "logs", Script: "logs"},
-	{Verb: "sh", Script: "bash"},
-	{Verb: "go", Script: "go"},
-	{Verb: "cli", Script: "cli"},
-	{Verb: "psql", Script: "psql"},
-	{Verb: "lint", Script: "lint"},
-	{Verb: "search", Script: "opensearch"},
-	{Verb: "release", Script: "push-images"},
-	{Verb: "hooks", Script: "install-hooks"},
-	{Verb: "fixperms", Script: "fixperms"},
-	{Verb: "provider", Script: "provider-check"},
-	{Verb: "changelog", Script: "changelog"},
-	{Verb: "add", Script: "new"},
-	{Verb: "rm", Script: "remove"},
-	{Verb: "pnpm", Sub: "dashboard", Script: "dash"},
-	{Verb: "pnpm", Sub: AnyApp, Script: "channel"},
-	{Verb: "db", Sub: "migrate", Script: "migrate"},
-	{Verb: "db", Sub: "migrate", Flag: "--signals", Script: "migrate-signals"},
-	{Verb: "db", Sub: "export", Script: "db-export"},
-	{Verb: "db", Sub: "import", Script: "db-import"},
-	{Verb: "db", Sub: "shell", Script: "psql"},
-	{Verb: "gen", Script: "codegen"},
-	{Verb: "gen", Sub: "sqlc", Script: "sqlc"},
-	{Verb: "gen", Sub: "gqlgen", Script: "gqlgen"},
-	{Verb: "gen", Sub: "buf", Script: "buf"},
-	{Verb: "check", Script: "check"},
-	{Verb: "check", Sub: "pins", Script: "pin-check"},
-	{Verb: "check", Sub: "structure", Script: "repo-check"},
-	{Verb: "check", Sub: "contracts", Script: "contract-check"},
-	{Verb: "check", Sub: "codegen", Script: "codegen", Prepend: []string{"--check"}},
-	{Verb: "test", Script: "test"},
-	{Verb: "test", Sub: "e2e", Script: "test-e2e"},
-	{Verb: "test", Sub: "storefront", Script: "test-storefront"},
+	{Verb: "up", Go: stack.Up, About: stack.UpAbout},
+	{Verb: "serve", Go: stack.Serve, About: stack.ServeAbout},
+	{Verb: "down", Go: stack.Down, About: stack.DownAbout},
+	{Verb: "stop", Go: stack.Stop, About: stack.StopAbout},
+	{Verb: "restart", Go: stack.Restart, About: stack.RestartAbout},
+	{Verb: "ps", Go: stack.Ps, About: stack.PsAbout},
+	{Verb: "logs", Go: stack.Logs, About: stack.LogsAbout},
+	{Verb: "sh", Go: container.Shell, About: container.ShellAbout},
+	{Verb: "go", Go: container.Go, About: container.GoAbout},
+	{Verb: "cli", Go: container.CLI, About: container.CLIAbout},
+	{Verb: "psql", Go: db.Shell, About: db.ShellAbout},
+	{Verb: "lint", Go: lint.Run, About: lint.About},
+	{Verb: "search", Go: search.Run, About: search.About},
+	{Verb: "release", Go: release.Run, About: release.About},
+	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
+	{Verb: "fixperms", Go: fixperms.Run, About: fixperms.About},
+	{Verb: "provider", Go: container.Provider, About: container.ProviderAbout},
+	{Verb: "changelog", Go: changelog.Run, About: changelog.About},
+	{Verb: "add", Go: scaffold.Add, About: scaffold.AddAbout},
+	{Verb: "rm", Go: scaffold.Remove, About: scaffold.RemoveAbout},
+	{Verb: "pnpm", Sub: "dashboard", Go: pnpm.Dashboard, About: pnpm.About},
+	{Verb: "pnpm", Sub: AnyApp, Go: pnpm.Channel, About: pnpm.About},
+	{Verb: "db", Sub: "migrate", Go: db.Migrate, About: db.MigrateAbout},
+	{Verb: "db", Sub: "migrate", Flag: "--signals", Go: db.MigrateSignals, About: db.MigrateAbout},
+	{Verb: "db", Sub: "export", Go: db.Export, About: db.ExportAbout},
+	{Verb: "db", Sub: "import", Go: db.Import, About: db.ImportAbout},
+	{Verb: "db", Sub: "shell", Go: db.Shell, About: db.ShellAbout},
+	{Verb: "gen", Go: gen.Run, About: gen.About},
+	{Verb: "gen", Sub: "sqlc", Go: gen.Sqlc, About: gen.SqlcAbout},
+	{Verb: "gen", Sub: "gqlgen", Go: gen.Gqlgen, About: gen.GqlgenAbout},
+	{Verb: "gen", Sub: "buf", Go: gen.Buf, About: gen.BufAbout},
+	{Verb: "check", Go: gates.Check, About: gates.CheckAbout},
+	{Verb: "check", Sub: "pins", Go: gates.Pins, About: gates.PinsAbout},
+	{Verb: "check", Sub: "structure", Go: gates.Repo, About: gates.RepoAbout},
+	{Verb: "check", Sub: "contracts", Go: gates.Contracts, About: gates.ContractsAbout},
+	{Verb: "check", Sub: "codegen", Go: gen.Check, About: gen.About},
+	{Verb: "test", Go: testrun.Test, About: testrun.TestAbout},
+	{Verb: "test", Sub: "e2e", Go: testrun.E2E, About: testrun.E2EAbout},
+	{Verb: "test", Sub: "storefront", Go: testrun.Storefront, About: testrun.StorefrontAbout},
 }
 
 // The shape of each compound verb's arguments, for help and the usage errors
@@ -81,7 +92,7 @@ var subs = map[string]string{
 	"changelog": "(preview) | check | release <version> [date]",
 }
 
-// Routes is the table, for the tests and gates that hold it to bin/
+// Routes is the table, for the tests that hold it together
 func Routes() []Route { return routes }
 
 func lookup(verb, sub string) (Route, bool) {

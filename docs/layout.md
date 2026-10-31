@@ -56,23 +56,12 @@ deploy separately and an old core will meet a new Signals.
 
 ### `cmd/skelet/`
 
-The `skelet` command line: the program a checkout's `./skelet` runs, and the
-binary each release ships, which installs and starts projects. It's the tooling
-that drives the repo rather than part of the product, so it sits at the root
-beside `bin/`, not under `apps/`. Its own Go module, standard library only, and it
+The `skelet` command line: every dev verb, and the binary each release ships,
+which installs and starts projects - inside one it builds and runs that project's
+own copy of this directory. It's the tooling that drives the repo rather than part
+of the product, so it sits at the root, not under `apps/`. Its own Go module, standard library only, and it
 imports nothing from the backend - `cmd/skelet` because Go names a binary after
 its directory, so `go install` gives you `skelet`.
-
-### `bin/`
-
-A wrapper for every operation you would otherwise run by hand: starting the
-stack, opening a shell in a container, migrations, codegen, the commit gates.
-You reach them through `skelet` rather than by filename. They all `cd` to the
-repo root themselves, so they work from anywhere.
-
-`bin/_lib` is the odd one out - it is sourced by the others rather than run, and
-holds the shared compose and uid setup. Full command reference:
-[scripts.md](scripts.md).
 
 ## The ones that hold configuration
 
@@ -123,8 +112,9 @@ minimum deployable tenant, and `docker-compose.prod.yml` the full split-tier
 shape; both are described under Deploying in the README. `.nvmrc` pins Node and is what CI reads (`node-version-file`),
 `.gitattributes` locks every text file to LF so a Windows checkout cannot rewrite
 line endings, `.gitignore` and `.dockerignore` keep build contexts and commits
-clean. `.skelet/` is git-ignored and holds the CLI builds the `./skelet` shim caches,
-one per source version - delete it whenever you like. `README.md`, `AGENTS.md`
+clean. `.skelet/` is git-ignored scratch for the CLI - the build cache it falls back to
+when your user cache directory isn't writable, among other things - delete it whenever
+you like. `README.md`, `AGENTS.md`
 and `CHANGELOG.md` are the only pages up here - everything else belongs in `docs/`.
 
 Never edit the tracked compose files to add your own service. Docker Compose

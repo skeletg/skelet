@@ -1,0 +1,15 @@
+{"Time":"2026-10-31T19:15:47.581788913+01:00","Action":"start","Package":"sumgen/fail"}
+{"Time":"2026-10-31T19:15:47.583247256+01:00","Action":"run","Package":"sumgen/fail","Test":"TestPasses"}
+{"Time":"2026-10-31T19:15:47.583300002+01:00","Action":"output","Package":"sumgen/fail","Test":"TestPasses","Output":"=== RUN   TestPasses\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.58331663+01:00","Action":"output","Package":"sumgen/fail","Test":"TestPasses","Output":"--- PASS: TestPasses (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583318889+01:00","Action":"pass","Package":"sumgen/fail","Test":"TestPasses","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.583322282+01:00","Action":"run","Package":"sumgen/fail","Test":"TestFails"}
+{"Time":"2026-10-31T19:15:47.583323393+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"=== RUN   TestFails\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583324822+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"    fail_test.go:7: context \u003ca \u0026 b\u003e with a \\n kept literal\n"}
+{"Time":"2026-10-31T19:15:47.58332767+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"    fail_test.go:8: boom:\n","OutputType":"error"}
+{"Time":"2026-10-31T19:15:47.583329024+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"        \tsecond line\n","OutputType":"error-continue"}
+{"Time":"2026-10-31T19:15:47.583330834+01:00","Action":"output","Package":"sumgen/fail","Test":"TestFails","Output":"--- FAIL: TestFails (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583332137+01:00","Action":"fail","Package":"sumgen/fail","Test":"TestFails","Elapsed":0}
+{"Time":"2026-10-31T19:15:47.583333337+01:00","Action":"output","Package":"sumgen/fail","Output":"FAIL\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583699565+01:00","Action":"output","Package":"sumgen/fail","Output":"FAIL\tsumgen/fail\t0.002s\n","OutputType":"frame"}
+{"Time":"2026-10-31T19:15:47.583731237+01:00","Action":"fail","Package":"sumgen/fail","Elapsed":0.002}

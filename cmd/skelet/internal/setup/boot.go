@@ -10,30 +10,22 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/container"
+	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
+	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 // boot is the dev target's second half: the stack up, the schema in place, the plugin bridge regenerated when the
 // set changed, the host apps installed, and the first admin login offered while you're still at the prompt
 func boot(root string, a answers, w written, ask prompter) int {
-	script := func(name string, args ...string) error {
-		cmd := exec.Command(filepath.Join(root, "bin", name), args...)
-		cmd.Dir, cmd.Env = root, sys.Env()
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		return sys.Run(cmd)
-	}
-
 	fmt.Println("==> Starting containers...")
 	// --lean: migrating needs only db and app, and the sidecars arrive with skelet up
-	if err := script("dev", "--lean"); err != nil {
-		return sys.ExitCode(err)
+	if code := stack.Up(root, []string{"--lean"}); code != 0 {
+		return code
 	}
-	lib, err := compose.Load(root)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "skelet setup:", err)
-		return 1
-	}
+	lib := compose.Load(root)
 	dc := func(args ...string) *exec.Cmd { return compose.Command(root, lib.Env(), args...) }
 
 	fmt.Println("==> Waiting for db...")
@@ -46,7 +38,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 	// The app migrates as it boots - this waits for the same work under the same locks, so what follows finds the
 	// schema in place
 	fmt.Println("==> Running migrations...")
-	if err := script("cli", "migrate"); err != nil {
+	if err := container.CLICall(root, "migrate").Run(); err != nil {
 		return sys.ExitCode(err)
 	}
 
@@ -56,7 +48,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 
 	if w.pluginsChanged {
 		fmt.Println("==> Regenerating the plugin GraphQL delegation (skelet gen)...")
-		if err := script("codegen"); err != nil {
+		if gen.Run(root, nil) != 0 {
 			fmt.Println("    codegen failed - run skelet gen once the stack is warm")
 		}
 	}
@@ -76,7 +68,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 			q, def = "A superuser already exists - create another?", false
 		}
 		if ask.yesNo("==> "+q, def) {
-			if err := script("cli", "admin", "create-superuser"); err != nil {
+			if err := container.CLICall(root, "admin", "create-superuser").Run(); err != nil {
 				fmt.Fprintln(os.Stderr, "    create-superuser failed - run it again with skelet cli admin create-superuser")
 			}
 		}

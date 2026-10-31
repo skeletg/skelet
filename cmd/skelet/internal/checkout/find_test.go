@@ -33,3 +33,26 @@ func TestFindWalksUpToTheCheckout(t *testing.T) {
 		t.Errorf("Find above the checkout found %q", got)
 	}
 }
+
+func TestLocateTellsTheKinds(t *testing.T) {
+	write := func(root, rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	native, both, stranger := t.TempDir(), t.TempDir(), t.TempDir()
+	write(native, "cmd/skelet/go.mod", "module github.com/skeletg/skelet/cmd/skelet\n\ngo 1.27.3\n")
+	write(both, "cmd/skelet/go.mod", "module github.com/skeletg/skelet/cmd/skelet\n")
+	write(both, "skelet", "")
+	write(both, "bin/_lib", "")
+	write(stranger, "cmd/skelet/go.mod", "module example.com/other\n")
+	for root, want := range map[string]Kind{native: Native, both: Shim, stranger: None} {
+		if _, got := Locate(filepath.Join(root, "cmd", "skelet")); got != want {
+			t.Errorf("Locate(%s) = %v, want %v", root, got, want)
+		}
+	}
+}

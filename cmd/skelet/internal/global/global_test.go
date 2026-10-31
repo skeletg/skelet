@@ -2,6 +2,7 @@ package global
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,14 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/project"
 )
+
+// A test that reached a real exec would replace the test binary with the project's ./skelet - run from this repo,
+// that's real commands against the developer's own stack. Every test opts in through recordExec instead
+func TestMain(m *testing.M) {
+	replace = func(_ string, argv, _ []string) int { panic(fmt.Sprintf("a test reached a real exec: %q", argv)) }
+	launchRun = func(_ string, args []string) int { panic(fmt.Sprintf("a test reached the real launcher: %q", args)) }
+	os.Exit(m.Run())
+}
 
 type call struct {
 	cwd  string
@@ -125,11 +134,14 @@ func TestDoctorRunsOutsideAProject(t *testing.T) {
 	}
 }
 
-// A release build that ended up in a checkout's CLI cache would hand off to the shim, which runs it again
+// A release build that ended up in a checkout's CLI cache would hand off to the shim, which runs it again - so it
+// refuses, from inside a project, where handing off is what it would otherwise do
 func TestReleaseBuildRefusesToRunUnderTheShim(t *testing.T) {
+	t.Chdir(newCheckout(t))
+	calls := recordExec(t)
 	t.Setenv("SKELET_SHIM", "1")
-	if code := Main("v1.0.0", []string{"up"}); code != 1 {
-		t.Errorf("exit %d, want 1", code)
+	if code := Main("v1.0.0", []string{"up"}); code != 1 || len(*calls) != 0 {
+		t.Errorf("exit %d, exec'd %v - want 1 and nothing run", code, *calls)
 	}
 }
 
@@ -182,5 +194,44 @@ func TestNewWontNestAProjectWithoutForce(t *testing.T) {
 	}
 	if code := Main("v1.2.3", []string{"new", "shop", "--force"}); code != 0 || len(*calls) != 1 {
 		t.Errorf("--force: exit %d, exec'd %v", code, *calls)
+	}
+}
+
+func newNative(t *testing.T) string {
+	t.Helper()
+	root := tempDir(t)
+	p := filepath.Join(root, "cmd", "skelet", "go.mod")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("module github.com/skeletg/skelet/cmd/skelet\n\ngo 1.27.3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// A project with no shim gets its CLI built and run by the launcher, args and all
+func TestANativeProjectIsLaunched(t *testing.T) {
+	root := newNative(t)
+	t.Chdir(filepath.Join(root, "cmd"))
+	var got []string
+	orig := launchRun
+	launchRun = func(r string, args []string) int { got = append([]string{r}, args...); return 0 }
+	t.Cleanup(func() { launchRun = orig })
+	calls := recordExec(t)
+	if code := Main("v1.2.3", []string{"up", "--lean"}); code != 0 || len(*calls) != 0 {
+		t.Fatalf("exit %d, exec'd %v", code, *calls)
+	}
+	if want := []string{root, "up", "--lean"}; !slices.Equal(got, want) {
+		t.Errorf("launched %v, want %v", got, want)
+	}
+}
+
+func TestALaunchedReleaseBuildRefuses(t *testing.T) {
+	t.Chdir(newCheckout(t))
+	calls := recordExec(t)
+	t.Setenv("SKELET_LAUNCHED", "1")
+	if code := Main("v1.0.0", []string{"up"}); code != 1 || len(*calls) != 0 {
+		t.Errorf("exit %d, exec'd %v - want 1 and nothing run", code, *calls)
 	}
 }

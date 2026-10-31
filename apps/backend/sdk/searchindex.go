@@ -4,7 +4,7 @@ package sdk
 // mapping, an optional full-rebuild iterator, and gets back a writer for live
 // upserts - the host owns the physical index (named plg-<slug>-<name>, so plugins
 // can't collide with core indexes or each other), wires the index into the
-// operator's reindex tooling (`bin/cli search reindex`, the search.reindex admin
+// operator's reindex tooling (`skelet cli search reindex`, the search.reindex admin
 // action), and batches rebuild writes into _bulk pages.
 //
 // Search is a SOFT dependency of the host: with no OPENSEARCH_URL the registration

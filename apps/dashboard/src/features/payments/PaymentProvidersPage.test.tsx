@@ -56,5 +56,5 @@ it('retains a secret draft across provider selections and masks it in the Save d
 it('shows installation guidance when no gateway is installed', async () => {
   mount([])
   expect(await screen.findByText(/No payment gateway plugins are installed/)).toBeDefined()
-  expect(screen.getByText('./skelet cli plugin add <module>@<version>')).toBeDefined()
+  expect(screen.getByText('skelet cli plugin add <module>@<version>')).toBeDefined()
 })

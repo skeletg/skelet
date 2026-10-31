@@ -153,7 +153,7 @@ func (pl *Plugin) RegisterEvent(name string, kind EventKind) {
 	withHost(func(h Host) error { return h.RegisterEvent(pl.slug, name, kind) })
 }
 
-// Apply with `bin/cli plugin migrate up <namespace>` - duplicates panic
+// Apply with `skelet cli plugin migrate up <namespace>` - duplicates panic
 // Takes an embed.FS of migrations/*.sql under a namespace of the plugin's own
 func (pl *Plugin) RegisterMigrations(reg MigrationsRegistration) {
 	if reg.Root == "" {
@@ -168,7 +168,7 @@ func (pl *Plugin) RegisterMigrations(reg MigrationsRegistration) {
 	withHost(func(h Host) error { return h.RegisterMigrations(pl.slug, reg) })
 }
 
-// Run-once Go code rather than RegisterMigrations' SQL files - read an embedded CSV, call an API, transform rows - against the patch's own *sql.Tx, applied by `bin/cli data-patch up` after schema migrations
+// Run-once Go code rather than RegisterMigrations' SQL files - read an embedded CSV, call an API, transform rows - against the patch's own *sql.Tx, applied by `skelet cli data-patch up` after schema migrations
 type DataPatchRegistration struct {
 	Namespace string
 	ID        string   // the run-once marker, globally unique and stable - convention "<namespace>:<name>"

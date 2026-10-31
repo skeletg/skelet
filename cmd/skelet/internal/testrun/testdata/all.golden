@@ -1,0 +1,23 @@
+ok  	sumgen/ok	0.001s
+    fail_test.go:7: context <a & b> with a \n kept literal
+    fail_test.go:8: boom:
+        	second line
+--- FAIL: TestFails (0.00s)
+FAIL	sumgen/fail	0.002s
+panic: database gone
+
+goroutine 1 [running]:
+sumgen/panics.TestMain(...)
+	/src/sumgen/panics/panics_test.go:5
+main.main()
+	_testmain.go:48 +0xaa
+FAIL	sumgen/panics	0.003s
+# sumgen/broken [sumgen/broken.test]
+broken/broken_test.go:5:33: undefined: undefined
+FAIL	sumgen/broken [build failed]
+==> all: 3 passed, 1 failed, 4 skipped, 2 packages broken
+    broken: sumgen/panics (failed outside any test)
+    broken: sumgen/broken (build failed)
+       2 skipped: no database marked disposable
+       1 skipped: (no reason given)
+       1 skipped: clickhouse is down

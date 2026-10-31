@@ -1,0 +1,10 @@
+panic: database gone
+
+goroutine 1 [running]:
+sumgen/panics.TestMain(...)
+	/src/sumgen/panics/panics_test.go:5
+main.main()
+	_testmain.go:48 +0xaa
+FAIL	sumgen/panics	0.003s
+==> panics: 0 passed, 0 failed, 0 skipped, 1 package broken
+    broken: sumgen/panics (failed outside any test)

@@ -1,43 +1,39 @@
 # Commands
 
 Every dev command, in detail. `skelet` is the front door: run it bare for a
-grouped list, `skelet help <command>` for one. The scripts under `bin/` are
-what each verb runs, and you shouldn't need to call one by name - the map
-between them is at the bottom, for when you're reading the source.
+grouped list, `skelet help <command>` for one. Every verb is Go, under
+`cmd/skelet/internal/` - where each one lives is at the bottom, for when you're
+reading the source.
 
-**Installed or not.** These pages write `skelet`, the CLI the README's one-line
-install puts on your PATH. Inside a project it hands every command to that
-project's own front door, the `./skelet` at its root, so it never runs a command
-with a different release's code - and `./skelet` is also all you need in a clone
-where nothing is installed. The two behave the same.
+**The CLI and the project.** These pages write `skelet`, the CLI the README's one-line
+install puts on your PATH. Inside a project it runs that project's own Go program in
+`cmd/skelet`, so a command never runs with a different release's code. The first run, and
+the first after anything in there changes, builds it - with your own Go if you have it,
+otherwise inside the `golang` image, so Docker alone is enough - and every run after that
+starts the cached build straight away. A verb that ends by running something - `skelet go`,
+`skelet psql` - becomes that program, so Ctrl-C, exit codes and the terminal behave exactly
+as if you'd run it yourself. With Go and nothing installed, `go -C cmd/skelet run . <verb>`
+does the same, though it reports any failure as exit 1.
 
-**What `./skelet` is.** A small bash shim in front of a Go program in
-`cmd/skelet`. The first run, and the first after anything in there changes, builds it
-into `.skelet/bin/` - with your own Go if you have it, otherwise inside the `golang`
-image, so Docker alone is enough - and every run after that starts the cached binary
-straight away. The program maps the verb onto its `bin/` script and execs it, so Ctrl-C,
-exit codes and the terminal behave exactly as if you'd run the script yourself. With
-neither Go nor Docker running the shim says so, and `bin/<script>` still works on its own.
+**Projects from before the CLI** had a bash `./skelet` at the root, and the installed CLI
+still hands one to it. A symlink of such a `./skelet` onto your PATH dangles in anything
+newer - `skelet doctor` warns about one, and the installer replaces it with `--force`.
 
-A symlink onto your PATH (`ln -s "$PWD/skelet" ~/.local/bin/skelet`) works too, and
-acts on whichever checkout you're standing in. The installer won't replace one
-without `--force`.
-
-The scripts all `cd` to the repo root on their own, so you can run them from
-anywhere. Three things they share (living in `_lib`, which is sourced, not run):
+Every verb runs from the repo root whatever directory you're in, and three
+things hold for all of them:
 
 - **One compose file set** - `docker-compose.yml` is the whole dev stack
   including sidecars, and compose auto-merges your git-ignored
-  `docker-compose.override.yml` on its own, so `_lib` sets no
-  `COMPOSE_FILE` at all. `stop`, `down`, `ps` and friends therefore cover
+  `docker-compose.override.yml` on its own, so no `COMPOSE_FILE` is set at
+  all. `stop`, `down`, `ps` and friends therefore cover
   Garage, the dev tools and co. as well as the apps.
-- **Profiles follow your app selection** - `_lib` exports
+- **Profiles follow your app selection** - every compose command gets
   `COMPOSE_PROFILES` built from the sidecars (`search`, plus
   `signals` unless `env/go.env` switches `SIGNALS_ENABLED` off - that profile
   carries the Signals process and its ClickHouse),
   whatever `.skelet-apps` lists and whatever dev tools `.skelet-tools` lists,
   so what you picked in `setup` comes up and what you skipped stays down
-  (see `dev --lean` below to drop the sidecars and tools).
+  (see `up --lean` below to drop the sidecars and tools).
 - **Files stay yours** - containers run as your uid, so generated code
   doesn't end up root-owned and break `git pull`. Set
   `SKELET_NO_USER_MAP=1` if you actually need root inside a container.
@@ -93,7 +89,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `skelet check pins` | Version pins that live in several files at once: postgres, clickhouse, dbmate, golangci-lint, node (plus `.nvmrc`), alpine, and the `golang:` images against `go.mod`. Prints every site when they disagree. Add a pin here when you introduce one more than one file has to know. |
 | `skelet check structure` | Structural invariants a fresh clone or a forked storefront leans on: every `bin/*` script parses and is executable, no doc or workflow names a script that doesn't exist, every compose `env_file` has a committed `.example`. |
 | `skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, and the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
-| `skelet hooks` | Points `.git/hooks/pre-commit` at `skelet check`. Opt-in; bypass once with `git commit --no-verify`. |
+| `skelet hooks` | Installs a pre-commit hook that runs `skelet check`. Opt-in; skip it once with `git commit --no-verify`. The hook finds the CLI on its own - `skelet` on the PATH, `~/.local/bin/skelet`, the one you installed it with, then `go run` from the checkout - because git GUIs often run hooks without your shell's PATH. A hook of your own is left alone unless you pass `--force`, and the hook an older `skelet hooks` wrote, which ran a script that's gone, is updated the next time you run any `skelet` command. |
 
 ## Codegen, lint and tests
 
@@ -104,7 +100,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `skelet gen buf` | buf against `proto/`, for one command at a time - `skelet gen buf lint /var/www/proto`. It runs from the Go module, since that is where `go tool` finds buf and its two protoc plugins; nothing is installed outside `go.mod`. |
 | `skelet gen gqlgen` | One gqlgen surface at a time. Usually you want `codegen` instead. |
 | `skelet lint` | gofmt + golangci-lint are hard gates, run over both Go modules; dashboard + storefront ESLint run after but don't fail the script (matches CI, which keeps frontend lint non-blocking until it's clean). |
-| `skelet test` | `go test` in both Go modules + dashboard/storefront typechecks + dashboard and storefront unit tests (vitest) - the same hard gates CI runs. Args are forwarded to core's `go test`; `--no-frontend` skips the frontend steps; `--changed[=REF]` runs only what changed since REF (the merge base with develop by default) can reach. The default sweep excludes each module's `internal/e2e` (they write real rows and never clean up) - run those with `test-e2e`. |
+| `skelet test` | `go test` in both Go modules + dashboard/storefront typechecks + dashboard and storefront unit tests (vitest) - the same hard gates CI runs. Args are forwarded to core's `go test`; `--no-frontend` skips the frontend steps; `--changed[=REF]` runs only what changed since REF (the merge base with develop by default) can reach. The default sweep excludes each module's `internal/e2e` (they write real rows and never clean up) - run those with `skelet test e2e`. |
 | `skelet test e2e` | Run both e2e suites against dedicated disposable databases (`skelet_e2e` / `skelet_e2e_signals`) so the dev DB never accumulates test orders/customers. Starts a Signals process against the disposable signals database first, since core's scenarios reach the suite over the contract, then runs core's scenarios and the suite's own. Drops and recreates the databases every run - kept, they grow until the store fixture costs seconds instead of milliseconds. `--keep` reuses them while iterating on one scenario. Extra args forward to `go test` (e.g. `-run TestFoo`). |
 | `skelet test storefront [name]` | Browser tests for a storefront (Playwright, `apps/channels/<name>/e2e/`) against its running dev container. Runs in Microsoft's Playwright image inside the storefront container's network namespace, so the host needs no Node or browser and the page is served as `localhost` (the only origin `next dev` hydrates for). Each spec signs up throwaway `e2e-*@skelet.test` customers in the dev database. Extra args forward to Playwright (`-g addresses`, a spec path). Headless - there is no display in the container. |
 | `skelet changelog` | The pending fragments in `changelog/unreleased/`, assembled as the next release would print them. `check` validates their names and format, fails on anything written straight under `[Unreleased]` in `CHANGELOG.md`, and makes sure every `changelog/<version>.md` is listed there and nothing listed is missing - `skelet check` runs it. `release <version> [date]` writes `changelog/<version>.md`, lists it and deletes the fragments; see [releasing.md](releasing.md). |
@@ -140,31 +136,16 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `skelet fixperms` | Find and fix root-owned files under `apps/` left behind by container writes. Only asks for sudo when there's something to fix. |
 | `skelet doctor` | Sanity-check the machine and the checkout: Docker and compose, git (2.35 or newer, for setup's sparse-checkout) and Go on the host, the env files the target needs, where the frontends run and whether pnpm and Node can run the host ones, the profile against the env files, `plugins.json` against the plugin directories (the rules codegen enforces), the running containers and the Signals spine, ports answering, backend /health, `*.localhost` resolution, the pre-commit hook, a WSL clone on the Windows drive, and disk space. Every line is ok, warn or FAIL, and only a FAIL fails it. Run it when something feels off. Outside a project, the installed `skelet doctor` checks the machine alone. |
 
-## The scripts behind the verbs
+## Where the verbs live
 
-Each route is one line in `cmd/skelet/internal/route/table.go`, and `skelet check structure`
-fails when a script has no route or a route has no script.
+Each verb is one line in `cmd/skelet/internal/route/table.go`, naming the Go function that
+carries it out and the help text `skelet help` prints. `pnpm` takes `npm` as an alias from
+before the switch, and `new channel` is `add channel`'s old name.
 
-| Verb | Runs |
-|---|---|
-| `up` / `down` / `stop` / `restart` / `ps` | `dev` / `down` / `stop` / `restart` / `ps` |
-| `serve` | `serve` |
-| `logs [service]` | `logs` |
-| `sh`, `go`, `cli`, `psql` | `bash`, `go`, `cli`, `psql` |
-| `pnpm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` - `npm` is kept as an alias from before the switch |
-| `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |
-| `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
-| `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
-| `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `setup`, `doctor` | nothing - they're Go, in `cmd/skelet/internal/setup` and `internal/doctor` |
-| `hooks`, `fixperms` | `install-hooks`, `fixperms` |
-| `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
-| `add channel <name>`, `rm channel <name>` | `new`, `remove` |
-
-`bin/repo-check` fails if `skelet` routes to a script that doesn't exist, so
-the table above can't quietly rot when a script is renamed.
+A pre-commit hook an older `skelet hooks` wrote ran a script that's gone - any `skelet` command
+rewrites such a hook to the current one, and `skelet doctor` fails on one that's left.
 
 ---
 
-Adding or removing a script? Update this file too. The table in
+Adding or removing a verb? Update this file too. The table in
 [workflow.md](workflow.md) has the short version; this one has the details.

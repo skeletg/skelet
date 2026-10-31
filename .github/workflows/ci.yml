@@ -1,5 +1,5 @@
 # Backend + frontend test gate - the service containers are here so the env-gated integration suites run on every push, not only when someone exports the DSNs
-# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by bin/pin-check - the queue round-trip embeds nats-server and needs no service
+# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by skelet check pins - the queue round-trip embeds nats-server and needs no service
 name: CI
 
 on:
@@ -96,7 +96,7 @@ jobs:
         working-directory: apps/backend/core
         # -race, because the bus dispatches to detached goroutines and the outbox relay runs eight concurrent workers
         # -timeout past go's 10m default - CI builds its databases fresh, but -race is a different animal
-        # internal/e2e sits out, as in bin/test - bin/test-e2e gives it its own databases and a Signals process
+        # internal/e2e sits out, as in skelet test - skelet test e2e gives it its own databases and a Signals process
         run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
       # The Signals module is its own go.mod, replacing core's by relative path - a change in a core
       # package the suite imports has to fail here, not on the suite's image build
@@ -170,7 +170,7 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: ${{ matrix.dir }}/package.json
-      # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
+      # .nvmrc is the pin - skelet check pins keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
         with:
@@ -183,7 +183,7 @@ jobs:
       - name: Typecheck
         working-directory: ${{ matrix.dir }}
         run: pnpm run typecheck
-      # eslint stays out - it has accepted findings and bin/lint treats it as non-blocking
+      # eslint stays out - it has accepted findings and skelet lint treats it as non-blocking
       - name: Test
         working-directory: ${{ matrix.dir }}
         run: pnpm test
@@ -226,7 +226,7 @@ jobs:
             -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" \
             -e "s|^CONFIG_ENCRYPTION_KEY=.*|CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n')|" env/go.env
           sed -i -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" env/signals.env
-      # The dev containers run as SKELET_UID, which only bin/_lib exports - left at compose's 1000, Air can't write to the runner's checkout
+      # The dev containers run as SKELET_UID, which the CLI sets and this job's raw compose doesn't - left at compose's 1000, Air can't write to the runner's checkout
       - name: Container user
         run: |
           echo "SKELET_UID=$(id -u)" >> "$GITHUB_ENV"
@@ -308,14 +308,14 @@ jobs:
               echo "gofmt would reformat in $mod:" && echo "$unformatted" && exit 1
             fi
           done
-      # same pin as bin/lint - the two must agree or CI and local disagree
+      # same pin as skelet lint - the two must agree or CI and local disagree
       - name: golangci-lint
         run: |
           for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             echo "==> $mod"
             (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...) || exit 1
           done
-      # The pre-commit hook runs the whole of bin/codegen, but two of its steps need a live backend, so CI covers the part that needs
+      # The pre-commit hook runs the whole of skelet gen, but two of its steps need a live backend, so CI covers the part that needs
       # nothing but Go - it also fails when a plugin directory exists that plugins.json has not decided on
       - name: Plugin set matches plugins.json
         working-directory: apps/backend/core
@@ -323,11 +323,12 @@ jobs:
           go run ./cmd/plugingen
           git diff --exit-code plugins/firstparty
 
-  # The same command the pre-commit hook runs, so "bin/check passes" means the same
-  # thing locally and here. Greps, plus buf's compatibility check of the proto against main, which
-  # needs main's history and runs on the host Go here (in the app container on a workstation)
+  # The same command the pre-commit hook runs, so "skelet check passes" means the same thing locally
+  # and here. Greps, plus buf's compatibility check of the proto against main, which needs main's
+  # history and runs on the host Go here (in the app container on a workstation). go run is the way
+  # in with no CLI installed, and it reaches the checkout's own build whatever the front door is
   gates:
-    name: bin/check (pins, structure, contracts)
+    name: skelet check (pins, structure, contracts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -337,9 +338,9 @@ jobs:
         with:
           go-version-file: apps/backend/core/go.mod
           cache-dependency-path: apps/backend/core/go.sum
-      - run: bin/check
+      - run: go -C cmd/skelet run . check
 
-  # The backend half of bin/codegen --check (the TS half needs a running server) - regenerates in place and fails on any diff
+  # The backend half of skelet check codegen (the TS half needs a running server) - regenerates in place and fails on any diff
   codegen:
     name: Codegen drift (backend half)
     runs-on: ubuntu-latest
@@ -356,5 +357,5 @@ jobs:
         run: |
           cp env/go.env.example env/go.env
           cp env/db.env.example env/db.env
-      - name: bin/codegen --check --no-frontend
-        run: bin/codegen --check --no-frontend
+      - name: skelet check codegen --no-frontend
+        run: go -C cmd/skelet run . check codegen --no-frontend

@@ -46,6 +46,8 @@ func tools(r *report, root string) {
 		r.pass("git %s", dotted(v))
 	}
 
+	cli(r)
+
 	want := goDirective(root)
 	out, err := output("", "go", "version")
 	if err != nil {
@@ -65,6 +67,41 @@ func tools(r *report, root string) {
 	default:
 		r.note("go %s is older than go.mod's %s, and GOTOOLCHAIN stops it fetching that one", dotted(have), dotted(want))
 	}
+}
+
+// cli is the skelet on the PATH. A link to a checkout's ./skelet, the bash front door from before the CLI, worked as
+// one, and dangles in any checkout new enough not to have that file
+func cli(r *report) {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		p := filepath.Join(dir, "skelet")
+		fi, err := os.Lstat(p)
+		if err != nil {
+			continue
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			target, _ := os.Readlink(p)
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(dir, target)
+			}
+			if shim(filepath.Dir(target)) {
+				r.note("skelet on the PATH links to %s, a ./skelet front door projects no longer have - install the CLI the README's way, with --force to replace the link", target)
+				return
+			}
+		}
+		r.pass("skelet %s", p)
+		return
+	}
+	r.note("no skelet on the PATH - install the CLI the README's way")
+}
+
+// shim says dir is a checkout whose root skelet is the bash front door
+func shim(dir string) bool {
+	for _, marker := range []string{"bin/_lib", "cmd/skelet/go.mod"} {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func fetches() bool {

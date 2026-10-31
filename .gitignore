@@ -55,11 +55,11 @@ apps/dashboard/.vite/
 # commit these - they contain real customer data.
 *.dump
 
-# Local DB backups (bin/db-export output)
+# Local DB backups (skelet db export output)
 backups/
 
 # Editor state is per-person - a SQLTools connection to the dev database is a tool
-# preference, and bin/psql reaches both databases for everyone regardless of editor.
+# preference, and skelet psql reaches both databases for everyone regardless of editor.
 .vscode/
 
 # Editor/OS backup files. Also catches env/*.env.bak, which would

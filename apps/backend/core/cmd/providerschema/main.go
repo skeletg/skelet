@@ -142,7 +142,7 @@ func run(outDir string) error {
 		if err := writeJSON(filepath.Join(outDir, o.Name+".schema.json"), doc); err != nil {
 			return err
 		}
-		// The example is what bin/provider-check posts by default, so it has to satisfy the
+		// The example is what skelet provider posts by default, so it has to satisfy the
 		// request schema rather than just illustrate it
 		if err := writeJSON(filepath.Join(outDir, o.Name+".request.json"), g.example(reqT)); err != nil {
 			return err

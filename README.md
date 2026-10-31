@@ -47,8 +47,9 @@ skelet cli admin create-superuser  # your first login
 
 The installer checks `skelet` against the release's checksums and puts it in `~/.local/bin`
 (`SKELET_INSTALL_DIR` picks another directory); it runs on macOS, Linux and WSL. Rather clone
-by hand? `git clone https://github.com/skeletg/skelet.git`, then `./skelet setup` inside it -
-`./skelet` is the same front door, with nothing installed.
+by hand? `git clone https://github.com/skeletg/skelet.git`, then `skelet setup` inside it - in a
+project, `skelet` runs that project's own code. With Go and nothing installed,
+`go -C cmd/skelet run . setup` does the same.
 
 Open <http://localhost:5173> and sign in. GraphQL playgrounds are at
 `:8080/playground/{admin,front}`.

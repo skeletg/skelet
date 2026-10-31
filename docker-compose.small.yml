@@ -12,7 +12,7 @@ x-logging: &logging
 # interpolates), everything else in env/small.env - see .env.example and docs/env.md
 x-secrets: &secrets
   ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in the root .env (openssl rand -hex 32)}
-  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (./skelet setup, or ./skelet cli keys customer)}
+  CUSTOMER_JWT_PRIVATE_KEY: ${CUSTOMER_JWT_PRIVATE_KEY:?set CUSTOMER_JWT_PRIVATE_KEY in the root .env (skelet setup, or skelet cli keys customer)}
   EMAIL_LINK_SECRET: ${EMAIL_LINK_SECRET:?set EMAIL_LINK_SECRET in the root .env (openssl rand -hex 32)}
   REVIEW_VOTER_TOKEN_SECRET: ${REVIEW_VOTER_TOKEN_SECRET:?set REVIEW_VOTER_TOKEN_SECRET in the root .env (openssl rand -hex 32)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}

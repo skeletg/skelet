@@ -5,18 +5,17 @@ generated, and the cross-app contracts a change has to keep.
 
 ## Commands
 
-`skelet` is the front door - the installed CLI, or `./skelet` at the root of a
-clone without it - bare for a grouped list of every command,
-`skelet help <command>` for one. The scripts under `bin/` are what it runs,
-and [scripts.md](scripts.md) has the detail on each command plus the map
-between the two. The front door itself is a Go program under `cmd/skelet`,
-built on first use - a couple of seconds with host Go, a few more through Docker.
+`skelet` is the front door - bare for a grouped list of every command,
+`skelet help <command>` for one, and [scripts.md](scripts.md) has the detail
+on each. In a project the installed CLI runs that project's own Go program under
+`cmd/skelet`, built on first use - a couple of seconds with host Go, a few more
+through Docker.
 
 | Command | Action |
 |---|---|
 | `skelet setup` | Guided first-run: asks what you want, writes the env files and secrets, boots, migrates. `--yes` for defaults, `--profile FILE` to replay answers |
 | `skelet check [--codegen] [--list]` | **Every gate that can fail a commit, in one command** - version pins, repo structure, cross-app contracts. Under a second, no Docker, no backend. What the pre-commit hook and CI both run; `--list` explains each gate, `--codegen` adds the generated-file check |
-| `skelet hooks` | Point `.git/hooks/pre-commit` at `bin/check`. Opt-in, and deliberately not the `--codegen` variant: needing a running backend to make a commit is a bad trade |
+| `skelet hooks` | Install a pre-commit hook that runs `skelet check`. Opt-in, and deliberately not the `--codegen` variant: needing a running backend to make a commit is a bad trade |
 | `skelet up` | Start the full dev stack (ports exposed, hot reload, `APP_ENV=development`, all sidecars) |
 | `skelet stop` | `docker compose stop` - halt without removing |
 | `skelet down` | `docker compose down` - remove containers (volumes preserved) |
@@ -42,7 +41,7 @@ Full documentation for every command: [scripts.md](scripts.md).
 
 `skelet test --changed` is for the loop while you work. The plain `skelet test` is still the one to run before you push.
 
-- Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `bin/test` passes in and `testdb` reads.
+- Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `skelet test` passes in and `testdb` reads.
 - Each frontend runs its typecheck, then only the vitest files that import a changed file (`vitest related`). An app nothing touched is skipped, and a change to its `package.json`, lockfile, tsconfig or vite/vitest config runs its whole suite.
 - "Changed" is everything since REF plus whatever isn't committed yet. REF defaults to where the branch left develop, so `--changed=HEAD` is just the uncommitted work.
 
@@ -182,7 +181,7 @@ before it white-screens the dashboard. It is
 **not** in the pre-commit hook - it needs the container, and steps 3 and 4
 need the backend, so gating every commit on a running stack is the wrong
 trade. Run it yourself before a PR that touched a `.sql`, `.graphqls` or
-`.graphql` file. The hook runs `bin/check`, which is greps only.
+`.graphql` file. The hook runs `skelet check`, which needs no backend.
 
 ## Cross-app contracts
 
@@ -195,7 +194,7 @@ frontends from `internal/cart/options_visibility.go`), and the security
 headers the backend and the dashboard's nginx both set.
 
 Each end carries a `SYNC` or `SYNC SENTINEL` comment, and
-`bin/contract-check` enforces the mechanical part - including that the
+`skelet check contracts` enforces the mechanical part - including that the
 paths those comments name still exist, since a `SYNC` comment pointing at
 a moved file is worth nothing. It runs on the host, because the app
 containers each mount only their own tree and no single test runner can

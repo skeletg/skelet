@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // Browser coverage for the storefront's forms - what a shopper sees when a submit fails or succeeds, which needs the
-// real server actions, the real backend and a real browser's form reset. Runs through `./skelet test storefront`,
+// real server actions, the real backend and a real browser's form reset. Runs through `skelet test storefront`,
 // which starts Microsoft's Playwright image on the compose network; see e2e/README.md
 //
 // Not part of `pnpm test` (the unit suite), which runs without a backend
