@@ -16,8 +16,9 @@ import {
 import { buildForwardedCookie } from "@/app/lib/forwarded-cookie";
 import { BEACON } from "@/app/lib/beacons/paths";
 import { clientIP } from "@/app/lib/client-ip";
-import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
-import { parseConsent } from "@/app/lib/consent/categories";
+import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@/app/lib/consent/cookie";
+import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories";
+import { getConsentMode } from "@/app/lib/consent/mode";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -179,7 +180,12 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   // Proactively rotate a near-expiry customer session before render.
   const session = channelId ? await maybeRefreshSession(req, channelId) : ({ kind: "noop" } as const);
 
-  const analytics = parseConsent(req.cookies.get(CONSENT_COOKIE)?.value)?.analytics ?? false;
+  // The store's consent mode settles the cookie before anything reads it - under opt-out a first visit already counts
+  const rawConsent = req.cookies.get(CONSENT_COOKIE)?.value;
+  const consentWrite = channelId
+    ? resolveConsentCookie(rawConsent, await getConsentMode(channelId), req.headers.get("sec-gpc") === "1")
+    : undefined;
+  const analytics = parseConsent(consentWrite ?? rawConsent)?.analytics ?? false;
   const existingAid = req.cookies.get(AID_COOKIE)?.value;
   const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
@@ -187,6 +193,9 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   const applyCookies = (res: NextResponse) => {
     // Re-set even when present: rolls the 1-year expiry per visit, and upgrades a tracker-minted cookie
     // (script-set, so ITP-capped at 7 days on Safari) to a server-set one that actually keeps its expiry
+    if (consentWrite !== undefined) {
+      res.cookies.set(CONSENT_COOKIE, consentWrite, consentWrite ? CONSENT_COOKIE_OPTS : { ...CONSENT_COOKIE_OPTS, maxAge: 0 });
+    }
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
     else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
     if (session.kind === "refreshed") {
@@ -220,6 +229,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   // first-paint assignment, rotated access token for its gqlFetch calls
   const forward: Record<string, string> = {};
   if (newAid) forward[AID_COOKIE] = newAid;
+  if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
   if (session.kind === "refreshed") forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
 
   const rewriteTo = channelId ? await channelRewrite(req, channelId) : null;

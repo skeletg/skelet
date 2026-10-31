@@ -543,7 +543,8 @@
     "ads": "Advertising",
     "adsHelp": "Lets ad and affiliate partners know a visit or order came from them.",
     "personalization": "Personalisation",
-    "personalizationHelp": "Recommendations and offers based on what you browse."
+    "personalizationHelp": "Recommendations and offers based on what you browse.",
+    "privacyChoices": "Your privacy choices"
   },
   "masquerade": {
     "banner": "Rep session: shopping as {name} ({email}) - expires automatically in 15 minutes."
