@@ -4,3 +4,6 @@
   keeps the setting it was placed under.
 - **A kit order lists what was in the box.** A kit line now carries its items onto the order, so
   the order page and the return dialog show them like a bundle's.
+- **The storefront shows what is in a kit's box.** `Product.kitComponents` lists a kit's items
+  on the storefront API, and the vetrina-demo product page shows them as "In the box". An item
+  the store doesn't sell on its own is listed without a link.
