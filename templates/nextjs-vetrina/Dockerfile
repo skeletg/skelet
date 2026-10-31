@@ -38,7 +38,7 @@ WORKDIR /var/www/skelet
 
 # The mkdirs matter - an empty volume's mountpoint comes up root-owned unless the image has the dir. The workspace's
 # node_modules holds every installed file; an app's or a package's is only links into it
-RUN mkdir -p node_modules templates/vetrina/.next /pnpm/store \
+RUN mkdir -p node_modules templates/nextjs-vetrina/.next /pnpm/store \
     && chown -R "$SKELET_UID:$SKELET_GID" /var/www/skelet /pnpm/store
 
 USER $SKELET_UID:$SKELET_GID
@@ -46,10 +46,10 @@ USER $SKELET_UID:$SKELET_GID
 # Deps in their own layer keyed on the workspace file, the lockfile and the manifests - source is mounted at runtime.
 # The app and every shared package, each with its own dependencies - a package's peers resolve from its own directory
 COPY --chown=$SKELET_UID:$SKELET_GID pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY --chown=$SKELET_UID:$SKELET_GID templates/vetrina/package.json templates/vetrina/
+COPY --chown=$SKELET_UID:$SKELET_GID templates/nextjs-vetrina/package.json templates/nextjs-vetrina/
 COPY --chown=$SKELET_UID:$SKELET_GID --from=manifests /w/packages packages
 RUN --mount=type=cache,id=pnpm-store-$SKELET_UID,target=/pnpm/store,uid=$SKELET_UID,gid=$SKELET_GID \
-    pnpm install --frozen-lockfile --filter "./templates/vetrina..." --filter "./packages/*"
+    pnpm install --frozen-lockfile --filter "./templates/nextjs-vetrina..." --filter "./packages/*"
 
 # The dev server behind an install that re-runs whenever the dependencies change. The workspace's node_modules is a
 # named volume, which Docker fills from this image only while it's empty, so a changed lockfile reaches the container
@@ -63,6 +63,6 @@ RUN --mount=type=cache,id=pnpm-store-$SKELET_UID,target=/pnpm/store,uid=$SKELET_
 # that to the script verbatim and next would take -H for a positional
 EXPOSE 3000
 CMD ["watchexec", "--poll", "2s", "--restart", \
-     "--watch", "pnpm-workspace.yaml", "--watch", "pnpm-lock.yaml", "--watch", "templates/vetrina/package.json", "--watch", "packages", \
+     "--watch", "pnpm-workspace.yaml", "--watch", "pnpm-lock.yaml", "--watch", "templates/nextjs-vetrina/package.json", "--watch", "packages", \
      "--filter", "pnpm-workspace.yaml", "--filter", "pnpm-lock.yaml", "--filter", "**/package.json", "--", \
-     "pnpm install --filter ./templates/vetrina... --filter './packages/*' --config.confirm-modules-purge=false && cd templates/vetrina && exec pnpm run dev -H 0.0.0.0 -p 3000"]
+     "pnpm install --filter ./templates/nextjs-vetrina... --filter './packages/*' --config.confirm-modules-purge=false && cd templates/nextjs-vetrina && exec pnpm run dev -H 0.0.0.0 -p 3000"]

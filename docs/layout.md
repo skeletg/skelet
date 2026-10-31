@@ -43,7 +43,7 @@ goes for `signals` and `ingest` under `apps/backend/signals`. What the packages 
 
 ### `templates/`
 
-The storefronts a shop is forked from. `vetrina` is the full Next.js one, and the
+The storefronts a shop is forked from. `nextjs-vetrina` is the full Next.js one, and the
 one the dev stack runs in skelet itself - for the browser tests, CI and demo work.
 They're upstream's, like `packages/`: a project leaves them alone and builds its
 shop in `apps/channels/`, so merging a skelet release never collides with it.

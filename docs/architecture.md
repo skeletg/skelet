@@ -77,7 +77,7 @@ skelet/
 │   │   └── package.json
 │   └── channels/                    ← the project's own storefronts, each forked from a template
 ├── templates/
-│   └── vetrina/                     ← Next.js 16 (App Router, RSC) demo storefront
+│   └── nextjs-vetrina/              ← Next.js 16 (App Router, RSC) demo storefront
 │       ├── app/
 │       │   ├── [locale]/            ← every page lives under the locale segment
 │       │   │   ├── layout.tsx       ← the root layout - reads no cookie, so routes
@@ -229,7 +229,7 @@ stay in sync; the storefront has its own codegen step
   `/api/front/graphql`, `cache: "no-store"` by default and `force-cache` with
   `next: { tags, revalidate }` when the caller opts into ISR. **Caveat:** Next.js 16 has breaking changes vs.
   the version in your training data - read
-  `templates/vetrina/node_modules/next/dist/docs/` before writing code,
+  `templates/nextjs-vetrina/node_modules/next/dist/docs/` before writing code,
   and heed the deprecation notices.
 
 ### Datastores and sidecars
@@ -259,7 +259,7 @@ not the GraphQL layer.
 
 Storefront introspection cannot see admin operations. The dashboard at
 `apps/dashboard/` talks to admin only; the storefront at
-`templates/vetrina/` talks to front only.
+`templates/nextjs-vetrina/` talks to front only.
 
 Dev playgrounds: `/playground/admin` and `/playground/front`
 (`APP_ENV=development` only).

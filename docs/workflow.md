@@ -30,7 +30,7 @@ through Docker.
 | `skelet cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `skelet psql` | psql shell into the dev database |
 | `skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `skelet pnpm dashboard run dev`, `skelet pnpm dashboard install`) |
-| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm vetrina run build`, `skelet pnpm vetrina run test`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
+| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm nextjs-vetrina run build`, `skelet pnpm nextjs-vetrina run test`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
 | `skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` and `templates/`, and every package under `packages/` with a codegen script, gets its TS docs regenerated (skipped for apps deselected via skelet setup). |
 | `skelet test [pkgs] [--changed[=REF]] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. `--changed` runs only what a change since REF (the merge base with develop by default) can reach - see below. |
 | `skelet lint` | gofmt + golangci-lint + dashboard ESLint |
@@ -68,8 +68,8 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 
 **Core services**:
 - `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/backend` and works from `core/` under it.
-- `vetrina` - Next.js on `:3000`, `depends_on: app`. Image built from
-  `templates/vetrina/Dockerfile`. Each storefront is its own service,
+- `nextjs-vetrina` - Next.js on `:3000`, `depends_on: app`. Image built from
+  `templates/nextjs-vetrina/Dockerfile`. Each storefront is its own service,
   named after its directory under `apps/channels/` or `templates/`.
 - `db` - Postgres 18 (alpine).
 - `valkey` - Redis-compatible KV; JWT refresh tokens + caches.
@@ -78,7 +78,7 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 - `signals` - the Signals process, HTTP on `:8090` and the gRPC contract on `:8092`,
   started whenever `SIGNALS_ENABLED` is on in `env/go.env`. Core proxies `/t` and
   `/e` to it; the separate `ingest` tier is a scale-out option, off in dev.
-- `vetrina` - `next dev`, with the whole repo bind-mounted at `/var/www/skelet`
+- `nextjs-vetrina` - `next dev`, with the whole repo bind-mounted at `/var/www/skelet`
   (the storefronts and `packages/` are one pnpm workspace) and `env/` masked by a
   tmpfs, so no storefront dependency can read the backend's secrets. Named volumes
   shadow the workspace's `node_modules` and the app's `.next` (so host-built
@@ -247,7 +247,7 @@ vite is actually serving. `.skelet-apps` lists only the ones you asked to contai
 so an empty file means every frontend runs on the host with `skelet serve <app>`.
 
 Non-interactive variants: `skelet setup --all`, `--backend-only`, or `skelet setup --apps
-dashboard,vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
+dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
 Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
 `skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
@@ -286,8 +286,8 @@ A clone from before the switch to pnpm needs two things done once:
   and rebuild:
 
   ```bash
-  docker compose rm -sf dashboard vetrina
-  docker volume rm skelet_dashboard-node-modules skelet_vetrina-node-modules
+  docker compose rm -sf dashboard nextjs-vetrina
+  docker volume rm skelet_dashboard-node-modules skelet_nextjs-vetrina-node-modules
   skelet up --build
   ```
 
@@ -336,8 +336,8 @@ skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
 By hand:
 
-1. Create `apps/channels/<your-shop>/` - a copy of `templates/vetrina` with its
-   `templates/vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
+1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
+   `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
    `apps/channels/<your-shop>`, or from scratch - then `pnpm install --lockfile-only`
    from the root, so the lockfile knows it.
 2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
@@ -345,7 +345,7 @@ By hand:
    the tracked compose files, so `git pull` from upstream skelet stays
    conflict-free. Anchors don't cross compose files, so a block copied from
    `docker-compose.yml` needs its own `x-logging: &logging` beside it.
-3. `skelet setup --apps dashboard,<your-shop>` - deselecting `vetrina` removes
+3. `skelet setup --apps dashboard,<your-shop>` - deselecting `nextjs-vetrina` removes
    it from your working tree via sparse-checkout *without committing a deletion*,
    so upstream updates to the template never conflict with your clone.
 That's the whole list. Everything else follows the directory: `skelet up`,

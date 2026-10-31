@@ -44,7 +44,7 @@ return not found, and prevents the public API from returning stores.
 On a development database only, run:
 
 ```bash
-skelet cli dev-store-demo <vetrina-channel-id>
+skelet cli dev-store-demo <nextjs-vetrina-channel-id>
 ```
 
 This adds named demo stores in Belgrade, Novi Sad and Niš, plus a private warehouse,
@@ -66,5 +66,5 @@ The locations and contact details are fictional demonstration data.
 Run the read-only browser journeys after installing the fixtures:
 
 ```bash
-skelet test storefront vetrina e2e/stores.spec.ts
+skelet test storefront nextjs-vetrina e2e/stores.spec.ts
 ```

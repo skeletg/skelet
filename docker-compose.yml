@@ -285,13 +285,13 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  vetrina:
-    profiles: ["vetrina"]
+  nextjs-vetrina:
+    profiles: ["nextjs-vetrina"]
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     init: true
     build:
       context: .
-      dockerfile: templates/vetrina/Dockerfile
+      dockerfile: templates/nextjs-vetrina/Dockerfile
       # Same uid story as the dashboard's install
       args:
         SKELET_UID: ${SKELET_UID:-1000}
@@ -306,8 +306,8 @@ services:
         target: /var/www/skelet/env
       # The workspace's installed files, musl builds the host can't run - an app's or a package's node_modules is
       # only links into them
-      - vetrina-node-modules:/var/www/skelet/node_modules
-      - vetrina-next-cache:/var/www/skelet/templates/vetrina/.next
+      - nextjs-vetrina-node-modules:/var/www/skelet/node_modules
+      - nextjs-vetrina-next-cache:/var/www/skelet/templates/nextjs-vetrina/.next
     environment:
       - HOME=/tmp
       # Server-side fetches use the in-network URL, the browser can't reach it -
@@ -643,5 +643,5 @@ volumes:
   grafana-alloy-data:
   dashboard-node-modules:
   dashboard-vite-cache:
-  vetrina-node-modules:
-  vetrina-next-cache:
+  nextjs-vetrina-node-modules:
+  nextjs-vetrina-next-cache:

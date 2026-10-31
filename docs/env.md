@@ -21,9 +21,9 @@ most a one-line hint. Everything that needs a paragraph lives here.
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
-| `prod-vetrina.env.example` | `prod-vetrina.env` | the storefront container |
+| `prod-nextjs-vetrina.env.example` | `prod-nextjs-vetrina.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
-| `small-vetrina.env.example` | `small-vetrina.env` | its storefront container |
+| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
 The two `small.*` files belong to `docker-compose.small.yml`, the
@@ -661,7 +661,7 @@ maintenance gate still answers it. Empty means the crawler gets whatever an
 anonymous visitor gets.
 
 `SEO_CRAWL_ALLOWED_ORIGINS` is OPTIONAL, a comma-separated list of extra
-origins the link-map crawl may start at, like `http://vetrina:3000` when the
+origins the link-map crawl may start at, like `http://nextjs-vetrina:3000` when the
 storefront is reached on its compose address. Without it a crawl only starts
 at the channel's public URL or `STOREFRONT_URL` - the crawl reads whatever
 answers and carries the bypass token, so it can't be pointed anywhere else.
@@ -761,7 +761,7 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_IMAGE` are set in the
+`APP_IMAGE`, `DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
 env. `skelet release` prints the values after a push.
 

@@ -1,6 +1,6 @@
 # Prod storefront image - Next.js standalone output on a small node base
 # Build from the repo root, the workspace the storefront shares packages through:
-#   docker build -f templates/vetrina/Dockerfile.prod -t skelet-vetrina:prod .
+#   docker build -f templates/nextjs-vetrina/Dockerfile.prod -t skelet-nextjs-vetrina:prod .
 # Dockerfile.prod.dockerignore beside this file keeps that context to the workspace files, the packages and this app
 # Runtime config: BACKEND_INTERNAL_URL (default http://app:8080), STOREFRONT_CHANNEL_HOSTS and/or STOREFRONT_CHANNEL_ID
 
@@ -19,13 +19,13 @@ ENV pnpm_config_store_dir=/pnpm/store \
 WORKDIR /app
 # The workspace file carries the build policy the lockfile was resolved under
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY templates/vetrina/package.json templates/vetrina/
+COPY templates/nextjs-vetrina/package.json templates/nextjs-vetrina/
 COPY --from=manifests /w/packages packages
 # The app and every shared package, each with its own dependencies - a package's peers resolve from its own directory
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "./templates/vetrina..." --filter "./packages/*"
+    pnpm install --frozen-lockfile --filter "./templates/nextjs-vetrina..." --filter "./packages/*"
 COPY packages packages
-COPY templates/vetrina templates/vetrina
+COPY templates/nextjs-vetrina templates/nextjs-vetrina
 
 ARG NEXT_PUBLIC_DASHBOARD_ORIGIN
 ENV NEXT_PUBLIC_DASHBOARD_ORIGIN=$NEXT_PUBLIC_DASHBOARD_ORIGIN
@@ -34,7 +34,7 @@ ARG UPLOAD_ORIGINS
 ENV UPLOAD_ORIGINS=$UPLOAD_ORIGINS
 
 # No channel and no backend at build time: the host picks the channel per request, and pages render on first visit
-RUN cd templates/vetrina && pnpm run build
+RUN cd templates/nextjs-vetrina && pnpm run build
 
 FROM node:24-alpine AS run
 WORKDIR /app
@@ -44,11 +44,11 @@ ENV NODE_ENV=production \
 RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app
 # Standalone output traces from the workspace root, so the app's server sits at its own path inside it. server.js
 # doesn't serve public/ or .next/static itself - copy them in beside it
-COPY --from=build --chown=app:app /app/templates/vetrina/.next/standalone ./
-COPY --from=build --chown=app:app /app/templates/vetrina/.next/static ./templates/vetrina/.next/static
-COPY --from=build --chown=app:app /app/templates/vetrina/public ./templates/vetrina/public
+COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/.next/standalone ./
+COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/.next/static ./templates/nextjs-vetrina/.next/static
+COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/public ./templates/nextjs-vetrina/public
 # The ISR cache writes here at runtime, as the unprivileged user
-RUN mkdir -p templates/vetrina/.next/cache && chown app:app templates/vetrina/.next/cache
+RUN mkdir -p templates/nextjs-vetrina/.next/cache && chown app:app templates/nextjs-vetrina/.next/cache
 USER app
 EXPOSE 3000
-CMD ["node", "templates/vetrina/server.js"]
+CMD ["node", "templates/nextjs-vetrina/server.js"]

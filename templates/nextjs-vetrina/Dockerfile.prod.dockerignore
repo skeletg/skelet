@@ -5,7 +5,7 @@
 !pnpm-workspace.yaml
 !pnpm-lock.yaml
 !packages/
-!templates/vetrina/
+!templates/nextjs-vetrina/
 **/node_modules
 **/.next
 **/test-results

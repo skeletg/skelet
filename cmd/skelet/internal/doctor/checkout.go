@@ -63,7 +63,7 @@ func checkout(root string, out io.Writer, p probes) int {
 	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
 	// sees only its own directory, so the shared packages don't resolve
 	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil && strings.Contains(string(raw), "/var/www/storefront") {
-		r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the vetrina service in docker-compose.yml")
+		r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the nextjs-vetrina service in docker-compose.yml")
 	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
 
