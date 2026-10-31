@@ -74,6 +74,10 @@ func TestMatchesTheBashDispatcher(t *testing.T) {
 		}
 
 		a := Resolve(root, args)
+		// A verb ported to Go no longer runs a script, so there's nothing left to compare - its own tests cover it
+		if a.Go != nil {
+			continue
+		}
 		gotOut, gotErr := a.Stdout, ""
 		if a.Script != "" {
 			gotOut = strings.Join(append([]string{filepath.Join(root, "bin", a.Script)}, a.Args...), "\n") + "\n"

@@ -44,7 +44,7 @@ func Resolve(root string, args []string) Action {
 		}
 		return a
 	case "db":
-		return db(rest)
+		return dbRoute(rest)
 	case "gen", "check", "test":
 		return withSubs(verb, rest)
 	case "new":
@@ -84,7 +84,7 @@ func withSubs(verb string, rest []string) Action {
 	return simple(verb, rest)
 }
 
-func db(rest []string) Action {
+func dbRoute(rest []string) Action {
 	sub := ""
 	if len(rest) > 0 {
 		sub, rest = rest[0], rest[1:]

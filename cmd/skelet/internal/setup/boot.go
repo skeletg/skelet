@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/container"
 	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
@@ -38,7 +39,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 	// The app migrates as it boots - this waits for the same work under the same locks, so what follows finds the
 	// schema in place
 	fmt.Println("==> Running migrations...")
-	if err := script("cli", "migrate"); err != nil {
+	if err := container.CLICall(root, "migrate").Run(); err != nil {
 		return sys.ExitCode(err)
 	}
 
@@ -68,7 +69,7 @@ func boot(root string, a answers, w written, ask prompter) int {
 			q, def = "A superuser already exists - create another?", false
 		}
 		if ask.yesNo("==> "+q, def) {
-			if err := script("cli", "admin", "create-superuser"); err != nil {
+			if err := container.CLICall(root, "admin", "create-superuser").Run(); err != nil {
 				fmt.Fprintln(os.Stderr, "    create-superuser failed - run it again with skelet cli admin create-superuser")
 			}
 		}

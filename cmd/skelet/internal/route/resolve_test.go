@@ -31,16 +31,16 @@ func TestResolveRoutes(t *testing.T) {
 		notice string
 	}{
 		{[]string{"up", "--lean"}, "dev", []string{"--lean"}, ""},
-		{[]string{"sh"}, "bash", nil, ""},
-		{[]string{"logs", "app"}, "logs", []string{"app"}, ""},
+		{[]string{"sh"}, "", nil, ""},
+		{[]string{"logs", "app"}, "", []string{"app"}, ""},
 		{[]string{"pnpm", "dashboard", "run", "lint"}, "dash", []string{"run", "lint"}, ""},
 		{[]string{"pnpm", "vetrina", "run", "dev"}, "channel", []string{"vetrina", "run", "dev"}, ""},
 		{[]string{"npm", "dashboard", "x"}, "dash", []string{"x"}, "(skelet npm is skelet pnpm now - running pnpm)"},
-		{[]string{"db", "migrate", "up", "--signals"}, "migrate-signals", []string{"up"}, ""},
-		{[]string{"db", "migrate", "--signals", "status"}, "migrate-signals", []string{"status"}, ""},
-		{[]string{"db", "migrate", "status"}, "migrate", []string{"status"}, ""},
-		{[]string{"db", "export", "out.dump"}, "db-export", []string{"out.dump"}, ""},
-		{[]string{"db", "shell"}, "psql", nil, ""},
+		{[]string{"db", "migrate", "up", "--signals"}, "", []string{"up"}, ""},
+		{[]string{"db", "migrate", "--signals", "status"}, "", []string{"status"}, ""},
+		{[]string{"db", "migrate", "status"}, "", []string{"status"}, ""},
+		{[]string{"db", "export", "out.dump"}, "", []string{"out.dump"}, ""},
+		{[]string{"db", "shell"}, "", nil, ""},
 		{[]string{"gen"}, "codegen", nil, ""},
 		{[]string{"gen", "--check"}, "codegen", []string{"--check"}, ""},
 		{[]string{"gen", "sqlc", "x"}, "sqlc", []string{"x"}, ""},
@@ -54,13 +54,14 @@ func TestResolveRoutes(t *testing.T) {
 		{[]string{"add", "channel", "shop"}, "new", []string{"channel", "shop"}, ""},
 		{[]string{"new", "channel", "shop"}, "new", []string{"channel", "shop"}, "(skelet new channel is skelet add channel now - running it)"},
 		{[]string{"rm", "channel", "shop", "-y"}, "remove", []string{"channel", "shop", "-y"}, ""},
-		{[]string{"search", "status"}, "opensearch", []string{"status"}, ""},
-		{[]string{"release"}, "push-images", nil, ""},
-		{[]string{"provider", "http://x"}, "provider-check", []string{"http://x"}, ""},
+		{[]string{"search", "status"}, "", []string{"status"}, ""},
+		{[]string{"release"}, "", nil, ""},
+		{[]string{"provider", "http://x"}, "", []string{"http://x"}, ""},
 	}
+	// An empty script is a Go verb: it has to resolve to its handler
 	for _, c := range cases {
 		a := Resolve(root, c.args)
-		if a.Script != c.script || !slices.Equal(a.Args, c.want) || a.Notice != c.notice || a.Code != 0 {
+		if a.Script != c.script || (c.script == "") != (a.Go != nil) || !slices.Equal(a.Args, c.want) || a.Notice != c.notice || a.Code != 0 {
 			t.Errorf("%q -> %+v, want bin/%s %q notice %q", c.args, a, c.script, c.want, c.notice)
 		}
 	}

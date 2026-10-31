@@ -147,19 +147,15 @@ fails when a script has no route or a route has no script.
 
 | Verb | Runs |
 |---|---|
-| `up` / `down` / `stop` / `restart` / `ps` | `dev` / `down` / `stop` / `restart` / `ps` |
-| `serve` | `serve` |
-| `logs [service]` | `logs` |
-| `sh`, `go`, `cli`, `psql` | `bash`, `go`, `cli`, `psql` |
+| `up` | `dev` |
+| `go` | `go` |
 | `pnpm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` - `npm` is kept as an alias from before the switch |
-| `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
 | `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `setup`, `doctor`, `hooks` | nothing - they're Go, under `cmd/skelet/internal/` |
-| `fixperms` | `fixperms` |
-| `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
+| `changelog` | `changelog` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
+| `setup`, `doctor`, `hooks`, `down`, `stop`, `restart`, `ps`, `logs`, `serve`, `sh`, `cli`, `psql`, `db ...`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
 
 `bin/repo-check` fails if `skelet` routes to a script that doesn't exist, so
 the table above can't quietly rot when a script is renamed.

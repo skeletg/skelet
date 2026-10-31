@@ -34,7 +34,7 @@ routed="$(grep -oE 'Script: "[a-z][a-z0-9-]*"' "$table" | sed -E 's/.*"(.*)"/\1/
 # A floor over every route, scripts and Go verbs alike, so a refactor that stops matching fails loudly instead of
 # passing vacuously - and porting scripts to Go doesn't wear it down. contract-check's extractors assert the same way
 n_routed=$(printf '%s\n' "$routed" | grep -c .)
-n_go=$(grep -cE 'Go: [a-z]+\.Run' "$table")
+n_go=$(grep -cE 'Go: [a-z]+\.[A-Z]' "$table")
 if [ $((n_routed + n_go)) -lt 30 ]; then
     bad "only $((n_routed + n_go)) routes found in $table - the table or this grep moved, not the scripts"
 else

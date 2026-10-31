@@ -98,6 +98,11 @@ func UserFlags() []string {
 	return flags
 }
 
+// Call is docker compose with args, from the checkout with env - for a verb to become, or to run and wait on
+func Call(root string, env []string, args ...string) sys.Call {
+	return sys.Call{Dir: root, Path: sys.Lookup("docker"), Argv: append([]string{"docker", "compose"}, args...), Env: env}
+}
+
 // Command is docker compose run from the checkout with env
 func Command(root string, env []string, args ...string) *exec.Cmd {
 	cmd := exec.Command("docker", append([]string{"compose"}, args...)...)

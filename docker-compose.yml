@@ -3,7 +3,7 @@
 name: skelet
 
 # json-file is unbounded by default, and a dev stack left up for days (air reload spam, Next.js request logs, ClickHouse
-# query logs) quietly eats disk - same 10 MB x 3 cap as prod, and `bin/logs` still shows plenty of history
+# query logs) quietly eats disk - same 10 MB x 3 cap as prod, and `skelet logs` still shows plenty of history
 x-logging: &logging
   driver: json-file
   options:

@@ -2,9 +2,15 @@
 package route
 
 import (
+	"github.com/skeletg/skelet/cmd/skelet/internal/container"
+	"github.com/skeletg/skelet/cmd/skelet/internal/db"
 	"github.com/skeletg/skelet/cmd/skelet/internal/doctor"
+	"github.com/skeletg/skelet/cmd/skelet/internal/fixperms"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/release"
+	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
+	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
 )
 
 // Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check
@@ -26,32 +32,32 @@ var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
 	{Verb: "doctor", Go: doctor.Run, About: doctor.About},
 	{Verb: "up", Script: "dev"},
-	{Verb: "serve", Script: "serve"},
-	{Verb: "down", Script: "down"},
-	{Verb: "stop", Script: "stop"},
-	{Verb: "restart", Script: "restart"},
-	{Verb: "ps", Script: "ps"},
-	{Verb: "logs", Script: "logs"},
-	{Verb: "sh", Script: "bash"},
+	{Verb: "serve", Go: stack.Serve, About: stack.ServeAbout},
+	{Verb: "down", Go: stack.Down, About: stack.DownAbout},
+	{Verb: "stop", Go: stack.Stop, About: stack.StopAbout},
+	{Verb: "restart", Go: stack.Restart, About: stack.RestartAbout},
+	{Verb: "ps", Go: stack.Ps, About: stack.PsAbout},
+	{Verb: "logs", Go: stack.Logs, About: stack.LogsAbout},
+	{Verb: "sh", Go: container.Shell, About: container.ShellAbout},
 	{Verb: "go", Script: "go"},
-	{Verb: "cli", Script: "cli"},
-	{Verb: "psql", Script: "psql"},
+	{Verb: "cli", Go: container.CLI, About: container.CLIAbout},
+	{Verb: "psql", Go: db.Shell, About: db.ShellAbout},
 	{Verb: "lint", Script: "lint"},
-	{Verb: "search", Script: "opensearch"},
-	{Verb: "release", Script: "push-images"},
+	{Verb: "search", Go: search.Run, About: search.About},
+	{Verb: "release", Go: release.Run, About: release.About},
 	{Verb: "hooks", Go: hooks.Run, About: hooks.About},
-	{Verb: "fixperms", Script: "fixperms"},
-	{Verb: "provider", Script: "provider-check"},
+	{Verb: "fixperms", Go: fixperms.Run, About: fixperms.About},
+	{Verb: "provider", Go: container.Provider, About: container.ProviderAbout},
 	{Verb: "changelog", Script: "changelog"},
 	{Verb: "add", Script: "new"},
 	{Verb: "rm", Script: "remove"},
 	{Verb: "pnpm", Sub: "dashboard", Script: "dash"},
 	{Verb: "pnpm", Sub: AnyApp, Script: "channel"},
-	{Verb: "db", Sub: "migrate", Script: "migrate"},
-	{Verb: "db", Sub: "migrate", Flag: "--signals", Script: "migrate-signals"},
-	{Verb: "db", Sub: "export", Script: "db-export"},
-	{Verb: "db", Sub: "import", Script: "db-import"},
-	{Verb: "db", Sub: "shell", Script: "psql"},
+	{Verb: "db", Sub: "migrate", Go: db.Migrate, About: db.MigrateAbout},
+	{Verb: "db", Sub: "migrate", Flag: "--signals", Go: db.MigrateSignals, About: db.MigrateAbout},
+	{Verb: "db", Sub: "export", Go: db.Export, About: db.ExportAbout},
+	{Verb: "db", Sub: "import", Go: db.Import, About: db.ImportAbout},
+	{Verb: "db", Sub: "shell", Go: db.Shell, About: db.ShellAbout},
 	{Verb: "gen", Script: "codegen"},
 	{Verb: "gen", Sub: "sqlc", Script: "sqlc"},
 	{Verb: "gen", Sub: "gqlgen", Script: "gqlgen"},
