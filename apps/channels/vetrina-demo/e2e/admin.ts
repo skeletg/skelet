@@ -10,7 +10,7 @@ export async function adminSession(): Promise<Admin> {
   const password = process.env.E2E_ADMIN_PASSWORD;
   const channelId = process.env.E2E_CHANNEL_ID;
   if (!url || !email || !password || !channelId) {
-    throw new Error("E2E_ADMIN_* / E2E_CHANNEL_ID are unset - run the browser tests through ./skelet test storefront");
+    throw new Error("E2E_ADMIN_* / E2E_CHANNEL_ID are unset - run the browser tests through skelet test storefront");
   }
   const ctx: APIRequestContext = await request.newContext();
   let token = "";

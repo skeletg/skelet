@@ -5,12 +5,11 @@ generated, and the cross-app contracts a change has to keep.
 
 ## Commands
 
-`skelet` is the front door - the installed CLI, or `./skelet` at the root of a
-clone without it - bare for a grouped list of every command,
-`skelet help <command>` for one. The scripts under `bin/` are what it runs,
-and [scripts.md](scripts.md) has the detail on each command plus the map
-between the two. The front door itself is a Go program under `cmd/skelet`,
-built on first use - a couple of seconds with host Go, a few more through Docker.
+`skelet` is the front door - bare for a grouped list of every command,
+`skelet help <command>` for one, and [scripts.md](scripts.md) has the detail
+on each. In a project the installed CLI runs that project's own Go program under
+`cmd/skelet`, built on first use - a couple of seconds with host Go, a few more
+through Docker.
 
 | Command | Action |
 |---|---|

@@ -18,9 +18,8 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
-| `cmd/skelet/` | The `skelet` CLI: the front door here, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
-| `bin/` | What those verbs run, one script per operation |
-| `./skelet` | Front door - a shim that builds `cmd/skelet` and runs it. Every dev command goes through it |
+| `cmd/skelet/` | The `skelet` CLI: the front door here, every dev verb, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
+| `./skelet`, `bin/` | The bash front door from before the CLI, and the hook forwarder - kept a release while installs move over, then removed |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
 Full tree: [docs/architecture.md](docs/architecture.md). What each root directory is
@@ -28,32 +27,32 @@ for: [docs/layout.md](docs/layout.md).
 
 ## 2. Commands
 
-**Use `./skelet`, not raw `docker compose` / `pnpm` / `go`.** It resolves the right
-container, the right database URL and the right node_modules. `./skelet` with no
-arguments lists every verb; `./skelet help <verb>` explains one. The `bin/` scripts
-underneath are the implementation: read one when you need the detail, but drive the
-repo through the verbs so there's a single vocabulary. The docs write plain `skelet`, the
-installed CLI, which hands each command to the checkout's `./skelet` - so the two are the
-same, and `./skelet` is the one that needs nothing installed. CI runs the verbs as
-`go -C cmd/skelet run . <verb>`, which reaches the same build with only Go - but it reports any
-failure as exit 1, and relative paths in arguments resolve from `cmd/skelet`.
+**Use `skelet`, not raw `docker compose` / `pnpm` / `go`.** It resolves the right
+container, the right database URL and the right node_modules. `skelet` with no
+arguments lists every verb; `skelet help <verb>` explains one. Each verb is Go under
+`cmd/skelet/internal/`: read it when you need the detail, but drive the repo through the
+verbs so there's a single vocabulary. `skelet` is the installed CLI, which runs this
+checkout's own `cmd/skelet` - so a verb always matches the code you're on. Without it,
+`go -C cmd/skelet run . <verb>` reaches the same build with only Go, the way CI runs the
+verbs - but it reports any failure as exit 1, and relative paths in arguments resolve from
+`cmd/skelet`.
 
 ```bash
-./skelet setup            # first run: picks apps, writes env, migrates, boots
-./skelet up               # start the dev stack     (--lean skips OpenSearch, the dev tools and the Signals process with its ClickHouse)
-./skelet check            # every gate that can fail a commit, in about a second
-./skelet test             # go test + frontend typechecks + unit tests
-./skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)
-./skelet gen              # ALL codegen: buf, sqlc, gqlgen, plugin bridge, docs, TS types
-./skelet go test ./...    # go, inside the app container
-./skelet go --signals test ./...   # the same, in the Signals module
-./skelet cli <args>       # the ops CLI, inside the app container
-./skelet psql             # psql on the dev commerce database
-./skelet logs app         # tail one service
+skelet setup            # first run: picks apps, writes env, migrates, boots
+skelet up               # start the dev stack     (--lean skips OpenSearch, the dev tools and the Signals process with its ClickHouse)
+skelet check            # every gate that can fail a commit, in about a second
+skelet test             # go test + frontend typechecks + unit tests
+skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)
+skelet gen              # ALL codegen: buf, sqlc, gqlgen, plugin bridge, docs, TS types
+skelet go test ./...    # go, inside the app container
+skelet go --signals test ./...   # the same, in the Signals module
+skelet cli <args>       # the ops CLI, inside the app container
+skelet psql             # psql on the dev commerce database
+skelet logs app         # tail one service
 ```
 
-`./skelet test e2e` runs the money-path suite against throwaway databases - it is excluded
-from `./skelet test` on purpose, because it writes real orders and never cleans up.
+`skelet test e2e` runs the money-path suite against throwaway databases - it is excluded
+from `skelet test` on purpose, because it writes real orders and never cleans up.
 
 ## 3. Generated code - never hand-edit
 
@@ -61,17 +60,17 @@ Editing any of these is always a mistake; regenerate instead.
 
 | Generated | From | Regenerate with |
 |---|---|---|
-| `graph/{admin,front}/generated.go` | `graph/schema/**/*.graphqls` | `./skelet gen` |
-| `graph/{admin,front}/model/models_gen.go` | same | `./skelet gen` |
-| `internal/db/sqlc/**` | `internal/db/query/*.sql` | `./skelet gen` |
-| `apps/backend/signals/internal/db/sqlc/**` | `apps/backend/signals/internal/db/query/*.sql` | `./skelet gen` |
-| `signalsapi/v1/**` | `proto/skelet/signals/v1/*.proto` | `./skelet gen` |
-| `**/*.gql.ts`, `graphql/schema.types.ts` | `*.graphql` docs + the live schema | `./skelet gen` |
-| `plugins/firstparty/`, `plugin_resolvers.go` | `plugins/plugins.json` | `./skelet gen` |
-| `docs/{permissions,webhooks,settings}.md` | the code-defined registries | `./skelet gen` |
-| `apps/dashboard/nginx.conf.template`, `deploy/caddy/Caddyfile` | `httpx/securityheaders.go` | `./skelet gen` |
+| `graph/{admin,front}/generated.go` | `graph/schema/**/*.graphqls` | `skelet gen` |
+| `graph/{admin,front}/model/models_gen.go` | same | `skelet gen` |
+| `internal/db/sqlc/**` | `internal/db/query/*.sql` | `skelet gen` |
+| `apps/backend/signals/internal/db/sqlc/**` | `apps/backend/signals/internal/db/query/*.sql` | `skelet gen` |
+| `signalsapi/v1/**` | `proto/skelet/signals/v1/*.proto` | `skelet gen` |
+| `**/*.gql.ts`, `graphql/schema.types.ts` | `*.graphql` docs + the live schema | `skelet gen` |
+| `plugins/firstparty/`, `plugin_resolvers.go` | `plugins/plugins.json` | `skelet gen` |
+| `docs/{permissions,webhooks,settings}.md` | the code-defined registries | `skelet gen` |
+| `apps/dashboard/nginx.conf.template`, `deploy/caddy/Caddyfile` | `httpx/securityheaders.go` | `skelet gen` |
 
-`./skelet check codegen` fails when committed output has drifted. The TS half needs a
+`skelet check codegen` fails when committed output has drifted. The TS half needs a
 running backend; `--no-frontend` is the half CI can run.
 
 Write resolver bodies in `*.resolvers.go` only. gqlgen strips unrecognised methods from
@@ -91,7 +90,7 @@ anything.
 | ClickHouse spine | `apps/backend/signals/internal/analytics/spinech/migrations/` |
 
 The baseline migration in each stream is generated rather than hand-written, so don't
-edit one. A schema change is a new migration on top, made with `./skelet db migrate new <name>`:
+edit one. A schema change is a new migration on top, made with `skelet db migrate new <name>`:
 one dbmate file, timestamped so parallel branches never collide, with its `-- migrate:up` and
 `-- migrate:down` halves. Rows every install needs belong in the reference-data migration rather
 than in a data patch. Layout and the regeneration procedure:
@@ -102,27 +101,27 @@ let sqlc generate the Go.
 
 ## 5. Testing
 
-- Go: standard `testing`, `_test.go` beside the code. `./skelet test`
+- Go: standard `testing`, `_test.go` beside the code. `skelet test`
 - Database-backed Go tests gate on `testdb` and refuse to run against a
-  database that is not marked disposable. `./skelet test` brings its own
+  database that is not marked disposable. `skelet test` brings its own
   (`skelet_test` / `skelet_test_signals`, fresh each run, `--keep` to reuse), and
   every test binary clones them (`CREATE DATABASE ... TEMPLATE`), so packages
   never share rows - a harness that opens its own pool must take its DSN from
   `testdb.URL`. ClickHouse tests take theirs from `chtest.DSN` (Signals module), the
   same gate with the marker in the database comment. It ends with a pass/fail/skip
   tally: a skip count that isn't near zero means a database went missing, not that
-  the tests are fine. One run at a time - a second `./skelet test` refuses while the
+  the tests are fine. One run at a time - a second `skelet test` refuses while the
   first holds the databases
-- `./skelet test --changed` runs only what a change reaches - Go's test cache keyed on the code and the
+- `skelet test --changed` runs only what a change reaches - Go's test cache keyed on the code and the
   migrations, plus `vitest related` per frontend. It's for iterating; the full run is still the gate before you finish
-- Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet pnpm dashboard run test`
-- Storefront: Vitest. `./skelet pnpm <name> run test`
-- E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
-- Storefront browser tests: `./skelet test storefront [name]`, Playwright against the running dev container,
-  ~1.5 minutes. Writes throwaway customers to the dev database. Needs `./skelet up` first
+- Dashboard: Vitest, `*.test.tsx` beside the component. `skelet pnpm dashboard run test`
+- Storefront: Vitest. `skelet pnpm <name> run test`
+- E2E money paths: `skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
+- Storefront browser tests: `skelet test storefront [name]`, Playwright against the running dev container,
+  ~1.5 minutes. Writes throwaway customers to the dev database. Needs `skelet up` first
 
 **Dashboard typecheck trap:** `tsc --noEmit` on its own is a no-op here. Use
-`./skelet pnpm dashboard run typecheck:all`, or `pnpm exec tsc -p tsconfig.app.json --noEmit`.
+`skelet pnpm dashboard run typecheck:all`, or `pnpm exec tsc -p tsconfig.app.json --noEmit`.
 
 ## 6. Formatting
 
@@ -183,8 +182,8 @@ GraphQL is server-only, channel and locale are resolved server-side, and routing
 backend-driven through the `[...slug]` catch-all and the URL-rewrite resolver.
 
 **Plugins** are compiled in from `plugins/plugins.json`, which is the decision file.
-Anything writing it must MERGE, never rewrite - `./skelet cli plugin install|enable`
-and `./skelet setup` all touch it. A slug enabled with no `plugins/<slug>` directory fails
+Anything writing it must MERGE, never rewrite - `skelet cli plugin install|enable`
+and `skelet setup` all touch it. A slug enabled with no `plugins/<slug>` directory fails
 codegen outright.
 
 ## 8. Environment traps
@@ -192,25 +191,25 @@ codegen outright.
 - `rg <pattern> apps/backend` silently skips `cmd/server` - use `grep -r` for sweeps
 - A Docker frontend's dev server runs under `watchexec` (the CMD of its dev Dockerfile), which reinstalls
   and restarts it within a couple of seconds of `package.json` or the lockfile changing - no manual
-  install into the container. A Dockerfile change still needs `./skelet up`, which rebuilds
+  install into the container. A Dockerfile change still needs `skelet up`, which rebuilds
 - The frontends use pnpm, one project per app (`pnpm-workspace.yaml` beside each
   `package.json` holds its settings - pnpm ignores `package.json`'s `pnpm` field). Three
   differences from npm bite: an import of a package the app doesn't declare fails, `--` reaches
   the script verbatim (`pnpm run dev --host`, not `-- --host`), and a version published less
   than a day ago won't install (`minimumReleaseAge`)
-- `core.fileMode` is off here, so `chmod +x` on a `bin/` script needs
+- `core.fileMode` is off here, so `chmod +x` on a script needs
   `git update-index --chmod=+x <file>` to stick
 - Air's hot reload misses changes on WSL2 - `docker compose restart app`
-- The first `./skelet` after a change under `cmd/skelet` rebuilds the CLI into `.skelet/bin/` - host Go if
-  there is one, else the `golang` image - and every later run starts the cached binary. Its routes are one
-  line each in `cmd/skelet/internal/route/table.go`, and `./skelet check structure` holds them to `bin/` both ways
-- Containers run as your uid via `SKELET_UID`, which only `bin/_lib` exports. A script
-  that runs `docker compose run` or `up` must source it, and `skelet check structure` enforces that
+- The first `skelet` after a change under `cmd/skelet` rebuilds the CLI - host Go if there is one, else the
+  `golang` image - and every later run starts the cached binary. Its verbs are one line each in
+  `cmd/skelet/internal/route/table.go`
+- Containers run as your uid via `SKELET_UID`, which the CLI sets for every compose command that
+  creates one. A raw `docker compose up` leaves it at 1000 - another reason to go through the verbs
 
 ## 9. Before you finish
 
-Run `./skelet check`. If you touched schema, SQL or GraphQL documents, run
-`./skelet gen` and commit the regenerated output with your change. If you touched Go,
-run `./skelet lint` and `./skelet test`. A change worth a changelog line gets a fragment
+Run `skelet check`. If you touched schema, SQL or GraphQL documents, run
+`skelet gen` and commit the regenerated output with your change. If you touched Go,
+run `skelet lint` and `skelet test`. A change worth a changelog line gets a fragment
 in `changelog/unreleased/` (see its README), never an edit under `[Unreleased]`. Do not commit or
 push unless asked.

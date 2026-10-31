@@ -10,7 +10,7 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
-Entries waiting for the next release are in [changelog/unreleased/](changelog/unreleased/) - `./skelet changelog` shows them assembled.
+Entries waiting for the next release are in [changelog/unreleased/](changelog/unreleased/) - `skelet changelog` shows them assembled.
 
 ## Releases
 

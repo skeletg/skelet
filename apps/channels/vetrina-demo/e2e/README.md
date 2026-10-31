@@ -5,10 +5,10 @@ field, the cart drawer opening, the pages rendering without browser errors. Unit
 cover the logic; these cover the wiring - server actions, the real backend, hydration, layout.
 
 ```
-./skelet up                                      # the dev stack, with this storefront running
-./skelet test storefront                         # every spec
-./skelet test storefront e2e/account.spec.ts     # one file
-./skelet test storefront -g "coupon"             # by title
+skelet up                                      # the dev stack, with this storefront running
+skelet test storefront                         # every spec
+skelet test storefront e2e/account.spec.ts     # one file
+skelet test storefront -g "coupon"             # by title
 ```
 
 ## How it runs

@@ -74,4 +74,9 @@ build() {
 }
 
 [ -x "$bin" ] || build
+# Run by hand rather than handed over by the installed CLI, which sets SKELET_CLI - said on a terminal only, so scripts
+# and pipes see nothing new
+if [ -z "${SKELET_CLI:-}" ] && [ -t 2 ]; then
+    echo "skelet: ./skelet goes away in the next release - install the CLI the README's way and run skelet, which runs this checkout's own code" >&2
+fi
 SKELET_ROOT="$root" SKELET_SHIM=1 exec "$bin" "$@"

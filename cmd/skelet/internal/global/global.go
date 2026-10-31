@@ -49,7 +49,7 @@ and main is your branch, starting at the release.
 func Main(version string, args []string) int {
 	// Reached through a shim or the launcher means this was meant to be a checkout build - running on would launch again
 	if os.Getenv("SKELET_SHIM") != "" {
-		fmt.Fprintln(os.Stderr, "skelet: a release build is sitting in this checkout's CLI cache - remove .skelet/bin and run ./skelet again")
+		fmt.Fprintln(os.Stderr, "skelet: a release build is sitting in this checkout's CLI cache - remove .skelet/bin and run skelet again")
 		return 1
 	}
 	if os.Getenv("SKELET_LAUNCHED") != "" {

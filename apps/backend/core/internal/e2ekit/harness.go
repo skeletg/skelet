@@ -257,7 +257,7 @@ func New(t TB) *Harness {
 	// flows and enrollments into the dev suite, so the address arrives under a name only skelet test e2e sets
 	signalsAddr := os.Getenv("E2E_SIGNALS_GRPC_ADDR")
 	if signalsAddr == "" {
-		t.Skip("E2E_SIGNALS_GRPC_ADDR is unset - run the e2e suite with ./skelet test e2e, which starts a Signals process of its own")
+		t.Skip("E2E_SIGNALS_GRPC_ADDR is unset - run the e2e suite with skelet test e2e, which starts a Signals process of its own")
 	}
 	harnessOnce.Do(func() {
 		// The graph constructs media storage unconditionally - dummy credentials keep it inert

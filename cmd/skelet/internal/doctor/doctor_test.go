@@ -36,8 +36,9 @@ esac`,
   "version") echo "go version go${FAKE_GO-1.27.3} linux/amd64" ;;
   "env GOTOOLCHAIN") echo "${FAKE_TOOLCHAIN-auto}" ;;
 esac`,
-	"pnpm": `echo "${FAKE_PNPM-12.6.0}"`,
-	"node": `echo "v${FAKE_NODE-24.1.0}"`,
+	"skelet": `true`,
+	"pnpm":   `echo "${FAKE_PNPM-12.6.0}"`,
+	"node":   `echo "v${FAKE_NODE-24.1.0}"`,
 }
 
 func path(t *testing.T, missing ...string) {
@@ -319,4 +320,37 @@ func TestOutsideAProjectOnlyTheMachineIsChecked(t *testing.T) {
 		t.Errorf("sections %v", sections)
 	}
 	expect(t, out.String(), "ok    go 1.27.3\n")
+}
+
+// The skelet on the PATH: an installed one is fine, none or a link to a checkout's ./skelet - which goes away - is
+// worth a word, a dangling link included
+func TestSkeletOnThePath(t *testing.T) {
+	checkout := t.TempDir()
+	put(t, checkout, "skelet", "#!/usr/bin/env bash\n")
+	put(t, checkout, "cmd/skelet/go.mod", "module x/cmd/skelet\n")
+	linked := t.TempDir()
+	if err := os.Symlink(filepath.Join(checkout, "skelet"), filepath.Join(linked, "skelet")); err != nil {
+		t.Fatal(err)
+	}
+	dangling := t.TempDir()
+	if err := os.Symlink(filepath.Join(checkout, "gone", "skelet"), filepath.Join(dangling, "skelet")); err != nil {
+		t.Fatal(err)
+	}
+	put(t, checkout, "gone/bin/_lib", "")
+	_ = os.Remove(filepath.Join(checkout, "gone", "skelet"))
+	installed := t.TempDir()
+	put(t, installed, "skelet", "binary")
+	for dir, want := range map[string]string{
+		installed:   "ok    skelet " + filepath.Join(installed, "skelet"),
+		linked:      "warn  skelet on the PATH links to " + filepath.Join(checkout, "skelet"),
+		dangling:    "warn  skelet on the PATH links to " + filepath.Join(checkout, "gone", "skelet"),
+		t.TempDir(): "warn  no skelet on the PATH",
+	} {
+		t.Setenv("PATH", dir)
+		var out strings.Builder
+		cli(&report{out: &out})
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("PATH=%s: %q, want %q", dir, out.String(), want)
+		}
+	}
 }

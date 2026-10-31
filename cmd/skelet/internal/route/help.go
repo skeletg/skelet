@@ -45,7 +45,6 @@ Rarely
   ps, stop, restart, search, release, fixperms, hooks, provider, version
 
   skelet help <command>   detail on one command
-  bin/<script>            the script a verb runs, if you need the source
 `
 }
 

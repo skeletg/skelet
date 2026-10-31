@@ -5,23 +5,21 @@ grouped list, `skelet help <command>` for one. Every verb is Go, under
 `cmd/skelet/internal/` - where each one lives is at the bottom, for when you're
 reading the source.
 
-**Installed or not.** These pages write `skelet`, the CLI the README's one-line
-install puts on your PATH. Inside a project it hands every command to that
-project's own front door, the `./skelet` at its root, so it never runs a command
-with a different release's code - and `./skelet` is also all you need in a clone
-where nothing is installed. The two behave the same.
+**The CLI and the project.** These pages write `skelet`, the CLI the README's one-line
+install puts on your PATH. Inside a project it runs that project's own Go program in
+`cmd/skelet`, so a command never runs with a different release's code. The first run, and
+the first after anything in there changes, builds it - with your own Go if you have it,
+otherwise inside the `golang` image, so Docker alone is enough - and every run after that
+starts the cached build straight away. A verb that ends by running something - `skelet go`,
+`skelet psql` - becomes that program, so Ctrl-C, exit codes and the terminal behave exactly
+as if you'd run it yourself. With Go and nothing installed, `go -C cmd/skelet run . <verb>`
+does the same, though it reports any failure as exit 1.
 
-**What `./skelet` is.** A small bash shim in front of a Go program in
-`cmd/skelet`. The first run, and the first after anything in there changes, builds it
-into `.skelet/bin/` - with your own Go if you have it, otherwise inside the `golang`
-image, so Docker alone is enough - and every run after that starts the cached binary
-straight away. A verb that ends by running something - `skelet go`, `skelet psql` - becomes
-that program, so Ctrl-C, exit codes and the terminal behave exactly as if you'd run it
-yourself. With neither Go nor Docker the shim says so.
-
-A symlink onto your PATH (`ln -s "$PWD/skelet" ~/.local/bin/skelet`) works too, and
-acts on whichever checkout you're standing in. The installer won't replace one
-without `--force`.
+**`./skelet`.** The bash front door from before the CLI, still at the root of a project for
+one more release. The installed CLI hands a project that has it to it, so nothing changes
+until it's removed, and running it yourself says so. A symlink of it onto your PATH (`ln -s
+"$PWD/skelet" ~/.local/bin/skelet`) stops working once it's gone - `skelet doctor` warns
+about one, and the installer replaces it with `--force`.
 
 Every verb runs from the repo root whatever directory you're in, and three
 things hold for all of them:
