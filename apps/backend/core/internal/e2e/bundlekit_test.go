@@ -146,6 +146,8 @@ func TestKitReservesComponentsAndFailsClosed(t *testing.T) {
 		}
 	}
 
+	// Carted while k2 still covers two kits - placement is the last line once the first order takes k2's stock
+	late := h.NewGuestCartSKU(t, f, k.SKU, 2)
 	o, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, k.SKU, 1))
 	if err != nil {
 		t.Fatalf("place kit: %v", err)
@@ -160,8 +162,16 @@ func TestKitReservesComponentsAndFailsClosed(t *testing.T) {
 	}
 	h.Settle(t)
 
-	// k2 has 2 left; qty 2 needs 4 - the expansion must fail the placement, holding nothing
-	if _, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, k.SKU, 2)); err == nil {
+	// k2 has 2 left; qty 2 needs 4 - add-to-cart refuses it up front, checking the components the kit owns no stock of
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
+	if err != nil {
+		t.Fatalf("cart: %v", err)
+	}
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, k.SKU, 2); apperr.CodeOf(err) != "CART_INSUFFICIENT_STOCK" {
+		t.Errorf("adding 2 kits over a short component = %v, want CART_INSUFFICIENT_STOCK", err)
+	}
+	// and a cart filled before the stock went must fail the placement, holding nothing
+	if _, err := h.TryPlace(t, f.Channel, late); err == nil {
 		t.Fatal("placed a kit its components can't cover")
 	} else if !errors.Is(err, inventory.ErrInsufficientStock) {
 		t.Errorf("short-kit error = %v, want ErrInsufficientStock", err)
