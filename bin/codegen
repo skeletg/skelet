@@ -149,7 +149,7 @@ if [ "$backend_ready" = 1 ]; then
     if [ -f apps/dashboard/package.json ]; then
         GRAPHQL_CODEGEN_URL="${GRAPHQL_CODEGEN_URL:-$admin_gql_probe}" run_ts_codegen dashboard bin/dash run codegen
     else
-        echo "    (skipped - dashboard source not in this checkout; see bin/setup)"
+        echo "    (skipped - dashboard source not in this checkout; see ./skelet setup)"
     fi
     echo "==> storefront codegen"
     found_sf=0
@@ -159,7 +159,7 @@ if [ "$backend_ready" = 1 ]; then
         name="$(basename "$(dirname "$sf")")"
         run_ts_codegen "$name" bin/channel "$name" run codegen
     done
-    [ "$found_sf" = 1 ] || echo "    (no storefronts in this checkout; see bin/setup)"
+    [ "$found_sf" = 1 ] || echo "    (no storefronts in this checkout; see ./skelet setup)"
 else
     echo "    Backend not reachable at http://localhost:8080/health after 30s."
     echo "    Start it with \`bin/dev\` and re-run \`bin/codegen\`."

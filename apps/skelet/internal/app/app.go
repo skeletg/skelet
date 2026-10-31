@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/skeletg/skelet/apps/skelet/internal/checkout"
 	"github.com/skeletg/skelet/apps/skelet/internal/global"
@@ -43,6 +42,9 @@ func run(root string, a route.Action) int {
 	if a.Notice != "" {
 		fmt.Fprintln(os.Stderr, a.Notice)
 	}
+	if a.Go != nil {
+		return a.Go(root, a.Args)
+	}
 	if a.Script == "" {
 		fmt.Print(a.Stdout)
 		if a.Stderr != "" {
@@ -51,16 +53,5 @@ func run(root string, a route.Action) int {
 		return a.Code
 	}
 	path := filepath.Join(root, "bin", a.Script)
-	return sys.Replace(path, append([]string{path}, a.Args...), childEnv())
-}
-
-// The shim's own variables stay out of the scripts, which see the environment they always did
-func childEnv() []string {
-	var env []string
-	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "SKELET_ROOT=") && !strings.HasPrefix(kv, "SKELET_SHIM=") {
-			env = append(env, kv)
-		}
-	}
-	return env
+	return sys.Replace(path, append([]string{path}, a.Args...), sys.Env())
 }

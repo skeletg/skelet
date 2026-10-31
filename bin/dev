@@ -19,9 +19,9 @@ if [ ${#missing[@]} -gt 0 ]; then
     echo "bin/dev needs ${missing[*]}, which this clone doesn't have." >&2
     if [ "$target" != dev ]; then
         echo "This clone is set up for the '$target' target - bin/dev runs the DEV stack." >&2
-        echo "Re-run bin/setup and pick 'dev', or deploy with docker-compose.$target.yml (docs/deploying.md)." >&2
+        echo "Re-run ./skelet setup and pick 'dev', or deploy with docker-compose.$target.yml (docs/deploying.md)." >&2
     else
-        echo "Run bin/setup to write the env files." >&2
+        echo "Run ./skelet setup to write the env files." >&2
     fi
     exit 1
 fi
@@ -42,7 +42,7 @@ if [ -z "$SKELET_APPS" ] && [ $# -eq 0 ]; then
         [ -f "$_sf" ] || continue
         echo "    ./skelet serve $(basename "$(dirname "$_sf")")     → http://localhost:3000"
     done
-    echo "To run them in Docker instead, put their names in .skelet-apps (bin/setup --apps ... --keep-code)"
+    echo "To run them in Docker instead, run ./skelet setup --docker-apps <names>"
     # Reconcile rather than just warn - a leftover container keeps the port, which reads as "my host dev server won't start"
     # Every frontend this checkout could run, not the demo by name, since a shop added by bin/new leaves a leftover container holding its port the same way
     _fronts="dashboard"

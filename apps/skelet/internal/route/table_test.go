@@ -13,7 +13,15 @@ const repoRoot = "../../../.."
 // The front door and bin/ agree in both directions, and bin/repo-check can count the routes by grepping this file
 func TestTableAndBinAgree(t *testing.T) {
 	routed := map[string]bool{}
+	scripts := 0
 	for _, r := range routes {
+		if r.Go != nil {
+			if r.Script != "" || r.About == "" {
+				t.Errorf("%s is a Go verb, so it takes About and no Script", r.Verb)
+			}
+			continue
+		}
+		scripts++
 		routed[r.Script] = true
 		fi, err := os.Stat(filepath.Join(repoRoot, "bin", r.Script))
 		if err != nil || fi.Mode()&0o111 == 0 {
@@ -34,7 +42,7 @@ func TestTableAndBinAgree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := len(regexp.MustCompile(`Script: "[a-z][a-z0-9-]*"`).FindAll(src, -1)); n != len(routes) {
-		t.Errorf("bin/repo-check's grep finds %d routes in table.go, the table holds %d - keep one Script: per route", n, len(routes))
+	if n := len(regexp.MustCompile(`Script: "[a-z][a-z0-9-]*"`).FindAll(src, -1)); n != scripts {
+		t.Errorf("bin/repo-check's grep finds %d routes in table.go, the table holds %d - keep one Script: per route", n, scripts)
 	}
 }

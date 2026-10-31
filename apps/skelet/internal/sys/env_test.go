@@ -1,4 +1,4 @@
-package app
+package sys
 
 import (
 	"slices"
@@ -9,7 +9,7 @@ func TestScriptsDoNotSeeTheShimVariables(t *testing.T) {
 	t.Setenv("SKELET_ROOT", "/x")
 	t.Setenv("SKELET_SHIM", "1")
 	t.Setenv("SKELET_APPS", "dashboard")
-	env := childEnv()
+	env := Env()
 	for _, kv := range env {
 		if kv == "SKELET_ROOT=/x" || kv == "SKELET_SHIM=1" {
 			t.Errorf("%s reached the script", kv)

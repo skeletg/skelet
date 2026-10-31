@@ -221,12 +221,15 @@ found in a template first:
 | Hide the admin API | `ADMIN_API_SLUG` + the matching dashboard URLs |
 
 Secrets are generated, never prompted, and an existing non-placeholder value is left alone -
-so re-running is safe and never rotates a key. The answers land in git-ignored
+so re-running is safe and never rotates a key. Setup is part of the Go CLI, so generating them
+needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. The answers land in git-ignored
 `.skelet-profile`, which becomes the defaults next time and which `skelet doctor` reads back to
 tell you what this clone is meant to be.
 
 Non-interactive: `skelet setup --yes` takes the defaults; `skelet setup --profile <file>` replays a
-saved profile, which is what CI and a second clone want.
+saved profile, which is what CI and a second clone want. The file is only read - the answers are
+saved to this clone's `.skelet-profile` like any other run's. Where the profile has no answer for
+where the frontends run, `.skelet-apps` keeps what it holds rather than being emptied.
 
 ## Which apps run
 

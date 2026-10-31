@@ -1,4 +1,4 @@
-# Per-clone app and dev-tool selection written by bin/setup (compose profiles).
+# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
 .skelet-apps
 .skelet-tools
 .skelet-profile

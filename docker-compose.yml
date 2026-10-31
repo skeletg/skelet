@@ -242,8 +242,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Dashboard + storefronts sit behind profiles so a clone can run headless -
-  # bin/setup writes the pick to .skelet-apps, no file = everything
+  # Dashboard + storefronts sit behind profiles so a clone can run headless - .skelet-apps, which
+  # skelet setup writes, lists the ones that run in Docker; no file = none, and the rest run on the host
   dashboard:
     profiles: ["dashboard"]
     # Same uid story as the app service
@@ -319,8 +319,8 @@ services:
       # A storefront is pinned to one channel in every environment - the default is the uuid
       # the baseline migration seeds, override in the root .env if your channels differ
       - STOREFRONT_CHANNEL_ID=${STOREFRONT_CHANNEL_ID:-56d051bc-0131-4476-bc0b-121d80290684}
-      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - dev-only value
-      - STOREFRONT_REVALIDATE_SECRET=dev-revalidate-secret-change-me
+      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - ./skelet setup copies it into the root .env
+      - STOREFRONT_REVALIDATE_SECRET=${STOREFRONT_REVALIDATE_SECRET:-dev-revalidate-secret-change-me}
       # The review-vote key core verifies with - ./skelet setup copies env/go.env's into the root .env
       - REVIEW_VOTER_TOKEN_SECRET=${REVIEW_VOTER_TOKEN_SECRET:-}
       # Same polling reason as the dashboard
@@ -428,7 +428,7 @@ services:
     logging: *logging
 
   # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
-  # picked in bin/setup (saved to .skelet-tools) or started ad hoc with `./skelet up <name>`
+  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `./skelet up <name>`
 
   # SMTP catcher - anything mailed lands in the web UI on :8025
   mailpit:

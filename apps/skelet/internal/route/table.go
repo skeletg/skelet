@@ -1,21 +1,25 @@
 // Package route maps a skelet command line onto the bin/ script that carries it out
 package route
 
-// Route sends a verb, or a verb's subcommand, to bin/<Script>. bin/repo-check greps the Script fields of this file,
-// so every script the front door reaches is named here, one route per line
+import "github.com/skeletg/skelet/apps/skelet/internal/setup"
+
+// Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check
+// greps the Script fields of this file, so every script the front door reaches is named here, one route per line
 type Route struct {
 	Verb    string
 	Sub     string
 	Flag    string
 	Script  string
 	Prepend []string
+	Go      func(root string, args []string) int
+	About   string
 }
 
 // AnyApp is the pnpm route taken by any storefront name - the storefront exists when apps/channels/<name> does
 const AnyApp = "*"
 
 var routes = []Route{
-	{Verb: "setup", Script: "setup"},
+	{Verb: "setup", Go: setup.Run, About: setup.About},
 	{Verb: "doctor", Script: "doctor"},
 	{Verb: "up", Script: "dev"},
 	{Verb: "serve", Script: "serve"},
@@ -60,6 +64,7 @@ var routes = []Route{
 
 // The shape of each compound verb's arguments, for help and the usage errors
 var subs = map[string]string{
+	"setup":     setup.Flags,
 	"db":        "migrate [--signals] up|rollback|status|new <name> | export | import | shell",
 	"gen":       "(all) | sqlc | gqlgen | buf",
 	"check":     "(all) | pins | structure | contracts | codegen",

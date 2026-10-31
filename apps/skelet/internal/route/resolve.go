@@ -7,9 +7,11 @@ import (
 	"strings"
 )
 
-// Action is what a command line resolves to: a bin/ script to exec with Args, or output and an exit code
+// Action is what a command line resolves to: a bin/ script to exec with Args, a Go verb to run with them, or output
+// and an exit code
 type Action struct {
 	Script string
+	Go     func(root string, args []string) int
 	Args   []string
 	Notice string
 	Stdout string
@@ -67,7 +69,7 @@ func simple(verb string, rest []string) Action {
 	if !ok {
 		return die(`Unknown command "` + verb + `" - try: skelet help`)
 	}
-	return Action{Script: r.Script, Args: rest}
+	return Action{Script: r.Script, Go: r.Go, Args: rest}
 }
 
 func withSubs(verb string, rest []string) Action {

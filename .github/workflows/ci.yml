@@ -211,9 +211,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: apps/dashboard/pnpm-lock.yaml
-      # bin/setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
+      # skelet setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
       # leave the customer session pair and the config key blank, and the server refuses to boot without
-      # them, so they're generated here the way bin/setup does it - the public half derived from the seed
+      # them, so they're generated here the way skelet setup does it - the public half derived from the seed
       - name: Environment files
         run: |
           cp env/go.env.example env/go.env

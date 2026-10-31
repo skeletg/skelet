@@ -49,13 +49,13 @@ echo "==> env files (${SKELET_TARGET:-dev} target)"
 for f in "${want_env[@]}"; do
     if [ -f "$f" ]; then pass "$f"
     elif [[ "$optional_env" == *" $f "* ]]; then note "$f missing - optional, compose runs without it"
-    else bad "$f missing - run bin/setup"; fi
+    else bad "$f missing - run ./skelet setup"; fi
 done
 
 echo "==> app selection"
 if [ -f .skelet-apps ]; then
     sel="$(tr -d '[:space:]' < .skelet-apps)"
-    pass "apps: ${sel:-backend only} (.skelet-apps; change with bin/setup --apps ...)"
+    pass "apps: ${sel:-backend only} (.skelet-apps; change with ./skelet setup --apps ...)"
 else
     pass "apps: none in Docker - frontends run on the host (list them in .skelet-apps to containerize)"
 fi
@@ -86,7 +86,7 @@ else
     fi
     for d in "${host_apps[@]}"; do
         if [ -z "$(ls -A "$d/node_modules" 2>/dev/null)" ]; then
-            note "$d not installed - bin/setup, or: cd $d && pnpm install"
+            note "$d not installed - ./skelet setup, or: cd $d && pnpm install"
         elif [ -f "$d/node_modules/.modules.yaml" ]; then
             pass "$d installed with pnpm"
         else
@@ -108,11 +108,11 @@ if [ -f .skelet-profile ]; then
         if [ "$got" = "$want" ] || { [ "$want" = true ] && [ "$got" = "(unset, defaults true)" ]; }; then
             :
         else
-            note "$key is $got in ${want_env[0]} but the profile says $want - re-run bin/setup"
+            note "$key is $got in ${want_env[0]} but the profile says $want - re-run ./skelet setup"
         fi
     done
 else
-    note "no .skelet-profile - run bin/setup to record what this clone is meant to be"
+    note "no .skelet-profile - run ./skelet setup to record what this clone is meant to be"
 fi
 
 # Every var a compose file interpolates without a default has to come from somewhere, or the

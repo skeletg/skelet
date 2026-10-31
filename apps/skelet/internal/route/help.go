@@ -68,6 +68,9 @@ func Help(root, verb string) Action {
 		}
 		return die(`Unknown command "` + verb + `" - try: skelet help`)
 	}
+	if r.Go != nil {
+		return Action{Stdout: b.String() + r.About + "\n"}
+	}
 	fmt.Fprintf(&b, "runs bin/%s\n\n", r.Script)
 	path := filepath.Join(root, "bin", r.Script)
 	data, err := os.ReadFile(path)

@@ -5,8 +5,8 @@ cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
 
 if [ ! -f apps/dashboard/package.json ]; then
-    echo "apps/dashboard is not in this checkout (removed by bin/setup app selection)." >&2
-    echo "Bring it back with: bin/setup --all (or --apps ...)" >&2
+    echo "apps/dashboard is not in this checkout (removed by ./skelet setup app selection)." >&2
+    echo "Bring it back with: ./skelet setup --all (or --apps ...)" >&2
     exit 1
 fi
 
