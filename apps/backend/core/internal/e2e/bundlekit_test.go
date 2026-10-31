@@ -634,3 +634,96 @@ func TestAnEmptyKitIsRefused(t *testing.T) {
 	}
 	h.Settle(t)
 }
+
+// Places and ships qty of the kit, returning the order and its one line
+func (h *harness) shipKit(t *testing.T, f *store, sku string, qty float64) (order.Order, order.OrderLine) {
+	t.Helper()
+	o, err := h.TryPlace(t, f.Channel, h.NewGuestCartSKU(t, f, sku, qty))
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	for _, status := range []string{"confirmed", "processing"} {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
+			t.Fatalf("advance to %s: %v", status, err)
+		}
+	}
+	line := h.OrderLines(t, o.ID)[0]
+	if _, err := h.D.Order.CreateFulfillment(h.Ctx, order.CreateFulfillmentInput{
+		OrderID: o.ID, Lines: []order.FulfillmentLineInput{{OrderLineID: line.ID, Quantity: qty}}, Carrier: "ups", TrackingNumber: "1Z-kit",
+	}); err != nil {
+		t.Fatalf("fulfill: %v", err)
+	}
+	h.Settle(t)
+	full, err := h.D.Order.GetByID(h.Ctx, o.ID)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	return full, full.Lines[0]
+}
+
+// Scenario: a kit set to return by item lets one mug come back on its own, refunded at its share and restocked alone - and
+// the setting is the one it was sold under, so switching it off later doesn't take that away
+func TestAKitItemIsReturnedOnItsOwn(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	mug, tea := h.AddProduct(t, f, 600, true, 10), h.AddProduct(t, f, 300, true, 10)
+	k, _ := h.newKit(t, f, 900, map[uuid.UUID]float64{mug.ID: 1, tea.ID: 1})
+	on, off := true, false
+	if _, err := h.D.Catalog.UpdateProduct(h.Ctx, catalog.UpdateProductInput{ID: k.ID, KitItemsReturnable: &on}); err != nil {
+		t.Fatalf("allow item returns: %v", err)
+	}
+	o, line := h.shipKit(t, f, k.SKU, 2)
+	if len(line.Components) != 2 || line.IsBundle() {
+		t.Fatalf("kit line components = %+v, want its two items and not a bundle", line.Components)
+	}
+	var mugComp uuid.UUID
+	for _, c := range line.Components {
+		if c.ProductID == mug.ID {
+			mugComp = c.ID
+			if c.Quantity != 2 || !c.Returnable {
+				t.Errorf("mug component = %+v, want 2 for two kits, returnable", c)
+			}
+		}
+	}
+	if _, err := h.D.Catalog.UpdateProduct(h.Ctx, catalog.UpdateProductInput{ID: k.ID, KitItemsReturnable: &off}); err != nil {
+		t.Fatalf("switch item returns off: %v", err)
+	}
+	mugBefore, teaBefore := h.onHand(t, mug.ID), h.onHand(t, tea.ID)
+
+	ret, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o.ID, Restock: true, Lines: []order.ReturnLineInput{{OrderLineID: line.ID, ComponentID: &mugComp, Quantity: 1, Reason: "chipped"}},
+	})
+	if err != nil {
+		t.Fatalf("return a mug: %v", err)
+	}
+	if got := ret.Lines[0].RefundUnitCents; got != 600 { // the mug is worth 600 of the 900 the items list at, and the kit sold at 900
+		t.Errorf("mug refund = %d, want its 600 share", got)
+	}
+	if _, err := h.D.Order.ApproveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if _, err := h.D.Order.ReceiveReturn(h.Ctx, ret.ID); err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	h.Settle(t)
+	if got := h.onHand(t, mug.ID); got != mugBefore+1 {
+		t.Errorf("mugs on hand %v, want %v + 1", got, mugBefore)
+	}
+	if got := h.onHand(t, tea.ID); got != teaBefore {
+		t.Errorf("tea on hand %v, want untouched %v", got, teaBefore)
+	}
+
+	// Sold while the setting is off, the next kit only comes back whole
+	o2, line2 := h.shipKit(t, f, k.SKU, 1)
+	_, err = h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o2.ID, Lines: []order.ReturnLineInput{{OrderLineID: line2.ID, ComponentID: &line2.Components[0].ID, Quantity: 1}},
+	})
+	if apperr.CodeOf(err) != "RETURN_KIT_WHOLE_ONLY" {
+		t.Errorf("an item from a whole-only kit = %v, want RETURN_KIT_WHOLE_ONLY", err)
+	}
+	if _, err := h.D.Order.RequestReturn(h.Ctx, order.RequestReturnInput{
+		OrderID: o2.ID, Lines: []order.ReturnLineInput{{OrderLineID: line2.ID, Quantity: 1}},
+	}); err != nil {
+		t.Errorf("the whole kit back = %v, want allowed", err)
+	}
+}
