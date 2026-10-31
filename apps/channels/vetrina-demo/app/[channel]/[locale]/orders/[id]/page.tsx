@@ -84,7 +84,7 @@ export default async function GuestOrderPage({
     <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-16 sm:px-6">
       {justPlaced && consent && (
         <AnalyticsEvent
-          enabled={consent.marketing}
+          enabled={consent.analytics}
           event="purchase"
           stripParam="just_placed"
           payload={{

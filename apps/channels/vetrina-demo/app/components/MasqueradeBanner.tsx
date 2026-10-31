@@ -12,7 +12,7 @@ import { useTranslations } from "next-intl";
 import { MASQUERADE_COOKIE } from "@/app/lib/auth/cookies";
 import { useCustomerIdentity } from "@/app/lib/customer/client";
 
-const noopSubscribe = () => () => {}; // the cookie never pushes - same shape as useMarketingConsent
+const noopSubscribe = () => () => {}; // the cookie never pushes - same shape as useAnalyticsConsent
 
 function readMarker(): boolean {
   if (typeof document === "undefined") return false;

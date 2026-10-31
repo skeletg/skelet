@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ gqlFetch: vi.fn(), redirect: vi.fn(() => { throw new Error("redirect"); }), refresh: vi.fn(), checkoutCart: vi.fn(), checkout: vi.fn(), settings: vi.fn(), deleteCookie: vi.fn(), methods: vi.fn() }));
+const mocks = vi.hoisted(() => ({ gqlFetch: vi.fn(), redirect: vi.fn(() => { throw new Error("redirect"); }), refresh: vi.fn(), checkoutCart: vi.fn(), checkout: vi.fn(), settings: vi.fn(), deleteCookie: vi.fn(), methods: vi.fn(), signedIn: false }));
 vi.mock("@/app/lib/graphql", () => ({ gqlFetch: mocks.gqlFetch, GraphQLRequestError: class extends Error { constructor(message: string, readonly errors: unknown[]) { super(message); } } }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, RedirectType: { replace: "replace" } }));
 vi.mock("next/cache", () => ({ refresh: mocks.refresh, revalidatePath: vi.fn() }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => name === "storefront_offer" ? { value: JSON.stringify({ cartId: "offer-2", token: "other" }) } : undefined, delete: mocks.deleteCookie }) }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => name === "storefront_offer" ? { value: JSON.stringify({ cartId: "offer-2", token: "other" }) } : name === "storefront_access_token" && mocks.signedIn ? { value: "token" } : undefined, delete: mocks.deleteCookie }) }));
 vi.mock("@/app/lib/cart/read", () => ({ getCart: async () => ({ id: "cart-1" }), CART_COOKIE: "cart" }));
 vi.mock("@/app/lib/cart/offer", () => ({ getCheckoutCart: mocks.checkoutCart }));
 vi.mock("@/app/lib/config/read", () => ({ getCheckoutSettings: mocks.settings }));
@@ -13,7 +13,7 @@ vi.mock("@/app/lib/locale/read", () => ({ getCurrentLocale: async () => "en" }))
 vi.mock("@/app/lib/locale/path", () => ({ withLocalePrefix: async (path: string, locale: string) => `/${locale}${path}` }));
 vi.mock("@/app/lib/checkout/read", () => ({ getCheckoutState: mocks.checkout, checkoutPaymentMethods: mocks.methods }));
 const { placeOrderAction, applyCheckoutCouponAction, saveDestinationStep, saveGroupDeliveryAction, saveDeliveryPointAction, saveSplitDeliveryAction } = await import("./actions");
-beforeEach(() => { vi.clearAllMocks(); mocks.gqlFetch.mockResolvedValue({ data: {} }); mocks.checkoutCart.mockImplementation(async (id: string) => id === "offer-1" ? { id, offer: { isGuest: true } } : id === "cart-1" ? { id, offer: null } : null); mocks.settings.mockResolvedValue({ termsConsent: "notice" }); mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 0 } }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.signedIn = false; mocks.gqlFetch.mockResolvedValue({ data: {} }); mocks.checkoutCart.mockImplementation(async (id: string) => id === "offer-1" ? { id, offer: { isGuest: true } } : id === "cart-1" ? { id, offer: null } : null); mocks.settings.mockResolvedValue({ termsConsent: "notice" }); mocks.checkout.mockResolvedValue({ email: "guest@example.com", totals: { amountDueCents: 0 } }); });
 it.each([
   [saveDestinationStep, { countryCode: "RS", postalCode: "11000" }],
   [saveGroupDeliveryAction, { groupKey: "all", selection: "option::builtin::standard" }],
@@ -140,4 +140,32 @@ it("places a fully covered order without asking for a method", async () => {
   const data = new FormData(); data.set("cartId", "cart-1"); data.set("locale", "en");
   await expect(placeOrderAction(undefined, data)).rejects.toThrow("redirect");
   expect(mocks.methods).not.toHaveBeenCalled();
+});
+
+describe("the checkout email opt-in", () => {
+  const optIns = () => mocks.gqlFetch.mock.calls.filter(([, vars]) => vars && "optedIn" in vars).map(([, vars]) => vars);
+  const place = async (tick: boolean) => {
+    mocks.gqlFetch.mockImplementation(async (_doc: unknown, vars?: Record<string, unknown>) =>
+      vars && "cartId" in vars && !("note" in vars) && !("providerSlug" in vars)
+        ? { data: { placeOrder: { id: "order-1", paymentClientSecret: null } } }
+        : { data: { consentDefinitions: [{ slug: "email_news", purpose: "MARKETING" }, { slug: "order_mail", purpose: "TRANSACTIONAL" }] } },
+    );
+    const data = new FormData(); data.set("cartId", "cart-1"); data.set("locale", "en");
+    if (tick) data.set("marketingOptIn", "on");
+    await expect(placeOrderAction(undefined, data)).rejects.toThrow("redirect");
+  };
+
+  it("subscribes a signed-in shopper who ticks it to the marketing purposes only", async () => {
+    mocks.signedIn = true;
+    await place(true);
+    expect(optIns()).toEqual([{ kind: "email_news", optedIn: true }]);
+  });
+
+  it("changes nothing when left unticked, or for a guest with nowhere to keep it", async () => {
+    mocks.signedIn = true;
+    await place(false);
+    mocks.signedIn = false;
+    await place(true);
+    expect(optIns()).toEqual([]);
+  });
 });

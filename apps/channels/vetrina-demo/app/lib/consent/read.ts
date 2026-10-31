@@ -1,31 +1,15 @@
-// Cookie-backed GDPR consent - "essential" (functional only) is the strict default, "all" additionally unlocks the
-// dataLayer events in AnalyticsScripts Never read or written via document.cookie - server actions own it
+// Cookie-backed GDPR consent per category - nothing granted is the strict default. Server components read it here;
+// server actions own writing it
 
 import { cookies } from "next/headers";
 
 export { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
 import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
+import { NONE_GRANTED, parseConsent, type Consent } from "@/app/lib/consent/categories";
 
-export type ConsentChoice = "all" | "essential" | null;
-
-export async function getConsentChoice(): Promise<ConsentChoice> {
-  const store = await cookies();
-  const raw = store.get(CONSENT_COOKIE)?.value;
-  if (raw === "all" || raw === "essential") return raw;
-  return null;
-}
-
-export type ResolvedConsent = {
-  choice: ConsentChoice;
-  decided: boolean;
-  marketing: boolean;
-};
+export type ResolvedConsent = Consent & { decided: boolean };
 
 export async function getResolvedConsent(): Promise<ResolvedConsent> {
-  const choice = await getConsentChoice();
-  return {
-    choice,
-    decided: choice !== null,
-    marketing: choice === "all",
-  };
+  const c = parseConsent((await cookies()).get(CONSENT_COOKIE)?.value);
+  return { ...(c ?? NONE_GRANTED), decided: c !== null };
 }

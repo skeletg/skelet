@@ -68,7 +68,7 @@ export default async function OrderDetailPage({
     <div className="max-w-3xl">
       {justPlaced && consent && (
         <AnalyticsEvent
-          enabled={consent.marketing}
+          enabled={consent.analytics}
           event="purchase"
           stripParam="just_placed"
           payload={{

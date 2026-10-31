@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { ensureAnonId } from "@/app/lib/analytics/visitor";
+import { readClientConsent } from "@/app/lib/consent/client";
 import { assign, type Experiment } from "@/app/lib/experiments/assign";
 import { beaconFetch } from "@/app/lib/beacons/client";
 import { BEACON } from "@/app/lib/beacons/paths";
@@ -78,7 +79,7 @@ export function useExperimentAssignment(key: string): ClientAssignment | null {
         }
       }
 
-      const anon = ensureAnonId();
+      const anon = readClientConsent().analytics ? ensureAnonId() : ""; // no analytics consent, no visitor id - the control renders
       if (!anon) return;
       const v = assign(exp, anon);
       if (!v) return;
