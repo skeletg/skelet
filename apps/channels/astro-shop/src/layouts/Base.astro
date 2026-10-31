@@ -1,0 +1,81 @@
+---
+import "../styles/global.css";
+import fontRegular from "../assets/fonts/poppins-latin-400.woff2?url";
+import { Seo, type SeoProps } from "../components/Seo";
+import { SiteFooter } from "../components/SiteFooter";
+import { SiteHeader } from "../components/SiteHeader";
+import { getSite } from "../lib/channel";
+import { absolute } from "../lib/seo";
+
+interface Props extends SeoProps {
+  // Browsing pages only: in Chrome with scripts off, a transition across a form's POST-redirect never finished and
+  // left its overlay over the next page, so the cart and checkout flows opt out
+  transitions?: boolean;
+  // Full-bleed pages (the home page's hero and bands) lay out their own columns
+  full?: boolean;
+}
+
+const { channel, origin } = await getSite(Astro.url.origin);
+// Query strings never make a second canonical page
+const canonical = absolute(origin, Astro.url.pathname);
+const { transitions = true, full = false, ...seo } = Astro.props;
+---
+
+<!doctype html>
+<html lang={channel.defaultLocale}>
+  <head>
+    <meta charset="utf-8" />
+    <!-- Before first paint: the js marker, then the shopper's theme and font picks (theme.ts) so neither flashes.
+         ?font=<name> on any URL picks a font for testing, ?font=default drops the pick -->
+    <script is:inline>
+      {
+        const d = document.documentElement;
+        d.classList.add("js");
+        try {
+          const asked = new URLSearchParams(location.search).get("font");
+          if (asked === "default") localStorage.removeItem("font");
+          else if (asked) localStorage.setItem("font", asked);
+          const font = localStorage.getItem("font"), theme = localStorage.getItem("theme");
+          if (font) d.dataset.font = font;
+          if (theme === "light" || theme === "dark") d.dataset.theme = theme;
+        } catch {}
+      }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="preload" href={fontRegular} as="font" type="font/woff2" crossorigin />
+    <!-- The browser bar matches the header, which is dark in both themes -->
+    <meta name="theme-color" content="#0e0d0c" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231a1917'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fb923c'/%3E%3C/svg%3E" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <Seo {...seo} channel={channel} canonical={canonical} />
+    {transitions && <style is:inline>@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }</style>}
+  </head>
+  <body class="flex min-h-dvh flex-col font-sans">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground">Skip to content</a>
+    <SiteHeader shop={channel.name} />
+
+    <main id="main" class:list={["flex-1", !full && "container-page pb-20 pt-8 sm:pt-12"]}>
+      <slot />
+    </main>
+
+    <SiteFooter shop={channel.name} fontPicker={import.meta.env.DEV} />
+
+    <!-- Cached HTML is the same for everyone - the badge reads the shopper's own count from a cookie, before first paint -->
+    <script is:inline>
+      {
+        const n = document.cookie.match(/(?:^|; )cart_count=(\d+)/)?.[1];
+        const el = document.querySelector("[data-cart-count]");
+        if (n && n !== "0" && el) { el.textContent = n; el.hidden = false; }
+      }
+    </script>
+    <script>
+      import { initEnhance } from "../scripts/enhance";
+      import { initMotion } from "../scripts/motion";
+      import { initTheme } from "../scripts/theme";
+      initTheme();
+      initMotion();
+      initEnhance();
+    </script>
+  </body>
+</html>

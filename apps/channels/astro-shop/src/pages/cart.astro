@@ -1,0 +1,36 @@
+---
+import Base from "../layouts/Base.astro";
+import { bumpBadge, cartAction, cartId, forgetCart, rememberCart, setFlash, takeFlash, withCart } from "../lib/cart";
+import { getChannel } from "../lib/channel";
+import { gql, shopperMessage } from "../lib/gql";
+import { AddLineDocument, CartDocument, RemoveLineDocument, UpdateLineDocument } from "../graphql/cart.gql";
+import { CartView } from "../views/CartView";
+
+// Never cached: everything here is one shopper's. Mutations post here and redirect back (post/redirect/get), so no JS is needed
+if (Astro.request.method === "POST") {
+  const action = cartAction(await Astro.request.formData());
+  try {
+    if (!action) throw new Error("bad cart form");
+    const cart = await withCart(Astro.cookies, async (cartId) => {
+      if (action.intent === "add") return (await gql(AddLineDocument, { cartId, sku: action.sku, quantity: action.quantity })).addToCart;
+      if (action.intent === "remove") return (await gql(RemoveLineDocument, { cartId, lineId: action.lineId })).removeFromCart;
+      return (await gql(UpdateLineDocument, { cartId, lineId: action.lineId, quantity: action.quantity })).updateCartLine;
+    });
+    rememberCart(Astro.cookies, cart);
+    if (action.intent === "add") bumpBadge(Astro.cookies);
+  } catch (err) {
+    setFlash(Astro.cookies, shopperMessage(err, "That didn't work - please try again."));
+  }
+  return Astro.redirect("/cart", 303);
+}
+
+const id = cartId(Astro.cookies);
+const [cart, channel] = await Promise.all([id ? gql(CartDocument, { id }).then((r) => r.cart) : null, getChannel()]);
+if (id && !cart) forgetCart(Astro.cookies);
+else if (cart) rememberCart(Astro.cookies, cart);
+const flash = takeFlash(Astro.cookies);
+---
+
+<Base title="Cart" noindex transitions={false}>
+  <CartView cart={cart} flash={flash} currency={channel.currency} />
+</Base>

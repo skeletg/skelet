@@ -1,0 +1,43 @@
+---
+import Base from "../layouts/Base.astro";
+import { cacheCatalog } from "../lib/cache";
+import { getSite } from "../lib/channel";
+import { paragraphs } from "../lib/format";
+import { gql } from "../lib/gql";
+import { ProductPageDocument, RouteDocument } from "../graphql/product.gql";
+import { absolute, breadcrumbLd, clip, productLd } from "../lib/seo";
+import { ProductView } from "../views/ProductView";
+
+// Routing is the backend's, as in vetrina: the URL-rewrite resolver decides what a path is
+const path = Astro.params.slug ?? "";
+const { route } = await gql(RouteDocument, { path });
+if (route?.redirectTo) return Astro.redirect(route.redirectTo, route.redirectStatusCode === 302 ? 302 : 301);
+
+const product = route?.kind === "PRODUCT" && route.entityId ? (await gql(ProductPageDocument, { id: route.entityId })).product : null;
+// Not cached when missing - a product published a minute from now should appear without waiting out a TTL
+if (!product) return Astro.rewrite("/404");
+// A stock change purges the variant's own id, so each variant's tag is on its parent's page too
+cacheCatalog(Astro.cache, [`product:${product.id}`, ...product.children.map((v) => `product:${v.id}`)]);
+
+const { channel, origin } = await getSite(Astro.url.origin);
+const body = paragraphs(product.description);
+const name = product.name ?? "";
+
+const url = product.url ? absolute(origin, product.url) : "";
+const description = product.metaDescription || clip(body.join(" ") || `${name} from ${channel.name}.`);
+const structured = [
+  productLd(
+    { name, sku: product.sku, url, description: body.join(" ") || undefined, image: product.mainImage?.url, price: product.price, inStock: product.inStock },
+    channel.currency,
+    channel.name,
+  ),
+  breadcrumbLd([
+    { name: channel.name, url: absolute(origin, "/") },
+    { name, url },
+  ]),
+];
+---
+
+<Base title={product.metaTitle || name} description={description} image={product.mainImage?.url} type="product" structured={structured}>
+  <ProductView product={product} currency={channel.currency} />
+</Base>

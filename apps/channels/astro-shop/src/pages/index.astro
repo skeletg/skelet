@@ -1,0 +1,24 @@
+---
+import Base from "../layouts/Base.astro";
+import { cacheCatalog } from "../lib/cache";
+import { getSite } from "../lib/channel";
+import { gql } from "../lib/gql";
+import { HomeProductsDocument } from "../graphql/product-list.gql";
+import { websiteLd } from "../lib/seo";
+import { HomeView } from "../views/HomeView";
+
+// Tags match the backend's purges (internal/cacheinvalidate) - a product edit purges catalog:browse
+cacheCatalog(Astro.cache, ["catalog:browse"]);
+
+const [{ browseProducts }, { channel, origin }] = await Promise.all([gql(HomeProductsDocument), getSite(Astro.url.origin)]);
+// A product with no URL in this locale has no page to link to
+const products = browseProducts.items.flatMap((p) => (p.url ? [{ ...p, url: p.url }] : []));
+---
+
+<Base
+  full
+  description={`Shop ${products.length} hand-picked products from ${channel.name} - simple checkout, delivered to your door.`}
+  structured={[websiteLd(channel.name, origin)]}
+>
+  <HomeView products={products} channel={channel} />
+</Base>

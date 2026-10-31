@@ -1,0 +1,125 @@
+---
+import Base from "../layouts/Base.astro";
+import { cartId, forgetCart } from "../lib/cart";
+import { getChannel } from "../lib/channel";
+import { gql, GqlError, shopperMessage } from "../lib/gql";
+import {
+  CheckoutDocument,
+  CountriesDocument,
+  PaymentOptionsDocument,
+  PlaceDocument,
+  SetDeliveryDocument,
+  SetDestinationDocument,
+  SetDetailsDocument,
+  SetPaymentDocument,
+} from "../graphql/checkout.gql";
+import { CheckoutView } from "../views/CheckoutView";
+
+// Two steps, both plain forms: where it's going (prices delivery), then delivery + details + payment in one submit.
+// The backend's requirements decide what's missing - placeOrder refuses until they're met (docs/checkout.md)
+const id = cartId(Astro.cookies);
+if (!id) return Astro.redirect("/cart");
+
+let error: string | undefined;
+let posted: FormData | undefined;
+const field = (name: string, fallback?: string | null) => String(posted?.get(name) ?? fallback ?? "");
+// A radio group's pick: what was just posted, else what the cart has saved, else the first option
+const chosen = (name: string, saved?: string | null, first?: string) => (posted ? field(name) : (saved ?? first));
+
+const saveDelivery = async (form: FormData) => {
+  for (const group of form.getAll("group").map(String)) {
+    const [optionId, carrierSlug, methodCode] = field(`delivery:${group}`).split("|");
+    if (!optionId || !carrierSlug || !methodCode) throw new GqlError("Choose a delivery option", "VALIDATION");
+    await gql(SetDeliveryDocument, { cartId: id, groupKey: group, optionId, carrierSlug, methodCode });
+  }
+};
+
+if (Astro.request.method === "POST") {
+  posted = await Astro.request.formData();
+  const intent = field("intent");
+  try {
+    if (intent === "destination") {
+      await gql(SetDestinationDocument, { cartId: id, countryCode: field("countryCode"), postalCode: field("postalCode").trim() });
+      return Astro.redirect("/checkout", 303);
+    }
+    // A changed delivery pick reprices the summary - no redirect, so the page re-renders with what was typed kept
+    if (intent === "delivery") await saveDelivery(posted);
+    if (intent === "place") {
+      await saveDelivery(posted);
+      const opt = (name: string) => field(name).trim() || null;
+      await gql(SetDetailsDocument, {
+        cartId: id,
+        input: {
+          email: field("email").trim(),
+          phone: opt("phone"),
+          billingSameAsShipping: true,
+          shippingAddress: {
+            firstName: field("firstName").trim(),
+            lastName: field("lastName").trim(),
+            street1: field("street1").trim(),
+            street2: opt("street2"),
+            city: field("city").trim(),
+            state: opt("state"),
+            postalCode: field("postalCode").trim(),
+            countryCode: field("countryCode"),
+            phone: opt("phone"),
+          },
+        },
+      });
+      await gql(SetPaymentDocument, { cartId: id, providerSlug: field("payment") });
+      const { placeOrder } = await gql(PlaceDocument, { cartId: id, acceptTerms: field("acceptTerms") === "on" });
+      // shortcut: card gateways that confirm in the browser (3DS) aren't wired - offline methods only, add the gateway's client step for cards
+      forgetCart(Astro.cookies);
+      return Astro.redirect(`/order-placed?n=${encodeURIComponent(placeOrder.number)}`, 303);
+    }
+  } catch (err) {
+    error = shopperMessage(err, "We couldn't place your order - please try again.");
+  }
+}
+
+const [{ cart }, channel] = await Promise.all([gql(CheckoutDocument, { id }), getChannel()]);
+if (!cart || cart.lines.length === 0) return Astro.redirect("/cart");
+const c = cart.checkout;
+const dest = Astro.url.searchParams.get("step") === "destination" ? null : c.destination;
+const [{ countries }, payments] = await Promise.all([
+  gql(CountriesDocument),
+  dest ? gql(PaymentOptionsDocument, { countryCode: dest.countryCode, cartId: id }).then((r) => r.paymentMethods) : [],
+]);
+const addr = c.shippingAddress;
+const choiceValue = (ch: { optionId: string; carrierSlug: string; methodCode: string }) => `${ch.optionId}|${ch.carrierSlug}|${ch.methodCode}`;
+// shortcut: door delivery only - pickup points and store pickup need their own pickers
+const groups = c.deliveryGroups.map((g) => ({
+  ...g,
+  choices: g.choices.filter((ch) => ch.kind === "ship_to_address").map((ch) => ({ ...ch, value: choiceValue(ch) })),
+}));
+const picks = new Map(groups.map((g) => [g.key, chosen(`delivery:${g.key}`, g.selection && choiceValue(g.selection), g.choices[0]?.value)]));
+const pickedPayment = chosen("payment", c.paymentProviderSlug, payments[0]?.providerSlug);
+const values = {
+  countryCode: c.destination?.countryCode ?? field("countryCode"),
+  postalCode: field("postalCode", c.destination?.postalCode),
+  email: field("email", c.email),
+  firstName: field("firstName", addr?.firstName),
+  lastName: field("lastName", addr?.lastName),
+  street1: field("street1", addr?.street1),
+  street2: field("street2", addr?.street2),
+  city: field("city", addr?.city),
+  state: field("state", addr?.state),
+  phone: field("phone", addr?.phone),
+  acceptTerms: field("acceptTerms") === "on",
+};
+---
+
+<Base title="Checkout" noindex transitions={false}>
+  <CheckoutView
+    error={error}
+    cart={cart}
+    channel={channel}
+    countries={countries}
+    dest={dest}
+    groups={groups}
+    picks={picks}
+    payments={payments}
+    pickedPayment={pickedPayment}
+    values={values}
+  />
+</Base>

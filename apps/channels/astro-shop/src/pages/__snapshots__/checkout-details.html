@@ -1,0 +1,280 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <script>
+      { const d = document.documentElement; d.classList.add("js"); try { const asked = new URLSearchParams(location.search).get("font"); if (asked === "default") localStorage.removeItem("font"); else if (asked) localStorage.setItem("font", asked); const font = localStorage.getItem("font"), theme = localStorage.getItem("theme"); if (font) d.dataset.font = font; if (theme === "light" || theme === "dark") d.dataset.theme = theme; } catch {} }
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <meta content="light dark" name="color-scheme">
+    <link as="font" crossorigin href="/src/assets/fonts/poppins-latin-400.woff2" rel="preload" type="font/woff2">
+    <meta content="#0e0d0c" name="theme-color">
+    <link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231a1917'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fb923c'/%3E%3C/svg%3E" rel="icon">
+    <link href="/sitemap.xml" rel="sitemap">
+    <title>
+      "Checkout · Test Shop"
+    <link href="https://shop.test/checkout" rel="canonical">
+    <meta content="noindex, follow" name="robots">
+    <meta content="Test Shop" property="og:site_name">
+    <meta content="website" property="og:type">
+    <meta content="Checkout" property="og:title">
+    <meta content="https://shop.test/checkout" property="og:url">
+    <meta content="en" property="og:locale">
+    <meta content="summary" name="twitter:card">
+  <body class="flex min-h-dvh flex-col font-sans">
+    <a class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground" href="#main">
+      "Skip to content"
+    <header class="sticky top-0 z-40 scheme-dark bg-inverse/95 text-inverse-foreground backdrop-blur-md [view-transition-name:site-header]">
+      <div class="border-b border-inverse-foreground/10">
+        <ul class="container-page flex h-9 items-center justify-center gap-4 text-[0.7rem] tracking-wide text-inverse-foreground/70">
+          <li class="items-center gap-4 flex">
+            "Free returns within 30 days"
+          <li class="items-center gap-4 hidden sm:flex">
+            <span aria-hidden="true" class="text-inverse-foreground/25">
+              "|"
+            "Secure checkout, no account needed"
+          <li class="items-center gap-4 hidden sm:flex">
+            <span aria-hidden="true" class="text-inverse-foreground/25">
+              "|"
+            "Small batches, shipped with care"
+      <div class="container-page flex h-16 items-center justify-between gap-4 sm:h-[4.5rem]">
+        <a class="flex items-center gap-2.5 text-[1.05rem] font-semibold tracking-tight" href="/">
+          <span aria-hidden="true" class="grid size-8 place-items-center rounded-lg bg-inverse-foreground">
+            <span class="size-3 rounded-full bg-accent">
+          "Test Shop"
+        <nav aria-label="Main" class="hidden items-center gap-7 text-[0.8125rem] font-medium md:flex">
+          <a class="text-inverse-foreground/80 transition-colors hover:text-inverse-foreground" href="/#products">
+            "Shop"
+          <a class="text-inverse-foreground/80 transition-colors hover:text-inverse-foreground" href="/#story">
+            "Our story"
+          <a class="text-inverse-foreground/80 transition-colors hover:text-inverse-foreground" href="/#promise">
+            "Our promise"
+        <div class="flex items-center gap-1">
+          <a class="mr-2 hidden rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-wide text-accent-foreground transition-opacity hover:opacity-90 sm:inline-flex" href="/#products">
+            "Shop now"
+          <a class="relative grid size-10 place-items-center rounded-full transition-colors hover:bg-inverse-foreground/10" data-astro-prefetch="false" href="/cart">
+            <span class="sr-only">
+              "Cart"
+            <svg aria-hidden="true" class="size-5" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M6 7h12l-1 13H7L6 7Z">
+              <path d="M9 7a3 3 0 0 1 6 0">
+            <span class="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[0.7rem] font-bold text-accent-foreground" data-cart-count hidden>
+          <button aria-pressed="false" class="hidden size-10 place-items-center rounded-full text-inverse-foreground/80 transition-colors hover:bg-inverse-foreground/10 hover:text-inverse-foreground js:grid" data-theme-toggle type="button">
+            <span class="sr-only">
+              "Dark theme"
+            <svg aria-hidden="true" class="size-5 dark:hidden" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z">
+            <svg aria-hidden="true" class="hidden size-5 dark:block" fill="none" stroke-linecap="round" stroke-width="1.8" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="4">
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4">
+    <main class="flex-1 container-page pb-20 pt-8 sm:pt-12" id="main">
+      <h1 class="mb-8 text-3xl font-semibold tracking-tight sm:text-4xl">
+        "Checkout"
+      <div class="grid items-start gap-10 lg:grid-cols-[1fr_380px]">
+        <div>
+          <form class="grid gap-10" id="checkout-details" method="post">
+            <input name="countryCode" type="hidden" value="RS">
+            <input name="postalCode" type="hidden" value="11000">
+            <section>
+              <h2 class="mb-4 flex items-center gap-3 text-lg font-semibold">
+                <span class="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  "1"
+                "Delivery"
+              <p class="-mt-2 mb-4 text-sm text-muted-foreground">
+                "To Serbia 11000 · "
+                <a class="text-foreground underline underline-offset-4" href="/checkout?step=destination">
+                  "Change"
+              <fieldset class="grid gap-2">
+                <legend class="sr-only">
+                  "Delivery option"
+                <input name="group" type="hidden" value="g1">
+                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors has-checked:border-foreground has-checked:ring-1 has-checked:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
+                  <input checked class="size-4 min-h-0 w-auto shrink-0 accent-primary" data-autosubmit="update-shipping" name="delivery:g1" required type="radio" value="o1|post|m1">
+                  <span class="flex-1">
+                    "Standard"
+                    <span class="block text-sm text-muted-foreground">
+                      "Arrives Tue, Nov 3"
+                  <span class="font-medium">
+                    "Free"
+                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors has-checked:border-foreground has-checked:ring-1 has-checked:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
+                  <input class="size-4 min-h-0 w-auto shrink-0 accent-primary" data-autosubmit="update-shipping" name="delivery:g1" required type="radio" value="o2|post|m2">
+                  <span class="flex-1">
+                    "Option 2"
+                  <span class="font-medium">
+                    <span class="tabular-nums ">
+                      <span>
+                        "$9.90"
+            <section>
+              <h2 class="mb-4 flex items-center gap-3 text-lg font-semibold">
+                <span class="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  "2"
+                "Contact and address"
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label class="grid gap-1 text-sm font-medium sm:col-span-2">
+                  <span>
+                    "Email"
+                  <input autocomplete="email" name="email" required type="email" value="ana@example.test">
+                <label class="grid gap-1 text-sm font-medium">
+                  <span>
+                    "First name"
+                  <input autocomplete="given-name" name="firstName" required value="Ana">
+                <label class="grid gap-1 text-sm font-medium">
+                  <span>
+                    "Last name"
+                  <input autocomplete="family-name" name="lastName" required value="Petrović">
+                <label class="grid gap-1 text-sm font-medium sm:col-span-2">
+                  <span>
+                    "Address"
+                  <input autocomplete="address-line1" name="street1" required value="Main 1">
+                <label class="grid gap-1 text-sm font-medium sm:col-span-2">
+                  <span>
+                    "Apartment, suite"
+                    <span class="font-normal text-muted-foreground">
+                      " (optional)"
+                  <input autocomplete="address-line2" name="street2" value>
+                <label class="grid gap-1 text-sm font-medium">
+                  <span>
+                    "City"
+                  <input autocomplete="address-level2" name="city" required value="Belgrade">
+                <label class="grid gap-1 text-sm font-medium">
+                  <span>
+                    "State / region"
+                  <input autocomplete="address-level1" name="state" value>
+                <label class="grid gap-1 text-sm font-medium sm:col-span-2">
+                  <span>
+                    "Phone"
+                    <span class="font-normal text-muted-foreground">
+                      " (optional)"
+                  <input autocomplete="tel" name="phone" type="tel" value>
+            <section>
+              <h2 class="mb-4 flex items-center gap-3 text-lg font-semibold">
+                <span class="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  "3"
+                "Payment"
+              <fieldset class="grid gap-2">
+                <legend class="sr-only">
+                  "Payment method"
+                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors has-checked:border-foreground has-checked:ring-1 has-checked:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
+                  <input checked class="size-4 min-h-0 w-auto shrink-0 accent-primary" name="payment" required type="radio" value="cod">
+                  <span class="flex-1">
+                    "Cash on delivery"
+                    <span class="block text-sm text-muted-foreground">
+                      "Pay the courier."
+                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors has-checked:border-foreground has-checked:ring-1 has-checked:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
+                  <input class="size-4 min-h-0 w-auto shrink-0 accent-primary" name="payment" required type="radio" value="bank">
+                  <span class="flex-1">
+                    "Bank transfer"
+            <div class="grid gap-4">
+              <label class="flex items-center gap-3 text-sm">
+                <input class="size-5 min-h-0 w-auto accent-primary" name="acceptTerms" required type="checkbox">
+                "I accept the terms and conditions"
+              <button class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 font-semibold transition duration-200 ease-(--ease-out-soft) active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 bg-primary text-primary-foreground hover:bg-primary/85 w-full text-lg" name="intent" type="submit" value="place">
+                "Place order"
+        <aside aria-label="Order summary" class="rounded-3xl border border-border bg-card p-6 lg:sticky lg:top-24" data-summary>
+          <h2 class="mb-4 text-lg font-semibold">
+            "Order summary"
+          <ul class="grid gap-3 border-b border-border pb-4">
+            <li class="flex justify-between gap-3 text-sm">
+              <span>
+                "Casual T-Shirt "
+                <span class="text-muted-foreground">
+                  "× 2"
+              <span class="tabular-nums ">
+                <span>
+                  "$30.00"
+            <li class="flex justify-between gap-3 text-sm">
+              <span>
+                "Mug "
+                <span class="text-muted-foreground">
+                  "× 1"
+              <span class="tabular-nums ">
+                <span>
+                  "$9.00"
+          <dl class="mt-4 grid gap-2 text-sm">
+            <div class="flex justify-between">
+              <dt class="text-muted-foreground">
+                "Subtotal"
+              <dd>
+                <span class="tabular-nums ">
+                  <span>
+                    "$39.00"
+            <div class="flex justify-between text-success">
+              <dt>
+                "Discount"
+              <dd>
+                "−"
+                <span class="tabular-nums ">
+                  <span>
+                    "$4.00"
+            <div class="flex justify-between">
+              <dt class="text-muted-foreground">
+                "Shipping"
+              <dd>
+                <span class="tabular-nums ">
+                  <span>
+                    "$9.90"
+            <div class="flex justify-between">
+              <dt class="text-muted-foreground">
+                "Tax"
+              <dd>
+                <span class="tabular-nums ">
+                  <span>
+                    "$1.20"
+            <div class="mt-2 flex justify-between border-t border-border pt-3 text-base font-semibold">
+              <dt>
+                "Total"
+              <dd data-total>
+                <span class="tabular-nums ">
+                  <span>
+                    "$46.10"
+          <button class="mt-4 text-sm text-foreground underline underline-offset-4 js:hidden" data-enhance="[data-summary]" form="checkout-details" formnovalidate id="update-shipping" name="intent" type="submit" value="delivery">
+            "Update shipping"
+    <footer class="scheme-dark bg-inverse text-inverse-foreground">
+      <div class="container-page grid gap-12 py-16 sm:grid-cols-2 sm:py-20 lg:grid-cols-4">
+        <div class="lg:col-span-2">
+          <a class="flex items-center gap-2.5 text-lg font-semibold tracking-tight" href="/">
+            <span aria-hidden="true" class="grid size-8 place-items-center rounded-lg bg-inverse-foreground">
+              <span class="size-3 rounded-full bg-accent">
+            "Test Shop"
+          <p class="mt-5 max-w-sm text-sm leading-relaxed text-inverse-foreground/70">
+            "A small, considered collection - picked to be used every day and kept for years. Small batches, shipped with care."
+        <nav aria-label="Shop">
+          <h2 class="eyebrow text-inverse-foreground">
+            "Shop"
+          <ul class="mt-5 space-y-3 text-sm text-inverse-foreground/70">
+            <li>
+              <a class="hover:text-inverse-foreground" href="/#products">
+                "All products"
+            <li>
+              <a class="hover:text-inverse-foreground" href="/cart">
+                "Cart"
+            <li>
+              <a class="hover:text-inverse-foreground" href="/checkout">
+                "Checkout"
+        <nav aria-label="Information">
+          <h2 class="eyebrow text-inverse-foreground">
+            "Information"
+          <ul class="mt-5 space-y-3 text-sm text-inverse-foreground/70">
+            <li>
+              <a class="hover:text-inverse-foreground" href="/#story">
+                "Our story"
+            <li>
+              <a class="hover:text-inverse-foreground" href="/#promise">
+                "Our promise"
+            <li>
+              <a class="hover:text-inverse-foreground" href="/sitemap.xml">
+                "Sitemap"
+      <div class="border-t border-inverse-foreground/10">
+        <div class="container-page flex flex-col gap-4 py-6 text-xs text-inverse-foreground/60 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            "© YEAR Test Shop. All rights reserved."
+          <label class="flex items-center gap-2">
+            "Font"
+            <select class="min-h-8 w-auto py-1 text-xs" data-font-picker>
+              <option value="default">
+                "Poppins"
+              <option value="montserrat">
+                "Montserrat"
+              <option value="system">
+                "System"
+    <script>
+      { const n = document.cookie.match(/(?:^|; )cart_count=(\d+)/)?.[1]; const el = document.querySelector("[data-cart-count]"); if (n && n !== "0" && el) { el.textContent = n; el.hidden = false; } }
+    <script src="<root>/src/layouts/Base.astro?astro&type=script&index=0&lang.ts" type="module">

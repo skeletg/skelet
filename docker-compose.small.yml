@@ -87,6 +87,26 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # Opt-in - `--profile astro-shop` - so a deployment without its env file still starts
+  astro-shop:
+    profiles: ["astro-shop"]
+    image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
+    env_file: [env/small-astro-shop.env]
+    ports: ["127.0.0.1:13001:3000"]
+    environment:
+      BACKEND_INTERNAL_URL: http://app:8080
+      STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+
   db:
     image: postgres:18-alpine
     environment:
