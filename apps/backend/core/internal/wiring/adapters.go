@@ -219,6 +219,15 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 	if !p.Kind.IsCartLineEligible() {
 		return cart.SimplePricing{}, fmt.Errorf("%w: sku %q is kind %q", cart.ErrProductNotPurchasable, sku, p.Kind)
 	}
+	if p.Kind == catalog.KindKit { // a kit with no components would sell an empty box - refused at add and, through this same call, at checkout
+		comps, err := a.svc.KitComponentRefs(ctx, p.ID)
+		if err != nil {
+			return cart.SimplePricing{}, err
+		}
+		if len(comps) == 0 {
+			return cart.SimplePricing{}, fmt.Errorf("%w: kit %q has no components", cart.ErrProductNotPurchasable, sku)
+		}
+	}
 	listings, err := a.svc.ListProductChannelListings(ctx, p.ID)
 	if err != nil {
 		return cart.SimplePricing{}, err
