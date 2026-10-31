@@ -226,7 +226,7 @@ func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
 		if len(backend["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
 			t.Errorf("%s: no backup passphrase", target)
 		}
-		_, files, _ := envFiles(root, target)
+		_, files, _ := EnvFiles(root, target)
 		if len(files) < 2 {
 			t.Errorf("%s: only %v - the compose file's env_file list was not read", target, files)
 		}

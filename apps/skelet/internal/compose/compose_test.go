@@ -13,10 +13,11 @@ func TestEnvReadsLib(t *testing.T) {
 	}
 	t.Setenv("SKELET_SHIM", "1")
 	t.Setenv("COMPOSE_PROFILES", "mine")
-	env, err := Env("../../../..")
+	lib, err := Load("../../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
+	env := lib.Env()
 	seen := map[string]string{}
 	for _, kv := range env {
 		k, v, _ := strings.Cut(kv, "=")

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/apps/skelet/internal/compose"
+	"github.com/skeletg/skelet/apps/skelet/internal/node"
 	"github.com/skeletg/skelet/apps/skelet/internal/sys"
 )
 
@@ -28,12 +29,12 @@ func boot(root string, a answers, w written, ask prompter) int {
 	if err := script("dev", "--lean"); err != nil {
 		return sys.ExitCode(err)
 	}
-	env, err := compose.Env(root)
+	lib, err := compose.Load(root)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "skelet setup:", err)
 		return 1
 	}
-	dc := func(args ...string) *exec.Cmd { return compose.Command(root, env, args...) }
+	dc := func(args ...string) *exec.Cmd { return compose.Command(root, lib.Env(), args...) }
 
 	fmt.Println("==> Waiting for db...")
 	wait := dc("exec", "db", "sh", "-c", "until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done")
@@ -114,17 +115,13 @@ func install(root, app string, inDocker bool) int {
 		return 0
 	}
 	fmt.Printf("==> Installing %s dependencies...\n", app)
-	// Populated, not merely present: a container's node_modules volume leaves an empty directory on the host
-	modules := filepath.Join(dir, "node_modules")
-	entries, _ := os.ReadDir(modules)
-	if len(entries) > 0 {
-		if _, err := os.Stat(filepath.Join(modules, ".modules.yaml")); err == nil {
-			fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(app))
-			return 0
-		}
-		// An npm tree from before the switch to pnpm, which pnpm won't take over without a terminal to confirm
+	switch node.Tree(dir) {
+	case "pnpm":
+		fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(app))
+		return 0
+	case "npm":
 		fmt.Printf("    %s/node_modules is an npm install from before the switch to pnpm - replacing it\n", appDir(app))
-		if err := os.RemoveAll(modules); err != nil {
+		if err := os.RemoveAll(filepath.Join(dir, "node_modules")); err != nil {
 			fmt.Fprintln(os.Stderr, "   ", err)
 			return 1
 		}

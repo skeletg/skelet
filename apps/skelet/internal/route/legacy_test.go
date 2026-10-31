@@ -12,7 +12,7 @@ import (
 
 // Every route to a script, run through the bash dispatcher this replaced and through Resolve against stub scripts that
 // echo how they were called. Help is left out on purpose - its screen names `add` where the old one said `new` - and
-// so is setup, which is Go now
+// so are setup and doctor, which are Go now
 func TestMatchesTheBashDispatcher(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -47,7 +47,7 @@ func TestMatchesTheBashDispatcher(t *testing.T) {
 		{"up", "--lean"}, {"serve", "dashboard"}, {"down"}, {"stop"}, {"restart"}, {"ps"}, {"logs", "app"},
 		{"sh"}, {"go", "test", "./..."}, {"cli", "admin", "list"}, {"psql"}, {"lint"}, {"search", "status"},
 		{"release"}, {"hooks"}, {"fixperms"}, {"provider", "u"}, {"changelog", "check"},
-		{"doctor"}, {"rm", "channel", "x"}, {"new", "channel", "x", "--from", "vetrina"},
+		{"rm", "channel", "x"}, {"new", "channel", "x", "--from", "vetrina"},
 		{"pnpm", "dashboard", "run", "lint"}, {"pnpm", "vetrina", "i"}, {"pnpm"}, {"pnpm", "nope", "x"},
 		{"npm", "dashboard", "x"}, {"npm"},
 		{"db", "migrate", "up"}, {"db", "migrate", "--signals", "status"}, {"db", "migrate", "new", "x", "--signals"},

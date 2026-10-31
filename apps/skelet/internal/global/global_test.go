@@ -105,13 +105,23 @@ func TestVersionIsTheInstalledBinarysOwn(t *testing.T) {
 func TestOutsideAProjectOnlyNewVersionAndHelpWork(t *testing.T) {
 	t.Chdir(tempDir(t))
 	calls := recordExec(t)
-	for args, want := range map[string]int{"up": 2, "doctor": 2, "new": 2, "new channel eu": 2, "help": 0, "--help": 0, "": 0} {
+	for args, want := range map[string]int{"up": 2, "logs app": 2, "new": 2, "new channel eu": 2, "help": 0, "--help": 0, "": 0} {
 		if code := Main("v1.2.3", strings.Fields(args)); code != want {
 			t.Errorf("%q: exit %d, want %d", args, code, want)
 		}
 	}
 	if len(*calls) != 0 {
 		t.Errorf("exec'd %v", *calls)
+	}
+}
+
+// Outside a project doctor checks the machine - with nothing on the PATH that's a failed check, not a refusal
+func TestDoctorRunsOutsideAProject(t *testing.T) {
+	t.Chdir(tempDir(t))
+	t.Setenv("PATH", "")
+	calls := recordExec(t)
+	if code := Main("v1.2.3", []string{"doctor"}); code != 1 || len(*calls) != 0 {
+		t.Errorf("exit %d, exec'd %v - want the machine check failing on no docker", code, *calls)
 	}
 }
 

@@ -45,7 +45,7 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 	}
 	fmt.Fprintf(out, "==> Profile: %s, signals=%t ai=%t, search=%s  (saved to %s)\n", a.target, a.signals, a.ai, a.search, profile.File)
 
-	backend, files, err := envFiles(root, a.target)
+	backend, files, err := EnvFiles(root, a.target)
 	if err != nil {
 		return w, err
 	}
@@ -137,9 +137,9 @@ func (a answers) profile() profile.Profile {
 
 var envRef = regexp.MustCompile(`env/[a-z0-9.-]+\.env`)
 
-// envFiles is the backend env file for target and every env file it needs. Beyond dev that is whatever the target's
+// EnvFiles is the backend env file for target and every env file it needs. Beyond dev that is whatever the target's
 // compose file names, so a shop added with skelet add channel is set up like the one it was forked from
-func envFiles(root, target string) (string, []string, error) {
+func EnvFiles(root, target string) (string, []string, error) {
 	if target == "dev" {
 		return "env/go.env", []string{"env/go.env", "env/db.env", "env/signals.env"}, nil
 	}

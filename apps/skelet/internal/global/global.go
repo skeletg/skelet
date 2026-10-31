@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/apps/skelet/internal/checkout"
+	"github.com/skeletg/skelet/apps/skelet/internal/doctor"
 	"github.com/skeletg/skelet/apps/skelet/internal/project"
 	"github.com/skeletg/skelet/apps/skelet/internal/sys"
 )
@@ -25,6 +26,7 @@ var (
 const usage = `skelet - start and run Skelet projects
 
   new <dir>   fetch a Skelet release into <dir> and run its setup   [skelet new --help]
+  doctor      check this machine has what Skelet needs
   version     this binary's version
   help        this screen
 
@@ -70,6 +72,8 @@ func Main(version string, args []string) int {
 	case verb == "new" && len(args) == 1:
 		fmt.Fprint(os.Stderr, newUsage)
 		return 2
+	case verb == "doctor":
+		return doctor.Machine(args[1:])
 	}
 	fmt.Fprintf(os.Stderr, "skelet: %s runs inside a Skelet project - cd into one, or start one with skelet new <dir>\n",
 		strings.Join(args[:min(2, len(args))], " "))

@@ -47,6 +47,7 @@ anywhere. Three things they share (living in `_lib`, which is sourced, not run):
 | Command | What it does |
 |---|---|
 | `skelet new <dir>` | The installed CLI's own command. Fetches a release into `<dir>` as a git checkout - a partial clone, so old file contents stay on the server until something asks for them - with Skelet as the `upstream` remote and your `main` branch starting at the release tag, then runs that project's `setup`, handing it every flag `new` doesn't know (`skelet new shop --yes`). `--version vX.Y.Z` picks the release, by default the one the CLI came from; `--repo URL` fetches from a fork or a mirror; `--force` allows a directory inside another project, which it otherwise refuses. Taking a later release is a merge - see [workflow.md](workflow.md#taking-a-new-release). |
+| `skelet doctor` | Outside a project, the installed CLI checks the machine alone - Docker, compose, git, Go and free disk - so you know `skelet new` will work. Inside one it's the project's full doctor. |
 | `skelet version` | The installed CLI's version, inside a project too - every other command there is the project's own. `gh attestation verify $(command -v skelet) --repo skeletg/skelet` checks the binary was built by the release workflow. |
 
 ## Starting and stopping the stack
@@ -137,7 +138,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `skelet add` | Scaffold a storefront: `skelet add channel <name> [--from <storefront>] [--tracked]`. Forks an existing shop under `apps/channels/`, allocates the first free dev and small-tier ports across every compose file, and copies the source's compose service rather than templating one here, so it inherits wiring changes instead of drifting. The service lands in the git-ignored `docker-compose.override.yml` (the convention in [workflow.md](workflow.md) - it keeps upstream pulls conflict-free) along with any YAML anchors it references, since those don't cross compose files. `--tracked` writes the dev, prod and small files instead, for adding a storefront to skelet itself. Nothing is written until every generated file passes `docker compose config`, so a failure leaves the tree untouched. `new channel` still works and says it's `add channel` now. |
 | `skelet rm` | Undo a scaffold: `skelet rm channel <name> [-y] [--volumes]`. Finds the service wherever `add` put it, strips it and its volume declarations, deletes the directory and env templates, stops the container, and drops `.skelet-apps` back. Prints everything it will delete with sizes and asks first, saying whether the directory is committed (recoverable) or untracked (not). Volumes are **kept** unless you pass `--volumes` - that's the part you can't undo, and a storefront's `.next` cache runs to gigabytes. Validates the edited compose files before writing, same as `add`; an override left with no services is deleted rather than written empty. |
 | `skelet fixperms` | Find and fix root-owned files under `apps/` left behind by container writes. Only asks for sudo when there's something to fix. |
-| `skelet doctor` | Sanity-check the environment: docker up, env files present, containers running, ports answering, backend /health, `*.localhost` resolution, disk space. Run it when something feels off. |
+| `skelet doctor` | Sanity-check the machine and the checkout: Docker and compose, git (2.35 or newer, for setup's sparse-checkout) and Go on the host, the env files the target needs, where the frontends run and whether pnpm and Node can run the host ones, the profile against the env files, `plugins.json` against the plugin directories (the rules codegen enforces), the running containers and the Signals spine, ports answering, backend /health, `*.localhost` resolution, the pre-commit hook, a WSL clone on the Windows drive, and disk space. Every line is ok, warn or FAIL, and only a FAIL fails it. Run it when something feels off. Outside a project, the installed `skelet doctor` checks the machine alone. |
 
 ## The scripts behind the verbs
 
@@ -155,8 +156,8 @@ fails when a script has no route or a route has no script.
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
 | `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
-| `setup` | nothing - it's Go, in `apps/skelet/internal/setup` |
-| `doctor`, `hooks`, `fixperms` | `doctor`, `install-hooks`, `fixperms` |
+| `setup`, `doctor` | nothing - they're Go, in `apps/skelet/internal/setup` and `internal/doctor` |
+| `hooks`, `fixperms` | `install-hooks`, `fixperms` |
 | `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
 | `add channel <name>`, `rm channel <name>` | `new`, `remove` |
 

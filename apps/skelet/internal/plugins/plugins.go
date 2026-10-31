@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -21,6 +22,9 @@ const (
 	Dir  = "apps/backend/core/plugins"
 	File = Dir + "/plugins.json"
 )
+
+// SlugPattern is pluginset's: a slug becomes a directory, a Go identifier and a config path prefix
+var SlugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
 // Entry mirrors pluginset.Entry - Module set means the plugin ships as a Go module, not a directory here
 type Entry struct {

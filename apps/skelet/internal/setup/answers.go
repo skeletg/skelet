@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/skeletg/skelet/apps/skelet/internal/gitx"
+	"github.com/skeletg/skelet/apps/skelet/internal/node"
 	"github.com/skeletg/skelet/apps/skelet/internal/profile"
 )
 
@@ -319,37 +318,19 @@ func orNone(list []string, none string) string {
 	return join(list)
 }
 
-var pnpmPin = regexp.MustCompile(`"packageManager":\s*"pnpm@([0-9.]+)`)
-
-// pnpmProblem says why pnpm can't run the host apps, or nothing when it can. It asks from inside the first app, where
-// pnpm switches itself to the pinned version - that switch is what breaks
+// pnpmProblem says why pnpm can't run the host apps, or nothing when it can
 func pnpmProblem(root string, hostApps []string) string {
 	if len(hostApps) == 0 {
 		return ""
 	}
 	dir := appDir(hostApps[0])
 	manifest, err := os.ReadFile(filepath.Join(root, dir, "package.json"))
-	onDisk := err == nil
-	if !onDisk {
-		// a deselected app comes back from sparse-checkout only later, so its pin comes from HEAD
+	if err != nil {
+		// A deselected app comes back from sparse-checkout only later, so its pin comes from HEAD and there is no
+		// directory yet to ask pnpm from
 		manifest, _ = gitx.Show(root, dir+"/package.json")
+		dir = ""
 	}
-	want := ""
-	if m := pnpmPin.FindSubmatch(manifest); m != nil {
-		want = string(m[1])
-	}
-	if _, err := exec.LookPath("pnpm"); err != nil {
-		return "no pnpm on PATH - corepack enable, or npm install -g pnpm@" + orNone(split(want), "<version>")
-	}
-	if want == "" || !onDisk {
-		return ""
-	}
-	cmd := exec.Command("pnpm", "--version")
-	cmd.Dir = filepath.Join(root, dir)
-	raw, _ := cmd.Output()
-	have := strings.TrimSpace(string(raw))
-	if have != want {
-		return fmt.Sprintf("pnpm in %s answers %s, the apps pin %s - pnpm self-update %s", dir, orNone(split(have), "nothing"), want, want)
-	}
-	return ""
+	_, problem := node.Pnpm(root, dir, node.Pin(manifest))
+	return problem
 }

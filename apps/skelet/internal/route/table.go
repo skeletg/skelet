@@ -1,7 +1,10 @@
 // Package route maps a skelet command line onto the bin/ script that carries it out
 package route
 
-import "github.com/skeletg/skelet/apps/skelet/internal/setup"
+import (
+	"github.com/skeletg/skelet/apps/skelet/internal/doctor"
+	"github.com/skeletg/skelet/apps/skelet/internal/setup"
+)
 
 // Route sends a verb, or a verb's subcommand, to bin/<Script> - or, for a verb written in Go, to Go. bin/repo-check
 // greps the Script fields of this file, so every script the front door reaches is named here, one route per line
@@ -20,7 +23,7 @@ const AnyApp = "*"
 
 var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
-	{Verb: "doctor", Script: "doctor"},
+	{Verb: "doctor", Go: doctor.Run, About: doctor.About},
 	{Verb: "up", Script: "dev"},
 	{Verb: "serve", Script: "serve"},
 	{Verb: "down", Script: "down"},
