@@ -102,7 +102,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		if u.Quantity <= 0 {
 			return Order{}, apperr.New("ORDER_EDIT_INVALID_QTY", apperr.ClassValidation, "edited quantity must be positive (remove the line to delete it)")
 		}
-		if len(l.Components) > 0 {
+		if l.IsBundle() {
 			return Order{}, apperr.New("ORDER_EDIT_BUNDLE_QTY", apperr.ClassConflict, "bundle line quantities can't be edited; remove and re-add instead")
 		}
 		qtyByID[u.OrderLineID] = u.Quantity
@@ -213,6 +213,9 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			if err := r.AddOrderLineStockParts(ctx, line.ID, line.StockParts); err != nil {
 				return err
 			}
+			if err := s.addKitItems(ctx, r, line.ID, a.sku, a.qty, a.kit); err != nil {
+				return err
+			}
 			active = append(active, line)
 			added = append(added, line)
 		}
@@ -314,15 +317,18 @@ func replaceTaxLines(ctx context.Context, repo Repository, orderID uuid.UUID, li
 func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 	cl := make([]cart.CartLine, len(lines))
 	for i, l := range lines {
-		comps := make([]cart.CartLineComponent, len(l.Components))
-		for j, c := range l.Components {
-			comps[j] = cart.CartLineComponent{
+		var comps []cart.CartLineComponent // a kit's items are display - its stock parts are what it takes
+		if !l.IsBundle() {
+			l.Components = nil
+		}
+		for _, c := range l.Components {
+			comps = append(comps, cart.CartLineComponent{
 				ProductID:   c.ProductID,
 				ProductSku:  c.ProductSku,
 				ProductName: c.ProductName,
 				UnitPrice:   c.UnitPrice,
 				Quantity:    c.Quantity,
-			}
+			})
 		}
 		parts := make([]cart.CartLineStockPart, len(l.StockParts))
 		for j, p := range l.StockParts {

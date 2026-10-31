@@ -1,6 +1,7 @@
 package wiring
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -641,7 +642,7 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 	out := make([]inventory.OrderLine, 0, len(o.Lines))
 	for _, line := range o.Lines {
 		done := shipped[line.ID]
-		if len(line.Components) > 0 {
+		if line.IsBundle() { // a kit's components are display - its stock parts below are what it took
 			// Shipments are per ORDER LINE, so a half-shipped bundle counts half of each component gone
 			factor := 0.0
 			if line.Quantity > 0 {
@@ -743,6 +744,37 @@ func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]c
 	out := make([]cart.CartLineStockPart, len(refs))
 	for i, r := range refs {
 		out[i] = cart.CartLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit}
+	}
+	return out, nil
+}
+
+// Default prices only weigh each item's share of a refund, so a kit's own price still splits by what its items are worth
+func (l OrderKitLookup) KitItemsBySKU(ctx context.Context, sku string) ([]order.OrderLineComponent, error) {
+	p, err := l.svc.GetProductBySKU(ctx, sku)
+	if err != nil {
+		if errors.Is(err, catalog.ErrProductNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if p.Kind != catalog.KindKit {
+		return nil, nil
+	}
+	comps, err := l.svc.ListKitComponents(ctx, p.ID, "") // "" names them in the store's default locale
+	if err != nil {
+		return nil, err
+	}
+	out := make([]order.OrderLineComponent, len(comps))
+	for i, c := range comps {
+		out[i] = order.OrderLineComponent{
+			ProductID:   c.ComponentProductID,
+			ProductSku:  c.ComponentSKU,
+			ProductName: cmp.Or(c.ComponentName, c.ComponentSKU),
+			UnitPrice:   c.ComponentDefaultPrice,
+			Quantity:    c.Quantity,
+			SortOrder:   c.SortOrder,
+			Returnable:  p.KitItemsReturnable,
+		}
 	}
 	return out, nil
 }

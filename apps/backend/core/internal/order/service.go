@@ -96,6 +96,8 @@ type Service struct {
 // A kit SKU's per-unit components, nil for anything that isn't a kit
 type KitComponentLookup interface {
 	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error)
+	// The same recipe as items to show on the order and return one at a time - quantities per kit unit, Returnable the kit's setting now, nil for anything that isn't a kit
+	KitItemsBySKU(ctx context.Context, sku string) ([]OrderLineComponent, error)
 }
 
 // Loads a channel for the edit recompute (tax-inclusive, currency) so order doesn't import channel directly
