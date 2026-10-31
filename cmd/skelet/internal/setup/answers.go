@@ -282,7 +282,7 @@ func excluded(a answers, c catalog) []string {
 	var out []string
 	for _, app := range c.apps() {
 		if !slices.Contains(a.apps, app) {
-			out = append(out, "!/"+appDir(app)+"/")
+			out = append(out, "!/"+appDir(c.root, app)+"/")
 		}
 	}
 	return out
@@ -323,7 +323,7 @@ func pnpmProblem(root string, hostApps []string) string {
 	if len(hostApps) == 0 {
 		return ""
 	}
-	dir := appDir(hostApps[0])
+	dir := appDir(root, hostApps[0])
 	manifest, err := os.ReadFile(filepath.Join(root, dir, "package.json"))
 	if err != nil {
 		// A deselected app comes back from sparse-checkout only later, so its pin comes from HEAD and there is no

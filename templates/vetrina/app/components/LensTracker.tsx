@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { redactPath } from "@/app/lib/analytics/redact";
 import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@/app/lib/analytics/recording-policy";
 import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
-import { randomId } from "@/app/lib/random-id";
+import { randomId } from "@skelet/storefront-next/random-id";
 import { beaconFetch } from "@/app/lib/beacons/client";
 import { BEACON } from "@/app/lib/beacons/paths";
 

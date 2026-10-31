@@ -21,9 +21,9 @@ most a one-line hint. Everything that needs a paragraph lives here.
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
-| `prod-vetrina-demo.env.example` | `prod-vetrina-demo.env` | the storefront container |
+| `prod-vetrina.env.example` | `prod-vetrina.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
-| `small-vetrina-demo.env.example` | `small-vetrina-demo.env` | its storefront container |
+| `small-vetrina.env.example` | `small-vetrina.env` | its storefront container |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
 The two `small.*` files belong to `docker-compose.small.yml`, the
@@ -761,7 +761,7 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_DEMO_IMAGE` are set in the
+`APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
 env. `skelet release` prints the values after a push.
 

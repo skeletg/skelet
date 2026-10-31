@@ -3,15 +3,18 @@ package testrun
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -26,35 +29,41 @@ that set the store up.`
 var playwrightPin = regexp.MustCompile(`"@playwright/test":\s*"([0-9]+(\.[0-9]+)+)"`)
 
 func Storefront(root string, args []string) int {
-	name := ""
-	if len(args) > 0 && args[0] != "" {
-		if fi, err := os.Stat(filepath.Join(root, "apps", "channels", args[0])); err == nil && fi.IsDir() {
-			name, args = args[0], args[1:]
+	var withTests []storefronts.Storefront
+	for _, sf := range storefronts.List(root) {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(sf.Dir), "playwright.config.ts")); err == nil {
+			withTests = append(withTests, sf)
 		}
 	}
-	if name == "" {
-		configs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "playwright.config.ts"))
-		if len(configs) > 1 {
+	var sf storefronts.Storefront
+	// A name that's there at all is taken as the storefront, so one without browser tests is refused rather than handed
+	// to Playwright as a spec filter
+	if len(args) > 0 && args[0] != "" && storefronts.Exists(root, args[0]) {
+		sf, _ = storefronts.Find(root, args[0])
+		sf.Name, args = args[0], args[1:]
+	}
+	if sf.Name == "" {
+		if len(withTests) > 1 {
 			fmt.Fprintln(os.Stderr, "Multiple storefronts have browser tests - name one: skelet test storefront <name>")
 			return 2
 		}
-		if len(configs) == 1 {
-			name = filepath.Base(filepath.Dir(configs[0]))
+		if len(withTests) == 1 {
+			sf = withTests[0]
 		}
 	}
-	dir := filepath.Join(root, "apps", "channels", name)
-	if _, err := os.Stat(filepath.Join(dir, "playwright.config.ts")); name == "" || err != nil {
+	name := sf.Name
+	if !slices.Contains(withTests, sf) || name == "" {
 		label := ""
 		if name != "" {
 			label = fmt.Sprintf("%q ", name)
 		}
-		fmt.Fprintf(os.Stderr, "No storefront %swith a playwright.config.ts under apps/channels/.\n", label)
+		fmt.Fprintf(os.Stderr, "No storefront %swith a playwright.config.ts.\n", label)
 		return 1
 	}
-	manifest, _ := os.ReadFile(filepath.Join(dir, "package.json"))
+	manifest, _ := os.ReadFile(filepath.Join(root, filepath.FromSlash(sf.Dir), "package.json"))
 	pin := playwrightPin.FindSubmatch(manifest)
 	if pin == nil {
-		fmt.Fprintf(os.Stderr, "apps/channels/%s/package.json has no exact @playwright/test pin\n", name)
+		fmt.Fprintf(os.Stderr, "%s/package.json has no exact @playwright/test pin\n", sf.Dir)
 		return 1
 	}
 	lib := compose.Load(root)
@@ -62,6 +71,11 @@ func Storefront(root string, args []string) int {
 	container := strings.TrimSpace(string(id))
 	if container == "" || !running(container) {
 		fmt.Fprintf(os.Stderr, "%s isn't running - start the stack with skelet up\n", name)
+		return 1
+	}
+	mnt, err := mounts(container)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Can't read the %s container's mounts: %v\n", name, err)
 		return 1
 	}
 
@@ -96,7 +110,7 @@ func Storefront(root string, args []string) int {
 		base = "http://localhost:3000"
 	}
 
-	// --volumes-from brings the source and the container's node_modules volume, so the specs resolve @playwright/test
+	// The container's own mounts bring the source and its node_modules volume, so the specs resolve @playwright/test
 	// from the tree the dev server uses. --network container: shares the storefront's network namespace, so the
 	// browser reaches it as localhost - next dev serves its chunks only there
 	argv := []string{"docker", "run", "--rm"}
@@ -107,10 +121,43 @@ func Storefront(root string, args []string) int {
 		"-u", uid+":"+gid, "-e", "HOME=/tmp", "-e", "CI="+os.Getenv("CI"),
 		"-e", "E2E_BASE_URL="+base, "-e", "E2E_ADMIN_GRAPHQL="+admin,
 		"-e", "E2E_ADMIN_EMAIL="+email, "-e", "E2E_ADMIN_PASSWORD="+password, "-e", "E2E_CHANNEL_ID="+channel,
-		"--network", "container:"+container, "--volumes-from", container, "--ipc=host",
-		"-w", "/var/www/storefront", "mcr.microsoft.com/playwright:v"+string(pin[1])+"-noble",
+		"--network", "container:"+container)
+	argv = append(append(argv, mnt...), "--ipc=host",
+		"-w", sf.ContainerDir(), "mcr.microsoft.com/playwright:v"+string(pin[1])+"-noble",
 		"node", "node_modules/@playwright/test/cli.js", "test")
 	return sys.Call{Path: sys.Lookup("docker"), Argv: append(argv, args...), Env: sys.Env()}.Replace()
+}
+
+// mounts is a container's mounts as docker run flags. --volumes-from can't take them over: it looks a tmpfs up as a
+// volume and finds none, and the tmpfs over env/ is what keeps the backend's secrets from the specs, as from the server
+func mounts(container string) ([]string, error) {
+	raw, err := exec.Command("docker", "inspect", "-f", "{{json .Mounts}}", container).Output()
+	if err != nil {
+		return nil, err
+	}
+	var ms []struct {
+		Type, Name, Source, Destination string
+		RW                              bool
+	}
+	if err := json.Unmarshal(raw, &ms); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, m := range ms {
+		ro := ""
+		if !m.RW {
+			ro = ":ro"
+		}
+		switch m.Type {
+		case "bind":
+			out = append(out, "-v", m.Source+":"+m.Destination+ro)
+		case "volume":
+			out = append(out, "-v", m.Name+":"+m.Destination+ro)
+		case "tmpfs":
+			out = append(out, "--tmpfs", m.Destination)
+		}
+	}
+	return out, nil
 }
 
 func running(container string) bool {

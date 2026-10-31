@@ -14,7 +14,7 @@ dev stack.
 
 ```bash
 cp env/small.env.example env/small.env
-cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
+cp env/small-vetrina.env.example env/small-vetrina.env
 cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - skelet setup fills them
 docker compose -f docker-compose.small.yml up -d
 ```
@@ -93,7 +93,7 @@ beside the dev stack, but the in-network ports don't move):
 
 | Host | Upstream | Why it exists |
 |---|---|---|
-| apex, e.g. `shop.example.com` | `vetrina-demo:3000` | the storefront - every channel's host can point at the same upstream |
+| apex, e.g. `shop.example.com` | `vetrina:3000` | the storefront - every channel's host can point at the same upstream |
 | `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
 | `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with your payment provider. Skip this host and captures never settle |
 

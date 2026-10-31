@@ -12,6 +12,12 @@ import (
 func TestMain(m *testing.M) {
 	verbtest.Main(m, map[string]func(string, []string) int{
 		"dashboard": Dashboard, "channel": Channel,
+		"rundir": func(root string, args []string) int {
+			if RunDir(root, args[0], args[1:]...) != nil {
+				return 1
+			}
+			return 0
+		},
 		// What skelet gen does: the endpoint goes to a host install's codegen
 		"codegen": func(root string, args []string) int {
 			if Run(root, args[0], []string{"GRAPHQL_CODEGEN_URL=http://x"}, "run", "codegen") != nil {
@@ -59,6 +65,7 @@ func TestInTheContainer(t *testing.T) {
 	root := t.TempDir()
 	app(t, root, "apps/dashboard", "none")
 	app(t, root, "apps/channels/shop", "none")
+	app(t, root, "templates/vetrina", "none")
 	for _, c := range []struct {
 		verb, answer string
 		args         []string
@@ -66,7 +73,9 @@ func TestInTheContainer(t *testing.T) {
 	}{
 		{"dashboard", `case "$*" in "compose ps --services --status running") echo dashboard ;; esac`, []string{"run", "lint"},
 			"compose exec " + user + " dashboard pnpm run lint"},
-		{"channel", "", []string{"shop", "install"}, "compose run --rm " + user + " shop pnpm install"},
+		// A storefront's container starts at the workspace root - pnpm runs in the storefront's own directory
+		{"channel", "", []string{"shop", "install"}, "compose run --rm " + user + " -w /var/www/skelet/apps/channels/shop shop pnpm install"},
+		{"channel", "", []string{"vetrina", "add", "x"}, "compose run --rm " + user + " -w /var/www/skelet/templates/vetrina vetrina pnpm add x"},
 	} {
 		d := verbtest.NewDocker(t, c.answer)
 		d.Fake("pnpm", "")
@@ -116,5 +125,35 @@ func TestRefusals(t *testing.T) {
 	d := verbtest.NewDocker(t, "")
 	if _, code := d.Run("dashboard", root, "install"); code != 1 || len(d.Calls()) != 0 {
 		t.Errorf("no dashboard: exit %d, calls %q", code, d.Calls())
+	}
+}
+
+// A package has no container: the host's pnpm when the workspace is installed there, else a storefront's container
+// pointed at the package
+func TestRunDir(t *testing.T) {
+	t.Setenv("SKELET_FORCE_DOCKER", "")
+	root := t.TempDir()
+	app(t, root, "templates/vetrina", "none")
+	app(t, root, "packages/storefront-next", "none")
+	d := verbtest.NewDocker(t, "")
+	d.Fake("pnpm", "")
+	if _, code := d.Run("rundir", root, "packages/storefront-next", "run", "test"); code != 0 ||
+		cmds(d)[len(cmds(d))-1] != "compose run --rm "+user+" -w /var/www/skelet/packages/storefront-next vetrina pnpm run test" {
+		t.Errorf("in a container: exit %d, calls %q", code, d.Calls())
+	}
+	// Installed on the host - the workspace root holds the record
+	if err := os.WriteFile(filepath.Join(root, "pnpm-workspace.yaml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app(t, root, ".", "pnpm")
+	app(t, root, "packages/storefront-next", "none")
+	if err := os.MkdirAll(filepath.Join(root, "packages/storefront-next/node_modules/vitest"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	host := verbtest.NewDocker(t, "")
+	host.Fake("pnpm", "")
+	if _, code := host.Run("rundir", root, "packages/storefront-next", "run", "test"); code != 0 ||
+		strings.Join(host.Calls(), "\n") != "pnpm run test|"+filepath.Join(root, "packages/storefront-next") {
+		t.Errorf("on the host: exit %d, calls %q", code, host.Calls())
 	}
 }

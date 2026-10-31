@@ -81,7 +81,7 @@ func TestE2ERefusals(t *testing.T) {
 	}
 }
 
-func storefronts(t *testing.T, apps map[string]string) string {
+func storefrontTree(t *testing.T, apps map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
 	for name, manifest := range apps {
@@ -108,10 +108,11 @@ const storefrontUp = `case "$*" in
 "inspect -f {{.State.Running}} abc123") echo true ;;
 *"printenv ADMIN_API_SLUG") echo s3cret ;;
 "inspect -f {{range .Config.Env}}{{println .}}{{end}} abc123") printf 'A=1\nSTOREFRONT_CHANNEL_ID=chan-1\n' ;;
+"inspect -f {{json .Mounts}} abc123") echo '[{"Type":"tmpfs","Source":"","Destination":"/var/www/skelet/env","RW":true},{"Type":"volume","Name":"skelet_shop-node-modules","Destination":"/var/www/skelet/node_modules","RW":true},{"Type":"bind","Source":"/src","Destination":"/var/www/skelet","RW":true},{"Type":"bind","Source":"/certs","Destination":"/certs","RW":false}]' ;;
 esac`
 
 func TestStorefront(t *testing.T) {
-	root := storefronts(t, map[string]string{"shop": pinned, "plain": ""})
+	root := storefrontTree(t, map[string]string{"shop": pinned, "plain": ""})
 	d := verbtest.NewDocker(t, storefrontUp)
 	// The one storefront with browser tests needs no name, and an argument that isn't one goes to Playwright
 	if _, code := d.Run("storefront", root, "--grep", "cart"); code != 0 {
@@ -125,7 +126,8 @@ func TestStorefront(t *testing.T) {
 		"run --rm",
 		"-e E2E_ADMIN_GRAPHQL=http://app:8080/api/admin/s3cret/graphql",
 		"-e E2E_CHANNEL_ID=chan-1",
-		"--network container:abc123 --volumes-from abc123 --ipc=host -w /var/www/storefront",
+		// The container's mounts as they are - the tmpfs over env/ included, which --volumes-from can't copy
+		"--network container:abc123 --tmpfs /var/www/skelet/env -v skelet_shop-node-modules:/var/www/skelet/node_modules -v /src:/var/www/skelet -v /certs:/certs:ro --ipc=host -w /var/www/skelet/apps/channels/shop",
 		"mcr.microsoft.com/playwright:v1.56.1-noble node node_modules/@playwright/test/cli.js test --grep cart",
 	}); missing != "" || !strings.HasPrefix(run, "run --rm") {
 		t.Errorf("no %q in order in:\n%s", missing, strings.Join(calls, "\n"))
@@ -164,14 +166,18 @@ func TestStorefrontRefusals(t *testing.T) {
 		{"no exact pin", map[string]string{"shop": `{"devDependencies": {"@playwright/test": "^1.56.1"}}`}, nil, 1},
 		{"not running", map[string]string{"other": pinned}, nil, 1},
 	}
-	// A container that exists but has stopped
+	// A container that exists but has stopped, and one whose mounts can't be read
 	stopped := verbtest.NewDocker(t, strings.Replace(storefrontUp, "echo true", "echo false", 1))
-	if _, code := stopped.Run("storefront", storefronts(t, map[string]string{"shop": pinned})); code != 1 || anyContains(cmds(stopped), "create-superuser") {
+	if _, code := stopped.Run("storefront", storefrontTree(t, map[string]string{"shop": pinned})); code != 1 || anyContains(cmds(stopped), "create-superuser") {
 		t.Errorf("stopped: exit %d, calls %q", code, stopped.Calls())
+	}
+	blind := verbtest.NewDocker(t, strings.Replace(storefrontUp, `"inspect -f {{json .Mounts}} abc123")`, `"inspect -f {{json .Mounts}} abc123") exit 1 ;; "never")`, 1))
+	if _, code := blind.Run("storefront", storefrontTree(t, map[string]string{"shop": pinned})); code != 1 || anyContains(cmds(blind), "create-superuser") {
+		t.Errorf("unreadable mounts: exit %d, calls %q", code, blind.Calls())
 	}
 	for _, c := range cases {
 		d := verbtest.NewDocker(t, storefrontUp)
-		if _, code := d.Run("storefront", storefronts(t, c.apps), c.args...); code != c.code || anyContains(cmds(d), "create-superuser") {
+		if _, code := d.Run("storefront", storefrontTree(t, c.apps), c.args...); code != c.code || anyContains(cmds(d), "create-superuser") {
 			t.Errorf("%s: exit %d, want %d; calls %q", c.name, code, c.code, d.Calls())
 		}
 	}

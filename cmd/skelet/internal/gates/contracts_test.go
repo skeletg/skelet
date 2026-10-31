@@ -16,7 +16,8 @@ func contractTree(t *testing.T) string {
 	put(t, root, map[string]string{
 		blockkit: "// SYNC SENTINEL: types agree with apps/dashboard/src/features/cms/page-blocks.ts\npackage blockkit\n\nconst (\n" +
 			"\tTypeHero   = \"hero\"\n\tTypeText   = \"text\"\n\tTypeRef    = \"ref\"\n)\n\nvar BuiltinTypes = map[string]bool{\n\tTypeHero: true, TypeText: true,\n\tTypeRef: true,\n}\n",
-		dashBlocks: "export const BLOCKS = [\n  {\n    type: 'hero',\n  },\n  {\n    type: 'text',\n  },\n  {\n    type: 'ref',\n  },\n]\n",
+		dashBlocks:                        "export const BLOCKS = [\n  {\n    type: 'hero',\n  },\n  {\n    type: 'text',\n  },\n  {\n    type: 'ref',\n  },\n]\n",
+		"apps/channels/shop/package.json": "{}",
 		"apps/channels/shop/app/components/cms/CmsBlocks.tsx": "const REGISTRY: Record<string, BlockRenderer> = {\n  hero: Hero,\n  text: Text,\n};\n",
 		responseCache: "var frontCacheableOps = map[string]bool{\n\t\"Products\": true,\n\t\"Menu\": true,\n}\n",
 		"apps/channels/shop/app/lib/public-ops.ts":      "export const PUBLIC_OPS = new Set([\n  \"Menu\",\n  \"Products\",\n])\n",

@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
 import { VIDEO_EMBED_ORIGINS } from "@/app/lib/video-embed";
 
@@ -80,9 +83,22 @@ const PREVIEW_HEADERS = [
   ...COMMON_HEADERS,
 ];
 
+// The pnpm workspace root, which holds the shared packages: Turbopack resolves from it and the standalone build traces
+// from it - the two must match - so the server lands at .next/standalone/<this app's path from the root>/server.js.
+// Found by walking up, since a template and a storefront made from it sit at different depths
+function workspaceRootOf(dir: string): string {
+  for (let d = dir; ; d = dirname(d)) {
+    if (existsSync(join(d, "pnpm-workspace.yaml"))) return d;
+    if (dirname(d) === d) return dir;
+  }
+}
+const workspaceRoot = workspaceRootOf(dirname(fileURLToPath(import.meta.url)));
+
 const nextConfig: NextConfig = {
   // Standalone output so the prod image ships without full node_modules - see Dockerfile.prod
   output: "standalone",
+  turbopack: { root: workspaceRoot },
+  outputFileTracingRoot: workspaceRoot,
 
   // Dev-only: next dev 403s /_next chunks requested from any origin but localhost, which broke
   // browsing over the machine's LAN IP. Private-range origins are safe to allow in dev

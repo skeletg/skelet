@@ -1,4 +1,5 @@
-// Package fixperms is skelet fixperms: chown files under apps/ that a container left owned by someone else back to you
+// Package fixperms is skelet fixperms: chown files a container left owned by someone else back to you - under apps/, the
+// templates, the shared packages and the workspace's node_modules
 package fixperms
 
 import (
@@ -14,10 +15,26 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const About = `Chowns files under apps/ that a container left owned by someone else back to you.
+const About = `Chowns files a container left owned by someone else back to you - under apps/, templates/,
+packages/ and the workspace's node_modules.
 
   skelet fixperms          scan, list what's wrong, and ask for sudo only when there's something to fix
-  skelet fixperms --all    chown all of apps/ without scanning`
+  skelet fixperms --all    chown all of them without scanning`
+
+// The trees containers write into: the apps' bind mounts, and the storefront workspace's - including the mountpoint a
+// storefront's node_modules volume leaves at the root
+var trees = []string{"apps", "templates", "packages", "node_modules"}
+
+// present is the trees this checkout has
+func present(root string) []string {
+	var out []string
+	for _, t := range trees {
+		if _, err := os.Lstat(filepath.Join(root, t)); err == nil {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 func Run(root string, args []string) int {
 	mode := ""
@@ -31,7 +48,7 @@ func Run(root string, args []string) int {
 	}
 	switch mode {
 	case "", "scan", "--scan":
-		fmt.Printf("==> Scanning apps/ for files not owned by %s…\n", me)
+		fmt.Printf("==> Scanning %v for files not owned by %s…\n", present(root), me)
 		strays := scan(root, os.Getuid())
 		if len(strays) == 0 {
 			fmt.Println("    All clean.")
@@ -43,14 +60,14 @@ func Run(root string, args []string) int {
 		}
 		fmt.Println()
 		fmt.Println("==> Repairing ownership (sudo)…")
-		return sudo(root, "find", "apps", "-not", "-user", uid, "-exec", "chown", uid+":"+gid, "{}", "+")
+		return sudo(root, append(append([]string{"find"}, present(root)...), "-not", "-user", uid, "-exec", "chown", uid+":"+gid, "{}", "+")...)
 	case "--all", "all":
 		group := gid
 		if g, err := user.LookupGroupId(gid); err == nil {
 			group = g.Name
 		}
-		fmt.Printf("==> Blanket chown apps/ → %s:%s (sudo)…\n", me, group)
-		return sudo(root, "chown", "-R", uid+":"+gid, "apps")
+		fmt.Printf("==> Blanket chown %v → %s:%s (sudo)…\n", present(root), me, group)
+		return sudo(root, append([]string{"chown", "-R", uid + ":" + gid}, present(root)...)...)
 	case "-h", "--help", "help":
 		fmt.Println(About)
 		return 0
@@ -59,10 +76,18 @@ func Run(root string, args []string) int {
 	return 2
 }
 
-// scan is find apps ! -user: every entry, symlinks by their own owner, unreadable corners skipped
+// scan is find <trees> ! -user: every entry, symlinks by their own owner, unreadable corners skipped
 func scan(root string, uid int) []string {
 	var strays []string
-	_ = filepath.WalkDir(filepath.Join(root, "apps"), func(p string, d fs.DirEntry, err error) error {
+	for _, t := range present(root) {
+		strays = append(strays, scanTree(root, filepath.Join(root, t), uid)...)
+	}
+	return strays
+}
+
+func scanTree(root, top string, uid int) []string {
+	var strays []string
+	_ = filepath.WalkDir(top, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

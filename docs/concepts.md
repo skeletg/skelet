@@ -163,7 +163,7 @@ once:
 
 | Name | What it is |
 |---|---|
-| `vetrina-demo` | The example storefront that ships in-tree. A template to fork, not a dependency - deselect it and nothing breaks |
+| `vetrina` | The example storefront that ships in-tree. A template to fork, not a dependency - deselect it and nothing breaks |
 | Valkey | Redis-compatible store. Refresh tokens and cache |
 | Garage | Self-hosted S3-compatible object storage. Media, in dev and on-prem |
 | OpenSearch | Search index. Optional - the app runs without it |

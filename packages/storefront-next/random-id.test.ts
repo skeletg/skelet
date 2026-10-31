@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { randomId } from "@/app/lib/random-id";
+import { randomId } from "./random-id";
 
 // The whole reason this exists: over a LAN ip the page is not a secure context, crypto is present
 // but crypto.randomUUID is not, and the bare call throws - taking Lens tracking and Prism

@@ -17,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -49,8 +50,10 @@ var generated = []string{
 	"docs/settings.md",
 	"apps/dashboard/src/graphql/schema.types.ts",
 	"apps/dashboard/src/",
-	// Every storefront, not the demo by name - a broad pathspec costs nothing and can't go stale
+	// Every storefront, template and shared package, not one by name - a broad pathspec costs nothing and can't go stale
 	"apps/channels/",
+	"templates/",
+	"packages/",
 }
 
 // Check is skelet check codegen
@@ -197,14 +200,24 @@ func typescript(root string, check bool) int {
 		fmt.Println("    (skipped - dashboard source not in this checkout; see skelet setup)")
 	}
 	fmt.Println("==> storefront codegen")
-	manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	slices.Sort(manifests)
-	if len(manifests) == 0 {
+	list := storefronts.List(root)
+	if len(list) == 0 {
 		fmt.Println("    (no storefronts in this checkout; see skelet setup)")
 	}
-	for _, m := range manifests {
-		name := filepath.Base(filepath.Dir(m))
-		if code := retried(name, probe, func() error { return pnpm.Run(root, name, nil, "run", "codegen") }); code != 0 {
+	for _, s := range list {
+		if !storefronts.HasScript(root, s.Dir, "codegen") {
+			continue
+		}
+		if code := retried(s.Name, probe, func() error { return pnpm.Run(root, s.Name, nil, "run", "codegen") }); code != 0 {
+			return code
+		}
+	}
+	for _, dir := range storefronts.Packages(root) {
+		if !storefronts.HasScript(root, dir, "codegen") {
+			continue
+		}
+		fmt.Printf("==> %s codegen\n", dir)
+		if code := retried(dir, probe, func() error { return pnpm.RunDir(root, dir, "run", "codegen") }); code != 0 {
 			return code
 		}
 	}

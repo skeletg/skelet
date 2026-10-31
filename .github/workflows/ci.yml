@@ -130,8 +130,8 @@ jobs:
           go build -tags vips ./...
           go test -tags vips ./internal/media/... ./internal/mediahttp/... -count=1 -race
 
-  # The app set is a directory listing, not a constant - a fork that swaps the demo
-  # storefront for its own gets the same gates without editing the matrices below
+  # The app set is a directory listing, not a constant - a storefront added under apps/channels, a template or a
+  # shared package gets the same gates without editing the matrices below
   discover:
     name: Discover apps
     runs-on: ubuntu-latest
@@ -142,14 +142,17 @@ jobs:
       - uses: actions/checkout@v4
       - id: list
         run: |
-          front='{"app":"dashboard","dir":"apps/dashboard"}'
+          front='{"app":"dashboard","dir":"apps/dashboard","lock":"apps/dashboard/pnpm-lock.yaml"}'
           # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
           images='{"image":"backend","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
-          for d in apps/channels/*/; do
+          # The storefronts and the packages they share are one workspace with one lockfile at the root, and a
+          # storefront's image builds from the root too, its Dockerfile's own .dockerignore keeping the context small
+          for d in apps/channels/*/ templates/*/ packages/*/; do
             [ -f "$d/package.json" ] || continue
-            n=$(basename "$d")
-            front="$front,{\"app\":\"$n\",\"dir\":\"apps/channels/$n\"}"
-            images="$images,{\"image\":\"$n\",\"context\":\"apps/channels/$n\"}"
+            d=${d%/}
+            front="$front,{\"app\":\"$(basename "$d")\",\"dir\":\"$d\",\"lock\":\"pnpm-lock.yaml\"}"
+            [ -f "$d/Dockerfile.prod" ] || continue
+            images="$images,{\"image\":\"$(basename "$d")\",\"context\":\".\",\"file\":\"$d/Dockerfile.prod\"}"
           done
           echo "frontends={\"include\":[$front]}" >> "$GITHUB_OUTPUT"
           echo "images={\"include\":[$images]}" >> "$GITHUB_OUTPUT"
@@ -163,9 +166,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.frontends) }}
+    # The install is its own step, so pnpm's check before each script is off - it can't vouch for a filtered install,
+    # and would redo it whole
+    env:
+      pnpm_config_verify_deps_before_run: "false"
     steps:
       - uses: actions/checkout@v4
-      # Version from the app's packageManager field - there's no root package.json for the
+      # Version from the project's packageManager field - there's no root package.json for the
       # action's default to read. Before setup-node, whose pnpm cache needs pnpm on PATH
       - uses: pnpm/action-setup@v6
         with:
@@ -176,10 +183,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
+          cache-dependency-path: ${{ matrix.lock }}
+      # A workspace member installs from the root - itself and the shared packages, each with its own dependencies, as
+      # its image does; the dashboard is a project of its own
       - name: Install
-        working-directory: ${{ matrix.dir }}
-        run: pnpm install --frozen-lockfile
+        env:
+          DIR: ${{ matrix.dir }}
+          LOCK: ${{ matrix.lock }}
+        run: |
+          if [ "$LOCK" = pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile --filter "./$DIR..." --filter "./packages/*"
+          else
+            cd "$DIR" && pnpm install --frozen-lockfile
+          fi
       - name: Typecheck
         working-directory: ${{ matrix.dir }}
         run: pnpm run typecheck
@@ -191,7 +207,7 @@ jobs:
       # storefront route is dynamic (gqlFetch reads cookies/headers), so next build fetches nothing at build time
       - name: Build
         working-directory: ${{ matrix.dir }}
-        run: pnpm run build
+        run: pnpm run --if-present build
 
   # The prod images are how this actually deploys, so a Dockerfile that stops building must fail the PR, not the release evening.
   # Build only - no push, no tags The dashboard's workspace shell is pointer gestures and cross-device state - dragging tabs between panes, splits, workspaces roaming through the preferences store.

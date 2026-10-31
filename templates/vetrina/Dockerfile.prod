@@ -1,0 +1,54 @@
+# Prod storefront image - Next.js standalone output on a small node base
+# Build from the repo root, the workspace the storefront shares packages through:
+#   docker build -f templates/vetrina/Dockerfile.prod -t skelet-vetrina:prod .
+# Dockerfile.prod.dockerignore beside this file keeps that context to the workspace files, the packages and this app
+# Runtime config: BACKEND_INTERNAL_URL (default http://app:8080), STOREFRONT_CHANNEL_HOSTS and/or STOREFRONT_CHANNEL_ID
+
+# The packages' manifests alone, so the install layer is keyed on them and not on every package source edit
+FROM alpine:3.24 AS manifests
+WORKDIR /w
+COPY packages packages
+RUN find packages -mindepth 2 -maxdepth 2 ! -name package.json -exec rm -rf {} +
+
+FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.6.0
+# The install is the step before the build, so pnpm's check before a script is off - it can't vouch for a filtered
+# install, and would redo it whole
+ENV pnpm_config_store_dir=/pnpm/store \
+    pnpm_config_verify_deps_before_run=false
+WORKDIR /app
+# The workspace file carries the build policy the lockfile was resolved under
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY templates/vetrina/package.json templates/vetrina/
+COPY --from=manifests /w/packages packages
+# The app and every shared package, each with its own dependencies - a package's peers resolve from its own directory
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter "./templates/vetrina..." --filter "./packages/*"
+COPY packages packages
+COPY templates/vetrina templates/vetrina
+
+ARG NEXT_PUBLIC_DASHBOARD_ORIGIN
+ENV NEXT_PUBLIC_DASHBOARD_ORIGIN=$NEXT_PUBLIC_DASHBOARD_ORIGIN
+# next.config.ts bakes it into the CSP at build
+ARG UPLOAD_ORIGINS
+ENV UPLOAD_ORIGINS=$UPLOAD_ORIGINS
+
+# No channel and no backend at build time: the host picks the channel per request, and pages render on first visit
+RUN cd templates/vetrina && pnpm run build
+
+FROM node:24-alpine AS run
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app
+# Standalone output traces from the workspace root, so the app's server sits at its own path inside it. server.js
+# doesn't serve public/ or .next/static itself - copy them in beside it
+COPY --from=build --chown=app:app /app/templates/vetrina/.next/standalone ./
+COPY --from=build --chown=app:app /app/templates/vetrina/.next/static ./templates/vetrina/.next/static
+COPY --from=build --chown=app:app /app/templates/vetrina/public ./templates/vetrina/public
+# The ISR cache writes here at runtime, as the unprivileged user
+RUN mkdir -p templates/vetrina/.next/cache && chown app:app templates/vetrina/.next/cache
+USER app
+EXPOSE 3000
+CMD ["node", "templates/vetrina/server.js"]

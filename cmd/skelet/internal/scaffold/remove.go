@@ -15,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 const RemoveAbout = `Removes a storefront: its directory, its compose service and volume declarations, and its env
@@ -71,6 +73,10 @@ func Remove(root string, args []string) int {
 }
 
 func remove(root, name string, force, dropVolumes bool) int {
+	if s, ok := storefronts.Find(root, name); ok && s.Template() {
+		fmt.Fprintf(os.Stderr, "%q is a template, not one of your storefronts - templates come from upstream, and rm channel leaves them be\n", name)
+		return 2
+	}
 	lib := compose.Load(root)
 	// A scaffold lands in one place, but a hand-edited clone might have it in several, so every one is collected
 	var composeFiles []string
@@ -207,6 +213,12 @@ func remove(root, name string, force, dropVolumes bool) int {
 	}
 	if err := deselect(root, name); err != nil {
 		return failed(err)
+	}
+	// The workspace lockfile still lists it - frozen installs don't mind, but a refresh keeps it honest
+	if rest := storefronts.Names(root); appDir != "" && len(rest) > 0 {
+		if pnpm.Lockfile(root, rest[0]) != nil {
+			fmt.Fprintf(os.Stderr, "    pnpm-lock.yaml still lists %s - skelet pnpm %s install --lockfile-only clears it\n", appDir, rest[0])
+		}
 	}
 	fmt.Printf("\nRemoved %q.\n", name)
 	if !dropVolumes && len(volumes) > 0 {

@@ -62,7 +62,7 @@
     },
     {
       // Our own images, built by skelet release - there is no upstream to check
-      "matchPackageNames": ["skelet-app", "skelet-dashboard", "skelet-vetrina-demo"],
+      "matchPackageNames": ["skelet-app", "skelet-dashboard", "skelet-vetrina"],
       "enabled": false
     },
 

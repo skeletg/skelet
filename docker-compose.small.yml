@@ -66,9 +66,9 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  vetrina-demo:
-    image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
-    env_file: [env/small-vetrina-demo.env]
+  vetrina:
+    image: ${VETRINA_IMAGE:-skelet-vetrina:prod}
+    env_file: [env/small-vetrina.env]
     ports: ["127.0.0.1:13000:3000"]
     environment:
       BACKEND_INTERNAL_URL: http://app:8080
@@ -123,7 +123,7 @@ services:
     depends_on:
       app: { condition: service_healthy }
       dashboard: { condition: service_healthy }
-      vetrina-demo: { condition: service_healthy, required: false }
+      vetrina: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s

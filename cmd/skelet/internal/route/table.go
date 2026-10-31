@@ -29,7 +29,7 @@ type Route struct {
 	About string
 }
 
-// AnyApp is the pnpm route taken by any storefront name - the storefront exists when apps/channels/<name> does
+// AnyApp is the pnpm route taken by any storefront name - a template's or one of the project's own
 const AnyApp = "*"
 
 var routes = []Route{

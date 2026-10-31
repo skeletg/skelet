@@ -1,7 +1,7 @@
 // The structured-data builder spec and its JSON-LD generator, used for the "edit as raw
 // JSON" escape hatch - the operator picks a type + field toggles, and this produces the
 // same shape the storefront builds from the spec at render
-// SYNC: mirrors cmsSchemaFromSpec in apps/channels/vetrina-demo/app/lib/json-ld.ts
+// SYNC: mirrors cmsSchemaFromSpec in templates/vetrina/app/lib/json-ld.ts
 
 export type SchemaType = 'WebPage' | 'Article'
 

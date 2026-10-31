@@ -203,7 +203,7 @@ convention is the one most code comments point at.
 ## Storefront hygiene
 
 - **Next.js 16, not your training data.** Read
-  `apps/channels/vetrina-demo/node_modules/next/dist/docs/` before writing code;
+  `templates/vetrina/node_modules/next/dist/docs/` before writing code;
   APIs, conventions, and file layout differ from older versions. Heed
   deprecation notices.
 - **Server-only GraphQL.** `app/lib/graphql.ts` is RSC/route-handler

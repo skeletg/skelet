@@ -66,5 +66,5 @@ The locations and contact details are fictional demonstration data.
 Run the read-only browser journeys after installing the fixtures:
 
 ```bash
-skelet test storefront vetrina-demo e2e/stores.spec.ts
+skelet test storefront vetrina e2e/stores.spec.ts
 ```

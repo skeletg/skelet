@@ -11,14 +11,15 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
 const About = `Builds the production images and pushes them: REGISTRY=... skelet release [tag]. The tag defaults to
 the commit's short sha, and PLATFORM to linux/amd64, so a Mac doesn't ship arm64 to amd64 servers.
 A build argument a Dockerfile declares (UPLOAD_ORIGINS, the preview origins) comes from your shell,
-else the root .env. Storefronts are found under apps/channels, so a fork ships its own shop without
-editing anything. Ends with the exports docker-compose.prod.yml reads.`
+else the root .env. Every storefront with a Dockerfile.prod ships - the templates and yours under
+apps/channels - so a fork ships its own shop without editing anything. Ends with the exports docker-compose.prod.yml reads.`
 
 var argLine = regexp.MustCompile(`(?m)^ARG ([A-Z][A-Z0-9_]*)`)
 
@@ -52,11 +53,14 @@ func Run(root string, args []string) int {
 
 	// Both Go images build from apps/backend as a whole - the modules replace each other by relative path
 	images := [][3]string{{"app", "apps/backend", "core/Dockerfile.prod"}, {"signals", "apps/backend", "signals/Dockerfile.prod"}, {"dashboard", "apps/dashboard", "Dockerfile.prod"}}
-	stores, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "Dockerfile.prod"))
 	var exports []string
-	for _, df := range stores {
-		name := filepath.Base(filepath.Dir(df))
-		images = append(images, [3]string{name, "apps/channels/" + name, "Dockerfile.prod"})
+	// A storefront builds from the repo root, the workspace it shares packages through
+	for _, sf := range storefronts.List(root) {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(sf.Dir), "Dockerfile.prod")); err != nil {
+			continue
+		}
+		name := sf.Name
+		images = append(images, [3]string{name, ".", sf.Dir + "/Dockerfile.prod"})
 		// The env var is the directory upper-cased, which is what the compose files read
 		exports = append(exports, fmt.Sprintf("  export %s_IMAGE=%s", strings.ToUpper(strings.ReplaceAll(name, "-", "_")), r.ref(name)))
 	}

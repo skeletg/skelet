@@ -102,17 +102,17 @@ func install(root, app string, inDocker bool) int {
 		fmt.Printf("==> %s runs in Docker and installs its own dependencies on start - follow it with skelet logs %s\n", app, app)
 		return 0
 	}
-	dir := filepath.Join(root, appDir(app))
+	dir := filepath.Join(root, appDir(root, app))
 	if _, err := os.Stat(filepath.Join(dir, "package.json")); err != nil {
 		return 0
 	}
 	fmt.Printf("==> Installing %s dependencies...\n", app)
 	switch node.Tree(dir) {
 	case "pnpm":
-		fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(app))
+		fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(root, app))
 		return 0
 	case "npm":
-		fmt.Printf("    %s/node_modules is an npm install from before the switch to pnpm - replacing it\n", appDir(app))
+		fmt.Printf("    %s/node_modules is an npm install from before the switch to pnpm - replacing it\n", appDir(root, app))
 		if err := os.RemoveAll(filepath.Join(dir, "node_modules")); err != nil {
 			fmt.Fprintln(os.Stderr, "   ", err)
 			return 1

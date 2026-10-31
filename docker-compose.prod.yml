@@ -274,15 +274,17 @@ services:
     logging: *logging
 
   # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
-  vetrina-demo:
-    image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
+  vetrina:
+    image: ${VETRINA_IMAGE:-skelet-vetrina:prod}
     build:
-      context: ./apps/channels/vetrina-demo
-      dockerfile: Dockerfile.prod
+      # The repo root, the workspace the storefront shares packages through - the Dockerfile's own .dockerignore keeps
+      # the context to what it copies
+      context: .
+      dockerfile: templates/vetrina/Dockerfile.prod
       args:
         UPLOAD_ORIGINS: ${UPLOAD_ORIGINS:-}
     # Own env file - the most exposed container shouldn't hold DB/S3/SMTP creds
-    env_file: [env/prod-vetrina-demo.env]
+    env_file: [env/prod-vetrina.env]
     ports: ["127.0.0.1:3000:3000"]
     environment:
       # In-network backend - environment beats env_file
@@ -325,7 +327,7 @@ services:
     depends_on:
       app: { condition: service_healthy }
       dashboard: { condition: service_healthy }
-      vetrina-demo: { condition: service_healthy, required: false }
+      vetrina: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s

@@ -75,7 +75,9 @@ skelet/
 │   │   ├── codegen.ts               ← graphql-codegen; reads live backend schema
 │   │   ├── vite.config.ts           ← dev proxy /api → :8080
 │   │   └── package.json
-│   └── channels/vetrina-demo/       ← Next.js 16 (App Router, RSC) demo storefront
+│   └── channels/                    ← the project's own storefronts, each forked from a template
+├── templates/
+│   └── vetrina/                     ← Next.js 16 (App Router, RSC) demo storefront
 │       ├── app/
 │       │   ├── [locale]/            ← every page lives under the locale segment
 │       │   │   ├── layout.tsx       ← the root layout - reads no cookie, so routes
@@ -99,10 +101,14 @@ skelet/
 │       ├── codegen.ts               ← graphql-codegen; hits /api/front/graphql
 │       ├── next.config.ts
 │       └── package.json
-├── bin/                             ← all dev operations
+├── packages/
+│   └── storefront-next/             ← TypeScript the storefronts share, as source - no build step
+├── cmd/skelet/                      ← the skelet CLI, every dev operation
 ├── env/                             ← *.env.example committed; *.env gitignored (docs/env.md documents every var)
 ├── .gitattributes                   ← LF normalization, prevents Windows CRLF
 ├── .gitignore                       ← excludes air binaries + dashboard build
+├── pnpm-workspace.yaml              ← the storefront workspace and the versions it shares
+├── pnpm-lock.yaml                   ← its one lockfile
 ├── docker-compose.yml               ← the dev stack
 └── docker-compose.prod.yml          ← the prod stack
 ```
@@ -222,7 +228,7 @@ stay in sync; the storefront has its own codegen step
   `/api/front/graphql`, `cache: "no-store"` by default and `force-cache` with
   `next: { tags, revalidate }` when the caller opts into ISR. **Caveat:** Next.js 16 has breaking changes vs.
   the version in your training data - read
-  `apps/channels/vetrina-demo/node_modules/next/dist/docs/` before writing code,
+  `templates/vetrina/node_modules/next/dist/docs/` before writing code,
   and heed the deprecation notices.
 
 ### Datastores and sidecars
@@ -252,7 +258,7 @@ not the GraphQL layer.
 
 Storefront introspection cannot see admin operations. The dashboard at
 `apps/dashboard/` talks to admin only; the storefront at
-`apps/channels/vetrina-demo/` talks to front only.
+`templates/vetrina/` talks to front only.
 
 Dev playgrounds: `/playground/admin` and `/playground/front`
 (`APP_ENV=development` only).

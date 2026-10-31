@@ -3,7 +3,7 @@
 // from the visitor Lens counted
 
 import { readCookie } from "@/app/lib/cookies";
-import { randomId } from "@/app/lib/random-id";
+import { randomId } from "@skelet/storefront-next/random-id";
 
 export const AID_COOKIE = "lens_aid";
 

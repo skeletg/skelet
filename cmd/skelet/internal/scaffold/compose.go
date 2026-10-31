@@ -59,13 +59,28 @@ func block(text, service string) []string {
 	return out
 }
 
-// rename is a copied block made the new storefront's: every mention of the source's name and image variable, then
-// the published port, whose pattern differs by compose file
-func rename(blk []string, src, name string, port *regexp.Regexp, portTo string) []string {
+// move is a storefront becoming another: from a template or a storefront of the project's own, into apps/channels
+type move struct {
+	srcDir, src, dir, name string
+}
+
+func newMove(srcDir, src, name string) move {
+	return move{srcDir: srcDir, src: src, dir: "apps/channels/" + name, name: name}
+}
+
+// apply is text made the new storefront's: the source's directory first - a template sits elsewhere than the fork -
+// then its name and its image variable
+func (m move) apply(s string) string {
+	s = strings.ReplaceAll(s, m.srcDir, m.dir)
+	s = strings.ReplaceAll(s, m.src, m.name)
+	return strings.ReplaceAll(s, imageVar(m.src), imageVar(m.name))
+}
+
+// rename is a copied block made the new storefront's, then the published port, whose pattern differs by compose file
+func rename(blk []string, m move, port *regexp.Regexp, portTo string) []string {
 	out := make([]string, len(blk))
 	for i, l := range blk {
-		l = strings.ReplaceAll(l, src, name)
-		l = strings.ReplaceAll(l, imageVar(src), imageVar(name))
+		l = m.apply(l)
 		if port != nil {
 			if loc := port.FindStringIndex(l); loc != nil {
 				l = l[:loc[0]] + portTo + l[loc[1]:]

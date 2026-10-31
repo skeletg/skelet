@@ -18,6 +18,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 func checkout(root string, out io.Writer, p probes) int {
@@ -52,6 +53,17 @@ func checkout(root string, out io.Writer, p probes) int {
 		r.pass("in Docker: %s (.skelet-apps; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
 	} else {
 		r.pass("none in Docker - the frontends run on the host (skelet setup --docker-apps ... to containerize)")
+	}
+	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
+	for app := range strings.SplitSeq(inDocker, ",") {
+		if app != "" && app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
+			r.note(".skelet-apps names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
+		}
+	}
+	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
+	// sees only its own directory, so the shared packages don't resolve
+	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil && strings.Contains(string(raw), "/var/www/storefront") {
+		r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the vetrina service in docker-compose.yml")
 	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
 
@@ -88,11 +100,12 @@ func optionalEnv(root, target string) []string {
 func hostFrontends(r *report, root string, inDocker []string) {
 	r.section("host frontends")
 	var host []string
-	dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-	for _, d := range append([]string{filepath.Join(root, "apps", "dashboard")}, dirs...) {
-		if exists(filepath.Join(d, "package.json")) && !slices.Contains(inDocker, filepath.Base(d)) {
-			rel, _ := filepath.Rel(root, d)
-			host = append(host, rel)
+	if exists(filepath.Join(root, "apps", "dashboard", "package.json")) && !slices.Contains(inDocker, "dashboard") {
+		host = append(host, filepath.Join("apps", "dashboard"))
+	}
+	for _, sf := range storefronts.List(root) {
+		if !slices.Contains(inDocker, sf.Name) {
+			host = append(host, filepath.FromSlash(sf.Dir))
 		}
 	}
 	if len(host) == 0 {
@@ -296,9 +309,7 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 		}
 	}
 	// A storefront's published port is its own business, so compose is asked rather than assuming the demo's 3000
-	dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-	for _, d := range dirs {
-		name := filepath.Base(d)
+	for _, name := range storefronts.Names(root) {
 		out, _ := compose.Command(root, lib.Env(), "port", name, "3000").Output()
 		switch s := strings.TrimSpace(string(out)); {
 		case s != "":

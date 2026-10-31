@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 const ContractsAbout = `The SYNC comments name contracts that span two or three apps; this is the mechanical half, so drift
@@ -81,18 +82,8 @@ func (c contracts) git(args ...string) (string, error) {
 	return string(out), err
 }
 
-// storefronts is every apps/channels/<name>, sorted
-func (c contracts) storefronts() []string {
-	m, _ := filepath.Glob(filepath.Join(c.root, "apps", "channels", "*"))
-	var names []string
-	for _, p := range m {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
-			names = append(names, filepath.Base(p))
-		}
-	}
-	slices.Sort(names)
-	return names
-}
+// storefronts is every storefront - the templates and the project's own
+func (c contracts) storefronts() []storefronts.Storefront { return storefronts.List(c.root) }
 
 var (
 	syncLine  = regexp.MustCompile(`(//|#).*\bSYNC\b`)
@@ -241,8 +232,9 @@ func (c contracts) blockTypes() {
 		c.r.bad("backend BuiltinTypes != dashboard palette")
 		c.sides(goTypes, dash)
 	}
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "components", "cms", "CmsBlocks.tsx")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "components", "cms", "CmsBlocks.tsx")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no CMS renderer registry", name)
 			continue
@@ -283,8 +275,9 @@ func (c contracts) cacheableOps() {
 		c.r.bad("frontCacheableOps extraction came back empty - %s moved", responseCache)
 		return
 	}
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "public-ops.ts")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "public-ops.ts")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no public-ops list", name)
 			continue
@@ -357,8 +350,9 @@ func (c contracts) lexicalNodes() {
 	all := append(slices.Clone(nodes), variants...)
 	slices.Sort(all)
 	all = slices.Compact(all)
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "lexical-render.tsx")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "lexical-render.tsx")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no lexical renderer", name)
 			continue
@@ -399,8 +393,9 @@ func (c contracts) evaluators() {
 		return
 	}
 	ref := normEvaluator(c.read(dashOptVis))
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "optionVisibility.ts")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "optionVisibility.ts")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no option-visibility port", name)
 			continue

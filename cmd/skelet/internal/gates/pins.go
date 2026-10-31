@@ -105,32 +105,35 @@ func pinCheck(root string, out io.Writer) int {
 	return r.code()
 }
 
-// collect finds the files the pins live in. Dockerfiles and package.json files are globbed under apps/ to three
-// levels, so a forked storefront is covered the day it lands rather than the day someone remembers this list
+// collect finds the files the pins live in. Dockerfiles and package.json files are globbed under apps/ to three levels
+// and under templates/ and packages/ to two, so a forked storefront or a new package is covered the day it lands rather
+// than the day someone remembers this list
 func collect(root string) fileSet {
 	var f fileSet
-	apps := filepath.Join(root, "apps")
-	_ = filepath.WalkDir(apps, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		rel, _ := filepath.Rel(apps, p)
-		depth := len(strings.Split(rel, string(filepath.Separator)))
-		if d.IsDir() {
-			if d.Name() == "node_modules" || (rel != "." && depth >= 3) {
-				return filepath.SkipDir
+	for base, deepest := range map[string]int{"apps": 3, "templates": 2, "packages": 2} {
+		top := filepath.Join(root, base)
+		_ = filepath.WalkDir(top, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			rel, _ := filepath.Rel(top, p)
+			depth := len(strings.Split(rel, string(filepath.Separator)))
+			if d.IsDir() {
+				if d.Name() == "node_modules" || (rel != "." && depth >= deepest) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			path, _ := filepath.Rel(root, p)
+			switch {
+			case strings.HasPrefix(d.Name(), "Dockerfile") && !strings.HasSuffix(d.Name(), ".dockerignore"):
+				f.dockerfiles = append(f.dockerfiles, path)
+			case d.Name() == "package.json":
+				f.packageJSONs = append(f.packageJSONs, path)
 			}
 			return nil
-		}
-		path, _ := filepath.Rel(root, p)
-		switch {
-		case strings.HasPrefix(d.Name(), "Dockerfile"):
-			f.dockerfiles = append(f.dockerfiles, path)
-		case d.Name() == "package.json":
-			f.packageJSONs = append(f.packageJSONs, path)
-		}
-		return nil
-	})
+		})
+	}
 	slices.Sort(f.dockerfiles)
 	slices.Sort(f.packageJSONs)
 	f.compose = []string{"docker-compose.yml", "docker-compose.small.yml", "docker-compose.prod.yml"}

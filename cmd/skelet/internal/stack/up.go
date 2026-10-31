@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -52,6 +53,7 @@ func Up(root string, args []string) int {
 	// project name is pinned, so another clone's counts) runs on after a pull changed its Dockerfile or go.mod. A cache
 	// hit only keeps the containers if the image ID holds too, and buildx's default provenance attestation gives every
 	// build a new one, which recreated the app on every run. These images never leave the machine
+	mountpoints(root, lib)
 	env := lib.CreateEnv()
 	if _, set := os.LookupEnv("BUILDX_NO_DEFAULT_ATTESTATIONS"); !set {
 		env = append(env, "BUILDX_NO_DEFAULT_ATTESTATIONS=1")
@@ -64,6 +66,17 @@ func Up(root string, args []string) int {
 		hostFrontends(root, lib)
 	}
 	return 0
+}
+
+// mountpoints makes the directories a Docker storefront's volumes mount on inside the checkout. Docker makes a missing
+// one itself, as root, which leaves the host a node_modules no host install can write
+func mountpoints(root string, lib compose.Lib) {
+	for app := range strings.SplitSeq(lib.Apps, ",") {
+		if s, ok := storefronts.Find(root, app); ok {
+			_ = os.MkdirAll(filepath.Join(root, "node_modules"), 0o755)
+			_ = os.MkdirAll(filepath.Join(root, filepath.FromSlash(s.Dir), ".next"), 0o755)
+		}
+	}
 }
 
 // needsDevEnv refuses a clone without the env files the dev compose file names, which only setup's dev target
@@ -188,20 +201,12 @@ func hostFrontends(root string, lib compose.Lib) {
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
 		fmt.Println("    skelet serve dashboard        → http://localhost:5173")
 	}
-	manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	slices.Sort(manifests)
-	for _, m := range manifests {
-		fmt.Printf("    skelet serve %s     → http://localhost:3000\n", filepath.Base(filepath.Dir(m)))
+	for _, s := range storefronts.List(root) {
+		fmt.Printf("    skelet serve %s     → http://localhost:3000\n", s.Name)
 	}
 	fmt.Println("To run them in Docker instead, run skelet setup --docker-apps <names>")
 	// Every frontend this checkout could run, since a shop skelet add made leaves a container holding its port too
-	fronts := []string{"dashboard"}
-	dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-	for _, d := range dirs {
-		if fi, err := os.Stat(d); err == nil && fi.IsDir() {
-			fronts = append(fronts, filepath.Base(d))
-		}
-	}
+	fronts := append([]string{"dashboard"}, storefronts.Names(root)...)
 	for _, f := range leftovers(root, lib, fronts) {
 		fmt.Printf("    stopping the %s container - not listed in .skelet-apps, and it holds the port\n", f)
 		_ = compose.Command(root, lib.Env(), "--profile", f, "stop", f).Run()

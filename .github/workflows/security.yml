@@ -70,13 +70,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      # A loop, not a matrix - an audit takes seconds, so the app list can come from
-      # the directory listing rather than a constant a forked storefront has to edit
+      # One audit per lockfile: the dashboard's, and the root workspace's, which covers every storefront, template and
+      # shared package at once
       - name: Audit (fails on high/critical only, moderate and low just report)
         run: |
           fail=0
-          for dir in apps/dashboard apps/channels/*/; do
-            [ -f "$dir/package.json" ] || continue
+          for dir in apps/dashboard .; do
+            [ -f "$dir/pnpm-lock.yaml" ] || continue
             echo "==> $dir"
             (cd "$dir" && pnpm audit --audit-level high) || fail=1
           done

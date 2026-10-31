@@ -1,10 +1,10 @@
 package route
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 // Action is what a command line resolves to: a verb to run with Args, or output and an exit code
@@ -115,7 +115,7 @@ func pnpmRoute(root string, rest []string) Action {
 	case "":
 		return die("skelet pnpm <app> <pnpm args> - apps: " + appsList(root))
 	}
-	if fi, err := os.Stat(filepath.Join(root, "apps", "channels", app)); err != nil || !fi.IsDir() {
+	if _, ok := storefronts.Find(root, app); !ok {
 		return die(`skelet pnpm: unknown app "` + app + `" - apps: ` + appsList(root))
 	}
 	r, _ := lookup("pnpm", AnyApp)
@@ -123,12 +123,7 @@ func pnpmRoute(root string, rest []string) Action {
 }
 
 func appsList(root string) string {
-	out := []string{"dashboard"}
-	matches, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	for _, m := range matches {
-		out = append(out, filepath.Base(filepath.Dir(m)))
-	}
-	return strings.Join(out, ", ")
+	return strings.Join(append([]string{"dashboard"}, storefronts.Names(root)...), ", ")
 }
 
 func die(msg string) Action { return Action{Stderr: msg, Code: 2} }

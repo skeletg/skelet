@@ -39,7 +39,7 @@
 {$STOREFRONT_DOMAIN:localhost} {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy vetrina-demo:3000
+	reverse_proxy vetrina:3000
 }
 
 # Admin dashboard - its nginx proxies the SPA's /api/* to the backend in-network, so
