@@ -1,0 +1,63 @@
+# A pushed release tag publishes its GitHub release: the changelog as the notes, and the skelet CLI for macOS and
+# Linux beside install.sh, which is what the README's one-line install fetches from the latest release
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  cli:
+    name: Publish the release and the CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/skelet/go.mod
+          cache: false
+      # ci.yml gates pull requests into main, and a tag can be pushed from anywhere - the binaries ship only if their
+      # own tests pass on the commit they're built from
+      - name: Vet + test
+        working-directory: cmd/skelet
+        run: |
+          go vet ./...
+          go test ./... -count=1 -race
+      - name: Build
+        working-directory: cmd/skelet
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p ../../dist
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64; do
+            os=${target%/*} arch=${target#*/}
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$TAG" \
+              -o "../../dist/skelet-$os-$arch" .
+          done
+          cp install.sh ../../dist/
+          cd ../../dist && sha256sum skelet-* install.sh > checksums.txt
+      # gh attestation verify skelet-linux-amd64 --repo skeletg/skelet proves a binary came from this workflow, which
+      # checksums.txt alone can't - it's served from the same place as the files it vouches for
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      # Creates the release when the tag is new, or adds the files to one made by hand first
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            exit 0
+          fi
+          notes=(--generate-notes)
+          [ -f "changelog/${TAG#v}.md" ] && notes=(--notes-file "changelog/${TAG#v}.md")
+          pre=()
+          case "$TAG" in *-*) pre=(--prerelease) ;; esac
+          gh release create "$TAG" dist/* --verify-tag --title "$TAG" "${notes[@]}" "${pre[@]}"

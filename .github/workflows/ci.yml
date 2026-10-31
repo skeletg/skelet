@@ -113,6 +113,12 @@ jobs:
       - name: Test (sdk)
         working-directory: apps/backend/sdk
         run: go test ./... -count=1 -race
+      # The skelet CLI is stdlib-only and imports none of the backend - its route tests read bin/ from the checkout
+      - name: Vet + test (skelet CLI)
+        working-directory: cmd/skelet
+        run: |
+          go vet ./...
+          go test ./... -count=1 -race
       # The containers build with -tags vips (libvips webp rendering) - this step
       # is the only CI coverage that file gets, since the untagged runs skip it
       - name: Install libvips
@@ -205,9 +211,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: apps/dashboard/pnpm-lock.yaml
-      # bin/setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
+      # skelet setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
       # leave the customer session pair and the config key blank, and the server refuses to boot without
-      # them, so they're generated here the way bin/setup does it - the public half derived from the seed
+      # them, so they're generated here the way skelet setup does it - the public half derived from the seed
       - name: Environment files
         run: |
           cp env/go.env.example env/go.env
@@ -296,7 +302,7 @@ jobs:
             apps/backend/sdk/go.sum
       - name: gofmt
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             unformatted=$(cd "$mod" && gofmt -l .)
             if [ -n "$unformatted" ]; then
               echo "gofmt would reformat in $mod:" && echo "$unformatted" && exit 1
@@ -305,7 +311,7 @@ jobs:
       # same pin as bin/lint - the two must agree or CI and local disagree
       - name: golangci-lint
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             echo "==> $mod"
             (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...) || exit 1
           done

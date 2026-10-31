@@ -10,7 +10,7 @@ What helps most right now is **issues**.
 
 - **Bug** - something doesn't work the way it should. Say what you did, what you
   expected and what happened, and include the version or commit you're on. Steps
-  that reproduce it on a fresh `./skelet setup` are the most useful thing you can
+  that reproduce it on a fresh `skelet setup` are the most useful thing you can
   give us.
 - **Idea** - something Skelet should do. Start with the problem you're trying to
   solve rather than the solution you have in mind; it often turns out a plugin can
@@ -31,7 +31,8 @@ start, and an issue is the right way to ask for an extension point that's missin
 
 ## Running it yourself
 
-You need Docker; everything else runs in containers.
+You need Docker; everything else runs in containers. In a clone the front door is
+`./skelet` - install the CLI the way the README shows and the `./` goes.
 
 ```bash
 ./skelet setup     # picks apps, writes env files, migrates, boots

@@ -18,8 +18,9 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
+| `cmd/skelet/` | The `skelet` CLI: the front door here, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
 | `bin/` | What those verbs run, one script per operation |
-| `./skelet` | Front door - every dev command goes through it |
+| `./skelet` | Front door - a shim that builds `cmd/skelet` and runs it. Every dev command goes through it |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
 Full tree: [docs/architecture.md](docs/architecture.md). What each root directory is
@@ -31,7 +32,9 @@ for: [docs/layout.md](docs/layout.md).
 container, the right database URL and the right node_modules. `./skelet` with no
 arguments lists every verb; `./skelet help <verb>` explains one. The `bin/` scripts
 underneath are the implementation: read one when you need the detail, but drive the
-repo through the verbs so there's a single vocabulary.
+repo through the verbs so there's a single vocabulary. The docs write plain `skelet`, the
+installed CLI, which hands each command to the checkout's `./skelet` - so the two are the
+same, and `./skelet` is the one that needs nothing installed.
 
 ```bash
 ./skelet setup            # first run: picks apps, writes env, migrates, boots
@@ -196,6 +199,9 @@ codegen outright.
 - `core.fileMode` is off here, so `chmod +x` on a `bin/` script needs
   `git update-index --chmod=+x <file>` to stick
 - Air's hot reload misses changes on WSL2 - `docker compose restart app`
+- The first `./skelet` after a change under `cmd/skelet` rebuilds the CLI into `.skelet/bin/` - host Go if
+  there is one, else the `golang` image - and every later run starts the cached binary. Its routes are one
+  line each in `cmd/skelet/internal/route/table.go`, and `./skelet check structure` holds them to `bin/` both ways
 - Containers run as your uid via `SKELET_UID`, which only `bin/_lib` exports. A script
   that runs `docker compose run` or `up` must source it, and `bin/repo-check` enforces that
 

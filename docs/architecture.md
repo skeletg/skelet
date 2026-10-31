@@ -195,15 +195,15 @@ for is live catalog data for the builder's products block, over core's public
 storefront API. `internal/boot` is the suite's composition root, the way `wiring`
 is core's.
 
-All three apps run in containers via `./skelet up` (Go + Postgres + Valkey
+All three apps run in containers via `skelet up` (Go + Postgres + Valkey
 + Garage + Vite + Next.js, plus whichever optional dev tools you picked). The dashboard container's Vite
 dev server proxies `/api/*` to the in-network backend
 (`API_PROXY=http://app:8080`); host `apps/dashboard/node_modules` is
-still installed for host-side tooling (`./skelet test`'s tsc, ESLint, the
+still installed for host-side tooling (`skelet test`'s tsc, ESLint, the
 IDE). Codegen flows backend → frontends: editing `*.graphqls`
-or any `*.graphql` doc requires `./skelet gen` so dashboard TS bindings
+or any `*.graphql` doc requires `skelet gen` so dashboard TS bindings
 stay in sync; the storefront has its own codegen step
-(`./skelet pnpm <name> run codegen`).
+(`skelet pnpm <name> run codegen`).
 
 ## Stack
 

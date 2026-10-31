@@ -24,7 +24,7 @@ case "$app" in
     *)         dir="apps/channels/$app"; port=3000
                [ -d "$dir" ] || { echo "No such app: $app" >&2; usage; } ;;
 esac
-[ -f "$dir/package.json" ] || { echo "$dir has no package.json - see bin/setup" >&2; exit 1; }
+[ -f "$dir/package.json" ] || { echo "$dir has no package.json - see ./skelet setup" >&2; exit 1; }
 
 # The root .env is where compose reads these from, so the host reads the same file
 set -a

@@ -3,9 +3,9 @@
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
-# Both Go modules, each on its own go.mod - the Signals module replaces core's by relative path, so a
+# Every Go module, each on its own go.mod - the Signals module replaces core's by relative path, so a
 # lint run there type-checks core's public packages too
-MODULES=(apps/backend/core apps/backend/signals apps/backend/sdk)
+MODULES=(apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet)
 
 for mod in "${MODULES[@]}"; do
     echo "==> gofmt ($mod)"
@@ -44,7 +44,7 @@ echo "==> dashboard eslint (non-blocking)"
 if [ -f apps/dashboard/package.json ]; then
     bin/dash run lint || frontend_dirty=1
 else
-    echo "    (skipped - dashboard not in this checkout; see bin/setup)"
+    echo "    (skipped - dashboard not in this checkout; see ./skelet setup)"
 fi
 found_sf=0
 for sf in apps/channels/*/package.json; do
@@ -55,7 +55,7 @@ for sf in apps/channels/*/package.json; do
     bin/channel "$name" run lint || frontend_dirty=1
 done
 if [ "$found_sf" = 0 ]; then
-    echo "==> storefront eslint: (no storefronts in this checkout; see bin/setup)"
+    echo "==> storefront eslint: (no storefronts in this checkout; see ./skelet setup)"
 fi
 
 if [ "$frontend_dirty" = 1 ]; then

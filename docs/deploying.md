@@ -15,7 +15,7 @@ dev stack.
 ```bash
 cp env/small.env.example env/small.env
 cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - ./skelet setup fills them
+cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - skelet setup fills them
 docker compose -f docker-compose.small.yml up -d
 ```
 
@@ -24,7 +24,7 @@ containers (worker, media, signals, ingest), pgbouncer per database, three split
 Valkeys (primary, cache, rate limits), ClickHouse for the spine, and the optional
 NATS profile. Same env contract - secrets in the root `.env`, everything else in `env/prod.env`, plus an optional
 `env/prod-signals.env` for what only the Signals process reads (the retention
-archive's bucket, `CORE_FRONT_API_URL`). `./skelet release`
+archive's bucket, `CORE_FRONT_API_URL`). `skelet release`
 builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
 worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
 ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
@@ -104,7 +104,7 @@ the hop once that tier is scaled out, and `/media/t/*` at `media:8083` likewise.
 HSTS belongs here and nowhere else. The backend and the dashboard's nginx each
 ship their own copy of the CSP and Permissions-Policy so a deployment without an
 edge still gets them, but they deliberately omit HSTS - asserting it over plain
-HTTP would pin a browser to HTTPS for a year. `./skelet check contracts` fails when
+HTTP would pin a browser to HTTPS for a year. `skelet check contracts` fails when
 those copies drift apart.
 
 **The bundled option.** `deploy/caddy/Caddyfile` has all of the above plus

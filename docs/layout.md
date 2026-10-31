@@ -8,6 +8,7 @@ lives, start here.
 skelet/
 ├── apps/          the applications and the Signals module - everything else supports these
 ├── proto/         the core-to-Signals wire contract, owned by neither side
+├── cmd/skelet/    the skelet command line - the dev front door, and the binary releases ship
 ├── bin/           one script per dev operation
 ├── docs/          you are here
 ├── env/           environment templates, one file per service
@@ -30,7 +31,7 @@ The applications, and the only place product code lives.
 | `apps/dashboard/` | The React admin panel (Vite) |
 | `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
 
-Two of these are optional: `./skelet setup` asks which apps you want and removes the
+Two of these are optional: `skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
 frontend can run headless. The backend always runs.
 
@@ -49,15 +50,24 @@ one directory the Signals module can reach.
 
 `buf.yaml` holds the lint and compatibility rules, `buf.gen.yaml` says which
 plugins run and where the output lands (`apps/backend/core/signalsapi/v1/`,
-never hand-edited). `./skelet gen` regenerates; `./skelet check contracts`
+never hand-edited). `skelet gen` regenerates; `skelet check contracts`
 refuses a change that would break a deployed peer, since the two processes
 deploy separately and an old core will meet a new Signals.
+
+### `cmd/skelet/`
+
+The `skelet` command line: the program a checkout's `./skelet` runs, and the
+binary each release ships, which installs and starts projects. It's the tooling
+that drives the repo rather than part of the product, so it sits at the root
+beside `bin/`, not under `apps/`. Its own Go module, standard library only, and it
+imports nothing from the backend - `cmd/skelet` because Go names a binary after
+its directory, so `go install` gives you `skelet`.
 
 ### `bin/`
 
 A wrapper for every operation you would otherwise run by hand: starting the
 stack, opening a shell in a container, migrations, codegen, the commit gates.
-You reach them through `./skelet` rather than by filename. They all `cd` to the
+You reach them through `skelet` rather than by filename. They all `cd` to the
 repo root themselves, so they work from anywhere.
 
 `bin/_lib` is the odd one out - it is sourced by the others rather than run, and
@@ -70,7 +80,7 @@ holds the shared compose and uid setup. Full command reference:
 
 Environment variables, split per service rather than one giant file. The rule is
 visible in the directory listing: `*.env.example` is committed, the matching
-`*.env` is git-ignored and is what actually gets read. `./skelet setup` copies the
+`*.env` is git-ignored and is what actually gets read. `skelet setup` copies the
 templates on first run.
 
 `garage.toml` is the exception - object storage config that carries no secrets,
@@ -93,7 +103,7 @@ sibling directories answering two different questions.
 |---|---|
 | `caddy/` | The bundled reverse proxy: three vhosts, automatic Let's Encrypt. Behind a profile because it takes `:80` and `:443`. Small and prod |
 
-`./skelet check contracts` reads the Caddyfile directly - it holds one of the three
+`skelet check contracts` reads the Caddyfile directly - it holds one of the three
 copies of the security headers that have to agree.
 
 The vhost map in the Caddyfile is meant to be edited - it names the demo
@@ -113,8 +123,9 @@ minimum deployable tenant, and `docker-compose.prod.yml` the full split-tier
 shape; both are described under Deploying in the README. `.nvmrc` pins Node and is what CI reads (`node-version-file`),
 `.gitattributes` locks every text file to LF so a Windows checkout cannot rewrite
 line endings, `.gitignore` and `.dockerignore` keep build contexts and commits
-clean. `README.md`, `AGENTS.md` and `CHANGELOG.md` are the only pages up here -
-everything else belongs in `docs/`.
+clean. `.skelet/` is git-ignored and holds the CLI builds the `./skelet` shim caches,
+one per source version - delete it whenever you like. `README.md`, `AGENTS.md`
+and `CHANGELOG.md` are the only pages up here - everything else belongs in `docs/`.
 
 Never edit the tracked compose files to add your own service. Docker Compose
 auto-merges a git-ignored `docker-compose.override.yml`, which is where a shop
@@ -127,7 +138,7 @@ of your own belongs, so pulling from upstream stays conflict-free.
 One file per question you might be asking, and the index that decides which is
 which lives in the README rather than here. Some of these are generated rather
 than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
-`./skelet gen` from the code that defines them, so edit the source, not the page.
+`skelet gen` from the code that defines them, so edit the source, not the page.
 
 **Paths in these pages.** A backticked path starting with `apps/`, `bin/`,
 `deploy/` or `docs/` is from the repo root. A bare `internal/…`, `graph/…` or
@@ -140,6 +151,7 @@ confuse it with. Write the repo-root form when a page compares apps, the way
 
 `workflows/ci.yml` and `workflows/security.yml` run the same gates you run
 locally, deriving their app matrices from `apps/channels/` so a new shop is
-covered without touching a workflow. `renovate.json5` configures dependency
+covered without touching a workflow. `workflows/release.yml` publishes a release,
+CLI binaries included, when its tag is pushed. `renovate.json5` configures dependency
 bumps and needs no per-app entry either - Renovate scans the repo for manifests
 itself, so the same rule holds there.

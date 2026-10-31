@@ -3,5 +3,5 @@
 set -e
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
-# --remove-orphans also sweeps apps you've deselected in bin/setup
+# --remove-orphans also sweeps apps you've deselected in skelet setup
 docker compose down --remove-orphans "$@"

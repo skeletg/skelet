@@ -23,7 +23,7 @@ fi
 
 if [ -z "$name" ] || [ ! -f "apps/channels/$name/package.json" ]; then
     echo "No channel ${name:+\"$name\" }found under apps/channels/ in this checkout." >&2
-    echo "Removed by bin/setup app selection? Bring it back with: bin/setup --all (or --apps ...)" >&2
+    echo "Removed by ./skelet setup app selection? Bring it back with: ./skelet setup --all (or --apps ...)" >&2
     exit 1
 fi
 

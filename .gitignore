@@ -1,9 +1,12 @@
-# Per-clone app and dev-tool selection written by bin/setup (compose profiles).
+# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
 .skelet-apps
 .skelet-tools
 .skelet-profile
 # Per-clone compose additions (custom storefront services) - see README
 docker-compose.override.yml
+# The front door's builds of cmd/skelet, one per source change, and a stray `go build` in the module
+.skelet/
+cmd/skelet/skelet
 
 # compose's auto-read local defaults - machine-local, like env/*.env
 .env

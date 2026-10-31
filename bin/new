@@ -277,6 +277,17 @@ else
 and deploy/caddy/Caddyfile has its route. docs/deploying.md covers both."
 fi
 
+# The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
+# else every app the tree holds, which is what setup picks when it has no answer on record
+if grep -q '^SKELET_APPS_SELECTED=' .skelet-profile 2>/dev/null; then
+    selected="$(sed -n 's/^SKELET_APPS_SELECTED=//p' .skelet-profile | head -1)"
+else
+    selected=dashboard
+    for d in apps/channels/*/; do
+        [ "$(basename "$d")" = "$name" ] || selected="$selected,$(basename "$d")"
+    done
+fi
+
 cat <<EOF
 
 Wrote:
@@ -289,8 +300,8 @@ Next:
      STOREFRONT_CHANNEL_ID (or map hosts to channels in
      STOREFRONT_CHANNEL_HOSTS to serve several from one deployment). The dev
      block inherited $src's default uuid, so change it there too.
-  2. bin/setup --apps \$(tr -d '\\n' < .skelet-apps 2>/dev/null),$name
-  3. bin/dev, then http://localhost:$dev_port
+  2. ./skelet setup --apps ${selected:+$selected,}$name
+  3. ./skelet up, then http://localhost:$dev_port
 
 $deploy
 EOF

@@ -11,7 +11,7 @@ DOCKERFILES=()
 while IFS= read -r f; do DOCKERFILES+=("$f"); done \
     < <(find apps -maxdepth 3 -name 'Dockerfile*' -not -path '*/node_modules/*' | sort)
 COMPOSE=(docker-compose.yml docker-compose.small.yml docker-compose.prod.yml)
-WORKFLOWS=(.github/workflows/ci.yml .github/workflows/security.yml)
+WORKFLOWS=(.github/workflows/*.yml)
 PACKAGE_JSONS=()
 while IFS= read -r f; do PACKAGE_JSONS+=("$f"); done \
     < <(find apps -maxdepth 3 -name package.json -not -path '*/node_modules/*' | sort)
@@ -68,17 +68,22 @@ else
     fail=1
 fi
 
-# The toolchain that builds the images has to be the one go.mod declares, and CI
-# reads go.mod directly - so a Dockerfile bump is the half that gets forgotten
+# The toolchain that builds the images has to be the one every go.mod declares, and CI reads
+# go.mod directly - so a Dockerfile bump, or the image ./skelet builds the CLI in, is the half that gets forgotten
 echo "==> golang images match go.mod"
-gomod=$(grep -oE '^go [0-9][0-9.]*' apps/backend/core/go.mod | cut -d' ' -f2)
-images=$(grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}" | sed -E 's/.*://' | sort -u)
+GOMODS=(apps/*/go.mod apps/backend/*/go.mod cmd/*/go.mod)
+gomods=$(grep -hoE '^go [0-9][0-9.]*' "${GOMODS[@]}" | cut -d' ' -f2 | sort -u)
+images=$( { grep -rhoE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}"; grep -hoE 'golang:[0-9][0-9.]*-alpine' skelet; } \
+    | sed -E 's/.*golang://; s/-alpine$//' | sort -u)
+n_mods=$(printf '%s\n' "$gomods" | grep -c . || true)
 n=$(printf '%s\n' "$images" | grep -c . || true)
-if [ "$n" -eq 1 ] && [ "$images" = "$gomod" ]; then
-    printf '  ok    %-16s %s\n' "go" "$gomod"
+if [ "$n_mods" -eq 1 ] && [ "$n" -eq 1 ] && [ "$images" = "$gomods" ]; then
+    printf '  ok    %-16s %s\n' "go" "$gomods"
 else
-    printf '  FAIL  %-16s go.mod says %s, golang images say %s\n' "go" "$gomod" "$(printf '%s' "$images" | tr '\n' ' ')"
+    printf '  FAIL  %-16s go.mod files say %s, golang images say %s\n' "go" "$(printf '%s' "$gomods" | tr '\n' ' ')" "$(printf '%s' "$images" | tr '\n' ' ')"
+    grep -nE '^go [0-9][0-9.]*' "${GOMODS[@]}" | sed 's/^/          /'
     grep -rnE 'FROM golang:[0-9][0-9.]*' "${DOCKERFILES[@]}" | sed 's/^/          /'
+    grep -nE 'golang:[0-9][0-9.]*-alpine' skelet | sed 's/^/          skelet:/'
     fail=1
 fi
 

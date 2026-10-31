@@ -19,34 +19,27 @@ for f in ./skelet bin/*; do
 done
 [ "$fail" -eq 0 ] && pass "$n scripts"
 
+echo "==> the CLI installer is POSIX sh"
+# It runs as curl ... | sh, and sh is dash on Debian and Ubuntu - so dash when there is one, since bash -n waves bashisms through
+posix_sh=sh
+command -v dash >/dev/null 2>&1 && posix_sh=dash
+if $posix_sh -n cmd/skelet/install.sh; then pass "cmd/skelet/install.sh parses with $posix_sh"; else bad "cmd/skelet/install.sh is not valid sh"; fi
+
 echo "==> ./skelet and bin/* agree"
-# Extracted from the dispatcher's source, not a second list, so it can't drift. Two call
-# shapes: script_for's `<verb>) echo <script>` arms and `run <script>` elsewhere. The usage
-# heredoc is skipped - its prose ("run this first") reads as a call site otherwise
-routed="$(awk '
-    /^[[:space:]]*cat <<EOF$/ { inhelp = 1; next }
-    inhelp && /^EOF$/         { inhelp = 0; next }
-    inhelp                    { next }
-    {
-        rest = $0
-        while (match(rest, /run [a-z][a-z0-9-]*/)) {
-            print substr(rest, RSTART + 4, RLENGTH - 4)
-            rest = substr(rest, RSTART + RLENGTH)
-        }
-        if (match($0, /\)[[:space:]]*echo [a-z][a-z0-9-]*/)) {
-            arm = substr($0, RSTART, RLENGTH); sub(/.*echo /, "", arm); print arm
-        }
-    }' skelet | sort -u)"
+# Read off the front door's route table, not a second list, so it can't drift - one Script field per route, a shape
+# the table's own Go test holds it to, so this stays a grep and the gates still need no Go
+table=cmd/skelet/internal/route/table.go
+routed="$(grep -oE 'Script: "[a-z][a-z0-9-]*"' "$table" | sed -E 's/.*"(.*)"/\1/' | sort -u)"
 
 # A floor, so a refactor that stops matching fails loudly instead of passing vacuously -
 # the same reason contract-check's extractors each assert they found something
 n_routed=$(printf '%s\n' "$routed" | grep -c .)
 if [ "$n_routed" -lt 30 ]; then
-    bad "only $n_routed routes parsed out of ./skelet - the extractor above has rotted, not the dispatcher"
+    bad "only $n_routed routes found in $table - the table or this grep moved, not the scripts"
 else
     missing=0
     for s in $routed; do
-        [ -x "bin/$s" ] || { bad "./skelet routes to bin/$s, which is missing or not executable"; missing=1; }
+        [ -x "bin/$s" ] || { bad "the route table sends a verb to bin/$s, which is missing or not executable"; missing=1; }
     done
     [ "$missing" -eq 0 ] && pass "$n_routed routed scripts all present"
 
@@ -57,7 +50,7 @@ else
         b="${f#bin/}"
         case "$b" in _*) continue ;; esac   # underscore-prefixed files are sourced helpers, not verbs
         printf '%s\n' "$routed" | grep -qx "$b" \
-            || { bad "bin/$b has no ./skelet verb - add one, or the front door is incomplete"; unreachable=1; }
+            || { bad "bin/$b has no ./skelet verb - add a route in $table, or the front door is incomplete"; unreachable=1; }
     done
     [ "$unreachable" -eq 0 ] && pass "every bin script is reachable through a verb"
 fi
