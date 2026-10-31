@@ -9,7 +9,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	verbtest.Main(m, map[string]func(string, []string) int{"sh": Shell, "cli": CLI, "provider": Provider})
+	verbtest.Main(m, map[string]func(string, []string) int{"sh": Shell, "cli": CLI, "provider": Provider, "go": Go})
 }
 
 const appRunning = `[ "$*" = "compose ps --services --status running" ] && echo app; exit 0`
@@ -27,6 +27,10 @@ func TestAppVerbs(t *testing.T) {
 		{"sh", "exit 0", nil, "compose run --rm " + user + " app bash"},
 		{"cli", appRunning, []string{"admin", "list"}, "compose exec " + user + " app go run ./cmd/cli admin list"},
 		{"provider", "exit 0", []string{"--url", "https://x", "--kind", "tax_provider"}, "compose run --rm " + user + " app go run ./cmd/providercheck --url https://x --kind tax_provider"},
+		{"go", appRunning, []string{"test", "./..."}, "compose exec " + user + " -w /var/www/backend/core app go test ./..."},
+		{"go", appRunning, []string{"--signals", "test", "./..."}, "compose exec " + user + " -w /var/www/backend/signals app go test ./..."},
+		{"go", "exit 0", []string{"--sdk", "vet"}, "compose run --rm " + user + " -w /var/www/backend/sdk app go vet"},
+		{"go", appRunning, nil, "compose exec " + user + " -w /var/www/backend/core app go"},
 	} {
 		d := verbtest.NewDocker(t, c.answer)
 		_, code := d.Run(c.verb, t.TempDir(), c.args...)

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
-	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -109,26 +109,16 @@ func backend(root string) int {
 	}{
 		// The core-to-Signals wire contract, before anything that might use its types
 		{"buf (signals grpc contract)", func() error {
-			if err := legacy.Run(root, "buf", "lint", "/var/www/proto"); err != nil {
-				return err
-			}
-			return legacy.Run(root, "buf", "generate", "--template", "/var/www/proto/buf.gen.yaml", "/var/www/proto")
+			return bufBoth(root)
 		}},
 		// Before gqlgen: plugins.json decides which plugins compile in
 		{"plugin set", func() error { return goRun(root, "plugingen") }},
-		// sqlc writes its outputs but never removes one, so a deleted query would leave its Go behind where --check
-		// can't see it - its own files go first
-		{"sqlc generate", func() error {
-			if err := clearSqlc(root); err != nil {
-				return err
-			}
-			return legacy.Run(root, "sqlc", "generate")
-		}},
+		{"sqlc generate", func() error { return sqlc(root) }},
 		// Before gqlgen: a removed or disabled plugin leaves delegation files referencing model types its SDL took
 		// with it, and gqlgen type-checks the graph package first. plugingraph only parses, so it runs on the stale tree
 		{"plugin graph (prune)", func() error { return goRun(root, "plugingraph") }},
-		{"gqlgen admin", func() error { return legacy.Run(root, "gqlgen", "generate", "--config", "gqlgen.admin.yml") }},
-		{"gqlgen front", func() error { return legacy.Run(root, "gqlgen", "generate", "--config", "gqlgen.front.yml") }},
+		{"gqlgen admin", func() error { return gqlgen(root, "generate", "--config", "gqlgen.admin.yml").Run() }},
+		{"gqlgen front", func() error { return gqlgen(root, "generate", "--config", "gqlgen.front.yml").Run() }},
 		// gqlgen stubs each plugin field; this turns the stubs into delegation through the runtime registry, so a plugin
 		// author writes SDL and a resolver in their own package and touches no core Go
 		{"plugin graph", func() error { return goRun(root, "plugingraph") }},
@@ -199,10 +189,7 @@ func typescript(root string, check bool) int {
 			url = probe
 		}
 		if code := retried("dashboard", probe, func() error {
-			cmd := legacy.Command(root, "dash", "run", "codegen")
-			cmd.Env = append(cmd.Env, "GRAPHQL_CODEGEN_URL="+url)
-			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-			return sys.Run(cmd)
+			return pnpm.Run(root, "dashboard", []string{"GRAPHQL_CODEGEN_URL=" + url}, "run", "codegen")
 		}); code != 0 {
 			return code
 		}
@@ -217,7 +204,7 @@ func typescript(root string, check bool) int {
 	}
 	for _, m := range manifests {
 		name := filepath.Base(filepath.Dir(m))
-		if code := retried(name, probe, func() error { return legacy.Run(root, "channel", name, "run", "codegen") }); code != 0 {
+		if code := retried(name, probe, func() error { return pnpm.Run(root, name, nil, "run", "codegen") }); code != 0 {
 			return code
 		}
 	}

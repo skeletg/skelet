@@ -2,6 +2,7 @@ package testrun
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -289,41 +290,44 @@ esac`)
 
 // The frontend half under --changed: skipped when the app didn't change, everything on a config change, otherwise
 // the unit tests that import a changed file - and nothing for deletions alone
+// The frontend half under --changed: skipped when the app didn't change, everything on a config change, otherwise
+// the unit tests that import a changed file - and nothing for deletions alone
 func TestFrontendChanged(t *testing.T) {
 	root := t.TempDir()
-	log := filepath.Join(root, "calls")
-	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "bin", "dash"), []byte("#!/bin/sh\necho \"$*\" >> '"+log+"'\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.MkdirAll(filepath.Join(root, "apps", "dashboard", "src"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "apps", "dashboard", "src", "a.ts"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	tr := tester{root: root}
+	var ran strings.Builder
+	tr := tester{root: root, pnpm: func(_, app string, _ []string, args ...string) error {
+		fmt.Fprintf(&ran, "%s: %s\n", app, strings.Join(args, " "))
+		return nil
+	}}
 	for _, c := range []struct {
 		changed []string
 		only    bool
 		want    string
 	}{
-		{nil, false, "run typecheck:all\nrun test\n"},
+		{nil, false, "dashboard: run typecheck:all\ndashboard: run test\n"},
 		{[]string{"apps/backend/x.go"}, true, ""},
-		{[]string{"apps/dashboard/package.json", "apps/dashboard/src/a.ts"}, true, "run typecheck:all\nrun test\n"},
-		{[]string{"apps/dashboard/src/a.ts", "apps/dashboard/src/gone.ts"}, true, "run typecheck:all\nexec vitest related --run --passWithNoTests src/a.ts\n"},
-		{[]string{"apps/dashboard/src/gone.ts"}, true, "run typecheck:all\n"},
+		{[]string{"apps/dashboard/package.json", "apps/dashboard/src/a.ts"}, true, "dashboard: run typecheck:all\ndashboard: run test\n"},
+		{[]string{"apps/dashboard/src/a.ts", "apps/dashboard/src/gone.ts"}, true, "dashboard: run typecheck:all\ndashboard: exec vitest related --run --passWithNoTests src/a.ts\n"},
+		{[]string{"apps/dashboard/src/gone.ts"}, true, "dashboard: run typecheck:all\n"},
 	} {
-		_ = os.Remove(log)
-		if code := tr.frontend("dashboard", "apps/dashboard", "typecheck:all", []string{"dash"}, c.changed, c.only); code != 0 {
+		ran.Reset()
+		if code := tr.frontend("dashboard", "apps/dashboard", "typecheck:all", c.changed, c.only); code != 0 {
 			t.Errorf("%v: exit %d", c.changed, code)
 		}
-		got, _ := os.ReadFile(log)
-		if string(got) != c.want {
-			t.Errorf("%v ran %q, want %q", c.changed, got, c.want)
+		if ran.String() != c.want {
+			t.Errorf("%v ran %q, want %q", c.changed, ran.String(), c.want)
 		}
+	}
+	// A failing typecheck stops the app there, with a failing code
+	failing := tester{root: root, pnpm: func(string, string, []string, ...string) error { return errors.New("no") }}
+	if code := failing.frontend("dashboard", "apps/dashboard", "typecheck:all", nil, false); code == 0 {
+		t.Error("a failing typecheck passed")
 	}
 }
 

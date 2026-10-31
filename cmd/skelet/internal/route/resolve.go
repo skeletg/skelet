@@ -38,7 +38,7 @@ func Resolve(root string, args []string) Action {
 		}
 		return Action{Stdout: Usage()}
 	case "pnpm", "npm":
-		a := pnpm(root, rest)
+		a := pnpmRoute(root, rest)
 		if verb == "npm" {
 			a.Notice = "(skelet npm is skelet pnpm now - running pnpm)"
 		}
@@ -105,7 +105,7 @@ func dbRoute(rest []string) Action {
 	return die("skelet db " + subs["db"])
 }
 
-func pnpm(root string, rest []string) Action {
+func pnpmRoute(root string, rest []string) Action {
 	app := ""
 	if len(rest) > 0 {
 		app, rest = rest[0], rest[1:]

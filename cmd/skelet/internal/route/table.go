@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/gen"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
 	"github.com/skeletg/skelet/cmd/skelet/internal/lint"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/release"
 	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
@@ -44,7 +45,7 @@ var routes = []Route{
 	{Verb: "ps", Go: stack.Ps, About: stack.PsAbout},
 	{Verb: "logs", Go: stack.Logs, About: stack.LogsAbout},
 	{Verb: "sh", Go: container.Shell, About: container.ShellAbout},
-	{Verb: "go", Script: "go"},
+	{Verb: "go", Go: container.Go, About: container.GoAbout},
 	{Verb: "cli", Go: container.CLI, About: container.CLIAbout},
 	{Verb: "psql", Go: db.Shell, About: db.ShellAbout},
 	{Verb: "lint", Go: lint.Run, About: lint.About},
@@ -56,17 +57,17 @@ var routes = []Route{
 	{Verb: "changelog", Go: changelog.Run, About: changelog.About},
 	{Verb: "add", Script: "new"},
 	{Verb: "rm", Script: "remove"},
-	{Verb: "pnpm", Sub: "dashboard", Script: "dash"},
-	{Verb: "pnpm", Sub: AnyApp, Script: "channel"},
+	{Verb: "pnpm", Sub: "dashboard", Go: pnpm.Dashboard, About: pnpm.About},
+	{Verb: "pnpm", Sub: AnyApp, Go: pnpm.Channel, About: pnpm.About},
 	{Verb: "db", Sub: "migrate", Go: db.Migrate, About: db.MigrateAbout},
 	{Verb: "db", Sub: "migrate", Flag: "--signals", Go: db.MigrateSignals, About: db.MigrateAbout},
 	{Verb: "db", Sub: "export", Go: db.Export, About: db.ExportAbout},
 	{Verb: "db", Sub: "import", Go: db.Import, About: db.ImportAbout},
 	{Verb: "db", Sub: "shell", Go: db.Shell, About: db.ShellAbout},
 	{Verb: "gen", Go: gen.Run, About: gen.About},
-	{Verb: "gen", Sub: "sqlc", Script: "sqlc"},
-	{Verb: "gen", Sub: "gqlgen", Script: "gqlgen"},
-	{Verb: "gen", Sub: "buf", Script: "buf"},
+	{Verb: "gen", Sub: "sqlc", Go: gen.Sqlc, About: gen.SqlcAbout},
+	{Verb: "gen", Sub: "gqlgen", Go: gen.Gqlgen, About: gen.GqlgenAbout},
+	{Verb: "gen", Sub: "buf", Go: gen.Buf, About: gen.BufAbout},
 	{Verb: "check", Go: gates.Check, About: gates.CheckAbout},
 	{Verb: "check", Sub: "pins", Go: gates.Pins, About: gates.PinsAbout},
 	{Verb: "check", Sub: "structure", Go: gates.Repo, About: gates.RepoAbout},

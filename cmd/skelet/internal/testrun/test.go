@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
-	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -149,7 +149,7 @@ func Test(root string, args []string) int {
 	// it the way production does, over the contract or off a pushed projection
 	coreEnv := []string{"DATABASE_URL=" + testDBURL, "SIGNALS_DB_URL=", schema}
 	sigEnv := []string{"DATABASE_URL=", "SIGNALS_DB_URL=" + testSigDS, "SIGNALS_CH_URL=" + chDSN, "SIGNALS_CH_TEST_DSN=" + chDSN, schema}
-	t := tester{root: root, lib: lib, cache: cache}
+	t := tester{root: root, lib: lib, cache: cache, pnpm: pnpm.Run}
 
 	fmt.Println("==> backend")
 	if len(o.goArgs) == 0 {
@@ -184,7 +184,7 @@ func Test(root string, args []string) int {
 	flush()
 
 	if o.frontend {
-		if code := t.frontend("dashboard", "apps/dashboard", "typecheck:all", []string{"dash"}, changed, o.changed != ""); code != 0 {
+		if code := t.frontend("dashboard", "apps/dashboard", "typecheck:all", changed, o.changed != ""); code != 0 {
 			return code
 		}
 		// Per app, like CI - stopping at the dashboard's would leave every storefront untested
@@ -192,7 +192,7 @@ func Test(root string, args []string) int {
 		slices.Sort(manifests)
 		for _, m := range manifests {
 			name := filepath.Base(filepath.Dir(m))
-			if code := t.frontend(name, "apps/channels/"+name, "typecheck", []string{"channel", name}, changed, o.changed != ""); code != 0 {
+			if code := t.frontend(name, "apps/channels/"+name, "typecheck", changed, o.changed != ""); code != 0 {
 				return code
 			}
 		}
@@ -277,6 +277,8 @@ type tester struct {
 	root  string
 	lib   compose.Lib
 	cache []string
+	// pnpm runs an app's pnpm - a seam for the tests
+	pnpm func(root, app string, env []string, args ...string) error
 }
 
 // packages is a module's packages minus its e2e suite, which runs only under skelet test e2e. -e lists a package that
@@ -350,19 +352,19 @@ func (t tester) summarized(label string, cmd *exec.Cmd) int {
 var touchesEverything = regexp.MustCompile(`(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vite(st)?\.config\.[cm]?[jt]s)$|^src/test-setup\.ts$`)
 
 // frontend typechecks an app and runs its unit tests - all of them, or under --changed only what a change reaches
-func (t tester) frontend(label, dir, typecheck string, runner, changed []string, onlyChanged bool) int {
+func (t tester) frontend(app, dir, typecheck string, changed []string, onlyChanged bool) int {
 	run := func(args ...string) int {
-		if err := legacy.Run(t.root, runner[0], append(slices.Clone(runner[1:]), args...)...); err != nil {
+		if err := t.pnpm(t.root, app, nil, args...); err != nil {
 			return max(sys.ExitCode(err), 1)
 		}
 		return 0
 	}
 	if !onlyChanged {
-		fmt.Printf("==> %s typecheck\n", label)
+		fmt.Printf("==> %s typecheck\n", app)
 		if code := run("run", typecheck); code != 0 {
 			return code
 		}
-		fmt.Printf("==> %s unit tests\n", label)
+		fmt.Printf("==> %s unit tests\n", app)
 		return run("run", "test")
 	}
 	var files []string
@@ -372,15 +374,15 @@ func (t tester) frontend(label, dir, typecheck string, runner, changed []string,
 		}
 	}
 	if len(files) == 0 {
-		fmt.Printf("==> %s: nothing changed, skipped\n", label)
+		fmt.Printf("==> %s: nothing changed, skipped\n", app)
 		return 0
 	}
-	fmt.Printf("==> %s typecheck\n", label)
+	fmt.Printf("==> %s typecheck\n", app)
 	if code := run("run", typecheck); code != 0 {
 		return code
 	}
 	if slices.ContainsFunc(files, touchesEverything.MatchString) {
-		fmt.Printf("==> %s unit tests (config changed - all of them)\n", label)
+		fmt.Printf("==> %s unit tests (config changed - all of them)\n", app)
 		return run("run", "test")
 	}
 	var related []string
@@ -391,10 +393,10 @@ func (t tester) frontend(label, dir, typecheck string, runner, changed []string,
 	}
 	// Only deletions - the typecheck already caught anything still importing them, and an empty list would run it all
 	if len(related) == 0 {
-		fmt.Printf("==> %s unit tests: only deletions, nothing to run\n", label)
+		fmt.Printf("==> %s unit tests: only deletions, nothing to run\n", app)
 		return 0
 	}
-	fmt.Printf("==> %s unit tests (those that import the %d changed files)\n", label, len(related))
+	fmt.Printf("==> %s unit tests (those that import the %d changed files)\n", app, len(related))
 	return run(append([]string{"exec", "vitest", "related", "--run", "--passWithNoTests"}, related...)...)
 }
 

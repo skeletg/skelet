@@ -98,6 +98,22 @@ func UserFlags() []string {
 	return flags
 }
 
+// RunAs is the -u a plain docker run needs to write files as you - a compose service reads SKELET_UID, a docker run
+// has nothing to read it from. Nothing under SKELET_NO_USER_MAP, whose -u 0:0 UserFlags carries
+func RunAs() []string {
+	if os.Getenv("SKELET_NO_USER_MAP") != "" {
+		return nil
+	}
+	uid, gid, ok := IDs()
+	if !ok {
+		uid, gid = os.Getenv("SKELET_UID"), os.Getenv("SKELET_GID")
+	}
+	if gid == "" {
+		return []string{"-u", uid}
+	}
+	return []string{"-u", uid + ":" + gid}
+}
+
 // Call is docker compose with args, from the checkout with env - for a verb to become, or to run and wait on
 func Call(root string, env []string, args ...string) sys.Call {
 	return sys.Call{Dir: root, Path: sys.Lookup("docker"), Argv: append([]string{"docker", "compose"}, args...), Env: env}

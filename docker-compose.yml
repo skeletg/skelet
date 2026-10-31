@@ -44,7 +44,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # The three Go modules together, so the relative replaces between them resolve - bin/go --signals
+      # The three Go modules together, so the relative replaces between them resolve - skelet go --signals
       # and skelet test e2e build the suite in this container
       - ./apps/backend:/var/www/backend
       - ./.git:/var/www/.git:ro
@@ -270,7 +270,7 @@ services:
       # Vite's /api proxy target - non-VITE_ prefix on purpose, VITE_ vars get
       # inlined into the browser bundle
       - API_PROXY=http://app:8080
-      # codegen.ts reads this - in-network so bin/dash run codegen just works
+      # codegen.ts reads this - in-network so skelet pnpm dashboard run codegen just works
       - GRAPHQL_CODEGEN_URL=${GRAPHQL_CODEGEN_URL:-http://app:8080/api/admin/graphql}
       # Set both to /api/admin/<ADMIN_API_SLUG>/graphql when the backend slug is on, or the SPA 404s
       - VITE_GRAPHQL_URL=${VITE_GRAPHQL_URL:-/api/admin/graphql}

@@ -46,6 +46,15 @@ func NewDocker(t *testing.T, answer string) *Docker {
 	return d
 }
 
+// Fake puts another program beside docker, logging "<name> args|<its working directory>" to the same log
+func (d *Docker) Fake(name, answer string) {
+	d.t.Helper()
+	script := "#!/bin/sh\nprintf '%s %s|%s\\n' '" + name + "' \"$*\" \"$PWD\" >> '" + d.log + "'\n" + answer + "\n"
+	if err := os.WriteFile(filepath.Join(d.dir, name), []byte(script), 0o755); err != nil {
+		d.t.Fatal(err)
+	}
+}
+
 // Run runs verb with args from root in a child process, with the fake docker first on the PATH
 func (d *Docker) Run(verb, root string, args ...string) (stdout string, code int) {
 	d.t.Helper()

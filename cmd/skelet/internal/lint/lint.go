@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/skeletg/skelet/cmd/skelet/internal/legacy"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -59,7 +59,7 @@ func Run(root string, _ []string) int {
 	frontendDirty := false
 	fmt.Println("==> dashboard eslint (non-blocking)")
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
-		frontendDirty = legacy.Run(root, "dash", "run", "lint") != nil
+		frontendDirty = pnpm.Run(root, "dashboard", nil, "run", "lint") != nil
 	} else {
 		fmt.Println("    (skipped - dashboard not in this checkout; see skelet setup)")
 	}
@@ -71,7 +71,7 @@ func Run(root string, _ []string) int {
 	for _, m := range manifests {
 		name := filepath.Base(filepath.Dir(m))
 		fmt.Printf("==> %s eslint (non-blocking)\n", name)
-		if legacy.Run(root, "channel", name, "run", "lint") != nil {
+		if pnpm.Run(root, name, nil, "run", "lint") != nil {
 			frontendDirty = true
 		}
 	}
