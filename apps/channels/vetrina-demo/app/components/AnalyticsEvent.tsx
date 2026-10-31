@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { useMarketingConsent } from "@/app/lib/consent/use-consent";
+import { useAnalyticsConsent } from "@/app/lib/consent/use-consent";
 
 type DataLayerEntry = Record<string, unknown> & { event: string };
 
@@ -25,7 +25,7 @@ export function AnalyticsEvent({
   // fired, so a refresh, bookmark or shared link can't replay a sign-up or a purchase into reporting
   stripParam?: string;
 }) {
-  const clientConsent = useMarketingConsent();
+  const clientConsent = useAnalyticsConsent();
   const on = enabled ?? clientConsent;
   useEffect(() => {
     if (!on) return;

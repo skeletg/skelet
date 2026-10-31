@@ -85,7 +85,7 @@ export default async function AccountPage({
     <>
       {welcome && consent && (
         <AnalyticsEvent
-          enabled={consent.marketing}
+          enabled={consent.analytics}
           event="sign_up"
           payload={{ method: "password" }}
           stripParam="welcome"

@@ -529,10 +529,21 @@
   },
   "consent": {
     "label": "Cookie consent",
-    "body": "We use cookies for the essentials (sign in, cart, language) plus optional analytics and marketing. Pick “Essential only” to skip the optional ones.",
+    "body": "We use cookies for the essentials (sign in, cart, language). With your permission we also use them for analytics, advertising and personalisation. Pick “Essential only” to skip the optional ones.",
     "policy": "Privacy policy",
     "essentialOnly": "Essential only",
-    "acceptAll": "Accept all"
+    "acceptAll": "Accept all",
+    "customize": "Customize",
+    "save": "Save choices",
+    "settings": "Cookie settings",
+    "necessary": "Necessary",
+    "necessaryHelp": "Sign in, cart, checkout and language. Always on.",
+    "analytics": "Analytics",
+    "analyticsHelp": "Helps us see how the shop is used, so we can improve it.",
+    "ads": "Advertising",
+    "adsHelp": "Lets ad and affiliate partners know a visit or order came from them.",
+    "personalization": "Personalisation",
+    "personalizationHelp": "Recommendations and offers based on what you browse."
   },
   "masquerade": {
     "banner": "Rep session: shopping as {name} ({email}) - expires automatically in 15 minutes."

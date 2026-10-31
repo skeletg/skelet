@@ -2,14 +2,14 @@
 
 import { LensTracker } from "@/app/components/LensTracker";
 import { LensReplay } from "@/app/components/LensReplay";
-import { useMarketingConsent } from "@/app/lib/consent/use-consent";
+import { useAnalyticsConsent } from "@/app/lib/consent/use-consent";
 import { useCustomerIdentity } from "@/app/lib/customer/client";
 
 // Consent and identity resolve in the browser so the layout reads no cookie - off until then, which is the right GDPR default anyway
 export function LensGate({ signalsEnabled, channelId }: { signalsEnabled: boolean; channelId: string }) {
   const { identity } = useCustomerIdentity();
-  const marketing = useMarketingConsent(); // unconditional - && would short-circuit the hook
-  const enabled = signalsEnabled && marketing;
+  const analytics = useAnalyticsConsent(); // unconditional - && would short-circuit the hook
+  const enabled = signalsEnabled && analytics;
   const customerId = identity?.id ?? "";
   return (
     <>

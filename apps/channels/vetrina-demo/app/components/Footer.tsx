@@ -1,4 +1,7 @@
 import { Link } from "@/app/components/LocaleLink";
+import { getTranslations } from "next-intl/server";
+
+import { CookieSettingsButton } from "@/app/components/CookieConsentBanner";
 
 import { loadMenu } from "@/app/lib/menus/read";
 import type { MenuItem } from "@/app/lib/menus/read";
@@ -8,10 +11,11 @@ import { getBranding } from "@/app/lib/config/read";
 // Driven by the "footer" menu - columns when any top-level item has children, a single row when none do. Copyright +
 // support row always renders, so a store with no menu still gets a usable footer
 export async function Footer() {
-  const [menu, brand, branding] = await Promise.all([
+  const [menu, brand, branding, t] = await Promise.all([
     loadMenu("footer"),
     getStoreName(),
     getBranding(),
+    getTranslations("consent"),
   ]);
   const supportEmail: string | null = null;
 
@@ -75,6 +79,7 @@ export async function Footer() {
           <span>
             © {new Date().getFullYear()} {brand}. Demo storefront.
           </span>
+          <CookieSettingsButton label={t("settings")} />
           {supportEmail && (
             <a
               href={`mailto:${supportEmail}`}

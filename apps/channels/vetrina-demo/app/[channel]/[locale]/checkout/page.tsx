@@ -161,7 +161,7 @@ export default async function CheckoutPage({
     <CheckoutCartProvider cartId={cart.id} offerId={offer ? cart.id : undefined}>
     <main className="mx-auto grid w-full max-w-8xl gap-10 px-4 pt-6 pb-12 sm:px-6 md:grid-cols-[1fr_22rem] md:px-10">
       <AnalyticsEvent
-        enabled={consent.marketing}
+        enabled={consent.analytics}
         event="begin_checkout"
         payload={{
           ecommerce: {

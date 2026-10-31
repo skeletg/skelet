@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { useMarketingConsent } from "@/app/lib/consent/use-consent";
+import { useAnalyticsConsent } from "@/app/lib/consent/use-consent";
 
 // Reads consent itself rather than taking it as a prop: the listings that render this live under the
 // force-static catch-all, where a server-side cookie read always came back "no consent" and silently
@@ -14,7 +14,7 @@ export function LensTrack({
   event: string;
   props?: Record<string, unknown>;
 }) {
-  const enabled = useMarketingConsent();
+  const enabled = useAnalyticsConsent();
   useEffect(() => {
     if (!enabled || !event || typeof window === "undefined") return;
     (window.__lensQueue ??= []).push({ name: event, props });
