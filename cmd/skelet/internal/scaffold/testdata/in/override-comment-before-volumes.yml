@@ -1,0 +1,7 @@
+services:
+  app:
+    environment:
+      - DEBUG=1
+# volumes below are mine
+volumes:
+  scratch-data:

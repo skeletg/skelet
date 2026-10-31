@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/lint"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/release"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
 	"github.com/skeletg/skelet/cmd/skelet/internal/search"
 	"github.com/skeletg/skelet/cmd/skelet/internal/setup"
 	"github.com/skeletg/skelet/cmd/skelet/internal/stack"
@@ -55,8 +56,8 @@ var routes = []Route{
 	{Verb: "fixperms", Go: fixperms.Run, About: fixperms.About},
 	{Verb: "provider", Go: container.Provider, About: container.ProviderAbout},
 	{Verb: "changelog", Go: changelog.Run, About: changelog.About},
-	{Verb: "add", Script: "new"},
-	{Verb: "rm", Script: "remove"},
+	{Verb: "add", Go: scaffold.Add, About: scaffold.AddAbout},
+	{Verb: "rm", Go: scaffold.Remove, About: scaffold.RemoveAbout},
 	{Verb: "pnpm", Sub: "dashboard", Go: pnpm.Dashboard, About: pnpm.About},
 	{Verb: "pnpm", Sub: AnyApp, Go: pnpm.Channel, About: pnpm.About},
 	{Verb: "db", Sub: "migrate", Go: db.Migrate, About: db.MigrateAbout},

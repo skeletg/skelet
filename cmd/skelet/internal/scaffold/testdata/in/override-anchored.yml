@@ -1,0 +1,10 @@
+# A hand-kept override: an anchor of its own, a service, and no volumes section
+x-logging: &logging
+  driver: json-file
+
+services:
+  app:
+    logging: *logging
+    environment:
+      - DEBUG=1
+# trailing note at column 0

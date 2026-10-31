@@ -1,9 +1,9 @@
 # Commands
 
 Every dev command, in detail. `skelet` is the front door: run it bare for a
-grouped list, `skelet help <command>` for one. The scripts under `bin/` are
-what each verb runs, and you shouldn't need to call one by name - the map
-between them is at the bottom, for when you're reading the source.
+grouped list, `skelet help <command>` for one. Every verb is Go, under
+`cmd/skelet/internal/` - where each one lives is at the bottom, for when you're
+reading the source.
 
 **Installed or not.** These pages write `skelet`, the CLI the README's one-line
 install puts on your PATH. Inside a project it hands every command to that
@@ -15,29 +15,29 @@ where nothing is installed. The two behave the same.
 `cmd/skelet`. The first run, and the first after anything in there changes, builds it
 into `.skelet/bin/` - with your own Go if you have it, otherwise inside the `golang`
 image, so Docker alone is enough - and every run after that starts the cached binary
-straight away. The program maps the verb onto its `bin/` script and execs it, so Ctrl-C,
-exit codes and the terminal behave exactly as if you'd run the script yourself. With
-neither Go nor Docker running the shim says so, and `bin/<script>` still works on its own.
+straight away. A verb that ends by running something - `skelet go`, `skelet psql` - becomes
+that program, so Ctrl-C, exit codes and the terminal behave exactly as if you'd run it
+yourself. With neither Go nor Docker the shim says so.
 
 A symlink onto your PATH (`ln -s "$PWD/skelet" ~/.local/bin/skelet`) works too, and
 acts on whichever checkout you're standing in. The installer won't replace one
 without `--force`.
 
-The scripts all `cd` to the repo root on their own, so you can run them from
-anywhere. Three things they share (living in `_lib`, which is sourced, not run):
+Every verb runs from the repo root whatever directory you're in, and three
+things hold for all of them:
 
 - **One compose file set** - `docker-compose.yml` is the whole dev stack
   including sidecars, and compose auto-merges your git-ignored
-  `docker-compose.override.yml` on its own, so `_lib` sets no
-  `COMPOSE_FILE` at all. `stop`, `down`, `ps` and friends therefore cover
+  `docker-compose.override.yml` on its own, so no `COMPOSE_FILE` is set at
+  all. `stop`, `down`, `ps` and friends therefore cover
   Garage, the dev tools and co. as well as the apps.
-- **Profiles follow your app selection** - `_lib` exports
+- **Profiles follow your app selection** - every compose command gets
   `COMPOSE_PROFILES` built from the sidecars (`search`, plus
   `signals` unless `env/go.env` switches `SIGNALS_ENABLED` off - that profile
   carries the Signals process and its ClickHouse),
   whatever `.skelet-apps` lists and whatever dev tools `.skelet-tools` lists,
   so what you picked in `setup` comes up and what you skipped stays down
-  (see `dev --lean` below to drop the sidecars and tools).
+  (see `up --lean` below to drop the sidecars and tools).
 - **Files stay yours** - containers run as your uid, so generated code
   doesn't end up root-owned and break `git pull`. Set
   `SKELET_NO_USER_MAP=1` if you actually need root inside a container.
@@ -140,20 +140,18 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `skelet fixperms` | Find and fix root-owned files under `apps/` left behind by container writes. Only asks for sudo when there's something to fix. |
 | `skelet doctor` | Sanity-check the machine and the checkout: Docker and compose, git (2.35 or newer, for setup's sparse-checkout) and Go on the host, the env files the target needs, where the frontends run and whether pnpm and Node can run the host ones, the profile against the env files, `plugins.json` against the plugin directories (the rules codegen enforces), the running containers and the Signals spine, ports answering, backend /health, `*.localhost` resolution, the pre-commit hook, a WSL clone on the Windows drive, and disk space. Every line is ok, warn or FAIL, and only a FAIL fails it. Run it when something feels off. Outside a project, the installed `skelet doctor` checks the machine alone. |
 
-## The scripts behind the verbs
+## Where the verbs live
 
-Each route is one line in `cmd/skelet/internal/route/table.go`, and `skelet check structure`
-fails when a script has no route or a route has no script.
+Each verb is one line in `cmd/skelet/internal/route/table.go`, naming the Go function that
+carries it out and the help text `skelet help` prints. `pnpm` takes `npm` as an alias from
+before the switch, and `new channel` is `add channel`'s old name.
 
-| Verb | Runs |
-|---|---|
-| `add channel <name>`, `rm channel <name>` | `new`, `remove` |
-| everything else - `setup`, `up`, `doctor`, `check` and its gates, `gen` and its tools, `lint`, `test` and its suites, `go`, `pnpm` (`npm` is kept as an alias from before the switch), `changelog`, `hooks`, the stack and container verbs, `db`, `search`, `release`, `provider`, `fixperms` | nothing - they're Go, under `cmd/skelet/internal/` |
-
-`skelet check structure` fails if `skelet` routes to a script that doesn't exist, so
-the table above can't quietly rot when a script is renamed.
+`bin/` is down to two files while the `./skelet` shim lasts. `bin/check` is for the hooks an
+older `skelet hooks` wrote, and hands them to `skelet check` - any `skelet` command rewrites
+such a hook to the current one. `bin/_lib` runs nothing any more; beside the shim it tells an
+installed `skelet` to hand this checkout to `./skelet`.
 
 ---
 
-Adding or removing a script? Update this file too. The table in
+Adding or removing a verb? Update this file too. The table in
 [workflow.md](workflow.md) has the short version; this one has the details.
