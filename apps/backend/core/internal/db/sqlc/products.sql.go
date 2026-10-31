@@ -719,20 +719,32 @@ func (q *Queries) GetProductCostsBySKUs(ctx context.Context, skus []string) ([]G
 }
 
 const getProductDimensionsBySKUs = `-- name: GetProductDimensionsBySKUs :many
-SELECT sku, weight_grams, length_mm, width_mm, height_mm, product_type_id FROM catalog_products
-WHERE sku = ANY($1::text[])
+SELECT p.sku,
+       COALESCE(CASE
+           WHEN p.kind = 'kit' AND COALESCE(p.weight_grams, 0) = 0 AND COALESCE(p.length_mm, 0) = 0
+                AND COALESCE(p.width_mm, 0) = 0 AND COALESCE(p.height_mm, 0) = 0
+           THEN (SELECT ROUND(SUM(COALESCE(c.weight_grams, 0) * k.quantity))
+                 FROM catalog_product_kit_components k
+                 JOIN catalog_products c ON c.id = k.component_product_id
+                 WHERE k.product_id = p.id)
+           ELSE p.weight_grams
+       END, 0)::int AS weight_grams,
+       p.length_mm, p.width_mm, p.height_mm, p.product_type_id
+FROM catalog_products p
+WHERE p.sku = ANY($1::text[])
 `
 
 type GetProductDimensionsBySKUsRow struct {
 	Sku           string        `json:"sku"`
-	WeightGrams   sql.NullInt32 `json:"weight_grams"`
+	WeightGrams   int32         `json:"weight_grams"`
 	LengthMm      sql.NullInt32 `json:"length_mm"`
 	WidthMm       sql.NullInt32 `json:"width_mm"`
 	HeightMm      sql.NullInt32 `json:"height_mm"`
 	ProductTypeID uuid.UUID     `json:"product_type_id"`
 }
 
-// What shipping rates a line by - its physical size, and its product type for the methods' per-type rates
+// What shipping rates a line by - its physical size, and its product type for the methods' per-type rates. A kit ships as
+// its own SKU, but one with no size or weight set weighs what its items do, so its rate isn't quoted as weightless
 func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string) ([]GetProductDimensionsBySKUsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProductDimensionsBySKUs, pq.Array(skus))
 	if err != nil {
