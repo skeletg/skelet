@@ -4,6 +4,8 @@ import { cookies, headers as nextHeaders } from "next/headers";
 
 import { AID_COOKIE } from "@/app/lib/analytics/visitor";
 import { clientIP } from "@/app/lib/client-ip";
+import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
+import { parseConsent, serializeConsent } from "@/app/lib/consent/categories";
 import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 
 // Who a server-side call to the backend is made for. Without these the backend sees this Next server instead of the
@@ -23,11 +25,15 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     rethrowIfDynamicBailout(err);
     // not in a request scope - nothing to forward
   }
-  // The visitor's anon id (the Lens cookie), so guest commerce attributes to the same visitor as their browsing and
-  // stitches to a customer once they sign in
+  // The visitor's cookie consent, so the backend forwards an event only where it was allowed - and their anon id (the
+  // Lens cookie), so guest commerce attributes to the same visitor as their browsing and stitches to a customer once
+  // they sign in. The id goes only with analytics consent: on the request that withdraws it the cookie is still here
   try {
-    const aid = (await cookies()).get(AID_COOKIE)?.value;
-    if (aid) out["X-Anon-Id"] = aid;
+    const store = await cookies();
+    const consent = parseConsent(store.get(CONSENT_COOKIE)?.value);
+    if (consent) out["X-Consent"] = serializeConsent(consent);
+    const aid = store.get(AID_COOKIE)?.value;
+    if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
   } catch (err) {
     rethrowIfDynamicBailout(err);
   }

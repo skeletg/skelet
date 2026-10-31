@@ -16,6 +16,8 @@ import {
 import { buildForwardedCookie } from "@/app/lib/forwarded-cookie";
 import { BEACON } from "@/app/lib/beacons/paths";
 import { clientIP } from "@/app/lib/client-ip";
+import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
+import { parseConsent } from "@/app/lib/consent/categories";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -29,7 +31,8 @@ const PROMO_QUERY_PARAM = "promo";
 export const PROMO_PENDING_COOKIE = "storefront_pending_promo";
 
 // Visitor id for Prism assignment + Lens identity. Minted here so server-side assignment has a stable id on the first paint - no variant
-// flash, even for incognito Functional, not httpOnly: the client SDKs read it, LensTracker reuses the same value
+// flash, even for incognito. Only with analytics consent: without it there is no id, experiments render their control, and a
+// withdrawn grant deletes the cookie on the next request. Not httpOnly: the client SDKs read it, LensTracker reuses the same value
 const AID_COOKIE = "lens_aid";
 const AID_OPTS = {
   path: "/",
@@ -176,14 +179,16 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   // Proactively rotate a near-expiry customer session before render.
   const session = channelId ? await maybeRefreshSession(req, channelId) : ({ kind: "noop" } as const);
 
+  const analytics = parseConsent(req.cookies.get(CONSENT_COOKIE)?.value)?.analytics ?? false;
   const existingAid = req.cookies.get(AID_COOKIE)?.value;
-  const newAid = existingAid ? undefined : crypto.randomUUID();
+  const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
   // Writes applied to whatever response we return (persist to the browser).
   const applyCookies = (res: NextResponse) => {
     // Re-set even when present: rolls the 1-year expiry per visit, and upgrades a tracker-minted cookie
     // (script-set, so ITP-capped at 7 days on Safari) to a server-set one that actually keeps its expiry
-    res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
+    if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
+    else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
     if (session.kind === "refreshed") {
       const opts = sessionCookieOptions();
       res.cookies.set(ACCESS_TOKEN_COOKIE, session.accessToken, { ...opts, maxAge: ACCESS_TOKEN_MAX_AGE });

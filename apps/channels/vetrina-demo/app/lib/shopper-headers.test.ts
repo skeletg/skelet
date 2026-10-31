@@ -32,10 +32,25 @@ describe("clientIP", () => {
 });
 
 describe("shopperHeaders", () => {
-  it("names the shopper: their IP, the crawler token and their anon id", async () => {
+  it("names the shopper: their IP, the crawler token, their consent and their anon id", async () => {
     inbound = new Headers({ "x-forwarded-for": "203.0.113.7", "x-skelet-crawl": "token" });
+    jar = new Map([["lens_aid", "visitor-1"], ["storefront_consent", "v2:a1.d0.p0"]]);
+    expect(await shopperHeaders()).toEqual({
+      "X-Forwarded-For": "203.0.113.7",
+      "X-Skelet-Crawl": "token",
+      "X-Consent": "v2:a1.d0.p0",
+      "X-Anon-Id": "visitor-1",
+    });
+  });
+  it("forwards an old all/essential choice in the category form", async () => {
+    jar = new Map([["storefront_consent", "all"]]);
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a1.d1.p1" });
+  });
+  it("keeps the anon id back without analytics consent - before a choice, and on the request that withdraws it", async () => {
     jar = new Map([["lens_aid", "visitor-1"]]);
-    expect(await shopperHeaders()).toEqual({ "X-Forwarded-For": "203.0.113.7", "X-Skelet-Crawl": "token", "X-Anon-Id": "visitor-1" });
+    expect(await shopperHeaders()).toEqual({});
+    jar = new Map([["lens_aid", "visitor-1"], ["storefront_consent", "v2:a0.d1.p1"]]);
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d1.p1" });
   });
   it("sends nothing it doesn't have", async () => {
     expect(await shopperHeaders()).toEqual({});
