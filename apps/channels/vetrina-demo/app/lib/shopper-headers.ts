@@ -19,6 +19,9 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     const inbound = await nextHeaders();
     const ip = clientIP(inbound);
     if (ip) out["X-Forwarded-For"] = ip;
+    // The shopper's browser rather than this server's fetch - session lists, bot checks and ad platforms' match keys read it
+    const ua = inbound.get("user-agent");
+    if (ua) out["User-Agent"] = ua;
     // The SEO crawler's bypass token, so a crawl of a few thousand pages is not refused by the per-IP limiter
     const crawl = inbound.get("x-skelet-crawl");
     if (crawl) out["X-Skelet-Crawl"] = crawl;
