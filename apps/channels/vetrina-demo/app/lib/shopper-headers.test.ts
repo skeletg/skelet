@@ -48,7 +48,7 @@ describe("shopperHeaders", () => {
   });
   it("keeps the anon id back without analytics consent - before a choice, and on the request that withdraws it", async () => {
     jar = new Map([["lens_aid", "visitor-1"]]);
-    expect(await shopperHeaders()).toEqual({});
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d0.p0" });
     jar = new Map([["lens_aid", "visitor-1"], ["storefront_consent", "v2:a0.d1.p1"]]);
     expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d1.p1" });
   });
@@ -58,8 +58,8 @@ describe("shopperHeaders", () => {
     jar = new Map([["cje", "c1"], ["storefront_consent", "v2:a1.d0.p1"]]);
     expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a1.d0.p1" });
   });
-  it("sends nothing it doesn't have", async () => {
-    expect(await shopperHeaders()).toEqual({});
+  it("states that nothing is granted before the visitor chooses", async () => {
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d0.p0" });
   });
   it("forwards nothing outside a request, but never swallows Next's dynamic bailout", async () => {
     inbound = new Error("outside a request scope");

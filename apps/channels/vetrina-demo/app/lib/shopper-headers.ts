@@ -5,7 +5,7 @@ import { cookies, headers as nextHeaders } from "next/headers";
 import { AID_COOKIE } from "@/app/lib/analytics/visitor";
 import { clientIP } from "@/app/lib/client-ip";
 import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
-import { parseConsent, serializeConsent } from "@/app/lib/consent/categories";
+import { NONE_GRANTED, parseConsent, serializeConsent } from "@/app/lib/consent/categories";
 import { clickIdsHeader } from "@/app/lib/consent/click-ids";
 import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 
@@ -32,7 +32,8 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
   try {
     const store = await cookies();
     const consent = parseConsent(store.get(CONSENT_COOKIE)?.value);
-    if (consent) out["X-Consent"] = serializeConsent(consent);
+    // Always stated: no choice yet grants nothing, and a missing header then only ever means a caller that isn't a shop
+    out["X-Consent"] = serializeConsent(consent ?? NONE_GRANTED);
     const aid = store.get(AID_COOKIE)?.value;
     if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
     // Ad click ids for a purchase sent server to server - only with ads consent, for the same withdrawal reason
