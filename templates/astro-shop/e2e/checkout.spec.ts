@@ -12,7 +12,8 @@ test("checkout without a cart goes back to the cart", async ({ page }) => {
 test("place an order end to end", async ({ page }) => {
   await openBuyableProduct(page);
   const name = await addToCart(page);
-  await page.getByRole("link", { name: "Checkout" }).click();
+  // The cart's own button - the footer's Shop menu links to checkout too
+  await page.locator("#main").getByRole("link", { name: "Checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 

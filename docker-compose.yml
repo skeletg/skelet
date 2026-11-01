@@ -342,7 +342,7 @@ services:
     init: true
     build:
       context: .
-      dockerfile: apps/channels/astro-shop/Dockerfile
+      dockerfile: templates/astro-shop/Dockerfile
       # Same uid story as the dashboard's install
       args:
         SKELET_UID: ${SKELET_UID:-1000}
@@ -350,12 +350,15 @@ services:
     ports:
       - "3001:3000"
     volumes:
-      - ./apps/channels/astro-shop:/var/www/storefront
-      - astro-shop-node-modules:/var/www/storefront/node_modules
+      # The whole repo, the workspace it shares packages through - minus env/, as for nextjs-vetrina
+      - .:/var/www/skelet
+      - type: tmpfs
+        target: /var/www/skelet/env
+      - astro-shop-node-modules:/var/www/skelet/node_modules
     environment:
       - HOME=/tmp
       - BACKEND_INTERNAL_URL=http://app:8080
-      # Its own variable, as for vetrina-demo - the root .env's GRAPHQL_CODEGEN_URL may point at the admin schema
+      # Its own variable, as for nextjs-vetrina - the root .env's GRAPHQL_CODEGEN_URL may point at the admin schema
       - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
       - FRONT_API_SLUG=${FRONT_API_SLUG:-}
       # The uuid the baseline migration seeds - override in the root .env if your channels differ

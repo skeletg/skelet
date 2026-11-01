@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // Browser coverage against the real backend: browse, cart, checkout, SEO and motion, with and without JavaScript.
 // Runs through `./skelet test storefront astro-shop`, which starts Microsoft's Playwright image in the storefront
 // container's network. Not part of `pnpm test` (the unit suite), which needs no backend. Places real orders in the
-// dev database, as vetrina-demo's suite does
+// dev database, as nextjs-vetrina's suite does
 export default defineConfig({
   testDir: "./e2e",
   // Every spec gets its own cart through its own cookies, but they share one dev server compiling routes on first hit

@@ -1,0 +1,51 @@
+# Prod storefront image - Astro's standalone Node server on a small node base
+# Build from the repo root, the workspace the storefront shares packages through:
+#   docker build -f templates/astro-shop/Dockerfile.prod -t skelet-astro-shop:prod .
+# Dockerfile.prod.dockerignore beside this file keeps that context to the workspace files, the packages and this app
+
+# The packages' manifests alone, so the install layer is keyed on them and not on every package source edit
+FROM alpine:3.24 AS manifests
+WORKDIR /w
+COPY packages packages
+RUN find packages -mindepth 2 -maxdepth 2 ! -name package.json -exec rm -rf {} +
+
+FROM node:24-alpine AS base
+RUN npm install -g pnpm@12.6.0
+# The installs are their own steps, so pnpm's check before a script is off - it can't vouch for a filtered install, and
+# would redo it whole
+ENV pnpm_config_store_dir=/pnpm/store \
+    pnpm_config_verify_deps_before_run=false
+WORKDIR /app
+# The workspace file carries the build policy the lockfile was resolved under
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY templates/astro-shop/package.json templates/astro-shop/
+COPY --from=manifests /w/packages packages
+
+FROM base AS build
+# The app and every shared package, each with its own dependencies - a package's peers resolve from its own directory
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter "./templates/astro-shop..." --filter "./packages/*"
+COPY packages packages
+COPY templates/astro-shop templates/astro-shop
+RUN cd templates/astro-shop && pnpm run build
+
+# The standalone server imports its dependencies at runtime - a fresh production install of them alone, rather than a
+# prune of the build's tree, which keeps everything the shared packages installed
+FROM base AS deps
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --filter "./templates/astro-shop..."
+
+FROM node:24-alpine AS run
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app
+# The app's node_modules is links into the workspace's, so both keep their places
+COPY --from=deps --chown=app:app /app/node_modules ./node_modules
+COPY --from=deps --chown=app:app /app/templates/astro-shop/node_modules ./templates/astro-shop/node_modules
+COPY --from=build --chown=app:app /app/templates/astro-shop/package.json ./templates/astro-shop/
+COPY --from=build --chown=app:app /app/templates/astro-shop/dist ./templates/astro-shop/dist
+USER app
+EXPOSE 3000
+CMD ["node", "templates/astro-shop/dist/server/entry.mjs"]

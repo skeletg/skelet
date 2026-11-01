@@ -8,7 +8,7 @@ and Motion's mini `animate()` for scroll reveals.
 
 Every page renders on demand, then the catalog pages sit in Astro's route cache (`memoryCache`) until the
 backend purges them. The backend POSTs `{tags, paths, warm}` to `/api/revalidate` with
-`X-Revalidate-Secret` (the same contract vetrina-demo implements). Pages tag themselves the way the backend
+`X-Revalidate-Secret` (the same contract nextjs-vetrina implements). Pages tag themselves the way the backend
 purges (`core/internal/cacheinvalidate`):
 
 | Page | Tags |
@@ -30,10 +30,10 @@ browsing pages.
 ## Commands
 
 ```bash
-./skelet pnpm astro-shop run codegen     # GraphQL types from the live front schema
-./skelet pnpm astro-shop run typecheck
-./skelet pnpm astro-shop run test        # Vitest: lib, components, motion, pages (Container API) - no backend
-./skelet test storefront astro-shop      # Playwright against the running dev container - places real orders
+skelet pnpm astro-shop run codegen     # GraphQL types from the live front schema
+skelet pnpm astro-shop run typecheck
+skelet pnpm astro-shop run test        # Vitest: lib, components, motion, pages (Container API) - no backend
+skelet test storefront astro-shop      # Playwright against the running dev container - places real orders
 ```
 
 ## Not built yet

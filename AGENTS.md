@@ -18,7 +18,7 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | The project's own storefronts, each forked from a template with `skelet add channel` |
-| `templates/<name>/` | Storefront templates. `nextjs-vetrina` is the full Next.js 16 one (App Router, RSC) the dev stack runs |
+| `templates/<name>/` | Storefront templates, the framework in the name. `nextjs-vetrina` is the full Next.js 16 one (App Router, RSC) the dev stack runs; `astro-shop` a fast Astro 7 one for small catalogs |
 | `packages/<name>/` | TypeScript the storefronts share, source only. `storefront-core` is a storefront's logic with no framework in it; `storefront-next` adapts it to Next; `storefront-react` holds client hooks |
 | `cmd/skelet/` | The `skelet` CLI: the front door here, every dev verb, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
 | `docs/` | One file per question, indexed in `docs/README.md` |

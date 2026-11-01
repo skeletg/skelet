@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import { forgetChannel } from "../../lib/channel";
 
 // The backend POSTs {tags, paths, warm} here when catalog or config changes (internal/revalidate) - the same
-// contract vetrina-demo's route implements. tags/paths evict from the route cache, warm re-renders right away
+// contract nextjs-vetrina's route implements. tags/paths evict from the route cache, warm re-renders right away
 
 function secretOk(provided: string | null): boolean {
   const expected = process.env.STOREFRONT_REVALIDATE_SECRET ?? "";

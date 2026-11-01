@@ -25,14 +25,17 @@ catalog:
   "@testing-library/react": ^16.3.3
   jsdom: ^30.1.1
 
-# Dependency install scripts run only when listed true - none of these needs to. swc, parcel's watcher and
-# unrs-resolver load a prebuilt platform package and only fall back to a build when it is missing; sentry-cli's script
-# downloads a binary that only source-map upload uses, and next.config.ts doesn't wrap withSentryConfig
+# Dependency install scripts run only when listed true - none of these needs to. swc, parcel's watcher, unrs-resolver,
+# esbuild and sharp load a prebuilt platform package and only fall back to a build when it is missing (and astro-shop does
+# no build-time image processing); sentry-cli's script downloads a binary that only source-map upload uses, and
+# next.config.ts doesn't wrap withSentryConfig
 allowBuilds:
   "@parcel/watcher": false
   "@sentry/cli": false
   "@swc/core": false
+  esbuild: false
   fsevents: false
+  sharp: false
   unrs-resolver: false
 
 # A pnpm audit finding is a lockfile refresh (Renovate's weekly lockfile maintenance, or delete the lockfile and
