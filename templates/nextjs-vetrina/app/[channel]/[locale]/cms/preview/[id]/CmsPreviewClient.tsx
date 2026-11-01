@@ -12,7 +12,7 @@ import { CtaBannerBlock } from "@/app/components/cms/CtaBannerBlock";
 import { HtmlBlock } from "@/app/components/cms/HtmlBlock";
 import { CmsSection } from "@/app/components/cms/Section";
 import { renderPreviewBlock } from "./actions";
-import { DASHBOARD_ORIGIN } from "@skelet/storefront-next/dashboard-origin";
+import { DASHBOARD_ORIGIN } from "@skelet/storefront-core/dashboard-origin";
 
 const MESSAGE_TYPE = "skelet:cms-preview:update";
 const READY_TYPE = "skelet:cms-preview:ready";

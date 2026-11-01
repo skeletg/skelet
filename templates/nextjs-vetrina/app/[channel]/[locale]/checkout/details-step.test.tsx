@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CheckoutAddress, CheckoutState } from "@skelet/storefront-next/checkout/read";
-import { DEFAULT_CHECKOUT_SETTINGS } from "@skelet/storefront-next/checkout/settings";
+import { DEFAULT_CHECKOUT_SETTINGS } from "@skelet/storefront-core/checkout/settings";
 import type { PhoneSettings } from "@skelet/storefront-next/countries/read";
 import type { Address } from "@skelet/storefront-next/customer/read";
 import { renderWithIntl } from "@/app/test/render";

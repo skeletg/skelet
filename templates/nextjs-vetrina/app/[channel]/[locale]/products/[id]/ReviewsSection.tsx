@@ -14,7 +14,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 import { voteReviewAction } from "@skelet/storefront-next/reviews/actions";
 import { loadReviewsPage } from "@skelet/storefront-next/reviews/actions-client";
-import type { ReviewSort } from "@skelet/storefront-next/reviews/operations.gql";
+import type { ReviewSort } from "@skelet/storefront-core/reviews/operations.gql";
 import { useReviewState } from "./ReviewStateProvider";
 import type { ProductReviews, ReviewListItem } from "@skelet/storefront-next/reviews/read";
 

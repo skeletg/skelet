@@ -9,12 +9,12 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { redactPath } from "@skelet/storefront-next/analytics/redact";
-import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@skelet/storefront-next/analytics/recording-policy";
-import { ensureAnonId, sampleBucket, viewportBucket } from "@skelet/storefront-next/analytics/visitor";
-import { randomId } from "@skelet/storefront-next/random-id";
-import { beaconFetch } from "@skelet/storefront-next/beacons/client";
-import { BEACON } from "@skelet/storefront-next/beacons/paths";
+import { redactPath } from "@skelet/storefront-core/analytics/redact";
+import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@skelet/storefront-core/analytics/recording-policy";
+import { ensureAnonId, sampleBucket, viewportBucket } from "@skelet/storefront-core/analytics/visitor";
+import { randomId } from "@skelet/storefront-core/random-id";
+import { beaconFetch } from "@skelet/storefront-core/beacons/client";
+import { BEACON } from "@skelet/storefront-core/beacons/paths";
 
 const SID_KEY = "lens_sid";
 const SEQ_KEY = "lens_seq";

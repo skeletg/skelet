@@ -8,7 +8,7 @@ import { useLinkStatus } from "next/link";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
-import { hrefForPage } from "@skelet/storefront-next/pagination";
+import { hrefForPage } from "@skelet/storefront-core/pagination";
 
 function LoadMoreLabel({ remaining }: { remaining: number }) {
   const { pending } = useLinkStatus();

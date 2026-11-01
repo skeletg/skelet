@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseForm } from "@skelet/storefront-next/forms/schema";
-import { productPickSchema, productSearchSchema, storeFiltersSchema } from "@skelet/storefront-next/stores/schemas";
-import { preferenceKey, type StoreProduct, type StoresResult } from "@skelet/storefront-next/stores/types";
+import { parseForm } from "@skelet/storefront-core/forms/schema";
+import { productPickSchema, productSearchSchema, storeFiltersSchema } from "@skelet/storefront-core/stores/schemas";
+import { preferenceKey, type StoreProduct, type StoresResult } from "@skelet/storefront-core/stores/types";
 import type { ProductPickResult, ProductSearchResult, StoresFormResult } from "@skelet/storefront-next/stores/actions";
 import { localeLinkMock } from "@/app/test/locale-link-mock";
 import { renderWithIntl } from "@/app/test/render";

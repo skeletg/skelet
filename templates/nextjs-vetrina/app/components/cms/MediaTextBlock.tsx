@@ -4,7 +4,7 @@ import { CmsImage } from "./CmsImage";
 import { getContainer } from "./variants";
 import { GoalLink } from "./GoalLink";
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent } from "@skelet/storefront-next/lexical";
+import { lexicalHasContent } from "@skelet/storefront-core/lexical";
 
 // media_text - an image beside rich text with an optional CTA. props.side places the image left or right; the shared
 // container registry frames it (heading lives in the text column, not the container header)

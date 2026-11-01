@@ -5,11 +5,11 @@ import { CartLineOptionsList } from "@/app/components/CartLineOptionsList";
 import { ChargeCurrencyNote } from "@/app/components/ChargeCurrencyNote";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
 import { formatPrice } from "@skelet/storefront-next/cart/read";
-import type { Cart } from "@skelet/storefront-next/cart/types";
+import type { Cart } from "@skelet/storefront-core/cart/types";
 import type { CheckoutState } from "@skelet/storefront-next/checkout/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { mediaThumb } from "@skelet/storefront-next/media-thumb";
-import { describeAppliedCode, giftSummary } from "@skelet/storefront-next/promotions/applied-code";
+import { displayName } from "@skelet/storefront-core/display";
+import { mediaThumb } from "@skelet/storefront-core/media-thumb";
+import { describeAppliedCode, giftSummary } from "@skelet/storefront-core/promotions/applied-code";
 
 import { CheckoutCoupon } from "./coupon";
 

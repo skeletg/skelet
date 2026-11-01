@@ -10,10 +10,10 @@ import {
 } from "@/app/components/account/AccountUI";
 import { CountrySelect, StateField } from "@/app/components/address/AddressInputs";
 import { addAddressAction, updateAddressAction } from "@skelet/storefront-next/auth/actions";
-import { addressSchema } from "@skelet/storefront-next/auth/schemas";
+import { addressSchema } from "@skelet/storefront-core/auth/schemas";
 import type { AddressFormOptions } from "@skelet/storefront-next/countries/read";
-import { phoneFieldFor } from "@skelet/storefront-next/forms/phone";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { phoneFieldFor } from "@skelet/storefront-core/forms/phone";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export type AddressInitial = {
   firstName?: string;

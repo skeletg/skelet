@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 
 import { Field, FormErrors, buttonPrimary } from "@/app/components/account/AccountUI";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 import { trackOrderAction } from "@skelet/storefront-next/order/actions";
-import { trackOrderSchema } from "@skelet/storefront-next/order/schemas";
+import { trackOrderSchema } from "@skelet/storefront-core/order/schemas";
 
 export function TrackOrderForm({ number, email }: { number?: string; email?: string }) {
   const t = useTranslations("trackOrder");

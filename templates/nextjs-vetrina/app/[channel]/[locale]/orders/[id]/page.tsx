@@ -7,13 +7,13 @@ import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
 import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
-import { displayName } from "@skelet/storefront-next/display";
+import { displayName } from "@skelet/storefront-core/display";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
-import { GuestOrderDocument } from "@skelet/storefront-next/checkout/operations.gql";
+import { GuestOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
 import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
-import { toMajor } from "@skelet/storefront-next/format";
+import { toMajor } from "@skelet/storefront-core/format";
 
 export async function generateMetadata({
   params,

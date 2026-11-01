@@ -8,8 +8,8 @@ import {
   inputClass,
 } from "@/app/components/account/AccountUI";
 import { requestReturnAction } from "@skelet/storefront-next/account/actions";
-import { returnRequestSchema } from "@skelet/storefront-next/account/schemas";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { returnRequestSchema } from "@skelet/storefront-core/account/schemas";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export type ReturnableItem = {
   orderLineId: string;

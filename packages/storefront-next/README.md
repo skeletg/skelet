@@ -1,14 +1,16 @@
 # @skelet/storefront-next
 
-The storefront logic a Next.js template builds on: everything that isn't design. Templates under `templates/` and
-your storefronts under `apps/channels/` import it as `@skelet/storefront-next/<module>`, and it ships as source - Next
-compiles workspace packages itself, so there's no build step.
+The Next.js adapter over `@skelet/storefront-core`. `setup.ts` answers the core's questions about a request the Next way
+- `next/headers`, `next/navigation`, `next/cache`, next-intl, the `[channel]` root param - and every module here
+imports it first, since each server bundle layer keeps its own copy of the core.
 
-One directory per domain - `cart/`, `checkout/`, `auth/`, `customer/`, `locale/`, `channel/` and the rest - each with
-its reads, its server actions and the `*.graphql` operations they run. `graphql.ts` is the server-side client.
+What's left here is what only Next can do:
 
-- **Imports are relative inside the package.** A storefront's `@/` alias would resolve against the storefront.
-- **Codegen is the package's.** `skelet gen` runs `pnpm run codegen` here against the live front schema, writing the
-  `*.gql.ts` beside each `*.graphql` and the shared `graphql/schema.types.ts` - never edit those by hand.
-- **Tests sit beside the code**, plain modules in node and the client providers in jsdom: `pnpm test` here, or
-  `skelet test`, which runs every storefront's and package's.
+- **Server actions** - a `"use server"` module per domain at the path a template imports, each a thin wrapper over the
+  core's action.
+- **Reads** - a module per domain re-exporting the core's, so a template's imports reach them through the setup.
+- **Next-only client code** - the cart provider (next-intl) and the customer provider (`next/navigation`), and the
+  page metadata builder, whose shape is Next's `Metadata`.
+
+Pure helpers come from `@skelet/storefront-core` directly; React hooks with no Next in them from
+`@skelet/storefront-react`.

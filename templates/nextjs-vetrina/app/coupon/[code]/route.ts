@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ApplyCouponDocument } from "@skelet/storefront-next/cart/mutations.gql";
+import { ApplyCouponDocument } from "@skelet/storefront-core/cart/mutations.gql";
 import { getOwnCartId, PROMO_PENDING_COOKIE } from "@skelet/storefront-next/cart/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 

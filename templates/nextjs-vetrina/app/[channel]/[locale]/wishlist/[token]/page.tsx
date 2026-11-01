@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { ProductCard } from "@/app/components/ProductCard";
 import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
-import { SharedWishlistDocument } from "@skelet/storefront-next/wishlist/operations.gql";
+import { SharedWishlistDocument } from "@skelet/storefront-core/wishlist/operations.gql";
 
 export async function generateMetadata({
   params,

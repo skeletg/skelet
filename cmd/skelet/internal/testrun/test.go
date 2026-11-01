@@ -391,6 +391,11 @@ func (t tester) frontend(app, dir, typecheck string, pnpm func(...string) error,
 		if code := run("run", typecheck); code != 0 {
 			return code
 		}
+		// A package that only typechecks - nothing to run after it
+		if !storefronts.HasScript(t.root, dir, "test") {
+			fmt.Printf("==> %s: no unit tests\n", app)
+			return 0
+		}
 		fmt.Printf("==> %s unit tests\n", app)
 		return run("run", "test")
 	}
@@ -407,6 +412,11 @@ func (t tester) frontend(app, dir, typecheck string, pnpm func(...string) error,
 	fmt.Printf("==> %s typecheck\n", app)
 	if code := run("run", typecheck); code != 0 {
 		return code
+	}
+	// A package that only typechecks - nothing to run after it
+	if !storefronts.HasScript(t.root, dir, "test") {
+		fmt.Printf("==> %s: no unit tests\n", app)
+		return 0
 	}
 	if shared {
 		fmt.Printf("==> %s unit tests (a shared package or the workspace changed - all of them)\n", app)

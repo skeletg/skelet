@@ -6,9 +6,9 @@ import type { Block } from "./blocks";
 import { readNumber, readString } from "./blocks";
 import { CmsSection } from "./Section";
 import { listBlogPosts } from "@skelet/storefront-next/blog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatDate } from "@skelet/storefront-next/format";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatDate } from "@skelet/storefront-core/format";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 
 export async function BlogGridBlock({ block }: { block: Block }) {
   const heading = readString(block.props, "heading");

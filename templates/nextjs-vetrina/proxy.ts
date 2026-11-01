@@ -8,14 +8,14 @@ import {
   REFRESH_TOKEN_MAX_AGE,
   isAccessTokenExpiringSoon,
   sessionCookieOptions,
-} from "@skelet/storefront-next/auth/cookies";
+} from "@skelet/storefront-core/auth/cookies";
 import {
   CustomerRefreshTokenDocument,
   type CustomerRefreshTokenMutation,
-} from "@skelet/storefront-next/auth/operations.gql";
-import { buildForwardedCookie } from "@skelet/storefront-next/forwarded-cookie";
-import { BEACON } from "@skelet/storefront-next/beacons/paths";
-import { clientIP } from "@skelet/storefront-next/client-ip";
+} from "@skelet/storefront-core/auth/operations.gql";
+import { buildForwardedCookie } from "@skelet/storefront-core/forwarded-cookie";
+import { BEACON } from "@skelet/storefront-core/beacons/paths";
+import { clientIP } from "@skelet/storefront-core/client-ip";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -120,11 +120,11 @@ async function maybeRefreshSession(req: NextRequest, channelId: string): Promise
 // --- Locale routing ---
 // The channel's locale set comes from the backend (the package's locale/backend-locales), shared with the
 // render path so there is exactly one place that knows which languages exist
-import { getChannelLocales } from "@skelet/storefront-next/locale/backend-locales";
-import { BACKEND_INTERNAL_URL } from "@skelet/storefront-next/backend-url";
-import { CHANNEL_HEADER, WARM_CHANNEL_HEADER, channelForHost, isChannelId } from "@skelet/storefront-next/channel";
-import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@skelet/storefront-next/channel-routing";
-import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-next/rewrite-mark";
+import { getChannelLocales } from "@skelet/storefront-core/locale/backend-locales";
+import { BACKEND_INTERNAL_URL } from "@skelet/storefront-core/backend-url";
+import { CHANNEL_HEADER, WARM_CHANNEL_HEADER, channelForHost, isChannelId } from "@skelet/storefront-core/channel";
+import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@skelet/storefront-core/channel-routing";
+import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-core/rewrite-mark";
 
 // A rewrite, not a redirect: the /<channel>/<locale>/ path is the cache key and the browser keeps the clean url
 async function channelRewrite(req: NextRequest, channelId: string): Promise<URL | null> {

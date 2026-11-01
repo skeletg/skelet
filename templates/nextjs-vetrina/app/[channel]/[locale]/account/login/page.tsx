@@ -8,7 +8,7 @@ import {
   FormSuccess,
 } from "@/app/components/account/AccountUI";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
-import { safeReturnTo } from "@skelet/storefront-next/auth/return-to";
+import { safeReturnTo } from "@skelet/storefront-core/auth/return-to";
 import { LoginForm } from "@/app/components/auth/LoginForm";
 
 export async function generateMetadata({

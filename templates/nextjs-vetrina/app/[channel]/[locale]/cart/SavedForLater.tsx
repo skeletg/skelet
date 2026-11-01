@@ -9,9 +9,9 @@ import {
   saveForLaterAction,
 } from "@skelet/storefront-next/cart/actions";
 import { useCartStore } from "@skelet/storefront-next/cart/store";
-import { displayName } from "@skelet/storefront-next/display";
-import type { SavedItem } from "@skelet/storefront-next/cart/types";
-import { mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { displayName } from "@skelet/storefront-core/display";
+import type { SavedItem } from "@skelet/storefront-core/cart/types";
+import { mediaThumb } from "@skelet/storefront-core/media-thumb";
 
 export function SaveForLaterButton({ lineId }: { lineId: string }) {
   const t = useTranslations("cart.saved");

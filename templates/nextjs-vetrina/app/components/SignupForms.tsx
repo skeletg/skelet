@@ -10,11 +10,11 @@ import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
 import { submitSignupAction } from "@skelet/storefront-next/beacons/actions";
-import { beaconFetch } from "@skelet/storefront-next/beacons/client";
-import { BEACON } from "@skelet/storefront-next/beacons/paths";
-import { signupSchema } from "@skelet/storefront-next/beacons/schemas";
-import { readCookie } from "@skelet/storefront-next/cookies";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { beaconFetch } from "@skelet/storefront-core/beacons/client";
+import { BEACON } from "@skelet/storefront-core/beacons/paths";
+import { signupSchema } from "@skelet/storefront-core/beacons/schemas";
+import { readCookie } from "@skelet/storefront-core/cookies";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 type Display = {
   trigger: string;

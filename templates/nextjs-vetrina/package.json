@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^10.71.0",
+    "@skelet/storefront-core": "workspace:*",
     "@skelet/storefront-next": "workspace:*",
+    "@skelet/storefront-react": "workspace:*",
     "graphql": "catalog:",
     "lucide-react": "^1.34.0",
     "next": "catalog:",

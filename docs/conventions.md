@@ -206,14 +206,23 @@ convention is the one most code comments point at.
   `templates/nextjs-vetrina/node_modules/next/dist/docs/` before writing code;
   APIs, conventions, and file layout differ from older versions. Heed
   deprecation notices.
-- **Logic in the package, design in the template.** What a storefront
+- **Logic in the packages, design in the template.** What a storefront
   does - the GraphQL client and operations, auth, cart, checkout, channel
-  and locale resolution - is `packages/storefront-next`, imported as
-  `@skelet/storefront-next/<module>`. A template keeps its pages,
-  components and styles, so a fork changes how it looks without taking
-  on code that upstream keeps fixing. Inside the package imports are
-  relative - a storefront's `@/` alias would resolve against the storefront.
-- **Server-only GraphQL.** The package's `graphql.ts` is RSC/route-handler
+  and locale resolution - is `packages/storefront-core`, with no framework
+  in it. A template keeps its pages, components and styles, so a fork
+  changes how it looks without taking on code that upstream keeps fixing.
+  Inside a package imports are relative - a storefront's `@/` alias would
+  resolve against the storefront.
+- **The core asks the request it runs in.** Cookies, headers, locale,
+  channel, a cache-aware fetch, redirects and revalidation go through
+  `request()` (`storefront-core/request.ts`), never `next/*` - `skelet check`
+  fails on a framework import in the core. `storefront-next/setup.ts`
+  answers it the Next way; a Next template imports reads and server
+  actions from `@skelet/storefront-next/<module>`, whose modules load that
+  setup, and pure helpers from `@skelet/storefront-core/<module>`. Reads
+  memoize per request with `perRequest`, not React's `cache`. A test
+  answers `request()` with `useTestRequest` from `storefront-core/testing.ts`.
+- **Server-only GraphQL.** The core's `graphql.ts` is RSC/route-handler
   only - the browser can't reach `BACKEND_INTERNAL_URL`. If you need
   client-side data, expose it via a Next.js route handler instead of
   leaking the internal URL into the client bundle.
@@ -222,14 +231,14 @@ convention is the one most code comments point at.
   `cache: "no-store"` - every request hits the backend. Don't introduce
   Full Route Cache / ISR without a deliberate per-route decision.
 - **Operations are colocated.** `*.graphql` files live next to their
-  consumers in the package; codegen produces `*.gql.ts` siblings. The
-  shared baseline is the package's `graphql/schema.types.ts` (DO NOT EDIT).
+  consumers in the core; codegen produces `*.gql.ts` siblings. The
+  shared baseline is the core's `graphql/schema.types.ts` (DO NOT EDIT).
 - **Channel + locale are server-resolved.** `getChannel()`
   (`channel/read.ts`) and
   `getCurrentLocale()`/`getCurrentChannelId()` (`locale/read.ts`)
   are the source of truth; pass results down via the `ChannelProvider`
   for client components.
-- **JWT in cookies, not localStorage.** The package's `auth/` reads
+- **JWT in cookies, not localStorage.** The core's `auth/` reads
   customer tokens from the cookie store; `gqlFetch` attaches
   `Authorization: Bearer <token>` automatically when present.
 - **URL routing is backend-driven.** The catch-all `[...slug]` route

@@ -18,12 +18,12 @@ import CollectionPage, { generateMetadata as collectionMetadata } from "@/app/[c
 import ProductPage, { generateMetadata as productMetadata } from "@/app/[channel]/[locale]/products/[id]/ProductView";
 import { blogTaxonomyHrefById, getBlogPostById } from "@skelet/storefront-next/blog/read";
 import { getCategory, getCollection } from "@skelet/storefront-next/catalog/read";
-import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
+import { categoryHref, collectionHref } from "@skelet/storefront-core/entity-href";
 import { getCMSPage, getHomePage, type CMSPage } from "@skelet/storefront-next/cms/read";
 import { cmsPageMetadata } from "@skelet/storefront-next/seo-metadata";
-import { displayName } from "@skelet/storefront-next/display";
-import { PAGE_MARKER, splitSlug } from "@skelet/storefront-next/filter-path";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { displayName } from "@skelet/storefront-core/display";
+import { PAGE_MARKER, splitSlug } from "@skelet/storefront-core/filter-path";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
@@ -33,7 +33,7 @@ import { CmsBlocks } from "@/app/components/cms/CmsBlocks";
 import { parseDocument } from "@/app/components/cms/blocks";
 import { JsonLd } from "@/app/components/JsonLd";
 import { CmsVariantPicker } from "@/app/components/cms/CmsVariantPicker";
-import { cmsPageJsonLd, breadcrumbJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@skelet/storefront-next/json-ld";
+import { cmsPageJsonLd, breadcrumbJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@skelet/storefront-core/json-ld";
 
 type DelegatePage = (props: {
   params: Promise<Record<string, string | string[] | undefined>>;

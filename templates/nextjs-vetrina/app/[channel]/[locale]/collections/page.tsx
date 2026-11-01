@@ -4,9 +4,9 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { listCollections } from "@skelet/storefront-next/catalog/read";
-import { displayName, MISSING_NAME } from "@skelet/storefront-next/display";
-import { collectionHref } from "@skelet/storefront-next/entity-href";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { displayName, MISSING_NAME } from "@skelet/storefront-core/display";
+import { collectionHref } from "@skelet/storefront-core/entity-href";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 import { localizedAlternates } from "@skelet/storefront-next/locale/alternates";
 
 export async function generateMetadata({

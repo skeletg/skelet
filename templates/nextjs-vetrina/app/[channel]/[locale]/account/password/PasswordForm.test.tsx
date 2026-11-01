@@ -2,8 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { changePasswordSchema } from "@skelet/storefront-next/auth/schemas";
-import { parseForm, replyReset, type FormResult } from "@skelet/storefront-next/forms/schema";
+import { changePasswordSchema } from "@skelet/storefront-core/auth/schemas";
+import { parseForm, replyReset, type FormResult } from "@skelet/storefront-core/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 // Accepts any submission that passes the schema, the way the real action answers a successful change

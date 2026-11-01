@@ -6,7 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { videoEmbedUrl } from "@skelet/storefront-next/video-embed";
+import { videoEmbedUrl } from "@skelet/storefront-core/video-embed";
 import {
   lexicalBlocks,
   IS_BOLD,
@@ -33,7 +33,7 @@ import {
   type SpecsTableData,
   type ImageTextData,
   type BlockNode,
-} from "@skelet/storefront-next/lexical";
+} from "@skelet/storefront-core/lexical";
 
 /**
  * LexicalRichText renders a Lexical SerializedEditorState (or plain

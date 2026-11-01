@@ -11,19 +11,19 @@ import {
   type ProductDetail,
 } from "@skelet/storefront-next/catalog/read";
 import { absUrl } from "@skelet/storefront-next/sitemap/read";
-import { displayName } from "@skelet/storefront-next/display";
+import { displayName } from "@skelet/storefront-core/display";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { priceCurrency, toMajor } from "@skelet/storefront-next/format";
-import { categoryHref, productHref } from "@skelet/storefront-next/entity-href";
+import { priceCurrency, toMajor } from "@skelet/storefront-core/format";
+import { categoryHref, productHref } from "@skelet/storefront-core/entity-href";
 import { getSignalsEnabled, getVariantOwnUrl } from "@skelet/storefront-next/config/read";
-import { productJsonLd, breadcrumbJsonLd } from "@skelet/storefront-next/json-ld";
+import { productJsonLd, breadcrumbJsonLd } from "@skelet/storefront-core/json-ld";
 import { getProductWithReviews } from "@skelet/storefront-next/reviews/read";
 import { RecordView, RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { ProductCard } from "@/app/components/ProductCard";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
-import { lexicalSummary } from "@skelet/storefront-next/lexical";
+import { lexicalSummary } from "@skelet/storefront-core/lexical";
 import { ReviewsSection } from "./ReviewsSection";
 import { ReviewStateProvider } from "./ReviewStateProvider";
 import { QnaSection } from "./QnaSection";

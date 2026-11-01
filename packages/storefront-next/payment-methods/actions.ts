@@ -1,52 +1,14 @@
 "use server";
+import "../setup";
 
-import { revalidateAccount } from "../revalidate";
-import { redirect } from "next/navigation";
-import { withLocalePrefix } from "../locale/path";
-import { getCurrentLocale } from "../locale/read";
+import * as core from "@skelet/storefront-core/payment-methods/actions";
 
-import { gqlFetch } from "../graphql";
-import {
-  DeleteMyPaymentMethodDocument,
-  MyPaymentMethodsDocument,
-} from "./operations.gql";
+export type * from "@skelet/storefront-core/payment-methods/actions";
 
-const PAYMENT_METHODS_PAGE = "/account/payment-methods";
-
-export type SavedPaymentMethod = {
-  id: string;
-  providerSlug: string;
-  brand: string;
-  last4: string;
-  expMonth: number;
-  expYear: number;
-};
-
-export async function getMyPaymentMethods(): Promise<SavedPaymentMethod[]> {
-  try {
-    const res = await gqlFetch(MyPaymentMethodsDocument, {});
-    return res.data.myPaymentMethods;
-  } catch {
-    return [];
-  }
+export async function getMyPaymentMethods(...args: Parameters<typeof core.getMyPaymentMethods>) {
+  return core.getMyPaymentMethods(...args);
 }
 
-// Saving a card needs a gateway plugin to tokenize it in the browser first, so the
-// vaulting action went with the plugins - the list and delete paths stay
-export async function deletePaymentMethodAction(
-  formData: FormData,
-): Promise<void> {
-  const id = String(formData.get("id") ?? "");
-  if (!id) return;
-  let ok = true;
-  try {
-    await gqlFetch(DeleteMyPaymentMethodDocument, { id });
-  } catch (err) {
-    // A card that silently refuses to go is the sort of thing people re-click forever
-     
-    console.error("payment method delete failed:", err);
-    ok = false;
-  }
-  revalidateAccount();
-  redirect(await withLocalePrefix(ok ? PAYMENT_METHODS_PAGE : `${PAYMENT_METHODS_PAGE}?error=delete`, await getCurrentLocale()));
+export async function deletePaymentMethodAction(...args: Parameters<typeof core.deletePaymentMethodAction>) {
+  return core.deletePaymentMethodAction(...args);
 }

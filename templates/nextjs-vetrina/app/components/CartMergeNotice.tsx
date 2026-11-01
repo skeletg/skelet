@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { CART_MERGE_FAILED, CART_MERGE_FLAG } from "@skelet/storefront-next/cart/merge-flag";
+import { CART_MERGE_FAILED, CART_MERGE_FLAG } from "@skelet/storefront-core/cart/merge-flag";
 
 export function CartMergeNotice() {
   const [show, setShow] = useState(false);

@@ -2,8 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { addressSchema } from "@skelet/storefront-next/auth/schemas";
-import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
+import { addressSchema } from "@skelet/storefront-core/auth/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-core/forms/schema";
 import { localeLinkMock } from "@/app/test/locale-link-mock";
 import { renderWithIntl } from "@/app/test/render";
 

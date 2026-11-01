@@ -12,7 +12,7 @@ import {
 } from "@/app/components/account/AccountUI";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
-import { MyDownloadsDocument } from "@skelet/storefront-next/customer/operations.gql";
+import { MyDownloadsDocument } from "@skelet/storefront-core/customer/operations.gql";
 
 export async function generateMetadata({
   params,

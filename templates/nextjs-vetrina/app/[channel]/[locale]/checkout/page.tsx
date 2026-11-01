@@ -5,14 +5,14 @@ import { redirect } from "next/navigation";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { CheckoutCartProvider } from "@/app/components/offer/CheckoutCartContext";
-import { checkoutHref } from "@skelet/storefront-next/checkout/path";
+import { checkoutHref } from "@skelet/storefront-core/checkout/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { formatPrice, getFreeShippingThreshold } from "@skelet/storefront-next/cart/read";
 import { getCheckoutCart } from "@skelet/storefront-next/cart/offer";
-import { offerLocks, type CartOfferLock } from "@skelet/storefront-next/cart/types";
+import { offerLocks, type CartOfferLock } from "@skelet/storefront-core/cart/types";
 import { OwnCartLink } from "@/app/components/offer/LeaveOfferCheckout";
-import { detailsAsks } from "@skelet/storefront-next/checkout/asks";
-import { choiceKey, choiceLabel } from "@skelet/storefront-next/checkout/choice";
+import { detailsAsks } from "@skelet/storefront-core/checkout/asks";
+import { choiceKey, choiceLabel } from "@skelet/storefront-core/checkout/choice";
 import {
   getCheckoutState,
   getDeliveryPoints,
@@ -20,16 +20,16 @@ import {
   type CheckoutState,
   type DeliveryPointsResult,
 } from "@skelet/storefront-next/checkout/read";
-import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-next/checkout/business-ids";
-import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-next/checkout/step";
+import { businessIdFieldsFor, companyCountry } from "@skelet/storefront-core/checkout/business-ids";
+import { activeStep, arrivalLabels, businessComplete, progressOf, stepsFor, stepStatus } from "@skelet/storefront-core/checkout/step";
 import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
 import { getCountries, getCountrySettings, getRegionsByCountry, getPhoneSettings } from "@skelet/storefront-next/countries/read";
 import { getCheckoutSettings, getGuestCheckoutAllowed } from "@skelet/storefront-next/config/read";
-import { displayName } from "@skelet/storefront-next/display";
+import { displayName } from "@skelet/storefront-core/display";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { getMyPaymentMethods } from "@skelet/storefront-next/payment-methods/actions";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { toMajor } from "@skelet/storefront-next/format";
+import { toMajor } from "@skelet/storefront-core/format";
 
 import { DeliveryStep, type LineInfo } from "./delivery-step";
 import { DetailsStep } from "./details-step";

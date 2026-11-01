@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ProductsByIdsDocument } from "@skelet/storefront-next/catalog/operations.gql";
+import { ProductsByIdsDocument } from "@skelet/storefront-core/catalog/operations.gql";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function GET(req: NextRequest) {

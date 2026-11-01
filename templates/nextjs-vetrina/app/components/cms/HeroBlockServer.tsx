@@ -2,8 +2,8 @@ import type { Block } from "./blocks";
 import { readString } from "./blocks";
 import { HeroBlock } from "./HeroBlock";
 import type { HeroChip } from "./HeroBlock";
-import { displayName } from "@skelet/storefront-next/display";
-import { categoryHref } from "@skelet/storefront-next/entity-href";
+import { displayName } from "@skelet/storefront-core/display";
+import { categoryHref } from "@skelet/storefront-core/entity-href";
 import { loadHeader } from "@skelet/storefront-next/header/read";
 
 export async function HeroBlockServer({ block }: { block: Block }) {

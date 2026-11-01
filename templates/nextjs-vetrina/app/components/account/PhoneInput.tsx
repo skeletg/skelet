@@ -2,7 +2,7 @@
 
 import type { FormEvent, InputHTMLAttributes } from "react";
 
-import { callingCode, formatAsTyped, formatPhone, formatPhoneNational, type PhoneFieldSetup } from "@skelet/storefront-next/forms/phone";
+import { callingCode, formatAsTyped, formatPhone, formatPhoneNational, type PhoneFieldSetup } from "@skelet/storefront-core/forms/phone";
 
 // A stored E.164 number shows international - or at home, beside a locked store's fixed prefix
 function formatStored(value: string, lockedCountry: string): string {

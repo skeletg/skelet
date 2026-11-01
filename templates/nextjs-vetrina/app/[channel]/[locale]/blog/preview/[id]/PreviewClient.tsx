@@ -5,11 +5,11 @@
 
 import { useEffect, useState } from "react";
 
-import { displayName } from "@skelet/storefront-next/display";
-import { formatDate } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatDate } from "@skelet/storefront-core/format";
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent, lexicalPlainText } from "@skelet/storefront-next/lexical";
-import { DASHBOARD_ORIGIN } from "@skelet/storefront-next/dashboard-origin";
+import { lexicalHasContent, lexicalPlainText } from "@skelet/storefront-core/lexical";
+import { DASHBOARD_ORIGIN } from "@skelet/storefront-core/dashboard-origin";
 
 type PreviewPost = {
   id: string;

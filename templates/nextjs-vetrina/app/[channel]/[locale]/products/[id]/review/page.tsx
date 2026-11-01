@@ -6,7 +6,7 @@ import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { getProduct } from "@skelet/storefront-next/catalog/read";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
-import { productHref } from "@skelet/storefront-next/entity-href";
+import { productHref } from "@skelet/storefront-core/entity-href";
 import { loadMyReviewState } from "@skelet/storefront-next/reviews/actions-client";
 import { getProductWithReviews } from "@skelet/storefront-next/reviews/read";
 import { ReviewForm } from "./ReviewForm";

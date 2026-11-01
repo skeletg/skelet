@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 
-import { formatPrice, type CurrencyInfo } from "@skelet/storefront-next/format";
-import type { CartLineOption } from "@skelet/storefront-next/cart/types";
+import { formatPrice, type CurrencyInfo } from "@skelet/storefront-core/format";
+import type { CartLineOption } from "@skelet/storefront-core/cart/types";
 
 // Shared "optionTitle: value" summary for a configured cart line - the cart page, the
 // drawer, and the checkout review all show the same picks

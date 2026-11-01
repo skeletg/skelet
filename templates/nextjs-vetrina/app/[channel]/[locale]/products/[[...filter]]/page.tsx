@@ -18,7 +18,7 @@ import {
   isSortUrlIndexable,
   parseFilterSegments,
   parseSortFromSegments,
-} from "@skelet/storefront-next/filter-path";
+} from "@skelet/storefront-core/filter-path";
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 

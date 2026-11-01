@@ -4,8 +4,8 @@ import { useTranslations } from "next-intl";
 
 import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
 import type { HeaderCategory, HeaderCollection } from "@skelet/storefront-next/header/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
+import { displayName } from "@skelet/storefront-core/display";
+import { categoryHref, collectionHref } from "@skelet/storefront-core/entity-href";
 
 export function PromoMosaic({
   deals,

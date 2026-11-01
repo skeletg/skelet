@@ -2,7 +2,7 @@ import { useTranslations } from "next-intl";
 
 import type { Block } from "./blocks";
 import { readString } from "./blocks";
-import { videoEmbedUrl } from "@skelet/storefront-next/video-embed";
+import { videoEmbedUrl } from "@skelet/storefront-core/video-embed";
 
 export function VideoBlock({ block }: { block: Block }) {
   const t = useTranslations("cms");

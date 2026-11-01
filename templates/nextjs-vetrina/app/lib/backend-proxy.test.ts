@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { PROXIED_PREFIXES, proxyToBackend } from "@skelet/storefront-next/backend-proxy";
+import { PROXIED_PREFIXES, proxyToBackend } from "@skelet/storefront-core/backend-proxy";
 
 type Seen = { method: string; url: string; headers: IncomingMessage["headers"]; body: string };
 

@@ -2,7 +2,7 @@
 // toolbar button rather than the "Custom Blocks" menu, so this registers a node but no entry
 //
 // SYNC: SerializedProductImageNode is mirrored in
-// packages/storefront-next/lexical.ts - renaming a field here without
+// packages/storefront-core/lexical.ts - renaming a field here without
 // updating the channel silently breaks blog post rendering
 
 import { DecoratorNode, type NodeKey } from 'lexical'

@@ -169,7 +169,7 @@ dashboard, so treat every schema/query change as "must regenerate":
 3. **`*.graphql` in `apps/dashboard/src/features/<domain>/`** →
    `skelet pnpm dashboard run codegen` (backend must be running - codegen fetches
    the live admin schema over HTTP).
-4. **`*.graphql` in `packages/storefront-next/`**, beside the module that runs them → `skelet gen`,
+4. **`*.graphql` in `packages/storefront-core/`**, beside the module that runs them → `skelet gen`,
    which runs the package's codegen in a storefront's container (backend must be running - codegen
    fetches the live front schema at `app:8080/api/front/graphql`). A storefront with operations of its
    own gives itself a `codegen` script, and `skelet gen` runs that too.

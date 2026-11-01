@@ -7,11 +7,11 @@ import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
 import { getResolvedConsent } from "@skelet/storefront-next/consent/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatPrice, toMajor } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatPrice, toMajor } from "@skelet/storefront-core/format";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { gqlFetch, isBackendFailure } from "@skelet/storefront-next/graphql";
-import { MyOrderDocument } from "@skelet/storefront-next/checkout/operations.gql";
+import { MyOrderDocument } from "@skelet/storefront-core/checkout/operations.gql";
 import { ReorderButton } from "@/app/[channel]/[locale]/account/orders/ReorderButton";
 import { ReturnRequestForm, type ReturnableItem } from "@/app/[channel]/[locale]/account/orders/ReturnRequestForm";
 

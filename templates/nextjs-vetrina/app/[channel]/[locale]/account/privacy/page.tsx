@@ -8,7 +8,7 @@ import { getTranslations } from "next-intl/server";
 import { AccountPageHeader } from "@/app/components/account/AccountUI";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { supportEmailFrom } from "@skelet/storefront-next/channel/support";
+import { supportEmailFrom } from "@skelet/storefront-core/channel/support";
 
 export async function generateMetadata({
   params,

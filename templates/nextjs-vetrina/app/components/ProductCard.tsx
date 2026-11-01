@@ -5,10 +5,10 @@ import { Link } from "@/app/components/LocaleLink";
 
 
 import type { ProductSummary } from "@skelet/storefront-next/catalog/read";
-import { mediaSrcSet, mediaThumb } from "@skelet/storefront-next/media-thumb";
-import { displayName } from "@skelet/storefront-next/display";
-import { productHref } from "@skelet/storefront-next/entity-href";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { mediaSrcSet, mediaThumb } from "@skelet/storefront-core/media-thumb";
+import { displayName } from "@skelet/storefront-core/display";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { productImageTransitionName } from "@/app/lib/view-transition";
 import { AddToCartForm } from "./AddToCartForm";
 import { RatingStars } from "./RatingStars";

@@ -7,7 +7,7 @@ import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
 import { cartEstimateAction, type CartEstimate } from "@skelet/storefront-next/cart/actions";
-import { formatPrice, type CurrencyInfo } from "@skelet/storefront-next/format";
+import { formatPrice, type CurrencyInfo } from "@skelet/storefront-core/format";
 
 export function CartEstimator({
   currency,

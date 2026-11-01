@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 
-import { formatPrice, type CurrencyInfo } from "@skelet/storefront-next/format";
+import { formatPrice, type CurrencyInfo } from "@skelet/storefront-core/format";
 
 export function FreeShippingBar({
   subtotal,

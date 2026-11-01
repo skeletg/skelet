@@ -5,10 +5,10 @@ import { TagIcon } from "lucide-react";
 
 import { AccountCard, AccountPageHeader, EmptyState } from "@/app/components/account/AccountUI";
 import { openAccountOffer } from "@skelet/storefront-next/cart/offer-actions";
-import { MyCartOffersDocument, type MyCartOffersQuery } from "@skelet/storefront-next/cart/offer.gql";
+import { MyCartOffersDocument, type MyCartOffersQuery } from "@skelet/storefront-core/cart/offer.gql";
 import { getChannel } from "@skelet/storefront-next/channel/read";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 

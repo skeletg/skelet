@@ -8,11 +8,11 @@ import { getAccessToken } from "@skelet/storefront-next/auth/session";
 import { continueOfferCheckout, removeOfferLine, updateOfferLine } from "@skelet/storefront-next/cart/offer-actions";
 import { getOfferSession, readOffer } from "@skelet/storefront-next/cart/offer";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
-import { offerLocks, type CartOfferLock } from "@skelet/storefront-next/cart/types";
+import { offerLocks, type CartOfferLock } from "@skelet/storefront-core/cart/types";
 import { getChannel } from "@skelet/storefront-next/channel/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatPrice } from "@skelet/storefront-next/format";
-import { mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatPrice } from "@skelet/storefront-core/format";
+import { mediaThumb } from "@skelet/storefront-core/media-thumb";
 
 export async function generateMetadata({ params }: PageProps<"/[channel]/[locale]/cart/offer">): Promise<Metadata> {
   const { locale } = await params;

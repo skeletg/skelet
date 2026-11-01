@@ -8,7 +8,7 @@ import {
   useCartStore,
   type PendingRemoval,
 } from "@skelet/storefront-next/cart/store";
-import { displayName } from "@skelet/storefront-next/display";
+import { displayName } from "@skelet/storefront-core/display";
 
 const EXIT_MS = 220;
 

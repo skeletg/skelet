@@ -37,8 +37,8 @@ import {
   redeemLoyaltyPointsAction,
 } from "@skelet/storefront-next/loyalty/actions";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
-import { MyOrdersDocument } from "@skelet/storefront-next/checkout/operations.gql";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { MyOrdersDocument } from "@skelet/storefront-core/checkout/operations.gql";
+import { formatPrice } from "@skelet/storefront-core/format";
 
 export async function generateMetadata({
   params,

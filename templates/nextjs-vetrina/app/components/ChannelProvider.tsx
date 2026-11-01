@@ -4,7 +4,7 @@
 
 import { createContext, useContext } from "react";
 
-import type { Channel } from "@skelet/storefront-next/channel/types";
+import type { Channel } from "@skelet/storefront-core/channel/types";
 
 const ChannelContext = createContext<Channel | null>(null);
 

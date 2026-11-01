@@ -9,8 +9,8 @@ import {
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
 import { changePasswordAction } from "@skelet/storefront-next/auth/actions";
-import { changePasswordSchema } from "@skelet/storefront-next/auth/schemas";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { changePasswordSchema } from "@skelet/storefront-core/auth/schemas";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export function PasswordForm() {
   const t = useTranslations("account.password");

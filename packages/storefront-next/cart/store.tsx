@@ -17,7 +17,7 @@ import {
   useState,
 } from "react";
 
-import type { Cart, CartLine } from "./types";
+import type { Cart, CartLine } from "@skelet/storefront-core/cart/types";
 import {
   clearCart as clearCartAction,
   loadCartAction,

@@ -12,11 +12,11 @@ import {
   EmptyState,
 } from "@/app/components/account/AccountUI";
 import { PaymentChip, StatusChip, humanizeStatus } from "@/app/components/account/StatusChip";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { getChannel } from "@skelet/storefront-next/channel/read";
 import { gqlFetch, loadErrorMessage } from "@skelet/storefront-next/graphql";
-import { MyOrdersDocument } from "@skelet/storefront-next/checkout/operations.gql";
+import { MyOrdersDocument } from "@skelet/storefront-core/checkout/operations.gql";
 
 export async function generateMetadata({
   params,

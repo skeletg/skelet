@@ -2,7 +2,7 @@
 
 import { LensTracker } from "@/app/components/LensTracker";
 import { LensReplay } from "@/app/components/LensReplay";
-import { useMarketingConsent } from "@skelet/storefront-next/consent/use-consent";
+import { useMarketingConsent } from "@skelet/storefront-react/consent/use-consent";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 
 // Consent and identity resolve in the browser so the layout reads no cookie - off until then, which is the right GDPR default anyway

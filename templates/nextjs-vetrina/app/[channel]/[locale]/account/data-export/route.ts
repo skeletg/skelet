@@ -7,7 +7,7 @@ import { getLocale } from "next-intl/server";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { getAccessToken } from "@skelet/storefront-next/auth/session";
-import { MyDataExportDocument } from "@skelet/storefront-next/customer/operations.gql";
+import { MyDataExportDocument } from "@skelet/storefront-core/customer/operations.gql";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function GET() {

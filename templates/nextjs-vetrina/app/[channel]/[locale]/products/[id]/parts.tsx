@@ -7,7 +7,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { ArrowUp, Check, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 
 import type { ProductAttributeValue } from "@skelet/storefront-next/catalog/read";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 
 // Interactive gallery lives in a "use client" file so the SSR'd server components can
 // still import + render it as a child

@@ -5,8 +5,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { CompareButton } from "@/app/components/CompareButton";
 import { QtySelector } from "@/app/components/QtySelector";
 import { RatingStars } from "@/app/components/RatingStars";

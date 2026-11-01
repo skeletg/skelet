@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { ViewTransition, type ReactNode } from "react";
 
-import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@skelet/storefront-next/analytics/recording-policy";
+import { RECORDING_BLOCK_CLASS, isPrivateRecordingPath } from "@skelet/storefront-core/analytics/recording-policy";
 
 // Load-more walks /pg/2, /pg/3 onto the same listing and appends to it, so that suffix is not a
 // route change - fading there would flicker rows the shopper is already reading

@@ -1,7 +1,7 @@
 import type { Block } from "./blocks";
 import { readString } from "./blocks";
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent } from "@skelet/storefront-next/lexical";
+import { lexicalHasContent } from "@skelet/storefront-core/lexical";
 
 const TONES: Record<string, { frame: string; title: string }> = {
   info: { frame: "border-sky-400/50 bg-sky-50 dark:bg-sky-950/30", title: "text-sky-900 dark:text-sky-200" },

@@ -4,13 +4,13 @@ import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 import type { ReviewQuestionWire } from "@skelet/storefront-next/reviews/read";
 import {
   requestReviewMediaUploadAction,
   submitReviewAction,
 } from "@skelet/storefront-next/reviews/actions";
-import { reviewSchema } from "@skelet/storefront-next/reviews/schemas";
+import { reviewSchema } from "@skelet/storefront-core/reviews/schemas";
 
 type MediaItem =
   | { kind: "uploading"; key: string; filename: string }

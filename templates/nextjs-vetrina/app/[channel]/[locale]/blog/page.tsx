@@ -12,8 +12,8 @@ import {
   getBlogTaxonomy,
   listBlogPosts,
 } from "@skelet/storefront-next/blog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatDate } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatDate } from "@skelet/storefront-core/format";
 import { searchBlogPosts } from "@skelet/storefront-next/search/read";
 
 type SearchParams = {

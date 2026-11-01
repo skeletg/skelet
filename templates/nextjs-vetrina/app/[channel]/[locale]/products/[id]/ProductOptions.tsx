@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useErrorText } from "@/app/components/account/AccountUI";
 
-import { displayName } from "@skelet/storefront-next/display";
+import { displayName } from "@skelet/storefront-core/display";
 import type {
   ProductCustomOption,
   ProductCustomOptionValue,

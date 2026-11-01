@@ -15,14 +15,14 @@ import {
   getBlogPost,
   getBlogTaxonomy,
 } from "@skelet/storefront-next/blog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatDate } from "@skelet/storefront-next/format";
-import { blogPostHref } from "@skelet/storefront-next/entity-href";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatDate } from "@skelet/storefront-core/format";
+import { blogPostHref } from "@skelet/storefront-core/entity-href";
 import { absUrl } from "@skelet/storefront-next/sitemap/read";
-import { blogPostingJsonLd, breadcrumbJsonLd } from "@skelet/storefront-next/json-ld";
+import { blogPostingJsonLd, breadcrumbJsonLd } from "@skelet/storefront-core/json-ld";
 import { canonicalPathMapper } from "@skelet/storefront-next/locale/alternates";
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent, lexicalPlainText, lexicalSummary } from "@skelet/storefront-next/lexical";
+import { lexicalHasContent, lexicalPlainText, lexicalSummary } from "@skelet/storefront-core/lexical";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/[slug]">,

@@ -13,8 +13,8 @@ import {
   listBlogPostsBy,
   parseBlogPage,
 } from "@skelet/storefront-next/blog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { displayName } from "@skelet/storefront-core/display";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/tag/[slug]">,

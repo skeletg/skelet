@@ -10,10 +10,10 @@ import {
   getBlogTaxonomy,
   type BlogPostSummary,
 } from "@skelet/storefront-next/blog/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { blogPostHref } from "@skelet/storefront-next/entity-href";
-import { formatDate } from "@skelet/storefront-next/format";
-import { renderJsonText } from "@skelet/storefront-next/json-text";
+import { displayName } from "@skelet/storefront-core/display";
+import { blogPostHref } from "@skelet/storefront-core/entity-href";
+import { formatDate } from "@skelet/storefront-core/format";
+import { renderJsonText } from "@skelet/storefront-core/json-text";
 
 export async function BlogPostList({
   posts,

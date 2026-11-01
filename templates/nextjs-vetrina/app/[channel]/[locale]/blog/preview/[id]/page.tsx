@@ -2,7 +2,7 @@
 
 import { notFound } from "next/navigation";
 
-import { PreviewBlogPostDocument } from "@skelet/storefront-next/blog/operations.gql";
+import { PreviewBlogPostDocument } from "@skelet/storefront-core/blog/operations.gql";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 import { PreviewClient } from "./PreviewClient";

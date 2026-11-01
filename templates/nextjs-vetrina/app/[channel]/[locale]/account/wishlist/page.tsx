@@ -15,7 +15,7 @@ import { gqlFetch } from "@skelet/storefront-next/graphql";
 import {
   MyWishlistDocument,
   MyWishlistShareTokenDocument,
-} from "@skelet/storefront-next/wishlist/operations.gql";
+} from "@skelet/storefront-core/wishlist/operations.gql";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { MoveToCartButton } from "./MoveToCartButton";
 import type { ProductSummary } from "@skelet/storefront-next/catalog/read";

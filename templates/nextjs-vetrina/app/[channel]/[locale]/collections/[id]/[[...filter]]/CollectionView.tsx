@@ -10,8 +10,8 @@ import { ProductListShell } from "@/app/components/ProductListShell";
 import { getCollection, productSortOptions } from "@skelet/storefront-next/catalog/read";
 import { listingIndexability } from "@skelet/storefront-next/catalog/indexability";
 import { getSeoConfig } from "@skelet/storefront-next/config/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { collectionHref } from "@skelet/storefront-next/entity-href";
+import { displayName } from "@skelet/storefront-core/display";
+import { collectionHref } from "@skelet/storefront-core/entity-href";
 import {
   isPagedUrlIndexable,
   parsePageFromSegments,
@@ -20,11 +20,11 @@ import {
   isSortUrlIndexable,
   parseFilterSegments,
   parseSortFromSegments,
-} from "@skelet/storefront-next/filter-path";
-import { breadcrumbJsonLd } from "@skelet/storefront-next/json-ld";
+} from "@skelet/storefront-core/filter-path";
+import { breadcrumbJsonLd } from "@skelet/storefront-core/json-ld";
 
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent } from "@skelet/storefront-next/lexical";
+import { lexicalHasContent } from "@skelet/storefront-core/lexical";
 
 export async function generateMetadata(
   props: {

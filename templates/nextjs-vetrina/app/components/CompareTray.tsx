@@ -11,8 +11,8 @@ import {
   clearCompare,
   removeFromCompare,
   useCompareIds,
-} from "@skelet/storefront-next/compare/store";
-import { mediaThumb } from "@skelet/storefront-next/media-thumb";
+} from "@skelet/storefront-react/compare/store";
+import { mediaThumb } from "@skelet/storefront-core/media-thumb";
 
 type TrayProduct = {
   id: string;

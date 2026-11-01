@@ -6,8 +6,8 @@ import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart } from "@skelet/storefront-next/cart/actions";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatPrice } from "@skelet/storefront-core/format";
 import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
 import { deriveQtyBounds } from "@/app/components/qty";

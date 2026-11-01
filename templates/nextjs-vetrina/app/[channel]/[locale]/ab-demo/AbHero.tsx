@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2Icon } from "lucide-react";
 
-import { trackGoal } from "@skelet/storefront-next/experiments/client";
+import { trackGoal } from "@skelet/storefront-react/experiments/client";
 
 export function AbHero({
   value,

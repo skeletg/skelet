@@ -5,9 +5,9 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addGroupedToCart } from "@skelet/storefront-next/cart/actions";
-import { displayName } from "@skelet/storefront-next/display";
-import { productHref } from "@skelet/storefront-next/entity-href";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { formatPrice } from "@skelet/storefront-core/format";
 import type { GroupedMember, ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { QtySelector } from "@/app/components/QtySelector";
 import {

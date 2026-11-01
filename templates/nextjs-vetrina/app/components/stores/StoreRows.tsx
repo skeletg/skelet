@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { directionsHref, savePreference, type Store } from "@skelet/storefront-next/stores/types";
+import { directionsHref, savePreference, type Store } from "@skelet/storefront-core/stores/types";
 
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 export function StoreStatus({ status }: { status: Store["stockStatus"] }) {

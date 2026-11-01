@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { OpenCartOfferDocument } from "@skelet/storefront-next/cart/offer.gql";
-import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@skelet/storefront-next/cart/offer-cookie";
+import { OpenCartOfferDocument } from "@skelet/storefront-core/cart/offer.gql";
+import { encodeOfferSession, OFFER_CHECKOUT_COOKIE, OFFER_COOKIE, offerCookieOptions } from "@skelet/storefront-core/cart/offer-cookie";
 import { gqlFetch, GraphQLRequestError } from "@skelet/storefront-next/graphql";
 
 // Where an offer email's link lands. A followed link is kept in an httpOnly cookie and the shopper goes on to the

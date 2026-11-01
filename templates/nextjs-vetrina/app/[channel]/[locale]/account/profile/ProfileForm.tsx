@@ -10,10 +10,10 @@ import {
   inputClass,
 } from "@/app/components/account/AccountUI";
 import { updateProfileAction } from "@skelet/storefront-next/auth/actions";
-import { profileSchema } from "@skelet/storefront-next/auth/schemas";
+import { profileSchema } from "@skelet/storefront-core/auth/schemas";
 import type { PhoneSettings } from "@skelet/storefront-next/countries/read";
-import { phoneFieldFor } from "@skelet/storefront-next/forms/phone";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { phoneFieldFor } from "@skelet/storefront-core/forms/phone";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 type Props = {
   firstName: string;

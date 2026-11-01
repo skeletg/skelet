@@ -1,9 +1,9 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signupSchema } from "@skelet/storefront-next/beacons/schemas";
+import { signupSchema } from "@skelet/storefront-core/beacons/schemas";
 import type { SignupResult } from "@skelet/storefront-next/beacons/actions";
-import { parseForm, replyReset } from "@skelet/storefront-next/forms/schema";
+import { parseForm, replyReset } from "@skelet/storefront-core/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 // Same schema and SubmissionResult shape as the real action, minus the backend

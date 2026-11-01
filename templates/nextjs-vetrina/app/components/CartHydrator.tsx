@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import type { Cart } from "@skelet/storefront-next/cart/types";
+import type { Cart } from "@skelet/storefront-core/cart/types";
 import { useCartStore } from "@skelet/storefront-next/cart/store";
 import { loadCartAction } from "@skelet/storefront-next/cart/actions";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";

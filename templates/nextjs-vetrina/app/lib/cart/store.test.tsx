@@ -1,7 +1,7 @@
 import { act, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Cart, CartLine } from "@skelet/storefront-next/cart/types";
+import type { Cart, CartLine } from "@skelet/storefront-core/cart/types";
 import { renderWithIntl } from "@/app/test/render";
 
 // Each action returns a promise the test settles by hand, so it controls the order responses land in

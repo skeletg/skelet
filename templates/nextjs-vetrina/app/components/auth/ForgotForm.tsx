@@ -9,8 +9,8 @@ import {
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
 import { requestPasswordResetAction } from "@skelet/storefront-next/auth/actions";
-import { forgotSchema } from "@skelet/storefront-next/auth/schemas";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { forgotSchema } from "@skelet/storefront-core/auth/schemas";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export function ForgotForm({
   onSwitchView,

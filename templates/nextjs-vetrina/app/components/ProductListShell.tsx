@@ -25,13 +25,13 @@ import {
 import { LoadMore } from "./LoadMore";
 import { getSeoConfig } from "@skelet/storefront-next/config/read";
 import { getBrowsePageSize, getPlpPaginationStyle } from "@skelet/storefront-next/config/read";
-import type { BrowseProductsQueryVariables } from "@skelet/storefront-next/catalog/operations.gql";
-import { joinBasePathWithFilters } from "@skelet/storefront-next/filter-path";
-import { hrefForPage, mergeSlices, parsePage, planSlices } from "@skelet/storefront-next/pagination";
+import type { BrowseProductsQueryVariables } from "@skelet/storefront-core/catalog/operations.gql";
+import { joinBasePathWithFilters } from "@skelet/storefront-core/filter-path";
+import { hrefForPage, mergeSlices, parsePage, planSlices } from "@skelet/storefront-core/pagination";
 import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 import { canonicalPathMapper } from "@skelet/storefront-next/locale/alternates";
-import { productHref } from "@skelet/storefront-next/entity-href";
-import { itemListJsonLd } from "@skelet/storefront-next/json-ld";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { itemListJsonLd } from "@skelet/storefront-core/json-ld";
 import { JsonLd } from "./JsonLd";
 import { LensTrack } from "./LensTrack";
 

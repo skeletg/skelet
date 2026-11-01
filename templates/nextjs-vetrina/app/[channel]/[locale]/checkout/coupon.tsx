@@ -6,8 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors, inputClass } from "@/app/components/account/AccountUI";
 import { applyCheckoutCouponAction } from "@skelet/storefront-next/checkout/actions";
-import { couponSchema } from "@skelet/storefront-next/cart/schemas";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { couponSchema } from "@skelet/storefront-core/cart/schemas";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 // A discount code at checkout, collapsed behind a link - an open box sends shoppers off hunting for codes. The cart
 // page's form lists and removes codes; here the summary already lists them, so this only adds one and re-reads the page,

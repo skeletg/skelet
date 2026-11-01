@@ -14,10 +14,10 @@ import {
   setStoreCreditAction,
 } from "@skelet/storefront-next/checkout/actions";
 import type { CheckoutState, PaymentMethodOption } from "@skelet/storefront-next/checkout/read";
-import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-next/checkout/schemas";
-import type { CheckoutSettings } from "@skelet/storefront-next/checkout/settings";
-import { formatPrice } from "@skelet/storefront-next/format";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { giftCardSchema, paymentStepSchema } from "@skelet/storefront-core/checkout/schemas";
+import type { CheckoutSettings } from "@skelet/storefront-core/checkout/settings";
+import { formatPrice } from "@skelet/storefront-core/format";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 import type { SavedPaymentMethod } from "@skelet/storefront-next/payment-methods/actions";
 
 import { ChoiceCard } from "./fields";

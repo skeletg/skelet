@@ -1,4 +1,4 @@
-import { formatPrice, roundHalfAwayFromZero } from "@skelet/storefront-next/format";
+import { formatPrice, roundHalfAwayFromZero } from "@skelet/storefront-core/format";
 import type {
   ProductCustomOption,
   ProductCustomOptionValue,

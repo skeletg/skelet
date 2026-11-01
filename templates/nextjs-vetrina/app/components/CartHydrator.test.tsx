@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import type { Cart } from "@skelet/storefront-next/cart/types";
+import type { Cart } from "@skelet/storefront-core/cart/types";
 import { renderWithIntl } from "@/app/test/render";
 
 const mocks = vi.hoisted(() => ({

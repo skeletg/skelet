@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CompareProductsDocument } from "@skelet/storefront-next/catalog/operations.gql";
+import { CompareProductsDocument } from "@skelet/storefront-core/catalog/operations.gql";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 import { getChannel } from "@skelet/storefront-next/channel/read";
 

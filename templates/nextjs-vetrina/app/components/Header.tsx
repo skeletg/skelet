@@ -9,7 +9,7 @@ import { getCurrentLocale } from "@skelet/storefront-next/locale/read";
 import { loadMenu } from "@skelet/storefront-next/menus/read";
 import { getChannel, getStoreName } from "@skelet/storefront-next/channel/read";
 import { getBranding } from "@skelet/storefront-next/config/read";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { AuthSidebar } from "./AuthSidebar";
 import { CartSidebar } from "./CartSidebar";
 import { HeaderMenu } from "./HeaderMenu";

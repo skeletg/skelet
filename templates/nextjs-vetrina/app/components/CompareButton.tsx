@@ -3,7 +3,7 @@
 import { CheckIcon, PlusIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { COMPARE_MAX, toggleCompare, useCompareIds } from "@skelet/storefront-next/compare/store";
+import { COMPARE_MAX, toggleCompare, useCompareIds } from "@skelet/storefront-react/compare/store";
 
 export function CompareButton({ productId }: { productId: string }) {
   const ids = useCompareIds();

@@ -2,9 +2,9 @@
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Field } from "@/app/components/account/AccountUI";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 import { pickStoreProductAction, searchStoreProductsAction } from "@skelet/storefront-next/stores/actions";
-import { productPickSchema, productSearchSchema } from "@skelet/storefront-next/stores/schemas";
+import { productPickSchema, productSearchSchema } from "@skelet/storefront-core/stores/schemas";
 
 export type PickedProduct = { id: string; name: string };
 

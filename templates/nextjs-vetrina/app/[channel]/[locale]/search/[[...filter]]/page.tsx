@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 
 import { ProductListShell } from "@/app/components/ProductListShell";
 import {
-  parsePageFromSegments, parseFilterSegments, parseSortFromSegments } from "@skelet/storefront-next/filter-path";
+  parsePageFromSegments, parseFilterSegments, parseSortFromSegments } from "@skelet/storefront-core/filter-path";
 import { searchProducts } from "@skelet/storefront-next/search/read";
 
 export const dynamic = "force-dynamic";

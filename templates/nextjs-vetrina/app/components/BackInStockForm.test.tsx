@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { backInStockSchema } from "@skelet/storefront-next/beacons/schemas";
-import { parseForm, replyReset, type FormResult } from "@skelet/storefront-next/forms/schema";
+import { backInStockSchema } from "@skelet/storefront-core/beacons/schemas";
+import { parseForm, replyReset, type FormResult } from "@skelet/storefront-core/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 let identity: { email: string } | null = null;

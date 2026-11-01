@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Modal } from "@/app/components/Modal";
 import { SnapButton, SnapTrack, useSnapCarousel } from "@/app/components/SnapCarousel";
 import type { ProductMedia } from "@skelet/storefront-next/catalog/read";
-import { mediaSrcSet, mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { mediaSrcSet, mediaThumb } from "@skelet/storefront-core/media-thumb";
 import { productImageTransitionName } from "@/app/lib/view-transition";
 
 type Props = {

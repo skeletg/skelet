@@ -5,9 +5,9 @@ import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
 import { notifyBackInStockAction } from "@skelet/storefront-next/beacons/actions";
-import { backInStockSchema } from "@skelet/storefront-next/beacons/schemas";
+import { backInStockSchema } from "@skelet/storefront-core/beacons/schemas";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export function BackInStockForm({ productId, defaultEmail = "" }: { productId: string; defaultEmail?: string }) {
   const t = useTranslations("product.backInStock");

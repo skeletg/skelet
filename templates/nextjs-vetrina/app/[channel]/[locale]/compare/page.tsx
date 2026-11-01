@@ -12,9 +12,9 @@ import {
   clearCompare,
   removeFromCompare,
   useCompareIds,
-} from "@skelet/storefront-next/compare/store";
-import { productHref } from "@skelet/storefront-next/entity-href";
-import { formatPrice } from "@skelet/storefront-next/format";
+} from "@skelet/storefront-react/compare/store";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { formatPrice } from "@skelet/storefront-core/format";
 
 type CompareProduct = {
   id: string;

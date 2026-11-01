@@ -1,4 +1,4 @@
-import { backendRoute } from "@skelet/storefront-next/backend-proxy";
+import { backendRoute } from "@skelet/storefront-core/backend-proxy";
 
 export const dynamic = "force-dynamic";
 

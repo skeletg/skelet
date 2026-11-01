@@ -298,6 +298,14 @@ func TestFrontendChanged(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "apps", "dashboard", "src", "a.ts"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	for _, f := range []string{"apps/dashboard/package.json", "templates/vetrina/package.json"} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, f)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, f), []byte(withTests), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var ran strings.Builder
 	tr := tester{root: root, pnpm: func(_, app string, _ []string, args ...string) error {
 		fmt.Fprintf(&ran, "%s: %s\n", app, strings.Join(args, " "))
@@ -347,13 +355,20 @@ func TestSharedChange(t *testing.T) {
 }
 
 // Under --changed, storefronts and packages each run through their own runner: an app's by name, a package's by dir
+const withTests = `{"scripts": {"typecheck": "tsc --noEmit", "test": "vitest run"}}`
+
 func TestFrontendsAcrossTheWorkspace(t *testing.T) {
 	root := t.TempDir()
-	for _, f := range []string{"templates/vetrina/package.json", "apps/channels/shop/package.json", "packages/storefront-next/package.json"} {
+	for f, body := range map[string]string{
+		"templates/vetrina/package.json": withTests, "apps/channels/shop/package.json": withTests,
+		"packages/storefront-core/package.json": withTests,
+		// A package that only typechecks
+		"packages/storefront-react/package.json": `{"scripts": {"typecheck": "tsc --noEmit"}}`,
+	} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, f)), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, f), []byte("{}"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -365,15 +380,18 @@ func TestFrontendsAcrossTheWorkspace(t *testing.T) {
 		},
 		pnpmDir: func(_, dir string, args ...string) error { fmt.Fprintf(&ran, "dir %s: %s\n", dir, args[1]); return nil },
 	}
-	if code := tr.frontends([]string{"packages/storefront-next/random-id.ts"}, true); code != 0 {
+	if code := tr.frontends([]string{"packages/storefront-core/random-id.ts"}, true); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	got := ran.String()
 	for _, line := range []string{"app shop: typecheck", "app shop: test", "app vetrina: typecheck", "app vetrina: test",
-		"dir packages/storefront-next: typecheck", "dir packages/storefront-next: test"} {
+		"dir packages/storefront-core: typecheck", "dir packages/storefront-core: test", "dir packages/storefront-react: typecheck"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Errorf("no %q in:\n%s", line, got)
 		}
+	}
+	if strings.Contains(got, "dir packages/storefront-react: test") {
+		t.Errorf("ran tests a package doesn't have:\n%s", got)
 	}
 	if strings.Contains(got, "app dashboard") {
 		t.Errorf("a package change reached the dashboard, which isn't in the workspace:\n%s", got)

@@ -6,7 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/app/components/LocaleLink";
 
 import { resendVerificationEmailAction } from "@skelet/storefront-next/auth/actions";
-import { VerifyEmailDocument } from "@skelet/storefront-next/auth/operations.gql";
+import { VerifyEmailDocument } from "@skelet/storefront-core/auth/operations.gql";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 

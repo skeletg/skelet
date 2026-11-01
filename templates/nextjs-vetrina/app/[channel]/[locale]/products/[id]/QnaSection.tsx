@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { getProductQuestions } from "@skelet/storefront-next/qna/actions";
-import { formatDate } from "@skelet/storefront-next/format";
+import { formatDate } from "@skelet/storefront-core/format";
 import { AskQuestionForm } from "./AskQuestionForm";
 
 // Full-width split: heading + ask-form live in a left rail, the answered list owns the

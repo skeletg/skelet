@@ -9,8 +9,8 @@ import {
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
 import { resetPasswordAction } from "@skelet/storefront-next/auth/actions";
-import { resetSchema } from "@skelet/storefront-next/auth/schemas";
-import { useActionForm } from "@skelet/storefront-next/forms/use-action-form";
+import { resetSchema } from "@skelet/storefront-core/auth/schemas";
+import { useActionForm } from "@skelet/storefront-react/forms/use-action-form";
 
 export function ResetForm({ token }: { token: string }) {
   // Bound, not a hidden field - a hidden input is captured by rrweb (maskAllInputs has

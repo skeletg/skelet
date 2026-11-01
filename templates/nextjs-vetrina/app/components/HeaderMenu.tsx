@@ -24,9 +24,9 @@ import type {
   HeaderCollection,
   HeaderLocale,
 } from "@skelet/storefront-next/header/read";
-import { displayName } from "@skelet/storefront-next/display";
-import { categoryHref, collectionHref } from "@skelet/storefront-next/entity-href";
-import { parseFilterSegments } from "@skelet/storefront-next/filter-path";
+import { displayName } from "@skelet/storefront-core/display";
+import { categoryHref, collectionHref } from "@skelet/storefront-core/entity-href";
+import { parseFilterSegments } from "@skelet/storefront-core/filter-path";
 import { setLocale } from "@skelet/storefront-next/locale/actions";
 import { useCustomerIdentity } from "@skelet/storefront-next/customer/client";
 import { Drawer } from "./Drawer";

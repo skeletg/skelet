@@ -13,9 +13,9 @@ import {
 import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart, addSimpleToCart } from "@skelet/storefront-next/cart/actions";
-import { displayName } from "@skelet/storefront-next/display";
-import { productHref } from "@skelet/storefront-next/entity-href";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { displayName } from "@skelet/storefront-core/display";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { formatPrice } from "@skelet/storefront-core/format";
 import type { ProductDetail } from "@skelet/storefront-next/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";

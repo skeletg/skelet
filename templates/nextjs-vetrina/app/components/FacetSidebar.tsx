@@ -9,7 +9,7 @@ import {
   joinBasePathWithFilters,
   toggleFilterValue,
   type FacetIndexRules,
-} from "@skelet/storefront-next/filter-path";
+} from "@skelet/storefront-core/filter-path";
 
 export type FacetGroupInput = {
   slug: string;

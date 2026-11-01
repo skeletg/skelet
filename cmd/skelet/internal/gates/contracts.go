@@ -34,8 +34,9 @@ const (
 	caddyfile     = "deploy/caddy/Caddyfile"
 	widgetReg     = "apps/dashboard/src/features/promotions/widgets/registry.ts"
 	// The storefront logic every template shares - checked once, here, rather than per storefront
-	storefrontPkg = "packages/storefront-next"
+	storefrontPkg = "packages/storefront-core"
 	publicOps     = storefrontPkg + "/public-ops.ts"
+	reactPkg      = "packages/storefront-react"
 	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
 	// This gate's own source talks about SYNC comments, so it stays out of the scan for them
 	self = "cmd/skelet/internal/gates"
@@ -55,6 +56,7 @@ func contractCheck(root string, out io.Writer) int {
 	c.cacheableOps()
 	c.lexicalNodes()
 	c.evaluators()
+	c.frameworkFree()
 	c.headers()
 	c.widgets()
 	c.proto()
@@ -287,9 +289,9 @@ func (c contracts) cacheableOps() {
 	case len(sf) == 0:
 		c.r.bad("PUBLIC_OPS extraction came back empty - %s changed shape", publicOps)
 	case slices.Equal(ops, sf):
-		c.r.pass("storefront-next PUBLIC_OPS == frontCacheableOps (%d ops)", len(ops))
+		c.r.pass("storefront-core PUBLIC_OPS == frontCacheableOps (%d ops)", len(ops))
 	default:
-		c.r.bad("storefront-next PUBLIC_OPS != frontCacheableOps")
+		c.r.bad("storefront-core PUBLIC_OPS != frontCacheableOps")
 		c.sides(ops, sf)
 	}
 }
@@ -378,6 +380,47 @@ func (c contracts) lexicalNodes() {
 	}
 }
 
+var importSpec = regexp.MustCompile(`(?:\bfrom|\bimport)\s*\(?\s*["']([^"'./][^"']*)["']`)
+
+// frameworkFree - the core runs under any framework only while it imports none, and the shared hooks under any React
+// framework only while they import no Next. A type import counts: it ties the package's types to the framework
+func (c contracts) frameworkFree() {
+	c.r.section("the storefront core imports no framework")
+	for _, p := range []struct {
+		dir    string
+		banned []string
+	}{
+		{storefrontPkg, []string{"next", "react", "react-dom", "next-intl", "server-only"}},
+		{reactPkg, []string{"next", "next-intl"}},
+	} {
+		if _, err := os.Stat(filepath.Join(c.root, p.dir)); err != nil {
+			c.skip("no %s in this checkout", p.dir)
+			continue
+		}
+		files, before := 0, c.r.failed
+		_ = filepath.WalkDir(filepath.Join(c.root, p.dir), func(path string, d os.DirEntry, err error) error {
+			if err != nil || (d.IsDir() && d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			if d.IsDir() || !(strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) {
+				return nil
+			}
+			files++
+			raw, _ := os.ReadFile(path)
+			rel, _ := filepath.Rel(c.root, path)
+			for _, m := range importSpec.FindAllStringSubmatch(string(raw), -1) {
+				if root, _, _ := strings.Cut(m[1], "/"); slices.Contains(p.banned, root) {
+					c.r.bad("%s imports %s", filepath.ToSlash(rel), m[1])
+				}
+			}
+			return nil
+		})
+		if c.r.failed == before {
+			c.r.pass("%s imports none of %s (%d files)", p.dir, strings.Join(p.banned, ", "), files)
+		}
+	}
+}
+
 var lineComment = regexp.MustCompile(`//.*`)
 
 // normEvaluator is an evaluator with comments, quote style, optional-property marks, whitespace and semicolons gone -
@@ -409,9 +452,9 @@ func (c contracts) evaluators() {
 		return
 	}
 	if normEvaluator(c.read(pkgOptVis)) == normEvaluator(c.read(dashOptVis)) {
-		c.r.pass("storefront-next evaluator matches the dashboard's, modulo formatting")
+		c.r.pass("storefront-core evaluator matches the dashboard's, modulo formatting")
 	} else {
-		c.r.bad("storefront-next evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", dashOptVis)
+		c.r.bad("storefront-core evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", dashOptVis)
 	}
 }
 

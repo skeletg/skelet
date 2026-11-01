@@ -14,7 +14,7 @@ import {
 } from "@/app/components/account/AccountUI";
 import { StatusChip, humanizeStatus } from "@/app/components/account/StatusChip";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
 import { loadErrorMessage } from "@skelet/storefront-next/graphql";
 import {

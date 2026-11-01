@@ -2,7 +2,7 @@
 // robots) for a CMS page
 import type { Metadata } from "next";
 
-import { SITE_URL, absUrl } from "./site-url";
+import { SITE_URL, absUrl } from "@skelet/storefront-core/site-url";
 
 // Structural on purpose - both CMSPage and the leaner HomePage shape satisfy it
 type CMSPageForMetadata = {

@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { Field } from "@/app/components/account/AccountUI";
 import { CountrySelect, StateField, type ValueField } from "@/app/components/address/AddressInputs";
 import type { CountryOption, RegionOption } from "@skelet/storefront-next/countries/read";
-import type { FormResult } from "@skelet/storefront-next/forms/schema";
+import type { FormResult } from "@skelet/storefront-core/forms/schema";
 
 // Pieces every checkout step form shares
 

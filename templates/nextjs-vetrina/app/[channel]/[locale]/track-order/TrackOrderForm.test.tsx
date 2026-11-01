@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
-import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
-import { trackOrderSchema } from "@skelet/storefront-next/order/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-core/forms/schema";
+import { trackOrderSchema } from "@skelet/storefront-core/order/schemas";
 import { renderWithIntl } from "@/app/test/render";
 
 // Same schema as the real action, answering the way it does when nothing matched

@@ -19,7 +19,7 @@ import {
   setDefaultShippingAction,
 } from "@skelet/storefront-next/auth/actions";
 import { getCurrentCustomer } from "@skelet/storefront-next/customer/read";
-import { formatPhone } from "@skelet/storefront-next/forms/phone";
+import { formatPhone } from "@skelet/storefront-core/forms/phone";
 
 export async function generateMetadata({
   params,

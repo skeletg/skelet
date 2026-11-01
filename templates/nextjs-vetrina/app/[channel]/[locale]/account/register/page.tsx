@@ -5,7 +5,7 @@ import { withLocalePrefix } from "@skelet/storefront-next/locale/path";
 
 import { AuthCard } from "@/app/components/account/AccountUI";
 import { getCustomerOrNull } from "@skelet/storefront-next/customer/read";
-import { safeReturnTo } from "@skelet/storefront-next/auth/return-to";
+import { safeReturnTo } from "@skelet/storefront-core/auth/return-to";
 import { RegisterForm } from "@/app/components/auth/RegisterForm";
 
 export async function generateMetadata({

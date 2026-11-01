@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { profileSchema } from "@skelet/storefront-next/auth/schemas";
-import { parseForm, type FormResult } from "@skelet/storefront-next/forms/schema";
+import { profileSchema } from "@skelet/storefront-core/auth/schemas";
+import { parseForm, type FormResult } from "@skelet/storefront-core/forms/schema";
 import { renderWithIntl } from "@/app/test/render";
 
 // Stands in for the server action, parsing with the same schema so a submission that gets here was valid

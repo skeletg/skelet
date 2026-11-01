@@ -7,7 +7,7 @@ import {
   acceptAllConsentAction,
   essentialOnlyConsentAction,
 } from "@skelet/storefront-next/consent/actions";
-import { useConsentDecided } from "@skelet/storefront-next/consent/use-consent";
+import { useConsentDecided } from "@skelet/storefront-react/consent/use-consent";
 
 // Resolved in the browser - a server-side cookie read here would force every route dynamic, and
 // the banner has to work on a page served identically to every visitor

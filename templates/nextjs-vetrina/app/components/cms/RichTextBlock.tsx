@@ -1,6 +1,6 @@
 import type { Block } from "./blocks";
 import { LexicalRichText } from "@/app/lib/lexical-render";
-import { lexicalHasContent } from "@skelet/storefront-next/lexical";
+import { lexicalHasContent } from "@skelet/storefront-core/lexical";
 
 export function RichTextBlock({ block }: { block: Block }) {
   const content = block.props.content;

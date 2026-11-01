@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { useMarketingConsent } from "@skelet/storefront-next/consent/use-consent";
+import { useMarketingConsent } from "@skelet/storefront-react/consent/use-consent";
 
 type DataLayerEntry = Record<string, unknown> & { event: string };
 

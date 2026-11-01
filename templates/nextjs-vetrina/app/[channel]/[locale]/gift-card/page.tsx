@@ -3,8 +3,8 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { GiftCardBalanceDocument } from "@skelet/storefront-next/checkout/operations.gql";
-import { formatPrice } from "@skelet/storefront-next/format";
+import { GiftCardBalanceDocument } from "@skelet/storefront-core/checkout/operations.gql";
+import { formatPrice } from "@skelet/storefront-core/format";
 import { gqlFetch } from "@skelet/storefront-next/graphql";
 
 export async function generateMetadata({

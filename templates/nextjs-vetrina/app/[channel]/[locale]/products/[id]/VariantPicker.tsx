@@ -9,9 +9,9 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import { Drawer } from "@/app/components/Drawer";
-import { displayName } from "@skelet/storefront-next/display";
-import { formatPrice } from "@skelet/storefront-next/format";
-import { mediaThumb } from "@skelet/storefront-next/media-thumb";
+import { displayName } from "@skelet/storefront-core/display";
+import { formatPrice } from "@skelet/storefront-core/format";
+import { mediaThumb } from "@skelet/storefront-core/media-thumb";
 import type {
   ConfigurableOption,
   ProductVariant,
