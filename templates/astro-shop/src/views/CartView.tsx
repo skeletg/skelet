@@ -1,10 +1,13 @@
-import type { CartQuery } from "../graphql/cart.gql";
+import type { Cart as CoreCart, CartLine } from "@skelet/storefront-core/cart/types";
 import type { Currency } from "../lib/format";
 import { Price } from "../components/Price";
 import { QuantityInput } from "../components/QuantityInput";
 import { Button, ButtonLink, Notice } from "../components/ui";
 
-type Cart = NonNullable<CartQuery["cart"]>;
+// What the view reads of the core's cart
+type Cart = Pick<CoreCart, "id" | "subtotal" | "totalDiscount"> & {
+  lines: Pick<CartLine, "id" | "name" | "sku" | "imageUrl" | "unitPrice" | "quantity" | "totalPrice">[];
+};
 type Props = { cart: Cart | null; flash?: string; currency: Currency };
 
 export function CartView({ cart, flash, currency }: Props) {

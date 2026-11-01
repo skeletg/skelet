@@ -5,9 +5,10 @@ const CHANNEL = "56d051bc-0131-4476-bc0b-121d80290684";
 let gqlMod: typeof import("./gql");
 
 beforeAll(async () => {
-  process.env.STOREFRONT_CHANNEL_ID = CHANNEL.toUpperCase();
   process.env.BACKEND_INTERNAL_URL = "http://backend.test";
   gqlMod = await import("./gql");
+  // The request the core's client reads the channel from - Astro's middleware answers it in the app
+  (await import("@skelet/storefront-core/testing")).useTestRequest({ channelId: async () => CHANNEL });
 });
 
 afterEach(() => vi.unstubAllGlobals());

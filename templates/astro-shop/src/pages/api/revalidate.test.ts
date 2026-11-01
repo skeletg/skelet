@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.STOREFRONT_REVALIDATE_SECRET = "s3cret";
-const forgetChannel = vi.fn();
-vi.mock("../../lib/channel", () => ({ forgetChannel }));
+const invalidateData = vi.fn();
+vi.mock("@skelet/storefront-astro/data-cache", () => ({ invalidateData }));
 const { POST } = await import("./revalidate");
 
 const invalidate = vi.fn();
@@ -20,7 +20,7 @@ function call(body: unknown, secret = "s3cret") {
 describe("POST /api/revalidate", () => {
   beforeEach(() => {
     invalidate.mockClear();
-    forgetChannel.mockClear();
+    invalidateData.mockClear();
     vi.unstubAllGlobals();
   });
 
@@ -35,12 +35,12 @@ describe("POST /api/revalidate", () => {
     expect(res.status).toBe(200);
     expect(invalidate).toHaveBeenCalledWith({ tags: ["product:1"] });
     expect(invalidate).toHaveBeenCalledWith({ path: "/casual-t-shirt" });
-    expect(forgetChannel).not.toHaveBeenCalled();
+    expect(invalidateData).toHaveBeenCalledWith(["product:1"]);
   });
 
-  it("drops the held channel when public config changes", async () => {
-    await call({ tags: ["config:public"] });
-    expect(forgetChannel).toHaveBeenCalledOnce();
+  it("drops the core's cached reads under the same tags - the channel's on public config", async () => {
+    await call({ tags: ["config:public", "catalog:browse"] });
+    expect(invalidateData).toHaveBeenCalledWith(["config:public", "catalog:browse"]);
   });
 
   it("rejects a body that isn't JSON", async () => {

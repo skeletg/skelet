@@ -4,6 +4,13 @@ A small, fast storefront on Skelet's front GraphQL API: home (every product), pr
 one-page checkout. Astro 7 with the Node adapter, React components rendered on the server only, Tailwind 4,
 and Motion's mini `animate()` for scroll reveals.
 
+## On the storefront core
+
+The GraphQL client, the channel and the cart are `@skelet/storefront-core`'s, the same code nextjs-vetrina runs,
+reached through `@skelet/storefront-astro`: `src/middleware.ts` opens the request scope the core reads its cookies,
+headers and channel from. The shop keeps its own lean operations under `src/graphql` - generated against the
+core's schema types - and its own pages, views and the cookies its badge and motion read.
+
 ## How a page is served
 
 Every page renders on demand, then the catalog pages sit in Astro's route cache (`memoryCache`) until the

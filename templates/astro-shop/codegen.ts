@@ -13,11 +13,11 @@ const config: CodegenConfig = {
     enumsAsTypes: true,
     scalars: { Time: "string", JSON: "unknown" },
   },
+  // The schema's types are the core's - generated once there, so this shop's operations and the core's agree
   generates: {
-    "src/graphql/schema.types.ts": { plugins: ["typescript"] },
     "src/": {
       preset: "near-operation-file",
-      presetConfig: { extension: ".gql.ts", baseTypesPath: "graphql/schema.types.ts" },
+      presetConfig: { extension: ".gql.ts", baseTypesPath: "~@skelet/storefront-core/graphql/schema.types" },
       plugins: ["typescript-operations", "typed-document-node"],
     },
   },

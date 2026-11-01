@@ -48,17 +48,21 @@ export type StorefrontAdapter = {
   cache?: Memo;
 };
 
-let adapter: StorefrontAdapter | null = null;
+// Kept on globalThis, not in this module: a bundler or a dev server can load this file more than once - a server bundle
+// layer, a module graph rebuilt after a dependency change - and every copy has to find the one adapter
+const ADAPTER = Symbol.for("@skelet/storefront-core/adapter");
+const registry = globalThis as { [ADAPTER]?: StorefrontAdapter };
 
 export function configureStorefront(a: StorefrontAdapter): void {
-  adapter = a;
+  registry[ADAPTER] = a;
 }
 
 export function request(): StorefrontRequest {
+  const adapter = registry[ADAPTER];
   if (!adapter) {
     throw new Error(
       "No storefront adapter is configured - reach the storefront's reads and actions through an adapter package " +
-        "(@skelet/storefront-next), which configures one",
+        "(@skelet/storefront-next, @skelet/storefront-astro), which configures one",
     );
   }
   return adapter.request();
@@ -77,7 +81,7 @@ export function notFound(): never {
 export function perRequest<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   let memo: ((...args: A) => R) | undefined;
   return (...args) => {
-    memo ??= adapter?.cache ? adapter.cache(fn) : fn;
+    memo ??= registry[ADAPTER]?.cache ? registry[ADAPTER].cache(fn) : fn;
     return memo(...args);
   };
 }

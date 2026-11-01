@@ -5,5 +5,6 @@
   JavaScript, and the scripts it does ship come to about 5 KB gzipped. Product JSON-LD, canonical URLs,
   `robots.txt` and `sitemap.xml` are built in. It has a light and a dark theme that follow the system
   until the shopper picks one, and self-hosted Poppins and Montserrat fonts - `?font=montserrat` on any
-  URL switches the font for testing. Run it with the `astro-shop` profile on port 3001, and test it with
+  URL switches the font for testing. It runs on the same storefront core as nextjs-vetrina, through
+  `@skelet/storefront-astro`. Run it with the `astro-shop` profile on port 3001, and test it with
   `skelet test storefront astro-shop`.

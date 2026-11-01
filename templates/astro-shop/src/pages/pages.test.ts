@@ -8,6 +8,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // cache tags look like is decided here, not in a browser
 const gql = vi.fn();
 vi.mock("../lib/gql", async (orig) => ({ ...(await orig<typeof import("../lib/gql")>()), gql }));
+// The core's reads the pages make outside the shop's own operations
+const core = vi.hoisted(() => ({ getChannel: vi.fn(), getCart: vi.fn(), getOwnCartId: vi.fn() }));
+vi.mock("@skelet/storefront-core/channel/read", () => ({ getChannel: core.getChannel }));
+vi.mock("@skelet/storefront-core/cart/read", () => ({ CART_COOKIE: "storefront_cart", getCart: core.getCart, getOwnCartId: core.getOwnCartId }));
 
 const channel = {
   name: "Test Shop",
@@ -60,7 +64,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   gql.mockReset();
-  (await import("../lib/channel")).forgetChannel();
+  core.getChannel.mockReset().mockResolvedValue(channel);
+  core.getCart.mockReset().mockResolvedValue(null);
+  core.getOwnCartId.mockReset().mockResolvedValue(null);
 });
 
 async function render(page: keyof typeof pages, path: string, params: Record<string, string> = {}) {

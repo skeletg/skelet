@@ -106,7 +106,8 @@ skelet/
 │   │   ├── graphql/schema.types.ts  ← codegen baseline (DO NOT EDIT)
 │   │   └── codegen.ts               ← graphql-codegen; hits /api/front/graphql
 │   ├── storefront-react/            ← client hooks with no framework beyond React
-│   └── storefront-next/             ← the Next adapter: setup.ts, "use server" wrappers, read re-exports
+│   ├── storefront-next/             ← the Next adapter: setup.ts, "use server" wrappers, read re-exports
+│   └── storefront-astro/            ← the Astro adapter: middleware opening the request scope, a data cache
 ├── cmd/skelet/                      ← the skelet CLI, every dev operation
 ├── env/                             ← *.env.example committed; *.env gitignored (docs/env.md documents every var)
 ├── .gitattributes                   ← LF normalization, prevents Windows CRLF

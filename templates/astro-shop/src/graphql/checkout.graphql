@@ -1,3 +1,18 @@
+fragment CartLines on Cart {
+  id
+  subtotal
+  totalDiscount
+  lines {
+    id
+    name
+    sku
+    imageUrl
+    unitPrice
+    quantity
+    totalPrice
+  }
+}
+
 query Countries {
   countries(activeOnly: true) {
     code

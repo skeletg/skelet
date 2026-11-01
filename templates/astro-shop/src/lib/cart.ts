@@ -1,9 +1,9 @@
 import type { AstroCookies } from "astro";
 
-import { gql, GqlError } from "./gql";
-import { CartDocument, CreateCartDocument } from "../graphql/cart.gql";
+import { CART_COOKIE } from "@skelet/storefront-core/cart/read";
 
-const CART = "cart_id";
+// The cart itself is the core's - its cookie, its guest cart, a signed-in customer's own. These are the shop's: the
+// badge, its pop and a message carried across a redirect
 // Readable by the page's one inline script, so cached HTML stays the same for everyone and the badge fills in client-side
 const COUNT = "cart_count";
 // Read by the motion script on the next page, which clears it
@@ -13,12 +13,7 @@ const MONTH = 60 * 60 * 24 * 30;
 
 const opts = (httpOnly: boolean) => ({ path: "/", sameSite: "lax" as const, secure: import.meta.env.PROD, httpOnly, maxAge: MONTH });
 
-export function cartId(cookies: AstroCookies): string | undefined {
-  return cookies.get(CART)?.value || undefined;
-}
-
-export function rememberCart(cookies: AstroCookies, cart: { id: string; lines: { quantity: number }[] }): void {
-  cookies.set(CART, cart.id, opts(true));
+export function rememberCart(cookies: AstroCookies, cart: { lines: { quantity: number }[] }): void {
   cookies.set(COUNT, String(cart.lines.reduce((n, l) => n + l.quantity, 0)), opts(false));
 }
 
@@ -27,8 +22,9 @@ export function bumpBadge(cookies: AstroCookies): void {
   cookies.set(BUMP, "1", { ...opts(false), maxAge: 60 });
 }
 
+// After an order, or for a cart the backend no longer has - the core's cookie goes with the badge
 export function forgetCart(cookies: AstroCookies): void {
-  cookies.delete(CART, { path: "/" });
+  cookies.delete(CART_COOKIE, { path: "/" });
   cookies.delete(COUNT, { path: "/" });
 }
 
@@ -49,21 +45,6 @@ export function cartAction(form: FormData): CartAction | null {
   if (intent === "remove" || (intent === "update" && quantity === 0)) return { intent: "remove", lineId };
   if (intent === "update") return { intent, lineId, quantity };
   return null;
-}
-
-// Runs fn against the shopper's cart, creating one when there is none or the old one is gone (ordered, expired)
-export async function withCart<T>(cookies: AstroCookies, fn: (id: string) => Promise<T>): Promise<T> {
-  const existing = cartId(cookies);
-  if (existing) {
-    try {
-      return await fn(existing);
-    } catch (err) {
-      // A bad SKU fails NOT_FOUND too, so only a cart the backend no longer returns is replaced
-      if (!(err instanceof GqlError) || (await gql(CartDocument, { id: existing })).cart) throw err;
-    }
-  }
-  const { createGuestCart } = await gql(CreateCartDocument);
-  return fn(createGuestCart.id);
 }
 
 // One message carried across a redirect, then gone

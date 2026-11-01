@@ -219,7 +219,9 @@ convention is the one most code comments point at.
   fails on a framework import in the core. `storefront-next/setup.ts`
   answers it the Next way; a Next template imports reads and server
   actions from `@skelet/storefront-next/<module>`, whose modules load that
-  setup, and pure helpers from `@skelet/storefront-core/<module>`. Reads
+  setup, and pure helpers from `@skelet/storefront-core/<module>`.
+  `storefront-astro`'s middleware answers it the Astro way, and an Astro
+  template imports everything from the core directly. Reads
   memoize per request with `perRequest`, not React's `cache`. A test
   answers `request()` with `useTestRequest` from `storefront-core/testing.ts`.
 - **Server-only GraphQL.** The core's `graphql.ts` is RSC/route-handler

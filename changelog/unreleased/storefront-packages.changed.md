@@ -16,8 +16,9 @@
   kept in `app/lib` that isn't design - the GraphQL client and its operations, auth, cart, checkout,
   channel and locale, the actions - now lives in `packages/storefront-core`, which asks the request it
   runs in for cookies, headers, locale and channel instead of calling Next. `@skelet/storefront-next`
-  answers those the Next way and wraps the actions as server actions, and `@skelet/storefront-react`
-  holds the client hooks any React framework can use. A shop forked from a template keeps up with fixes
+  answers those the Next way and wraps the actions as server actions, `@skelet/storefront-astro`
+  answers them the Astro way, and `@skelet/storefront-react` holds the client hooks any React
+  framework can use. A shop forked from a template keeps up with fixes
   to that code by merging a release, without touching its own pages. Codegen is the core's, run by
   `skelet gen`, and `skelet check` fails on a framework import in the core and reads the shared lists
   from it.

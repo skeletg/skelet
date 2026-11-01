@@ -1,9 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
-import { bumpBadge, cartAction, cartId, forgetCart, rememberCart, setFlash, takeFlash, withCart } from "../lib/cart";
+import { addSimpleToCart, removeCartLine, setCartLineQuantity } from "@skelet/storefront-core/cart/actions";
+import { getCart } from "@skelet/storefront-core/cart/read";
+
+import { bumpBadge, cartAction, forgetCart, rememberCart, setFlash, takeFlash } from "../lib/cart";
 import { getChannel } from "../lib/channel";
-import { gql, shopperMessage } from "../lib/gql";
-import { AddLineDocument, CartDocument, RemoveLineDocument, UpdateLineDocument } from "../graphql/cart.gql";
+import { GqlError, shopperMessage } from "../lib/gql";
 import { CartView } from "../views/CartView";
 
 // Never cached: everything here is one shopper's. Mutations post here and redirect back (post/redirect/get), so no JS is needed
@@ -11,12 +13,23 @@ if (Astro.request.method === "POST") {
   const action = cartAction(await Astro.request.formData());
   try {
     if (!action) throw new Error("bad cart form");
-    const cart = await withCart(Astro.cookies, async (cartId) => {
-      if (action.intent === "add") return (await gql(AddLineDocument, { cartId, sku: action.sku, quantity: action.quantity })).addToCart;
-      if (action.intent === "remove") return (await gql(RemoveLineDocument, { cartId, lineId: action.lineId })).removeFromCart;
-      return (await gql(UpdateLineDocument, { cartId, lineId: action.lineId, quantity: action.quantity })).updateCartLine;
-    });
-    rememberCart(Astro.cookies, cart);
+    // The core's cart actions: a guest cart made on the first add, a signed-in customer's own cart, the cookie kept
+    let cart;
+    if (action.intent === "add") {
+      const form = new FormData();
+      form.set("productSku", action.sku);
+      form.set("quantity", String(action.quantity));
+      const added = await addSimpleToCart(null, form);
+      if (!added.ok) throw new GqlError(added.error ?? "That didn't work", added.code ?? "VALIDATION");
+      cart = added.cart;
+    } else if (action.intent === "remove") {
+      cart = await removeCartLine(action.lineId);
+    } else {
+      const edited = await setCartLineQuantity(action.lineId, action.quantity);
+      if (edited.error) throw new GqlError(edited.error, "VALIDATION");
+      cart = edited.cart;
+    }
+    if (cart) rememberCart(Astro.cookies, cart);
     if (action.intent === "add") bumpBadge(Astro.cookies);
   } catch (err) {
     setFlash(Astro.cookies, shopperMessage(err, "That didn't work - please try again."));
@@ -24,10 +37,9 @@ if (Astro.request.method === "POST") {
   return Astro.redirect("/cart", 303);
 }
 
-const id = cartId(Astro.cookies);
-const [cart, channel] = await Promise.all([id ? gql(CartDocument, { id }).then((r) => r.cart) : null, getChannel()]);
-if (id && !cart) forgetCart(Astro.cookies);
-else if (cart) rememberCart(Astro.cookies, cart);
+const [cart, channel] = await Promise.all([getCart(), getChannel()]);
+if (cart) rememberCart(Astro.cookies, cart);
+else forgetCart(Astro.cookies);
 const flash = takeFlash(Astro.cookies);
 ---
 

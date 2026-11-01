@@ -1,6 +1,8 @@
 ---
+import { getOwnCartId } from "@skelet/storefront-core/cart/read";
+
 import Base from "../layouts/Base.astro";
-import { cartId, forgetCart } from "../lib/cart";
+import { forgetCart } from "../lib/cart";
 import { getChannel } from "../lib/channel";
 import { gql, GqlError, shopperMessage } from "../lib/gql";
 import {
@@ -17,7 +19,7 @@ import { CheckoutView } from "../views/CheckoutView";
 
 // Two steps, both plain forms: where it's going (prices delivery), then delivery + details + payment in one submit.
 // The backend's requirements decide what's missing - placeOrder refuses until they're met (docs/checkout.md)
-const id = cartId(Astro.cookies);
+const id = await getOwnCartId();
 if (!id) return Astro.redirect("/cart");
 
 let error: string | undefined;

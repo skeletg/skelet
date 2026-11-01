@@ -20,7 +20,9 @@
     "@astrojs/node": "^11.1.0",
     "@astrojs/react": "^7.1.1",
     "@graphql-typed-document-node/core": "catalog:",
-    "astro": "^7.4.0",
+    "@skelet/storefront-astro": "workspace:*",
+    "@skelet/storefront-core": "workspace:*",
+    "astro": "catalog:",
     "graphql": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

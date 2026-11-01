@@ -11,6 +11,10 @@ import { GqlError } from "../lib/gql";
 // Normalized away: comments, whitespace-only text, attribute order and quoting, entity spelling, the footer year
 const gql = vi.hoisted(() => vi.fn());
 vi.mock("../lib/gql", async (orig) => ({ ...(await orig<typeof import("../lib/gql")>()), gql }));
+// The core's reads the pages make outside the shop's own operations
+const core = vi.hoisted(() => ({ getChannel: vi.fn(), getCart: vi.fn(), getOwnCartId: vi.fn() }));
+vi.mock("@skelet/storefront-core/channel/read", () => ({ getChannel: core.getChannel }));
+vi.mock("@skelet/storefront-core/cart/read", () => ({ CART_COOKIE: "storefront_cart", getCart: core.getCart, getOwnCartId: core.getOwnCartId }));
 
 const channel = {
   name: "Test Shop",
@@ -126,8 +130,16 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   gql.mockReset();
-  (await import("../lib/channel")).forgetChannel();
+  core.getChannel.mockReset().mockResolvedValue(channel);
+  core.getCart.mockReset().mockResolvedValue(null);
+  core.getOwnCartId.mockReset().mockResolvedValue(null);
 });
+
+// The shopper's cart, as the core reads it from its own cookie
+function renderCheckout(form?: Record<string, string>) {
+  core.getOwnCartId.mockResolvedValue("c1");
+  return render("checkout", "/checkout", { form });
+}
 
 type Opts = { params?: Record<string, string>; cookie?: string; form?: Record<string, string> };
 async function render(page: keyof typeof pages, path: string, { params = {}, cookie, form }: Opts = {}) {
@@ -241,26 +253,26 @@ describe("page output", () => {
   });
 
   it("cart, filled with a flash message", async () => {
-    backend({ Cart: { cart } });
-    const { html } = await render("cart", "/cart", { cookie: "cart_id=c1; flash=Only 2 left" });
+    core.getCart.mockResolvedValue(cart);
+    const { html } = await render("cart", "/cart", { cookie: "flash=Only 2 left" });
     await expect(html).toMatchFileSnapshot(snap("cart-filled"));
   });
 
   it("checkout, step 1", async () => {
     backend({ Checkout: checkout(null), Countries: countries });
-    await expect((await render("checkout", "/checkout", { cookie: "cart_id=c1" })).html).toMatchFileSnapshot(snap("checkout-destination"));
+    await expect((await renderCheckout()).html).toMatchFileSnapshot(snap("checkout-destination"));
   });
 
   it("checkout, step 2", async () => {
     backend({ Checkout: checkout(rs), Countries: countries, PaymentOptions: payments });
-    await expect((await render("checkout", "/checkout", { cookie: "cart_id=c1" })).html).toMatchFileSnapshot(snap("checkout-details"));
+    await expect((await renderCheckout()).html).toMatchFileSnapshot(snap("checkout-details"));
   });
 
   it("checkout, step 2 with nothing deliverable or payable", async () => {
     const c = checkout(rs);
     c.cart.checkout.deliveryGroups = [{ key: "g1", choices: [], selection: null }];
     backend({ Checkout: c, Countries: countries, PaymentOptions: { paymentMethods: [] } });
-    await expect((await render("checkout", "/checkout", { cookie: "cart_id=c1" })).html).toMatchFileSnapshot(snap("checkout-blocked"));
+    await expect((await renderCheckout()).html).toMatchFileSnapshot(snap("checkout-blocked"));
   });
 
   it("checkout, an error re-render keeps what was typed", async () => {
@@ -272,7 +284,7 @@ describe("page output", () => {
       SetDetails: new GqlError("Enter a valid email", "VALIDATION"),
     });
     const form = { intent: "place", group: "g1", "delivery:g1": "o2|post|m2", email: "nope", firstName: "Mila", payment: "bank", acceptTerms: "on" };
-    const { html } = await render("checkout", "/checkout", { cookie: "cart_id=c1", form });
+    const { html } = await renderCheckout(form);
     expect(html).toContain("Enter a valid email");
     await expect(html).toMatchFileSnapshot(snap("checkout-error"));
   });

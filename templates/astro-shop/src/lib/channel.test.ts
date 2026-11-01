@@ -1,35 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const gql = vi.fn();
-vi.mock("./gql", () => ({ gql }));
+const channelOf = vi.hoisted(() => vi.fn());
+vi.mock("@skelet/storefront-core/channel/read", () => ({ getChannel: channelOf }));
 
-const { forgetChannel, getChannel } = await import("./channel");
+const { getChannel, getSite } = await import("./channel");
 
-const channel = { name: "Shop", defaultLocale: "en", publicUrl: null, currency: { code: "USD" } };
+const channel = {
+  name: "Shop",
+  defaultLocale: "en",
+  publicUrl: "https://shop.test",
+  currency: { code: "USD", symbol: "$", symbolPosition: "prefix", decimals: 2 },
+};
 
-beforeEach(() => {
-  gql.mockReset();
-  forgetChannel();
-});
+beforeEach(() => channelOf.mockReset());
 
 describe("getChannel", () => {
-  it("asks the backend once and holds the answer", async () => {
-    gql.mockResolvedValue({ currentChannel: channel });
-    await getChannel();
-    await getChannel();
-    expect(gql).toHaveBeenCalledTimes(1);
-  });
-
-  it("asks again after forgetChannel (a config:public purge)", async () => {
-    gql.mockResolvedValue({ currentChannel: channel });
-    await getChannel();
-    forgetChannel();
-    await getChannel();
-    expect(gql).toHaveBeenCalledTimes(2);
+  it("is the core's channel - kept for the request, and by the core's data cache across them", async () => {
+    channelOf.mockResolvedValue(channel);
+    expect(await getChannel()).toBe(channel);
   });
 
   it("refuses to serve when the pinned channel doesn't resolve", async () => {
-    gql.mockResolvedValue({ currentChannel: null });
+    channelOf.mockResolvedValue(null);
     await expect(getChannel()).rejects.toThrow(/names no active channel/);
+  });
+});
+
+describe("getSite", () => {
+  it("builds on the channel's public origin, not the request's", async () => {
+    channelOf.mockResolvedValue(channel);
+    expect((await getSite("http://localhost:3000")).origin).toBe("https://shop.test");
   });
 });

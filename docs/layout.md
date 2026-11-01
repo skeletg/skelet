@@ -55,8 +55,8 @@ TypeScript every storefront shares, as source - Next and Vite compile workspace
 packages themselves, so there's no build step. `storefront-core` is a
 storefront's logic with no framework in it - the GraphQL client and operations,
 auth, cart, checkout, channel and locale - and a template builds its design on
-it through an adapter: `storefront-next` for Next. `storefront-react` holds the
-client hooks any React framework can use.
+it through an adapter: `storefront-next` for Next, `storefront-astro` for Astro.
+`storefront-react` holds the client hooks any React framework can use.
 The storefronts, the templates and these are one pnpm workspace: the root
 `pnpm-workspace.yaml` lists them and pins the versions they share in its catalog,
 so a package and the app using it resolve the same React, and the one root
