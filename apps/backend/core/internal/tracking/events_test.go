@@ -87,6 +87,12 @@ func (noOrders) GetCreditMemo(context.Context, uuid.UUID) (order.CreditMemo, err
 	return order.CreditMemo{}, nil
 }
 
+type optedIn map[string]bool
+
+func (o optedIn) EmailMarketingAllowed(_ context.Context, _ uuid.UUID, _ *uuid.UUID, email string) (bool, error) {
+	return o[email], nil
+}
+
 func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	ch := uuid.New()
 	registerTestKind(t, Kind{Kind: "t-all"})
@@ -94,7 +100,7 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-all", Enabled: true})
 	svc := &Service{store: fs}
 	bus := events.NewBus()
-	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"})
+	svc.Subscribe(bus, noOrders{}, oneChannel{"EUR"}, optedIn{"a@example.com": true})
 	ctx := events.WithEmittedAt(context.Background(), time.Unix(1700000000, 0))
 	cust, line := uuid.New(), uuid.New()
 
@@ -110,5 +116,24 @@ func TestCartChangesAndSignUpsBecomeEvents(t *testing.T) {
 	}
 	if names[AddToCart] != 1 || names[RemoveFromCart] != 1 || names[SignUp] != 1 || len(names) != 3 {
 		t.Errorf("queued %v, want one add (the replay collapsed), one removal and only the shop's own sign-up", names)
+	}
+}
+
+func TestAnEventSaysWhetherItsEmailMayBeMarketedTo(t *testing.T) {
+	registerTestKind(t, Kind{Kind: "t-capture"})
+	ch := uuid.New()
+	fs := newFakeStore(Destination{ID: uuid.New(), ChannelID: ch, Kind: "t-capture", Enabled: true})
+	h := handlers{svc: &Service{store: fs}, marketing: optedIn{"yes@example.com": true}}
+	for _, email := range []string{"yes@example.com", "no@example.com", ""} {
+		if err := h.track(context.Background(), Event{ID: "e-" + email, Name: Purchase, ChannelID: ch, User: User{Email: email}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := map[string]bool{}
+	for _, ev := range fs.events {
+		got[ev.User.Email] = ev.User.MarketingOptIn
+	}
+	if !got["yes@example.com"] || got["no@example.com"] || got[""] {
+		t.Errorf("marketing opt-in per email: %v", got)
 	}
 }

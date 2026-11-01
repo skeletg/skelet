@@ -478,3 +478,24 @@ func TestAClaimAppliesAGuestOptInUnlessTheAccountDecidedLater(t *testing.T) {
 		t.Errorf("a tick given after the account's no was not applied")
 	}
 }
+
+func TestEmailMarketingFollowsTheAccountElseTheGuestOptIn(t *testing.T) {
+	repo := newFakeRepo()
+	ch, cust := uuid.New(), uuid.New()
+	svc := NewService(repo)
+	ctx := context.Background()
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, &cust, ""); ok {
+		t.Error("an account with no consent row is opted out by default")
+	}
+	repo.put(cust, kindMarketingEmail, true, SourceProfile)
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, &cust, ""); !ok {
+		t.Error("the account's opt-in must count")
+	}
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, nil, "g@example.com"); ok {
+		t.Error("a guest address with no opt-in")
+	}
+	repo.optIns = []EmailOptIn{{ChannelID: ch, Email: "g@example.com", Kind: kindMarketingEmail}}
+	if ok, _ := svc.EmailMarketingAllowed(ctx, ch, nil, " G@Example.com "); !ok {
+		t.Error("a guest's checkout opt-in must count")
+	}
+}

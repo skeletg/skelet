@@ -21,6 +21,7 @@ import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories
 import { getPrivacy } from "@/app/lib/consent/mode";
 import { clickCookieWrites } from "@/app/lib/consent/click-ids";
 import { COUNT_PATH, countableView } from "@/app/lib/analytics/aggregate-view";
+import { SESSION_COOKIE, SESSION_TTL, sessionWrite } from "@/app/lib/analytics/session";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -221,6 +222,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     req.headers.get("host") ?? "",
     process.env.NODE_ENV === "production",
   );
+  const sessionValue = sessionWrite(req.cookies.get(SESSION_COOKIE)?.value, analytics, Date.now());
   const existingAid = req.cookies.get(AID_COOKIE)?.value;
   const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
@@ -234,6 +236,11 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
     else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
     for (const w of clickWrites) res.cookies.set(w.name, w.value, w.options);
+    if (sessionValue !== undefined) {
+      res.cookies.set(SESSION_COOKIE, sessionValue, {
+        path: "/", httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: sessionValue ? SESSION_TTL : 0,
+      });
+    }
     if (session.kind === "refreshed") {
       const opts = sessionCookieOptions();
       res.cookies.set(ACCESS_TOKEN_COOKIE, session.accessToken, { ...opts, maxAge: ACCESS_TOKEN_MAX_AGE });
@@ -267,6 +274,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   if (newAid) forward[AID_COOKIE] = newAid;
   if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
   for (const w of clickWrites) forward[w.name] = w.value; // a deletion too, so this render can't send what was just withdrawn
+  if (sessionValue !== undefined) forward[SESSION_COOKIE] = sessionValue;
   if (session.kind === "refreshed") forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
 
   const rewriteTo = channelId ? await channelRewrite(req, channelId) : null;

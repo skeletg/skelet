@@ -191,6 +191,25 @@ export const getBranding = cache(async (): Promise<Branding> => {
   }
 });
 
+// The optional web GTM container - read through the same cached public config as branding (Next dedupes the fetch), so
+// the layout stays static and a dashboard save refreshes it through the config tag. Empty id: no container
+export const getGtmConfig = cache(async (): Promise<{ id: string; origin: string }> => {
+  try {
+    const res = await gqlFetch(PublicConfigDocument, {}, {
+      cache: "force-cache",
+      revalidate: 300,
+      tags: [CONFIG_TAG],
+      surface: CONFIG_SURFACE,
+      cacheKeyExtra: [await getCurrentChannelId()],
+    });
+    const data = res.data as PublicConfigQuery;
+    const pick = (path: string) => data.publicConfig.find((c) => c.path === path)?.value.trim() ?? "";
+    return { id: pick("general/analytics/gtm_container_id"), origin: pick("general/analytics/gtm_script_origin") };
+  } catch {
+    return { id: "", origin: "" };
+  }
+});
+
 // Server-wide feature switches (env-driven on the backend, e.g. SIGNALS_ENABLED)
 const getFeatures = cache(async (): Promise<{ signals: boolean }> => {
   try {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -47,8 +49,9 @@ func NewService(q *db.Queries, sealer Sealer, settings Settings) *Service {
 }
 
 var (
-	ErrUnknownKind = errors.New("unknown tracking destination kind")
-	ErrNameMissing = errors.New("a tracking destination needs a name")
+	ErrUnknownKind  = errors.New("unknown tracking destination kind")
+	ErrNameMissing  = errors.New("a tracking destination needs a name")
+	ErrFieldMissing = errors.New("a required setting is missing")
 )
 
 // Track hands one event to every enabled destination on its channel that wants it and that the visitor's consent allows.
@@ -64,7 +67,7 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	var errs []error
 	for _, d := range dests {
 		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
+		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
 			continue
 		}
 		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
@@ -102,7 +105,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Destination, error) {
 }
 
 func (s *Service) Create(ctx context.Context, d Destination) (Destination, error) {
-	if err := validate(d); err != nil {
+	if err := validate(d, true); err != nil {
 		return Destination{}, err
 	}
 	return s.store.Create(ctx, d)
@@ -115,7 +118,7 @@ func (s *Service) Update(ctx context.Context, d Destination) (Destination, error
 		return Destination{}, err
 	}
 	d.Kind, d.ChannelID = current.Kind, current.ChannelID
-	if err := validate(d); err != nil {
+	if err := validate(d, false); err != nil {
 		return Destination{}, err
 	}
 	return s.store.Update(ctx, d)
@@ -134,12 +137,41 @@ func (s *Service) Redeliver(ctx context.Context, deliveryID uuid.UUID) error {
 	return s.store.Retry(ctx, deliveryID)
 }
 
-func validate(d Destination) error {
-	if _, ok := KindFor(d.Kind); !ok {
+// A new destination needs every required field, its secret included; an update may leave the secret empty to keep it
+func validate(d Destination, creating bool) error {
+	k, ok := KindFor(d.Kind)
+	if !ok {
 		return fmt.Errorf("%w: %q", ErrUnknownKind, d.Kind)
 	}
 	if strings.TrimSpace(d.Name) == "" {
 		return ErrNameMissing
 	}
+	for _, f := range k.Fields {
+		switch {
+		case !f.Required:
+		case f.Secret && creating && d.Secret == "", !f.Secret && strings.TrimSpace(d.Config[f.Key]) == "":
+			return fmt.Errorf("%w: %s", ErrFieldMissing, f.Label)
+		}
+	}
 	return nil
+}
+
+// SendTest sends one sample purchase to a destination now, outside the queue, and returns the platform's answer - for
+// checking a setup, so it is marked as a test where the platform has a way to say so (GA4's validate, Meta's test code)
+func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUID) (Event, error) {
+	d, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Event{}, err
+	}
+	k, ok := KindFor(d.Kind)
+	if !ok {
+		return Event{}, fmt.Errorf("%w: %q", ErrUnknownKind, d.Kind)
+	}
+	ev := Event{
+		ID: "test-" + uuid.NewString(), Name: Purchase, OccurredAt: time.Now().UTC(), ChannelID: d.ChannelID, Source: "server",
+		Consent:   &auth.Consent{Analytics: true, Ads: true, Personalization: true},
+		User:      User{AnonID: "test-visitor", Email: "test@example.com"},
+		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
+	}
+	return ev, k.Send(ctx, client, d, ev)
 }

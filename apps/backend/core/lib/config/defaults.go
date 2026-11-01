@@ -18,6 +18,7 @@ func init() {
 	RegisterGroup(Group{Section: "general", Slug: "security", Label: "Security", SortOrder: 2})
 	RegisterGroup(Group{Section: "general", Slug: "urls", Label: "URLs & Redirects", SortOrder: 3})
 	RegisterGroup(Group{Section: "general", Slug: "privacy", Label: "Privacy", SortOrder: 4, Scoping: ScopingChannel})
+	RegisterGroup(Group{Section: "general", Slug: "analytics", Label: "Analytics & tags", SortOrder: 5, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "checkout", Label: "Checkout", SortOrder: 1, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "orders", Label: "Orders", SortOrder: 2, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "sales", Slug: "inventory", Label: "Inventory", SortOrder: 3})
@@ -78,6 +79,8 @@ func init() {
 		{Value: "opt_in", Label: "Ask first (opt-in)"},
 		{Value: "opt_out", Label: "No banner (opt-out)"},
 	}})
+	Register(Definition{Path: "general/analytics/gtm_container_id", Type: TypeString, Default: "", Label: "Google Tag Manager web container", Description: "GTM-XXXXXXX to load Google Tag Manager on the storefront, only once a visitor allows a cookie category, and after the page has loaded. Leave it empty to load no script at all: shop events already reach GA4, Meta and the rest server to server, and a server-side GTM container takes them as the GA4 destination's endpoint.", Public: true})
+	Register(Definition{Path: "general/analytics/gtm_script_origin", Type: TypeString, Default: "", Label: "GTM script origin", Description: "Where gtm.js loads from. Empty is Google's own. Your server-side GTM container's first-party URL serves it from your own domain instead, which ad blockers leave alone.", Public: true})
 	Register(Definition{Path: "general/privacy/aggregate_counts", Type: TypeBool, Default: "true", Label: "Count visitors who decline analytics, as nobody", Description: "On, Signals still counts cart changes, orders and revenue from visitors who haven't allowed analytics, with no cookie, no visitor id and nothing that names them, so they appear in totals but never on a profile, in a funnel or as a unique visitor. This rests on legitimate interest - mention it in your privacy notice. Off, nothing is recorded for them."})
 	Register(Definition{Path: "general/privacy/cj_cookie_necessary", Type: TypeBool, Default: "false", Label: "Treat the CJ affiliate cookie as necessary", Description: "Off, CJ's click cookie is set and its conversions sent only with the visitor's advertising consent. On, both happen without it, as some affiliate programmes require. Whether that is lawful where you sell is your call.", Public: true})
 	Register(Definition{Path: "general/privacy/awin_cookie_necessary", Type: TypeBool, Default: "false", Label: "Treat the Awin affiliate cookie as necessary", Description: "Off, Awin's click cookie is set and its conversions sent only with the visitor's advertising consent. On, both happen without it, as some affiliate programmes require. Whether that is lawful where you sell is your call.", Public: true})

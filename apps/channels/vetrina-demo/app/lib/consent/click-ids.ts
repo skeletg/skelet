@@ -11,6 +11,7 @@ type ClickId = {
   cookie: string;
   maxAge: number;
   browser?: boolean; // Meta's pixel reads its own cookies, so those stay readable from script
+  foreign?: boolean; // set by a platform's own pixel, never by us - read and forwarded, deleted on withdrawal, never minted
   affiliate?: boolean; // the merchant may make it necessary, per network
 };
 
@@ -20,6 +21,8 @@ export const CLICK_IDS: ClickId[] = [
   { key: "wbraid", param: "wbraid", cookie: "sk_wbraid", maxAge: 90 * DAY },
   { key: "msclkid", param: "msclkid", cookie: "sk_msclkid", maxAge: 90 * DAY },
   { key: "ttclid", param: "ttclid", cookie: "sk_ttclid", maxAge: 90 * DAY },
+  { key: "oppref", param: "oppref", cookie: "sk_oppref", maxAge: 90 * DAY }, // OpenAI's ad click
+  { key: "obref", param: "", cookie: "__obref", maxAge: 0, browser: true, foreign: true }, // OpenAI's pixel
   { key: "awc", param: "awc", cookie: "awc", maxAge: 365 * DAY, affiliate: true },
   // CJ's spec (docs.cj.com/docs/http-cookie): 13 months from the last click. HttpOnly, which the spec leaves off only so
   // CJ's own browser tag can read it - this one is sent server to server
@@ -72,6 +75,7 @@ export function clickCookieWrites(
       if (current) out.push(write(c, ""));
       continue;
     }
+    if (c.foreign) continue;
     if (c.key === "fbp") {
       if (!current) out.push(write(c, `fb.1.${now}.${Math.floor(Math.random() * 1e10)}`));
       continue;

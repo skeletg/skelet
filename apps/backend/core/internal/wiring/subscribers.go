@@ -124,7 +124,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	registerEmailOptIns(bus, d.Consent, d.Customer)
-	d.Tracking.Subscribe(bus, d.Order, d.Channel) // the shop's own events to the platforms - independent of Signals
+	d.Tracking.Subscribe(bus, d.Order, d.Channel, d.Consent) // the shop's own events to the platforms - independent of Signals
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)

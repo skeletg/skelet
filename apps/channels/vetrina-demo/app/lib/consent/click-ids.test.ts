@@ -67,3 +67,19 @@ describe("click id cookies", () => {
     expect(cookieDomain("checkout.shop.co.uk", ".shop.co.uk")).toBe("shop.co.uk");
   });
 });
+
+describe("OpenAI's click ids", () => {
+  it("stores oppref like any click, and only forwards the pixel's own __obref", () => {
+    const w = byName(writes("oppref=op_1", {}, true));
+    expect(w.sk_oppref.value).toBe("op_1");
+    expect(w.__obref).toBeUndefined();
+    expect(byName(writes("", { __obref: "123e4567-e89b-42d3-a456-426614174000", _fbp: "x" }, true))).toEqual({});
+    const h = new URLSearchParams(clickIdsHeader(jar({ sk_oppref: "op_1", __obref: "123e4567-e89b-42d3-a456-426614174000" }), true));
+    expect(Object.fromEntries(h)).toEqual({ oppref: "op_1", obref: "123e4567-e89b-42d3-a456-426614174000" });
+  });
+
+  it("deletes the pixel's __obref too once advertising consent is withdrawn", () => {
+    const w = byName(writes("", { __obref: "x" }, false));
+    expect([w.__obref.value, w.__obref.options.maxAge]).toEqual(["", 0]);
+  });
+});

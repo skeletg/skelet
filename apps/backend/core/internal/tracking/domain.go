@@ -17,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/money"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Purpose is a cookie category an event needs before a destination may receive it
@@ -96,6 +97,9 @@ type User struct {
 	AnonID     string     `json:"anon_id,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	Phone      string     `json:"phone,omitempty"`
+	// The email may receive marketing - the account's consent, or a guest's opt-in. Marketing platforms that build a
+	// profile from the address need it; false wherever the event carries no email
+	MarketingOptIn bool `json:"marketing_opt_in,omitempty"`
 }
 
 type Context struct {
@@ -104,6 +108,8 @@ type Context struct {
 	PageURL   string `json:"page_url,omitempty"`
 	Referrer  string `json:"referrer,omitempty"`
 	Locale    string `json:"locale,omitempty"`
+	PageTitle string `json:"page_title,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // the storefront's analytics session, its start in seconds
 }
 
 // WithShopper fills in the visitor - each part is already there only under the consent it needs
@@ -114,7 +120,7 @@ func (e *Event) WithShopper(s *auth.Shopper) {
 	c := s.Consent
 	e.Consent = &c
 	e.ClickIDs = s.ClickIDs
-	e.User.AnonID = s.AnonID
+	e.User.AnonID, e.Context.SessionID = s.AnonID, s.SessionID
 	e.Context.IP, e.Context.UserAgent = s.IP, s.UserAgent
 }
 
@@ -165,8 +171,12 @@ type Destination struct {
 
 // Kind is the code that speaks to one platform
 type Kind struct {
-	Kind          string
-	Label         string
+	Kind   string
+	Label  string
+	Plugin string                 // the plugin that registered it, empty for core's own
+	Fields []sdk.DestinationField // the admin form for a configured destination
+	// Whether a channel may use it at all - a plugin switched off there sends nothing. Nil: everywhere
+	Available     func(ctx context.Context, channelID uuid.UUID) bool
 	Purposes      []Purpose // what every event it receives needs - the row can't change it
 	DefaultEvents []string  // empty: every event
 	// A setting that, when on, makes the kind need no consent - an affiliate network the merchant treats as necessary

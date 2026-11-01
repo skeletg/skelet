@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "name": "T-Shirt",
+      "price": [
+        {
+          "currency": "USD",
+          "value": 19.99
+        }
+      ],
+      "productId": "AB12345",
+      "productVariantId": "AB12345",
+      "quantity": 1
+    }
+  ],
+  "occurredAt": "2026-11-01T10:00:00Z",
+  "orderId": "ORDER-1001",
+  "salesChannel": {
+    "channelType": "WEB"
+  },
+  "user": {
+    "email": "test@gmail.com",
+    "externalIdentifiers": {
+      "clientUserId": "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+      "customIdentifiers": [
+        {
+          "name": "visitor_id",
+          "value": "visitor-1"
+        }
+      ]
+    }
+  }
+}

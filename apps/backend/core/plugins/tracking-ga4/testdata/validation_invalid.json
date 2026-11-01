@@ -1,0 +1,9 @@
+{
+  "validationMessages": [
+    {
+      "fieldPath": "events",
+      "description": "Event at index: [0] has invalid name [_badEventName]. Names must start with an alphabetic character.",
+      "validationCode": "NAME_INVALID"
+    }
+  ]
+}
