@@ -12,15 +12,15 @@ WHERE  channel_id = $1
 ORDER  BY created_at;
 
 -- name: CreateTrackingDestination :one
-INSERT INTO tracking_destinations (channel_id, kind, name, enabled, purposes, events, config, secret)
-VALUES (sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), sqlc.arg(enabled), sqlc.arg(purposes)::text[],
+INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret)
+VALUES (sqlc.arg(channel_id), sqlc.arg(kind), sqlc.arg(name), sqlc.arg(enabled),
         sqlc.arg(events)::text[], sqlc.arg(config), sqlc.arg(secret))
 RETURNING *;
 
 -- name: UpdateTrackingDestination :one
 -- An empty secret keeps the stored one, so a form that never shows it back can't wipe it
 UPDATE tracking_destinations
-SET    name = sqlc.arg(name), enabled = sqlc.arg(enabled), purposes = sqlc.arg(purposes)::text[],
+SET    name = sqlc.arg(name), enabled = sqlc.arg(enabled),
        events = sqlc.arg(events)::text[], config = sqlc.arg(config),
        secret = CASE WHEN sqlc.arg(secret)::text = '' THEN secret ELSE sqlc.arg(secret)::text END,
        updated_at = NOW()

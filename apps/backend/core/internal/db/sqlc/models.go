@@ -2693,7 +2693,6 @@ type TrackingDestination struct {
 	Kind      string          `json:"kind"`
 	Name      string          `json:"name"`
 	Enabled   bool            `json:"enabled"`
-	Purposes  []string        `json:"purposes"`
 	Events    []string        `json:"events"`
 	Config    json.RawMessage `json:"config"`
 	Secret    string          `json:"secret"`

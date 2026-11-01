@@ -72,10 +72,10 @@ func (q *Queries) ClaimDueTrackingDeliveries(ctx context.Context, arg ClaimDueTr
 }
 
 const createTrackingDestination = `-- name: CreateTrackingDestination :one
-INSERT INTO tracking_destinations (channel_id, kind, name, enabled, purposes, events, config, secret)
-VALUES ($1, $2, $3, $4, $5::text[],
-        $6::text[], $7, $8)
-RETURNING id, channel_id, kind, name, enabled, purposes, events, config, secret, created_at, updated_at
+INSERT INTO tracking_destinations (channel_id, kind, name, enabled, events, config, secret)
+VALUES ($1, $2, $3, $4,
+        $5::text[], $6, $7)
+RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at
 `
 
 type CreateTrackingDestinationParams struct {
@@ -83,7 +83,6 @@ type CreateTrackingDestinationParams struct {
 	Kind      string          `json:"kind"`
 	Name      string          `json:"name"`
 	Enabled   bool            `json:"enabled"`
-	Purposes  []string        `json:"purposes"`
 	Events    []string        `json:"events"`
 	Config    json.RawMessage `json:"config"`
 	Secret    string          `json:"secret"`
@@ -95,7 +94,6 @@ func (q *Queries) CreateTrackingDestination(ctx context.Context, arg CreateTrack
 		arg.Kind,
 		arg.Name,
 		arg.Enabled,
-		pq.Array(arg.Purposes),
 		pq.Array(arg.Events),
 		arg.Config,
 		arg.Secret,
@@ -107,7 +105,6 @@ func (q *Queries) CreateTrackingDestination(ctx context.Context, arg CreateTrack
 		&i.Kind,
 		&i.Name,
 		&i.Enabled,
-		pq.Array(&i.Purposes),
 		pq.Array(&i.Events),
 		&i.Config,
 		&i.Secret,
@@ -151,7 +148,7 @@ func (q *Queries) EnqueueTrackingDelivery(ctx context.Context, arg EnqueueTracki
 }
 
 const getTrackingDestination = `-- name: GetTrackingDestination :one
-SELECT id, channel_id, kind, name, enabled, purposes, events, config, secret, created_at, updated_at FROM tracking_destinations WHERE id = $1
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at FROM tracking_destinations WHERE id = $1
 `
 
 func (q *Queries) GetTrackingDestination(ctx context.Context, id uuid.UUID) (TrackingDestination, error) {
@@ -163,7 +160,6 @@ func (q *Queries) GetTrackingDestination(ctx context.Context, id uuid.UUID) (Tra
 		&i.Kind,
 		&i.Name,
 		&i.Enabled,
-		pq.Array(&i.Purposes),
 		pq.Array(&i.Events),
 		&i.Config,
 		&i.Secret,
@@ -174,7 +170,7 @@ func (q *Queries) GetTrackingDestination(ctx context.Context, id uuid.UUID) (Tra
 }
 
 const listEnabledTrackingDestinations = `-- name: ListEnabledTrackingDestinations :many
-SELECT id, channel_id, kind, name, enabled, purposes, events, config, secret, created_at, updated_at FROM tracking_destinations
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at FROM tracking_destinations
 WHERE  channel_id = $1 AND enabled
 ORDER  BY created_at
 `
@@ -194,7 +190,6 @@ func (q *Queries) ListEnabledTrackingDestinations(ctx context.Context, channelID
 			&i.Kind,
 			&i.Name,
 			&i.Enabled,
-			pq.Array(&i.Purposes),
 			pq.Array(&i.Events),
 			&i.Config,
 			&i.Secret,
@@ -262,7 +257,7 @@ func (q *Queries) ListTrackingDeliveries(ctx context.Context, arg ListTrackingDe
 }
 
 const listTrackingDestinations = `-- name: ListTrackingDestinations :many
-SELECT id, channel_id, kind, name, enabled, purposes, events, config, secret, created_at, updated_at FROM tracking_destinations
+SELECT id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at FROM tracking_destinations
 WHERE  channel_id = $1
 ORDER  BY created_at
 `
@@ -282,7 +277,6 @@ func (q *Queries) ListTrackingDestinations(ctx context.Context, channelID uuid.U
 			&i.Kind,
 			&i.Name,
 			&i.Enabled,
-			pq.Array(&i.Purposes),
 			pq.Array(&i.Events),
 			&i.Config,
 			&i.Secret,
@@ -367,22 +361,21 @@ func (q *Queries) RetryTrackingDelivery(ctx context.Context, id uuid.UUID) error
 
 const updateTrackingDestination = `-- name: UpdateTrackingDestination :one
 UPDATE tracking_destinations
-SET    name = $1, enabled = $2, purposes = $3::text[],
-       events = $4::text[], config = $5,
-       secret = CASE WHEN $6::text = '' THEN secret ELSE $6::text END,
+SET    name = $1, enabled = $2,
+       events = $3::text[], config = $4,
+       secret = CASE WHEN $5::text = '' THEN secret ELSE $5::text END,
        updated_at = NOW()
-WHERE  id = $7
-RETURNING id, channel_id, kind, name, enabled, purposes, events, config, secret, created_at, updated_at
+WHERE  id = $6
+RETURNING id, channel_id, kind, name, enabled, events, config, secret, created_at, updated_at
 `
 
 type UpdateTrackingDestinationParams struct {
-	Name     string          `json:"name"`
-	Enabled  bool            `json:"enabled"`
-	Purposes []string        `json:"purposes"`
-	Events   []string        `json:"events"`
-	Config   json.RawMessage `json:"config"`
-	Secret   string          `json:"secret"`
-	ID       uuid.UUID       `json:"id"`
+	Name    string          `json:"name"`
+	Enabled bool            `json:"enabled"`
+	Events  []string        `json:"events"`
+	Config  json.RawMessage `json:"config"`
+	Secret  string          `json:"secret"`
+	ID      uuid.UUID       `json:"id"`
 }
 
 // An empty secret keeps the stored one, so a form that never shows it back can't wipe it
@@ -390,7 +383,6 @@ func (q *Queries) UpdateTrackingDestination(ctx context.Context, arg UpdateTrack
 	row := q.db.QueryRowContext(ctx, updateTrackingDestination,
 		arg.Name,
 		arg.Enabled,
-		pq.Array(arg.Purposes),
 		pq.Array(arg.Events),
 		arg.Config,
 		arg.Secret,
@@ -403,7 +395,6 @@ func (q *Queries) UpdateTrackingDestination(ctx context.Context, arg UpdateTrack
 		&i.Kind,
 		&i.Name,
 		&i.Enabled,
-		pq.Array(&i.Purposes),
 		pq.Array(&i.Events),
 		&i.Config,
 		&i.Secret,

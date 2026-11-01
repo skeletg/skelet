@@ -1,13 +1,13 @@
 -- migrate:up
 -- Where a channel's shop events go server to server - an analytics or ad platform, one row per configured account. The
--- kind names the code that speaks to it; purposes are the cookie categories an event needs before it may be sent there
+-- kind names the code that speaks to it, and the cookie categories an event needs before it may go there come from the
+-- kind alone, so no row can be configured past a visitor's refusal
 CREATE TABLE public.tracking_destinations (
     id uuid DEFAULT uuidv7() NOT NULL PRIMARY KEY,
     channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
     kind text NOT NULL,
     name text NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
-    purposes text[] DEFAULT '{}'::text[] NOT NULL,
     events text[] DEFAULT '{}'::text[] NOT NULL,
     config jsonb DEFAULT '{}'::jsonb NOT NULL,
     secret text DEFAULT ''::text NOT NULL,
