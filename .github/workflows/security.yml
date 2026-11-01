@@ -12,7 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  # The whole history, not just the diff - a secret is public the moment it's pushed, whichever commit holds it.
+  # The whole history, not just the diff - a secret is public the moment it's pushed, whichever commit holds it - but a
+  # pull request answers only for the history it merges, so another branch's finding fails that branch, not everyone's.
   # Reviewed fixtures are in .gitleaksignore. The binary, not gitleaks-action, which wants a licence for an org
   gitleaks:
     name: Secrets in history
@@ -30,7 +31,9 @@ jobs:
           curl -sSfL "$base/gitleaks_${VERSION}_checksums.txt" | grep 'linux_x64.tar.gz$' | awk '{print $1"  gitleaks.tgz"}' | sha256sum -c
           tar xzf gitleaks.tgz gitleaks
       - name: Scan
-        run: ./gitleaks git --no-banner --redact --exit-code 1 .
+        env:
+          SCOPE: ${{ github.event_name == 'pull_request' && 'HEAD' || '--all' }}
+        run: ./gitleaks git --no-banner --redact --exit-code 1 --log-opts="--full-history $SCOPE" .
 
   govulncheck:
     name: Go vulnerabilities
