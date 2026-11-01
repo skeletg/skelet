@@ -54,3 +54,27 @@ func TestBrowserTimesAreHeldToTheServerClock(t *testing.T) {
 		}
 	}
 }
+
+// An aggregate event is stored as nobody, carrying only amounts and items - whatever the caller put in it
+func TestAnAggregateActivityIsStoredAsNobody(t *testing.T) {
+	spine := &appendSpine{}
+	r := NewRecorder(nil, spine)
+	cust := uuid.New()
+	ok, err := r.RecordActivity(context.Background(), ActivitySpec{
+		EventName: "order_placed", Source: SourceAggregate, ChannelID: uuid.New(), CustomerID: &cust, AnonID: "visitor-1",
+		Props: map[string]any{"total_cents": int64(900), "currency": "EUR", "order_id": "o-1", "email": "a@example.com"},
+	})
+	if err != nil || !ok || len(spine.got) != 1 {
+		t.Fatalf("recorded %v, %v, %d rows", ok, err, len(spine.got))
+	}
+	e := spine.got[0]
+	if e.CustomerID != nil || e.AnonID != "" || e.Source != SourceAggregate {
+		t.Errorf("an aggregate event kept an actor: %+v", e)
+	}
+	if len(e.Props) != 2 || e.Props["total_cents"] != int64(900) || e.Props["currency"] != "EUR" {
+		t.Errorf("props %v, want only the amount and currency", e.Props)
+	}
+	if ok, _ := r.RecordActivity(context.Background(), ActivitySpec{EventName: "cart_add", Source: SourceCommerce, ChannelID: uuid.New()}); ok || len(spine.got) != 1 {
+		t.Error("an event with no actor that isn't marked aggregate must still be dropped")
+	}
+}

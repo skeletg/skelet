@@ -35,7 +35,16 @@ const (
 	SourceCommerce = "commerce" // server-side commerce actions (order/cart/return/review/...)
 	SourceAccount  = "account"  // server-side account actions (auth/registration/profile/...)
 	SourceLens     = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
+	// A visitor who hasn't allowed analytics, counted as nobody - in totals only: no actor, so every per-person read (profiles, funnels,
+	// retention, flows, RFM, segments) leaves it out by its empty-actor guard, while event totals and revenue include it
+	SourceAggregate = "aggregate"
 )
+
+// What an aggregate event may carry - amounts and items, never anything that could lead back to a person or an order
+var aggregateProps = map[string]bool{
+	"sku": true, "qty": true, "unit_price": true, "total_cents": true, "amount_cents": true, "currency": true,
+	"path": true, "status": true, "bundle": true,
+}
 
 type Recorder struct {
 	qs      *signalsdb.Queries // the signals database - segments, rosters, traits, the erasure queue
@@ -273,7 +282,14 @@ type ActivitySpec struct { // a server-side action, from authenticated flows rat
 }
 
 func (r *Recorder) RecordActivity(ctx context.Context, a ActivitySpec) (bool, error) { // no-op with neither id - an action we can't attribute to anyone has no place on a profile
-	if a.CustomerID == nil && a.AnonID == "" {
+	if a.Source == SourceAggregate {
+		a.CustomerID, a.AnonID = nil, "" // nobody, whatever the caller sent
+		for k := range a.Props {
+			if !aggregateProps[k] {
+				delete(a.Props, k)
+			}
+		}
+	} else if a.CustomerID == nil && a.AnonID == "" {
 		return false, nil
 	}
 	var ch *uuid.UUID
