@@ -240,6 +240,18 @@ func (s *Service) CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, em
 	return c.ID, true, nil
 }
 
+// VerifiedCustomerIDByEmail is the account that has proven it owns the address - found is false without one, and while it is unverified
+func (s *Service) VerifiedCustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error) {
+	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, NormalizeEmail(email))
+	if errors.Is(err, ErrCustomerNotFound) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	return c.ID, c.IsEmailVerified, nil
+}
+
 // IsActive backs auth.CustomerSessionGuard - a disabled or deleted account stops authenticating on the next request instead of riding out its access-token TTL
 func (s *Service) IsActive(ctx context.Context, id uuid.UUID) (bool, error) {
 	return s.repo.IsActive(ctx, id)
