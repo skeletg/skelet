@@ -6,3 +6,7 @@ d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_te
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:303
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:apps/backend/internal/config/service_test.go:stripe-access-token:314
 d6c20f0f98d1b0f868dcfd65ab5657a04d15896b:env/garage.toml:generic-api-key:20
+
+# Destination test fixtures on feat/catalogue-delivery, reviewed 2026-11-01 - stale once that branch is rebased
+eb1b109db2364bc082e1eda7e4cc5053098d9bba:apps/backend/core/internal/tracking/catalog_db_test.go:generic-api-key:30
+eb1b109db2364bc082e1eda7e4cc5053098d9bba:apps/backend/core/internal/tracking/catalog_test.go:generic-api-key:26
