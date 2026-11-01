@@ -47,7 +47,8 @@ func pinPackages(root, template, dir string, workspace bool) (version, kept stri
 	if !gitx.HasTag(root, tag) {
 		return "", "there's no " + tag + " tag here to check packages/ against"
 	}
-	paths := []string{"packages"}
+	// Codegen output follows the project's live schema, which a plugin adds to - only the source says the checkout moved on
+	paths := []string{"packages", ":(exclude)*.gql.ts", ":(exclude)*schema.types.ts"}
 	if template != "" {
 		paths = append(paths, template)
 	}

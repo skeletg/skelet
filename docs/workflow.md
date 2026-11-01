@@ -369,9 +369,10 @@ place last, so a failure leaves nothing half-made. A template setup left out of 
 so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
 one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
 finishes the job once the cause is fixed. A checkout ahead of its last
-release - `packages/` or the template changed since its tag, as on Skelet's own `develop` - links `packages/`
+release - source in `packages/` or the template changed since its tag, as on Skelet's own `develop` - links `packages/`
 instead, since npm can't have those changes yet, and so does `--workspace`, for working on the packages against a
-shop. `--tracked` puts the
+shop. Regenerated GraphQL types don't count: a plugin that adds to the schema changes what `skelet gen` writes, not
+what the packages ask the backend for. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.

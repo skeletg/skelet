@@ -24,6 +24,9 @@ func releasedCheckout(t *testing.T) (root, fork string) {
 	put(t, root, "CHANGELOG.md", "# Changelog\n\n## Releases\n\n- [0.3.1](changelog/0.3.1.md) - 2026-11-01\n- [0.3.0](changelog/0.3.0.md) - 2026-10-01\n", 0o644)
 	put(t, root, "packages/storefront-core/cart.ts", "export const cart = 1\n", 0o644)
 	put(t, root, "templates/vetrina/page.tsx", "export default 1\n", 0o644)
+	put(t, root, "packages/storefront-core/graphql/schema.types.ts", "export type Query = { cart: Cart }\n", 0o644)
+	put(t, root, "packages/storefront-core/cart/queries.gql.ts", "export const CartDocument = {}\n", 0o644)
+	put(t, root, "templates/vetrina/src/graphql/schema.types.ts", "export type Query = { cart: Cart }\n", 0o644)
 	git(t, root, "init", "-q")
 	git(t, root, "add", ".")
 	git(t, root, "commit", "-q", "-m", "release")
@@ -74,6 +77,18 @@ func TestAForkKeepsTheWorkspaceWhenTheCheckoutIsAheadOfItsRelease(t *testing.T) 
 		if manifest(t, fork) != forkManifest {
 			t.Errorf("%s changed: the fork's package.json should be untouched", changed)
 		}
+	}
+}
+
+func TestAForkStillTakesNpmAfterAPluginRegeneratesTheSchemaTypes(t *testing.T) {
+	defer onNpm(true, nil)()
+	root, fork := releasedCheckout(t)
+	plugin := "export type Query = { cart: Cart; affirmClientConfig?: AffirmClientConfig }\nexport type AffirmClientConfig = { publicApiKey: string }\n"
+	put(t, root, "packages/storefront-core/graphql/schema.types.ts", plugin, 0o644)
+	put(t, root, "templates/vetrina/src/graphql/schema.types.ts", plugin, 0o644)
+	put(t, root, "packages/storefront-core/cart/queries.gql.ts", "import type { AffirmClientConfig } from \"../graphql/schema.types\"\nexport const CartDocument = {}\n", 0o644)
+	if version, kept := pinPackages(root, "templates/vetrina", fork, false); version != "0.3.1" || kept != "" {
+		t.Errorf("regenerated codegen output shouldn't count as the checkout moving on: got %q, kept %q", version, kept)
 	}
 }
 
