@@ -221,7 +221,9 @@ convention is the one most code comments point at.
   actions from `@skelet/storefront-next/<module>`, whose modules load that
   setup, and pure helpers from `@skelet/storefront-core/<module>`.
   `storefront-astro`'s middleware answers it the Astro way, and an Astro
-  template imports everything from the core directly. Reads
+  template imports everything from the core directly. Routing is the
+  adapter's too: a Next template's `proxy.ts` calls `storefrontProxy` and
+  keeps only the `matcher` Next reads from that file. Reads
   memoize per request with `perRequest`, not React's `cache`. A test
   answers `request()` with `useTestRequest` from `storefront-core/testing.ts`.
 - **Server-only GraphQL.** The core's `graphql.ts` is RSC/route-handler

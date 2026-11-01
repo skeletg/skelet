@@ -22,7 +22,8 @@
   runs in for cookies, headers, locale and channel instead of calling Next. `@skelet/storefront-next`
   answers those the Next way and wraps the actions as server actions, `@skelet/storefront-astro`
   answers them the Astro way, and `@skelet/storefront-react` holds the client hooks any React
-  framework can use. A shop forked from a template keeps up with fixes
+  framework can use. A Next storefront's routing is the adapter's as well - channel and locale, the
+  session refresh, the visitor id - so its `proxy.ts` is a call to `storefrontProxy` and a matcher. A shop forked from a template keeps up with fixes
   to that code by merging a release, without touching its own pages. Codegen is the core's, run by
   `skelet gen`, and `skelet check` fails on a framework import in the core and reads the shared lists
   from it.

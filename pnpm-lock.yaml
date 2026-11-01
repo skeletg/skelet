@@ -127,6 +127,9 @@ importers:
       '@skelet/storefront-core':
         specifier: workspace:*
         version: link:../storefront-core
+      graphql:
+        specifier: 'catalog:'
+        version: 16.14.2
     devDependencies:
       '@testing-library/jest-dom':
         specifier: 'catalog:'

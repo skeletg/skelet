@@ -9,7 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@skelet/storefront-core": "workspace:*"
+    "@skelet/storefront-core": "workspace:*",
+    "graphql": "catalog:"
   },
   "peerDependencies": {
     "next": "catalog:",

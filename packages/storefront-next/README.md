@@ -9,6 +9,9 @@ What's left here is what only Next can do:
 - **Server actions** - a `"use server"` module per domain at the path a template imports, each a thin wrapper over the
   core's action.
 - **Reads** - a module per domain re-exporting the core's, so a template's imports reach them through the setup.
+- **The proxy** - `storefrontProxy` routes every request to its channel and locale, rotates a near-expiry session,
+  mints the visitor id, holds a `?promo=` code and reports a crawler's fetch. A template's `proxy.ts` calls it and keeps
+  only the `matcher`, which Next reads from that file as written.
 - **Next-only client code** - the cart provider (next-intl) and the customer provider (`next/navigation`), and the
   page metadata builder, whose shape is Next's `Metadata`.
 
