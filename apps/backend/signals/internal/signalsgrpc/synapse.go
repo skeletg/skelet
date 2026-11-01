@@ -165,7 +165,7 @@ func (s *synapseServer) GetInsights(ctx context.Context, req *signalsv1.GetInsig
 	}
 	return &signalsv1.GetInsightsResponse{
 		Points: points, Series: series, Total: int32(ins.Total), Uniques: int32(ins.Uniques),
-		PrevTotal: int32(ins.PrevTotal), PrevUniques: int32(ins.PrevUniques),
+		PrevTotal: int32(ins.PrevTotal), PrevUniques: int32(ins.PrevUniques), Aggregate: int32(ins.Aggregate),
 	}, nil
 }
 

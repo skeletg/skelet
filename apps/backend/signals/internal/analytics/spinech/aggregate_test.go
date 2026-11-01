@@ -43,8 +43,8 @@ func TestAggregateEventsCountInTotalsButAreNobody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ins.Total != 5 || ins.Uniques != 2 {
-		t.Errorf("insights total %d, uniques %d - want every add counted and only the two people as uniques", ins.Total, ins.Uniques)
+	if ins.Total != 5 || ins.Uniques != 2 || ins.Aggregate != 3 {
+		t.Errorf("insights total %d, uniques %d, aggregate %d - want every add counted, only the two people as uniques, and the three named", ins.Total, ins.Uniques, ins.Aggregate)
 	}
 	steps, err := st.Funnel(ctx, ch, []string{"cart_add", "order_placed"}, since)
 	if err != nil {
