@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -29,9 +30,14 @@ admin login.
                                             template runs only when named, or with --all
   --docker-apps LIST|none                   which of those run in Docker rather than on the host
   --tools LIST|none                         dev tools: mailpit, webhook-tester, grafana, garage-webui
+  --shop NAME, --template NAME              a storefront of your own, copied from a template (default: shop,
+                                            and the template docker-compose.yml runs) - offered when you have none
   --keep-code                               leave deselected apps' source in the working tree
   --yes, -y                                 take the defaults and ask nothing
   --profile FILE                            replay the answers in FILE (implies --yes)`
+
+// forkShop makes a project's first shop - a seam for the tests, which have no compose to validate against
+var forkShop = scaffold.Fork
 
 func Run(root string, args []string) int {
 	c, err := scan(root)
@@ -64,6 +70,14 @@ func Run(root string, args []string) int {
 	w, err := Write(root, a, c, rand.Reader, os.Stdout)
 	if err != nil {
 		return fail(err)
+	}
+	// After the env files - the copy checks the compose files it adds to, and compose needs them - and before the boot,
+	// so the stack starts with the new shop in it
+	if a.shop != "" {
+		if code := forkShop(root, a.shop, a.shopTemplate); code != 0 {
+			fmt.Fprintf(os.Stderr, "==> %s wasn't made - skelet add channel %s makes it once the rest is fixed\n", a.shop, a.shop)
+			return code
+		}
 	}
 	if err := tree(root, a, c); err != nil {
 		return fail(err)

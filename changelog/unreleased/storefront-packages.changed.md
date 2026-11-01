@@ -8,6 +8,10 @@
   store: your storefronts under `apps/channels/` default to yes, a template to no, and `--yes` takes
   that default (`--all` still means everything). A template left out of the working tree is still
   forked by `skelet add channel`, straight from git.
+- **Setup offers your first storefront.** With no shop of your own yet, `skelet setup` asks which
+  template to copy and what to call it, and makes it the way `skelet add channel` would - selected,
+  and running where your other frontends run. `--template <name>` and `--shop <name>` do it without
+  asking, and `skelet new` hands them on: `skelet new my-store --template astro-shop`.
 - **The storefronts are one pnpm workspace.** `pnpm-workspace.yaml` and `pnpm-lock.yaml` at the root
   cover `apps/channels/*`, `templates/*` and the new `packages/*`, and the workspace's catalog keeps
   the versions they share in step, so a package and the app using it resolve the same React. The

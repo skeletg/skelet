@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
 	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
@@ -342,7 +344,7 @@ func TestParseFlags(t *testing.T) {
 		"--tools jaeger":  `Unknown tool "jaeger" (valid: mailpit, webhook-tester, grafana, garage-webui, none)`,
 		"--profile":       "--profile needs a file",
 		"--profile /nope": "No such profile: /nope",
-		"--bogus":         "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --keep-code, --yes, --profile FILE)",
+		"--bogus":         "Unknown flag: --bogus (try --all, --backend-only, --apps LIST, --docker-apps LIST, --tools LIST, --shop NAME, --template NAME, --keep-code, --yes, --profile FILE)",
 	} {
 		if _, err := parseFlags(strings.Fields(args), c); err == nil || err.Error() != want {
 			t.Errorf("%s: %v\nwant %s", args, err, want)
@@ -422,5 +424,110 @@ func TestTemplatesAreAskedForNotAssumed(t *testing.T) {
 		if !strings.Contains(out.String(), `Include storefront "shop"? [Y/n]`) || !strings.Contains(out.String(), `Include template "nextjs-vetrina"? [y/N]`) {
 			t.Errorf("prompts:\n%s", out.String())
 		}
+	}
+}
+
+func TestShopFlags(t *testing.T) {
+	c := catalog{storefronts: []storefronts.Storefront{{Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"}, {Name: "astro-shop", Dir: "templates/astro-shop"}}}
+	if f, err := parseFlags([]string{"--shop", "mine", "--template", "astro-shop"}, c); err != nil || f.shop != "mine" || f.template != "astro-shop" {
+		t.Errorf("%+v %v", f, err)
+	}
+	for args, want := range map[string]string{
+		"--shop Bad":           `Bad shop name "Bad" - lowercase letters, digits and inner hyphens only`,
+		"--shop astro-shop":    `"astro-shop" is taken - pick a name no app or template has`,
+		"--shop":               "--shop needs a name for your storefront (e.g. shop)",
+		"--template nope":      "--template takes a template (valid: nextjs-vetrina, astro-shop)",
+		"--template dashboard": "--template takes a template (valid: nextjs-vetrina, astro-shop)",
+	} {
+		if _, err := parseFlags(strings.Fields(args), c); err == nil || err.Error() != want {
+			t.Errorf("%s: %v\nwant %s", args, err, want)
+		}
+	}
+}
+
+// A project with no shop of its own is offered one, from the template picked; with one already, nothing is asked
+func TestFirstShopIsOffered(t *testing.T) {
+	root := fixture(t)
+	templates := []storefronts.Storefront{{Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"}, {Name: "astro-shop", Dir: "templates/astro-shop"}}
+	c := catalog{root: root, storefronts: templates}
+	ask := func(input string, out io.Writer) prompter {
+		return prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: out}
+	}
+	var out strings.Builder
+	// dashboard yes, both templates no, frontends in Docker, then: a shop, the second template, a bad name and a good one
+	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\ny\n2\nShop!\neu-shop\n"+strings.Repeat("\n", 40), &out), &out)
+	if err != nil || a.shop != "eu-shop" || a.shopTemplate != "astro-shop" ||
+		!slices.Contains(a.apps, "eu-shop") || !slices.Contains(a.dockerApps, "eu-shop") || !strings.Contains(out.String(), `"Shop!" won't do`) {
+		t.Errorf("answers %+v, %v\n%s", a, err, out.String())
+	}
+	// Flags need no terminal, and name the shop "shop" when only the template is given
+	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina"}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
+	if err != nil || a.shop != "shop" || a.shopTemplate != "nextjs-vetrina" || !slices.Contains(a.apps, "shop") {
+		t.Errorf("--template alone: %+v, %v", a, err)
+	}
+	// A project that has its own shop isn't asked
+	out.Reset()
+	own := catalog{root: root, storefronts: append([]storefronts.Storefront{{Name: "mine", Dir: "apps/channels/mine"}}, templates...)}
+	if a, _ := answer(root, own, flags{}, profile.Profile{kTarget: "dev"}, "p", ask(strings.Repeat("\n", 40), &out), &out); a.shop != "" || strings.Contains(out.String(), "Your storefront") {
+		t.Errorf("asked again: %+v\n%s", a, out.String())
+	}
+}
+
+// Run copies the shop after the env files are written and before anything boots
+func TestRunMakesTheShop(t *testing.T) {
+	root := fixture(t)
+	var made []string
+	forkShop = func(root, name, template string) int {
+		if _, err := os.Stat(filepath.Join(root, ".skelet-apps")); err != nil {
+			t.Error("the shop was made before the selection was written")
+		}
+		made = append(made, name+" from "+template)
+		return 0
+	}
+	t.Cleanup(func() { forkShop = scaffold.Fork })
+	if code := Run(root, []string{"--yes", "--no-boot", "--shop", "mine"}); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !slices.Equal(made, []string{"mine from "}) {
+		t.Errorf("made %q", made)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(root, ".skelet-profile")); !strings.Contains(string(raw), "SKELET_APPS_SELECTED=dashboard,mine") {
+		t.Errorf("profile:\n%s", raw)
+	}
+	// A copy that fails stops setup there
+	forkShop = func(string, string, string) int { return 1 }
+	if code := Run(root, []string{"--yes", "--no-boot", "--shop", "other"}); code != 1 {
+		t.Errorf("a failed copy: exit %d", code)
+	}
+}
+
+// Input that ends - a closed stdin - can't keep the name prompt going: the suggestion is a free name, and after a few
+// tries there's no shop rather than another prompt
+func TestShopNamePromptGivesUp(t *testing.T) {
+	root := fixture(t)
+	answerWith := func(c catalog, input string) (answers, string) {
+		var out strings.Builder
+		ask := prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: &out}
+		a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask, &out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a, out.String()
+	}
+	tpl := func(names ...string) catalog {
+		c := catalog{root: root}
+		for _, n := range names {
+			c.storefronts = append(c.storefronts, storefronts.Storefront{Name: n, Dir: "templates/" + n})
+		}
+		return c
+	}
+	// dashboard, then each template no, Docker, a shop yes, the first template - then names until the input runs out
+	a, out := answerWith(tpl("shop"), "\nn\n\ny\nBad!\nshop\n")
+	if a.shop != "my-shop" || strings.Count(out, "won't do") != 2 || !strings.Contains(out, "Name it [my-shop]") {
+		t.Errorf("a taken name suggested, or the free one not taken: %+v\n%s", a, out)
+	}
+	a, out = answerWith(tpl("shop", "my-shop", "store"), "\nn\nn\nn\n\ny\n1\n")
+	if a.shop != "" || a.shopTemplate != "" || strings.Count(out, "won't do") != 3 || !strings.Contains(out, "No shop made") {
+		t.Errorf("didn't give up: %+v\n%s", a, out)
 	}
 }

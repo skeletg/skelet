@@ -61,6 +61,14 @@ type addOptions struct {
 	name, src string
 	// template says src was named with --template, which only a template answers to
 	template, tracked bool
+	// quiet leaves the next steps out - setup, making a project's first shop, has its own
+	quiet bool
+}
+
+// Fork makes the storefront name from a template - the one docker-compose.yml runs when template is empty - for setup,
+// which offers a new project its first shop. It's add channel without the next steps
+func Fork(root, name, template string) int {
+	return add(root, addOptions{name: name, src: template, template: template != "", quiet: true})
 }
 
 func Add(root string, args []string) int {
@@ -254,6 +262,10 @@ func add(root string, o addOptions) int {
 	fmt.Printf("==> Adding %s to the workspace lockfile\n", m.dir)
 	if err := pnpm.WorkspaceLockfile(root); err != nil {
 		fmt.Fprintf(os.Stderr, "    couldn't update pnpm-lock.yaml - run skelet pnpm %s install --lockfile-only before skelet up\n", name)
+	}
+	if o.quiet {
+		fmt.Printf("==> apps/channels/%s is yours, copied from %s - on http://localhost:%d once it runs\n", name, src, dev)
+		return 0
 	}
 	summary(root, o.tracked, src, name, dev, small)
 	return 0

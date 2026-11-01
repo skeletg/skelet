@@ -55,6 +55,22 @@ func (c catalog) apps() []string {
 	return out
 }
 
+// templateNames is the templates a shop can be copied from
+func (c catalog) templateNames() []string {
+	var out []string
+	for _, s := range c.storefronts {
+		if s.Template() {
+			out = append(out, s.Name)
+		}
+	}
+	return out
+}
+
+// ownStorefront says the project has a storefront of its own already
+func (c catalog) ownStorefront() bool {
+	return slices.ContainsFunc(c.storefronts, func(s storefronts.Storefront) bool { return !s.Template() })
+}
+
 // defaultApps is what a clone runs unless told otherwise: the dashboard and the project's own storefronts. A template is
 // what a shop is copied from - running it is for working on the template itself, so it's left out until asked for
 func (c catalog) defaultApps() []string {

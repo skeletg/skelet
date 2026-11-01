@@ -32,6 +32,8 @@ type answers struct {
 	fromProfile bool
 	// prune is whether the working tree follows the selection at all, removeDeselected whether that may take apps out
 	prune, removeDeselected bool
+	// shop is a storefront of the project's own to copy from shopTemplate - the default template when that's empty
+	shop, shopTemplate string
 }
 
 const (
@@ -91,6 +93,18 @@ func (p prompter) choice(q, def string, opts ...string) string {
 	fmt.Fprintf(p.out, "    pick [1-%d] ", len(opts))
 	if n, err := strconv.Atoi(p.line()); err == nil && n >= 1 && n <= len(opts) {
 		return opts[n-1]
+	}
+	return def
+}
+
+// text is a free answer, def when there's none
+func (p prompter) text(q, def string) string {
+	if !p.on {
+		return def
+	}
+	fmt.Fprintf(p.out, "%s [%s] ", q, def)
+	if s := p.line(); s != "" {
+		return s
 	}
 	return def
 }
@@ -179,6 +193,8 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		}
 		a.dockerApps = a.apps
 	}
+
+	firstShop(&a, c, f, ask, out)
 
 	a.prune = !f.keepCode && !a.fromProfile
 	a.removeDeselected = true
@@ -347,4 +363,62 @@ func pnpmProblem(root string, hostApps []string) string {
 	}
 	_, problem := node.Pnpm(root, dir, node.Pin(manifest))
 	return problem
+}
+
+// firstShop is a storefront of the project's own, copied from a template: asked for with --shop or --template, or
+// offered when there's none yet. It runs where the other frontends do
+func firstShop(a *answers, c catalog, f flags, ask prompter, out io.Writer) {
+	switch {
+	case f.shop != "" || f.template != "":
+		a.shop, a.shopTemplate = f.shop, f.template
+		if a.shop == "" {
+			a.shop = "shop"
+		}
+	case ask.on && !c.ownStorefront() && len(c.templateNames()) > 0:
+		fmt.Fprintln(out, "==> Your storefront")
+		fmt.Fprintln(out, "    A shop of your own starts as a copy of a template - the copy is yours to change, the")
+		fmt.Fprintln(out, "    template stays upstream's. skelet add channel <name> makes more later.")
+		if !ask.yesNo("    Create one now?", true) {
+			return
+		}
+		names := c.templateNames()
+		a.shopTemplate = names[0]
+		if len(names) > 1 {
+			a.shopTemplate = ask.choice("Which template?", names[0], names...)
+		}
+		// A few tries, not until it fits - a closed stdin answers the default forever
+		def, name := freeShopName(c), ""
+		for range 3 {
+			n := ask.text("    Name it", def)
+			if shopName.MatchString(n) && !slices.Contains(c.apps(), n) {
+				name = n
+				break
+			}
+			fmt.Fprintf(out, "    %q won't do - lowercase letters, digits and inner hyphens, and no name an app has\n", n)
+		}
+		if name == "" {
+			fmt.Fprintln(out, "    No shop made - skelet add channel <name> makes one whenever you like")
+			a.shopTemplate = ""
+			return
+		}
+		a.shop = name
+	default:
+		return
+	}
+	if !slices.Contains(a.apps, a.shop) {
+		a.apps = append(a.apps, a.shop)
+	}
+	if len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
+		a.dockerApps = append(a.dockerApps, a.shop)
+	}
+}
+
+// freeShopName is the name the prompt suggests - "shop", unless an app or a template has it already
+func freeShopName(c catalog) string {
+	for _, n := range []string{"shop", "my-shop", "store"} {
+		if !slices.Contains(c.apps(), n) {
+			return n
+		}
+	}
+	return ""
 }

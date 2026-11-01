@@ -39,7 +39,10 @@ const newUsage = `skelet new <dir> [--version vX.Y.Z] [--repo URL] [--force] [se
 
 Fetches a Skelet release into <dir> as a git checkout and runs its setup, handing it every
 flag not listed here (--yes takes the defaults). Skelet is the checkout's upstream remote,
-and main is your branch, starting at the release.
+and main is your branch, starting at the release. Setup offers your first storefront, copied
+from a template - --template astro-shop (or --shop <name>) makes it without asking:
+
+  skelet new mystore --template astro-shop
 
   --version   the release to start from - by default this binary's own, else the newest
   --repo      fetch from a fork or a mirror instead of ` + project.Upstream + `

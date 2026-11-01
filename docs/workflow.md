@@ -249,6 +249,12 @@ the dev server and the gates share one `node_modules`, so a lint run checks the 
 vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
 so an empty file means every frontend runs on the host with `skelet serve <app>`.
 
+When the project has no storefront of its own yet, setup offers one: pick a template and a
+name, and it's copied into `apps/channels/<name>` the way `skelet add channel` copies one,
+selected and run where your other frontends run. `--template <name>` and `--shop <name>`
+make it without asking - and since `skelet new` hands setup its flags, `skelet new my-store
+--template astro-shop` starts a project with its own Astro shop.
+
 Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
 `skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
