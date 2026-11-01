@@ -509,7 +509,8 @@ func TestFirstShopIsOffered(t *testing.T) {
 		t.Errorf("answers %+v, %v\n%s", a, err, out.String())
 	}
 	// Flags need no terminal, and name the shop "shop" when only the template is given
-	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina"}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
+	docker := list{true, []string{"dashboard"}}
+	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina", dockerApps: docker}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
 	if err != nil || a.shop != "shop" || a.shopTemplate != "nextjs-vetrina" || !slices.Contains(a.apps, "shop") {
 		t.Errorf("--template alone: %+v, %v", a, err)
 	}
@@ -556,7 +557,7 @@ func TestRunMakesTheShop(t *testing.T) {
 		return 0
 	}
 	t.Cleanup(func() { forkShop = scaffold.Fork })
-	if code := Run(root, []string{"--yes", "--no-boot", "--shop", "mine"}); code != 0 {
+	if code := Run(root, []string{"--yes", "--no-boot", "--docker-apps", "dashboard", "--shop", "mine"}); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if !slices.Equal(made, []string{"mine from "}) {
@@ -567,7 +568,7 @@ func TestRunMakesTheShop(t *testing.T) {
 	}
 	// A copy that fails stops setup there
 	forkShop = func(string, string, string) int { return 1 }
-	if code := Run(root, []string{"--yes", "--no-boot", "--shop", "other"}); code != 1 {
+	if code := Run(root, []string{"--yes", "--no-boot", "--docker-apps", "dashboard", "--shop", "other"}); code != 1 {
 		t.Errorf("a failed copy: exit %d", code)
 	}
 }
