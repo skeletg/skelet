@@ -339,4 +339,5 @@ type Repository interface {
 
 	ListLowStockLevels(ctx context.Context, limit int32) ([]LowStockLevel, error)
 	ListLowStockItemsFlat(ctx context.Context, limit int32) ([]LowStockLevel, error)
+	ListChannelLowStockLevels(ctx context.Context, channelID uuid.UUID, limit int32) ([]LowStockLevel, error)
 }

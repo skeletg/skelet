@@ -132,10 +132,10 @@ contract. Everything below is `apps/backend/core/internal/<name>`.
 | Merchandising | `search`, `searchmerch`, `recommend`, `urlrewrite`, `sitecrawl`, `linkgraph` |
 | Marketing | `backinstock`, `ordermail`, `mailsend` - core's own transactional mail; campaigns, flows and the email builder are the suite's, and core hands them the moments a flow can start on over the contract |
 | Signals (core's side) | `signalsclient` - the wire contract's client; the suite itself is `apps/backend/signals`, see below |
-| Platform | `admin`, `authstore`, `permission`, `channel`, `country`, `currency`, `locale`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
+| Platform | `admin`, `authstore`, `permission`, `channel`, `country`, `currency`, `locale`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat`, `agenttools` - the read-only tool menu the admin chat and the MCP endpoint share |
 | Extension | `plugin`, `pluginset`, `pluginmigrate`, `remoteprovider`, `action` |
 | Data movement | `dataio`, `datajob`, `datapatch`, `catalogio`, `orderio` |
-| Infrastructure | `db`, `events`, `outbox`, `webhook`, `scheduler`, `media`, `mediahttp`, `configstore`, `cacheinvalidate`, `revalidate`, `circuit`, `graphqlx`, `health`, `wiring` |
+| Infrastructure | `db`, `events`, `outbox`, `webhook`, `scheduler`, `media`, `mediahttp`, `configstore`, `cacheinvalidate`, `revalidate`, `circuit`, `graphqlx`, `mcpserver`, `health`, `wiring` |
 
 `wiring` is the composition root: every service is constructed there, so it is
 the fastest way to see what depends on what.

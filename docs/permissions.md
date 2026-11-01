@@ -114,6 +114,9 @@ log by integration to see everything one system did), and so do the records that
 author, like a moderated review, an answered question, a store-credit adjustment or a data
 job. Inventory syncs that name no source are labelled `integration:<name>`.
 
+A token can also let an AI agent read the store over MCP, with the same slugs deciding which tools
+it gets - see [mcp.md](mcp.md).
+
 A few things only a person can do, and a token gets a clear `ADMIN_ONLY` refusal there:
 your own account, password, two-factor and sessions, your preferences and notification
 inbox, AI chat, draft preview links, claiming a CMS page, acting as a customer, and managing

@@ -1,11 +1,12 @@
-package admin
+package agenttools
 
-// AI-chat tool definitions and handlers for Synapse customer analytics. The
-// shared registry, dispatch and schema helpers live in aichat_tools.go.
+// Agent tool definitions and handlers for Synapse customer analytics. The
+// shared registry, dispatch and schema helpers live in tools.go.
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -14,12 +15,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
-// synapseSignalTools returns the Synapse customer-behaviour tools (customers.view).
-func synapseSignalTools() []signalTool {
-	return []signalTool{
+// synapseTools returns the Synapse customer-behaviour tools (customers.view).
+func synapseTools() []tool {
+	return []tool{
 		// ---- Synapse / behaviour (customers.view) ----
 		{
 			def: ai.Tool{
@@ -27,15 +30,15 @@ func synapseSignalTools() []signalTool {
 				Description: "Synapse behavioural analytics: events, conversions, identified vs anonymous visitors, tracked revenue, top events, and segments for the channel over a window.",
 				Schema:      windowSchema(nil),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, _ toolArgs) string {
-				return reuseDigest(func(b *strings.Builder) { writeSynapseDigest(ctx, r, cid, days, b) }, "No customer-behaviour data in this window.")
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, since time.Time, days int, _ toolArgs) string {
+				return synapseDigest.tool(ctx, deps, cid, since, days)
 			},
 		},
 		{
 			def: ai.Tool{
 				Name:        "get_event_trend",
-				Description: "An event's volume over time (a time-series), optionally broken down by an event property. Use for 'how has <event> trended?'. Render as a line widget. Source event names from the top events in the snapshot / get_customer_behaviour.",
+				Description: "An event's volume over time (a time-series), optionally broken down by an event property. Use for 'how has <event> trended?'. Source event names from the top events in the snapshot / get_customer_behaviour.",
 				Schema: windowSchema(map[string]any{
 					"event":     map[string]any{"type": "string", "description": "Event name (e.g. page_view, $experiment, add_to_cart)."},
 					"breakdown": map[string]any{"type": "string", "description": "Optional event-property key to split into series (e.g. device)."},
@@ -43,9 +46,9 @@ func synapseSignalTools() []signalTool {
 					"unit":      enumProp("Time bucket. Default day.", "day", "week"),
 				}, "event"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolEventTrend(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolEventTrend(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -57,15 +60,15 @@ func synapseSignalTools() []signalTool {
 					"window_days": windowProp(),
 				}, "steps"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolFunnel(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolFunnel(ctx, deps, cid, days, a)
 			},
 		},
 		{
 			def: ai.Tool{
 				Name:        "get_retention",
-				Description: "Cohort retention: of people who did 'start_event', what % did 'return_event' in each later period. Render the curve as a line widget.",
+				Description: "Cohort retention: of people who did 'start_event', what % did 'return_event' in each later period.",
 				Schema: objSchema(map[string]any{
 					"start_event":  map[string]any{"type": "string", "description": "The event that forms the cohort."},
 					"return_event": map[string]any{"type": "string", "description": "The event whose return is measured."},
@@ -74,9 +77,9 @@ func synapseSignalTools() []signalTool {
 					"window_days":  windowProp(),
 				}, "start_event", "return_event"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolRetention(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolRetention(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -85,9 +88,9 @@ func synapseSignalTools() []signalTool {
 				Description: "List the store's customer segments with their id and member count. Use this first to get a segment_id for get_segment_detail.",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListSegments(ctx, r)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListSegments(ctx, deps)
 			},
 		},
 		{
@@ -99,9 +102,9 @@ func synapseSignalTools() []signalTool {
 					"window_days": windowProp(),
 				}, "segment_id"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolSegmentDetail(ctx, r, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolSegmentDetail(ctx, deps, days, a)
 			},
 		},
 		{
@@ -112,9 +115,9 @@ func synapseSignalTools() []signalTool {
 					"event": map[string]any{"type": "string", "description": "Event name (e.g. page_view, add_to_cart)."},
 				}, "event"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolStickiness(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolStickiness(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -126,9 +129,9 @@ func synapseSignalTools() []signalTool {
 					"window_days": windowProp(),
 				}, "focus_event"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolUserFlow(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolUserFlow(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -137,9 +140,9 @@ func synapseSignalTools() []signalTool {
 				Description: "List the tracked product attributes (slug + name) you can break down customer affinities by. Use a slug with get_affinity_breakdown.",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListAffinityAttrs(ctx, r)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListAffinityAttrs(ctx, deps)
 			},
 		},
 		{
@@ -151,9 +154,9 @@ func synapseSignalTools() []signalTool {
 					"limit":     limitProp("Max values to return (1-50). Default 15.", 50),
 				}, "attribute"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolAffinityBreakdown(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolAffinityBreakdown(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -162,9 +165,9 @@ func synapseSignalTools() []signalTool {
 				Description: "Most-active customers (id, name, events) and anonymous visitors (anon_id) for the channel. Use an id with get_customer_profile / get_visitor_profile.",
 				Schema:      windowSchema(nil),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, _ toolArgs) string {
-				return toolListActiveCustomers(ctx, r, cid, days)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, _ toolArgs) string {
+				return toolListActiveCustomers(ctx, deps, cid, days)
 			},
 		},
 		{
@@ -175,9 +178,9 @@ func synapseSignalTools() []signalTool {
 					"customer_id": map[string]any{"type": "string", "description": "Customer UUID from list_active_customers."},
 				}, "customer_id"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolCustomerProfile(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolCustomerProfile(ctx, deps, cid, days, a)
 			},
 		},
 		{
@@ -188,15 +191,15 @@ func synapseSignalTools() []signalTool {
 					"anon_id": map[string]any{"type": "string", "description": "Anonymous visitor id from list_active_customers."},
 				}, "anon_id"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
-				return toolVisitorProfile(ctx, r, cid, days, a)
+			perm: func(p Perms) bool { return p.Synapse },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolVisitorProfile(ctx, deps, cid, days, a)
 			},
 		},
 	}
 }
 
-func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolEventTrend(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	event := strings.TrimSpace(a.Event)
 	if event == "" {
 		return "Specify an 'event' name (see the top events in the snapshot)."
@@ -205,18 +208,18 @@ func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a
 	if a.Measure == "unique" {
 		measure = "unique"
 	}
-	unit := unitOf(a.Unit)
+	unit := dayOrWeek(a.Unit)
 	breakdown := strings.TrimSpace(a.Breakdown)
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the event trend")
+		return signalsUnavailable(ctx, err, "the event trend")
 	}
-	ins, err := r.SignalsAPI.Synapse.GetInsights(authed, &signalsv1.GetInsightsRequest{
+	ins, err := deps.Signals.Synapse.GetInsights(authed, &signalsv1.GetInsightsRequest{
 		ChannelId: cid.String(), Event: event, Breakdown: breakdown,
 		Measure: measure, Unit: unit, SinceDays: int32(days),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the event trend")
+		return signalsUnavailable(ctx, err, "the event trend")
 	}
 	if len(ins.GetPoints()) == 0 {
 		return fmt.Sprintf("No %q events in this window.", event)
@@ -229,7 +232,7 @@ func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a
 	b.WriteString(":\n")
 	for _, p := range ins.GetPoints() {
 		if breakdown != "" {
-			fmt.Fprintf(&b, "%s\t%s: %d\n", p.GetBucket().AsTime().Format("2006-01-02"), p.GetKey(), p.GetValue())
+			fmt.Fprintf(&b, "%s\t%s: %d\n", p.GetBucket().AsTime().Format("2006-01-02"), untrusted(p.GetKey()), p.GetValue())
 		} else {
 			fmt.Fprintf(&b, "%s: %d\n", p.GetBucket().AsTime().Format("2006-01-02"), p.GetValue())
 		}
@@ -237,20 +240,20 @@ func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a
 	return b.String()
 }
 
-func toolFunnel(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolFunnel(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	steps := cleanSteps(a.Steps)
 	if len(steps) < 2 {
 		return "Provide at least 2 ordered event names in 'steps'."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the funnel")
+		return signalsUnavailable(ctx, err, "the funnel")
 	}
-	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, &signalsv1.GetFunnelRequest{
+	res, err := deps.Signals.Synapse.GetFunnel(authed, &signalsv1.GetFunnelRequest{
 		ChannelId: cid.String(), Steps: steps, SinceDays: int32(days),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the funnel")
+		return signalsUnavailable(ctx, err, "the funnel")
 	}
 	fs := res.GetSteps()
 	if len(fs) == 0 {
@@ -269,24 +272,24 @@ func toolFunnel(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a too
 	return b.String()
 }
 
-func toolRetention(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolRetention(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	start := strings.TrimSpace(a.StartEvent)
 	ret := strings.TrimSpace(a.ReturnEvent)
 	if start == "" || ret == "" {
 		return "Provide both 'start_event' and 'return_event'."
 	}
-	unit := unitOf(a.Unit)
+	unit := dayOrWeek(a.Unit)
 	periods := clampLimit(a.Periods, 8, 12)
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "retention")
+		return signalsUnavailable(ctx, err, "retention")
 	}
-	res, err := r.SignalsAPI.Synapse.GetRetention(authed, &signalsv1.GetRetentionRequest{
+	res, err := deps.Signals.Synapse.GetRetention(authed, &signalsv1.GetRetentionRequest{
 		ChannelId: cid.String(), StartEvent: start, ReturnEvent: ret,
 		SinceDays: int32(days), Periods: int32(periods), Unit: unit,
 	})
 	if err != nil {
-		return signalsUnavailable(err, "retention")
+		return signalsUnavailable(ctx, err, "retention")
 	}
 	if res.GetCohort() == 0 {
 		return fmt.Sprintf("No one did %q in this window.", start)
@@ -303,14 +306,14 @@ func toolRetention(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a 
 	return b.String()
 }
 
-func toolListSegments(ctx context.Context, r *Resolver) string {
-	authed, err := signalsCall(ctx, r)
+func toolListSegments(ctx context.Context, deps *Deps) string {
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "segments")
+		return signalsUnavailable(ctx, err, "segments")
 	}
-	res, err := r.SignalsAPI.Segments.ListSegments(authed, &signalsv1.ListSegmentsRequest{PageSize: 50})
+	res, err := deps.Signals.Segments.ListSegments(authed, &signalsv1.ListSegmentsRequest{PageSize: 50})
 	if err != nil {
-		return signalsUnavailable(err, "segments")
+		return signalsUnavailable(ctx, err, "segments")
 	}
 	if len(res.GetSegments()) == 0 {
 		return "No segments are defined."
@@ -323,27 +326,27 @@ func toolListSegments(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolSegmentDetail(ctx context.Context, r *Resolver, days int, a toolArgs) string {
+func toolSegmentDetail(ctx context.Context, deps *Deps, days int, a toolArgs) string {
 	sid, err := uuid.Parse(strings.TrimSpace(a.SegmentID))
 	if err != nil {
 		return "Provide a valid 'segment_id' (use list_segments)."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the segment")
+		return signalsUnavailable(ctx, err, "the segment")
 	}
-	d, err := r.SignalsAPI.Synapse.GetBehavioralSegment(authed, &signalsv1.GetBehavioralSegmentRequest{Id: sid.String()})
+	d, err := deps.Signals.Synapse.GetBehavioralSegment(authed, &signalsv1.GetBehavioralSegmentRequest{Id: sid.String()})
 	if err != nil {
 		if status.Code(err) == codes.FailedPrecondition {
 			return "That segment has no behavioural definition, so there is no detail to show."
 		}
-		return signalsUnavailable(err, "the segment")
+		return signalsUnavailable(ctx, err, "the segment")
 	}
-	currency := r.segmentCurrency(ctx, d.GetSegment().GetChannelId())
+	currency := signalsclient.ChannelCurrency(ctx, deps.Channel, d.GetSegment().GetChannelId())
 	var b strings.Builder
 	fmt.Fprintf(&b, "Segment %q: %d members, %d orders, revenue %s (AOV %s).\n",
 		d.GetSegment().GetName(), d.GetSegment().GetMemberCount(), d.GetOrders(),
-		fmtMoney(d.GetRevenueCents(), currency), fmtMoney(d.GetAovCents(), currency))
+		money.FormatCode(d.GetRevenueCents(), currency), money.FormatCode(d.GetAovCents(), currency))
 	if mix := d.GetLifecycleMix(); len(mix) > 0 {
 		parts := make([]string, 0, len(mix))
 		for _, m := range mix {
@@ -385,25 +388,25 @@ func valueCountList(vals []*signalsv1.ValueCount, n int) string {
 		if i >= n {
 			break
 		}
-		parts = append(parts, fmt.Sprintf("%s (%d)", v.GetValue(), v.GetCount()))
+		parts = append(parts, fmt.Sprintf("%s (%d)", untrusted(v.GetValue()), v.GetCount()))
 	}
 	return strings.Join(parts, "; ")
 }
 
-func toolStickiness(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolStickiness(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	event := strings.TrimSpace(a.Event)
 	if event == "" {
 		return "Specify an 'event' (see the snapshot's top events)."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "stickiness")
+		return signalsUnavailable(ctx, err, "stickiness")
 	}
-	st, err := r.SignalsAPI.Synapse.GetStickiness(authed, &signalsv1.GetStickinessRequest{
+	st, err := deps.Signals.Synapse.GetStickiness(authed, &signalsv1.GetStickinessRequest{
 		ChannelId: cid.String(), Event: event, SinceDays: int32(days), WindowDays: int32(days),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "stickiness")
+		return signalsUnavailable(ctx, err, "stickiness")
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%q engagement: WAU %d, MAU %d. Active now %d, prior window %d, returning %d (return rate %.1f%%).\n",
@@ -417,20 +420,20 @@ func toolStickiness(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a
 	return b.String()
 }
 
-func toolUserFlow(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolUserFlow(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	focus := strings.TrimSpace(a.FocusEvent)
 	if focus == "" {
 		return "Specify a 'focus_event'."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the flow")
+		return signalsUnavailable(ctx, err, "the flow")
 	}
-	fr, err := r.SignalsAPI.Synapse.GetFlow(authed, &signalsv1.GetFlowRequest{
+	fr, err := deps.Signals.Synapse.GetFlow(authed, &signalsv1.GetFlowRequest{
 		ChannelId: cid.String(), Event: focus, SinceDays: int32(days),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the flow")
+		return signalsUnavailable(ctx, err, "the flow")
 	}
 	if fr.GetCohort() == 0 {
 		return fmt.Sprintf("No one did %q in this window.", focus)
@@ -440,40 +443,40 @@ func toolUserFlow(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a t
 	if len(fr.GetTopPaths()) > 0 {
 		b.WriteString("Top paths:\n")
 		for _, p := range fr.GetTopPaths() {
-			fmt.Fprintf(&b, "- %s (%d)\n", strings.Join(p.GetEvents(), " → "), p.GetCount())
+			fmt.Fprintf(&b, "- %s (%d)\n", quotedJoin(p.GetEvents(), " → "), p.GetCount())
 		}
 	}
 	return b.String()
 }
 
-func toolListAffinityAttrs(ctx context.Context, r *Resolver) string {
-	attrs := affinityAttrs(ctx, r)
+func toolListAffinityAttrs(ctx context.Context, deps *Deps) string {
+	attrs := signalsclient.AffinityAttributes(ctx, deps.Attributes)
 	if len(attrs) == 0 {
 		return "No tracked affinity attributes."
 	}
 	var b strings.Builder
 	b.WriteString("Tracked attributes (slug - name):\n")
 	for _, a := range attrs {
-		fmt.Fprintf(&b, "%s - %s\n", a.Slug, a.Name)
+		fmt.Fprintf(&b, "%s - %s\n", a.GetSlug(), a.GetName())
 	}
 	return b.String()
 }
 
-func toolAffinityBreakdown(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolAffinityBreakdown(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	slug := strings.TrimSpace(a.Attribute)
 	if slug == "" {
 		return "Provide an 'attribute' slug (use list_affinity_attributes)."
 	}
 	limit := clampLimit(a.Limit, 15, 50)
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the affinity breakdown")
+		return signalsUnavailable(ctx, err, "the affinity breakdown")
 	}
-	res, err := r.SignalsAPI.Synapse.ListAffinityValues(authed, &signalsv1.ListAffinityValuesRequest{
+	res, err := deps.Signals.Synapse.ListAffinityValues(authed, &signalsv1.ListAffinityValuesRequest{
 		ChannelId: cid.String(), Attribute: slug, SinceDays: int32(days), Limit: int32(limit),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the affinity breakdown")
+		return signalsUnavailable(ctx, err, "the affinity breakdown")
 	}
 	if len(res.GetValues()) == 0 {
 		return fmt.Sprintf("No affinity data for %q (check the slug via list_affinity_attributes).", slug)
@@ -486,14 +489,14 @@ func toolAffinityBreakdown(ctx context.Context, r *Resolver, cid uuid.UUID, days
 	return b.String()
 }
 
-func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, days int) string {
-	authed, err := signalsCall(ctx, r)
+func toolListActiveCustomers(ctx context.Context, deps *Deps, cid uuid.UUID, days int) string {
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "active customers")
+		return signalsUnavailable(ctx, err, "active customers")
 	}
-	ov, err := r.SignalsAPI.Synapse.GetSynapseOverview(authed, &signalsv1.GetSynapseOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
+	ov, err := deps.Signals.Synapse.GetSynapseOverview(authed, &signalsv1.GetSynapseOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
 	if err != nil {
-		return signalsUnavailable(err, "active customers")
+		return signalsUnavailable(ctx, err, "active customers")
 	}
 	var b strings.Builder
 	if len(ov.GetActiveCustomers()) > 0 {
@@ -504,16 +507,19 @@ func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, da
 				ids = append(ids, id)
 			}
 		}
-		names, _ := r.CustomerSvc.GetByIDs(ctx, ids)
+		names, err := deps.Customer.GetByIDs(ctx, ids)
+		if err != nil {
+			slog.WarnContext(ctx, "tool: customer names unavailable", "err", err)
+		}
 		b.WriteString("Most active customers (id - name - events - last seen):\n")
 		for _, c := range ov.GetActiveCustomers() {
 			name := "(unknown)"
 			if id, err := uuid.Parse(c.GetCustomerId()); err == nil {
 				if cust, ok := names[id]; ok {
 					if n := strings.TrimSpace(cust.FirstName + " " + cust.LastName); n != "" {
-						name = n
+						name = untrusted(n)
 					} else if cust.Email != "" {
-						name = cust.Email
+						name = untrusted(cust.Email)
 					}
 				}
 			}
@@ -535,52 +541,52 @@ func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, da
 	return b.String()
 }
 
-func toolCustomerProfile(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolCustomerProfile(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	custID, err := uuid.Parse(strings.TrimSpace(a.CustomerID))
 	if err != nil {
 		return "Provide a valid 'customer_id' (use list_active_customers)."
 	}
 	// A profile is not channel-scoped on either side of the wire, so the pin is enforced against core's own record
-	cust, err := r.CustomerSvc.GetByID(ctx, custID)
+	cust, err := deps.Customer.GetByID(ctx, custID)
 	if err != nil {
-		return "Could not verify the customer."
+		return toolFailed(ctx, err, "Could not verify the customer.")
 	}
 	if cust.ChannelID != cid {
 		return "That customer isn't active in this channel."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the customer profile")
+		return signalsUnavailable(ctx, err, "the customer profile")
 	}
-	res, err := r.SignalsAPI.Synapse.GetCustomerProfile(authed, &signalsv1.GetCustomerProfileRequest{
-		CustomerId: custID.String(), SinceDays: int32(days), Attributes: r.affinityAttributes(ctx),
+	res, err := deps.Signals.Synapse.GetCustomerProfile(authed, &signalsv1.GetCustomerProfileRequest{
+		CustomerId: custID.String(), SinceDays: int32(days), Attributes: signalsclient.AffinityAttributes(ctx, deps.Attributes),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the customer profile")
+		return signalsUnavailable(ctx, err, "the customer profile")
 	}
 	label := "Customer " + custID.String()
 	if n := strings.TrimSpace(cust.FirstName + " " + cust.LastName); n != "" {
-		label = n
+		label = untrusted(n)
 	} else if cust.Email != "" {
-		label = cust.Email
+		label = untrusted(cust.Email)
 	}
 	return formatProfile(label, res.GetProfile())
 }
 
-func toolVisitorProfile(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
+func toolVisitorProfile(ctx context.Context, deps *Deps, cid uuid.UUID, days int, a toolArgs) string {
 	anon := strings.TrimSpace(a.AnonID)
 	if anon == "" {
 		return "Provide an 'anon_id' (use list_active_customers)."
 	}
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return signalsUnavailable(err, "the visitor profile")
+		return signalsUnavailable(ctx, err, "the visitor profile")
 	}
-	res, err := r.SignalsAPI.Synapse.GetVisitorProfile(authed, &signalsv1.GetVisitorProfileRequest{
-		ChannelId: cid.String(), AnonId: anon, SinceDays: int32(days), Attributes: r.affinityAttributes(ctx),
+	res, err := deps.Signals.Synapse.GetVisitorProfile(authed, &signalsv1.GetVisitorProfileRequest{
+		ChannelId: cid.String(), AnonId: anon, SinceDays: int32(days), Attributes: signalsclient.AffinityAttributes(ctx, deps.Attributes),
 	})
 	if err != nil {
-		return signalsUnavailable(err, "the visitor profile")
+		return signalsUnavailable(ctx, err, "the visitor profile")
 	}
 	return formatProfile("Anonymous visitor "+anon, res.GetProfile())
 }
@@ -599,7 +605,7 @@ func formatProfile(label string, p *signalsv1.Profile) string {
 	fmt.Fprintf(&b, "\n%d events, %d page views, %d conversions, %d sessions.\n",
 		p.GetTotalEvents(), p.GetPageViews(), p.GetConversions(), p.GetSessions())
 	for _, rev := range p.GetRevenue() {
-		fmt.Fprintf(&b, "Revenue: %s across %d orders.\n", fmtMoney(rev.GetCents(), rev.GetCurrency()), rev.GetOrders())
+		fmt.Fprintf(&b, "Revenue: %s across %d orders.\n", money.FormatCode(rev.GetCents(), rev.GetCurrency()), rev.GetOrders())
 	}
 	if len(p.GetCounts()) > 0 {
 		parts := make([]string, 0, 8)
@@ -607,7 +613,7 @@ func formatProfile(label string, p *signalsv1.Profile) string {
 			if i >= 8 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s=%d", e.GetName(), e.GetCount()))
+			parts = append(parts, fmt.Sprintf("%s=%d", untrusted(e.GetName()), e.GetCount()))
 		}
 		fmt.Fprintf(&b, "Top events: %s\n", strings.Join(parts, ", "))
 	}
@@ -637,20 +643,4 @@ func formatProfile(label string, p *signalsv1.Profile) string {
 		fmt.Fprintf(&b, "Searches: %s\n", s)
 	}
 	return b.String()
-}
-
-// One tracked attribute the breakdown tool can group by
-type affinityAttr struct{ Slug, Name string }
-
-// The vocabulary the breakdown tool offers - a catalog setting on core's own tables, so it reads locally
-func affinityAttrs(ctx context.Context, r *Resolver) []affinityAttr {
-	attrs, err := r.Queries.ListSynapseTrackedAttributes(ctx)
-	if err != nil {
-		return nil
-	}
-	out := make([]affinityAttr, 0, len(attrs))
-	for _, a := range attrs {
-		out = append(out, affinityAttr{Slug: a.Slug, Name: a.Name})
-	}
-	return out
 }

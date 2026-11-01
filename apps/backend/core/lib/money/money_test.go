@@ -28,3 +28,21 @@ func TestISODecimals(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatCodeUsesTheCurrencysExponent(t *testing.T) {
+	for _, c := range []struct {
+		minor int64
+		code  string
+		want  string
+	}{
+		{120000, "JPY", "JPY 120000"},
+		{1234, "usd", "USD 12.34"},
+		{12345, "KWD", "KWD 12.345"},
+		{-5, "EUR", "EUR -0.05"},
+		{1234, "", "12.34"},
+	} {
+		if got := FormatCode(c.minor, c.code); got != c.want {
+			t.Errorf("FormatCode(%d, %q) = %q, want %q", c.minor, c.code, got, c.want)
+		}
+	}
+}

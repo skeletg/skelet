@@ -723,6 +723,7 @@ Once it's on, each surface has its own per-minute budget:
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
+| `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
 | `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
@@ -753,6 +754,7 @@ All default to true.
 |---|---|
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
+| `MCP_ENABLED` | no MCP endpoint for AI agents ([mcp.md](mcp.md)). It doesn't use the store's own AI provider, so `AI_ENABLED` doesn't switch it off |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web
 events. A bad path is logged, not fatal - geo just doesn't appear.

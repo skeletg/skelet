@@ -460,7 +460,7 @@ waiting to be written rather than a setting with nothing to say.
 | `ai/llm/vision_model` | Vision model for alt-text (blank = use Model) | string | global |  | - |
 | `ai/llm/base_url` | API base URL (blank = provider default; set for Azure/OpenRouter/Ollama/local) | string | global |  | - |
 | `ai/llm/tools` | Let the assistant query data via tools (turn off for models without tool/function calling) | bool | global |  | `true` |
-| `ai/llm/allow_customer_data` | Allow the assistant to read individual customer data (profiles, records). Turn off to keep personal data out of the AI provider. | bool | global |  | `true` |
+| `ai/llm/allow_customer_data` | Allow the assistant and MCP clients to read individual customer data - profiles, records and the email on orders. Turn off to keep personal data out of AI providers. | bool | global |  | `true` |
 | `ai/llm/history_retention_days` | Chat history retention (days; 0 = keep forever) | int | global |  | `90` |
 
 ### Cache

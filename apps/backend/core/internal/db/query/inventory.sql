@@ -257,6 +257,36 @@ SET quantity           = EXCLUDED.quantity,
     updated_at         = NOW()
 RETURNING *;
 
+-- name: ListChannelLowStockLevels :many
+-- The located arm of ListLowStockLevels, kept to the warehouses that serve one channel - an item stocked nowhere has no channel to belong to
+SELECT
+    inv_items.id                  AS inventory_item_id,
+    inv_items.product_id          AS product_id,
+    inv_items.low_stock_threshold AS low_stock_threshold,
+    inv_items.backorderable       AS backorderable,
+    inv_levels.location_id        AS location_id,
+    inv_levels.quantity           AS quantity,
+    inv_levels.updated_at         AS level_updated_at,
+    products.url                  AS product_slug,
+    products.sku                  AS product_sku,
+    products.quantity_decimals    AS quantity_decimals,
+    products.quantity_step        AS quantity_step,
+    locs.slug                     AS location_slug,
+    locs.name                     AS location_name
+FROM inventory_channel_locations icl
+JOIN inventory_levels inv_levels ON inv_levels.location_id = icl.location_id
+JOIN inventory_items inv_items ON inv_items.id = inv_levels.inventory_item_id
+JOIN catalog_products products ON products.id = inv_items.product_id
+JOIN inventory_locations locs ON locs.id = inv_levels.location_id
+WHERE icl.channel_id = sqlc.arg(channel_id)
+  AND inv_items.tracked = TRUE
+  AND inv_items.low_stock_threshold > 0
+  AND inv_levels.quantity <= inv_items.low_stock_threshold
+ORDER BY (inv_items.low_stock_threshold - inv_levels.quantity) DESC,
+         products.url ASC,
+         locs.slug ASC
+LIMIT sqlc.arg(lim);
+
 -- name: ListLowStockItemsFlat :many
 -- Flat-mode low-stock list - one row per tracked item with quantity at or below its threshold - LocationID is NULL - flat mode has no location dimension; the dashboard renders "(global)" for that column
 SELECT

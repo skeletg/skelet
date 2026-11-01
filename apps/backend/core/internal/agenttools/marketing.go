@@ -1,7 +1,7 @@
-package admin
+package agenttools
 
-// AI-chat tool definitions and handlers for the marketing and store domain (campaigns, flows, subscriptions, gift
-// cards, channels, redirects). The shared registry, dispatch and schema helpers live in aichat_tools.go
+// Agent tool definitions and handlers for the marketing and store domain (campaigns, flows, subscriptions, gift
+// cards, channels, redirects). The shared registry, dispatch and schema helpers live in tools.go
 
 import (
 	"context"
@@ -13,12 +13,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
-// marketingSignalTools returns the marketing and store tools.
-func marketingSignalTools() []signalTool {
-	return []signalTool{
+// marketingTools returns the marketing and store tools.
+func marketingTools() []tool {
+	return []tool{
 		// ---- Marketing & store ----
 		{
 			def: ai.Tool{
@@ -26,9 +27,9 @@ func marketingSignalTools() []signalTool {
 				Description: "Email campaigns for this channel (name, status, recipients sent).",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.campaigns },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListCampaigns(ctx, r, cid)
+			perm: func(p Perms) bool { return p.Campaigns },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListCampaigns(ctx, deps, cid)
 			},
 		},
 		{
@@ -37,9 +38,9 @@ func marketingSignalTools() []signalTool {
 				Description: "Marketing automation flows for this channel (name, trigger, status).",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.flows },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListFlows(ctx, r, cid)
+			perm: func(p Perms) bool { return p.Flows },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListFlows(ctx, deps, cid)
 			},
 		},
 		{
@@ -51,9 +52,9 @@ func marketingSignalTools() []signalTool {
 					"limit":  limitProp("Max rows to return (1-50). Default 20.", 50),
 				}),
 			},
-			perm: func(p digestPerms) bool { return p.subscriptions },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListSubscriptions(ctx, r, cid, a)
+			perm: func(p Perms) bool { return p.Subscriptions },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListSubscriptions(ctx, deps, cid, a)
 			},
 		},
 		{
@@ -62,9 +63,9 @@ func marketingSignalTools() []signalTool {
 				Description: "Gift cards (code masked, current vs initial balance, status). Useful for outstanding-liability questions.",
 				Schema:      objSchema(map[string]any{"limit": limitProp("Max rows to return (1-50). Default 20.", 50)}),
 			},
-			perm: func(p digestPerms) bool { return p.giftcards },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListGiftcards(ctx, r, cid, a)
+			perm: func(p Perms) bool { return p.Giftcards },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListGiftcards(ctx, deps, cid, a)
 			},
 		},
 		{
@@ -73,9 +74,9 @@ func marketingSignalTools() []signalTool {
 				Description: "The store's sales channels (name, slug, active).",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.channels },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListChannels(ctx, r, cid)
+			perm: func(p Perms) bool { return p.Channels },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListChannels(ctx, deps, cid)
 			},
 		},
 		{
@@ -86,9 +87,9 @@ func marketingSignalTools() []signalTool {
 					"code": map[string]any{"type": "string", "description": "The gift-card code to look up."},
 				}, "code"),
 			},
-			perm: func(p digestPerms) bool { return p.giftcards },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolCheckGiftcard(ctx, r, cid, a)
+			perm: func(p Perms) bool { return p.Giftcards },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolCheckGiftcard(ctx, deps, cid, a)
 			},
 		},
 		{
@@ -100,9 +101,9 @@ func marketingSignalTools() []signalTool {
 					"limit":   limitProp("Max runs to scan (1-50). Default 50.", 50),
 				}, "flow_id"),
 			},
-			perm: func(p digestPerms) bool { return p.flows },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolFlowRuns(ctx, r, a)
+			perm: func(p Perms) bool { return p.Flows },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolFlowRuns(ctx, deps, a)
 			},
 		},
 		{
@@ -111,9 +112,9 @@ func marketingSignalTools() []signalTool {
 				Description: "URL rewrites/redirects for this channel (request path → target, redirect type, autogenerated or manual).",
 				Schema:      objSchema(map[string]any{"limit": limitProp("Max rows to return (1-50). Default 25.", 50)}),
 			},
-			perm: func(p digestPerms) bool { return p.urlrewrite },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListRedirects(ctx, r, cid, a)
+			perm: func(p Perms) bool { return p.URLRewrite },
+			run: func(ctx context.Context, deps *Deps, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListRedirects(ctx, deps, cid, a)
 			},
 		},
 	}
@@ -121,14 +122,14 @@ func marketingSignalTools() []signalTool {
 
 // ---- marketing & store formatters ----
 
-func toolListCampaigns(ctx context.Context, r *Resolver, cid uuid.UUID) string {
-	authed, err := signalsCall(ctx, r)
+func toolListCampaigns(ctx context.Context, deps *Deps, cid uuid.UUID) string {
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return "Could not load campaigns."
+		return toolFailed(ctx, err, "Could not load campaigns.")
 	}
-	res, err := r.SignalsAPI.Campaigns.ListCampaigns(authed, &signalsv1.ListCampaignsRequest{ChannelId: cid.String()})
+	res, err := deps.Signals.Campaigns.ListCampaigns(authed, &signalsv1.ListCampaignsRequest{ChannelId: cid.String()})
 	if err != nil {
-		return "Could not load campaigns."
+		return toolFailed(ctx, err, "Could not load campaigns.")
 	}
 	cs := res.GetCampaigns()
 	if len(cs) == 0 {
@@ -142,14 +143,14 @@ func toolListCampaigns(ctx context.Context, r *Resolver, cid uuid.UUID) string {
 	return b.String()
 }
 
-func toolListFlows(ctx context.Context, r *Resolver, cid uuid.UUID) string {
-	authed, err := signalsCall(ctx, r)
+func toolListFlows(ctx context.Context, deps *Deps, cid uuid.UUID) string {
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return "Could not load flows."
+		return toolFailed(ctx, err, "Could not load flows.")
 	}
-	res, err := r.SignalsAPI.Flows.ListFlows(authed, &signalsv1.ListFlowsRequest{ChannelId: cid.String()})
+	res, err := deps.Signals.Flows.ListFlows(authed, &signalsv1.ListFlowsRequest{ChannelId: cid.String()})
 	if err != nil {
-		return "Could not load flows."
+		return toolFailed(ctx, err, "Could not load flows.")
 	}
 	fs := res.GetFlows()
 	if len(fs) == 0 {
@@ -163,11 +164,11 @@ func toolListFlows(ctx context.Context, r *Resolver, cid uuid.UUID) string {
 	return b.String()
 }
 
-func toolListSubscriptions(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
+func toolListSubscriptions(ctx context.Context, deps *Deps, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 20, 50)
-	subs, err := r.SubscriptionSvc.ListForChannels(ctx, strings.TrimSpace(a.Status), []uuid.UUID{cid}, int32(limit), 0)
+	subs, err := deps.Subscription.ListForChannels(ctx, strings.TrimSpace(a.Status), []uuid.UUID{cid}, int32(limit), 0)
 	if err != nil {
-		return "Could not load subscriptions."
+		return toolFailed(ctx, err, "Could not load subscriptions.")
 	}
 	if len(subs) == 0 {
 		return "No matching subscriptions."
@@ -176,7 +177,7 @@ func toolListSubscriptions(ctx context.Context, r *Resolver, cid uuid.UUID, a to
 	b.WriteString("Subscriptions (status - interval - price - next billing):\n")
 	for _, s := range subs {
 		fmt.Fprintf(&b, "- %s - every %d %s - %s - next %s\n",
-			s.Status, s.IntervalCount, s.IntervalUnit, fmtMoney(s.Price, s.CurrencyCode), s.NextBillingAt.Format("2006-01-02"))
+			s.Status, s.IntervalCount, s.IntervalUnit, money.FormatCode(s.Price, s.CurrencyCode), s.NextBillingAt.Format("2006-01-02"))
 	}
 	return b.String()
 }
@@ -189,11 +190,11 @@ func maskCode(s string) string {
 	return "…" + s[len(s)-4:]
 }
 
-func toolListGiftcards(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
+func toolListGiftcards(ctx context.Context, deps *Deps, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 20, 50)
-	cards, err := r.GiftcardSvc.ListForChannels(ctx, []uuid.UUID{cid}, int32(limit), 0)
+	cards, err := deps.Giftcard.ListForChannels(ctx, []uuid.UUID{cid}, int32(limit), 0)
 	if err != nil {
-		return "Could not load gift cards."
+		return toolFailed(ctx, err, "Could not load gift cards.")
 	}
 	if len(cards) == 0 {
 		return "No gift cards."
@@ -202,19 +203,19 @@ func toolListGiftcards(ctx context.Context, r *Resolver, cid uuid.UUID, a toolAr
 	b.WriteString("Gift cards (code - balance / initial - status):\n")
 	for _, c := range cards {
 		fmt.Fprintf(&b, "- %s - %s / %s - %s\n",
-			maskCode(c.Code), fmtMoney(c.Balance, c.CurrencyCode), fmtMoney(c.InitialBalance, c.CurrencyCode), c.Status)
+			maskCode(c.Code), money.FormatCode(c.Balance, c.CurrencyCode), money.FormatCode(c.InitialBalance, c.CurrencyCode), c.Status)
 	}
 	return b.String()
 }
 
-func toolListChannels(ctx context.Context, r *Resolver, cid uuid.UUID) string {
-	all, err := r.ChannelSvc.List(ctx)
+func toolListChannels(ctx context.Context, deps *Deps, cid uuid.UUID) string {
+	all, err := deps.Channel.List(ctx)
 	if err != nil {
-		return "Could not load channels."
+		return toolFailed(ctx, err, "Could not load channels.")
 	}
-	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "channels.view")
+	permitted, err := auth.LoadPermittedChannels(ctx, deps.Admin, "channels.view")
 	if err != nil {
-		return "Could not load channels."
+		return toolFailed(ctx, err, "Could not load channels.")
 	}
 	chs := all[:0:0]
 	for _, c := range all {
@@ -237,32 +238,32 @@ func toolListChannels(ctx context.Context, r *Resolver, cid uuid.UUID) string {
 	return b.String()
 }
 
-func toolCheckGiftcard(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
+func toolCheckGiftcard(ctx context.Context, deps *Deps, cid uuid.UUID, a toolArgs) string {
 	code := strings.TrimSpace(a.Code)
 	if code == "" {
 		return "Provide a gift-card 'code'."
 	}
-	gc, err := r.GiftcardSvc.GetByCode(ctx, code)
+	gc, err := deps.Giftcard.GetByCode(ctx, code)
 	if err != nil || !gc.SpendsOn(cid) {
 		return "No gift card found for that code."
 	}
 	return fmt.Sprintf("Gift card %s: %s of %s remaining - status %s.",
-		maskCode(gc.Code), fmtMoney(gc.Balance, gc.CurrencyCode), fmtMoney(gc.InitialBalance, gc.CurrencyCode), gc.Status)
+		maskCode(gc.Code), money.FormatCode(gc.Balance, gc.CurrencyCode), money.FormatCode(gc.InitialBalance, gc.CurrencyCode), gc.Status)
 }
 
-func toolFlowRuns(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolFlowRuns(ctx context.Context, deps *Deps, a toolArgs) string {
 	fid, err := uuid.Parse(strings.TrimSpace(a.FlowID))
 	if err != nil {
 		return "Provide a valid 'flow_id' (use list_flows)."
 	}
 	limit := clampLimit(a.Limit, 50, 50)
-	authed, err := signalsCall(ctx, r)
+	authed, err := signalsCall(ctx, deps)
 	if err != nil {
-		return "Could not load flow runs."
+		return toolFailed(ctx, err, "Could not load flow runs.")
 	}
-	res, err := r.SignalsAPI.Flows.ListFlowRuns(authed, &signalsv1.ListFlowRunsRequest{FlowId: fid.String(), Limit: int32(limit)})
+	res, err := deps.Signals.Flows.ListFlowRuns(authed, &signalsv1.ListFlowRunsRequest{FlowId: fid.String(), Limit: int32(limit)})
 	if err != nil {
-		return "Could not load flow runs."
+		return toolFailed(ctx, err, "Could not load flow runs.")
 	}
 	runs := res.GetRuns()
 	if len(runs) == 0 {
@@ -290,11 +291,11 @@ func toolFlowRuns(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolListRedirects(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
+func toolListRedirects(ctx context.Context, deps *Deps, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 25, 50)
-	rows, _, err := r.UrlRewriteSvc.List(ctx, urlrewrite.ListFilter{ChannelID: &cid, Limit: 200}) // the tool prints a capped summary anyway
+	rows, _, err := deps.URLRewrite.List(ctx, urlrewrite.ListFilter{ChannelID: &cid, Limit: 200}) // the tool prints a capped summary anyway
 	if err != nil {
-		return "Could not load redirects."
+		return toolFailed(ctx, err, "Could not load redirects.")
 	}
 	if len(rows) == 0 {
 		return "No URL rewrites for this channel."

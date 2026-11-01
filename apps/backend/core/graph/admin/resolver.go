@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
+	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
@@ -108,6 +109,7 @@ type Resolver struct {
 	GiftcardSvc       *giftcard.Service
 	SubscriptionSvc   *subscription.Service
 	SalesSvc          *sales.Service
+	AgentTools        *agenttools.Service
 	// Core's plug into the Signals service - Pulse, the chat's suite tools and every other Signals read relay through it
 	SignalsAPI      *signalsclient.Client
 	NotificationSvc *notification.Service
