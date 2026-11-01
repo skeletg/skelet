@@ -15,6 +15,9 @@
     "tracking-ga4": {
       "enabled": true
     },
+    "tracking-klaviyo": {
+      "enabled": true
+    },
     "tracking-meta": {
       "enabled": true
     },
