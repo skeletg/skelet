@@ -144,6 +144,25 @@ func (q *Queries) DeleteCustomerWishlistShares(ctx context.Context, customerID u
 	return result.RowsAffected()
 }
 
+const deleteEmailOptIns = `-- name: DeleteEmailOptIns :execrows
+DELETE FROM email_opt_ins
+WHERE  channel_id = $1 AND email = $2::text
+`
+
+type DeleteEmailOptInsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+}
+
+// A guest's checkout opt-in is stored under the bare address, so it goes by address on the customer's channel
+func (q *Queries) DeleteEmailOptIns(ctx context.Context, arg DeleteEmailOptInsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmailOptIns, arg.ChannelID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const scrubCustomerAuditDetail = `-- name: ScrubCustomerAuditDetail :execrows
 UPDATE audit_log a
 SET    detail = jsonb_build_object('redacted', true, 'reason', 'customer erased')
