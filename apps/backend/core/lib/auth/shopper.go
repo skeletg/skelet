@@ -7,10 +7,11 @@ import "context"
 // consent it needs
 type Shopper struct {
 	Consent   Consent           `json:"consent"`
-	AnonID    string            `json:"anon_id,omitempty"`   // analytics
-	ClickIDs  map[string]string `json:"click_ids,omitempty"` // ads, or an affiliate network the merchant made necessary
-	IP        string            `json:"ip,omitempty"`        // ads, the platforms' match keys
-	UserAgent string            `json:"ua,omitempty"`        // ads
+	AnonID    string            `json:"anon_id,omitempty"`    // analytics
+	SessionID string            `json:"session_id,omitempty"` // analytics
+	ClickIDs  map[string]string `json:"click_ids,omitempty"`  // ads, or an affiliate network the merchant made necessary
+	IP        string            `json:"ip,omitempty"`         // ads, the platforms' match keys
+	UserAgent string            `json:"ua,omitempty"`         // ads
 }
 
 // ShopperFromContext is nil for a request that states no cookie consent - admin drafts and API clients, which have no banner
@@ -21,7 +22,7 @@ func ShopperFromContext(ctx context.Context) *Shopper {
 	}
 	s := &Shopper{Consent: c, ClickIDs: ClickIDs(ctx)} // ClickIDs decides per id: ad platforms' need ads consent, an affiliate's may be necessary
 	if c.Analytics {
-		s.AnonID = AnonID(ctx)
+		s.AnonID, s.SessionID = AnonID(ctx), SessionID(ctx)
 	}
 	if c.Ads {
 		r, _ := RequestFromContext(ctx)

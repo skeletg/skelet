@@ -79,6 +79,8 @@ type ShopContext struct {
 	PageURL   string `json:"page_url,omitempty"`
 	Referrer  string `json:"referrer,omitempty"`
 	Locale    string `json:"locale,omitempty"`
+	PageTitle string `json:"page_title,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // the storefront's analytics session, its start in seconds - GA4's session_id
 }
 
 type ShopConsent struct {

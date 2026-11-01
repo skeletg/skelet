@@ -108,6 +108,8 @@ type Context struct {
 	PageURL   string `json:"page_url,omitempty"`
 	Referrer  string `json:"referrer,omitempty"`
 	Locale    string `json:"locale,omitempty"`
+	PageTitle string `json:"page_title,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // the storefront's analytics session, its start in seconds
 }
 
 // WithShopper fills in the visitor - each part is already there only under the consent it needs
@@ -118,7 +120,7 @@ func (e *Event) WithShopper(s *auth.Shopper) {
 	c := s.Consent
 	e.Consent = &c
 	e.ClickIDs = s.ClickIDs
-	e.User.AnonID = s.AnonID
+	e.User.AnonID, e.Context.SessionID = s.AnonID, s.SessionID
 	e.Context.IP, e.Context.UserAgent = s.IP, s.UserAgent
 }
 
