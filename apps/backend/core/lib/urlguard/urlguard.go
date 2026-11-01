@@ -60,6 +60,12 @@ func CheckShape(raw string) (*url.URL, error) {
 // An *http.Transport cloned from the default, whose dialer refuses connections to non-global addresses - checking the resolved IP at connect time closes the DNS-rebinding gap that save-time validation leaves
 func SafeTransport(allowPrivate bool) *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = SafeDialer(allowPrivate).DialContext
+	return t
+}
+
+// The same DNS-rebinding guard for non-HTTP integrations, including SFTP.
+func SafeDialer(allowPrivate bool) *net.Dialer {
 	refused := DisallowedIP
 	if allowPrivate {
 		refused = alwaysDisallowed
@@ -79,8 +85,7 @@ func SafeTransport(allowPrivate bool) *http.Transport {
 			return nil
 		},
 	}
-	t.DialContext = dialer.DialContext
-	return t
+	return dialer
 }
 
 // Carrier-grade NAT space reads as global unicast, but Tailscale and many cloud networks put internal services there
