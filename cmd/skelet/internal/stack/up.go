@@ -68,13 +68,19 @@ func Up(root string, args []string) int {
 	return 0
 }
 
-// mountpoints makes the directories a Docker storefront's volumes mount on inside the checkout. Docker makes a missing
-// one itself, as root, which leaves the host a node_modules no host install can write
+// mountpoints makes what a Docker storefront's mounts land on - a missing one Docker makes as root, or can't make at all under the read-only mount
 func mountpoints(root string, lib compose.Lib) {
+	list := storefronts.List(root)
 	for app := range strings.SplitSeq(lib.Apps, ",") {
-		if s, ok := storefronts.Find(root, app); ok {
-			_ = os.MkdirAll(filepath.Join(root, "node_modules"), 0o755)
-			_ = os.MkdirAll(filepath.Join(root, filepath.FromSlash(s.Dir), ".next"), 0o755)
+		s, ok := storefronts.Named(list, app)
+		if !ok {
+			continue
+		}
+		for _, dir := range []string{"node_modules", "apps/channels", s.Dir + "/.next"} {
+			_ = os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o755)
+		}
+		if f, err := os.OpenFile(filepath.Join(root, ".env"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err == nil {
+			_ = f.Close()
 		}
 	}
 }
@@ -201,12 +207,13 @@ func hostFrontends(root string, lib compose.Lib) {
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
 		fmt.Println("    skelet serve dashboard        → http://localhost:5173")
 	}
+	fronts := []string{"dashboard"}
 	for _, s := range storefronts.List(root) {
 		fmt.Printf("    skelet serve %s     → http://localhost:3000\n", s.Name)
+		fronts = append(fronts, s.Name)
 	}
 	fmt.Println("To run them in Docker instead, run skelet setup --docker-apps <names>")
 	// Every frontend this checkout could run, since a shop skelet add made leaves a container holding its port too
-	fronts := append([]string{"dashboard"}, storefronts.Names(root)...)
 	for _, f := range leftovers(root, lib, fronts) {
 		fmt.Printf("    stopping the %s container - not listed in .skelet-apps, and it holds the port\n", f)
 		_ = compose.Command(root, lib.Env(), "--profile", f, "stop", f).Run()

@@ -2,6 +2,7 @@ package gates
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -415,6 +416,16 @@ func (c contracts) frameworkFree() {
 			}
 			return nil
 		})
+		var manifest map[string]any
+		_ = json.Unmarshal([]byte(c.read(p.dir+"/package.json")), &manifest)
+		for _, field := range []string{"dependencies", "peerDependencies", "optionalDependencies", "devDependencies"} {
+			deps, _ := manifest[field].(map[string]any)
+			for _, name := range p.banned {
+				if _, ok := deps[name]; ok {
+					c.r.bad("%s/package.json lists %s in %s", p.dir, name, field)
+				}
+			}
+		}
 		if c.r.failed == before {
 			c.r.pass("%s imports none of %s (%d files)", p.dir, strings.Join(p.banned, ", "), files)
 		}

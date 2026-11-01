@@ -68,7 +68,8 @@ things hold for all of them:
 | `skelet go` | Run go in the app container - `skelet go build ./...`, `skelet go test ./internal/...`. `--signals` or `--sdk` first runs it in that module instead. |
 | `skelet cli` | The skelet ops CLI - `skelet cli admin list`, `skelet cli media-migrate ...`, `skelet cli job run customer-roster-push` to run a scheduled job now. Works with pipes and CI (only grabs a TTY when there is one). |
 | `skelet pnpm dashboard` | pnpm in the dashboard container - `skelet pnpm dashboard run codegen`, `skelet pnpm dashboard run lint`. Vite is already running via `skelet up`, so no need for `run dev`. |
-| `skelet pnpm <name>` | Same for storefronts (`apps/channels/<name>/` or `templates/<name>/`), and for the shared packages by directory name (`skelet pnpm storefront-core test`, run in a storefront's container) - `skelet pnpm <name> run build`, `run test`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
+| `skelet pnpm <name>` | Same for storefronts (`apps/channels/<name>/` or `templates/<name>/`), and for the shared packages by directory name (`skelet pnpm storefront-core test`, run in a storefront's container) - `skelet pnpm <name> run build`, `run test`; the name is optional when only one storefront exists. A storefront's container mounts the workspace read-only, so there an `add`, `remove` or `update` runs over the manifests in a throwaway container. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
+| `skelet pnpm --lockfile` | Brings `pnpm-lock.yaml` up to date with the workspace's manifests in a throwaway container, a member setup left out of the working tree included. |
 | `skelet psql` | psql shell into the dev database. |
 
 If the stack is up, these exec into the running container (instant). If
@@ -119,7 +120,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 
 | Command | What it does |
 |---|---|
-| `skelet release` | Build the prod images - backend, dashboard, and every storefront under `apps/channels/` or `templates/` with a `Dockerfile.prod`, built from the repo root since the storefronts share `packages/` - and push them to a container registry (e.g. DigitalOcean Container Registry). `REGISTRY=registry.digitalocean.com/<name> skelet release [tag]` - tag defaults to the git short sha, images build for linux/amd64. Prints the `*_IMAGE` vars `docker-compose.prod.yml` reads, one per image, the storefront ones named after the directory. Authenticate first with `doctl registry login`. |
+| `skelet release` | Build the prod images - backend, and the frontends this clone runs: the app selection `skelet setup` recorded, or without one the dashboard and every storefront under `apps/channels/` or `templates/` with a `Dockerfile.prod`, built from the repo root since the storefronts share `packages/` - and push them to a container registry (e.g. DigitalOcean Container Registry). `REGISTRY=registry.digitalocean.com/<name> skelet release [tag]` - tag defaults to the git short sha, images build for linux/amd64. Prints the `*_IMAGE` vars `docker-compose.prod.yml` reads, one per image, the storefront ones named after the directory. Authenticate first with `doctl registry login`. |
 
 The two shapes those images go into - `docker-compose.small.yml` (one
 container, one Postgres) and `docker-compose.prod.yml` (split tiers) - are

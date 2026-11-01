@@ -69,6 +69,33 @@ func TestReleaseBuildsAndPushesEveryImage(t *testing.T) {
 	}
 }
 
+func TestReleaseShipsTheSelection(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "apps/backend/core/Dockerfile.prod", "FROM x\n")
+	put(t, root, "apps/backend/signals/Dockerfile.prod", "FROM x\n")
+	put(t, root, "apps/dashboard/Dockerfile.prod", "FROM x\n")
+	for _, dir := range []string{"apps/channels/eu-shop", "templates/vetrina"} {
+		put(t, root, dir+"/Dockerfile.prod", "FROM x\n")
+		put(t, root, dir+"/package.json", "{}")
+	}
+	put(t, root, ".skelet-profile", "SKELET_APPS_SELECTED=eu-shop\n")
+	t.Setenv("REGISTRY", "reg.example")
+	d := verbtest.NewDocker(t, "")
+	out, code := d.Run("release", root, "v9")
+	var tags []string
+	for _, c := range d.Calls() {
+		if cmd, _, _ := strings.Cut(c, "|"); strings.HasPrefix(cmd, "push ") {
+			tags = append(tags, strings.TrimPrefix(cmd, "push reg.example/"))
+		}
+	}
+	if want := "skelet-app:v9 skelet-signals:v9 skelet-eu-shop:v9"; code != 0 || strings.Join(tags, " ") != want {
+		t.Errorf("exit %d, pushed %v, want %s", code, tags, want)
+	}
+	if strings.Contains(out, "DASHBOARD_IMAGE") || !strings.Contains(out, "skipping templates/vetrina") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
 func TestReleaseNeedsARegistryAndStopsOnAFailedBuild(t *testing.T) {
 	t.Setenv("REGISTRY", "")
 	if _, code := verbtest.NewDocker(t, "").Run("release", t.TempDir(), "v1"); code != 1 {

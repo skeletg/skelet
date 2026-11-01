@@ -73,9 +73,15 @@ func Remove(root string, args []string) int {
 }
 
 func remove(root, name string, force, dropVolumes bool) int {
-	if s, ok := storefronts.Find(root, name); ok && s.Template() {
-		fmt.Fprintf(os.Stderr, "%q is a template, not one of your storefronts - templates come from upstream, and rm channel leaves them be\n", name)
-		return 2
+	if s, ok := storefronts.FindKnown(root, name); ok {
+		switch {
+		case s.Template():
+			fmt.Fprintf(os.Stderr, "%q is a template, not one of your storefronts - templates come from upstream, and rm channel leaves them be\n", name)
+			return 2
+		case s.Excluded:
+			fmt.Fprintf(os.Stderr, "%q is kept out of the working tree by skelet setup's app selection - bring it back (skelet setup --apps ...) before removing it\n", name)
+			return 2
+		}
 	}
 	lib := compose.Load(root)
 	// A scaffold lands in one place, but a hand-edited clone might have it in several, so every one is collected
@@ -216,8 +222,8 @@ func remove(root, name string, force, dropVolumes bool) int {
 	}
 	// The workspace lockfile still lists it - frozen installs don't mind, but a refresh keeps it honest
 	if appDir != "" {
-		if pnpm.WorkspaceLockfile(root) != nil {
-			fmt.Fprintf(os.Stderr, "    pnpm-lock.yaml still lists %s - a pnpm install --lockfile-only at the root clears it\n", appDir)
+		if err := pnpm.WorkspaceLockfile(root); err != nil {
+			fmt.Fprintf(os.Stderr, "    pnpm-lock.yaml still lists %s (%v) - skelet pnpm --lockfile clears it\n", appDir, err)
 		}
 	}
 	fmt.Printf("\nRemoved %q.\n", name)

@@ -13,6 +13,8 @@ import (
 
 const File = ".skelet-profile"
 
+const AppsKey = "SKELET_APPS_SELECTED"
+
 // Profile maps a key to its value. A key that is present but empty differs from one that is absent -
 // SKELET_APPS_SELECTED= means backend only, a missing one means setup hasn't asked yet
 type Profile map[string]string
@@ -47,6 +49,17 @@ func Load(path string) (Profile, error) {
 func (p Profile) Get(key string) (string, bool) {
 	v, ok := p[key]
 	return v, ok
+}
+
+func (p Profile) Apps() ([]string, bool) {
+	v, ok := p[AppsKey]
+	var apps []string
+	for a := range strings.SplitSeq(v, ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			apps = append(apps, a)
+		}
+	}
+	return apps, ok
 }
 
 // Write puts keys in the order given, under a header saying where the file came from

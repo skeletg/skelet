@@ -37,6 +37,7 @@ func TestResolveRoutes(t *testing.T) {
 		{[]string{"pnpm", "dashboard", "run", "lint"}, []string{"run", "lint"}, ""},
 		{[]string{"pnpm", "vetrina", "run", "dev"}, []string{"vetrina", "run", "dev"}, ""},
 		{[]string{"pnpm", "storefront-core", "test"}, []string{"storefront-core", "test"}, ""},
+		{[]string{"pnpm", "--lockfile"}, nil, ""},
 		{[]string{"npm", "dashboard", "x"}, []string{"x"}, "(skelet npm is skelet pnpm now - running pnpm)"},
 		{[]string{"go", "--signals", "test", "./..."}, []string{"--signals", "test", "./..."}, ""},
 		{[]string{"db", "migrate", "up", "--signals"}, []string{"up"}, ""},
@@ -78,7 +79,7 @@ func TestResolveRefusals(t *testing.T) {
 		args   []string
 		stderr string
 	}{
-		{[]string{"pnpm"}, "skelet pnpm <app|package> <pnpm args> - apps: dashboard, vetrina; packages: storefront-core"},
+		{[]string{"pnpm"}, "skelet pnpm <app|package> <pnpm args> | --lockfile - apps: dashboard, vetrina; packages: storefront-core"},
 		{[]string{"pnpm", "nope"}, `skelet pnpm: unknown app or package "nope" - apps: dashboard, vetrina; packages: storefront-core`},
 		{[]string{"db"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"db", "--signals"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},

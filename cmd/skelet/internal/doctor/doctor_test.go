@@ -199,6 +199,9 @@ func TestProblemsAreReported(t *testing.T) {
 		{"an override on the old storefront mount", func(t *testing.T, root string) {
 			put(t, root, "docker-compose.override.yml", "services:\n  shop-eu:\n    volumes:\n      - ./apps/channels/shop:/var/www/storefront\n")
 		}, 0, []string{"warn  docker-compose.override.yml mounts a storefront at /var/www/storefront"}},
+		{"an override storefront forked before the read-only workspace", func(t *testing.T, root string) {
+			put(t, root, "docker-compose.override.yml", "services:\n  shop:\n    volumes:\n      - .:/var/www/skelet\n")
+		}, 0, []string{"warn  docker-compose.override.yml mounts the whole checkout writable"}},
 		{"a parked plugin name", func(t *testing.T, root string) {
 			put(t, root, "apps/backend/core/plugins/plugins.json", `{"plugins": {"example": 1, "_example": 0}}`)
 		}, 1, []string{`FAIL  plugins.json names "_example"`, "warn  plugins.json uses the old 0/1 form"}},

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
@@ -18,8 +19,9 @@ import (
 const About = `Builds the production images and pushes them: REGISTRY=... skelet release [tag]. The tag defaults to
 the commit's short sha, and PLATFORM to linux/amd64, so a Mac doesn't ship arm64 to amd64 servers.
 A build argument a Dockerfile declares (UPLOAD_ORIGINS, the preview origins) comes from your shell,
-else the root .env. Every storefront with a Dockerfile.prod ships - the templates and yours under
-apps/channels - so a fork ships its own shop without editing anything. Ends with the exports docker-compose.prod.yml reads.`
+else the root .env. Every frontend this clone runs ships - the app selection skelet setup made, or
+without one every storefront with a Dockerfile.prod, templates included - so a fork ships its own shop
+without editing anything. Ends with the exports docker-compose.prod.yml reads.`
 
 var argLine = regexp.MustCompile(`(?m)^ARG ([A-Z][A-Z0-9_]*)`)
 
@@ -51,12 +53,29 @@ func Run(root string, args []string) int {
 	}
 	r := run{root: root, registry: registry, tag: tag, platform: platform, dotenv: dotenv}
 
+	prof, err := profile.Load(filepath.Join(root, profile.File))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "skelet release:", err)
+		return 1
+	}
+	selected, chosen := prof.Apps()
+	ships := func(app string) bool { return !chosen || slices.Contains(selected, app) }
+
 	// Both Go images build from apps/backend as a whole - the modules replace each other by relative path
-	images := [][3]string{{"app", "apps/backend", "core/Dockerfile.prod"}, {"signals", "apps/backend", "signals/Dockerfile.prod"}, {"dashboard", "apps/dashboard", "Dockerfile.prod"}}
+	images := [][3]string{{"app", "apps/backend", "core/Dockerfile.prod"}, {"signals", "apps/backend", "signals/Dockerfile.prod"}}
+	services := []string{"app", "signals"}
+	if ships("dashboard") {
+		images = append(images, [3]string{"dashboard", "apps/dashboard", "Dockerfile.prod"})
+		services = append(services, "dashboard")
+	}
 	var exports []string
 	// A storefront builds from the repo root, the workspace it shares packages through
 	for _, sf := range storefronts.List(root) {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(sf.Dir), "Dockerfile.prod")); err != nil {
+			continue
+		}
+		if !ships(sf.Name) {
+			fmt.Printf("==> skipping %s - not in this clone's app selection (skelet setup --apps ...)\n", sf.Dir)
 			continue
 		}
 		name := sf.Name
@@ -70,7 +89,7 @@ func Run(root string, args []string) int {
 		}
 	}
 	fmt.Printf("\nPushed tag: %s\nDeploy with (docker-compose.prod.yml reads these):\n", tag)
-	for _, svc := range []string{"app", "signals", "dashboard"} {
+	for _, svc := range services {
 		fmt.Printf("  export %s_IMAGE=%s\n", strings.ToUpper(svc), r.ref(svc))
 	}
 	for _, e := range exports {

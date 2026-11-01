@@ -112,8 +112,11 @@ func pnpmRoute(root string, rest []string) Action {
 	case "dashboard":
 		r, _ := lookup("pnpm", "dashboard")
 		return to(r, rest)
+	case "--lockfile":
+		r, _ := flagged("pnpm", "", "--lockfile")
+		return to(r, rest)
 	case "":
-		return die("skelet pnpm <app|package> <pnpm args> - " + appsList(root))
+		return die("skelet pnpm " + subs["pnpm"] + " - " + appsList(root))
 	}
 	if _, ok := storefronts.Find(root, app); ok {
 		r, _ := lookup("pnpm", AnyApp)

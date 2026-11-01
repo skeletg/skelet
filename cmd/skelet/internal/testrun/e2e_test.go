@@ -127,7 +127,7 @@ func TestStorefront(t *testing.T) {
 		"-e E2E_ADMIN_GRAPHQL=http://app:8080/api/admin/s3cret/graphql",
 		"-e E2E_CHANNEL_ID=chan-1",
 		// The container's mounts as they are - the tmpfs over env/ included, which --volumes-from can't copy
-		"--network container:abc123 --tmpfs /var/www/skelet/env -v skelet_shop-node-modules:/var/www/skelet/node_modules -v /src:/var/www/skelet -v /certs:/certs:ro --ipc=host -w /var/www/skelet/apps/channels/shop",
+		"--network container:abc123 --mount type=tmpfs,dst=/var/www/skelet/env --mount type=volume,src=skelet_shop-node-modules,dst=/var/www/skelet/node_modules --mount type=bind,src=/src,dst=/var/www/skelet --mount type=bind,src=/certs,dst=/certs,readonly --ipc=host -w /var/www/skelet/apps/channels/shop",
 		"mcr.microsoft.com/playwright:v1.56.1-noble node node_modules/@playwright/test/cli.js test --grep cart",
 	}); missing != "" || !strings.HasPrefix(run, "run --rm") {
 		t.Errorf("no %q in order in:\n%s", missing, strings.Join(calls, "\n"))

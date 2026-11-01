@@ -131,10 +131,17 @@ func TestUpMakesMountpoints(t *testing.T) {
 	if _, code := d.Run("up", root); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, dir := range []string{"node_modules", "templates/vetrina/.next"} {
+	for _, dir := range []string{"node_modules", "apps/channels", "templates/vetrina/.next"} {
 		if fi, err := os.Stat(filepath.Join(root, dir)); err != nil || !fi.IsDir() {
 			t.Errorf("%s wasn't made: %v", dir, err)
 		}
+	}
+	if fi, err := os.Stat(filepath.Join(root, ".env")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf(".env wasn't made private: %v", err)
+	}
+	put(t, root, map[string]string{".env": "KEEP=1\n"})
+	if _, code := d.Run("up", root); code != 0 || read(t, filepath.Join(root, ".env")) != "KEEP=1\n" {
+		t.Error("a second up touched an existing .env")
 	}
 	// Nothing for a storefront that runs on the host
 	if _, err := os.Stat(filepath.Join(root, "apps/channels/shop/.next")); err == nil {

@@ -428,13 +428,16 @@ func TestTemplatesAreAskedForNotAssumed(t *testing.T) {
 }
 
 func TestShopFlags(t *testing.T) {
-	c := catalog{storefronts: []storefronts.Storefront{{Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"}, {Name: "astro-shop", Dir: "templates/astro-shop"}}}
+	root := fixture(t)
+	mkfile(t, root, "docker-compose.yml", "services:\n  app:\n    image: x\n")
+	c := catalog{root: root, storefronts: []storefronts.Storefront{{Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"}, {Name: "astro-shop", Dir: "templates/astro-shop"}}}
 	if f, err := parseFlags([]string{"--shop", "mine", "--template", "astro-shop"}, c); err != nil || f.shop != "mine" || f.template != "astro-shop" {
 		t.Errorf("%+v %v", f, err)
 	}
 	for args, want := range map[string]string{
-		"--shop Bad":           `Bad shop name "Bad" - lowercase letters, digits and inner hyphens only`,
-		"--shop astro-shop":    `"astro-shop" is taken - pick a name no app or template has`,
+		"--shop Bad":           `Can't name the shop "Bad" - lowercase letters, digits and inner hyphens only`,
+		"--shop astro-shop":    `Can't name the shop "astro-shop" - an app or template has that name`,
+		"--shop app":           `Can't name the shop "app" - docker-compose.yml has a service by that name`,
 		"--shop":               "--shop needs a name for your storefront (e.g. shop)",
 		"--template nope":      "--template takes a template (valid: nextjs-vetrina, astro-shop)",
 		"--template dashboard": "--template takes a template (valid: nextjs-vetrina, astro-shop)",
@@ -454,8 +457,8 @@ func TestFirstShopIsOffered(t *testing.T) {
 		return prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: out}
 	}
 	var out strings.Builder
-	// dashboard yes, both templates no, frontends in Docker, then: a shop, the second template, a bad name and a good one
-	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\ny\n2\nShop!\neu-shop\n"+strings.Repeat("\n", 40), &out), &out)
+	// dashboard yes, both templates no, then: a shop, the second template, a bad name and a good one, then Docker
+	a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n2\nShop!\neu-shop\ny\n"+strings.Repeat("\n", 40), &out), &out)
 	if err != nil || a.shop != "eu-shop" || a.shopTemplate != "astro-shop" ||
 		!slices.Contains(a.apps, "eu-shop") || !slices.Contains(a.dockerApps, "eu-shop") || !strings.Contains(out.String(), `"Shop!" won't do`) {
 		t.Errorf("answers %+v, %v\n%s", a, err, out.String())
@@ -464,6 +467,29 @@ func TestFirstShopIsOffered(t *testing.T) {
 	a, err = answer(root, c, flags{yes: true, template: "nextjs-vetrina"}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
 	if err != nil || a.shop != "shop" || a.shopTemplate != "nextjs-vetrina" || !slices.Contains(a.apps, "shop") {
 		t.Errorf("--template alone: %+v, %v", a, err)
+	}
+	out.Reset()
+	if a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask("\nn\nn\ny\n\n\n"+strings.Repeat("\n", 40), &out), &out); a.shopTemplate != storefronts.DefaultTemplate {
+		t.Errorf("default template %q\n%s", a.shopTemplate, out.String())
+	}
+	for name, run := range map[string]func() answers{
+		"--apps": func() answers {
+			a, _ := answer(root, c, flags{apps: list{true, []string{"dashboard"}}}, profile.Profile{kTarget: "dev"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
+			return a
+		},
+		"profile": func() answers {
+			a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "dev", kApps: "dashboard"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
+			return a
+		},
+		"prod": func() answers {
+			a, _ := answer(root, c, flags{}, profile.Profile{kTarget: "prod"}, "p", ask(strings.Repeat("\n", 40), &out), &out)
+			return a
+		},
+	} {
+		out.Reset()
+		if a := run(); a.shop != "" || strings.Contains(out.String(), "Your storefront") {
+			t.Errorf("%s: offered a shop: %+v\n%s", name, a, out.String())
+		}
 	}
 	// A project that has its own shop isn't asked
 	out.Reset()
@@ -521,12 +547,12 @@ func TestShopNamePromptGivesUp(t *testing.T) {
 		}
 		return c
 	}
-	// dashboard, then each template no, Docker, a shop yes, the first template - then names until the input runs out
-	a, out := answerWith(tpl("shop"), "\nn\n\ny\nBad!\nshop\n")
+	// dashboard, then each template no, a shop yes, the first template - then names until the input runs out
+	a, out := answerWith(tpl("shop"), "\nn\ny\nBad!\nshop\n")
 	if a.shop != "my-shop" || strings.Count(out, "won't do") != 2 || !strings.Contains(out, "Name it [my-shop]") {
 		t.Errorf("a taken name suggested, or the free one not taken: %+v\n%s", a, out)
 	}
-	a, out = answerWith(tpl("shop", "my-shop", "store"), "\nn\nn\nn\n\ny\n1\n")
+	a, out = answerWith(tpl("shop", "my-shop", "store"), "\nn\nn\nn\ny\n1\n")
 	if a.shop != "" || a.shopTemplate != "" || strings.Count(out, "won't do") != 3 || !strings.Contains(out, "No shop made") {
 		t.Errorf("didn't give up: %+v\n%s", a, out)
 	}

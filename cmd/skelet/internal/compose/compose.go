@@ -116,7 +116,10 @@ func RunAs() []string {
 	if !ok {
 		uid, gid = os.Getenv("SKELET_UID"), os.Getenv("SKELET_GID")
 	}
-	if gid == "" {
+	switch {
+	case uid == "":
+		return nil
+	case gid == "":
 		return []string{"-u", uid}
 	}
 	return []string{"-u", uid + ":" + gid}
@@ -136,9 +139,11 @@ func Command(root string, env []string, args ...string) *exec.Cmd {
 
 // Running reports whether service has a running container in this project - an exact name, where the old bash scripts' grep
 // for skelet-<service> also matched longer names and ignored COMPOSE_PROJECT_NAME
-func (l Lib) Running(service string) bool {
+func (l Lib) Running(service string) bool { return slices.Contains(l.RunningServices(), service) }
+
+func (l Lib) RunningServices() []string {
 	out, _ := Command(l.root, l.Env(), "ps", "--services", "--status", "running").Output()
-	return slices.Contains(strings.Fields(string(out)), service)
+	return strings.Fields(string(out))
 }
 
 // Target is where ExecOrRun runs a command

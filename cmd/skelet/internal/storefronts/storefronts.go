@@ -5,6 +5,7 @@ package storefronts
 import (
 	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,7 +19,10 @@ var homes = []string{"apps/channels", "templates"}
 // Storefront is one of them. Dir is relative to the checkout root, slash-separated
 type Storefront struct {
 	Name, Dir string
+	Excluded  bool
 }
+
+const DefaultTemplate = "nextjs-vetrina"
 
 // Mount is where a storefront's dev container sees the checkout - the whole workspace, so the packages resolve
 const Mount = "/var/www/skelet"
@@ -44,47 +48,56 @@ func List(root string) []Storefront {
 }
 
 // Find is the storefront called name
-func Find(root, name string) (Storefront, bool) {
-	i := slices.IndexFunc(List(root), func(s Storefront) bool { return s.Name == name })
-	if i < 0 {
-		return Storefront{}, false
-	}
-	return List(root)[i], true
-}
+func Find(root, name string) (Storefront, bool) { return Named(List(root), name) }
 
-// InHead is the storefronts git's HEAD has, checked out or not - one setup left out of the working tree is still there
-// to pick, and still there to fork
-func InHead(root string) []Storefront {
-	var out []Storefront
-	for _, home := range homes {
-		for _, n := range gitx.TreeDirs(root, home) {
-			if _, err := gitx.Show(root, home+"/"+n+"/package.json"); err == nil {
-				out = append(out, Storefront{Name: n, Dir: home + "/" + n})
-			}
-		}
-	}
-	return out
-}
-
-// Known is List, then what HEAD has that the working tree doesn't
-func Known(root string) []Storefront {
-	out := List(root)
-	for _, s := range InHead(root) {
-		if !slices.ContainsFunc(out, func(o Storefront) bool { return o.Name == s.Name }) {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// FindKnown is the storefront called name, on disk or only in HEAD
-func FindKnown(root, name string) (Storefront, bool) {
-	list := Known(root)
+func Named(list []Storefront, name string) (Storefront, bool) {
 	i := slices.IndexFunc(list, func(s Storefront) bool { return s.Name == name })
 	if i < 0 {
 		return Storefront{}, false
 	}
 	return list[i], true
+}
+
+// Known is List, then every storefront sparse-checkout keeps out of the working tree - one deleted by hand is gone
+func Known(root string) []Storefront {
+	out := List(root)
+	for _, dir := range Excluded(root) {
+		home, name := path.Split(dir)
+		if !slices.Contains(homes, strings.TrimSuffix(home, "/")) {
+			continue
+		}
+		if _, ok := Named(out, name); !ok {
+			out = append(out, Storefront{Name: name, Dir: dir, Excluded: true})
+		}
+	}
+	return out
+}
+
+func FindKnown(root, name string) (Storefront, bool) { return Named(Known(root), name) }
+
+func Default(list []Storefront) (Storefront, bool) {
+	if s, ok := Named(list, DefaultTemplate); ok && s.Template() {
+		return s, true
+	}
+	i := slices.IndexFunc(list, Storefront.Template)
+	if i < 0 {
+		return Storefront{}, false
+	}
+	return list[i], true
+}
+
+func Excluded(root string) []string {
+	var specs []string
+	for _, home := range append(slices.Clone(homes), "packages") {
+		specs = append(specs, ":(glob)"+home+"/*/package.json")
+	}
+	var out []string
+	for _, f := range gitx.SkipWorktree(root, specs...) {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(f))); err != nil {
+			out = append(out, path.Dir(f))
+		}
+	}
+	return out
 }
 
 // Names is List's names, in its order

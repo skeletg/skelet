@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -389,6 +390,7 @@ volumes:
 	put(t, root, "pnpm-workspace.yaml", "packages:\n  - apps/channels/*\n  - packages/*\n  - templates/*\n", 0o644)
 	put(t, root, "packages/storefront-next/package.json", `{"name": "@skelet/storefront-next", "packageManager": "pnpm@12.6.0"}`+"\n", 0o644)
 	put(t, root, ".nvmrc", "24\n", 0o644)
+	put(t, root, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n", 0o644)
 	tpl := "templates/vetrina/"
 	put(t, root, tpl+"package.json", `{"name": "vetrina"}`+"\n", 0o644)
 	put(t, root, tpl+"Dockerfile", "COPY templates/vetrina/package.json templates/vetrina/\nRUN pnpm install --filter \"./templates/vetrina...\"\n", 0o644)
@@ -402,9 +404,16 @@ volumes:
 	return root
 }
 
+// lockfileDocker writes the files pnpm was shown into the lockfile, one a line
+var lockfileDocker = `case "$*" in *--lockfile-only*)
+  for a in "$@"; do case "$a" in *:/w) d="${a%:/w}"; (cd "$d" && find . -type f | sed 's|^./||' | sort) > "$d/pnpm-lock.yaml";; esac; done;;
+esac`
+
+var scratchMount = regexp.MustCompile(`-v (\S+)/\.skelet/tmp/pnpm-[0-9]+:/w -w /w node:24-alpine npx -y pnpm@12\.6\.0 install --lockfile-only`)
+
 func TestAddFromATemplate(t *testing.T) {
 	root := templateClone(t)
-	d := verbtest.NewDocker(t, "")
+	d := verbtest.NewDocker(t, lockfileDocker)
 	if out, code := d.Run("add", root, "channel", "shop"); code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
@@ -438,11 +447,16 @@ func TestAddFromATemplate(t *testing.T) {
 	if file(t, root, "env/prod-shop.env.example") != "STOREFRONT_REVALIDATE_URL=http://shop:3000\n" {
 		t.Error("the env template wasn't renamed")
 	}
-	// The lockfile learns the new member in a throwaway container on the pinned Node and pnpm, env/ masked - it needs no
-	// storefront built or running
+	// The lockfile learns the new member in a throwaway container shown the workspace's manifests and nothing else
 	calls := strings.Join(d.Calls(), "\n")
-	if !strings.Contains(calls, "run --rm") || !strings.Contains(calls, "-v "+root+":/w --tmpfs /w/env -w /w node:24-alpine npx -y pnpm@12.6.0 install --lockfile-only") {
+	if m := scratchMount.FindStringSubmatch(calls); m == nil || m[1] != root || !strings.Contains(calls, "run --rm") {
 		t.Errorf("no lockfile refresh:\n%s", calls)
+	}
+	if got := file(t, root, "pnpm-lock.yaml"); got != "apps/channels/shop/package.json\npackages/storefront-next/package.json\npnpm-lock.yaml\npnpm-workspace.yaml\ntemplates/vetrina/package.json\n" {
+		t.Errorf("pnpm was shown:\n%s", got)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(root, ".skelet/tmp")); len(entries) != 0 {
+		t.Errorf("scratch left behind: %v", entries)
 	}
 	if st := git(t, root, "status", "--porcelain", "templates"); st != "?? templates/vetrina/pnpm-lock.yaml\n" {
 		t.Errorf("the template changed:\n%s", st)
@@ -521,11 +535,13 @@ func TestAddFromATemplateNotCheckedOut(t *testing.T) {
 	}
 	git(t, root, "add", "-A", "templates/vetrina/scripts", "templates/vetrina/link.json")
 	git(t, root, "commit", "-qm", "more")
-	if err := os.RemoveAll(filepath.Join(root, "templates/vetrina")); err != nil {
-		t.Fatal(err)
-	}
-	if out, code := run(t, "add", root, "channel", "shop"); code != 0 || !strings.Contains(out, "from git") {
+	git(t, root, "sparse-checkout", "set", "--no-cone", "/*", "!/templates/vetrina/")
+	d := verbtest.NewDocker(t, lockfileDocker)
+	if out, code := d.Run("add", root, "channel", "shop"); code != 0 || !strings.Contains(out, "from git") {
 		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if got := file(t, root, "pnpm-lock.yaml"); !strings.Contains(got, "templates/vetrina/package.json\n") {
+		t.Errorf("the lockfile refresh lost the template setup left out:\n%s", got)
 	}
 	app := "apps/channels/shop/"
 	if file(t, root, app+"package.json") != `{"name": "shop"}`+"\n" ||
@@ -539,7 +555,7 @@ func TestAddFromATemplateNotCheckedOut(t *testing.T) {
 	if link, err := os.Readlink(filepath.Join(root, app+"link.json")); err != nil || link != "package.json" {
 		t.Errorf("the fork from git didn't keep a symlink: %q %v", link, err)
 	}
-	if exists(root, "templates/vetrina") {
+	if exists(root, "templates/vetrina/package.json") {
 		t.Error("forking checked the template out")
 	}
 	// Named, and refused as a name of its own though it isn't on disk
@@ -548,5 +564,84 @@ func TestAddFromATemplateNotCheckedOut(t *testing.T) {
 	}
 	if _, code := run(t, "add", root, "channel", "vetrina"); code != 2 {
 		t.Errorf("a name only git has: exit %d, want 2", code)
+	}
+	if _, code := run(t, "rm", root, "channel", "vetrina", "-y"); code != 2 || !strings.Contains(file(t, root, prodFile), "  vetrina:") ||
+		!exists(root, "env/prod-vetrina.env.example") {
+		t.Errorf("rm a template setup left out: exit %d, or it took its wiring", code)
+	}
+	git(t, root, "sparse-checkout", "disable")
+	if err := os.RemoveAll(filepath.Join(root, "templates/vetrina")); err != nil {
+		t.Fatal(err)
+	}
+	if _, code := run(t, "add", root, "channel", "three", "--template", "vetrina"); code != 2 || exists(root, "apps/channels/three") {
+		t.Errorf("forked a template deleted by hand: exit %d", code)
+	}
+}
+
+func TestRenameIsWholeNamesOnly(t *testing.T) {
+	m := newMove("apps/channels/shop", "shop", "euper")
+	in := "workshop shop-header shop skelet-shop:prod env/prod-shop.env apps/channels/shop/x apps/channels/shopper " +
+		"${SHOP_IMAGE} EU_SHOP_IMAGE eu-shop shop's"
+	want := "workshop shop-header euper skelet-euper:prod env/prod-euper.env apps/channels/euper/x apps/channels/shopper " +
+		"${EUPER_IMAGE} EU_SHOP_IMAGE eu-shop euper's"
+	if got := m.applyFile(in); got != want {
+		t.Errorf("applyFile:\n got %s\nwant %s", got, want)
+	}
+	if got := m.apply("  - shop-node-modules:/w shop-next-cache:/n shop-header"); got != "  - euper-node-modules:/w euper-next-cache:/n shop-header" {
+		t.Errorf("apply: %s", got)
+	}
+}
+
+func TestAddFailingLeavesNothing(t *testing.T) {
+	root := templateClone(t)
+	secret := filepath.Join(root, "templates/vetrina/unreadable.txt")
+	put(t, root, "templates/vetrina/unreadable.txt", "x", 0o644)
+	if err := os.Chmod(secret, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(secret, 0o644) })
+	if _, err := os.ReadFile(secret); err == nil {
+		t.Skip("running as a user who reads anything")
+	}
+	if out, code := run(t, "add", root, "channel", "shop"); code != 1 {
+		t.Fatalf("exit %d, want 1:\n%s", code, out)
+	}
+	if exists(root, "apps/channels/shop") || exists(root, overrideFile) || exists(root, "env/prod-shop.env.example") {
+		t.Error("a failed copy left part of the storefront behind")
+	}
+	if entries, _ := os.ReadDir(filepath.Join(root, ".skelet/tmp")); len(entries) != 0 {
+		t.Errorf("scratch left behind: %v", entries)
+	}
+}
+
+func TestAddLockfileFailureSaysSo(t *testing.T) {
+	root := templateClone(t)
+	d := verbtest.NewDocker(t, `case "$*" in *--lockfile-only*) exit 1;; esac`)
+	out, code := d.Run("add", root, "channel", "shop")
+	if code != 1 || !exists(root, "apps/channels/shop/package.json") {
+		t.Fatalf("exit %d, want 1 with the storefront made:\n%s", code, out)
+	}
+}
+
+func TestTrackedFromATemplateOnOtherPorts(t *testing.T) {
+	root := templateClone(t)
+	for f, swap := range map[string][2]string{
+		devFile:   {`"3000:3000"`, `"3001:3000"`},
+		prodFile:  {"127.0.0.1:3000:3000", "127.0.0.1:3001:3000"},
+		smallFile: {"127.0.0.1:13000:3000", "127.0.0.1:13001:3000"},
+	} {
+		put(t, root, f, strings.Replace(file(t, root, f), swap[0], swap[1], 1), 0o644)
+	}
+	put(t, root, "env/small-vetrina.env.example", "STOREFRONT_BASE_URL=http://localhost:13001\n", 0o644)
+	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	for f, want := range map[string]string{prodFile: "127.0.0.1:3002:3000", smallFile: "127.0.0.1:13002:3000"} {
+		if got := block(file(t, root, f), "shop"); !strings.Contains(strings.Join(got, "\n"), want) {
+			t.Errorf("%s's shop block lacks %s:\n%s", f, want, strings.Join(got, "\n"))
+		}
+	}
+	if got := file(t, root, "env/small-shop.env.example"); got != "STOREFRONT_BASE_URL=http://localhost:13002\n" {
+		t.Errorf("small env template: %s", got)
 	}
 }

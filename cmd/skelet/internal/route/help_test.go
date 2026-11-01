@@ -32,12 +32,12 @@ func TestUsageGolden(t *testing.T) {
 func TestHelp(t *testing.T) {
 	root := fakeRoot(t)
 	cases := []struct{ verb, want string }{
-		{"add", "skelet add   channel <name> [--from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
-		{"new", "skelet new   channel <name> [--from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
+		{"add", "skelet add   channel <name> [--template <template> | --from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
+		{"new", "skelet new   channel <name> [--template <template> | --from <storefront>] [--tracked]\n\n" + scaffold.AddAbout + "\n"},
 		{"rm", "skelet rm   channel <name> [-y] [--volumes]\n\n" + scaffold.RemoveAbout + "\n"},
 		{"up", stack.UpAbout + "\n"},
 		{"down", stack.DownAbout + "\n"},
-		{"pnpm", "skelet pnpm   <app|package> <pnpm args>\n\n"},
+		{"pnpm", "skelet pnpm   <app|package> <pnpm args> | --lockfile\n\n"},
 		{"db", "skelet db   " + subs["db"] + "\n\n"},
 	}
 	for _, c := range cases {

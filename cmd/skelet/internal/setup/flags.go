@@ -3,7 +3,6 @@ package setup
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -22,8 +21,6 @@ type flags struct {
 	// shop and template ask for a storefront of the project's own, copied from a template - either one is enough
 	shop, template string
 }
-
-var shopName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 // usage is a message for the person at the terminal, printed as it stands - worded the way the bash setup's were
 type usage string
@@ -76,13 +73,11 @@ func parseFlags(args []string, c catalog) (flags, error) {
 			f.tools = l
 		case "--shop":
 			v, ok := value()
-			switch {
-			case !ok:
+			if !ok {
 				return f, usage("--shop needs a name for your storefront (e.g. shop)")
-			case !shopName.MatchString(v):
-				return f, usagef("Bad shop name %q - lowercase letters, digits and inner hyphens only", v)
-			case slices.Contains(c.apps(), v):
-				return f, usagef("%q is taken - pick a name no app or template has", v)
+			}
+			if why := shopUnusable(c, v); why != "" {
+				return f, usagef("Can't name the shop %q - %s", v, why)
 			}
 			f.shop = v
 		case "--template":

@@ -106,6 +106,8 @@ func TestContractFailures(t *testing.T) {
 			"FAIL  packages/storefront-core/types.ts imports react"},
 		{"a shared hook reaching for Next", map[string]string{reactPkg + "/nav.ts": "const m = await import(\"next/navigation\");\n"},
 			"FAIL  packages/storefront-react/nav.ts imports next/navigation"},
+		{"a core depending on React", map[string]string{storefrontPkg + "/package.json": `{"peerDependencies": {"react": "catalog:"}}`},
+			"FAIL  packages/storefront-core/package.json lists react in peerDependencies"},
 		{"an edge CSP edited by hand", map[string]string{caddyfile: "header Content-Security-Policy \"default-src *\"\nheader Permissions-Policy \"camera=(), geolocation=()\"\n"},
 			"FAIL  Content-Security-Policy differs between " + secHeaders + " and " + caddyfile},
 		{"a widget nobody registered", map[string]string{"apps/backend/core/internal/rules/more.go": "package rules\n\nvar t = `{\"x-widget\": \"ghost\"}`\n"},

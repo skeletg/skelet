@@ -135,27 +135,43 @@ func mounts(container string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var ms []struct {
-		Type, Name, Source, Destination string
-		RW                              bool
-	}
+	var ms []mount
 	if err := json.Unmarshal(raw, &ms); err != nil {
 		return nil, err
 	}
+	return mountFlags(ms)
+}
+
+type mount struct {
+	Type, Name, Source, Destination string
+	RW                              bool
+}
+
+// mountFlags refuses a mount kind it doesn't know - a dropped mask would hand the specs what it hid
+func mountFlags(ms []mount) ([]string, error) {
 	var out []string
 	for _, m := range ms {
-		ro := ""
-		if !m.RW {
-			ro = ":ro"
-		}
+		var spec []string
 		switch m.Type {
 		case "bind":
-			out = append(out, "-v", m.Source+":"+m.Destination+ro)
+			spec = []string{"type=bind", "src=" + m.Source}
 		case "volume":
-			out = append(out, "-v", m.Name+":"+m.Destination+ro)
+			spec = []string{"type=volume", "src=" + m.Name}
 		case "tmpfs":
-			out = append(out, "--tmpfs", m.Destination)
+			spec = []string{"type=tmpfs"}
+		default:
+			return nil, fmt.Errorf("a %s mount at %s, which the test container can't be given", m.Type, m.Destination)
 		}
+		spec = append(spec, "dst="+m.Destination)
+		if !m.RW && m.Type != "tmpfs" {
+			spec = append(spec, "readonly")
+		}
+		for i, f := range spec {
+			if strings.ContainsAny(f, `,"`) {
+				spec[i] = `"` + strings.ReplaceAll(f, `"`, `""`) + `"`
+			}
+		}
+		out = append(out, "--mount", strings.Join(spec, ","))
 	}
 	return out, nil
 }

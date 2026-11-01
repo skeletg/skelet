@@ -21,6 +21,8 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
+var writableCheckout = regexp.MustCompile(`(?m)^\s*-\s*\.:/var/www/skelet\s*$`)
+
 func checkout(root string, out io.Writer, p probes) int {
 	r := &report{out: out}
 	docker(r)
@@ -62,8 +64,13 @@ func checkout(root string, out io.Writer, p probes) int {
 	}
 	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
 	// sees only its own directory, so the shared packages don't resolve
-	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil && strings.Contains(string(raw), "/var/www/storefront") {
-		r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the nextjs-vetrina service in docker-compose.yml")
+	if raw, err := os.ReadFile(filepath.Join(root, "docker-compose.override.yml")); err == nil {
+		switch {
+		case strings.Contains(string(raw), "/var/www/storefront"):
+			r.note("docker-compose.override.yml mounts a storefront at /var/www/storefront, the old layout - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
+		case writableCheckout.Match(raw):
+			r.note("docker-compose.override.yml mounts the whole checkout writable into a storefront - copy the volumes of the %s service in docker-compose.yml", storefronts.DefaultTemplate)
+		}
 	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
 

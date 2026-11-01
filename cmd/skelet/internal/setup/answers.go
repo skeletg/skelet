@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 // Everything setup decides before it writes a file
@@ -43,7 +46,7 @@ const (
 	kSearch  = "SKELET_SEARCH"
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
-	kApps    = "SKELET_APPS_SELECTED"
+	kApps    = profile.AppsKey
 	kDocker  = "SKELET_DOCKER_APPS"
 	kTools   = "SKELET_TOOLS_SELECTED"
 )
@@ -156,6 +159,8 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	default:
 		a.apps = c.defaultApps()
 	}
+	// Ahead of where the frontends run, so the new shop is placed with them and the pnpm check covers it
+	firstShop(&a, c, f, ask, out)
 
 	// Where they run is a separate question from whether you have them, and the default is the host
 	switch {
@@ -180,12 +185,19 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		}
 		a.dockerApps = current
 	}
+	if a.shop != "" && len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
+		a.dockerApps = append(a.dockerApps, a.shop)
+	}
 	// Only apps you selected, so --docker-apps can't containerize one that isn't here
 	a.dockerApps = slices.DeleteFunc(slices.Clone(a.dockerApps), func(app string) bool { return !slices.Contains(a.apps, app) })
 
 	// A host app needs pnpm at its pinned version - refused before anything is written, since finding out at the
 	// install step leaves a half-set-up clone and a frontend that won't start
-	if problem := pnpmProblem(root, a.hostApps()); problem != "" {
+	hosts := a.hostApps()
+	if i := slices.Index(hosts, a.shop); a.shop != "" && i >= 0 {
+		hosts[i] = a.shopTemplate
+	}
+	if problem := pnpmProblem(root, hosts); problem != "" {
 		fmt.Fprintf(os.Stderr, "==> The frontends on the host need pnpm: %s\n", problem)
 		if !ask.yesNo("    Run them in Docker instead, which needs no pnpm on the host?", ask.on) {
 			fmt.Fprintf(os.Stderr, "    Install it and re-run, or re-run with --docker-apps %s\n", join(a.apps))
@@ -193,8 +205,6 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		}
 		a.dockerApps = a.apps
 	}
-
-	firstShop(&a, c, f, ask, out)
 
 	a.prune = !f.keepCode && !a.fromProfile
 	a.removeDeselected = true
@@ -366,35 +376,44 @@ func pnpmProblem(root string, hostApps []string) string {
 }
 
 // firstShop is a storefront of the project's own, copied from a template: asked for with --shop or --template, or
-// offered when there's none yet. It runs where the other frontends do
+// offered to a plain interactive dev setup that has none yet
 func firstShop(a *answers, c catalog, f flags, ask prompter, out io.Writer) {
+	def := ""
+	if s, ok := storefronts.Default(c.storefronts); ok {
+		def = s.Name
+	}
 	switch {
 	case f.shop != "" || f.template != "":
-		a.shop, a.shopTemplate = f.shop, f.template
+		a.shop, a.shopTemplate = f.shop, cmp.Or(f.template, def)
 		if a.shop == "" {
-			a.shop = "shop"
+			a.shop = freeShopName(c)
 		}
-	case ask.on && !c.ownStorefront() && len(c.templateNames()) > 0:
+		if a.shop == "" {
+			fmt.Fprintln(out, "==> No free name for a shop - pick one with --shop <name>")
+			a.shopTemplate = ""
+			return
+		}
+	case ask.on && !f.apps.set && !a.fromProfile && a.target == "dev" && !c.ownStorefront() && def != "":
 		fmt.Fprintln(out, "==> Your storefront")
 		fmt.Fprintln(out, "    A shop of your own starts as a copy of a template - the copy is yours to change, the")
 		fmt.Fprintln(out, "    template stays upstream's. skelet add channel <name> makes more later.")
 		if !ask.yesNo("    Create one now?", true) {
 			return
 		}
-		names := c.templateNames()
-		a.shopTemplate = names[0]
-		if len(names) > 1 {
-			a.shopTemplate = ask.choice("Which template?", names[0], names...)
+		a.shopTemplate = def
+		if names := c.templateNames(); len(names) > 1 {
+			a.shopTemplate = ask.choice("Which template?", def, names...)
 		}
 		// A few tries, not until it fits - a closed stdin answers the default forever
-		def, name := freeShopName(c), ""
+		name := ""
 		for range 3 {
-			n := ask.text("    Name it", def)
-			if shopName.MatchString(n) && !slices.Contains(c.apps(), n) {
+			n := ask.text("    Name it", freeShopName(c))
+			why := shopUnusable(c, n)
+			if why == "" {
 				name = n
 				break
 			}
-			fmt.Fprintf(out, "    %q won't do - lowercase letters, digits and inner hyphens, and no name an app has\n", n)
+			fmt.Fprintf(out, "    %q won't do - %s\n", n, why)
 		}
 		if name == "" {
 			fmt.Fprintln(out, "    No shop made - skelet add channel <name> makes one whenever you like")
@@ -408,15 +427,19 @@ func firstShop(a *answers, c catalog, f flags, ask prompter, out io.Writer) {
 	if !slices.Contains(a.apps, a.shop) {
 		a.apps = append(a.apps, a.shop)
 	}
-	if len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
-		a.dockerApps = append(a.dockerApps, a.shop)
-	}
 }
 
-// freeShopName is the name the prompt suggests - "shop", unless an app or a template has it already
+func shopUnusable(c catalog, name string) string {
+	if slices.Contains(c.apps(), name) {
+		return "an app or template has that name"
+	}
+	return scaffold.Unusable(c.root, name)
+}
+
+// freeShopName is the name the prompt suggests - "shop", unless something has it already
 func freeShopName(c catalog) string {
 	for _, n := range []string{"shop", "my-shop", "store"} {
-		if !slices.Contains(c.apps(), n) {
+		if shopUnusable(c, n) == "" {
 			return n
 		}
 	}

@@ -75,7 +75,7 @@ func TestInTheContainer(t *testing.T) {
 			"compose exec " + user + " dashboard pnpm run lint"},
 		// A storefront's container starts at the workspace root - pnpm runs in the storefront's own directory
 		{"channel", "", []string{"shop", "install"}, "compose run --rm " + user + " -w /var/www/skelet/apps/channels/shop shop pnpm install"},
-		{"channel", "", []string{"vetrina", "add", "x"}, "compose run --rm " + user + " -w /var/www/skelet/templates/vetrina vetrina pnpm add x"},
+		{"channel", "", []string{"vetrina", "run", "dev"}, "compose run --rm " + user + " -w /var/www/skelet/templates/vetrina vetrina pnpm run dev"},
 	} {
 		d := verbtest.NewDocker(t, c.answer)
 		d.Fake("pnpm", "")
@@ -174,5 +174,51 @@ func TestPackage(t *testing.T) {
 	app(t, bare, "packages/storefront-core", "none")
 	if _, code := verbtest.NewDocker(t, "").Run("package", bare, "storefront-core", "test"); code == 0 {
 		t.Error("ran with no storefront and no host install")
+	}
+}
+
+func TestEditsGoThroughTheManifests(t *testing.T) {
+	t.Setenv("SKELET_FORCE_DOCKER", "")
+	root := t.TempDir()
+	app(t, root, "templates/vetrina", "none")
+	app(t, root, "packages/storefront-core", "none")
+	for f, body := range map[string]string{
+		"pnpm-workspace.yaml": "packages:\n  - templates/*\n  - packages/*\n", "pnpm-lock.yaml": "old\n", ".nvmrc": "24\n",
+		"templates/vetrina/package.json": `{"packageManager": "pnpm@12.6.0"}`,
+	} {
+		if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d := verbtest.NewDocker(t, `case "$*" in *--lockfile-only*)
+  for a in "$@"; do case "$a" in *:/w) d="${a%:/w}";; esac; done
+  echo new > "$d/pnpm-lock.yaml"; echo '{"packageManager": "pnpm@12.6.0", "x": 1}' > "$d/templates/vetrina/package.json";;
+esac`)
+	if out, code := d.Run("channel", root, "vetrina", "add", "x"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	last := cmds(d)[len(cmds(d))-1]
+	if !strings.Contains(last, ":/w -w /w/templates/vetrina node:24-alpine npx -y pnpm@12.6.0 add x --lockfile-only") {
+		t.Errorf("ran %q", last)
+	}
+	for f, want := range map[string]string{"pnpm-lock.yaml": "new\n", "templates/vetrina/package.json": "{\"packageManager\": \"pnpm@12.6.0\", \"x\": 1}\n"} {
+		if raw, _ := os.ReadFile(filepath.Join(root, f)); string(raw) != want {
+			t.Errorf("%s = %q, want %q", f, raw, want)
+		}
+	}
+	if _, code := d.Run("package", root, "storefront-core", "remove", "y"); code != 0 ||
+		!strings.Contains(cmds(d)[len(cmds(d))-1], "-w /w/packages/storefront-core node:24-alpine npx -y pnpm@12.6.0 remove y --lockfile-only") {
+		t.Errorf("exit %d, calls %q", code, cmds(d))
+	}
+}
+
+func TestEditsLockfile(t *testing.T) {
+	for args, want := range map[string]bool{
+		"add x": true, "-D add x": true, "remove x": true, "up": true, "update --latest": true, "dedupe": true,
+		"install x": true, "i x": true, "install": false, "install --frozen-lockfile": false, "run add": false, "test": false, "": false,
+	} {
+		if got := editsLockfile(strings.Fields(args)); got != want {
+			t.Errorf("editsLockfile(%q) = %v, want %v", args, got, want)
+		}
 	}
 }
