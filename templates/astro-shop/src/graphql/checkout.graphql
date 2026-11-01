@@ -1,0 +1,113 @@
+fragment CartLines on Cart {
+  id
+  subtotal
+  totalDiscount
+  lines {
+    id
+    name
+    sku
+    imageUrl
+    unitPrice
+    quantity
+    totalPrice
+  }
+}
+
+query Countries {
+  countries(activeOnly: true) {
+    code
+    name
+  }
+}
+
+query Checkout($id: ID!) {
+  cart(id: $id) {
+    ...CartLines
+    checkout {
+      email
+      destination {
+        countryCode
+        postalCode
+      }
+      shippingAddress {
+        firstName
+        lastName
+        street1
+        street2
+        city
+        state
+        phone
+      }
+      paymentProviderSlug
+      deliveryGroups {
+        key
+        choices {
+          optionId
+          optionName
+          kind
+          carrierSlug
+          methodCode
+          methodName
+          priceCents
+          estimatedArrival
+        }
+        selection {
+          optionId
+          carrierSlug
+          methodCode
+        }
+      }
+      requirements {
+        type
+        status
+        message
+      }
+      totals {
+        subtotalCents
+        discountCents
+        shippingCents
+        taxCents
+        totalCents
+      }
+    }
+  }
+}
+
+query PaymentOptions($countryCode: String!, $cartId: ID) {
+  paymentMethods(countryCode: $countryCode, cartId: $cartId) {
+    providerSlug
+    displayName
+    instructions
+  }
+}
+
+mutation SetDestination($cartId: ID!, $countryCode: String!, $postalCode: String!) {
+  setCartDestination(cartId: $cartId, countryCode: $countryCode, postalCode: $postalCode) {
+    id
+  }
+}
+
+mutation SetDelivery($cartId: ID!, $groupKey: String!, $optionId: ID!, $carrierSlug: String!, $methodCode: String!) {
+  setCartDelivery(cartId: $cartId, groupKey: $groupKey, optionId: $optionId, carrierSlug: $carrierSlug, methodCode: $methodCode) {
+    id
+  }
+}
+
+mutation SetDetails($cartId: ID!, $input: CheckoutDetailsInput!) {
+  setCartDetails(cartId: $cartId, input: $input) {
+    id
+  }
+}
+
+mutation SetPayment($cartId: ID!, $providerSlug: String!) {
+  setCartPaymentMethod(cartId: $cartId, providerSlug: $providerSlug) {
+    id
+  }
+}
+
+mutation Place($cartId: ID!, $acceptTerms: Boolean) {
+  placeOrder(cartId: $cartId, acceptTerms: $acceptTerms) {
+    number
+    paymentClientSecret
+  }
+}

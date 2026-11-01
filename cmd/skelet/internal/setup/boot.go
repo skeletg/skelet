@@ -19,42 +19,57 @@ import (
 
 // boot is the dev target's second half: the stack up, the schema in place, the plugin bridge regenerated when the
 // set changed, the host apps installed, and the first admin login offered while you're still at the prompt
-func boot(root string, a answers, w written, ask prompter) int {
-	fmt.Println("==> Starting containers...")
-	// --lean: migrating needs only db and app, and the sidecars arrive with skelet up
-	if code := stack.Up(root, []string{"--lean"}); code != 0 {
+func boot(root string, a answers, w written, ask prompter, st *stepper) int {
+	if code := st.run("Starting containers", func() int {
+		fmt.Println("==> Starting containers...")
+		// --lean: migrating needs only db and app, and the sidecars arrive with skelet up
+		return stack.Up(root, []string{"--lean"})
+	}); code != 0 {
 		return code
 	}
 	lib := compose.Load(root)
 	dc := func(args ...string) *exec.Cmd { return compose.Command(root, lib.Env(), args...) }
 
-	fmt.Println("==> Waiting for db...")
-	wait := dc("exec", "db", "sh", "-c", "until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done")
-	wait.Stdout, wait.Stderr = os.Stdout, os.Stderr
-	if err := sys.Run(wait); err != nil {
-		return sys.ExitCode(err)
+	if code := st.run("Waiting for the database", func() int {
+		fmt.Println("==> Waiting for db...")
+		wait := dc("exec", "db", "sh", "-c", "until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done")
+		wait.Stdout, wait.Stderr = os.Stdout, os.Stderr
+		return sys.ExitCode(sys.Run(wait))
+	}); code != 0 {
+		return code
 	}
 
 	// The app migrates as it boots - this waits for the same work under the same locks, so what follows finds the
 	// schema in place
-	fmt.Println("==> Running migrations...")
-	if err := container.CLICall(root, "migrate").Run(); err != nil {
-		return sys.ExitCode(err)
+	if code := st.run("Running migrations", func() int {
+		fmt.Println("==> Running migrations...")
+		return sys.ExitCode(container.CLICall(root, "migrate").Run())
+	}); code != 0 {
+		return code
 	}
 
 	if a.signals {
-		spine(dc)
+		st.run("Waiting for the ClickHouse spine schema", func() int { return spine(dc) })
 	}
 
 	if w.pluginsChanged {
-		fmt.Println("==> Regenerating the plugin GraphQL delegation (skelet gen)...")
-		if gen.Run(root, nil) != 0 {
-			fmt.Println("    codegen failed - run skelet gen once the stack is warm")
-		}
+		st.run("Regenerating the plugin bridge", func() int {
+			fmt.Println("==> Regenerating the plugin GraphQL delegation (skelet gen)...")
+			if gen.Run(root, nil) != 0 {
+				fmt.Println("    codegen failed - run skelet gen once the stack is warm")
+				return 1
+			}
+			return 0
+		})
 	}
 
 	for _, app := range a.apps {
-		if code := install(root, app, slices.Contains(a.dockerApps, app)); code != 0 {
+		docker := slices.Contains(a.dockerApps, app)
+		if docker && ask.ui != nil {
+			ask.ui.Note(app + " runs in Docker and installs its own dependencies on start - skelet logs " + app)
+			continue
+		}
+		if code := st.run("Installing "+app+" dependencies", func() int { return install(root, app, docker) }); code != 0 {
 			return code
 		}
 	}
@@ -74,12 +89,12 @@ func boot(root string, a answers, w written, ask prompter) int {
 		}
 	}
 
-	summary(a, w, dc)
+	summary(a, w, dc, ask)
 	return 0
 }
 
 // spine waits for the Signals process to migrate ClickHouse, so the first beacon has a table to land in
-func spine(dc func(...string) *exec.Cmd) {
+func spine(dc func(...string) *exec.Cmd) int {
 	fmt.Println("==> Waiting for the ClickHouse spine schema...")
 	user, pass := envOr("CLICKHOUSE_USER", "skelet"), envOr("CLICKHOUSE_PASSWORD", "skelet")
 	for range 60 {
@@ -87,12 +102,13 @@ func spine(dc func(...string) *exec.Cmd) {
 			"--query", "EXISTS TABLE signals.analytics_events").Output()
 		if strings.TrimSpace(string(out)) == "1" {
 			fmt.Println("    signals.analytics_events present")
-			return
+			return 0
 		}
 		time.Sleep(2 * time.Second)
 	}
 	fmt.Fprintln(os.Stderr, "    NOT ready after 2 minutes - the spine will write nowhere until this lands")
 	fmt.Fprintln(os.Stderr, "    look at: skelet logs signals")
+	return 1
 }
 
 // install puts a host app's dependencies in place. A Docker app's image installs on every start, into a volume the
@@ -102,17 +118,17 @@ func install(root, app string, inDocker bool) int {
 		fmt.Printf("==> %s runs in Docker and installs its own dependencies on start - follow it with skelet logs %s\n", app, app)
 		return 0
 	}
-	dir := filepath.Join(root, appDir(app))
+	dir := filepath.Join(root, appDir(root, app))
 	if _, err := os.Stat(filepath.Join(dir, "package.json")); err != nil {
 		return 0
 	}
 	fmt.Printf("==> Installing %s dependencies...\n", app)
 	switch node.Tree(dir) {
 	case "pnpm":
-		fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(app))
+		fmt.Printf("    %s/node_modules is populated, skipping\n", appDir(root, app))
 		return 0
 	case "npm":
-		fmt.Printf("    %s/node_modules is an npm install from before the switch to pnpm - replacing it\n", appDir(app))
+		fmt.Printf("    %s/node_modules is an npm install from before the switch to pnpm - replacing it\n", appDir(root, app))
 		if err := os.RemoveAll(filepath.Join(dir, "node_modules")); err != nil {
 			fmt.Fprintln(os.Stderr, "   ", err)
 			return 1
@@ -124,8 +140,8 @@ func install(root, app string, inDocker bool) int {
 	return sys.ExitCode(sys.Run(cmd))
 }
 
-func summary(a answers, w written, dc func(...string) *exec.Cmd) {
-	fmt.Println("==> Setup complete.")
+func summary(a answers, w written, dc func(...string) *exec.Cmd, ask prompter) {
+	ask.section(os.Stdout, "Setup complete.")
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  skelet up               # dev stack with hot reload + sidecars")

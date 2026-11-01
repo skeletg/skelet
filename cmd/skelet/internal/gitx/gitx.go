@@ -33,6 +33,26 @@ func Show(root, file string) ([]byte, error) {
 	return cmd.Output()
 }
 
+func Indexed(root, file string) ([]byte, error) {
+	cmd := exec.Command("git", "show", ":"+file)
+	cmd.Dir = root
+	return cmd.Output()
+}
+
+func SkipWorktree(root string, pathspecs ...string) []string {
+	out, err := output(root, append([]string{"ls-files", "-t", "--"}, pathspecs...)...)
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for l := range strings.SplitSeq(out, "\n") {
+		if f, ok := strings.CutPrefix(l, "S "); ok {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
 func SparseOn(root string) bool {
 	out, _ := output(root, "config", "core.sparseCheckout")
 	return out == "true"

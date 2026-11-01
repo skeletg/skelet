@@ -191,6 +191,17 @@ func TestProblemsAreReported(t *testing.T) {
 			put(t, root, ".skelet-profile", "SKELET_TARGET=dev\n")
 			t.Setenv("FAKE_RUNNING", "app db")
 		}, 0, nil},
+		// A selection naming a storefront that isn't here starts nothing, and says so
+		{"an app selection naming a storefront that's gone", func(t *testing.T, root string) {
+			put(t, root, ".skelet-apps", "dashboard,vetrina-demo\n")
+			put(t, root, "templates/vetrina/package.json", "{}")
+		}, 0, []string{`warn  .skelet-apps names "vetrina-demo", which isn't an app here - storefronts: vetrina`}},
+		{"an override on the old storefront mount", func(t *testing.T, root string) {
+			put(t, root, "docker-compose.override.yml", "services:\n  shop-eu:\n    volumes:\n      - ./apps/channels/shop:/var/www/storefront\n")
+		}, 0, []string{"warn  docker-compose.override.yml mounts a storefront at /var/www/storefront"}},
+		{"an override storefront forked before the read-only workspace", func(t *testing.T, root string) {
+			put(t, root, "docker-compose.override.yml", "services:\n  shop:\n    volumes:\n      - .:/var/www/skelet\n")
+		}, 0, []string{"warn  docker-compose.override.yml mounts the whole checkout writable"}},
 		{"a parked plugin name", func(t *testing.T, root string) {
 			put(t, root, "apps/backend/core/plugins/plugins.json", `{"plugins": {"example": 1, "_example": 0}}`)
 		}, 1, []string{`FAIL  plugins.json names "_example"`, "warn  plugins.json uses the old 0/1 form"}},

@@ -1,0 +1,35 @@
+{
+  "name": "@skelet/storefront-next",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@skelet/storefront-core": "workspace:*",
+    "graphql": "catalog:",
+    "server-only": "^0.0.1"
+  },
+  "peerDependencies": {
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

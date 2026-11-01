@@ -1,0 +1,58 @@
+# The storefronts' workspace: your storefronts, the templates they're made from, and the packages both share. The
+# dashboard isn't in it - it keeps its own pnpm-workspace.yaml, and pnpm takes the nearest one. pnpm 11+ reads nothing
+# but auth from .npmrc and ignores package.json's pnpm field, so every setting lives here
+packages:
+  - apps/channels/*
+  - packages/*
+  - templates/*
+
+# One version of each of these across the workspace - a package and the storefront importing it resolve to the same
+# copy, which React's context and cache(), next/headers and next-intl's request config all depend on
+catalog:
+  react: 19.3.1
+  react-dom: 19.3.1
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
+  "@types/node": ^26
+  next: 16.4.2
+  eslint-config-next: 16.4.2
+  next-intl: ^4.14.9
+  graphql: ^16.14.2
+  "@graphql-typed-document-node/core": ^3.2.0
+  zod: ^4.6.5
+  typescript: ~6.0.2
+  vitest: ^4.1.11
+  astro: ^7.4.0
+  "@testing-library/jest-dom": ^7.0.1
+  "@testing-library/react": ^16.3.3
+  jsdom: ^30.1.1
+
+# Dependency install scripts run only when listed true - none of these needs to. swc, parcel's watcher, unrs-resolver,
+# esbuild and sharp load a prebuilt platform package and only fall back to a build when it is missing (and astro-shop does
+# no build-time image processing); sentry-cli's script downloads a binary that only source-map upload uses, and
+# next.config.ts doesn't wrap withSentryConfig
+allowBuilds:
+  "@parcel/watcher": false
+  "@sentry/cli": false
+  "@swc/core": false
+  esbuild: false
+  fsevents: false
+  sharp: false
+  unrs-resolver: false
+
+# A pnpm audit finding is a lockfile refresh (Renovate's weekly lockfile maintenance, or delete the lockfile and
+# reinstall) whenever the parent's range already allows the fix. A patched floor goes here only when it doesn't, with
+# the parent named - drop it once the parent widens its range
+overrides:
+  # near-operation-file-preset 5.2.3 still asks for ^11, and GHSA-7mx3-vvmw-hjmv is fixed only in 12.0.1
+  "@graphql-tools/utils@<12.0.1": "^12.0.1"
+
+# Reviewed and accepted: braces has no patched release, and only dev tooling reaches it (glob matching in eslint, the
+# codegen loaders and the CLIs) over patterns written in this repo, never user input
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
+
+# Bring node_modules back in line with the lockfile before any `pnpm run` - a host tree kept beside a Docker app's
+# volume never sees the container's reinstalls, and would otherwise typecheck and lint against yesterday's dependencies
+verifyDepsBeforeRun: install

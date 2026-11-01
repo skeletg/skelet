@@ -1,9 +1,11 @@
 package scaffold
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -14,16 +16,24 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const AddAbout = `Forks a storefront into apps/channels/<name> with its own port, volumes and env templates.
+const AddAbout = `Makes a storefront in apps/channels/<name> from a template - or from a storefront of your own - with
+its own port, volumes and env templates.
 
-  --from      which storefront to copy (default: the one docker-compose.yml declares)
+  --template  which template to start from (default: nextjs-vetrina, the full one)
+  --from      copy one of your own storefronts instead
   --tracked   wire it into the tracked compose files instead of the override
 
-Every compose block is copied from the source service rather than templated, so a change to the
-demo's wiring reaches the next storefront instead of drifting from a copy kept here. By default the
+The copy is yours: upstream keeps improving the templates and the packages they're built on, and
+since you never edit either, merging a release doesn't collide with your storefront. Every compose
+block is copied from the source service rather than templated, so a change to its wiring reaches the
+next storefront instead of drifting from a copy kept here. By default the
 dev service goes in docker-compose.override.yml, which is git-ignored and auto-merged - so pulling from
 upstream skelet never conflicts with your shops (docs/workflow.md). Prod deployment stays yours to wire.
 
@@ -31,6 +41,8 @@ upstream skelet never conflicts with your shops (docs/workflow.md). Prod deploym
 itself, and it's what makes upstream pulls conflict.
 
 Nothing is written until every generated compose file parses, so a failure leaves the repo untouched.`
+
+const addUsage = "skelet add channel <name> [--template <template> | --from <storefront>] [--tracked]"
 
 const (
 	devFile      = "docker-compose.yml"
@@ -43,20 +55,46 @@ const (
 // to what all three accept rather than found out three files later
 var validName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// Unusable is why name can't be a new storefront's, or "" - setup asks it before writing anything
+func Unusable(root, name string) string {
+	return unusable(root, storefronts.Known(root), name)
+}
+
+func unusable(root string, known []storefronts.Storefront, name string) string {
+	if !validName.MatchString(name) {
+		return "lowercase letters, digits and inner hyphens only"
+	}
+	if _, ok := storefronts.Named(known, name); ok || storefronts.Exists(root, name) {
+		return "a storefront or template has that name"
+	}
+	for _, f := range []string{devFile, overrideFile} {
+		if declares(read(root, f), name) {
+			return f + " has a service by that name"
+		}
+	}
+	return ""
+}
+
 var (
-	devPort   = regexp.MustCompile(`"[0-9]{4,5}:3000"`)
-	prodPort  = regexp.MustCompile(`127\.0\.0\.1:3000:3000`)
-	smallPort = regexp.MustCompile(`127\.0\.0\.1:13000:3000`)
+	devPort  = regexp.MustCompile(`"[0-9]{4,5}:3000"`)
+	hostPort = regexp.MustCompile(`127\.0\.0\.1:[0-9]{4,5}:3000`)
 )
 
 type addOptions struct {
 	name, src string
-	tracked   bool
+	// template says src was named with --template, which only a template answers to
+	template, tracked bool
+	// quiet leaves the next steps out - setup, making a project's first shop, has its own
+	quiet bool
+}
+
+func Fork(root, name, template string) int {
+	return add(root, addOptions{name: name, src: template, template: template != "", quiet: true})
 }
 
 func Add(root string, args []string) int {
 	if len(args) == 0 || slices.Contains([]string{"-h", "--help", "help"}, args[0]) {
-		fmt.Println("skelet add channel <name> [--from <storefront>] [--tracked]\n\n" + AddAbout)
+		fmt.Println(addUsage + "\n\n" + AddAbout)
 		return 0
 	}
 	if args[0] != "channel" {
@@ -70,18 +108,23 @@ func Add(root string, args []string) int {
 	}
 	for i := 0; i < len(rest); i++ {
 		switch rest[i] {
-		case "--from":
+		case "--from", "--template":
 			if i+1 >= len(rest) || rest[i+1] == "" {
-				fmt.Fprintln(os.Stderr, "--from needs a storefront name")
+				fmt.Fprintf(os.Stderr, "%s needs a name\n", rest[i])
 				return 2
 			}
+			if o.src != "" {
+				fmt.Fprintln(os.Stderr, "--template and --from each name the source - give one")
+				return 2
+			}
+			o.template = rest[i] == "--template"
 			i++
 			o.src = rest[i]
 		case "--tracked":
 			o.tracked = true
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", rest[i])
-			fmt.Println("skelet add channel <name> [--from <storefront>] [--tracked]\n\n" + AddAbout)
+			fmt.Println(addUsage + "\n\n" + AddAbout)
 			return 2
 		}
 	}
@@ -90,41 +133,42 @@ func Add(root string, args []string) int {
 
 func add(root string, o addOptions) int {
 	name := o.name
-	switch {
-	case name == "":
+	if name == "" {
 		fmt.Fprintln(os.Stderr, "skelet add channel <name> - e.g. skelet add channel eu-shop")
 		return 2
-	case !validName.MatchString(name):
-		fmt.Fprintf(os.Stderr, "Bad name %q - lowercase letters, digits and inner hyphens only\n", name)
-		return 2
 	}
-	if _, err := os.Lstat(filepath.Join(root, "apps", "channels", name)); err == nil {
-		fmt.Fprintf(os.Stderr, "apps/channels/%s already exists\n", name)
+	known := storefronts.Known(root)
+	if why := unusable(root, known, name); why != "" {
+		fmt.Fprintf(os.Stderr, "Can't call it %q - %s\n", name, why)
 		return 2
-	}
-	for _, f := range []string{devFile, overrideFile} {
-		if declares(read(root, f), name) {
-			fmt.Fprintf(os.Stderr, "%s already has a %q service\n", f, name)
-			return 2
-		}
 	}
 	// The source's name goes into every copied file, so it's held to the same rule before it's used
 	if o.src != "" && !validName.MatchString(o.src) {
-		fmt.Fprintf(os.Stderr, "Bad --from %q - a storefront under apps/channels/\n", o.src)
+		fmt.Fprintf(os.Stderr, "Bad source %q - a template or a storefront's name\n", o.src)
 		return 2
 	}
-	src := o.src
-	if src == "" {
-		src = defaultSource(root)
+	from, ok := storefronts.Named(known, o.src)
+	if o.src == "" {
+		from, ok = defaultSource(root, known)
 	}
-	if fi, err := os.Stat(filepath.Join(root, "apps", "channels", src)); src == "" || err != nil || !fi.IsDir() {
-		fmt.Fprintln(os.Stderr, "No storefront to copy from - pass --from <name>")
+	switch {
+	case !ok:
+		fmt.Fprintln(os.Stderr, "No storefront to copy from - pass --template <name> or --from <name>")
+		return 2
+	case o.template && !from.Template():
+		fmt.Fprintf(os.Stderr, "%q is a storefront of yours, not a template - copy it with --from %s\n", from.Name, from.Name)
 		return 2
 	}
+	src := from.Name
+	m := newMove(from.Dir, src, name)
 	files := portFiles(root)
 	dev, small := freePort(3001, files), freePort(13001, files)
 
-	fmt.Printf("==> Forking %s into apps/channels/%s\n", src, name)
+	if from.Excluded {
+		fmt.Printf("==> Copying %s into apps/channels/%s, from git - it isn't checked out here\n", from.Dir, name)
+	} else {
+		fmt.Printf("==> Copying %s into apps/channels/%s\n", from.Dir, name)
+	}
 	devSrc := ""
 	for _, f := range []string{devFile, overrideFile} {
 		if declares(read(root, f), src) {
@@ -136,8 +180,7 @@ func add(root string, o addOptions) int {
 		fmt.Fprintf(os.Stderr, "No %q service in %s or %s - can't copy its wiring\n", src, devFile, overrideFile)
 		return 1
 	}
-	// Its published port is whatever that file gave it, so it's rewritten by matching the container side
-	devBlock := rename(block(read(root, devSrc), src), src, name, devPort, `"`+strconv.Itoa(dev)+`:3000"`)
+	devBlock := rename(block(read(root, devSrc), src), m, devPort, `"`+strconv.Itoa(dev)+`:3000"`)
 	if len(devBlock) == 0 {
 		fmt.Fprintf(os.Stderr, "Could not read the %q service out of %s\n", src, devSrc)
 		return 1
@@ -146,8 +189,8 @@ func add(root string, o addOptions) int {
 	writes := map[string]string{}
 	var targets []string
 	if o.tracked {
-		prodBlock := rename(block(read(root, prodFile), src), src, name, prodPort, "127.0.0.1:"+strconv.Itoa(dev)+":3000")
-		smallBlock := rename(block(read(root, smallFile), src), src, name, smallPort, "127.0.0.1:"+strconv.Itoa(small)+":3000")
+		prodBlock := rename(block(read(root, prodFile), src), m, hostPort, "127.0.0.1:"+strconv.Itoa(dev)+":3000")
+		smallBlock := rename(block(read(root, smallFile), src), m, hostPort, "127.0.0.1:"+strconv.Itoa(small)+":3000")
 		for i, b := range [][]string{prodBlock, smallBlock} {
 			if len(b) == 0 {
 				fmt.Fprintf(os.Stderr, "Could not find a %q service in the %s compose file\n", src, []string{"prod", "small"}[i])
@@ -186,8 +229,19 @@ func add(root string, o addOptions) int {
 		fmt.Printf("    %s ok\n", f)
 	}
 
-	// Everything validated, so start writing
-	if err := fork(root, src, name); err != nil {
+	// Made aside and moved into place last, so a failure leaves no half-written storefront
+	staging, err := sys.Scratch(root, "fork-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "skelet add:", err)
+		return 1
+	}
+	defer func() { _ = os.RemoveAll(staging) }()
+	copyFork := fork
+	if from.Excluded {
+		copyFork = forkFromHead
+	}
+	copied := filepath.Join(staging, name)
+	if err := copyFork(root, m, copied); err != nil {
 		fmt.Fprintln(os.Stderr, "skelet add:", err)
 		return 1
 	}
@@ -204,7 +258,10 @@ func add(root string, o addOptions) int {
 		if err != nil {
 			continue
 		}
-		body := strings.ReplaceAll(strings.ReplaceAll(string(raw), src, name), "localhost:13000", "localhost:"+strconv.Itoa(small))
+		body := m.applyFile(string(raw))
+		if from := smallPortOf(read(root, smallFile), src); from != "" {
+			body = whole(body, "localhost:"+from, "localhost:"+strconv.Itoa(small), nil, nil)
+		}
 		if err := os.WriteFile(filepath.Join(root, out), []byte(body), 0o644); err != nil {
 			fmt.Fprintln(os.Stderr, "skelet add:", err)
 			return 1
@@ -220,8 +277,39 @@ func add(root string, o addOptions) int {
 			fmt.Printf("    %s\n", out)
 		}
 	}
+	dst := filepath.Join(root, filepath.FromSlash(m.dir))
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "skelet add:", err)
+		return 1
+	}
+	if err := os.Rename(copied, dst); err != nil {
+		fmt.Fprintln(os.Stderr, "skelet add:", err)
+		return 1
+	}
+	// The storefronts are one pnpm workspace with one lockfile, and the new one's dev image installs frozen - so the
+	// lockfile learns about it now
+	fmt.Printf("==> Adding %s to the workspace lockfile\n", m.dir)
+	if err := pnpm.WorkspaceLockfile(root); err != nil {
+		fmt.Fprintf(os.Stderr, "    couldn't update pnpm-lock.yaml: %v\n", err)
+		fmt.Fprintf(os.Stderr, "    %s is made, but its image won't build until the lockfile has it - skelet pnpm --lockfile finishes it\n", m.dir)
+		return 1
+	}
+	previewOrigin(root, dev)
+	if o.quiet {
+		fmt.Printf("==> apps/channels/%s is yours, copied from %s - on http://localhost:%d once it runs\n", name, src, dev)
+		return 0
+	}
 	summary(root, o.tracked, src, name, dev, small)
 	return 0
+}
+
+func smallPortOf(small, service string) string {
+	for _, l := range block(small, service) {
+		if m := hostPort.FindString(l); m != "" {
+			return strings.Split(m, ":")[1]
+		}
+	}
+	return ""
 }
 
 func deref(s *string) string {
@@ -236,22 +324,18 @@ func read(root, file string) string {
 	return string(raw)
 }
 
-// defaultSource prefers a storefront the tracked compose file declares - that's the upstream template, and whatever
-// sorts first could be last week's experiment
-func defaultSource(root string) string {
-	manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	first := ""
-	dev := read(root, devFile)
-	for _, m := range manifests {
-		c := filepath.Base(filepath.Dir(m))
-		if declares(dev, c) {
-			return c
-		}
-		if first == "" {
-			first = c
-		}
+func defaultSource(root string, known []storefronts.Storefront) (storefronts.Storefront, bool) {
+	if s, ok := storefronts.Default(known); ok {
+		return s, true
 	}
-	return first
+	dev := read(root, devFile)
+	if i := slices.IndexFunc(known, func(s storefronts.Storefront) bool { return declares(dev, s.Name) }); i >= 0 {
+		return known[i], true
+	}
+	if len(known) == 0 {
+		return storefronts.Storefront{}, false
+	}
+	return known[0], true
 }
 
 // portFiles is every file a host port can be named in - the override too, where earlier storefronts live, and the env
@@ -307,47 +391,152 @@ func valid(root, file, content string) (string, bool) {
 
 // fork copies the source storefront and renames it through every text file. Its node_modules and .next stay behind -
 // installs and build output, regenerated by the new one's own container
-func fork(root, src, name string) error {
-	from, to := filepath.Join(root, "apps", "channels", src), filepath.Join(root, "apps", "channels", name)
+func fork(root string, m move, to string) error {
+	cmd := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", m.srcDir)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return forkTree(root, m, to)
+	}
+	from := filepath.Join(root, filepath.FromSlash(m.srcDir))
+	for f := range strings.SplitSeq(strings.TrimSuffix(string(out), "\x00"), "\x00") {
+		rel, ok := strings.CutPrefix(f, m.srcDir+"/")
+		if !ok || strayPnpm(rel) {
+			continue
+		}
+		if err := copyOne(filepath.Join(from, filepath.FromSlash(rel)), filepath.Join(to, filepath.FromSlash(rel)), m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func forkTree(root string, m move, to string) error {
+	from := filepath.Join(root, filepath.FromSlash(m.srcDir))
 	return filepath.WalkDir(from, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		rel, _ := filepath.Rel(from, p)
-		if rel == "node_modules" || rel == ".next" {
-			return filepath.SkipDir
-		}
-		dst := filepath.Join(to, rel)
-		info, err := os.Lstat(p)
-		if err != nil {
-			return err
-		}
 		switch {
-		case info.Mode()&fs.ModeSymlink != 0:
-			link, err := os.Readlink(p)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(link, dst)
-		case info.IsDir():
-			return os.MkdirAll(dst, info.Mode().Perm())
-		case !info.Mode().IsRegular():
+		case rel == "node_modules" || rel == ".next":
+			return filepath.SkipDir
+		case d.IsDir() || strayPnpm(rel):
 			return nil
 		}
-		raw, err := os.ReadFile(p)
+		return copyOne(p, filepath.Join(to, rel), m)
+	})
+}
+
+func copyOne(src, dst string, m move) error {
+	info, err := os.Lstat(src)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	switch {
+	case info.Mode()&fs.ModeSymlink != 0:
+		link, err := os.Readlink(src)
 		if err != nil {
 			return err
 		}
-		// A binary file - the favicon, the svgs' raster cousins - is copied as it is
-		if bytes.IndexByte(raw, 0) < 0 {
-			raw = bytes.ReplaceAll(raw, []byte(src), []byte(name))
+		return os.Symlink(link, dst)
+	case !info.Mode().IsRegular():
+		return nil
+	}
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return writeForked(dst, raw, info.Mode().Perm(), m)
+}
+
+// A workspace member has no pnpm files of its own - a stray pair would make the fork a project apart
+func strayPnpm(rel string) bool { return rel == "pnpm-lock.yaml" || rel == "pnpm-workspace.yaml" }
+
+// writeForked writes one of the source's files into the fork, renamed through if it's text
+func writeForked(dst string, raw []byte, mode fs.FileMode, m move) error {
+	// A binary file - the favicon, the svgs' raster cousins - is copied as it is
+	if bytes.IndexByte(raw, 0) < 0 {
+		raw = []byte(m.applyFile(string(raw)))
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, raw, mode); err != nil {
+		return err
+	}
+	// Past the umask, the way cp -a keeps it
+	return os.Chmod(dst, mode)
+}
+
+// forkFromHead is fork for a source the working tree doesn't have - a template setup left out - read as git's HEAD
+// holds it. Read whole before any of it is written, so a bad entry can't leave git blocked on a pipe
+func forkFromHead(root string, m move, to string) error {
+	cmd := exec.Command("git", "archive", "--format=tar", "HEAD", m.srcDir)
+	cmd.Dir = root
+	archive, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("git archive %s: %w", m.srcDir, err)
+	}
+	tr := tar.NewReader(bytes.NewReader(archive))
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
 		}
-		if err := os.WriteFile(dst, raw, info.Mode().Perm()); err != nil {
+		if err != nil {
 			return err
 		}
-		// Past the umask, the way cp -a keeps it
-		return os.Chmod(dst, info.Mode().Perm())
-	})
+		rel, ok := strings.CutPrefix(strings.TrimSuffix(hdr.Name, "/"), m.srcDir+"/")
+		if !ok || strayPnpm(rel) {
+			continue
+		}
+		if !filepath.IsLocal(rel) {
+			return fmt.Errorf("git archive of %s holds %q, outside it", m.srcDir, hdr.Name)
+		}
+		dst := filepath.Join(to, filepath.FromSlash(rel))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(dst, 0o755)
+		case tar.TypeSymlink:
+			if err = os.MkdirAll(filepath.Dir(dst), 0o755); err == nil {
+				err = os.Symlink(hdr.Linkname, dst)
+			}
+		case tar.TypeReg:
+			mode := fs.FileMode(0o644)
+			if hdr.Mode&0o111 != 0 {
+				mode = 0o755
+			}
+			var raw []byte
+			if raw, err = io.ReadAll(tr); err == nil {
+				err = writeForked(dst, raw, mode, m)
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func previewOrigin(root string, port int) {
+	if p, _ := profile.Load(filepath.Join(root, profile.File)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
+		return
+	}
+	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
+	if _, set, err := envfile.Get(env, "VITE_STOREFRONT_ORIGIN"); err != nil || set {
+		return
+	}
+	if err := envfile.Set(env, "VITE_STOREFRONT_ORIGIN", origin); err != nil {
+		fmt.Fprintf(os.Stderr, "    couldn't point the dashboard's previews at it: %v\n", err)
+		return
+	}
+	fmt.Printf("==> Dashboard previews open %s now (VITE_STOREFRONT_ORIGIN in .env)\n", origin)
 }
 
 // writeKeepingMode replaces a file's content in place, so a compose file keeps its mode
@@ -364,22 +553,21 @@ func writeKeepingMode(path, content string) error {
 func summary(root string, tracked bool, src, name string, dev, small int) {
 	wrote := fmt.Sprintf("%s       service + volumes on :%d (git-ignored)", overrideFile, dev)
 	deploy := fmt.Sprintf("Prod is yours to wire: docker-compose.prod.yml's %q block is the shape,\n"+
-		"and deploy/caddy/Caddyfile has its route. docs/deploying.md covers both.", src)
+		"and STOREFRONT_UPSTREAM in env/prod-caddy.env routes the edge to it. docs/deploying.md covers both.", src)
 	if tracked {
 		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
-		deploy = fmt.Sprintf("Deploying it also needs a Caddy route - deploy/caddy/Caddyfile has %s's.", src)
+		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
 	}
 	// The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
 	// else every app the tree holds, which is what setup picks when it has no answer on record
 	selected := "dashboard"
 	p, _ := profile.Load(filepath.Join(root, profile.File))
-	if v, ok := p.Get("SKELET_APPS_SELECTED"); ok {
+	if v, ok := p.Get(profile.AppsKey); ok {
 		selected = v
 	} else {
-		dirs, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*"))
-		for _, d := range dirs {
-			if fi, err := os.Stat(d); err == nil && fi.IsDir() && filepath.Base(d) != name {
-				selected += "," + filepath.Base(d)
+		for _, n := range storefronts.Names(root) {
+			if n != name {
+				selected += "," + n
 			}
 		}
 	}

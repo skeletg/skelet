@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -149,7 +150,7 @@ func Test(root string, args []string) int {
 	// it the way production does, over the contract or off a pushed projection
 	coreEnv := []string{"DATABASE_URL=" + testDBURL, "SIGNALS_DB_URL=", schema}
 	sigEnv := []string{"DATABASE_URL=", "SIGNALS_DB_URL=" + testSigDS, "SIGNALS_CH_URL=" + chDSN, "SIGNALS_CH_TEST_DSN=" + chDSN, schema}
-	t := tester{root: root, lib: lib, cache: cache, pnpm: pnpm.Run}
+	t := tester{root: root, lib: lib, cache: cache, pnpm: pnpm.Run, pnpmDir: pnpm.RunDir}
 
 	fmt.Println("==> backend")
 	if len(o.goArgs) == 0 {
@@ -184,17 +185,8 @@ func Test(root string, args []string) int {
 	flush()
 
 	if o.frontend {
-		if code := t.frontend("dashboard", "apps/dashboard", "typecheck:all", changed, o.changed != ""); code != 0 {
+		if code := t.frontends(changed, o.changed != ""); code != 0 {
 			return code
-		}
-		// Per app, like CI - stopping at the dashboard's would leave every storefront untested
-		manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-		slices.Sort(manifests)
-		for _, m := range manifests {
-			name := filepath.Base(filepath.Dir(m))
-			if code := t.frontend(name, "apps/channels/"+name, "typecheck", changed, o.changed != ""); code != 0 {
-				return code
-			}
 		}
 	}
 	fmt.Println("==> tests OK")
@@ -277,8 +269,9 @@ type tester struct {
 	root  string
 	lib   compose.Lib
 	cache []string
-	// pnpm runs an app's pnpm - a seam for the tests
-	pnpm func(root, app string, env []string, args ...string) error
+	// pnpm runs an app's pnpm, pnpmDir a workspace package's - seams for the tests
+	pnpm    func(root, app string, env []string, args ...string) error
+	pnpmDir func(root, dir string, args ...string) error
 }
 
 // packages is a module's packages minus its e2e suite, which runs only under skelet test e2e. -e lists a package that
@@ -351,10 +344,44 @@ func (t tester) summarized(label string, cmd *exec.Cmd) int {
 // Config, dependencies or the test setup reach every test, so a change to them means the app's whole suite
 var touchesEverything = regexp.MustCompile(`(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vite(st)?\.config\.[cm]?[jt]s)$|^src/test-setup\.ts$`)
 
-// frontend typechecks an app and runs its unit tests - all of them, or under --changed only what a change reaches
-func (t tester) frontend(app, dir, typecheck string, changed []string, onlyChanged bool) int {
+// frontends typechecks and tests each one - per app, like CI, since stopping at the dashboard's would leave every
+// storefront untested. The storefronts and the packages are one workspace, so a shared change reaches each
+func (t tester) frontends(changed []string, onlyChanged bool) int {
+	if code := t.frontend("dashboard", "apps/dashboard", "typecheck:all", t.app("dashboard"), changed, onlyChanged, false); code != 0 {
+		return code
+	}
+	shared := slices.ContainsFunc(changed, sharedChange)
+	for _, sf := range storefronts.List(t.root) {
+		if code := t.frontend(sf.Name, sf.Dir, "typecheck", t.app(sf.Name), changed, onlyChanged, shared); code != 0 {
+			return code
+		}
+	}
+	for _, dir := range storefronts.Packages(t.root) {
+		if code := t.frontend(dir, dir, "typecheck", t.dir(dir), changed, onlyChanged, shared); code != 0 {
+			return code
+		}
+	}
+	return 0
+}
+
+// sharedChange is a change every workspace project depends on: a shared package, the workspace file or its lockfile
+func sharedChange(f string) bool {
+	return strings.HasPrefix(f, "packages/") || f == "pnpm-lock.yaml" || f == "pnpm-workspace.yaml"
+}
+
+func (t tester) app(name string) func(...string) error {
+	return func(args ...string) error { return t.pnpm(t.root, name, nil, args...) }
+}
+
+func (t tester) dir(dir string) func(...string) error {
+	return func(args ...string) error { return t.pnpmDir(t.root, dir, args...) }
+}
+
+// frontend typechecks an app and runs its unit tests - all of them, or under --changed only what a change reaches.
+// shared says a change outside it reaches it anyway, which runs it whole
+func (t tester) frontend(app, dir, typecheck string, pnpm func(...string) error, changed []string, onlyChanged, shared bool) int {
 	run := func(args ...string) int {
-		if err := t.pnpm(t.root, app, nil, args...); err != nil {
+		if err := pnpm(args...); err != nil {
 			return max(sys.ExitCode(err), 1)
 		}
 		return 0
@@ -363,6 +390,11 @@ func (t tester) frontend(app, dir, typecheck string, changed []string, onlyChang
 		fmt.Printf("==> %s typecheck\n", app)
 		if code := run("run", typecheck); code != 0 {
 			return code
+		}
+		// A package that only typechecks - nothing to run after it
+		if !storefronts.HasScript(t.root, dir, "test") {
+			fmt.Printf("==> %s: no unit tests\n", app)
+			return 0
 		}
 		fmt.Printf("==> %s unit tests\n", app)
 		return run("run", "test")
@@ -373,13 +405,22 @@ func (t tester) frontend(app, dir, typecheck string, changed []string, onlyChang
 			files = append(files, rel)
 		}
 	}
-	if len(files) == 0 {
+	if len(files) == 0 && !shared {
 		fmt.Printf("==> %s: nothing changed, skipped\n", app)
 		return 0
 	}
 	fmt.Printf("==> %s typecheck\n", app)
 	if code := run("run", typecheck); code != 0 {
 		return code
+	}
+	// A package that only typechecks - nothing to run after it
+	if !storefronts.HasScript(t.root, dir, "test") {
+		fmt.Printf("==> %s: no unit tests\n", app)
+		return 0
+	}
+	if shared {
+		fmt.Printf("==> %s unit tests (a shared package or the workspace changed - all of them)\n", app)
+		return run("run", "test")
 	}
 	if slices.ContainsFunc(files, touchesEverything.MatchString) {
 		fmt.Printf("==> %s unit tests (config changed - all of them)\n", app)

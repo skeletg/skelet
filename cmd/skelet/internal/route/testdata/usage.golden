@@ -28,7 +28,7 @@ Quality
   changelog  (preview) | check | release <version> [date]
 
 Scaffold
-  add        channel <name> [--from <storefront>] [--tracked]
+  add        channel <name> [--template <template> | --from <storefront>] [--tracked]
   rm         channel <name> [-y] [--volumes]
 
 Rarely

@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -63,15 +63,22 @@ func Run(root string, _ []string) int {
 	} else {
 		fmt.Println("    (skipped - dashboard not in this checkout; see skelet setup)")
 	}
-	manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	slices.Sort(manifests)
-	if len(manifests) == 0 {
+	list := storefronts.List(root)
+	if len(list) == 0 {
 		fmt.Println("==> storefront eslint: (no storefronts in this checkout; see skelet setup)")
 	}
-	for _, m := range manifests {
-		name := filepath.Base(filepath.Dir(m))
-		fmt.Printf("==> %s eslint (non-blocking)\n", name)
-		if pnpm.Run(root, name, nil, "run", "lint") != nil {
+	for _, sf := range list {
+		fmt.Printf("==> %s eslint (non-blocking)\n", sf.Name)
+		if pnpm.Run(root, sf.Name, nil, "run", "lint") != nil {
+			frontendDirty = true
+		}
+	}
+	for _, dir := range storefronts.Packages(root) {
+		if !storefronts.HasScript(root, dir, "lint") {
+			continue
+		}
+		fmt.Printf("==> %s eslint (non-blocking)\n", dir)
+		if pnpm.RunDir(root, dir, "run", "lint") != nil {
 			frontendDirty = true
 		}
 	}

@@ -1,8 +1,9 @@
 # Build-context excludes for the ROOT-context images - the dev app /
 # dashboard / storefront images in docker-compose.yml build with
 # `context: .`, so without these the whole repo ships to the daemon on
-# every rebuild. The prod images build from per-app contexts and use
-# apps/*/.dockerignore instead.
+# every rebuild. The dashboard's prod image builds from its own context and
+# uses apps/dashboard/.dockerignore; a storefront's prod image builds from the
+# root too, with the whitelist in its own Dockerfile.prod.dockerignore.
 .git/
 .claude/
 env/*.env
@@ -19,5 +20,8 @@ apps/backend/core/server
 # own musl ones anyway - ** because apps/*/ stops a level short of the storefronts
 **/node_modules/
 apps/channels/*/.next/
+templates/*/.next/
+templates/*/dist/
+templates/*/.astro/
 apps/dashboard/dist/
 apps/dashboard/.vite/

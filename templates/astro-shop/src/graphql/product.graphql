@@ -1,0 +1,45 @@
+fragment ImageFields on ProductMedia {
+  url
+  altText
+  width
+  height
+}
+
+query Route($path: String!) {
+  route(path: $path) {
+    kind
+    entityId
+    redirectTo
+    redirectStatusCode
+  }
+}
+
+query ProductPage($id: ID!) {
+  product(id: $id) {
+    id
+    url
+    sku
+    name
+    kind
+    inStock
+    price
+    compareAtPrice
+    onSale
+    minOrderQty
+    quantityStep
+    maxOrderQty
+    metaTitle
+    metaDescription
+    description
+    mainImage {
+      ...ImageFields
+    }
+    children {
+      id
+      sku
+      name
+      inStock
+      price
+    }
+  }
+}

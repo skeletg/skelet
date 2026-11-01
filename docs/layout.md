@@ -7,9 +7,10 @@ lives, start here.
 ```
 skelet/
 ├── apps/          the applications and the Signals module - everything else supports these
+├── templates/     the storefronts a shop is forked from
+├── packages/      the TypeScript the storefronts share
 ├── proto/         the core-to-Signals wire contract, owned by neither side
 ├── cmd/skelet/    the skelet command line - the dev front door, and the binary releases ship
-├── bin/           one script per dev operation
 ├── docs/          you are here
 ├── env/           environment templates, one file per service
 ├── deploy/        sidecar config, one directory per service
@@ -29,7 +30,7 @@ The applications, and the only place product code lives.
 | `apps/backend/signals/` | The Signals suite as its own Go module - the `signals` and `ingest` processes. It requires core by relative path, never the other way round |
 | `apps/backend/sdk/` | The plugin SDK as its own Go module - what plugin repositories build against, beside core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | The React admin panel (Vite) |
-| `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
+| `apps/channels/` | One directory per shop of the project's own, each forked from a template with `skelet add channel <name>`. Empty in skelet itself |
 
 Two of these are optional: `skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
@@ -39,6 +40,27 @@ Inside `apps/backend/core` you will also find untracked build output - `server` 
 `tmp/` are a compiled binary and air's scratch directory, not source; the same
 goes for `signals` and `ingest` under `apps/backend/signals`. What the packages inside each app mean is
 [architecture.md](architecture.md).
+
+### `templates/`
+
+The storefronts a shop is forked from, each named for its framework. `nextjs-vetrina` is
+the full Next.js one, and the one the dev stack runs in skelet itself - for the browser
+tests, CI and demo work. `astro-shop` is a fast Astro one for small catalogs.
+They're upstream's, like `packages/`: a project leaves them alone and builds its
+shop in `apps/channels/`, so merging a skelet release never collides with it.
+
+### `packages/`
+
+TypeScript every storefront shares, as source - Next and Vite compile workspace
+packages themselves, so there's no build step. `storefront-core` is a
+storefront's logic with no framework in it - the GraphQL client and operations,
+auth, cart, checkout, channel and locale - and a template builds its design on
+it through an adapter: `storefront-next` for Next, `storefront-astro` for Astro.
+`storefront-react` holds the client hooks any React framework can use.
+The storefronts, the templates and these are one pnpm workspace: the root
+`pnpm-workspace.yaml` lists them and pins the versions they share in its catalog,
+so a package and the app using it resolve the same React, and the one root
+`pnpm-lock.yaml` covers them all. The dashboard stays a project of its own.
 
 ### `proto/`
 
@@ -109,7 +131,8 @@ file - the naming rule is in that folder's README.
 
 `docker-compose.yml` is the dev stack. `docker-compose.small.yml` is the
 minimum deployable tenant, and `docker-compose.prod.yml` the full split-tier
-shape; both are described under Deploying in the README. `.nvmrc` pins Node and is what CI reads (`node-version-file`),
+shape; both are described under Deploying in the README. `pnpm-workspace.yaml` and
+`pnpm-lock.yaml` are the storefront workspace's (see `packages/` above). `.nvmrc` pins Node and is what CI reads (`node-version-file`),
 `.gitattributes` locks every text file to LF so a Windows checkout cannot rewrite
 line endings, `.gitignore` and `.dockerignore` keep build contexts and commits
 clean. `.skelet/` is git-ignored scratch for the CLI - the build cache it falls back to
@@ -130,8 +153,8 @@ which lives in the README rather than here. Some of these are generated rather
 than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
 `skelet gen` from the code that defines them, so edit the source, not the page.
 
-**Paths in these pages.** A backticked path starting with `apps/`, `bin/`,
-`deploy/` or `docs/` is from the repo root. A bare `internal/…`, `graph/…` or
+**Paths in these pages.** A backticked path starting with `apps/`, `templates/`,
+`packages/`, `deploy/` or `docs/` is from the repo root. A bare `internal/…`, `graph/…` or
 `cmd/…` is relative to `apps/backend/core`, which is where all three of those live -
 the short form keeps Go prose readable, and there is no second `internal/` to
 confuse it with. Write the repo-root form when a page compares apps, the way
@@ -140,8 +163,8 @@ confuse it with. Write the repo-root form when a page compares apps, the way
 ### `.github/`
 
 `workflows/ci.yml` and `workflows/security.yml` run the same gates you run
-locally, deriving their app matrices from `apps/channels/` so a new shop is
-covered without touching a workflow. `workflows/release.yml` publishes a release,
-CLI binaries included, when its tag is pushed. `renovate.json5` configures dependency
-bumps and needs no per-app entry either - Renovate scans the repo for manifests
-itself, so the same rule holds there.
+locally, deriving their app matrices from `apps/channels/`, `templates/` and
+`packages/` so a new shop or package is covered without touching a workflow. `workflows/release.yml` publishes a release,
+CLI binaries included, when its tag is pushed in Skelet's own repository - a project's tags publish nothing.
+`renovate.json5` configures dependency bumps and needs no per-app entry either - Renovate scans the repo for manifests
+itself, so the same rule holds there. A project keeps it to its own `apps/channels/` ([workflow.md](workflow.md#taking-a-new-release)).

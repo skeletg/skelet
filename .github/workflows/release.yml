@@ -14,6 +14,7 @@ permissions:
 jobs:
   cli:
     name: Publish the release and the CLI
+    if: github.repository == 'skeletg/skelet' # a project made from Skelet carries this file, and its own tags publish nothing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

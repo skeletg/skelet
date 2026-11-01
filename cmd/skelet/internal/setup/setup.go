@@ -7,12 +7,16 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/tui"
 )
 
 const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--docker-apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
@@ -25,12 +29,18 @@ secrets - a value that isn't a placeholder is never replaced - the root .env, pl
 selection files. For dev it boots the stack, migrates, installs the host apps and offers a first
 admin login.
 
-  --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does
+  --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does. A
+                                            template runs only when named, or with --all
   --docker-apps LIST|none                   which of those run in Docker rather than on the host
   --tools LIST|none                         dev tools: mailpit, webhook-tester, grafana, garage-webui
+  --shop NAME, --template NAME              a storefront of your own, copied from a template (default: shop,
+                                            and the template docker-compose.yml runs) - offered when you have none
   --keep-code                               leave deselected apps' source in the working tree
   --yes, -y                                 take the defaults and ask nothing
   --profile FILE                            replay the answers in FILE (implies --yes)`
+
+// forkShop makes a project's first shop - a seam for the tests, which have no compose to validate against
+var forkShop = scaffold.Fork
 
 func Run(root string, args []string) int {
 	c, err := scan(root)
@@ -53,31 +63,135 @@ func Run(root string, args []string) int {
 		return fail(err)
 	}
 	ask := prompter{on: !f.yes && sys.IsTerminal(os.Stdin.Fd()), in: bufio.NewReader(os.Stdin), out: os.Stderr}
-	a, err := answer(root, c, f, prof, from, ask, os.Stdout)
+	if visual(f) {
+		ask.ui = tui.Terminal()
+		sys.AtExit(tui.Restore)
+	}
+	a, ok, err := interview(root, c, f, prof, from, ask, os.Stdout)
 	if errors.Is(err, errRefused) {
 		return 1
 	}
 	if err != nil {
 		return fail(err)
 	}
-	w, err := Write(root, a, c, rand.Reader, os.Stdout)
+	if !ok {
+		fmt.Println("Nothing written.")
+		return 1
+	}
+	st, err := newStepper(root, ask.ui)
 	if err != nil {
 		return fail(err)
 	}
-	if err := tree(root, a, c); err != nil {
-		return fail(err)
+	defer st.close()
+	var w written
+	if code := st.run("Writing the env files and your answers", func() int {
+		if w, err = Write(root, a, c, rand.Reader, os.Stdout); err != nil {
+			return fail(err)
+		}
+		return 0
+	}); code != 0 {
+		return code
+	}
+	// After the env files - the copy checks the compose files it adds to, and compose needs them - and before the boot,
+	// so the stack starts with the new shop in it
+	if a.shop != "" {
+		if code := st.run("Copying "+a.shop+" from "+a.shopTemplate, func() int { return forkShop(root, a.shop, a.shopTemplate) }); code != 0 {
+			fmt.Fprintf(os.Stderr, "==> %s wasn't made - skelet add channel %s makes it once the rest is fixed\n", a.shop, a.shop)
+			return code
+		}
+	}
+	if title := treeChange(root, a, c); title != "" {
+		if code := st.run(title, func() int {
+			if err := tree(root, a, c); err != nil {
+				return fail(err)
+			}
+			return 0
+		}); code != 0 {
+			return code
+		}
 	}
 
 	if a.target != "dev" {
-		fmt.Printf("==> Files written. %s target: fill the hostnames and credentials in env/%s.env,\n", a.target, a.target)
-		fmt.Printf("    then deploy with docker-compose.%s.yml\n", a.target)
+		ask.section(os.Stdout, fmt.Sprintf("Files written. %s target: fill the hostnames and credentials in env/%s.env,", a.target, a.target),
+			fmt.Sprintf("    then deploy with docker-compose.%s.yml", a.target))
 		return 0
 	}
 	if f.noBoot {
-		fmt.Println("==> Files written - start the stack with skelet up")
+		ask.section(os.Stdout, "Files written - start the stack with skelet up")
 		return 0
 	}
-	return boot(root, a, w, ask)
+	return boot(root, a, w, ask, st)
+}
+
+// interview asks, and when the questions are drawn shows the answers for a go-ahead - a change goes round again
+func interview(root string, c catalog, f flags, prof profile.Profile, from string, ask prompter, out io.Writer) (answers, bool, error) {
+	for range 10 {
+		a, err := answer(root, c, f, prof, from, ask, out)
+		if err != nil || ask.ui == nil {
+			return a, true, err
+		}
+		act, err := ask.ui.Review("Review", review(a, c))
+		ask.answered(err)
+		switch act {
+		case tui.Go:
+			return a, true, nil
+		case tui.Quit:
+			return a, false, nil
+		}
+		ask.prior = &a
+	}
+	return answers{}, false, nil
+}
+
+func review(a answers, c catalog) [][2]string {
+	list := func(l []string, none string) string {
+		if len(l) == 0 {
+			return none
+		}
+		return strings.Join(l, ", ")
+	}
+	rows := [][2]string{{"target", a.target}, {"apps", list(a.apps, "backend only")}}
+	if len(a.apps) > 0 {
+		rows = append(rows, [2]string{"in Docker", list(a.dockerApps, "none - they run on the host")})
+	}
+	if a.shop != "" {
+		rows = append(rows, [2]string{"new shop", a.shop + ", copied from " + a.shopTemplate})
+	}
+	var suites []string
+	if a.signals {
+		suites = append(suites, "Signals")
+	}
+	if a.ai {
+		suites = append(suites, "AI")
+	}
+	admin := "/api/admin/graphql"
+	if a.adminSlug {
+		admin = "an unguessable path"
+	}
+	rows = append(rows, [2]string{"suites", list(suites, "none")}, [2]string{"search", a.search},
+		[2]string{"gateways", list(a.gateways, "none")}, [2]string{"admin API", admin})
+	if a.target == "dev" {
+		rows = append(rows, [2]string{"dev tools", list(a.tools, "none")})
+	}
+	if t := treeChange(c.root, a, c); t != "" {
+		rows = append(rows, [2]string{"working tree", t})
+	}
+	return rows
+}
+
+func treeChange(root string, a answers, c catalog) string {
+	switch {
+	case !a.prune || !gitx.IsWorkTree(root):
+		return ""
+	case len(excluded(a, c)) == 0:
+		if gitx.SparseOn(root) {
+			return "Restoring the full working tree"
+		}
+		return ""
+	case a.removeDeselected:
+		return "Leaving deselected apps out of the working tree"
+	}
+	return ""
 }
 
 // tree makes the working tree follow the selection: a deselected app's source leaves through sparse-checkout - it

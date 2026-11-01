@@ -25,13 +25,18 @@ func put(t *testing.T, root, rel, body string) {
 }
 
 // Every image built for the platform with the build args it declares - your shell's value over the root .env's -
-// then pushed, storefronts found by directory
+// then pushed, every storefront with a prod Dockerfile, the templates' and the project's own
 func TestReleaseBuildsAndPushesEveryImage(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, "apps/backend/core/Dockerfile.prod", "FROM x\n")
 	put(t, root, "apps/backend/signals/Dockerfile.prod", "FROM x\n")
 	put(t, root, "apps/dashboard/Dockerfile.prod", "FROM x\nARG UPLOAD_ORIGINS\nARG UNSET_ONE\n")
 	put(t, root, "apps/channels/eu-shop/Dockerfile.prod", "FROM x\nARG STOREFRONT_ORIGIN\n")
+	put(t, root, "apps/channels/eu-shop/package.json", "{}")
+	put(t, root, "templates/vetrina/Dockerfile.prod", "FROM x\n")
+	put(t, root, "templates/vetrina/package.json", "{}")
+	// A storefront without a prod Dockerfile has nothing to ship
+	put(t, root, "templates/sketch/package.json", "{}")
 	put(t, root, ".env", "UPLOAD_ORIGINS=https://old\nUPLOAD_ORIGINS=https://cdn\nSTOREFRONT_ORIGIN=https://dotenv\n")
 	t.Setenv("REGISTRY", "reg.example")
 	t.Setenv("STOREFRONT_ORIGIN", "https://shell")
@@ -50,14 +55,44 @@ func TestReleaseBuildsAndPushesEveryImage(t *testing.T) {
 		"push reg.example/skelet-signals:v9",
 		"build --platform linux/amd64 --build-arg UPLOAD_ORIGINS=https://cdn -f apps/dashboard/Dockerfile.prod -t reg.example/skelet-dashboard:v9 apps/dashboard",
 		"push reg.example/skelet-dashboard:v9",
-		"build --platform linux/amd64 --build-arg STOREFRONT_ORIGIN=https://shell -f apps/channels/eu-shop/Dockerfile.prod -t reg.example/skelet-eu-shop:v9 apps/channels/eu-shop",
+		// Storefronts build from the repo root, the workspace they share packages through
+		"build --platform linux/amd64 --build-arg STOREFRONT_ORIGIN=https://shell -f apps/channels/eu-shop/Dockerfile.prod -t reg.example/skelet-eu-shop:v9 .",
 		"push reg.example/skelet-eu-shop:v9",
+		"build --platform linux/amd64 -f templates/vetrina/Dockerfile.prod -t reg.example/skelet-vetrina:v9 .",
+		"push reg.example/skelet-vetrina:v9",
 	}
 	if code != 0 || strings.Join(cmds, "\n") != strings.Join(want, "\n") {
 		t.Errorf("exit %d, docker got:\n%s\nwant:\n%s", code, strings.Join(cmds, "\n"), strings.Join(want, "\n"))
 	}
 	if !strings.Contains(out, "export EU_SHOP_IMAGE=reg.example/skelet-eu-shop:v9") {
 		t.Errorf("exports:\n%s", out)
+	}
+}
+
+func TestReleaseShipsTheSelection(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "apps/backend/core/Dockerfile.prod", "FROM x\n")
+	put(t, root, "apps/backend/signals/Dockerfile.prod", "FROM x\n")
+	put(t, root, "apps/dashboard/Dockerfile.prod", "FROM x\n")
+	for _, dir := range []string{"apps/channels/eu-shop", "templates/vetrina"} {
+		put(t, root, dir+"/Dockerfile.prod", "FROM x\n")
+		put(t, root, dir+"/package.json", "{}")
+	}
+	put(t, root, ".skelet-profile", "SKELET_APPS_SELECTED=eu-shop\n")
+	t.Setenv("REGISTRY", "reg.example")
+	d := verbtest.NewDocker(t, "")
+	out, code := d.Run("release", root, "v9")
+	var tags []string
+	for _, c := range d.Calls() {
+		if cmd, _, _ := strings.Cut(c, "|"); strings.HasPrefix(cmd, "push ") {
+			tags = append(tags, strings.TrimPrefix(cmd, "push reg.example/"))
+		}
+	}
+	if want := "skelet-app:v9 skelet-signals:v9 skelet-eu-shop:v9"; code != 0 || strings.Join(tags, " ") != want {
+		t.Errorf("exit %d, pushed %v, want %s", code, tags, want)
+	}
+	if strings.Contains(out, "DASHBOARD_IMAGE") || !strings.Contains(out, "skipping templates/vetrina") {
+		t.Errorf("output:\n%s", out)
 	}
 }
 

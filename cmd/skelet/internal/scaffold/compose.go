@@ -59,13 +59,61 @@ func block(text, service string) []string {
 	return out
 }
 
-// rename is a copied block made the new storefront's: every mention of the source's name and image variable, then
-// the published port, whose pattern differs by compose file
-func rename(blk []string, src, name string, port *regexp.Regexp, portTo string) []string {
+// move is a storefront becoming another: from a template or a storefront of the project's own, into apps/channels
+type move struct {
+	srcDir, src, dir, name string
+}
+
+func newMove(srcDir, src, name string) move {
+	return move{srcDir: srcDir, src: src, dir: "apps/channels/" + name, name: name}
+}
+
+func (m move) apply(s string) string { return m.replace(s, volumeSuffixes) }
+
+func (m move) applyFile(s string) string { return m.replace(s, nil) }
+
+var (
+	namePrefixes   = []string{"skelet-", "prod-", "small-"}
+	volumeSuffixes = []string{"-node-modules", "-next-cache"}
+)
+
+func (m move) replace(s string, suffixes []string) string {
+	s = whole(s, m.srcDir, m.dir, nil, nil)
+	s = whole(s, imageVar(m.src), imageVar(m.name), nil, nil)
+	return whole(s, m.src, m.name, namePrefixes, suffixes)
+}
+
+// whole replaces old only where no name character touches it - but for a prefix ending right before or a suffix starting right after
+func whole(s, old, new string, prefixes, suffixes []string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, old)
+		if i < 0 {
+			b.WriteString(s)
+			return b.String()
+		}
+		end := i + len(old)
+		before := i == 0 || !nameChar(s[i-1]) || slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasSuffix(s[:i], p) })
+		after := end == len(s) || !nameChar(s[end]) || slices.ContainsFunc(suffixes, func(p string) bool { return strings.HasPrefix(s[end:], p) })
+		if before && after {
+			b.WriteString(s[:i] + new)
+			s = s[end:]
+			continue
+		}
+		b.WriteString(s[:i+1])
+		s = s[i+1:]
+	}
+}
+
+func nameChar(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-'
+}
+
+// rename is a copied block made the new storefront's, then the published port, whose pattern differs by compose file
+func rename(blk []string, m move, port *regexp.Regexp, portTo string) []string {
 	out := make([]string, len(blk))
 	for i, l := range blk {
-		l = strings.ReplaceAll(l, src, name)
-		l = strings.ReplaceAll(l, imageVar(src), imageVar(name))
+		l = m.apply(l)
 		if port != nil {
 			if loc := port.FindStringIndex(l); loc != nil {
 				l = l[:loc[0]] + portTo + l[loc[1]:]

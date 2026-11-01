@@ -17,7 +17,9 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 | `apps/backend/signals/` | The Signals suite, its own `go.mod` requiring core's by relative path: the contract's server, the beacon surface, the spine and its engines |
 | `apps/backend/sdk/` | The plugin SDK, its own `go.mod`. Plugin repositories build against it, plus core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
-| `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
+| `apps/channels/<name>/` | The project's own storefronts, each forked from a template with `skelet add channel` |
+| `templates/<name>/` | Storefront templates, the framework in the name. `nextjs-vetrina` is the full Next.js 16 one (App Router, RSC) the dev stack runs; `astro-shop` a fast Astro 7 one for small catalogs |
+| `packages/<name>/` | TypeScript the storefronts share, source only. `storefront-core` is a storefront's logic with no framework in it; `storefront-next` and `storefront-astro` adapt it to Next and Astro; `storefront-react` holds client hooks |
 | `cmd/skelet/` | The `skelet` CLI: the front door here, every dev verb, and the released binary that starts projects. Its own `go.mod`, standard library only, imports nothing from the backend |
 | `docs/` | One file per question, indexed in `docs/README.md` |
 
@@ -176,8 +178,12 @@ through the `success` / `warning` / `info` / `destructive` tokens as plain utili
 `bg-emerald-500` - see [docs/conventions.md](docs/conventions.md).
 
 **Storefront:** Next.js 16, which differs from most training data - read
-`apps/channels/<name>/node_modules/next/dist/docs/` before writing App Router code.
-GraphQL is server-only, channel and locale are resolved server-side, and routing is
+`templates/nextjs-vetrina/node_modules/next/dist/docs/` before writing App Router code.
+Logic lives in `packages/storefront-core` with no framework in it (`skelet check` fails on a `next`,
+`react` or `next-intl` import there): what it needs from a request it asks through `request()`, and
+`storefront-next/setup.ts` answers. A Next template imports reads and server actions from
+`@skelet/storefront-next/<module>` and pure helpers from `@skelet/storefront-core/<module>`; it keeps
+only its design. GraphQL is server-only, channel and locale are resolved server-side, and routing is
 backend-driven through the `[...slug]` catch-all and the URL-rewrite resolver.
 
 **Plugins** are compiled in from `plugins/plugins.json`, which is the decision file.
@@ -191,9 +197,10 @@ codegen outright.
 - A Docker frontend's dev server runs under `watchexec` (the CMD of its dev Dockerfile), which reinstalls
   and restarts it within a couple of seconds of `package.json` or the lockfile changing - no manual
   install into the container. A Dockerfile change still needs `skelet up`, which rebuilds
-- The frontends use pnpm, one project per app (`pnpm-workspace.yaml` beside each
-  `package.json` holds its settings - pnpm ignores `package.json`'s `pnpm` field). Three
-  differences from npm bite: an import of a package the app doesn't declare fails, `--` reaches
+- The frontends use pnpm. The storefronts, templates and `packages/` are one workspace with the
+  root `pnpm-workspace.yaml` (its settings and the version catalog) and one root `pnpm-lock.yaml`;
+  the dashboard is a project of its own with both files beside its `package.json`. pnpm ignores
+  `package.json`'s `pnpm` field. Three differences from npm bite: an import of a package the app doesn't declare fails, `--` reaches
   the script verbatim (`pnpm run dev --host`, not `-- --host`), and a version published less
   than a day ago won't install (`minimumReleaseAge`)
 - `core.fileMode` is off here, so `chmod +x` on a script needs

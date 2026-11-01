@@ -8,16 +8,18 @@ import (
 	"testing"
 )
 
-// fakeRoot is a checkout with one storefront, enough for the pnpm app lookup
+// fakeRoot is a checkout with one storefront and one shared package, enough for the pnpm lookup
 func fakeRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	dir := filepath.Join(root, "apps", "channels", "vetrina")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
+	for _, d := range []string{"apps/channels/vetrina", "packages/storefront-core"} {
+		dir := filepath.Join(root, filepath.FromSlash(d))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return root
 }
@@ -34,6 +36,8 @@ func TestResolveRoutes(t *testing.T) {
 		{[]string{"logs", "app"}, []string{"app"}, ""},
 		{[]string{"pnpm", "dashboard", "run", "lint"}, []string{"run", "lint"}, ""},
 		{[]string{"pnpm", "vetrina", "run", "dev"}, []string{"vetrina", "run", "dev"}, ""},
+		{[]string{"pnpm", "storefront-core", "test"}, []string{"storefront-core", "test"}, ""},
+		{[]string{"pnpm", "--lockfile"}, nil, ""},
 		{[]string{"npm", "dashboard", "x"}, []string{"x"}, "(skelet npm is skelet pnpm now - running pnpm)"},
 		{[]string{"go", "--signals", "test", "./..."}, []string{"--signals", "test", "./..."}, ""},
 		{[]string{"db", "migrate", "up", "--signals"}, []string{"up"}, ""},
@@ -75,8 +79,8 @@ func TestResolveRefusals(t *testing.T) {
 		args   []string
 		stderr string
 	}{
-		{[]string{"pnpm"}, "skelet pnpm <app> <pnpm args> - apps: dashboard, vetrina"},
-		{[]string{"pnpm", "nope"}, `skelet pnpm: unknown app "nope" - apps: dashboard, vetrina`},
+		{[]string{"pnpm"}, "skelet pnpm <app|package> <pnpm args> | --lockfile - apps: dashboard, vetrina; packages: storefront-core"},
+		{[]string{"pnpm", "nope"}, `skelet pnpm: unknown app or package "nope" - apps: dashboard, vetrina; packages: storefront-core`},
 		{[]string{"db"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"db", "--signals"}, "skelet db migrate [--signals] up|rollback|status|new <name> | export | import | shell"},
 		{[]string{"nope"}, `Unknown command "nope" - try: skelet help`},
@@ -125,10 +129,12 @@ func TestGoRoutesSurviveEveryPath(t *testing.T) {
 			routes[i] = Route{Verb: "db", Sub: "export", Go: verb("export"), About: "x"}
 		case r.Verb == "pnpm" && r.Sub == AnyApp:
 			routes[i] = Route{Verb: "pnpm", Sub: AnyApp, Go: verb("channel"), About: "x"}
+		case r.Verb == "pnpm" && r.Sub == AnyPackage:
+			routes[i] = Route{Verb: "pnpm", Sub: AnyPackage, Go: verb("package"), About: "x"}
 		}
 	}
 	for args, want := range map[string]string{
-		"check pins": "pins", "db migrate --signals status": "signals", "db export f": "export", "pnpm vetrina i": "channel",
+		"check pins": "pins", "db migrate --signals status": "signals", "db export f": "export", "pnpm vetrina i": "channel", "pnpm storefront-core test": "package",
 	} {
 		called = ""
 		a := Resolve(root, strings.Fields(args))

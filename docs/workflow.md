@@ -30,8 +30,9 @@ through Docker.
 | `skelet cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `skelet psql` | psql shell into the dev database |
 | `skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `skelet pnpm dashboard run dev`, `skelet pnpm dashboard install`) |
-| `skelet pnpm <name> <args>` | Run a pnpm command inside a storefront container under `apps/channels/` (e.g. `skelet pnpm vetrina-demo run build`, `skelet pnpm vetrina-demo run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
-| `skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` gets its TS docs regenerated (skipped for apps deselected via skelet setup). |
+| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm nextjs-vetrina run build`, `skelet pnpm nextjs-vetrina run test`), or for a package under `packages/` by its directory name (`skelet pnpm storefront-core test`), which runs in a storefront's container - a running one, else one this clone runs. Exec's into the running container when the stack is up; otherwise spins up a one-shot. In Docker an `add`, `remove` or `update` runs over the workspace's manifests in a throwaway container, since the storefront's own can't write the lockfile |
+| `skelet pnpm --lockfile` | Bring `pnpm-lock.yaml` up to date with the workspace's manifests, in a throwaway container - for a shop `skelet add channel` couldn't finish, or a manifest edited by hand |
+| `skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` and `templates/`, and every package under `packages/` with a codegen script, gets its TS docs regenerated (skipped for apps deselected via skelet setup). |
 | `skelet test [pkgs] [--changed[=REF]] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. `--changed` runs only what a change since REF (the merge base with develop by default) can reach - see below. |
 | `skelet lint` | gofmt + golangci-lint + dashboard ESLint |
 
@@ -42,7 +43,7 @@ Full documentation for every command: [scripts.md](scripts.md).
 `skelet test --changed` is for the loop while you work. The plain `skelet test` is still the one to run before you push.
 
 - Go keeps its test cache, so a package reruns only when its own code, something it imports, or the migrations changed. The migrations reach the cache through `SKELET_TEST_SCHEMA`, a hash of the migration files that `skelet test` passes in and `testdb` reads.
-- Each frontend runs its typecheck, then only the vitest files that import a changed file (`vitest related`). An app nothing touched is skipped, and a change to its `package.json`, lockfile, tsconfig or vite/vitest config runs its whole suite.
+- Each frontend runs its typecheck, then only the vitest files that import a changed file (`vitest related`). An app nothing touched is skipped, and a change to its `package.json`, lockfile, tsconfig or vite/vitest config runs its whole suite. A change under `packages/`, or to the root `pnpm-workspace.yaml` or `pnpm-lock.yaml`, can reach every storefront, so each of them and each package runs whole.
 - "Changed" is everything since REF plus whatever isn't committed yet. REF defaults to where the branch left develop, so `--changed=HEAD` is just the uncommitted work.
 
 It can only see what Go and vitest can trace. A test that depends on the date, or a backend change that breaks a frontend through the API, still needs the full run.
@@ -68,9 +69,9 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 
 **Core services**:
 - `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/backend` and works from `core/` under it.
-- `vetrina-demo` - Next.js on `:3000`, `depends_on: app`. Image built from
-  `apps/channels/vetrina-demo/Dockerfile`. Each storefront is its own service,
-  named after its directory under `apps/channels/`.
+- `nextjs-vetrina` - Next.js on `:3000`, `depends_on: app`. Image built from
+  `templates/nextjs-vetrina/Dockerfile`. Each storefront is its own service,
+  named after its directory under `apps/channels/` or `templates/`.
 - `db` - Postgres 18 (alpine).
 - `valkey` - Redis-compatible KV; JWT refresh tokens + caches.
 
@@ -78,10 +79,17 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 - `signals` - the Signals process, HTTP on `:8090` and the gRPC contract on `:8092`,
   started whenever `SIGNALS_ENABLED` is on in `env/go.env`. Core proxies `/t` and
   `/e` to it; the separate `ingest` tier is a scale-out option, off in dev.
-- `vetrina-demo` - `next dev`, host bind-mount on
-  `./apps/channels/vetrina-demo` with named volumes shadowing `node_modules` + `.next`
-  (so host-built Windows/macOS artifacts can't poison the Linux/musl
-  install or the SWC native binary). `CHOKIDAR_USEPOLLING=true` +
+- `nextjs-vetrina` - `next dev`, with the repo bind-mounted read-only at `/var/www/skelet`
+  (the storefronts and `packages/` are one pnpm workspace). Only its own directory and
+  `packages/` are writable, so no dependency the dev server runs can change what the host
+  runs next - the CLI, git hooks, compose files - and `env/`, the root `.env` and the rest of
+  `apps/` (the dashboard's e2e session) are masked, so none can read the backend's secrets.
+  The container installs frozen: a manifest the lockfile doesn't match yet waits for
+  `skelet pnpm --lockfile`, and `skelet pnpm <name> add|remove|update` runs over the
+  workspace's manifests in a throwaway container instead of the read-only one. Named volumes
+  shadow the workspace's `node_modules` and the app's `.next` (so host-built
+  Windows/macOS artifacts can't poison the Linux/musl install or the SWC native
+  binary) - an app's or a package's own `node_modules` is only links into the root one. `CHOKIDAR_USEPOLLING=true` +
   `WATCHPACK_POLLING=true` because inotify is unreliable over bind mounts
   on WSL2/macOS.
 - `garage` + `garage-init` - S3-compatible storage (Garage); S3 API at
@@ -167,12 +175,13 @@ dashboard, so treat every schema/query change as "must regenerate":
 3. **`*.graphql` in `apps/dashboard/src/features/<domain>/`** →
    `skelet pnpm dashboard run codegen` (backend must be running - codegen fetches
    the live admin schema over HTTP).
-4. **`*.graphql` in `apps/channels/vetrina-demo/app/`** →
-   `skelet pnpm <name> run codegen` (backend must be running - codegen
-   fetches the live front schema at `app:8080/api/front/graphql`).
+4. **`*.graphql` in `packages/storefront-core/`**, beside the module that runs them → `skelet gen`,
+   which runs the package's codegen in a storefront's container (backend must be running - codegen
+   fetches the live front schema at `app:8080/api/front/graphql`). A storefront with operations of its
+   own gives itself a `codegen` script, and `skelet gen` runs that too.
 
 `skelet gen` runs all four, discovering storefronts from
-`apps/channels/` rather than naming them. Steps 3 and 4 introspect a
+`apps/channels/` and `templates/` rather than naming them. Steps 3 and 4 introspect a
 live server, so `--no-frontend` stops after step 2 when the stack isn't up.
 
 `skelet gen --check` regenerates and fails if the output would differ
@@ -232,19 +241,28 @@ where the frontends run, `.skelet-apps` keeps what it holds rather than being em
 
 ## Which apps run
 
-The backend (GraphQL APIs + workers) always runs. The admin dashboard and every
-storefront under `apps/channels/` are optional, so a clone that ships its own
-frontend can run headless. Deselected apps are removed from your working tree via
-`git sparse-checkout` - they stay in history, and `--keep-code` keeps the source
-without running it.
+The backend (GraphQL APIs + workers) always runs. The admin dashboard and your
+storefronts under `apps/channels/` are optional, and selected unless you say no, so a
+clone that ships its own frontend can run headless. The templates under `templates/` are
+left out unless you ask for one: setup is for working on your own store, and a template
+is what that store is copied from - run one only to work on the template itself.
+Deselected apps are removed from your working tree via `git sparse-checkout` - they stay
+in history, where `skelet add channel` still copies a template from, and `--keep-code`
+keeps the source without running it.
 
 Where they run is a second, independent answer, and the default is the host - there
 the dev server and the gates share one `node_modules`, so a lint run checks the tree
 vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
 so an empty file means every frontend runs on the host with `skelet serve <app>`.
 
-Non-interactive variants: `skelet setup --all`, `--backend-only`, or `skelet setup --apps
-dashboard,vetrina-demo` (comma list), with `--docker-apps LIST|none` for the placement and
+When the project has no storefront of its own yet, setup offers one: pick a template and a
+name, and it's copied into `apps/channels/<name>` the way `skelet add channel` copies one,
+selected and run where your other frontends run. `--template <name>` and `--shop <name>`
+make it without asking - and since `skelet new` hands setup its flags, `skelet new my-store
+--template astro-shop` starts a project with its own Astro shop.
+
+Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
+`skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
 Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
 `skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
@@ -252,9 +270,12 @@ again restores its source.
 
 ### pnpm
 
-The frontends install with pnpm, one project per app - each has its own
-`pnpm-lock.yaml` and a `pnpm-workspace.yaml` holding its settings (overrides, and which
-dependency install scripts may run). A host app needs the pnpm version its
+The frontends install with pnpm. The storefronts, the templates and `packages/` are one
+workspace: the root `pnpm-workspace.yaml` lists them and holds its settings (overrides,
+which dependency install scripts may run, and the catalog of versions they share, so a
+package and the app using it resolve the same React), and the root `pnpm-lock.yaml` is
+their one lockfile. The dashboard is a project of its own, with both files beside its
+`package.json`. A host app needs the pnpm version its
 `packageManager` field pins: `corepack enable`, or `npm install -g pnpm@<version>`, or
 `pnpm self-update <version>` over an older one. `skelet setup` refuses to start when a host
 app has no pnpm, or not the pinned one, before it writes anything - offering to run the
@@ -267,8 +288,8 @@ CI's `pnpm audit` checks each lockfile against the live advisory database, so it
 failing with no commit at all. Most findings are a transitive dep the lockfile resolved before
 the fix shipped, inside a range that already allows it - Renovate's weekly lockfile
 maintenance picks those up, and to fix one sooner, trigger that PR from the dependency
-dashboard or delete the app's `pnpm-lock.yaml` and run `skelet pnpm <app> install`. An
-override in `pnpm-workspace.yaml` is only for a fix the parent's range excludes - check with
+dashboard or delete the lockfile and run `skelet pnpm <app> install` (the dashboard's, or
+the root one for the storefronts). An override in `pnpm-workspace.yaml` is only for a fix the parent's range excludes - check with
 `pnpm why <pkg>` - and its comment names the parent, so it can go once that parent widens.
 
 A clone from before the switch to pnpm needs two things done once:
@@ -280,8 +301,8 @@ A clone from before the switch to pnpm needs two things done once:
   and rebuild:
 
   ```bash
-  docker compose rm -sf dashboard vetrina-demo
-  docker volume rm skelet_dashboard-node-modules skelet_vetrina-demo-node-modules
+  docker compose rm -sf dashboard nextjs-vetrina
+  docker volume rm skelet_dashboard-node-modules skelet_nextjs-vetrina-node-modules
   skelet up --build
   ```
 
@@ -291,7 +312,7 @@ frontends' file history:
 ```bash
 git clone --filter=blob:none --no-checkout <this repo> skelet
 cd skelet
-git sparse-checkout set --no-cone '/*' '!/apps/dashboard/' '!/apps/channels/'
+git sparse-checkout set --no-cone '/*' '!/apps/dashboard/' '!/apps/channels/' '!/templates/' '!/packages/'
 git checkout main
 skelet setup --backend-only
 ```
@@ -311,34 +332,55 @@ break things. Migrations run when the app boots, so `skelet up` afterwards is th
 whole upgrade. Your own remote, once you add one, is `origin`; `upstream` stays
 Skelet's.
 
+Leave the core's dependency bumps to the releases. The `.github/renovate.json5` you
+inherit covers the whole tree, so Renovate turned on in a project would bump the backend,
+the dashboard and the shared packages that the next release bumps too, and each merge
+would conflict in their manifests and the lockfile. Keep it to your own shops with
+`includePaths: ["apps/channels/**"]`, or leave it off. The release workflow you inherit
+does nothing outside Skelet's own repository, so tagging your project publishes nothing.
+
 ### Adding your own storefront
 
 One directory per shop under `apps/channels/<name>/`; the directory name
-doubles as the compose service and profile name.
+doubles as the compose service and profile name. A shop starts as a copy of a
+template under `templates/`, and the copy is yours to change. The templates and
+the `packages/` they build on stay upstream's - leave them as they are, and
+merging a skelet release brings their fixes without touching your shop.
 
-`skelet add channel <your-shop>` does steps 1 and 2 for you - it forks a
-storefront, gives it the first free ports, copies the compose service out of the
-existing one (so it inherits changes to the demo's wiring rather than a snapshot
-taken once), and writes nothing until the result parses. `--tracked` puts the
+`skelet add channel <your-shop>` does steps 1 and 2 for you - it copies a
+template (`--template <name>`, by default `nextjs-vetrina`, the full one) or a
+shop of your own (`--from <name>`), points every path in it at its new home, gives
+it the first free ports, copies the compose service out of the source's (so it
+inherits changes to the template's wiring rather than a snapshot taken once), adds
+it to the workspace lockfile, and writes nothing until the result parses - the copy is made aside and moved into
+place last, so a failure leaves nothing half-made. A template setup left out of your working tree is copied from git,
+so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
+one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
+finishes the job once the cause is fixed. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
+On a dev clone the first shop you add also becomes what the dashboard's previews
+open, through `VITE_STOREFRONT_ORIGIN` in `.env`, unless that already names one.
 By hand:
 
-1. Create `apps/channels/<your-shop>/` - fork of the vetrina-demo template or
-   from scratch.
+1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
+   `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
+   `apps/channels/<your-shop>`, or from scratch - then `skelet pnpm --lockfile`, so the
+   lockfile knows it.
 2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
    auto-merged by docker compose) with `profiles: ["<your-shop>"]`. Never edit
    the tracked compose files, so `git pull` from upstream skelet stays
    conflict-free. Anchors don't cross compose files, so a block copied from
    `docker-compose.yml` needs its own `x-logging: &logging` beside it.
-3. `skelet setup --apps dashboard,<your-shop>` - deselecting `vetrina-demo` removes
+3. `skelet setup --apps dashboard,<your-shop>` - leaving `nextjs-vetrina` out removes
    it from your working tree via sparse-checkout *without committing a deletion*,
-   so upstream updates to the demo never conflict with your clone.
+   so upstream updates to the template never conflict with your clone.
 That's the whole list. Everything else follows the directory: `skelet up`,
 `skelet pnpm`, `skelet gen` and `skelet release` all discover storefronts from
-`apps/channels/`, CI derives its typecheck, test, audit and image-build matrices
-the same way, and Renovate finds your `package.json` and `Dockerfile` on its own.
+`apps/channels/` and `templates/`, CI installs and checks the whole workspace in one job and derives its image
+builds, each smoke-run, the same way, and Renovate - kept to `apps/channels/` as above - finds your `package.json`
+and `Dockerfile` on its own.
 A shop that lands in the tree is gated like the demo without touching a workflow
 or a config file.
 

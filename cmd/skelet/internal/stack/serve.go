@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -30,17 +31,19 @@ func Serve(root string, args []string) int {
 	if len(args) > 0 {
 		app, args = args[0], args[1:]
 	}
-	dir, port := filepath.Join("apps", "channels", app), "3000"
+	dir, port := "", "3000"
 	switch app {
 	case "":
 		return serveUsage(root)
 	case "dashboard":
 		dir, port = filepath.Join("apps", "dashboard"), "5173"
 	default:
-		if fi, err := os.Stat(filepath.Join(root, dir)); err != nil || !fi.IsDir() || strings.ContainsAny(app, `/\`) {
+		s, ok := storefronts.Find(root, app)
+		if !ok {
 			fmt.Fprintf(os.Stderr, "No such app: %s\n", app)
 			return serveUsage(root)
 		}
+		dir = filepath.FromSlash(s.Dir)
 	}
 	manifest, err := os.ReadFile(filepath.Join(root, dir, "package.json"))
 	if err != nil {
@@ -112,11 +115,7 @@ func setEnv(env []string, kv string, override bool) []string {
 }
 
 func serveUsage(root string) int {
-	apps := []string{"dashboard"}
-	manifests, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	for _, m := range manifests {
-		apps = append(apps, filepath.Base(filepath.Dir(m)))
-	}
+	apps := append([]string{"dashboard"}, storefronts.Names(root)...)
 	fmt.Fprintln(os.Stderr, "usage: skelet serve <app> [dev server args]")
 	fmt.Fprintln(os.Stderr, "  "+strings.Join(apps, ", "))
 	return 2

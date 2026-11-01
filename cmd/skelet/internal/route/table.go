@@ -29,8 +29,11 @@ type Route struct {
 	About string
 }
 
-// AnyApp is the pnpm route taken by any storefront name - the storefront exists when apps/channels/<name> does
+// AnyApp is the pnpm route taken by any storefront name - a template's or one of the project's own
 const AnyApp = "*"
+
+// AnyPackage is the pnpm route taken by a directory name under packages/
+const AnyPackage = "*package"
 
 var routes = []Route{
 	{Verb: "setup", Go: setup.Run, About: setup.About},
@@ -57,6 +60,8 @@ var routes = []Route{
 	{Verb: "rm", Go: scaffold.Remove, About: scaffold.RemoveAbout},
 	{Verb: "pnpm", Sub: "dashboard", Go: pnpm.Dashboard, About: pnpm.About},
 	{Verb: "pnpm", Sub: AnyApp, Go: pnpm.Channel, About: pnpm.About},
+	{Verb: "pnpm", Sub: AnyPackage, Go: pnpm.Package, About: pnpm.About},
+	{Verb: "pnpm", Flag: "--lockfile", Go: pnpm.Lockfile, About: pnpm.About},
 	{Verb: "db", Sub: "migrate", Go: db.Migrate, About: db.MigrateAbout},
 	{Verb: "db", Sub: "migrate", Flag: "--signals", Go: db.MigrateSignals, About: db.MigrateAbout},
 	{Verb: "db", Sub: "export", Go: db.Export, About: db.ExportAbout},
@@ -84,10 +89,10 @@ var subs = map[string]string{
 	"check":     "(all) | pins | structure | contracts | codegen",
 	"test":      "(all) | e2e | storefront [name] [playwright args] | [pkgs] [--changed[=REF]] [--keep] [--no-frontend]",
 	"logs":      "[service]",
-	"pnpm":      "<app> <pnpm args>",
-	"npm":       "<app> <pnpm args>",
-	"add":       "channel <name> [--from <storefront>] [--tracked]",
-	"new":       "channel <name> [--from <storefront>] [--tracked]",
+	"pnpm":      "<app|package> <pnpm args> | --lockfile",
+	"npm":       "<app|package> <pnpm args> | --lockfile",
+	"add":       "channel <name> [--template <template> | --from <storefront>] [--tracked]",
+	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked]",
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
 }

@@ -1,10 +1,10 @@
 package route
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 // Action is what a command line resolves to: a verb to run with Args, or output and an exit code
@@ -112,23 +112,38 @@ func pnpmRoute(root string, rest []string) Action {
 	case "dashboard":
 		r, _ := lookup("pnpm", "dashboard")
 		return to(r, rest)
+	case "--lockfile":
+		r, _ := flagged("pnpm", "", "--lockfile")
+		return to(r, rest)
 	case "":
-		return die("skelet pnpm <app> <pnpm args> - apps: " + appsList(root))
+		return die("skelet pnpm " + subs["pnpm"] + " - " + appsList(root))
 	}
-	if fi, err := os.Stat(filepath.Join(root, "apps", "channels", app)); err != nil || !fi.IsDir() {
-		return die(`skelet pnpm: unknown app "` + app + `" - apps: ` + appsList(root))
+	if _, ok := storefronts.Find(root, app); ok {
+		r, _ := lookup("pnpm", AnyApp)
+		return to(r, append([]string{app}, rest...))
 	}
-	r, _ := lookup("pnpm", AnyApp)
-	return to(r, append([]string{app}, rest...))
+	if slices.Contains(packageNames(root), app) {
+		r, _ := lookup("pnpm", AnyPackage)
+		return to(r, append([]string{app}, rest...))
+	}
+	return die(`skelet pnpm: unknown app or package "` + app + `" - ` + appsList(root))
 }
 
 func appsList(root string) string {
-	out := []string{"dashboard"}
-	matches, _ := filepath.Glob(filepath.Join(root, "apps", "channels", "*", "package.json"))
-	for _, m := range matches {
-		out = append(out, filepath.Base(filepath.Dir(m)))
+	s := "apps: " + strings.Join(append([]string{"dashboard"}, storefronts.Names(root)...), ", ")
+	if p := packageNames(root); len(p) > 0 {
+		s += "; packages: " + strings.Join(p, ", ")
 	}
-	return strings.Join(out, ", ")
+	return s
+}
+
+// packageNames is the workspace packages by their directory name - storefront-core, not packages/storefront-core
+func packageNames(root string) []string {
+	var out []string
+	for _, dir := range storefronts.Packages(root) {
+		out = append(out, strings.TrimPrefix(dir, "packages/"))
+	}
+	return out
 }
 
 func die(msg string) Action { return Action{Stderr: msg, Code: 2} }

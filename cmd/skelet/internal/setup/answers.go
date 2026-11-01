@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,10 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 	"github.com/skeletg/skelet/cmd/skelet/internal/node"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
+	"github.com/skeletg/skelet/cmd/skelet/internal/scaffold"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
+	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
+	"github.com/skeletg/skelet/cmd/skelet/internal/tui"
 )
 
 // Everything setup decides before it writes a file
@@ -32,16 +37,18 @@ type answers struct {
 	fromProfile bool
 	// prune is whether the working tree follows the selection at all, removeDeselected whether that may take apps out
 	prune, removeDeselected bool
+	// shop is a storefront of the project's own to copy from shopTemplate - the default template when that's empty
+	shop, shopTemplate string
 }
 
 const (
-	kTarget  = "SKELET_TARGET"
+	kTarget  = profile.TargetKey
 	kSignals = "SKELET_SIGNALS"
 	kAI      = "SKELET_AI"
 	kSearch  = "SKELET_SEARCH"
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
-	kApps    = "SKELET_APPS_SELECTED"
+	kApps    = profile.AppsKey
 	kDocker  = "SKELET_DOCKER_APPS"
 	kTools   = "SKELET_TOOLS_SELECTED"
 )
@@ -53,14 +60,36 @@ var profileKeys = []string{kTarget, kSignals, kAI, kSearch, kGates, kSlug, kApps
 var errRefused = errors.New("refused")
 
 type prompter struct {
-	on  bool
-	in  *bufio.Reader
-	out io.Writer
+	on    bool
+	in    *bufio.Reader
+	out   io.Writer
+	ui    *tui.UI
+	prior *answers
+}
+
+var abort = func(err error) {
+	tui.Restore()
+	fmt.Fprintln(os.Stderr, "skelet setup:", err, "- nothing written")
+	if errors.Is(err, tui.ErrInterrupted) {
+		sys.Exit(130)
+	}
+	sys.Exit(1)
+}
+
+func (p prompter) answered(err error) {
+	if err != nil {
+		abort(err)
+	}
 }
 
 func (p prompter) yesNo(q string, def bool) bool {
 	if !p.on {
 		return def
+	}
+	if p.ui != nil {
+		v, err := p.ui.Confirm(label(q), def)
+		p.answered(err)
+		return v
 	}
 	hint := " [y/N] "
 	if def {
@@ -80,6 +109,15 @@ func (p prompter) choice(q, def string, opts ...string) string {
 	if !p.on {
 		return def
 	}
+	if p.ui != nil {
+		var items []tui.Option
+		for _, o := range opts {
+			items = append(items, tui.Option{Label: o, Hint: optionHints[o]})
+		}
+		i, err := p.ui.Select(q, items, max(0, slices.Index(opts, def)))
+		p.answered(err)
+		return opts[i]
+	}
 	fmt.Fprintf(p.out, "    %s\n", q)
 	for i, o := range opts {
 		mark := ""
@@ -95,15 +133,94 @@ func (p prompter) choice(q, def string, opts ...string) string {
 	return def
 }
 
+// text is a free answer, def when there's none
+func (p prompter) text(q, def string, check func(string) string) string {
+	if !p.on {
+		return def
+	}
+	if p.ui != nil {
+		v, err := p.ui.Input(label(q), def, check)
+		p.answered(err)
+		return v
+	}
+	fmt.Fprintf(p.out, "%s [%s] ", q, def)
+	if s := p.line(); s != "" {
+		return s
+	}
+	return def
+}
+
 func (p prompter) line() string {
 	s, _ := p.in.ReadString('\n')
 	return strings.TrimSpace(s)
+}
+
+func (p prompter) section(out io.Writer, title string, notes ...string) {
+	if p.ui != nil {
+		p.ui.Section(title, notes...)
+		return
+	}
+	fmt.Fprintln(out, "==> "+title)
+	for _, n := range notes {
+		fmt.Fprintln(out, n)
+	}
+}
+
+func (p prompter) say(out io.Writer, line string) {
+	if p.ui != nil {
+		p.ui.Note(line)
+		return
+	}
+	fmt.Fprintln(out, line)
+}
+
+func (p prompter) plain(out io.Writer, lines ...string) {
+	if p.ui == nil {
+		for _, l := range lines {
+			fmt.Fprintln(out, l)
+		}
+	}
+}
+
+type pickOpt struct {
+	value, hint string
+	on          bool
+}
+
+func (p prompter) pick(q string, opts []pickOpt) []string {
+	var items []tui.Option
+	var on []bool
+	for _, o := range opts {
+		items, on = append(items, tui.Option{Label: o.value, Hint: o.hint}), append(on, o.on)
+	}
+	ticked, err := p.ui.Multi(q, items, on)
+	p.answered(err)
+	var out []string
+	for i, o := range opts {
+		if ticked[i] {
+			out = append(out, o.value)
+		}
+	}
+	return out
+}
+
+func label(q string) string { return strings.TrimPrefix(strings.TrimSpace(q), "==> ") }
+
+var optionHints = map[string]string{
+	"dev":        "the local stack - hot reload and sidecars, started with skelet up",
+	"small":      "a one-container server deployment - writes config, starts nothing here",
+	"prod":       "the full split-tier server deployment - writes config, starts nothing here",
+	"opensearch": "a search service of its own - typo tolerance and facets at scale",
+	"postgres":   "the database's own full-text search - nothing more to run",
 }
 
 func answer(root string, c catalog, f flags, prof profile.Profile, profilePath string, ask prompter, out io.Writer) (answers, error) {
 	a := answers{target: "dev", signals: true, ai: true, search: "opensearch", gateways: c.gateways}
 	if err := defaults(&a, prof); err != nil {
 		return a, err
+	}
+	if p := ask.prior; p != nil {
+		a.target, a.signals, a.ai, a.search, a.gateways, a.adminSlug = p.target, p.signals, p.ai, p.search, p.gateways, p.adminSlug
 	}
 
 	switch {
@@ -112,22 +229,41 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	case has(prof, kApps):
 		a.apps, a.fromProfile = known(prof[kApps], c.apps(), out), true
 		fmt.Fprintf(out, "==> App selection: %s (from %s; change with skelet setup --apps ...)\n", orNone(a.apps, "backend only"), profilePath)
+	case ask.on && ask.ui != nil:
+		ask.section(out, "Apps", "The Go backend - GraphQL APIs, workers - always runs. The frontends are optional.")
+		a.apps = ask.pick("Which apps should this clone run?", appOptions(c, ask.prior))
 	case ask.on:
-		fmt.Fprintln(out, "==> Which apps should this clone run?")
-		fmt.Fprintln(out, "    The Go backend (GraphQL APIs, workers) always runs. The")
-		fmt.Fprintln(out, "    frontends are optional - skip whichever you plan to replace")
-		fmt.Fprintln(out, "    with your own build.")
+		ask.section(out, "Which apps should this clone run?",
+			"    The Go backend (GraphQL APIs, workers) always runs. The",
+			"    frontends are optional - skip whichever you plan to replace",
+			"    with your own build.")
 		if ask.yesNo("    Include the admin dashboard (React SPA on :5173)?", true) {
 			a.apps = append(a.apps, "dashboard")
 		}
-		for _, n := range c.storefronts {
-			if ask.yesNo(fmt.Sprintf("    Include storefront %q (Next.js)?", n), true) {
-				a.apps = append(a.apps, n)
+		templates := false
+		for _, sf := range c.storefronts {
+			if sf.Template() {
+				templates = true
+				continue
+			}
+			if ask.yesNo(fmt.Sprintf("    Include storefront %q?", sf.Name), true) {
+				a.apps = append(a.apps, sf.Name)
+			}
+		}
+		if templates {
+			fmt.Fprintln(out, "    Templates are what a shop of your own is copied from (skelet add channel <name>).")
+			fmt.Fprintln(out, "    Run one only to work on the template itself.")
+		}
+		for _, sf := range c.storefronts {
+			if sf.Template() && ask.yesNo(fmt.Sprintf("    Include template %q?", sf.Name), false) {
+				a.apps = append(a.apps, sf.Name)
 			}
 		}
 	default:
-		a.apps = c.apps()
+		a.apps = c.defaultApps()
 	}
+	// Ahead of where the frontends run, so the new shop is placed with them and the pnpm check covers it
+	firstShop(&a, c, f, ask, out)
 
 	// Where they run is a separate question from whether you have them, and the default is the host
 	switch {
@@ -139,11 +275,14 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	default:
 		// No answer on record, so the placement the clone already runs with stands rather than being emptied
 		current := placement(root)
+		if ask.prior != nil {
+			current = ask.prior.dockerApps
+		}
 		if ask.on {
-			fmt.Fprintln(out, "==> Where should the frontends run?")
-			fmt.Fprintln(out, "    On the host the dev server and the gates share one node_modules, so")
-			fmt.Fprintln(out, "    a lint run checks the same tree the dev server is serving. In Docker")
-			fmt.Fprintln(out, "    they are two separate trees, but you need no Node installed.")
+			ask.section(out, "Where should the frontends run?",
+				"    On the host the dev server and the gates share one node_modules, so",
+				"    a lint run checks the same tree the dev server is serving. In Docker",
+				"    they are two separate trees, but you need no Node installed.")
 			if ask.yesNo("    Run them in Docker instead of on the host?", len(current) > 0) {
 				current = a.apps
 			} else {
@@ -152,12 +291,19 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		}
 		a.dockerApps = current
 	}
+	if a.shop != "" && len(a.dockerApps) > 0 && !slices.Contains(a.dockerApps, a.shop) {
+		a.dockerApps = append(a.dockerApps, a.shop)
+	}
 	// Only apps you selected, so --docker-apps can't containerize one that isn't here
 	a.dockerApps = slices.DeleteFunc(slices.Clone(a.dockerApps), func(app string) bool { return !slices.Contains(a.apps, app) })
 
 	// A host app needs pnpm at its pinned version - refused before anything is written, since finding out at the
 	// install step leaves a half-set-up clone and a frontend that won't start
-	if problem := pnpmProblem(root, a.hostApps()); problem != "" {
+	hosts := a.hostApps()
+	if i := slices.Index(hosts, a.shop); a.shop != "" && i >= 0 {
+		hosts[i] = a.shopTemplate
+	}
+	if problem := pnpmProblem(root, hosts); problem != "" {
 		fmt.Fprintf(os.Stderr, "==> The frontends on the host need pnpm: %s\n", problem)
 		if !ask.yesNo("    Run them in Docker instead, which needs no pnpm on the host?", ask.on) {
 			fmt.Fprintf(os.Stderr, "    Install it and re-run, or re-run with --docker-apps %s\n", join(a.apps))
@@ -167,9 +313,9 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 	}
 
 	a.prune = !f.keepCode && !a.fromProfile
-	a.removeDeselected = true
+	a.removeDeselected = ask.prior == nil || ask.prior.removeDeselected
 	if a.prune && !f.apps.set && !a.fromProfile && ask.on && len(excluded(a, c)) > 0 {
-		a.removeDeselected = ask.yesNo("    Also remove the deselected apps' source from your working tree?", true)
+		a.removeDeselected = ask.yesNo("    Also remove the deselected apps' source from your working tree?", a.removeDeselected)
 	}
 
 	if ask.on {
@@ -181,8 +327,19 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		a.tools = f.tools.items
 	default:
 		a.tools = split(prof[kTools])
-		if ask.on && a.target == "dev" {
-			fmt.Fprintln(out, "==> Optional dev tools - the stack runs without any of them")
+		if ask.prior != nil {
+			a.tools = ask.prior.tools
+		}
+		switch {
+		case ask.on && a.target == "dev" && ask.ui != nil:
+			ask.section(out, "Dev tools", "Optional - the stack runs without any of them")
+			var opts []pickOpt
+			for _, t := range tools {
+				opts = append(opts, pickOpt{t, toolHints[t], slices.Contains(a.tools, t)})
+			}
+			a.tools = ask.pick("Which dev tools should run?", opts)
+		case ask.on && a.target == "dev":
+			ask.section(out, "Optional dev tools - the stack runs without any of them")
 			var picks []string
 			for _, t := range tools {
 				if ask.yesNo("    "+toolHints[t]+"?", slices.Contains(a.tools, t)) {
@@ -235,25 +392,33 @@ func defaults(a *answers, p profile.Profile) error {
 func shape(a *answers, c catalog, ask prompter, out io.Writer) {
 	// "Deployment target" alone reads as where this will eventually live, so people building a shop pick prod and
 	// then find skelet up refuses to start - so each one says what it actually does
-	fmt.Fprintln(out, "==> How will you run THIS clone?")
-	fmt.Fprintln(out, "      dev    the local stack - hot reload and sidecars, started with skelet up")
-	fmt.Fprintln(out, "      small  a one-container server deployment - writes config, starts nothing here")
-	fmt.Fprintln(out, "      prod   the full split-tier server deployment - writes config, starts nothing here")
-	fmt.Fprintln(out, "    Pick dev unless you are configuring a server right now.")
+	ask.section(out, "How will you run THIS clone?")
+	for _, t := range []string{"dev", "small", "prod"} {
+		ask.plain(out, fmt.Sprintf("      %-6s %s", t, optionHints[t]))
+	}
+	ask.say(out, "    Pick dev unless you are configuring a server right now.")
 	a.target = ask.choice("Target", a.target, "dev", "small", "prod")
 
-	fmt.Fprintln(out, "==> Which suites do you want? (all default on)")
+	ask.section(out, "Which suites do you want? (all default on)")
 	a.signals = ask.yesNo("    Signals - analytics: Lens, Synapse, Pulse, Prism?", a.signals)
 	a.ai = ask.yesNo("    AI - admin assistant, review classification?", a.ai)
 
-	fmt.Fprintln(out, "==> Engines")
+	ask.section(out, "Engines")
 	a.search = ask.choice("Product search", a.search, "opensearch", "postgres")
 
-	if len(c.gateways) == 0 {
-		fmt.Fprintln(out, "==> Payment gateways - none in this tree (add one with `skelet cli plugin install`)")
+	switch {
+	case len(c.gateways) == 0:
+		ask.section(out, "Payment gateways - none in this tree (add one with `skelet cli plugin install`)")
 		a.gateways = nil
-	} else {
-		fmt.Fprintln(out, "==> Payment gateways - unpicked ones are left out of the build entirely")
+	case ask.ui != nil:
+		ask.section(out, "Payment gateways", "Unpicked ones are left out of the build entirely")
+		var opts []pickOpt
+		for _, g := range c.gateways {
+			opts = append(opts, pickOpt{g, "", slices.Contains(a.gateways, g)})
+		}
+		a.gateways = ask.pick("Which payment gateways compile in?", opts)
+	default:
+		ask.section(out, "Payment gateways - unpicked ones are left out of the build entirely")
 		var picks []string
 		for _, g := range c.gateways {
 			if ask.yesNo("    "+strings.TrimPrefix(g, "payment-")+"?", slices.Contains(a.gateways, g)) {
@@ -263,7 +428,7 @@ func shape(a *answers, c catalog, ask prompter, out io.Writer) {
 		a.gateways = picks
 	}
 
-	fmt.Fprintln(out, "==> Hardening")
+	ask.section(out, "Hardening")
 	a.adminSlug = ask.yesNo("    Move the admin API off /api/admin/graphql to an unguessable path?", a.adminSlug)
 }
 
@@ -282,7 +447,7 @@ func excluded(a answers, c catalog) []string {
 	var out []string
 	for _, app := range c.apps() {
 		if !slices.Contains(a.apps, app) {
-			out = append(out, "!/"+appDir(app)+"/")
+			out = append(out, "!/"+appDir(c.root, app)+"/")
 		}
 	}
 	return out
@@ -323,7 +488,7 @@ func pnpmProblem(root string, hostApps []string) string {
 	if len(hostApps) == 0 {
 		return ""
 	}
-	dir := appDir(hostApps[0])
+	dir := appDir(root, hostApps[0])
 	manifest, err := os.ReadFile(filepath.Join(root, dir, "package.json"))
 	if err != nil {
 		// A deselected app comes back from sparse-checkout only later, so its pin comes from HEAD and there is no
@@ -333,4 +498,116 @@ func pnpmProblem(root string, hostApps []string) string {
 	}
 	_, problem := node.Pnpm(root, dir, node.Pin(manifest))
 	return problem
+}
+
+// firstShop is a storefront of the project's own, copied from a template: asked for with --shop or --template, or
+// offered to a plain interactive dev setup that has none yet
+func firstShop(a *answers, c catalog, f flags, ask prompter, out io.Writer) {
+	def := ""
+	if s, ok := storefronts.Default(c.storefronts); ok {
+		def = s.Name
+	}
+	switch {
+	case f.shop != "" || f.template != "":
+		a.shop, a.shopTemplate = f.shop, cmp.Or(f.template, def)
+		if a.shop == "" {
+			a.shop = freeShopName(c)
+		}
+		if a.shop == "" {
+			fmt.Fprintln(out, "==> No free name for a shop - pick one with --shop <name>")
+			a.shopTemplate = ""
+			return
+		}
+	case ask.on && !f.apps.set && !a.fromProfile && a.target == "dev" && !c.ownStorefront() && def != "":
+		ask.section(out, "Your storefront",
+			"    A shop of your own starts as a copy of a template - the copy is yours to change, the",
+			"    template stays upstream's. skelet add channel <name> makes more later.")
+		p := ask.prior
+		if !ask.yesNo("    Create one now?", p == nil || p.shop != "") {
+			return
+		}
+		a.shopTemplate = def
+		if p != nil && p.shopTemplate != "" {
+			a.shopTemplate = p.shopTemplate
+		}
+		if names := c.templateNames(); len(names) > 1 {
+			a.shopTemplate = ask.choice("Which template?", a.shopTemplate, names...)
+		}
+		suggest := freeShopName(c)
+		if p != nil && p.shop != "" && shopUnusable(c, p.shop) == "" {
+			suggest = p.shop
+		}
+		// A few tries, not until it fits - a closed stdin answers the default forever
+		name := ""
+		for range 3 {
+			n := ask.text("    Name it", suggest, func(n string) string { return shopUnusable(c, n) })
+			why := shopUnusable(c, n)
+			if why == "" {
+				name = n
+				break
+			}
+			fmt.Fprintf(out, "    %q won't do - %s\n", n, why)
+		}
+		if name == "" {
+			fmt.Fprintln(out, "    No shop made - skelet add channel <name> makes one whenever you like")
+			a.shopTemplate = ""
+			return
+		}
+		a.shop = name
+	default:
+		return
+	}
+	if !slices.Contains(a.apps, a.shop) {
+		a.apps = append(a.apps, a.shop)
+	}
+}
+
+func appOptions(c catalog, prior *answers) []pickOpt {
+	opts := []pickOpt{{"dashboard", "admin dashboard on :5173", true}}
+	for _, sf := range c.storefronts {
+		hint := "your storefront"
+		if sf.Template() {
+			hint = "template - run it only to work on the template itself"
+			if fw := framework(c.root, sf.Dir); fw != "" {
+				hint = fw + " " + hint
+			}
+		}
+		opts = append(opts, pickOpt{sf.Name, hint, !sf.Template()})
+	}
+	if prior != nil {
+		for i := range opts {
+			opts[i].on = slices.Contains(prior.apps, opts[i].value)
+		}
+	}
+	return opts
+}
+
+func framework(root, dir string) string {
+	raw, err := os.ReadFile(filepath.Join(root, dir, "package.json"))
+	if err != nil {
+		raw, _ = gitx.Indexed(root, dir+"/package.json")
+	}
+	for dep, name := range map[string]string{`"next"`: "Next.js", `"astro"`: "Astro"} {
+		if strings.Contains(string(raw), dep+":") {
+			return name
+		}
+	}
+	return ""
+}
+
+func shopUnusable(c catalog, name string) string {
+	if slices.Contains(c.apps(), name) {
+		return "an app or template has that name"
+	}
+	return scaffold.Unusable(c.root, name)
+}
+
+// freeShopName is the name the prompt suggests - "shop", unless something has it already
+func freeShopName(c catalog) string {
+	for _, n := range []string{"shop", "my-shop", "store"} {
+		if shopUnusable(c, n) == "" {
+			return n
+		}
+	}
+	return ""
 }

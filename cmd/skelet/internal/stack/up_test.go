@@ -122,6 +122,33 @@ esac`)
 	}
 }
 
+// A Docker storefront's volume mountpoints are made by the CLI, so they're the host user's and not root's
+func TestUpMakesMountpoints(t *testing.T) {
+	unset(t, "COMPOSE_PROFILES", "SKELET_SIDECARS", "SKELET_TOOLS")
+	root := devClone(t)
+	put(t, root, map[string]string{".skelet-apps": "dashboard,vetrina\n", "templates/vetrina/package.json": "{}"})
+	d := verbtest.NewDocker(t, `case "$*" in `+config(freePort(t))+` esac`)
+	if _, code := d.Run("up", root); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	for _, dir := range []string{"node_modules", "apps/channels", "templates/vetrina/.next"} {
+		if fi, err := os.Stat(filepath.Join(root, dir)); err != nil || !fi.IsDir() {
+			t.Errorf("%s wasn't made: %v", dir, err)
+		}
+	}
+	if fi, err := os.Stat(filepath.Join(root, ".env")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf(".env wasn't made private: %v", err)
+	}
+	put(t, root, map[string]string{".env": "KEEP=1\n"})
+	if _, code := d.Run("up", root); code != 0 || read(t, filepath.Join(root, ".env")) != "KEEP=1\n" {
+		t.Error("a second up touched an existing .env")
+	}
+	// Nothing for a storefront that runs on the host
+	if _, err := os.Stat(filepath.Join(root, "apps/channels/shop/.next")); err == nil {
+		t.Error("made a mountpoint for a host storefront")
+	}
+}
+
 // --lean drops the sidecars and tools, but apps in Docker still start - and with apps in Docker nothing is said about
 // the host or stopped
 func TestUpLean(t *testing.T) {

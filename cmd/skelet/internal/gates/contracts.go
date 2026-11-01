@@ -2,6 +2,7 @@ package gates
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 const ContractsAbout = `The SYNC comments name contracts that span two or three apps; this is the mechanical half, so drift
@@ -32,6 +34,11 @@ const (
 	nginxConf     = "apps/dashboard/nginx.conf.template"
 	caddyfile     = "deploy/caddy/Caddyfile"
 	widgetReg     = "apps/dashboard/src/features/promotions/widgets/registry.ts"
+	// The storefront logic every template shares - checked once, here, rather than per storefront
+	storefrontPkg = "packages/storefront-core"
+	publicOps     = storefrontPkg + "/public-ops.ts"
+	reactPkg      = "packages/storefront-react"
+	pkgOptVis     = storefrontPkg + "/optionVisibility.ts"
 	// This gate's own source talks about SYNC comments, so it stays out of the scan for them
 	self = "cmd/skelet/internal/gates"
 )
@@ -50,6 +57,7 @@ func contractCheck(root string, out io.Writer) int {
 	c.cacheableOps()
 	c.lexicalNodes()
 	c.evaluators()
+	c.frameworkFree()
 	c.headers()
 	c.widgets()
 	c.proto()
@@ -81,18 +89,8 @@ func (c contracts) git(args ...string) (string, error) {
 	return string(out), err
 }
 
-// storefronts is every apps/channels/<name>, sorted
-func (c contracts) storefronts() []string {
-	m, _ := filepath.Glob(filepath.Join(c.root, "apps", "channels", "*"))
-	var names []string
-	for _, p := range m {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
-			names = append(names, filepath.Base(p))
-		}
-	}
-	slices.Sort(names)
-	return names
-}
+// storefronts is every storefront - the templates and the project's own
+func (c contracts) storefronts() []storefronts.Storefront { return storefronts.List(c.root) }
 
 var (
 	syncLine  = regexp.MustCompile(`(//|#).*\bSYNC\b`)
@@ -241,8 +239,9 @@ func (c contracts) blockTypes() {
 		c.r.bad("backend BuiltinTypes != dashboard palette")
 		c.sides(goTypes, dash)
 	}
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "components", "cms", "CmsBlocks.tsx")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "components", "cms", "CmsBlocks.tsx")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no CMS renderer registry", name)
 			continue
@@ -283,23 +282,33 @@ func (c contracts) cacheableOps() {
 		c.r.bad("frontCacheableOps extraction came back empty - %s moved", responseCache)
 		return
 	}
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "public-ops.ts")
-		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
-			c.skip("%s has no public-ops list", name)
-			continue
-		}
-		sf := set(between(c.read(f), setStart, setEnd), quotedOp)
-		switch {
-		case len(sf) == 0:
-			c.r.bad("%s: PUBLIC_OPS extraction came back empty", name)
-		case slices.Equal(ops, sf):
-			c.r.pass("%s PUBLIC_OPS == frontCacheableOps (%d ops)", name, len(ops))
-		default:
-			c.r.bad("%s PUBLIC_OPS != frontCacheableOps", name)
-			c.sides(ops, sf)
-		}
+	if !c.inPackage(publicOps) {
+		return
 	}
+	sf := set(between(c.read(publicOps), setStart, setEnd), quotedOp)
+	switch {
+	case len(sf) == 0:
+		c.r.bad("PUBLIC_OPS extraction came back empty - %s changed shape", publicOps)
+	case slices.Equal(ops, sf):
+		c.r.pass("storefront-core PUBLIC_OPS == frontCacheableOps (%d ops)", len(ops))
+	default:
+		c.r.bad("storefront-core PUBLIC_OPS != frontCacheableOps")
+		c.sides(ops, sf)
+	}
+}
+
+// inPackage says the storefront package holds f. A checkout without the package - a backend-only sparse clone - has
+// nothing to check; one with the package and not the file has a stale path here, and fails rather than going quiet
+func (c contracts) inPackage(f string) bool {
+	if _, err := os.Stat(filepath.Join(c.root, f)); err == nil {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(c.root, storefrontPkg)); err != nil {
+		c.skip("no %s in this checkout", storefrontPkg)
+		return false
+	}
+	c.r.bad("%s is gone but %s is here - the path in cmd/skelet/internal/gates/contracts.go is stale", f, storefrontPkg)
+	return false
 }
 
 var (
@@ -357,8 +366,9 @@ func (c contracts) lexicalNodes() {
 	all := append(slices.Clone(nodes), variants...)
 	slices.Sort(all)
 	all = slices.Compact(all)
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "lexical-render.tsx")
+	for _, sf := range c.storefronts() {
+		name := sf.Name
+		f := filepath.Join(filepath.FromSlash(sf.Dir), "app", "lib", "lexical-render.tsx")
 		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
 			c.skip("%s has no lexical renderer", name)
 			continue
@@ -367,6 +377,57 @@ func (c contracts) lexicalNodes() {
 			c.r.bad("%s has no case for: %s", name, strings.Join(missing, " "))
 		} else {
 			c.r.pass("%s renders all %d authored node types and variants", name, authored)
+		}
+	}
+}
+
+var importSpec = regexp.MustCompile(`(?:\bfrom|\bimport)\s*\(?\s*["']([^"'./][^"']*)["']`)
+
+// frameworkFree - the core runs under any framework only while it imports none, and the shared hooks under any React
+// framework only while they import no Next. A type import counts: it ties the package's types to the framework
+func (c contracts) frameworkFree() {
+	c.r.section("the storefront core imports no framework")
+	for _, p := range []struct {
+		dir    string
+		banned []string
+	}{
+		{storefrontPkg, []string{"next", "react", "react-dom", "next-intl", "server-only"}},
+		{reactPkg, []string{"next", "next-intl"}},
+	} {
+		if _, err := os.Stat(filepath.Join(c.root, p.dir)); err != nil {
+			c.skip("no %s in this checkout", p.dir)
+			continue
+		}
+		files, before := 0, c.r.failed
+		_ = filepath.WalkDir(filepath.Join(c.root, p.dir), func(path string, d os.DirEntry, err error) error {
+			if err != nil || (d.IsDir() && d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			if d.IsDir() || !(strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) {
+				return nil
+			}
+			files++
+			raw, _ := os.ReadFile(path)
+			rel, _ := filepath.Rel(c.root, path)
+			for _, m := range importSpec.FindAllStringSubmatch(string(raw), -1) {
+				if root, _, _ := strings.Cut(m[1], "/"); slices.Contains(p.banned, root) {
+					c.r.bad("%s imports %s", filepath.ToSlash(rel), m[1])
+				}
+			}
+			return nil
+		})
+		var manifest map[string]any
+		_ = json.Unmarshal([]byte(c.read(p.dir+"/package.json")), &manifest)
+		for _, field := range []string{"dependencies", "peerDependencies", "optionalDependencies", "devDependencies"} {
+			deps, _ := manifest[field].(map[string]any)
+			for _, name := range p.banned {
+				if _, ok := deps[name]; ok {
+					c.r.bad("%s/package.json lists %s in %s", p.dir, name, field)
+				}
+			}
+		}
+		if c.r.failed == before {
+			c.r.pass("%s imports none of %s (%d files)", p.dir, strings.Join(p.banned, ", "), files)
 		}
 	}
 }
@@ -398,18 +459,13 @@ func (c contracts) evaluators() {
 		c.r.bad("%s is gone - update cmd/skelet/internal/gates/contracts.go", dashOptVis)
 		return
 	}
-	ref := normEvaluator(c.read(dashOptVis))
-	for _, name := range c.storefronts() {
-		f := filepath.Join("apps", "channels", name, "app", "lib", "optionVisibility.ts")
-		if _, err := os.Stat(filepath.Join(c.root, f)); err != nil {
-			c.skip("%s has no option-visibility port", name)
-			continue
-		}
-		if normEvaluator(c.read(f)) == ref {
-			c.r.pass("%s evaluator matches the dashboard's, modulo formatting", name)
-		} else {
-			c.r.bad("%s evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", name, dashOptVis)
-		}
+	if !c.inPackage(pkgOptVis) {
+		return
+	}
+	if normEvaluator(c.read(pkgOptVis)) == normEvaluator(c.read(dashOptVis)) {
+		c.r.pass("storefront-core evaluator matches the dashboard's, modulo formatting")
+	} else {
+		c.r.bad("storefront-core evaluator has diverged from %s - diff them and reconcile against internal/cart/options_visibility.go", dashOptVis)
 	}
 }
 
