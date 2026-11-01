@@ -8,8 +8,12 @@
 !templates/nextjs-vetrina/
 **/node_modules
 **/.next
+**/dist
+**/.astro
 **/test-results
 **/playwright-report
 **/*.tsbuildinfo
 **/*.log
 **/.DS_Store
+**/.env*
+!**/.env*.example

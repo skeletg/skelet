@@ -68,6 +68,7 @@ services:
 
   nextjs-vetrina:
     image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
+    init: true
     env_file: [env/small-nextjs-vetrina.env]
     ports: ["127.0.0.1:13000:3000"]
     environment:
@@ -78,12 +79,6 @@ services:
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
     restart: unless-stopped
     logging: *logging
 
@@ -91,6 +86,7 @@ services:
   astro-shop:
     profiles: ["astro-shop"]
     image: ${ASTRO_SHOP_IMAGE:-skelet-astro-shop:prod}
+    init: true
     env_file: [env/small-astro-shop.env]
     ports: ["127.0.0.1:13001:3000"]
     environment:
@@ -98,12 +94,6 @@ services:
       STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
     depends_on:
       app: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     restart: unless-stopped
     logging: *logging
 

@@ -5,7 +5,7 @@
 # Runtime config: BACKEND_INTERNAL_URL (default http://app:8080), STOREFRONT_CHANNEL_HOSTS and/or STOREFRONT_CHANNEL_ID
 
 # The packages' manifests alone, so the install layer is keyed on them and not on every package source edit
-FROM alpine:3.24 AS manifests
+FROM node:24-alpine AS manifests
 WORKDIR /w
 COPY packages packages
 RUN find packages -mindepth 2 -maxdepth 2 ! -name package.json -exec rm -rf {} +
@@ -21,9 +21,9 @@ WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY templates/nextjs-vetrina/package.json templates/nextjs-vetrina/
 COPY --from=manifests /w/packages packages
-# The app and every shared package, each with its own dependencies - a package's peers resolve from its own directory
+# The app and the packages it depends on, each with its own dependencies
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "./templates/nextjs-vetrina..." --filter "./packages/*"
+    pnpm install --frozen-lockfile --filter "{./templates/nextjs-vetrina}..."
 COPY packages packages
 COPY templates/nextjs-vetrina templates/nextjs-vetrina
 
@@ -41,14 +41,18 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
-RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+    && addgroup -g 10001 app && adduser -D -u 10001 -G app app
 # Standalone output traces from the workspace root, so the app's server sits at its own path inside it. server.js
 # doesn't serve public/ or .next/static itself - copy them in beside it
-COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/.next/standalone ./
-COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/.next/static ./templates/nextjs-vetrina/.next/static
-COPY --from=build --chown=app:app /app/templates/nextjs-vetrina/public ./templates/nextjs-vetrina/public
+COPY --from=build /app/templates/nextjs-vetrina/.next/standalone ./
+COPY --from=build /app/templates/nextjs-vetrina/.next/static ./templates/nextjs-vetrina/.next/static
+COPY --from=build /app/templates/nextjs-vetrina/public ./templates/nextjs-vetrina/public
 # The ISR cache writes here at runtime, as the unprivileged user
 RUN mkdir -p templates/nextjs-vetrina/.next/cache && chown app:app templates/nextjs-vetrina/.next/cache
 USER app
 EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=15s \
+    CMD ["node", "-e", "require('http').get('http://127.0.0.1:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
 CMD ["node", "templates/nextjs-vetrina/server.js"]

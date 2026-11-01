@@ -6,9 +6,13 @@
 !packages/
 !templates/astro-shop/
 **/node_modules
+**/.next
 **/dist
 **/.astro
 **/test-results
 **/playwright-report
+**/*.tsbuildinfo
 **/*.log
 **/.DS_Store
+**/.env*
+!**/.env*.example

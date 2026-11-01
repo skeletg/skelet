@@ -2,7 +2,7 @@
 # are one pnpm workspace rooted at the repo, so the image works from the root and runs this app inside it
 
 # The packages' manifests alone, so the install layer below is keyed on them and not on every package source edit
-FROM alpine:3.24 AS manifests
+FROM node:24-alpine AS manifests
 WORKDIR /w
 COPY packages packages
 RUN find packages -mindepth 2 -maxdepth 2 ! -name package.json -exec rm -rf {} +
@@ -49,7 +49,7 @@ COPY --chown=$SKELET_UID:$SKELET_GID pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --chown=$SKELET_UID:$SKELET_GID templates/nextjs-vetrina/package.json templates/nextjs-vetrina/
 COPY --chown=$SKELET_UID:$SKELET_GID --from=manifests /w/packages packages
 RUN --mount=type=cache,id=pnpm-store-$SKELET_UID,target=/pnpm/store,uid=$SKELET_UID,gid=$SKELET_GID \
-    pnpm install --frozen-lockfile --filter "./templates/nextjs-vetrina..." --filter "./packages/*"
+    pnpm install --frozen-lockfile --filter "{./templates/nextjs-vetrina}..." --filter "./packages/*"
 
 # The dev server behind an install that re-runs whenever the dependencies change. The workspace's node_modules is a
 # named volume, which Docker fills from this image only while it's empty, so a changed lockfile reaches the container
@@ -65,4 +65,4 @@ EXPOSE 3000
 CMD ["watchexec", "--poll", "2s", "--restart", \
      "--watch", "pnpm-workspace.yaml", "--watch", "pnpm-lock.yaml", "--watch", "templates/nextjs-vetrina/package.json", "--watch", "packages", \
      "--filter", "pnpm-workspace.yaml", "--filter", "pnpm-lock.yaml", "--filter", "**/package.json", "--", \
-     "pnpm install --filter ./templates/nextjs-vetrina... --filter './packages/*' --config.confirm-modules-purge=false && cd templates/nextjs-vetrina && exec pnpm run dev -H 0.0.0.0 -p 3000"]
+     "pnpm install --frozen-lockfile --filter '{./templates/nextjs-vetrina}...' --filter './packages/*' --config.confirm-modules-purge=false && cd templates/nextjs-vetrina && exec pnpm run dev -H 0.0.0.0 -p 3000"]

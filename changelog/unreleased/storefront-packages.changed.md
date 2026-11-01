@@ -27,8 +27,8 @@
   to that code by merging a release, without touching its own pages. Codegen is the core's, run by
   `skelet gen`, and `skelet check` fails on a framework import in the core and reads the shared lists
   from it.
-- **A storefront's dev container mounts the whole repo** at `/var/www/skelet`, with `env/` hidden
-  behind a tmpfs, and its prod image builds from the repo root with a `.dockerignore` of its own
+- **A storefront's dev container mounts the whole repo** at `/var/www/skelet`, read-only but for its own directory
+  and `packages/`, with `env/` hidden behind a tmpfs, and its prod image builds from the repo root with a `.dockerignore` of its own
   beside the Dockerfile. `skelet doctor` notes an override still mounting a storefront at
   `/var/www/storefront`, and a `.skelet-apps` naming a storefront that isn't there.
 - **`vetrina-demo` is now `nextjs-vetrina`** everywhere it's named, since a template carries its framework

@@ -30,7 +30,8 @@ through Docker.
 | `skelet cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `skelet psql` | psql shell into the dev database |
 | `skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `skelet pnpm dashboard run dev`, `skelet pnpm dashboard install`) |
-| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm nextjs-vetrina run build`, `skelet pnpm nextjs-vetrina run test`), or for a package under `packages/` by its directory name (`skelet pnpm storefront-core test`), which runs in a storefront's container. Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
+| `skelet pnpm <name> <args>` | Run a pnpm command for a storefront under `apps/channels/` or `templates/` (e.g. `skelet pnpm nextjs-vetrina run build`, `skelet pnpm nextjs-vetrina run test`), or for a package under `packages/` by its directory name (`skelet pnpm storefront-core test`), which runs in a storefront's container - a running one, else one this clone runs. Exec's into the running container when the stack is up; otherwise spins up a one-shot. In Docker an `add`, `remove` or `update` runs over the workspace's manifests in a throwaway container, since the storefront's own can't write the lockfile |
+| `skelet pnpm --lockfile` | Bring `pnpm-lock.yaml` up to date with the workspace's manifests, in a throwaway container - for a shop `skelet add channel` couldn't finish, or a manifest edited by hand |
 | `skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` and `templates/`, and every package under `packages/` with a codegen script, gets its TS docs regenerated (skipped for apps deselected via skelet setup). |
 | `skelet test [pkgs] [--changed[=REF]] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. `--changed` runs only what a change since REF (the merge base with develop by default) can reach - see below. |
 | `skelet lint` | gofmt + golangci-lint + dashboard ESLint |
@@ -78,9 +79,14 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 - `signals` - the Signals process, HTTP on `:8090` and the gRPC contract on `:8092`,
   started whenever `SIGNALS_ENABLED` is on in `env/go.env`. Core proxies `/t` and
   `/e` to it; the separate `ingest` tier is a scale-out option, off in dev.
-- `nextjs-vetrina` - `next dev`, with the whole repo bind-mounted at `/var/www/skelet`
-  (the storefronts and `packages/` are one pnpm workspace) and `env/` masked by a
-  tmpfs, so no storefront dependency can read the backend's secrets. Named volumes
+- `nextjs-vetrina` - `next dev`, with the repo bind-mounted read-only at `/var/www/skelet`
+  (the storefronts and `packages/` are one pnpm workspace). Only its own directory and
+  `packages/` are writable, so no dependency the dev server runs can change what the host
+  runs next - the CLI, git hooks, compose files - and `env/`, the root `.env` and the rest of
+  `apps/` (the dashboard's e2e session) are masked, so none can read the backend's secrets.
+  The container installs frozen: a manifest the lockfile doesn't match yet waits for
+  `skelet pnpm --lockfile`, and `skelet pnpm <name> add|remove|update` runs over the
+  workspace's manifests in a throwaway container instead of the read-only one. Named volumes
   shadow the workspace's `node_modules` and the app's `.next` (so host-built
   Windows/macOS artifacts can't poison the Linux/musl install or the SWC native
   binary) - an app's or a package's own `node_modules` is only links into the root one. `CHOKIDAR_USEPOLLING=true` +
@@ -335,12 +341,15 @@ the `packages/` they build on stay upstream's - leave them as they are, and
 merging a skelet release brings their fixes without touching your shop.
 
 `skelet add channel <your-shop>` does steps 1 and 2 for you - it copies a
-template (`--template <name>`, by default the one `docker-compose.yml` runs) or a
+template (`--template <name>`, by default `nextjs-vetrina`, the full one) or a
 shop of your own (`--from <name>`), points every path in it at its new home, gives
 it the first free ports, copies the compose service out of the source's (so it
 inherits changes to the template's wiring rather than a snapshot taken once), adds
-it to the workspace lockfile, and writes nothing until the result parses. A template setup
-left out of your working tree is copied from git, so it never has to be checked out. `--tracked` puts the
+it to the workspace lockfile, and writes nothing until the result parses - the copy is made aside and moved into
+place last, so a failure leaves nothing half-made. A template setup left out of your working tree is copied from git,
+so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
+one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
+finishes the job once the cause is fixed. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
@@ -348,8 +357,8 @@ By hand:
 
 1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
    `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
-   `apps/channels/<your-shop>`, or from scratch - then `pnpm install --lockfile-only`
-   from the root, so the lockfile knows it.
+   `apps/channels/<your-shop>`, or from scratch - then `skelet pnpm --lockfile`, so the
+   lockfile knows it.
 2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
    auto-merged by docker compose) with `profiles: ["<your-shop>"]`. Never edit
    the tracked compose files, so `git pull` from upstream skelet stays
@@ -360,8 +369,8 @@ By hand:
    so upstream updates to the template never conflict with your clone.
 That's the whole list. Everything else follows the directory: `skelet up`,
 `skelet pnpm`, `skelet gen` and `skelet release` all discover storefronts from
-`apps/channels/` and `templates/`, CI derives its typecheck, test, audit and
-image-build matrices the same way, and Renovate finds your `package.json` and `Dockerfile` on its own.
+`apps/channels/` and `templates/`, CI installs and checks the whole workspace in one job and derives its image
+builds, each smoke-run, the same way, and Renovate finds your `package.json` and `Dockerfile` on its own.
 A shop that lands in the tree is gated like the demo without touching a workflow
 or a config file.
 
