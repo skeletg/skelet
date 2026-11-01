@@ -37,7 +37,7 @@ func TestHelp(t *testing.T) {
 		{"rm", "skelet rm   channel <name> [-y] [--volumes]\n\n" + scaffold.RemoveAbout + "\n"},
 		{"up", stack.UpAbout + "\n"},
 		{"down", stack.DownAbout + "\n"},
-		{"pnpm", "skelet pnpm   <app> <pnpm args>\n\n"},
+		{"pnpm", "skelet pnpm   <app|package> <pnpm args>\n\n"},
 		{"db", "skelet db   " + subs["db"] + "\n\n"},
 	}
 	for _, c := range cases {

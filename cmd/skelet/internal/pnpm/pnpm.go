@@ -19,7 +19,8 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
-const About = `pnpm for a frontend: skelet pnpm dashboard run lint, skelet pnpm <storefront> add <pkg>. The host's
+const About = `pnpm for a frontend: skelet pnpm dashboard run lint, skelet pnpm <storefront> add <pkg>, or for one of the
+packages the storefronts share: skelet pnpm storefront-core test. The host's
 pnpm runs it when the app has a host install - the container keeps node_modules in a volume of its own, and
 checking a different tree than the dev server runs is how the two drift apart. Otherwise it runs in the
 app's container, exec'd when it's running, else a one-off. SKELET_FORCE_DOCKER=1 always uses the container.`
@@ -28,6 +29,15 @@ func Dashboard(root string, args []string) int { return replace(root, "dashboard
 
 // Channel is a storefront's pnpm - the route puts the storefront's name first
 func Channel(root string, args []string) int { return replace(root, args[0], args[1:]) }
+
+// Package is pnpm in one of packages/ - the route puts the package's directory name first
+func Package(root string, args []string) int {
+	call, err := dirCall(root, "packages/"+args[0], args[1:]...)
+	if err != nil {
+		return 1
+	}
+	return call.Replace()
+}
 
 func replace(root, app string, args []string) int {
 	call, err := Call(root, app, nil, args...)
@@ -88,19 +98,27 @@ var errUnusable = errors.New("pnpm can't run this app")
 // RunDir runs pnpm in a workspace package's directory, which has no container of its own: with the host's pnpm when the
 // workspace is installed there, else in the first storefront's container, pointed at the package
 func RunDir(root, dir string, args ...string) error {
+	call, err := dirCall(root, dir, args...)
+	if err != nil {
+		return err
+	}
+	return call.Run()
+}
+
+func dirCall(root, dir string, args ...string) (sys.Call, error) {
 	abs := filepath.Join(root, filepath.FromSlash(dir))
 	if os.Getenv("SKELET_FORCE_DOCKER") == "" && node.Tree(abs) == "pnpm" {
 		if path, err := exec.LookPath("pnpm"); err == nil {
-			return sys.Call{Dir: abs, Path: path, Argv: append([]string{"pnpm"}, args...), Env: sys.Env()}.Run()
+			return sys.Call{Dir: abs, Path: path, Argv: append([]string{"pnpm"}, args...), Env: sys.Env()}, nil
 		}
 	}
 	list := storefronts.List(root)
 	if len(list) == 0 {
-		fmt.Fprintf(os.Stderr, "no storefront to run %s's pnpm in\n", dir)
-		return errUnusable
+		fmt.Fprintf(os.Stderr, "no storefront checked out to run %s's pnpm in - its container is where the workspace is installed\n", dir)
+		return sys.Call{}, errUnusable
 	}
 	flags := append(compose.UserFlags(), "-w", storefronts.Mount+"/"+dir)
-	return container.In(root, compose.Target{Service: list[0].Name, TTY: true, Flags: flags}, append([]string{"pnpm"}, args...)...).Run()
+	return container.In(root, compose.Target{Service: list[0].Name, TTY: true, Flags: flags}, append([]string{"pnpm"}, args...)...), nil
 }
 
 // Call is pnpm for app with args, or why it can't run - said on stderr

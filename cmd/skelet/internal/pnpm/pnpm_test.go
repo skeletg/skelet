@@ -11,7 +11,7 @@ import (
 
 func TestMain(m *testing.M) {
 	verbtest.Main(m, map[string]func(string, []string) int{
-		"dashboard": Dashboard, "channel": Channel,
+		"dashboard": Dashboard, "channel": Channel, "package": Package,
 		"rundir": func(root string, args []string) int {
 			if RunDir(root, args[0], args[1:]...) != nil {
 				return 1
@@ -155,5 +155,24 @@ func TestRunDir(t *testing.T) {
 	if _, code := host.Run("rundir", root, "packages/storefront-next", "run", "test"); code != 0 ||
 		strings.Join(host.Calls(), "\n") != "pnpm run test|"+filepath.Join(root, "packages/storefront-next") {
 		t.Errorf("on the host: exit %d, calls %q", code, host.Calls())
+	}
+}
+
+// skelet pnpm <package> is the same, by the package's directory name
+func TestPackage(t *testing.T) {
+	t.Setenv("SKELET_FORCE_DOCKER", "")
+	root := t.TempDir()
+	app(t, root, "templates/vetrina", "none")
+	app(t, root, "packages/storefront-core", "none")
+	d := verbtest.NewDocker(t, "")
+	if _, code := d.Run("package", root, "storefront-core", "test"); code != 0 ||
+		cmds(d)[len(cmds(d))-1] != "compose run --rm "+user+" -w /var/www/skelet/packages/storefront-core vetrina pnpm test" {
+		t.Errorf("exit %d, calls %q", code, d.Calls())
+	}
+	// No storefront to run it in, and no host install: refused rather than guessed at
+	bare := t.TempDir()
+	app(t, bare, "packages/storefront-core", "none")
+	if _, code := verbtest.NewDocker(t, "").Run("package", bare, "storefront-core", "test"); code == 0 {
+		t.Error("ran with no storefront and no host install")
 	}
 }
