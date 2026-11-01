@@ -1,7 +1,7 @@
-package admin
+package agenttools
 
-// AI-chat tool definitions and handlers for browsing the product catalog. The
-// shared registry, dispatch and schema helpers live in aichat_tools.go.
+// Agent tool definitions and handlers for browsing the product catalog. The
+// shared registry, dispatch and schema helpers live in tools.go.
 
 import (
 	"context"
@@ -12,11 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 )
 
-// catalogSignalTools returns the catalog browsing tools (catalog.view).
-func catalogSignalTools() []signalTool {
-	return []signalTool{
+// catalogTools returns the catalog browsing tools (catalog.view).
+func catalogTools() []tool {
+	return []tool{
 		// ---- Catalog (catalog.view) - browse the product catalog ----
 		{
 			def: ai.Tool{
@@ -27,9 +28,9 @@ func catalogSignalTools() []signalTool {
 					"limit": limitProp("Max products to return (1-50). Default 20.", 50),
 				}),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolSearchProducts(ctx, r, a)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolSearchProducts(ctx, deps, a)
 			},
 		},
 		{
@@ -40,9 +41,9 @@ func catalogSignalTools() []signalTool {
 					"parent_id": map[string]any{"type": "string", "description": "Parent category UUID (omit for root categories)."},
 				}),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListCategories(ctx, r, a)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListCategories(ctx, deps, a)
 			},
 		},
 		{
@@ -53,9 +54,9 @@ func catalogSignalTools() []signalTool {
 					"category": map[string]any{"type": "string", "description": "Category UUID or slug."},
 				}, "category"),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolGetCategory(ctx, r, a)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolGetCategory(ctx, deps, a)
 			},
 		},
 		{
@@ -64,9 +65,9 @@ func catalogSignalTools() []signalTool {
 				Description: "List catalog collections (id, name, slug).",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListCollections(ctx, r)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListCollections(ctx, deps)
 			},
 		},
 		{
@@ -77,9 +78,9 @@ func catalogSignalTools() []signalTool {
 					"collection_id": map[string]any{"type": "string", "description": "Collection UUID."},
 				}, "collection_id"),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolGetCollection(ctx, r, a)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolGetCollection(ctx, deps, a)
 			},
 		},
 		{
@@ -88,9 +89,9 @@ func catalogSignalTools() []signalTool {
 				Description: "List the catalog's product types (id, name, slug) - the schemas products are built from.",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListProductTypes(ctx, r)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListProductTypes(ctx, deps)
 			},
 		},
 		{
@@ -99,9 +100,9 @@ func catalogSignalTools() []signalTool {
 				Description: "List the catalog's product attributes (slug, name, input type) - the fields products can carry.",
 				Schema:      objSchema(map[string]any{}),
 			},
-			perm: func(p digestPerms) bool { return p.catalog },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListAttributes(ctx, r)
+			perm: func(p Perms) bool { return p.Catalog },
+			run: func(ctx context.Context, deps *Deps, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListAttributes(ctx, deps)
 			},
 		},
 	}
@@ -130,50 +131,37 @@ func catCollectionName(c catalog.Collection) string {
 	return c.Slug
 }
 
-// toolSearchProducts lists/filters the catalog. ListProducts loads all products
-// (no DB-side filter), so we match + cap in memory - fine for an admin tool.
-func toolSearchProducts(ctx context.Context, r *Resolver, a toolArgs) string {
-	all, err := r.CatalogSvc.ListProducts(ctx, r.activeLocale(ctx), catalog.MaxUnpagedRows)
-	if err != nil {
-		return "Could not load products."
-	}
-	q := strings.ToLower(strings.TrimSpace(a.Query))
+func toolSearchProducts(ctx context.Context, deps *Deps, a toolArgs) string {
+	q := strings.TrimSpace(a.Query)
 	limit := clampLimit(a.Limit, 20, 50)
-	var b strings.Builder
-	n := 0
-	for _, p := range all {
-		name := catProductName(p)
-		if q != "" && !strings.Contains(strings.ToLower(name), q) && !strings.Contains(strings.ToLower(p.SKU), q) {
-			continue
-		}
-		if n == 0 {
-			if q != "" {
-				fmt.Fprintf(&b, "Products matching %q:\n", a.Query)
-			} else {
-				b.WriteString("Products:\n")
-			}
-		}
-		fmt.Fprintf(&b, "- %s (%s)", name, p.SKU)
-		if p.DefaultPrice > 0 {
-			fmt.Fprintf(&b, " - %s", fmtMoney(p.DefaultPrice, p.DefaultCurrencyCode))
-		}
-		fmt.Fprintf(&b, " [id %s]\n", p.ID)
-		n++
-		if n >= limit {
-			break
-		}
+	all, _, err := deps.Catalog.ListPageWithGraph(ctx, catalog.ProductPageFilter{Locale: deps.activeLocale(ctx), Search: q, SortKey: "createdAt", SortDesc: true, Limit: int32(limit)})
+	if err != nil {
+		return toolFailed(ctx, err, "Could not load products.")
 	}
-	if n == 0 {
+	if len(all) == 0 {
 		if q != "" {
 			return fmt.Sprintf("No products match %q.", a.Query)
 		}
 		return "No products in the catalog."
 	}
+	var b strings.Builder
+	if q != "" {
+		fmt.Fprintf(&b, "Products matching %q:\n", a.Query)
+	} else {
+		b.WriteString("Products:\n")
+	}
+	for _, p := range all {
+		fmt.Fprintf(&b, "- %s (%s)", catProductName(p), p.SKU)
+		if p.DefaultPrice > 0 {
+			fmt.Fprintf(&b, " - %s", money.FormatCode(p.DefaultPrice, p.DefaultCurrencyCode))
+		}
+		fmt.Fprintf(&b, " [id %s]\n", p.ID)
+	}
 	return b.String()
 }
 
-func toolListCategories(ctx context.Context, r *Resolver, a toolArgs) string {
-	locale := r.activeLocale(ctx)
+func toolListCategories(ctx context.Context, deps *Deps, a toolArgs) string {
+	locale := deps.activeLocale(ctx)
 	var cats []catalog.Category
 	var err error
 	if pid := strings.TrimSpace(a.ParentID); pid != "" {
@@ -181,12 +169,12 @@ func toolListCategories(ctx context.Context, r *Resolver, a toolArgs) string {
 		if perr != nil {
 			return "Provide a valid 'parent_id' (or omit for root categories)."
 		}
-		cats, err = r.CatalogSvc.ListCategoryChildren(ctx, id, locale)
+		cats, err = deps.Catalog.ListCategoryChildren(ctx, id, locale)
 	} else {
-		cats, err = r.CatalogSvc.ListRootCategories(ctx, locale)
+		cats, err = deps.Catalog.ListRootCategories(ctx, locale)
 	}
 	if err != nil {
-		return "Could not load categories."
+		return toolFailed(ctx, err, "Could not load categories.")
 	}
 	if len(cats) == 0 {
 		return "No categories found."
@@ -199,28 +187,28 @@ func toolListCategories(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolGetCategory(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolGetCategory(ctx context.Context, deps *Deps, a toolArgs) string {
 	key := strings.TrimSpace(a.Category)
 	if key == "" {
 		return "Provide a 'category' (id or slug)."
 	}
-	locale := r.activeLocale(ctx)
+	locale := deps.activeLocale(ctx)
 	var cat catalog.Category
 	var err error
 	if id, perr := uuid.Parse(key); perr == nil {
-		cat, err = r.CatalogSvc.GetCategory(ctx, id, locale)
+		cat, err = deps.Catalog.GetCategory(ctx, id, locale)
 	} else {
-		cat, err = r.CatalogSvc.GetCategoryBySlug(ctx, key)
+		cat, err = deps.Catalog.GetCategoryBySlug(ctx, key)
 	}
 	if err != nil {
-		return "Could not find that category."
+		return toolFailed(ctx, err, "Could not find that category.")
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Category: %s (slug %s, id %s)\n", catCategoryName(cat), cat.Slug, cat.ID)
-	if n, e := r.CatalogSvc.CountProductsInCategory(ctx, cat.ID); e == nil {
+	if n, e := deps.Catalog.CountProductsInCategory(ctx, cat.ID); e == nil {
 		fmt.Fprintf(&b, "%d products.\n", n)
 	}
-	if kids, e := r.CatalogSvc.ListCategoryChildren(ctx, cat.ID, locale); e == nil && len(kids) > 0 {
+	if kids, e := deps.Catalog.ListCategoryChildren(ctx, cat.ID, locale); e == nil && len(kids) > 0 {
 		parts := make([]string, 0, len(kids))
 		for _, k := range kids {
 			parts = append(parts, catCategoryName(k))
@@ -230,10 +218,10 @@ func toolGetCategory(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolListCollections(ctx context.Context, r *Resolver) string {
-	cols, err := r.CatalogSvc.ListCollections(ctx, r.activeLocale(ctx))
+func toolListCollections(ctx context.Context, deps *Deps) string {
+	cols, err := deps.Catalog.ListCollections(ctx, deps.activeLocale(ctx))
 	if err != nil {
-		return "Could not load collections."
+		return toolFailed(ctx, err, "Could not load collections.")
 	}
 	if len(cols) == 0 {
 		return "No collections defined."
@@ -246,19 +234,19 @@ func toolListCollections(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolGetCollection(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolGetCollection(ctx context.Context, deps *Deps, a toolArgs) string {
 	id, err := uuid.Parse(strings.TrimSpace(a.CollectionID))
 	if err != nil {
 		return "Provide a valid 'collection_id' (use list_collections)."
 	}
-	locale := r.activeLocale(ctx)
-	col, err := r.CatalogSvc.GetCollection(ctx, id, locale)
+	locale := deps.activeLocale(ctx)
+	col, err := deps.Catalog.GetCollection(ctx, id, locale)
 	if err != nil {
-		return "Could not find that collection."
+		return toolFailed(ctx, err, "Could not find that collection.")
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Collection: %s (slug %s, id %s)\n", catCollectionName(col), col.Slug, col.ID)
-	if prods, e := r.CatalogSvc.ListProductsByCollection(ctx, id, locale, catalog.MaxUnpagedRows); e == nil {
+	if prods, e := deps.Catalog.ListProductsByCollection(ctx, id, locale, catalog.MaxUnpagedRows); e == nil {
 		if len(prods) >= int(catalog.MaxUnpagedRows) {
 			fmt.Fprintf(&b, "%d+ products", len(prods))
 		} else {
@@ -279,10 +267,10 @@ func toolGetCollection(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolListProductTypes(ctx context.Context, r *Resolver) string {
-	types, err := r.CatalogSvc.ListProductTypes(ctx)
+func toolListProductTypes(ctx context.Context, deps *Deps) string {
+	types, err := deps.Catalog.ListProductTypes(ctx)
 	if err != nil {
-		return "Could not load product types."
+		return toolFailed(ctx, err, "Could not load product types.")
 	}
 	if len(types) == 0 {
 		return "No product types defined."
@@ -295,10 +283,10 @@ func toolListProductTypes(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolListAttributes(ctx context.Context, r *Resolver) string {
-	attrs, err := r.CatalogSvc.ListAttributes(ctx)
+func toolListAttributes(ctx context.Context, deps *Deps) string {
+	attrs, err := deps.Catalog.ListAttributes(ctx)
 	if err != nil {
-		return "Could not load attributes."
+		return toolFailed(ctx, err, "Could not load attributes.")
 	}
 	if len(attrs) == 0 {
 		return "No attributes defined."

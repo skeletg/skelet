@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
@@ -78,7 +79,7 @@ func (r *queryResolver) CustomerProfile(ctx context.Context, customerID string, 
 	}
 	res, err := r.SignalsAPI.Synapse.GetCustomerProfile(authed, &signalsv1.GetCustomerProfileRequest{
 		CustomerId: customerID, SinceDays: synapseWindow(sinceDays, 90, 365),
-		Attributes: r.affinityAttributes(ctx),
+		Attributes: signalsclient.AffinityAttributes(ctx, r.Queries),
 	})
 	if err != nil {
 		return nil, signalsErr(err)
@@ -127,7 +128,7 @@ func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.S
 		aff = append(aff, &model.SegmentAffinityCount{Attr: a.GetAttr(), Value: a.GetValue(), Members: a.GetMembers()})
 	}
 	return &model.SynapseSegmentDetail{
-		Segment: synapseSegmentModel(d.GetSegment()), Currency: r.segmentCurrency(ctx, d.GetSegment().GetChannelId()),
+		Segment: synapseSegmentModel(d.GetSegment()), Currency: signalsclient.ChannelCurrency(ctx, r.ChannelSvc, d.GetSegment().GetChannelId()),
 		RevenueCents: int(d.GetRevenueCents()), Orders: d.GetOrders(), AovCents: int(d.GetAovCents()),
 		Members: members, MembersTruncated: d.GetMembersTruncated(),
 		Growth: growth, LifecycleMix: mix, RfmDistribution: rfm, TopAffinities: aff,
@@ -181,7 +182,7 @@ func (r *queryResolver) SynapseTrackedAttributes(ctx context.Context, channelID 
 	if err != nil {
 		return nil, err
 	}
-	res, err := r.SignalsAPI.Synapse.ListTrackedAttributes(authed, &signalsv1.ListTrackedAttributesRequest{ChannelId: channelID, Attributes: r.affinityAttributes(ctx)})
+	res, err := r.SignalsAPI.Synapse.ListTrackedAttributes(authed, &signalsv1.ListTrackedAttributesRequest{ChannelId: channelID, Attributes: signalsclient.AffinityAttributes(ctx, r.Queries)})
 	if err != nil {
 		return nil, signalsErr(err)
 	}
@@ -408,7 +409,7 @@ func (r *queryResolver) VisitorProfile(ctx context.Context, channelID string, an
 	}
 	res, err := r.SignalsAPI.Synapse.GetVisitorProfile(authed, &signalsv1.GetVisitorProfileRequest{
 		ChannelId: channelID, AnonId: anonID, SinceDays: synapseWindow(sinceDays, 90, 365),
-		Attributes: r.affinityAttributes(ctx),
+		Attributes: signalsclient.AffinityAttributes(ctx, r.Queries),
 	})
 	if err != nil {
 		return nil, signalsErr(err)

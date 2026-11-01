@@ -21,6 +21,7 @@ import (
 
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
+	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
@@ -79,7 +80,7 @@ func newLoginThrottle(client *redis.Client) *authpkg.LoginThrottle { // nil disa
 	return authpkg.NewLoginThrottle(client, EnvInt("LOGIN_LOCKOUT_THRESHOLD", 10), 15*time.Minute, 15*time.Minute)
 }
 
-func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, healthReg *health.Registry) GQL {
+func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, healthReg *health.Registry, tools *agenttools.Service) GQL {
 	dsarBuilder := dsar.New(s.Customer, s.Order, s.Consent, s.Channel, s.StoreCredit, s.Wishlist, infra.Queries)
 	adminResolver := &graphadmin.Resolver{
 		DevMode:           infra.Config.IsDev(),
@@ -129,6 +130,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		GiftcardSvc:       s.Giftcard,
 		SubscriptionSvc:   s.Subscription,
 		SalesSvc:          s.Sales,
+		AgentTools:        tools,
 		NotificationSvc:   s.Notification,
 		NotificationHub:   s.NotifHub,
 		FormSvc:           s.Form,

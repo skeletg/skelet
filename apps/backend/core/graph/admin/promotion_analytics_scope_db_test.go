@@ -1,13 +1,16 @@
 package admin
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	adminpkg "github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
@@ -77,5 +80,21 @@ func TestPromotionAnalyticsCountOnlyTheAdminsChannels(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("the daily series counted %d redemptions, want only the admin's channel's", n)
+	}
+
+	everywhere := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
+	rows, err = q.PromotionAnalytics(everywhere, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := map[string]int32{}
+	for _, r := range rows {
+		counts[r.RuleID] = r.RedemptionCount
+	}
+	if counts[global.String()] != 2 || counts[theirs.String()] != 1 {
+		t.Errorf("an every-channel grant should count both channels, got global=%d theirs=%d", counts[global.String()], counts[theirs.String()])
+	}
+	if none, err := q.PromotionSvc.AnalyticsTotals(everywhere, time.Now().AddDate(0, 0, -1), time.Now().Add(time.Hour), promotion.AnalyticsScope{}); err != nil || none.RedemptionCount != 0 {
+		t.Errorf("a scope naming no channels should read nothing, got %+v, %v", none, err)
 	}
 }

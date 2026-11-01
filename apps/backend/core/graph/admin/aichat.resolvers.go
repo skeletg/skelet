@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -20,7 +21,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 	if !r.AISvc.Available(ctx) {
 		return nil, ai.ErrNotConfigured
 	}
-	// hard auth gate - digestPermsFor treats a missing admin as full bypass and the rate limiter skips anonymous callers, so without this an unauthenticated caller could drive the AI tool loop over store data
+	// hard auth gate - the tool permissions treat a missing admin as full bypass and the rate limiter skips anonymous callers, so without this an unauthenticated caller could drive the AI tool loop over store data
 	if _, err := auth.RequireAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -36,27 +37,24 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 		return nil, errInvalidID("channel id", nil)
 	}
 
-	perms := digestPermsFor(ctx, r.Resolver, cid) // only the Signals sections this admin may view for this channel
-	if !perms.any() {
+	days := 0
+	if sinceDays != nil {
+		days = int(*sinceDays)
+	}
+	toolset := r.AgentTools.ToolSet(ctx, cid, days)
+	if !toolset.Perms().Any() {
 		return nil, fmt.Errorf("you don't have access to any Signals data")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second) // bound the whole exchange - the agentic loop can run many provider round-trips
 	defer cancel()
 
-	days := 30
-	if sinceDays != nil && *sinceDays > 0 {
-		days = int(*sinceDays)
-	}
-	since := time.Now().AddDate(0, 0, -days)
-
 	useTools := r.AISvc.SupportsTools(ctx)
-	digestCap := digestMaxChars // with tools on the model fetches detail on demand, so a compact digest keeps per-round tokens down - snapshot-only needs the full one
+	digestCap := agenttools.SnapshotMaxChars // with tools on the model fetches detail on demand, so a compact digest keeps per-round tokens down - snapshot-only needs the full one
 	if useTools {
-		digestCap = 2500
+		digestCap = compactSnapshotChars
 	}
-	digest := buildSignalsDigest(ctx, r.Resolver, cid, since, days, perms, digestCap)
-	system := signalsSystemPrompt(days, digest, useTools, pageContextLine(page))
+	system := signalsSystemPrompt(toolset.Days(), toolset.Snapshot(ctx, digestCap), useTools, pageContextLine(page))
 
 	msgs := make([]ai.ChatMessage, 0, len(messages))
 	for _, m := range messages {
@@ -78,7 +76,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 	}
 
 	// agentic loop: execute each tool call (re-gated + channel pinned) and feed results back until a final text answer - bounded by maxRounds, the last round demands a direct answer
-	tools := permittedTools(perms, r.AISvc.AllowCustomerData(ctx))
+	tools := toolset.Tools()
 	const maxRounds = 6
 	for round := 0; round <= maxRounds; round++ {
 		last := round == maxRounds
@@ -98,11 +96,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 			return &model.SignalsChatReply{Reply: reply}, nil
 		}
 		msgs = append(msgs, turn.AsMessage())
-		results := make([]ai.ToolResult, 0, len(turn.ToolCalls))
-		for _, call := range turn.ToolCalls {
-			results = append(results, runSignalTool(ctx, r.Resolver, perms, cid, days, call))
-		}
-		msgs = append(msgs, ai.ChatMessage{Role: "tool", ToolResults: results})
+		msgs = append(msgs, ai.ChatMessage{Role: "tool", ToolResults: toolset.CallAll(ctx, turn.ToolCalls)})
 	}
 	return &model.SignalsChatReply{Reply: ""}, nil // unreachable: last round always returns
 }

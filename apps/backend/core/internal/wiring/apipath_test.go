@@ -87,3 +87,15 @@ func TestAcceptedSlugsCoverWhatOperatorsWillReachFor(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPPathFollowsTheAdminSlug(t *testing.T) {
+	for slug, want := range map[string]string{"": "/api/admin/mcp", "s3cr3t-panel": "/api/admin/s3cr3t-panel/mcp"} {
+		admin, _, err := APIPaths(env(map[string]string{AdminSlugEnv: slug}))
+		if err != nil {
+			t.Fatalf("APIPaths: %v", err)
+		}
+		if got := mcpPath(admin); got != want {
+			t.Errorf("slug %q: mcp path = %q, want %q", slug, got, want)
+		}
+	}
+}

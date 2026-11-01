@@ -36,4 +36,5 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |
+| [mcp.md](mcp.md) | Letting an AI agent read the store over MCP: connecting one, the channel it reads, which tools it gets |
 | [backups.md](backups.md) | What needs backing up, and the tools to do it with |

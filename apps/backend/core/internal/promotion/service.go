@@ -562,16 +562,16 @@ func (s *Service) ResolvePublicLabel(ctx context.Context, ruleID uuid.UUID, loca
 
 // ---- Analytics ----
 
-func (s *Service) AnalyticsByRule(ctx context.Context, start, end time.Time) ([]RuleAnalytics, error) {
-	return s.repo.AnalyticsByRule(ctx, start, end)
+func (s *Service) AnalyticsByRule(ctx context.Context, start, end time.Time, scope AnalyticsScope) ([]RuleAnalytics, error) {
+	return s.repo.AnalyticsByRule(ctx, start, end, scope)
 }
 
-func (s *Service) AnalyticsTotals(ctx context.Context, start, end time.Time) (AnalyticsTotals, error) {
-	return s.repo.AnalyticsTotals(ctx, start, end)
+func (s *Service) AnalyticsTotals(ctx context.Context, start, end time.Time, scope AnalyticsScope) (AnalyticsTotals, error) {
+	return s.repo.AnalyticsTotals(ctx, start, end, scope)
 }
 
-func (s *Service) AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID) ([]AnalyticsDailyPoint, error) {
-	return s.repo.AnalyticsDaily(ctx, start, end, ruleID)
+func (s *Service) AnalyticsDaily(ctx context.Context, start, end time.Time, ruleID *uuid.UUID, scope AnalyticsScope) ([]AnalyticsDailyPoint, error) {
+	return s.repo.AnalyticsDaily(ctx, start, end, ruleID, scope)
 }
 
 // ---- Simulate ----

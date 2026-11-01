@@ -1,4 +1,4 @@
-package admin
+package agenttools
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -26,8 +27,19 @@ func dialableSignals(t *testing.T) *signalsclient.Client {
 	return c
 }
 
+func permittedTools(p Perms, allowCustomerData bool) []ai.Tool {
+	return ToolSet{tools: offeredTools(p, allowCustomerData)}.Tools()
+}
+
+func callTool(ctx context.Context, deps *Deps, p Perms, cid uuid.UUID, days int, call ai.ToolCall) ai.ToolResult {
+	s := ToolSet{deps: deps, ch: &channel.Channel{ID: cid}, days: days, perms: p, allowCustomerData: true, tools: offeredTools(p, true)}
+	res := s.Call(ctx, call.Name, call.Input)
+	res.ID = call.ID
+	return res
+}
+
 func TestPermittedTools(t *testing.T) {
-	got := permittedTools(digestPerms{sales: true, lens: true}, true)
+	got := permittedTools(Perms{Sales: true, Lens: true}, true)
 	names := map[string]bool{}
 	for _, tl := range got {
 		names[tl.Name] = true
@@ -42,7 +54,7 @@ func TestPermittedTools(t *testing.T) {
 		}
 	}
 	for _, forbidden := range []string{
-		"get_email_engagement", "get_customer_behaviour", "get_funnel", "get_retention",
+		"get_customer_behaviour", "get_funnel", "get_retention",
 		"list_segments", "get_segment_detail", "get_experiments", "get_experiment_results",
 		"get_stickiness", "get_user_flow", "list_affinity_attributes", "get_affinity_breakdown",
 		"list_active_customers", "get_customer_profile", "get_visitor_profile",
@@ -62,11 +74,11 @@ func TestPermittedTools(t *testing.T) {
 	}
 
 	ent := map[string]bool{} // page-aware, catalog and domain tools each answer to their own perm
-	for _, tl := range permittedTools(digestPerms{
-		catalog: true, orders: true, synapse: true, customers: true,
-		inventory: true, promotions: true, reviews: true,
-		campaigns: true, flows: true, subscriptions: true, giftcards: true, channels: true,
-		urlrewrite: true, currencies: true, locales: true, settings: true, cms: true,
+	for _, tl := range permittedTools(Perms{
+		Catalog: true, Orders: true, Synapse: true, Customers: true,
+		Inventory: true, Promotions: true, Reviews: true,
+		Campaigns: true, Flows: true, Subscriptions: true, Giftcards: true, Channels: true,
+		URLRewrite: true, Currencies: true, Locales: true, Settings: true, CMS: true,
 	}, true) {
 		ent[tl.Name] = true
 	}
@@ -87,7 +99,7 @@ func TestPermittedTools(t *testing.T) {
 	}
 
 	pii := map[string]bool{}
-	for _, tl := range permittedTools(digestPerms{synapse: true, customers: true}, false) {
+	for _, tl := range permittedTools(Perms{Synapse: true, Customers: true}, false) {
 		pii[tl.Name] = true
 	}
 	for _, blocked := range []string{"get_customer_profile", "get_visitor_profile", "list_active_customers", "get_customer"} {
@@ -100,34 +112,34 @@ func TestPermittedTools(t *testing.T) {
 	}
 }
 
-func TestRunSignalToolGating(t *testing.T) {
-	r := &Resolver{}
+func TestToolGating(t *testing.T) {
+	deps := &Deps{}
 	cid := uuid.New()
 	ctx := context.Background()
 
-	res := runSignalTool(ctx, r, digestPerms{sales: true}, cid, 30, ai.ToolCall{ID: "1", Name: "nope"})
+	res := callTool(ctx, deps, Perms{Sales: true}, cid, 30, ai.ToolCall{ID: "1", Name: "nope"})
 	if !res.IsError || res.ID != "1" {
 		t.Fatalf("unknown tool should be an error result, got %+v", res)
 	}
 
-	// A nil Resolver is the point - the permission check has to return before anything touches a read-model
-	res = runSignalTool(ctx, r, digestPerms{}, cid, 30, ai.ToolCall{ID: "2", Name: "get_email_engagement"})
+	// An empty Deps is the point - the permission check has to return before anything touches a read-model
+	res = callTool(ctx, deps, Perms{}, cid, 30, ai.ToolCall{ID: "2", Name: "get_web_traffic"})
 	if !res.IsError || res.ID != "2" {
 		t.Fatalf("disallowed tool should be an error result, got %+v", res)
 	}
 
 	// Drill-down tools validate their id before any service call, so a bad one comes back as guidance the model can act on
-	res = runSignalTool(ctx, r, digestPerms{synapse: true}, cid, 30,
+	res = callTool(ctx, deps, Perms{Synapse: true}, cid, 30,
 		ai.ToolCall{ID: "3", Name: "get_segment_detail", Input: []byte(`{"segment_id":"not-a-uuid"}`)})
 	if res.IsError || !strings.Contains(res.Content, "segment_id") {
 		t.Fatalf("bad segment_id should return guidance, got %+v", res)
 	}
-	res = runSignalTool(ctx, r, digestPerms{prism: true}, cid, 30,
+	res = callTool(ctx, deps, Perms{Prism: true}, cid, 30,
 		ai.ToolCall{ID: "4", Name: "get_experiment_results", Input: []byte(`{}`)})
 	if res.IsError || !strings.Contains(res.Content, "experiment_id") {
 		t.Fatalf("missing experiment_id should return guidance, got %+v", res)
 	}
-	res = runSignalTool(ctx, r, digestPerms{synapse: true}, cid, 30,
+	res = callTool(ctx, deps, Perms{Synapse: true}, cid, 30,
 		ai.ToolCall{ID: "5", Name: "get_funnel", Input: []byte(`{"steps":["only_one"]}`)})
 	if res.IsError || !strings.Contains(res.Content, "steps") {
 		t.Fatalf("funnel with <2 steps should return guidance, got %+v", res)
@@ -135,24 +147,24 @@ func TestRunSignalToolGating(t *testing.T) {
 
 	for _, tc := range []struct {
 		name, tool, input, want string
-		perm                    digestPerms
+		perm                    Perms
 	}{
-		{"6", "get_page_stats", `{}`, "page_key", digestPerms{lens: true}},
-		{"7", "get_affinity_breakdown", `{}`, "attribute", digestPerms{synapse: true}},
-		{"8", "get_user_flow", `{}`, "focus_event", digestPerms{synapse: true}},
-		{"9", "get_stickiness", `{}`, "event", digestPerms{synapse: true}},
-		{"10", "get_customer_profile", `{"customer_id":"nope"}`, "customer_id", digestPerms{synapse: true}},
-		{"11", "get_product", `{}`, "product_id", digestPerms{catalog: true}},
-		{"12", "get_order", `{"order_id":"nope"}`, "order_id", digestPerms{orders: true}},
-		{"13", "get_customer", `{}`, "customer_id", digestPerms{customers: true}},
-		{"14", "get_category", `{}`, "category", digestPerms{catalog: true}},
-		{"15", "get_collection", `{"collection_id":"nope"}`, "collection_id", digestPerms{catalog: true}},
-		{"16", "get_stock", `{}`, "product_id", digestPerms{inventory: true}},
-		{"17", "get_product_reviews", `{"product_id":"nope"}`, "product_id", digestPerms{reviews: true}},
-		{"18", "check_giftcard", `{}`, "code", digestPerms{giftcards: true}},
-		{"19", "get_flow_runs", `{}`, "flow_id", digestPerms{flows: true}},
+		{"6", "get_page_stats", `{}`, "page_key", Perms{Lens: true}},
+		{"7", "get_affinity_breakdown", `{}`, "attribute", Perms{Synapse: true}},
+		{"8", "get_user_flow", `{}`, "focus_event", Perms{Synapse: true}},
+		{"9", "get_stickiness", `{}`, "event", Perms{Synapse: true}},
+		{"10", "get_customer_profile", `{"customer_id":"nope"}`, "customer_id", Perms{Synapse: true}},
+		{"11", "get_product", `{}`, "product_id", Perms{Catalog: true}},
+		{"12", "get_order", `{"order_id":"nope"}`, "order_id", Perms{Orders: true}},
+		{"13", "get_customer", `{}`, "customer_id", Perms{Customers: true}},
+		{"14", "get_category", `{}`, "category", Perms{Catalog: true}},
+		{"15", "get_collection", `{"collection_id":"nope"}`, "collection_id", Perms{Catalog: true}},
+		{"16", "get_stock", `{}`, "product_id", Perms{Inventory: true}},
+		{"17", "get_product_reviews", `{"product_id":"nope"}`, "product_id", Perms{Reviews: true}},
+		{"18", "check_giftcard", `{}`, "code", Perms{Giftcards: true}},
+		{"19", "get_flow_runs", `{}`, "flow_id", Perms{Flows: true}},
 	} {
-		res = runSignalTool(ctx, r, tc.perm, cid, 30, ai.ToolCall{ID: tc.name, Name: tc.tool, Input: []byte(tc.input)})
+		res = callTool(ctx, deps, tc.perm, cid, 30, ai.ToolCall{ID: tc.name, Name: tc.tool, Input: []byte(tc.input)})
 		if res.IsError || !strings.Contains(res.Content, tc.want) {
 			t.Fatalf("%s with bad arg should return guidance mentioning %q, got %+v", tc.tool, tc.want, res)
 		}
@@ -160,31 +172,31 @@ func TestRunSignalToolGating(t *testing.T) {
 }
 
 // SIGNALS_ENABLED=false has to take the suite out of the chat entirely - the model is never offered a tool whose data does not exist, rather than calling one and reading an empty answer as a real one
-// A superuser bypasses the grant lookup before the admin service is touched, so a bare Resolver is enough here
+// A superuser bypasses the grant lookup before the admin service is touched, so a bare Deps is enough here
 func TestSignalsSectionsFollowTheSwitch(t *testing.T) {
 	ctx := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
 	cid := uuid.New()
 
-	on := digestPermsFor(ctx, &Resolver{SignalsEnabled: true, SignalsAPI: dialableSignals(t)}, cid)
-	if !on.lens || !on.synapse || !on.pulse || !on.prism {
+	on := New(Deps{SignalsEnabled: true, Signals: dialableSignals(t)}).Perms(ctx, cid)
+	if !on.Lens || !on.Synapse || !on.Pulse || !on.Prism {
 		t.Fatalf("a superuser should see every suite section with the switch on, got %+v", on)
 	}
 
 	// The switch is not the only way the suite goes away - with no service to dial there is nothing to offer either
-	unaddressed := digestPermsFor(ctx, &Resolver{SignalsEnabled: true}, cid)
-	if unaddressed.lens || unaddressed.synapse || unaddressed.pulse || unaddressed.prism {
+	unaddressed := New(Deps{SignalsEnabled: true}).Perms(ctx, cid)
+	if unaddressed.Lens || unaddressed.Synapse || unaddressed.Pulse || unaddressed.Prism {
 		t.Errorf("suite sections should be off with no Signals address configured, got %+v", unaddressed)
 	}
 
-	off := digestPermsFor(ctx, &Resolver{SignalsEnabled: false}, cid)
-	if off.lens || off.synapse || off.pulse || off.prism {
+	off := New(Deps{SignalsEnabled: false}).Perms(ctx, cid)
+	if off.Lens || off.Synapse || off.Pulse || off.Prism {
 		t.Errorf("suite sections should be off with SIGNALS_ENABLED=false, got %+v", off)
 	}
 	// The commerce halves are not the suite's to take away
-	if !off.sales || !off.customers || !off.orders || !off.catalog {
+	if !off.Sales || !off.Customers || !off.Orders || !off.Catalog {
 		t.Errorf("commerce sections should survive the switch, got %+v", off)
 	}
-	if !off.any() {
+	if !off.Any() {
 		t.Error("the chat should stay reachable with the suite off - the record tools are still there")
 	}
 }
@@ -192,7 +204,7 @@ func TestSignalsSectionsFollowTheSwitch(t *testing.T) {
 // The tool menu is built from those flags, so nothing Signals-backed may reach the model with the suite off
 func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 	ctx := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
-	off := digestPermsFor(ctx, &Resolver{SignalsEnabled: false}, uuid.New())
+	off := New(Deps{SignalsEnabled: false}).Perms(ctx, uuid.New())
 
 	offered := map[string]bool{}
 	for _, tl := range permittedTools(off, true) {
@@ -208,6 +220,8 @@ func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 		"get_traffic_trend", "get_page_performance", "get_page_stats",
 		// Prism
 		"get_experiments", "get_experiment_results",
+		// Pulse
+		"list_campaigns", "list_flows", "get_flow_runs",
 	} {
 		if offered[gone] {
 			t.Errorf("%q is offered with SIGNALS_ENABLED=false, but its data lives in the suite", gone)
@@ -219,7 +233,7 @@ func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
 	}
 
 	// Called anyway, it is refused rather than run
-	res := runSignalTool(ctx, &Resolver{}, off, uuid.New(), 30, ai.ToolCall{ID: "x", Name: "get_customer_behaviour"})
+	res := callTool(ctx, &Deps{}, off, uuid.New(), 30, ai.ToolCall{ID: "x", Name: "get_customer_behaviour"})
 	if !res.IsError {
 		t.Errorf("a suite tool called with the switch off should be refused, got %+v", res)
 	}
