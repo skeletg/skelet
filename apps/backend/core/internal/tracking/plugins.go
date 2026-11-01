@@ -11,6 +11,29 @@ import (
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
+func CatalogKind(kind string) string { return "catalog_" + kind }
+
+// Accounts, secrets and delivery history use the same repository as event destinations.
+// A nil sender is sufficient for the CLI, which only configures and queues deliveries.
+func RegisterCatalogKinds(regs []sdk.RegisteredProductFeed, enabled func(context.Context, string, uuid.UUID) bool, sender func(context.Context, Destination, sdk.ProductFeed) error) {
+	for _, reg := range regs {
+		feed, slug := reg.Feed, reg.PluginSlug
+		k := Kind{Kind: CatalogKind(feed.Kind), Label: feed.Label, Plugin: slug, Fields: feed.Fields, Catalog: true,
+			Available: func(ctx context.Context, ch uuid.UUID) bool { return enabled(ctx, slug, ch) },
+		}
+		if sender != nil {
+			k.SendCatalog = func(ctx context.Context, d Destination) error {
+				err := sender(ctx, d, feed)
+				if sdk.IsPermanent(err) {
+					return Permanent(err)
+				}
+				return err
+			}
+		}
+		RegisterKind(k)
+	}
+}
+
 // RegisterPluginKinds turns every destination a compiled-in plugin registered into a kind, offered on a channel only
 // where that plugin is enabled. Called once at boot
 func RegisterPluginKinds(regs []sdk.RegisteredDestination, enabled func(ctx context.Context, slug string, channelID uuid.UUID) bool) {

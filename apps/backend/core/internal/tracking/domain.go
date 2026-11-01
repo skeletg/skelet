@@ -171,10 +171,12 @@ type Destination struct {
 
 // Kind is the code that speaks to one platform
 type Kind struct {
-	Kind   string
-	Label  string
-	Plugin string                 // the plugin that registered it, empty for core's own
-	Fields []sdk.DestinationField // the admin form for a configured destination
+	Kind        string
+	Label       string
+	Plugin      string                 // the plugin that registered it, empty for core's own
+	Fields      []sdk.DestinationField // the admin form for a configured destination
+	Catalog     bool
+	SendCatalog func(context.Context, Destination) error
 	// Whether a channel may use it at all - a plugin switched off there sends nothing. Nil: everywhere
 	Available     func(ctx context.Context, channelID uuid.UUID) bool
 	Purposes      []Purpose // what every event it receives needs - the row can't change it
@@ -207,7 +209,7 @@ var (
 func RegisterKind(k Kind) {
 	kindsMu.Lock()
 	defer kindsMu.Unlock()
-	if k.Kind == "" || k.Send == nil {
+	if k.Kind == "" || (!k.Catalog && k.Send == nil) {
 		panic("tracking: a kind needs a name and a Send")
 	}
 	if _, dup := kinds[k.Kind]; dup {

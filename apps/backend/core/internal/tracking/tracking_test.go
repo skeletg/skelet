@@ -79,12 +79,21 @@ func (f *fakeStore) Enqueue(_ context.Context, dest uuid.UUID, ev Event) error {
 	f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
 	return nil
 }
-func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32) ([]Delivery, error) {
+func (f *fakeStore) EnqueueCatalog(ctx context.Context, id uuid.UUID) error {
+	for _, d := range f.byDestination(id) {
+		if d.EventName == CatalogSnapshot && d.Status == "pending" {
+			return nil
+		}
+	}
+	return f.Enqueue(ctx, id, Event{ID: uuid.NewString(), Name: CatalogSnapshot})
+}
+
+func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32, catalog bool) ([]Delivery, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []Delivery
 	for _, d := range f.deliveries {
-		if d.Status == "pending" && !d.NextAttemptAt.After(time.Now()) && len(out) < int(batch) {
+		if d.Status == "pending" && (d.EventName == CatalogSnapshot) == catalog && !d.NextAttemptAt.After(time.Now()) && len(out) < int(batch) {
 			d.Attempts++
 			d.NextAttemptAt = time.Now().Add(time.Hour) // the lease
 			out = append(out, *d)
