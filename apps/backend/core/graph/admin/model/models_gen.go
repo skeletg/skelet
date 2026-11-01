@@ -4992,6 +4992,7 @@ type SynapseInsights struct {
 	Uniques     int32            `json:"uniques"`
 	PrevTotal   int32            `json:"prevTotal"`
 	PrevUniques int32            `json:"prevUniques"`
+	Aggregate   int32            `json:"aggregate"`
 }
 
 type SynapseOverview struct {
