@@ -3,6 +3,9 @@
     "example": {
       "enabled": false
     },
+    "tracking-bing": {
+      "enabled": true
+    },
     "tracking-ga4": {
       "enabled": true
     },

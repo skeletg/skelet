@@ -5,6 +5,7 @@
 package firstparty
 
 import (
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-bing"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-ga4"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-meta"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-webhook"
