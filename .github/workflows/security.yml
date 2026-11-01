@@ -33,7 +33,7 @@ jobs:
       - name: Scan
         env:
           SCOPE: ${{ github.event_name == 'pull_request' && 'HEAD' || '--all' }}
-        run: ./gitleaks git --no-banner --redact --exit-code 1 --log-opts="--full-history $SCOPE" .
+        run: ./gitleaks git --no-banner --redact --verbose --exit-code 1 --log-opts="--full-history $SCOPE" .
 
   govulncheck:
     name: Go vulnerabilities
