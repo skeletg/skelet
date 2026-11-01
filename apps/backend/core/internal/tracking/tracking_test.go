@@ -16,6 +16,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // fakeStore is an in-memory store: destinations by id, and the deliveries the service queued
@@ -260,6 +261,22 @@ func TestADestinationNeedsAKnownKindAndAName(t *testing.T) {
 	if _, err := svc.Create(context.Background(), Destination{Kind: "t-known", Name: "  "}); !errors.Is(err, ErrNameMissing) {
 		t.Errorf("blank name: %v", err)
 	}
+	registerTestKind(t, Kind{Kind: "t-fields", Fields: []sdk.DestinationField{{Key: "id", Label: "ID", Required: true}, {Key: "token", Label: "Token", Required: true, Secret: true}}})
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Secret: "s"}); !errors.Is(err, ErrFieldMissing) {
+		t.Errorf("missing required field: %v", err)
+	}
+	if _, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Config: map[string]string{"id": "1"}}); !errors.Is(err, ErrFieldMissing) {
+		t.Errorf("missing required secret: %v", err)
+	}
+	d, err := svc.Create(ctx, Destination{Kind: "t-fields", Name: "x", Config: map[string]string{"id": "1"}, Secret: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Secret = ""
+	if _, err := svc.Update(ctx, d); err != nil {
+		t.Errorf("an update that keeps the stored secret: %v", err)
+	}
 }
 
 func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
@@ -348,5 +365,19 @@ func TestDecimalFollowsTheCurrency(t *testing.T) {
 		if got := Decimal(tc.minor, tc.currency); got != tc.want {
 			t.Errorf("Decimal(%d, %s) = %v, want %v", tc.minor, tc.currency, got, tc.want)
 		}
+	}
+}
+
+func TestASendTestGoesStraightToThePlatform(t *testing.T) {
+	var got Event
+	registerTestKind(t, Kind{Kind: "t-direct", Send: func(_ context.Context, _ *http.Client, d Destination, ev Event) error {
+		got = ev
+		return Permanent(errors.New("400 " + d.Name))
+	}})
+	id := uuid.New()
+	svc := &Service{store: newFakeStore(Destination{ID: id, ChannelID: uuid.New(), Kind: "t-direct", Name: "acct", Enabled: true})}
+	ev, err := svc.SendTest(context.Background(), http.DefaultClient, id)
+	if err == nil || !strings.Contains(err.Error(), "400 acct") || got.ID != ev.ID || got.Name != Purchase || !strings.HasPrefix(ev.ID, "test-") {
+		t.Errorf("err %v, sent %+v", err, got)
 	}
 }
