@@ -70,6 +70,7 @@ export default async function OrderDetailPage({
         <AnalyticsEvent
           enabled={consent.analytics}
           event="purchase"
+          eventId={order.id}
           stripParam="just_placed"
           payload={{
             ecommerce: {
