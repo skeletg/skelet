@@ -51,6 +51,10 @@ apps/dashboard/node_modules/
 apps/dashboard/dist/
 apps/dashboard/.vite/
 
+# The storefront packages' npm build and the tarballs packages/publish.mjs packs
+packages/*/dist/
+packages/.packs/
+
 # Ad-hoc database dumps (pg_dump output parked in the repo root). Never
 # commit these - they contain real customer data.
 *.dump

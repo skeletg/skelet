@@ -1,11 +1,23 @@
 {
   "name": "@skelet/storefront-next",
   "version": "0.0.0",
-  "private": true,
+  "description": "The Next.js adapter over @skelet/storefront-core - server reads and actions for an App Router storefront",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skeletg/skelet.git",
+    "directory": "packages/storefront-next"
+  },
+  "homepage": "https://github.com/skeletg/skelet/tree/main/packages/storefront-next#readme",
   "packageManager": "pnpm@12.6.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build": "node ../publish.mjs build",
+    "prepack": "node ../publish.mjs build",
     "test": "vitest run"
   },
   "dependencies": {
@@ -31,5 +43,15 @@
     "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      },
+      "./package.json": "./package.json"
+    }
   }
 }

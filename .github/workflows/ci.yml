@@ -172,6 +172,9 @@ jobs:
         run: pnpm -r --if-present run test
       - name: Build
         run: pnpm -r --if-present run build
+      # The packages as npm would serve them, installed and imported outside the workspace - what a release publishes
+      - name: Pack the npm packages
+        run: node packages/publish.mjs pack 0.0.0-ci "$RUNNER_TEMP/npm"
 
   dashboard:
     name: dashboard typecheck + tests

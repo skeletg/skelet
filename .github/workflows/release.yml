@@ -1,5 +1,6 @@
 # A pushed release tag publishes its GitHub release: the changelog as the notes, and the skelet CLI for macOS and
-# Linux beside install.sh, which is what the README's one-line install fetches from the latest release
+# Linux beside install.sh, which is what the README's one-line install fetches from the latest release. Then the
+# storefront packages go to npm at the same version
 name: Release
 
 on:
@@ -62,3 +63,50 @@ jobs:
           pre=()
           case "$TAG" in *-*) pre=(--prerelease) ;; esac
           gh release create "$TAG" dist/* --verify-tag --title "$TAG" "${notes[@]}" "${pre[@]}"
+
+  # The storefront packages at the tag's version, after the release they belong to. npm trusts this workflow by name
+  # (trusted publishing, set on each package at npmjs.com), so no token is stored anywhere
+  npm:
+    name: Publish the storefront packages to npm
+    if: github.repository == 'skeletg/skelet'
+    needs: cli
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: packages/storefront-core/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck + test
+        run: |
+          pnpm -r --filter './packages/*' --if-present run typecheck
+          pnpm -r --filter './packages/*' --if-present run test
+      - name: Pack + check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node packages/publish.mjs pack "${TAG#v}" npm-dist
+      # npm never takes a version twice, so a rerun skips what's already up; a prerelease stays off the latest tag
+      - name: Publish
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=${TAG#v}
+          channel=()
+          case "$version" in *-*) channel=(--tag next) ;; esac
+          for name in storefront-core storefront-react storefront-next storefront-astro; do
+            if npm view "@skelet/$name@$version" version >/dev/null 2>&1; then
+              echo "@skelet/$name@$version is already on npm"
+              continue
+            fi
+            npm publish "npm-dist/skelet-$name-$version.tgz" --access public "${channel[@]}"
+          done

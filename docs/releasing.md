@@ -39,6 +39,7 @@ mistake to avoid:
 | **Provider contract** | `contract.Version` | the remote-provider wire format |
 | **Plugins** | each plugin's `Manifest.Version` | that plugin |
 | **CLI** | stamped from the release tag when the release workflow builds it | the same number as the release - `skelet version` shows it |
+| **Storefront packages** | `@skelet/storefront-*` on npm, stamped from the release tag when the release workflow packs them | the same number as the release - they stay `0.0.0` in the repo |
 
 They all read `0.1.0` today because everything starts there. They will diverge on
 the first release that changes one and not the others, and that is correct - the
@@ -87,7 +88,9 @@ the PATCH. There is no compatibility promise until `1.0.0`.
    as the notes, with the binaries, `checksums.txt` and `install.sh` attached.
    The README's one-line install takes the newest release, so check the run goes
    green: until it does, new installs get the previous one. A release you made by
-   hand first just gets the files added.
+   hand first just gets the files added. After it, the same workflow publishes the
+   four storefront packages to npm at the tag's version - see
+   [the storefront packages on npm](#the-storefront-packages-on-npm).
 
    The Go modules take tags of their own, prefixed with their directory, because
    that's how Go finds a module that isn't at the repo root. Core's always matches
@@ -111,6 +114,54 @@ the PATCH. There is no compatibility promise until `1.0.0`.
 
 9. **Merge `main` back into `develop`** so the changelog and any release-time
    fixes are on both.
+
+## The storefront packages on npm
+
+`@skelet/storefront-core`, `-next`, `-astro` and `-react` publish to npm from
+`release.yml`, at the release's version, so a shop in a repo of its own can
+install what a Skelet checkout reads from `packages/`. They're MIT, each with its
+own `LICENSE`, unlike the GPL rest of the repo. Inside the workspace
+nothing changes: the templates import the TypeScript source, and only a packed
+tarball points at the compiled `dist/`.
+
+`packages/publish.mjs` does the work. `build` compiles a package with `tsc`, one
+JS and one `.d.ts` per source file so each `"use client"` and `"use server"`
+stays on its own module, and adds the `.js` extensions ESM needs. `pack
+<version>` stamps that version on all four, packs them, then checks each tarball
+the way a project would meet it: no `workspace:` or `catalog:` ranges left, every
+import resolvable, types beside every module, and core and react installed into
+an empty directory with npm and imported module by module. CI runs the same pack
+on every pull request into `main`, so a release finds out nothing new.
+
+To see what a release would publish:
+
+```
+skelet pnpm storefront-core exec node ../publish.mjs pack 0.4.0
+```
+
+The tarballs land in `packages/.packs/`.
+
+**Once, before the first release that publishes them**, because npm only lets a
+workflow publish a package that already exists:
+
+1. Pack them at the release's version, as above, and publish each by hand from
+   your machine, logged in as an owner of the `skelet` org:
+
+   ```
+   for name in storefront-core storefront-react storefront-next storefront-astro; do
+     npm publish packages/.packs/skelet-$name-0.4.0.tgz --access public --otp <code>
+   done
+   ```
+
+2. On npmjs.com, in each package's settings, add a trusted publisher: GitHub
+   Actions, organization `skeletg`, repository `skelet`, workflow `release.yml`
+   (the filename is case-sensitive).
+3. In the same settings, require two-factor authentication and disallow tokens,
+   so that workflow is the only way a version gets published.
+
+From then on a release tag publishes all four. A rerun skips versions already on
+npm, and a prerelease tag like `v0.5.0-rc.1` goes out under npm's `next` tag so
+`latest` keeps pointing at the last real release.
 
 ## What the first tag switches on
 

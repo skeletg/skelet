@@ -105,5 +105,7 @@ Run it, modify it, host it, build client sites on it, sell services around it - 
 that asks anything of you. Convey Skelet *itself* and whoever receives it gets the source
 under the same licence, so a fork can't go closed. **Plugins, remote providers, storefronts,
 dashboard extensions and themes are exempt** and stay yours under any licence you like.
+The storefront packages in [`packages/`](packages) are [MIT](packages/storefront-core/LICENSE)
+on their own, so a shop can install them from npm and keep any licence of its own.
 
 The Skelet name and logo are separate from the code licence and are not granted by it.
