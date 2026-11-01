@@ -77,6 +77,7 @@ func checkout(root string, out io.Writer, p probes) int {
 		}
 	}
 	hostFrontends(r, root, strings.Split(inDocker, ","))
+	sharedPackages(r, root)
 
 	shape(r, root, prof, files)
 	pluginSet(r, root)

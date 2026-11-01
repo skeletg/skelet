@@ -328,9 +328,19 @@ git merge v0.4.0
 ```
 
 Read that release's changelog first - while Skelet is `0.x`, a minor version can
-break things. Migrations run when the app boots, so `skelet up` afterwards is the
-whole upgrade. Your own remote, once you add one, is `origin`; `upstream` stays
-Skelet's.
+break things. Migrations run when the app boots, so `skelet up` afterwards brings the
+backend and the dashboard up to date. Your shops keep the `@skelet/storefront-*` they
+were pinned to until you bump them, so a release never changes one behind your back -
+`skelet doctor` lists each shop that's behind the backend, with the command that bumps
+it:
+
+```bash
+skelet pnpm <your-shop> add @skelet/storefront-core@0.4.0 @skelet/storefront-next@0.4.0 @skelet/storefront-react@0.4.0
+```
+
+Bump in the same sitting as the merge: the packages carry the shop's GraphQL
+operations, and a backend a minor version ahead may have changed what they ask for.
+Your own remote, once you add one, is `origin`; `upstream` stays Skelet's.
 
 Leave the core's dependency bumps to the releases. The `.github/renovate.json5` you
 inherit covers the whole tree, so Renovate turned on in a project would bump the backend,
@@ -344,19 +354,25 @@ does nothing outside Skelet's own repository, so tagging your project publishes 
 One directory per shop under `apps/channels/<name>/`; the directory name
 doubles as the compose service and profile name. A shop starts as a copy of a
 template under `templates/`, and the copy is yours to change. The templates and
-the `packages/` they build on stay upstream's - leave them as they are, and
-merging a skelet release brings their fixes without touching your shop.
+the `packages/` they build on stay upstream's - leave them as they are. A template
+links `packages/` directly, but your copy takes the same packages from npm, pinned
+to your checkout's release, so merging a skelet release brings the templates' fixes
+without touching your shop, and you take the packages' when you bump them.
 
 `skelet add channel <your-shop>` does steps 1 and 2 for you - it copies a
 template (`--template <name>`, by default `nextjs-vetrina`, the full one) or a
-shop of your own (`--from <name>`), points every path in it at its new home, gives
-it the first free ports, copies the compose service out of the source's (so it
+shop of your own (`--from <name>`), points every path in it at its new home, pins its `@skelet/storefront-*`
+to your checkout's release on npm, gives it the first free ports, copies the compose service out of the source's (so it
 inherits changes to the template's wiring rather than a snapshot taken once), adds
 it to the workspace lockfile, and writes nothing until the result parses - the copy is made aside and moved into
 place last, so a failure leaves nothing half-made. A template setup left out of your working tree is copied from git,
 so it never has to be checked out. The lockfile refresh runs in a throwaway container over the workspace's manifests -
 one setup left out comes from git too, so the lockfile keeps it - and if it can't run, `skelet pnpm --lockfile`
-finishes the job once the cause is fixed. `--tracked` puts the
+finishes the job once the cause is fixed. A checkout ahead of its last
+release - source in `packages/` or the template changed since its tag, as on Skelet's own `develop` - links `packages/`
+instead, since npm can't have those changes yet, and so does `--workspace`, for working on the packages against a
+shop. Regenerated GraphQL types don't count: a plugin that adds to the schema changes what `skelet gen` writes, not
+what the packages ask the backend for. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
@@ -366,7 +382,8 @@ By hand:
 
 1. Create `apps/channels/<your-shop>/` - a copy of `templates/nextjs-vetrina` with its
    `templates/nextjs-vetrina` paths (the Dockerfiles, their `.dockerignore`) pointed at
-   `apps/channels/<your-shop>`, or from scratch - then `skelet pnpm --lockfile`, so the
+   `apps/channels/<your-shop>` and its `@skelet/storefront-*` set from `workspace:*` to
+   your checkout's release, or from scratch - then `skelet pnpm --lockfile`, so the
    lockfile knows it.
 2. Declare its compose service in `docker-compose.override.yml` (git-ignored,
    auto-merged by docker compose) with `profiles: ["<your-shop>"]`. Never edit
