@@ -8,6 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/container"
@@ -44,14 +47,40 @@ func Run(root, app string, env []string, args ...string) error {
 	return call.Run()
 }
 
-// Lockfile brings the workspace lockfile up to date with the manifests through app's pnpm. Only a resolve, so a one-off
-// container starts none of the services the app's depends on
-func Lockfile(root, app string) error {
-	call, err := call(root, app, nil, true, "install", "--lockfile-only")
-	if err != nil {
-		return err
+// WorkspaceLockfile brings the root lockfile up to date with the workspace's manifests, in a throwaway container on the
+// storefronts' Node image. It needs no storefront checked out, built or running - a shop just forked from a template
+// setup left out of the working tree can count on none. env/ is masked, as in a storefront's own container
+func WorkspaceLockfile(root string) error {
+	argv := append(append([]string{"docker", "run", "--rm"}, compose.RunAs()...), compose.UserFlags()...)
+	argv = append(argv, "-e", "HOME=/tmp", "-e", "NPM_CONFIG_UPDATE_NOTIFIER=false", "-v", root+":/w", "--tmpfs", "/w/env", "-w", "/w", nodeImage(root),
+		"npx", "-y", "pnpm@"+pinnedPnpm(root), "install", "--lockfile-only")
+	return sys.Call{Dir: root, Path: sys.Lookup("docker"), Argv: argv, Env: sys.Env()}.Run()
+}
+
+// nodeImage is the storefronts' Node, by the .nvmrc the pins gate holds every Dockerfile to
+func nodeImage(root string) string {
+	raw, _ := os.ReadFile(filepath.Join(root, ".nvmrc"))
+	if v := strings.TrimSpace(string(raw)); v != "" {
+		return "node:" + v + "-alpine"
 	}
-	return call.Run()
+	return "node:lts-alpine"
+}
+
+var packageManager = regexp.MustCompile(`"packageManager":\s*"pnpm@([0-9][0-9.]*)"`)
+
+// pinnedPnpm is the pnpm a workspace manifest pins - the pins gate holds them to one
+func pinnedPnpm(root string) string {
+	for _, pat := range []string{"packages/*/package.json", "templates/*/package.json", "apps/channels/*/package.json"} {
+		manifests, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(pat)))
+		slices.Sort(manifests)
+		for _, m := range manifests {
+			raw, _ := os.ReadFile(m)
+			if v := packageManager.FindSubmatch(raw); v != nil {
+				return string(v[1])
+			}
+		}
+	}
+	return "latest"
 }
 
 var errUnusable = errors.New("pnpm can't run this app")
@@ -76,10 +105,6 @@ func RunDir(root, dir string, args ...string) error {
 
 // Call is pnpm for app with args, or why it can't run - said on stderr
 func Call(root, app string, env []string, args ...string) (sys.Call, error) {
-	return call(root, app, env, false, args...)
-}
-
-func call(root, app string, env []string, noDeps bool, args ...string) (sys.Call, error) {
 	// A storefront's container starts at the workspace root, so pnpm is pointed at the storefront's own directory
 	rel, service, flags := filepath.Join("apps", "dashboard"), app, compose.UserFlags()
 	if app != "dashboard" {
@@ -106,5 +131,5 @@ func call(root, app string, env []string, noDeps bool, args ...string) (sys.Call
 			}
 		}
 	}
-	return container.In(root, compose.Target{Service: service, TTY: true, NoDeps: noDeps, Flags: flags}, append([]string{"pnpm"}, args...)...), nil
+	return container.In(root, compose.Target{Service: service, TTY: true, Flags: flags}, append([]string{"pnpm"}, args...)...), nil
 }

@@ -13,7 +13,7 @@ import (
 type catalog struct {
 	root string
 	// on disk, then any only in HEAD - one sparse-checkout removed stays pickable
-	storefronts []string
+	storefronts []storefronts.Storefront
 	// the payment plugins the tree carries, so the picker never offers one that can't compile
 	gateways []string
 	// every plugin directory that registers, for plugins.json's decisions
@@ -31,13 +31,9 @@ var toolHints = map[string]string{
 }
 
 func scan(root string) (catalog, error) {
-	c := catalog{root: root, storefronts: storefronts.Names(root)}
+	c := catalog{root: root, storefronts: storefronts.List(root)}
 	if gitx.IsWorkTree(root) {
-		for _, n := range headStorefronts(root) {
-			if !slices.Contains(c.storefronts, n) {
-				c.storefronts = append(c.storefronts, n)
-			}
-		}
+		c.storefronts = storefronts.Known(root)
 	}
 	var err error
 	if c.plugins, err = plugins.Discover(root); err != nil {
@@ -51,7 +47,25 @@ func scan(root string) (catalog, error) {
 	return c, nil
 }
 
-func (c catalog) apps() []string { return append([]string{"dashboard"}, c.storefronts...) }
+func (c catalog) apps() []string {
+	out := []string{"dashboard"}
+	for _, s := range c.storefronts {
+		out = append(out, s.Name)
+	}
+	return out
+}
+
+// defaultApps is what a clone runs unless told otherwise: the dashboard and the project's own storefronts. A template is
+// what a shop is copied from - running it is for working on the template itself, so it's left out until asked for
+func (c catalog) defaultApps() []string {
+	out := []string{"dashboard"}
+	for _, s := range c.storefronts {
+		if !s.Template() {
+			out = append(out, s.Name)
+		}
+	}
+	return out
+}
 
 // appDir is where an app lives: on disk, or where HEAD has it when sparse-checkout took it out of the working tree
 func appDir(root, app string) string {
@@ -67,19 +81,6 @@ func appDir(root, app string) string {
 		}
 	}
 	return "apps/channels/" + app
-}
-
-// headStorefronts is the storefronts HEAD has, in either home, whether or not they're checked out
-func headStorefronts(root string) []string {
-	var out []string
-	for _, home := range storefronts.Homes() {
-		for _, n := range gitx.TreeDirs(root, home) {
-			if _, err := gitx.Show(root, home+"/"+n+"/package.json"); err == nil {
-				out = append(out, n)
-			}
-		}
-	}
-	return out
 }
 
 // split reads a comma list the way the bash setup did - empty items dropped, duplicates kept once

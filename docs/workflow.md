@@ -235,19 +235,22 @@ where the frontends run, `.skelet-apps` keeps what it holds rather than being em
 
 ## Which apps run
 
-The backend (GraphQL APIs + workers) always runs. The admin dashboard and every
-storefront under `apps/channels/` or `templates/` are optional, so a clone that ships its own
-frontend can run headless. Deselected apps are removed from your working tree via
-`git sparse-checkout` - they stay in history, and `--keep-code` keeps the source
-without running it.
+The backend (GraphQL APIs + workers) always runs. The admin dashboard and your
+storefronts under `apps/channels/` are optional, and selected unless you say no, so a
+clone that ships its own frontend can run headless. The templates under `templates/` are
+left out unless you ask for one: setup is for working on your own store, and a template
+is what that store is copied from - run one only to work on the template itself.
+Deselected apps are removed from your working tree via `git sparse-checkout` - they stay
+in history, where `skelet add channel` still copies a template from, and `--keep-code`
+keeps the source without running it.
 
 Where they run is a second, independent answer, and the default is the host - there
 the dev server and the gates share one `node_modules`, so a lint run checks the tree
 vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
 so an empty file means every frontend runs on the host with `skelet serve <app>`.
 
-Non-interactive variants: `skelet setup --all`, `--backend-only`, or `skelet setup --apps
-dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
+Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
+`skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
 Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
 `skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
@@ -330,7 +333,8 @@ template (`--template <name>`, by default the one `docker-compose.yml` runs) or 
 shop of your own (`--from <name>`), points every path in it at its new home, gives
 it the first free ports, copies the compose service out of the source's (so it
 inherits changes to the template's wiring rather than a snapshot taken once), adds
-it to the workspace lockfile, and writes nothing until the result parses. `--tracked` puts the
+it to the workspace lockfile, and writes nothing until the result parses. A template setup
+left out of your working tree is copied from git, so it never has to be checked out. `--tracked` puts the
 service in the tracked compose files instead, which is for adding a storefront to
 skelet itself and gives up the conflict-free property below. `skelet rm channel
 <your-shop>` reverses it, keeping the Docker volumes unless you pass `--volumes`.
@@ -345,7 +349,7 @@ By hand:
    the tracked compose files, so `git pull` from upstream skelet stays
    conflict-free. Anchors don't cross compose files, so a block copied from
    `docker-compose.yml` needs its own `x-logging: &logging` beside it.
-3. `skelet setup --apps dashboard,<your-shop>` - deselecting `nextjs-vetrina` removes
+3. `skelet setup --apps dashboard,<your-shop>` - leaving `nextjs-vetrina` out removes
    it from your working tree via sparse-checkout *without committing a deletion*,
    so upstream updates to the template never conflict with your clone.
 That's the whole list. Everything else follows the directory: `skelet up`,

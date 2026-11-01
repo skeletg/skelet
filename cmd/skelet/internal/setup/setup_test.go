@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 const repoRoot = "../../../.."
@@ -315,7 +316,7 @@ func TestPluginsJSONIsMergedInPluginsetsForm(t *testing.T) {
 }
 
 func TestParseFlags(t *testing.T) {
-	c := catalog{storefronts: []string{"vetrina-demo"}}
+	c := catalog{storefronts: []storefronts.Storefront{{Name: "vetrina-demo", Dir: "apps/channels/vetrina-demo"}}}
 	f, err := parseFlags([]string{"--apps", "vetrina-demo,dashboard", "--docker-apps=none", "--tools", "mailpit", "--keep-code", "-y"}, c)
 	if err != nil || !reflect.DeepEqual(f.apps, list{true, []string{"vetrina-demo", "dashboard"}}) ||
 		!reflect.DeepEqual(f.dockerApps, list{true, nil}) || !reflect.DeepEqual(f.tools, list{true, []string{"mailpit"}}) || !f.keepCode || !f.yes {
@@ -326,6 +327,14 @@ func TestParseFlags(t *testing.T) {
 	}
 	if f, _ := parseFlags([]string{"--all"}, c); !reflect.DeepEqual(f.apps.items, []string{"dashboard", "vetrina-demo"}) {
 		t.Errorf("--all: %+v", f.apps)
+	}
+	// A template is left out unless asked for - by name, or with --all
+	withTemplate := catalog{storefronts: []storefronts.Storefront{{Name: "shop", Dir: "apps/channels/shop"}, {Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"}}}
+	if got := withTemplate.defaultApps(); !reflect.DeepEqual(got, []string{"dashboard", "shop"}) {
+		t.Errorf("defaults: %v", got)
+	}
+	if f, _ := parseFlags([]string{"--all"}, withTemplate); !reflect.DeepEqual(f.apps.items, []string{"dashboard", "shop", "nextjs-vetrina"}) {
+		t.Errorf("--all with a template: %+v", f.apps)
 	}
 	for args, want := range map[string]string{
 		"--apps":          "--apps needs a value (e.g. dashboard,vetrina-demo or none)",
@@ -391,5 +400,27 @@ func TestRunReplaysAProfileIntoSkeletProfile(t *testing.T) {
 	}
 	if code := Run(root, []string{"--apps", "nope"}); code != 2 {
 		t.Errorf("a bad flag: exit %d, want 2", code)
+	}
+}
+
+// Asked, a shop of your own defaults to yes and a template to no - setup is for working on your own store
+func TestTemplatesAreAskedForNotAssumed(t *testing.T) {
+	root := fixture(t)
+	c := catalog{root: root, storefronts: []storefronts.Storefront{
+		{Name: "shop", Dir: "apps/channels/shop"}, {Name: "nextjs-vetrina", Dir: "templates/nextjs-vetrina"},
+	}}
+	for input, want := range map[string][]string{
+		strings.Repeat("\n", 40):             {"dashboard", "shop"},
+		"\n\ny\n" + strings.Repeat("\n", 40): {"dashboard", "shop", "nextjs-vetrina"},
+	} {
+		var out strings.Builder
+		ask := prompter{on: true, in: bufio.NewReader(strings.NewReader(input)), out: &out}
+		a, err := answer(root, c, flags{}, profile.Profile{kTarget: "dev"}, "p", ask, &out)
+		if err != nil || !reflect.DeepEqual(a.apps, want) {
+			t.Errorf("%q: apps %v, %v - want %v\n%s", input[:4], a.apps, err, want, out.String())
+		}
+		if !strings.Contains(out.String(), `Include storefront "shop"? [Y/n]`) || !strings.Contains(out.String(), `Include template "nextjs-vetrina"? [y/N]`) {
+			t.Errorf("prompts:\n%s", out.String())
+		}
 	}
 }

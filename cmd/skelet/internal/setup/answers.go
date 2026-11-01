@@ -120,13 +120,27 @@ func answer(root string, c catalog, f flags, prof profile.Profile, profilePath s
 		if ask.yesNo("    Include the admin dashboard (React SPA on :5173)?", true) {
 			a.apps = append(a.apps, "dashboard")
 		}
-		for _, n := range c.storefronts {
-			if ask.yesNo(fmt.Sprintf("    Include storefront %q (Next.js)?", n), true) {
-				a.apps = append(a.apps, n)
+		templates := false
+		for _, sf := range c.storefronts {
+			if sf.Template() {
+				templates = true
+				continue
+			}
+			if ask.yesNo(fmt.Sprintf("    Include storefront %q?", sf.Name), true) {
+				a.apps = append(a.apps, sf.Name)
+			}
+		}
+		if templates {
+			fmt.Fprintln(out, "    Templates are what a shop of your own is copied from (skelet add channel <name>).")
+			fmt.Fprintln(out, "    Run one only to work on the template itself.")
+		}
+		for _, sf := range c.storefronts {
+			if sf.Template() && ask.yesNo(fmt.Sprintf("    Include template %q?", sf.Name), false) {
+				a.apps = append(a.apps, sf.Name)
 			}
 		}
 	default:
-		a.apps = c.apps()
+		a.apps = c.defaultApps()
 	}
 
 	// Where they run is a separate question from whether you have them, and the default is the host

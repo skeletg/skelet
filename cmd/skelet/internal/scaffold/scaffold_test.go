@@ -387,7 +387,8 @@ volumes:
 `, 0o644)
 	put(t, root, "env/prod-vetrina.env.example", "STOREFRONT_REVALIDATE_URL=http://vetrina:3000\n", 0o644)
 	put(t, root, "pnpm-workspace.yaml", "packages:\n  - apps/channels/*\n  - packages/*\n  - templates/*\n", 0o644)
-	put(t, root, "packages/storefront-next/package.json", `{"name": "@skelet/storefront-next"}`+"\n", 0o644)
+	put(t, root, "packages/storefront-next/package.json", `{"name": "@skelet/storefront-next", "packageManager": "pnpm@12.6.0"}`+"\n", 0o644)
+	put(t, root, ".nvmrc", "24\n", 0o644)
 	tpl := "templates/vetrina/"
 	put(t, root, tpl+"package.json", `{"name": "vetrina"}`+"\n", 0o644)
 	put(t, root, tpl+"Dockerfile", "COPY templates/vetrina/package.json templates/vetrina/\nRUN pnpm install --filter \"./templates/vetrina...\"\n", 0o644)
@@ -437,10 +438,10 @@ func TestAddFromATemplate(t *testing.T) {
 	if file(t, root, "env/prod-shop.env.example") != "STOREFRONT_REVALIDATE_URL=http://shop:3000\n" {
 		t.Error("the env template wasn't renamed")
 	}
-	// The lockfile learns the new member through the template's pnpm, pointed at the template's directory
+	// The lockfile learns the new member in a throwaway container on the pinned Node and pnpm, env/ masked - it needs no
+	// storefront built or running
 	calls := strings.Join(d.Calls(), "\n")
-	// A resolve needs none of the backend, so a one-off container starts nothing else
-	if !strings.Contains(calls, "run --rm --no-deps") || !strings.Contains(calls, "-w /var/www/skelet/templates/vetrina") || !strings.Contains(calls, "pnpm install --lockfile-only") {
+	if !strings.Contains(calls, "run --rm") || !strings.Contains(calls, "-v "+root+":/w --tmpfs /w/env -w /w node:24-alpine npx -y pnpm@12.6.0 install --lockfile-only") {
 		t.Errorf("no lockfile refresh:\n%s", calls)
 	}
 	if st := git(t, root, "status", "--porcelain", "templates"); st != "?? templates/vetrina/pnpm-lock.yaml\n" {
@@ -508,5 +509,44 @@ func TestTrackedFromATemplate(t *testing.T) {
 	put(t, root, "apps/channels/shop/mine.txt", "mine", 0o644)
 	if _, code := run(t, "add", root, "channel", "two"); code != 0 || exists(root, "apps/channels/two/mine.txt") {
 		t.Errorf("two: exit %d, or forked from shop", code)
+	}
+}
+
+// A template setup left out of the working tree is still forked - from git's HEAD, renamed the same way
+func TestAddFromATemplateNotCheckedOut(t *testing.T) {
+	root := templateClone(t)
+	put(t, root, "templates/vetrina/scripts/run.sh", "#!/bin/sh\necho templates/vetrina\n", 0o755)
+	if err := os.Symlink("package.json", filepath.Join(root, "templates/vetrina/link.json")); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", "-A", "templates/vetrina/scripts", "templates/vetrina/link.json")
+	git(t, root, "commit", "-qm", "more")
+	if err := os.RemoveAll(filepath.Join(root, "templates/vetrina")); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := run(t, "add", root, "channel", "shop"); code != 0 || !strings.Contains(out, "from git") {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	app := "apps/channels/shop/"
+	if file(t, root, app+"package.json") != `{"name": "shop"}`+"\n" ||
+		file(t, root, app+"Dockerfile.prod.dockerignore") != "*\n!packages/\n!apps/channels/shop/\n" ||
+		file(t, root, app+"scripts/run.sh") != "#!/bin/sh\necho apps/channels/shop\n" {
+		t.Error("the fork from git wasn't renamed through its text files")
+	}
+	if fi, err := os.Stat(filepath.Join(root, app+"scripts/run.sh")); err != nil || fi.Mode().Perm()&0o100 == 0 {
+		t.Errorf("the fork from git lost a script's exec bit: %v", err)
+	}
+	if link, err := os.Readlink(filepath.Join(root, app+"link.json")); err != nil || link != "package.json" {
+		t.Errorf("the fork from git didn't keep a symlink: %q %v", link, err)
+	}
+	if exists(root, "templates/vetrina") {
+		t.Error("forking checked the template out")
+	}
+	// Named, and refused as a name of its own though it isn't on disk
+	if _, code := run(t, "add", root, "channel", "two", "--template", "vetrina"); code != 0 || !exists(root, "apps/channels/two/Dockerfile") {
+		t.Errorf("--template vetrina from git: exit %d", code)
+	}
+	if _, code := run(t, "add", root, "channel", "vetrina"); code != 2 {
+		t.Errorf("a name only git has: exit %d, want 2", code)
 	}
 }

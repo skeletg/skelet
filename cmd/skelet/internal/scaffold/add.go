@@ -1,9 +1,11 @@
 package scaffold
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -110,7 +112,7 @@ func add(root string, o addOptions) int {
 		fmt.Fprintf(os.Stderr, "Bad name %q - lowercase letters, digits and inner hyphens only\n", name)
 		return 2
 	}
-	if storefronts.Exists(root, name) {
+	if _, known := storefronts.FindKnown(root, name); known || storefronts.Exists(root, name) {
 		fmt.Fprintf(os.Stderr, "a storefront or template called %q already exists\n", name)
 		return 2
 	}
@@ -129,7 +131,7 @@ func add(root string, o addOptions) int {
 	if src == "" {
 		src = defaultSource(root)
 	}
-	from, ok := storefronts.Find(root, src)
+	from, ok := storefronts.FindKnown(root, src)
 	switch {
 	case !ok:
 		fmt.Fprintln(os.Stderr, "No storefront to copy from - pass --template <name> or --from <name>")
@@ -142,7 +144,12 @@ func add(root string, o addOptions) int {
 	files := portFiles(root)
 	dev, small := freePort(3001, files), freePort(13001, files)
 
-	fmt.Printf("==> Copying %s into apps/channels/%s\n", from.Dir, name)
+	_, onDisk := storefronts.Find(root, src)
+	if onDisk {
+		fmt.Printf("==> Copying %s into apps/channels/%s\n", from.Dir, name)
+	} else {
+		fmt.Printf("==> Copying %s into apps/channels/%s, from git - it isn't checked out here\n", from.Dir, name)
+	}
 	devSrc := ""
 	for _, f := range []string{devFile, overrideFile} {
 		if declares(read(root, f), src) {
@@ -205,7 +212,11 @@ func add(root string, o addOptions) int {
 	}
 
 	// Everything validated, so start writing
-	if err := fork(root, m); err != nil {
+	copyFork := fork
+	if !onDisk {
+		copyFork = forkFromHead
+	}
+	if err := copyFork(root, m); err != nil {
 		fmt.Fprintln(os.Stderr, "skelet add:", err)
 		return 1
 	}
@@ -239,10 +250,10 @@ func add(root string, o addOptions) int {
 		}
 	}
 	// The storefronts are one pnpm workspace with one lockfile, and the new one's dev image installs frozen - so the
-	// lockfile learns about it now, through the pnpm the source runs with
+	// lockfile learns about it now
 	fmt.Printf("==> Adding %s to the workspace lockfile\n", m.dir)
-	if err := pnpm.Lockfile(root, src); err != nil {
-		fmt.Fprintf(os.Stderr, "    couldn't update pnpm-lock.yaml - run skelet pnpm %s install --lockfile-only before skelet up\n", src)
+	if err := pnpm.WorkspaceLockfile(root); err != nil {
+		fmt.Fprintf(os.Stderr, "    couldn't update pnpm-lock.yaml - run skelet pnpm %s install --lockfile-only before skelet up\n", name)
 	}
 	summary(root, o.tracked, src, name, dev, small)
 	return 0
@@ -263,7 +274,7 @@ func read(root, file string) string {
 // defaultSource prefers a template the tracked compose file declares - that's upstream's, and whatever sorts first
 // could be last week's experiment - then any template, then a storefront the tracked file declares, then any
 func defaultSource(root string) string {
-	list := storefronts.List(root)
+	list := storefronts.Known(root)
 	dev := read(root, devFile)
 	for _, want := range []func(storefronts.Storefront) bool{
 		func(s storefronts.Storefront) bool { return s.Template() && declares(dev, s.Name) },
@@ -341,8 +352,7 @@ func fork(root string, m move) error {
 		if rel == "node_modules" || rel == ".next" {
 			return filepath.SkipDir
 		}
-		// A workspace member has no pnpm files of its own - a stray pair would make the fork a project apart
-		if rel == "pnpm-lock.yaml" || rel == "pnpm-workspace.yaml" {
+		if strayPnpm(rel) {
 			return nil
 		}
 		dst := filepath.Join(to, rel)
@@ -366,16 +376,76 @@ func fork(root string, m move) error {
 		if err != nil {
 			return err
 		}
-		// A binary file - the favicon, the svgs' raster cousins - is copied as it is
-		if bytes.IndexByte(raw, 0) < 0 {
-			raw = []byte(m.apply(string(raw)))
+		return writeForked(dst, raw, info.Mode().Perm(), m)
+	})
+}
+
+// A workspace member has no pnpm files of its own - a stray pair would make the fork a project apart
+func strayPnpm(rel string) bool { return rel == "pnpm-lock.yaml" || rel == "pnpm-workspace.yaml" }
+
+// writeForked writes one of the source's files into the fork, renamed through if it's text
+func writeForked(dst string, raw []byte, mode fs.FileMode, m move) error {
+	// A binary file - the favicon, the svgs' raster cousins - is copied as it is
+	if bytes.IndexByte(raw, 0) < 0 {
+		raw = []byte(m.apply(string(raw)))
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, raw, mode); err != nil {
+		return err
+	}
+	// Past the umask, the way cp -a keeps it
+	return os.Chmod(dst, mode)
+}
+
+// forkFromHead is fork for a source the working tree doesn't have - a template setup left out - read as git's HEAD
+// holds it. git keeps no build output, so there's no node_modules or .next to leave behind
+func forkFromHead(root string, m move) error {
+	cmd := exec.Command("git", "archive", "--format=tar", "HEAD", m.srcDir)
+	cmd.Dir = root
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	to := filepath.Join(root, filepath.FromSlash(m.dir))
+	tr := tar.NewReader(out)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		if err := os.WriteFile(dst, raw, info.Mode().Perm()); err != nil {
+		if err != nil {
+			_ = cmd.Wait()
 			return err
 		}
-		// Past the umask, the way cp -a keeps it
-		return os.Chmod(dst, info.Mode().Perm())
-	})
+		rel, ok := strings.CutPrefix(strings.TrimSuffix(hdr.Name, "/"), m.srcDir+"/")
+		if !ok || strayPnpm(rel) {
+			continue
+		}
+		dst := filepath.Join(to, filepath.FromSlash(rel))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(dst, 0o755)
+		case tar.TypeSymlink:
+			if err = os.MkdirAll(filepath.Dir(dst), 0o755); err == nil {
+				err = os.Symlink(hdr.Linkname, dst)
+			}
+		case tar.TypeReg:
+			var raw []byte
+			if raw, err = io.ReadAll(tr); err == nil {
+				err = writeForked(dst, raw, fs.FileMode(hdr.Mode).Perm(), m)
+			}
+		}
+		if err != nil {
+			_ = cmd.Wait()
+			return err
+		}
+	}
+	return cmd.Wait()
 }
 
 // writeKeepingMode replaces a file's content in place, so a compose file keeps its mode

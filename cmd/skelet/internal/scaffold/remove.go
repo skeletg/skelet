@@ -215,9 +215,9 @@ func remove(root, name string, force, dropVolumes bool) int {
 		return failed(err)
 	}
 	// The workspace lockfile still lists it - frozen installs don't mind, but a refresh keeps it honest
-	if rest := storefronts.Names(root); appDir != "" && len(rest) > 0 {
-		if pnpm.Lockfile(root, rest[0]) != nil {
-			fmt.Fprintf(os.Stderr, "    pnpm-lock.yaml still lists %s - skelet pnpm %s install --lockfile-only clears it\n", appDir, rest[0])
+	if appDir != "" {
+		if pnpm.WorkspaceLockfile(root) != nil {
+			fmt.Fprintf(os.Stderr, "    pnpm-lock.yaml still lists %s - a pnpm install --lockfile-only at the root clears it\n", appDir)
 		}
 	}
 	fmt.Printf("\nRemoved %q.\n", name)

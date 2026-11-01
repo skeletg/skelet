@@ -4,6 +4,10 @@
   its new home and adds it to the lockfile. The templates and the packages they build on stay
   upstream's, so merging a release brings their fixes without touching your shop. `skelet rm channel`
   leaves the templates alone.
+- **`skelet setup` leaves the templates out unless you ask for one.** Setup is for working on your own
+  store: your storefronts under `apps/channels/` default to yes, a template to no, and `--yes` takes
+  that default (`--all` still means everything). A template left out of the working tree is still
+  forked by `skelet add channel`, straight from git.
 - **The storefronts are one pnpm workspace.** `pnpm-workspace.yaml` and `pnpm-lock.yaml` at the root
   cover `apps/channels/*`, `templates/*` and the new `packages/*`, and the workspace's catalog keeps
   the versions they share in step, so a package and the app using it resolve the same React. The

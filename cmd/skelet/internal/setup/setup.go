@@ -25,7 +25,8 @@ secrets - a value that isn't a placeholder is never replaced - the root .env, pl
 selection files. For dev it boots the stack, migrates, installs the host apps and offers a first
 admin login.
 
-  --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does
+  --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does. A
+                                            template runs only when named, or with --all
   --docker-apps LIST|none                   which of those run in Docker rather than on the host
   --tools LIST|none                         dev tools: mailpit, webhook-tester, grafana, garage-webui
   --keep-code                               leave deselected apps' source in the working tree

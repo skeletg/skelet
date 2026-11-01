@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
 )
 
 // The two homes, in the order they're listed - the project's own first
@@ -48,6 +50,41 @@ func Find(root, name string) (Storefront, bool) {
 		return Storefront{}, false
 	}
 	return List(root)[i], true
+}
+
+// InHead is the storefronts git's HEAD has, checked out or not - one setup left out of the working tree is still there
+// to pick, and still there to fork
+func InHead(root string) []Storefront {
+	var out []Storefront
+	for _, home := range homes {
+		for _, n := range gitx.TreeDirs(root, home) {
+			if _, err := gitx.Show(root, home+"/"+n+"/package.json"); err == nil {
+				out = append(out, Storefront{Name: n, Dir: home + "/" + n})
+			}
+		}
+	}
+	return out
+}
+
+// Known is List, then what HEAD has that the working tree doesn't
+func Known(root string) []Storefront {
+	out := List(root)
+	for _, s := range InHead(root) {
+		if !slices.ContainsFunc(out, func(o Storefront) bool { return o.Name == s.Name }) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// FindKnown is the storefront called name, on disk or only in HEAD
+func FindKnown(root, name string) (Storefront, bool) {
+	list := Known(root)
+	i := slices.IndexFunc(list, func(s Storefront) bool { return s.Name == name })
+	if i < 0 {
+		return Storefront{}, false
+	}
+	return list[i], true
 }
 
 // Names is List's names, in its order
