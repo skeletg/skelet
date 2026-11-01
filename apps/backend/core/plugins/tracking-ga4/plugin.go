@@ -122,6 +122,15 @@ func toPayload(ev sdk.ShopEvent) payload {
 	if ev.Context.Locale != "" {
 		params["language"] = ev.Context.Locale
 	}
+	if ev.Context.PageTitle != "" {
+		params["page_title"] = ev.Context.PageTitle
+	}
+	// Without these GA keeps the event out of its sessions and engagement reports - a server-reported event (a purchase)
+	// carries the session the shopper had when they acted, and a little engagement time so it counts as engaged
+	if ev.Context.SessionID != "" {
+		params["session_id"] = ev.Context.SessionID
+	}
+	params["engagement_time_msec"] = 100
 	if e := ev.Ecommerce; e != nil {
 		params["currency"], params["value"] = e.Currency, e.Value
 		setIf(params, "transaction_id", e.TransactionID)

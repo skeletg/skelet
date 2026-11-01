@@ -29,7 +29,7 @@ func purchase() sdk.ShopEvent {
 			Items: []sdk.ShopItem{{ItemID: "SKU-1", ItemName: "Mug", Price: 15, Quantity: 2}, {ItemID: "SKU-2", ItemName: "Tee", Price: 20, Quantity: 1}},
 		},
 		User:     sdk.ShopUser{CustomerID: &cust, AnonID: "visitor-1", Email: "a@example.com"},
-		Context:  sdk.ShopContext{IP: "203.0.113.7", PageURL: "https://shop.example/checkout"},
+		Context:  sdk.ShopContext{IP: "203.0.113.7", PageURL: "https://shop.example/checkout", PageTitle: "Checkout", SessionID: "1793526000"},
 		ClickIDs: map[string]string{"gclid": "g1"},
 		Consent:  &sdk.ShopConsent{Analytics: true, Ads: true},
 		Source:   "server",

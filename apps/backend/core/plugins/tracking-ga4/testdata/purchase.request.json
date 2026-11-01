@@ -9,6 +9,7 @@
       "name": "purchase",
       "params": {
         "currency": "EUR",
+        "engagement_time_msec": 100,
         "event_id": "0193a1b2-0000-7000-8000-000000000042",
         "items": [
           {
@@ -25,6 +26,8 @@
           }
         ],
         "page_location": "https://shop.example/checkout",
+        "page_title": "Checkout",
+        "session_id": "1793526000",
         "shipping": 4.9,
         "tax": 9,
         "transaction_id": "ORD-000042",
