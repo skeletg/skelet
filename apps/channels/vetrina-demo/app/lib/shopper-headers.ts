@@ -39,8 +39,8 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     out["X-Consent"] = serializeConsent(consent ?? NONE_GRANTED);
     const aid = store.get(AID_COOKIE)?.value;
     if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
-    // Ad click ids for a purchase sent server to server - only with ads consent, for the same withdrawal reason
-    const clicks = consent?.ads ? clickIdsHeader((name) => store.get(name)?.value) : "";
+    // Click ids for a purchase sent server to server - see clickIdsHeader for which go without ads consent
+    const clicks = clickIdsHeader((name) => store.get(name)?.value, consent?.ads ?? false);
     if (clicks) out["X-Click-Ids"] = clicks;
   } catch (err) {
     rethrowIfDynamicBailout(err);

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { clickCookieWrites, clickIdsHeader, cookieDomain } from "@/app/lib/consent/click-ids";
 
 const jar = (cookies: Record<string, string>) => (name: string) => cookies[name];
-const writes = (query: string, cookies: Record<string, string>, ads: boolean) =>
-  clickCookieWrites(new URLSearchParams(query), jar(cookies), ads, "www.shop.example:3000", true, 1700000000000);
+const writes = (query: string, cookies: Record<string, string>, ads: boolean, necessary = new Set<string>()) =>
+  clickCookieWrites(new URLSearchParams(query), jar(cookies), ads, necessary, "www.shop.example:3000", true, 1700000000000);
 const byName = (w: ReturnType<typeof writes>) => Object.fromEntries(w.map((x) => [x.name, x]));
 
 describe("click id cookies", () => {
@@ -45,13 +45,25 @@ describe("click id cookies", () => {
   });
 
   it("forwards the stored ids under their own names", () => {
-    const h = new URLSearchParams(clickIdsHeader(jar({ sk_gclid: "g1", cje: "c1", _fbc: "fb.1.5.Iw", junk: "x" })));
+    const h = new URLSearchParams(clickIdsHeader(jar({ sk_gclid: "g1", cje: "c1", _fbc: "fb.1.5.Iw", junk: "x" }), true));
     expect(Object.fromEntries(h)).toEqual({ gclid: "g1", cjevent: "c1", fbc: "fb.1.5.Iw" });
   });
 
+  it("keeps an affiliate network the merchant made necessary without ads consent, and nothing else", () => {
+    const w = byName(writes("cjevent=c1&awc=a1&gclid=g1", { sk_msclkid: "m" }, false, new Set(["cjevent"])));
+    expect(Object.keys(w).sort()).toEqual(["cje", "sk_msclkid"]);
+    expect([w.cje.value, w.sk_msclkid.value]).toEqual(["c1", ""]);
+    expect(byName(writes("", { cje: "c1" }, false, new Set(["cjevent"])))).toEqual({});
+    expect(clickIdsHeader(jar({ cje: "c1", sk_gclid: "g1" }), false)).toBe("cjevent=c1");
+  });
+
   it("scopes to the parent of www. and leaves local hosts host-only", () => {
-    expect(cookieDomain("www.Shop.example")).toBe("shop.example");
-    expect(cookieDomain("eu.shop.example")).toBe("eu.shop.example");
-    for (const h of ["localhost:3000", "127.0.0.1", "[::1]:3000"]) expect(cookieDomain(h)).toBeUndefined();
+    expect(cookieDomain("www.Shop.example", "")).toBe("shop.example");
+    expect(cookieDomain("eu.shop.example", "")).toBe("eu.shop.example");
+    for (const h of ["localhost:3000", "127.0.0.1", "[::1]:3000"]) expect(cookieDomain(h, "")).toBeUndefined();
+  });
+
+  it("takes the configured domain when the shop names one", () => {
+    expect(cookieDomain("checkout.shop.co.uk", ".shop.co.uk")).toBe("shop.co.uk");
   });
 });

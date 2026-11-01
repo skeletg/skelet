@@ -18,7 +18,7 @@ import { BEACON } from "@/app/lib/beacons/paths";
 import { clientIP } from "@/app/lib/client-ip";
 import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@/app/lib/consent/cookie";
 import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories";
-import { getConsentMode } from "@/app/lib/consent/mode";
+import { getPrivacy } from "@/app/lib/consent/mode";
 import { clickCookieWrites } from "@/app/lib/consent/click-ids";
 
 
@@ -183,8 +183,9 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
 
   // The store's consent mode settles the cookie before anything reads it - under opt-out a first visit already counts
   const rawConsent = req.cookies.get(CONSENT_COOKIE)?.value;
-  const consentWrite = channelId
-    ? resolveConsentCookie(rawConsent, await getConsentMode(channelId), req.headers.get("sec-gpc") === "1")
+  const privacy = channelId ? await getPrivacy(channelId) : undefined;
+  const consentWrite = privacy
+    ? resolveConsentCookie(rawConsent, privacy.mode, req.headers.get("sec-gpc") === "1")
     : undefined;
   const consent = parseConsent(consentWrite ?? rawConsent);
   const analytics = consent?.analytics ?? false;
@@ -192,6 +193,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     url.searchParams,
     (name) => req.cookies.get(name)?.value,
     consent?.ads ?? false,
+    privacy?.necessary ?? new Set(),
     req.headers.get("host") ?? "",
     process.env.NODE_ENV === "production",
   );
@@ -240,7 +242,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   const forward: Record<string, string> = {};
   if (newAid) forward[AID_COOKIE] = newAid;
   if (consentWrite !== undefined) forward[CONSENT_COOKIE] = consentWrite;
-  for (const w of clickWrites) if (w.value) forward[w.name] = w.value;
+  for (const w of clickWrites) forward[w.name] = w.value; // a deletion too, so this render can't send what was just withdrawn
   if (session.kind === "refreshed") forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
 
   const rewriteTo = channelId ? await channelRewrite(req, channelId) : null;

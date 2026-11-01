@@ -53,11 +53,11 @@ describe("shopperHeaders", () => {
     jar = new Map([["lens_aid", "visitor-1"], ["storefront_consent", "v2:a0.d1.p1"]]);
     expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d1.p1" });
   });
-  it("forwards stored click ids only with ads consent", async () => {
-    jar = new Map([["cje", "c1"], ["storefront_consent", "v2:a0.d1.p0"]]);
-    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d1.p0", "X-Click-Ids": "cjevent=c1" });
-    jar = new Map([["cje", "c1"], ["storefront_consent", "v2:a1.d0.p1"]]);
-    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a1.d0.p1" });
+  it("forwards ad click ids only with ads consent, and an affiliate cookie the proxy kept", async () => {
+    jar = new Map([["cje", "c1"], ["sk_gclid", "g1"], ["storefront_consent", "v2:a0.d1.p0"]]);
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d1.p0", "X-Click-Ids": "gclid=g1&cjevent=c1" });
+    jar = new Map([["cje", "c1"], ["sk_gclid", "g1"], ["storefront_consent", "v2:a1.d0.p1"]]);
+    expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a1.d0.p1", "X-Click-Ids": "cjevent=c1" });
   });
   it("states that nothing is granted before the visitor chooses", async () => {
     expect(await shopperHeaders()).toEqual({ "X-Consent": "v2:a0.d0.p0" });
