@@ -327,7 +327,7 @@ func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineAdded)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -337,7 +337,7 @@ func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.BundleAdded)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -347,7 +347,7 @@ func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineUpdated)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emitID(ctx, sourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -357,7 +357,7 @@ func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.LineRemoved)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emitID(ctx, sourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -367,7 +367,7 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.Cleared)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emitID(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -376,7 +376,7 @@ func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onCartMerged(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*cart.Merged)
-	if !ok || ev.AnalyticsRefused {
+	if !ok || ev.Shopper.AnalyticsRefused() {
 		return nil
 	}
 	return t.emit(ctx, sourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),

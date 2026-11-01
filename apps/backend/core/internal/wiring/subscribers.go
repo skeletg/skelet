@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cacheinvalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -38,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
@@ -74,6 +76,8 @@ type subscriberDeps struct {
 	BackInStock         *backinstock.Service
 	Customer            *customer.Service
 	Consent             *consent.Service
+	Tracking            *tracking.Service
+	Channel             *channel.Service
 	Catalog             *catalog.Service
 	QnA                 *qna.Service
 	Tx                  *txrunner.Manager
@@ -120,6 +124,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	registerEmailOptIns(bus, d.Consent, d.Customer)
+	d.Tracking.Subscribe(bus, d.Order, d.Channel) // the shop's own events to the platforms - independent of Signals
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)

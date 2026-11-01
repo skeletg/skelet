@@ -114,15 +114,15 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &BundleAdded{
-			CartID:           cart.ID,
-			ChannelID:        cart.ChannelID,
-			CustomerID:       cart.CustomerID,
-			AnonID:           auth.AnonID(ctx),
-			AnalyticsRefused: auth.AnalyticsRefused(ctx),
-			LineID:           bundleLine.ID,
-			ProductSku:       input.ProductSku,
-			UnitPrice:        unitPrice,
-			Quantity:         bundleQty,
+			CartID:     cart.ID,
+			ChannelID:  cart.ChannelID,
+			CustomerID: cart.CustomerID,
+			AnonID:     auth.AnonID(ctx),
+			Shopper:    auth.ShopperFromContext(ctx),
+			LineID:     bundleLine.ID,
+			ProductSku: input.ProductSku,
+			UnitPrice:  unitPrice,
+			Quantity:   bundleQty,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)

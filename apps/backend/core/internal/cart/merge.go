@@ -106,11 +106,11 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 		merged, lookupErr := s.repo.GetCartByID(ctx, resultID) // the tx has committed, and resultID is either the adopted guest cart or the customer's existing one
 		if lookupErr == nil {
 			s.bus.Publish(ctx, &Merged{
-				CustomerCartID:   resultID,
-				GuestCartID:      guestCartID,
-				CustomerID:       customerID,
-				ChannelID:        merged.ChannelID,
-				AnalyticsRefused: auth.AnalyticsRefused(ctx),
+				CustomerCartID: resultID,
+				GuestCartID:    guestCartID,
+				CustomerID:     customerID,
+				ChannelID:      merged.ChannelID,
+				Shopper:        auth.ShopperFromContext(ctx),
 			})
 		}
 	}

@@ -25,7 +25,7 @@ func TestLoopsDeferToOnStart(t *testing.T) {
 			startServerLoops(lc, rc, bg, nil, nil)
 		}},
 		{"background", func(lc fx.Lifecycle, rc RootContext, bg BackgroundWaitGroup) {
-			startBackgroundLoops(lc, rc, bg, nil, nil, nil, nil, nil, nil, nil, nil, SignalsEnabled(false))
+			startBackgroundLoops(lc, rc, bg, nil, nil, nil, nil, nil, nil, nil, nil, SignalsEnabled(false), nil)
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestTheChannelRosterPrimeDefersToOnStart(t *testing.T) {
 	lc := &recordingLifecycle{}
 
 	startBackgroundLoops(lc, RootContext{Context: context.Background()}, BackgroundWaitGroup{WaitGroup: &bg},
-		nil, nil, nil, nil, nil, nil, nil, nil, SignalsEnabled(true))
+		nil, nil, nil, nil, nil, nil, nil, nil, SignalsEnabled(true), nil)
 
 	if len(lc.hooks) != 2 {
 		t.Fatalf("want the loops and the roster prime on two hooks, got %d", len(lc.hooks))
