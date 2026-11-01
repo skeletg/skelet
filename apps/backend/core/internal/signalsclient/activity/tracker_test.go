@@ -537,3 +537,30 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 		}
 	}
 }
+
+// Refusing analytics on the banner still counts the purchase, but under the order alone - not the customer, the visitor or the email
+func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.T) {
+	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
+	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &order.Tracking{}}
+	tr, fr := newTracker(o)
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, OrderNumber: "1200", CustomerID: &cid, Email: "a@example.com", AnonID: "lens-1", ChannelID: ch, TotalCents: 900, Currency: "USD"})
+	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: oid, ToStatus: "cancelled"})
+	if len(fr.calls) != 2 {
+		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
+	}
+	for _, c := range fr.calls {
+		if c.CustomerID != nil || c.AnonID != "order_"+oid.String() {
+			t.Errorf("%s recorded under customer %v / %q, want the order alone", c.EventName, c.CustomerID, c.AnonID)
+		}
+	}
+	if fr.calls[0].Props["total_cents"] != int64(900) {
+		t.Errorf("order_placed props %v, want the revenue kept", fr.calls[0].Props)
+	}
+
+	o.Tracking = &order.Tracking{Consent: auth.Consent{Analytics: true}}
+	tr, fr = newTracker(o)
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, CustomerID: &cid, ChannelID: ch})
+	if len(fr.calls) != 1 || fr.calls[0].CustomerID == nil || *fr.calls[0].CustomerID != cid {
+		t.Errorf("with analytics consent the order must land on the customer: %+v", fr.calls)
+	}
+}

@@ -156,8 +156,17 @@ func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (orderRef
 	if err != nil {
 		return orderRef{}, fmt.Errorf("load order %s: %w", orderID, err)
 	}
+	if unprofiled(o) {
+		return orderRef{anon: orderOnlyActor(orderID), number: o.Number, channel: o.ChannelID}, nil
+	}
 	return orderRef{cust: o.CustomerID, anon: orderActor(o.CustomerID, o.AnonID, o.Email), number: o.Number, channel: o.ChannelID}, nil
 }
+
+// unprofiled is an order a shop's visitor placed after refusing analytics - it still counts in revenue, but under an id
+// of its own, so nothing links it to them, their browsing or their other orders. The snapshot is the consent at purchase
+func unprofiled(o order.Order) bool { return o.Tracking != nil && !o.Tracking.Consent.Analytics }
+
+func orderOnlyActor(orderID uuid.UUID) string { return "order_" + orderID.String() }
 
 // orderActor is who a guest order belongs to: the storefront visitor when one was sent, else a hash of the receipt email,
 // so admin drafts, headless shops and API orders still land and one guest's repeat orders read as one person
@@ -190,16 +199,7 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	anon := orderActor(ev.CustomerID, ev.AnonID, ev.Email)
-	if ev.CustomerID == nil && anon == "" {
-		return nil
-	}
-	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, anon,
-		"act:order_placed:"+ev.OrderID.String(),
-		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
-		return err
-	}
-	// gift-card-as-tender is applied during placement, surface it separately - a failed load replays, the dedupe keys collapsing the order_placed write
+	// Loaded first for the consent snapshot and the gift-card tender - a failed load replays from the outbox
 	o, err := t.orders.GetByID(ctx, ev.OrderID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -207,8 +207,20 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return fmt.Errorf("load order %s: %w", ev.OrderID, err)
 	}
+	cust, anon := ev.CustomerID, orderActor(ev.CustomerID, ev.AnonID, ev.Email)
+	if unprofiled(o) {
+		cust, anon = nil, orderOnlyActor(ev.OrderID)
+	}
+	if cust == nil && anon == "" {
+		return nil
+	}
+	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, cust, anon,
+		"act:order_placed:"+ev.OrderID.String(),
+		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
+		return err
+	}
 	if o.GiftCardAmount > 0 {
-		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, anon,
+		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, cust, anon,
 			"act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})
 	}
