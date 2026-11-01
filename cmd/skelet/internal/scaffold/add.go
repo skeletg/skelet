@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
@@ -293,6 +294,7 @@ func add(root string, o addOptions) int {
 		fmt.Fprintf(os.Stderr, "    %s is made, but its image won't build until the lockfile has it - skelet pnpm --lockfile finishes it\n", m.dir)
 		return 1
 	}
+	previewOrigin(root, dev)
 	if o.quiet {
 		fmt.Printf("==> apps/channels/%s is yours, copied from %s - on http://localhost:%d once it runs\n", name, src, dev)
 		return 0
@@ -522,6 +524,21 @@ func forkFromHead(root string, m move, to string) error {
 	}
 }
 
+func previewOrigin(root string, port int) {
+	if p, _ := profile.Load(filepath.Join(root, profile.File)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
+		return
+	}
+	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
+	if _, set, err := envfile.Get(env, "VITE_STOREFRONT_ORIGIN"); err != nil || set {
+		return
+	}
+	if err := envfile.Set(env, "VITE_STOREFRONT_ORIGIN", origin); err != nil {
+		fmt.Fprintf(os.Stderr, "    couldn't point the dashboard's previews at it: %v\n", err)
+		return
+	}
+	fmt.Printf("==> Dashboard previews open %s now (VITE_STOREFRONT_ORIGIN in .env)\n", origin)
+}
+
 // writeKeepingMode replaces a file's content in place, so a compose file keeps its mode
 func writeKeepingMode(path, content string) error {
 	mode := fs.FileMode(0o644)
@@ -536,10 +553,10 @@ func writeKeepingMode(path, content string) error {
 func summary(root string, tracked bool, src, name string, dev, small int) {
 	wrote := fmt.Sprintf("%s       service + volumes on :%d (git-ignored)", overrideFile, dev)
 	deploy := fmt.Sprintf("Prod is yours to wire: docker-compose.prod.yml's %q block is the shape,\n"+
-		"and deploy/caddy/Caddyfile has its route. docs/deploying.md covers both.", src)
+		"and STOREFRONT_UPSTREAM in env/prod-caddy.env routes the edge to it. docs/deploying.md covers both.", src)
 	if tracked {
 		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
-		deploy = fmt.Sprintf("Deploying it also needs a Caddy route - deploy/caddy/Caddyfile has %s's.", src)
+		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
 	}
 	// The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
 	// else every app the tree holds, which is what setup picks when it has no answer on record

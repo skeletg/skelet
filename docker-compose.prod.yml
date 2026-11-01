@@ -275,6 +275,7 @@ services:
 
   # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
   nextjs-vetrina:
+    profiles: ["nextjs-vetrina"]
     image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
     init: true
     build:

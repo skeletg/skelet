@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -229,7 +230,7 @@ func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
 		if len(backend["BACKUP_ENCRYPTION_PASSPHRASE"]) != 64 {
 			t.Errorf("%s: no backup passphrase", target)
 		}
-		_, files, _ := EnvFiles(root, target)
+		_, files, _ := EnvFiles(root, target, nil)
 		if len(files) < 2 {
 			t.Errorf("%s: only %v - the compose file's env_file list was not read", target, files)
 		}
@@ -237,6 +238,50 @@ func TestSmallAndProdFillTheRootEnvComposeReads(t *testing.T) {
 			if fi, err := os.Stat(filepath.Join(root, f)); err != nil || fi.Mode().Perm() != 0o600 {
 				t.Errorf("%s: %s: %v", target, f, err)
 			}
+		}
+	}
+}
+
+func TestADeploymentRunsTheStorefrontPicked(t *testing.T) {
+	for _, target := range []string{"small", "prod"} {
+		root := fixture(t)
+		mkfile(t, root, "templates/nextjs-vetrina/package.json", "{}")
+		mkfile(t, root, "templates/astro-shop/package.json", "{}")
+		a := dev()
+		a.target, a.apps = target, []string{"dashboard", "astro-shop"}
+		write(t, root, a)
+		if _, err := os.Stat(filepath.Join(root, "env", target+"-nextjs-vetrina.env")); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s: wrote the env file of a storefront it doesn't run", target)
+		}
+		check := func(when, profiles, shop string) {
+			t.Helper()
+			if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != profiles {
+				t.Errorf("%s %s: COMPOSE_PROFILES = %q, want %q", target, when, got, profiles)
+			}
+			if got := env(t, root, "env/"+target+".env")["STOREFRONT_REVALIDATE_URL"]; got != "http://"+shop+":3000/api/revalidate" {
+				t.Errorf("%s %s: STOREFRONT_REVALIDATE_URL = %q", target, when, got)
+			}
+			if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != shop+":3000" {
+				t.Errorf("%s %s: STOREFRONT_UPSTREAM = %q", target, when, got)
+			}
+		}
+		check("first", "bundled,astro-shop", "astro-shop")
+
+		mkfile(t, root, ".env", "COMPOSE_PROFILES=bundled,astro-shop,edge\n")
+		a.apps = []string{"dashboard", "nextjs-vetrina"}
+		write(t, root, a)
+		check("switched", "bundled,edge,nextjs-vetrina", "nextjs-vetrina")
+
+		if err := envfile.Set(filepath.Join(root, "env/prod-caddy.env"), "STOREFRONT_UPSTREAM", "mine:4000"); err != nil {
+			t.Fatal(err)
+		}
+		a.apps = []string{"dashboard"}
+		write(t, root, a)
+		if got := env(t, root, ".env")["COMPOSE_PROFILES"]; got != "bundled,edge" {
+			t.Errorf("%s backend only: COMPOSE_PROFILES = %q", target, got)
+		}
+		if got := env(t, root, "env/prod-caddy.env")["STOREFRONT_UPSTREAM"]; got != "mine:4000" {
+			t.Errorf("%s: an upstream set by hand became %q", target, got)
 		}
 	}
 }

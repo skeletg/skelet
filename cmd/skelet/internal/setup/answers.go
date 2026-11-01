@@ -42,7 +42,7 @@ type answers struct {
 }
 
 const (
-	kTarget  = "SKELET_TARGET"
+	kTarget  = profile.TargetKey
 	kSignals = "SKELET_SIGNALS"
 	kAI      = "SKELET_AI"
 	kSearch  = "SKELET_SEARCH"

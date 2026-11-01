@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/verbtest"
 )
 
@@ -470,6 +471,9 @@ func TestAddFromATemplate(t *testing.T) {
 	if _, code := run(t, "add", root, "channel", "two"); code != 0 || exists(root, "apps/channels/two/mine.txt") {
 		t.Errorf("two: exit %d, or forked from shop", code)
 	}
+	if got := file(t, root, ".env"); got != "VITE_STOREFRONT_ORIGIN=http://localhost:3001\n" {
+		t.Errorf("the dashboard's previews should stay on the first shop:\n%s", got)
+	}
 	// --from forks one of the project's own, --template only answers to a template, and the two don't mix
 	if _, code := run(t, "add", root, "channel", "three", "--from", "shop"); code != 0 || !exists(root, "apps/channels/three/mine.txt") {
 		t.Errorf("--from shop: exit %d", code)
@@ -501,6 +505,7 @@ func TestAddFromATemplate(t *testing.T) {
 // --tracked from a template puts the fork beside it in all three files, its image and Dockerfile its own
 func TestTrackedFromATemplate(t *testing.T) {
 	root := templateClone(t)
+	put(t, root, profile.File, profile.TargetKey+"=prod\n", 0o644)
 	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
@@ -518,6 +523,9 @@ func TestTrackedFromATemplate(t *testing.T) {
 		if !strings.Contains(got, "dockerfile: templates/vetrina/") && f != smallFile {
 			t.Errorf("%s lost the template's own service", f)
 		}
+	}
+	if exists(root, ".env") {
+		t.Error("a server's .env got a localhost preview origin")
 	}
 	// A storefront in the tracked file doesn't take over as the default source - the template still is
 	put(t, root, "apps/channels/shop/mine.txt", "mine", 0o644)

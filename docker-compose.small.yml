@@ -67,6 +67,7 @@ services:
     logging: *logging
 
   nextjs-vetrina:
+    profiles: ["nextjs-vetrina"]
     image: ${NEXTJS_VETRINA_IMAGE:-skelet-nextjs-vetrina:prod}
     init: true
     env_file: [env/small-nextjs-vetrina.env]

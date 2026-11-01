@@ -15,6 +15,8 @@ const File = ".skelet-profile"
 
 const AppsKey = "SKELET_APPS_SELECTED"
 
+const TargetKey = "SKELET_TARGET"
+
 // Profile maps a key to its value. A key that is present but empty differs from one that is absent -
 // SKELET_APPS_SELECTED= means backend only, a missing one means setup hasn't asked yet
 type Profile map[string]string

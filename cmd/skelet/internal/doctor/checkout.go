@@ -34,7 +34,11 @@ func checkout(root string, out io.Writer, p probes) int {
 	if target != "small" && target != "prod" {
 		target = "dev"
 	}
-	_, files, _ := setup.EnvFiles(root, target)
+	var runs func(string) bool
+	if apps, chosen := prof.Apps(); chosen {
+		runs = func(app string) bool { return slices.Contains(apps, app) }
+	}
+	_, files, _ := setup.EnvFiles(root, target, runs)
 	optional := optionalEnv(root, target)
 	r.section("env files (%s target)", target)
 	for _, f := range files {

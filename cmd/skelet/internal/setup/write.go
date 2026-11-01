@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/plugins"
 	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/secret"
+	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
 // What a write leaves for the boot and the summary
@@ -45,7 +46,7 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 	}
 	fmt.Fprintf(out, "==> Profile: %s, signals=%t ai=%t, search=%s  (saved to %s)\n", a.target, a.signals, a.ai, a.search, profile.File)
 
-	backend, files, err := EnvFiles(root, a.target)
+	backend, files, err := EnvFiles(root, a.target, func(app string) bool { return slices.Contains(a.apps, app) })
 	if err != nil {
 		return w, err
 	}
@@ -116,12 +117,65 @@ func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (wri
 			e.del(".env", k)
 		}
 	}
+	if a.target != "dev" {
+		e.deployment(a, c, backend, files)
+	}
 	if e.err != nil {
 		return w, e.err
 	}
 
 	w.pluginsChanged, err = decidePlugins(root, c, a.gateways, out)
 	return w, err
+}
+
+// deployment points a server's stack at the storefront this clone runs, leaving a value set by hand alone
+func (e *editor) deployment(a answers, c catalog, backend string, files []string) {
+	names := []string{a.shop}
+	for _, s := range c.storefronts {
+		names = append(names, s.Name)
+	}
+	compose, _ := os.ReadFile(filepath.Join(e.root, "docker-compose."+a.target+".yml"))
+	cur := e.get(".env", "COMPOSE_PROFILES")
+	var profiles []string
+	for _, p := range split(cur) {
+		if !slices.Contains(names, p) {
+			profiles = append(profiles, p)
+		}
+	}
+	for _, app := range a.apps {
+		if slices.Contains(names, app) && regexp.MustCompile(`(?m)^  `+regexp.QuoteMeta(app)+`:\s*$`).Match(compose) {
+			profiles = append(profiles, app)
+		}
+	}
+	if join(profiles) != cur {
+		e.set(".env", "COMPOSE_PROFILES", join(profiles))
+	}
+	shop := primaryStorefront(a, c)
+	if shop == "" {
+		return
+	}
+	ours := func(v string) bool {
+		return v == "" || slices.ContainsFunc(names, func(n string) bool { return n != "" && (v == n+":3000" || v == "http://"+n+":3000/api/revalidate") })
+	}
+	if ours(e.get(backend, "STOREFRONT_REVALIDATE_URL")) {
+		e.set(backend, "STOREFRONT_REVALIDATE_URL", "http://"+shop+":3000/api/revalidate")
+	}
+	if caddy := "env/prod-caddy.env"; slices.Contains(files, caddy) && ours(e.get(caddy, "STOREFRONT_UPSTREAM")) {
+		e.set(caddy, "STOREFRONT_UPSTREAM", shop+":3000")
+	}
+	fmt.Fprintf(e.out, "    storefront %s - its profile on, the edge proxying to it, the backend purging it\n", shop)
+}
+
+func primaryStorefront(a answers, c catalog) string {
+	if a.shop != "" {
+		return a.shop
+	}
+	for _, s := range c.storefronts {
+		if slices.Contains(a.apps, s.Name) {
+			return s.Name
+		}
+	}
+	return ""
 }
 
 func (a answers) profile() profile.Profile {
@@ -139,7 +193,7 @@ var envRef = regexp.MustCompile(`env/[a-z0-9.-]+\.env`)
 
 // EnvFiles is the backend env file for target and every env file it needs. Beyond dev that is whatever the target's
 // compose file names, so a shop added with skelet add channel is set up like the one it was forked from
-func EnvFiles(root, target string) (string, []string, error) {
+func EnvFiles(root, target string, runs func(app string) bool) (string, []string, error) {
 	if target == "dev" {
 		return "env/go.env", []string{"env/go.env", "env/db.env", "env/signals.env"}, nil
 	}
@@ -149,11 +203,18 @@ func EnvFiles(root, target string) (string, []string, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", nil, err
 	}
+	stores := storefronts.Known(root)
 	var named []string
 	for _, m := range envRef.FindAll(raw, -1) {
-		if f := string(m); !slices.Contains(files, f) && !slices.Contains(named, f) {
-			named = append(named, f)
+		f := string(m)
+		if slices.Contains(files, f) || slices.Contains(named, f) {
+			continue
 		}
+		i := slices.IndexFunc(stores, func(s storefronts.Storefront) bool { return f == "env/"+target+"-"+s.Name+".env" })
+		if i >= 0 && runs != nil && !runs(stores[i].Name) {
+			continue
+		}
+		named = append(named, f)
 	}
 	slices.Sort(named)
 	return backend, append(files, named...), nil
