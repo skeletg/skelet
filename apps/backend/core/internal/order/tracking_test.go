@@ -26,11 +26,18 @@ func TestTrackingKeepsEachPartOnlyUnderItsConsent(t *testing.T) {
 		t.Fatalf("no stated consent: %+v, want nil", got)
 	}
 	none := TrackingFromContext(shopRequest("v2:a0.d0.p0"))
-	if none == nil || none.AnonID != "" || none.IP != "" || none.UserAgent != "" || none.ClickIDs != nil {
+	r, _ := http.NewRequest(http.MethodPost, "/", nil)
+	r.Header.Set(auth.ConsentHeader, "v2:a0.d0.p0")
+	r.Header.Set(auth.ClickIDsHeader, "gclid=g1")
+	if got := TrackingFromContext(auth.WithRequest(context.Background(), r)); got.ClickIDs != nil {
+		t.Fatalf("an ad click id was kept without ads consent: %v", got.ClickIDs)
+	}
+	// An affiliate id the storefront sent without ads consent is one the merchant made necessary
+	if none == nil || none.AnonID != "" || none.IP != "" || none.UserAgent != "" || none.ClickIDs["cjevent"] != "c1" {
 		t.Fatalf("nothing granted kept %+v", none)
 	}
 	analytics := TrackingFromContext(shopRequest("v2:a1.d0.p0"))
-	if analytics.AnonID != "visitor-1" || analytics.IP != "" || analytics.ClickIDs != nil {
+	if analytics.AnonID != "visitor-1" || analytics.IP != "" {
 		t.Fatalf("analytics only: %+v", analytics)
 	}
 	ads := TrackingFromContext(shopRequest("v2:a0.d1.p0"))

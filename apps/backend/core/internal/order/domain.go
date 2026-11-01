@@ -70,7 +70,7 @@ func (o Order) AmountDue() int64 {
 type Tracking struct {
 	Consent   auth.Consent      `json:"consent"`
 	AnonID    string            `json:"anon_id,omitempty"`   // analytics
-	ClickIDs  map[string]string `json:"click_ids,omitempty"` // ads
+	ClickIDs  map[string]string `json:"click_ids,omitempty"` // ads, or an affiliate network the merchant made necessary
 	IP        string            `json:"ip,omitempty"`        // ads, the platforms' match keys
 	UserAgent string            `json:"ua,omitempty"`        // ads
 }
@@ -85,8 +85,8 @@ func TrackingFromContext(ctx context.Context) *Tracking {
 	if c.Analytics {
 		t.AnonID = auth.AnonID(ctx)
 	}
+	t.ClickIDs = auth.ClickIDs(ctx) // decides per id: ad platforms' need ads consent, an affiliate's may be necessary
 	if c.Ads {
-		t.ClickIDs = auth.ClickIDs(ctx)
 		r, _ := auth.RequestFromContext(ctx)
 		t.IP, t.UserAgent = auth.ClientIP(r), r.UserAgent()
 	}

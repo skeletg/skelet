@@ -126,9 +126,13 @@ func TestClickIDs(t *testing.T) {
 		t.Errorf("ClickIDs = %v, want %v", got, want)
 	}
 	for _, consent := range []string{"v2:a1.d0.p1", "", "garbage"} {
-		if got := ClickIDs(ctxWith(consent, "gclid=g1")); got != nil {
-			t.Errorf("consent %q: ClickIDs = %v, want nil without ads consent", consent, got)
+		if got := ClickIDs(ctxWith(consent, "gclid=g1&fbp=fb.1.1.1")); got != nil {
+			t.Errorf("consent %q: ClickIDs = %v, want no ad ids without ads consent", consent, got)
 		}
+	}
+	// The storefront forwards an affiliate id without ads consent only where the merchant made that network necessary
+	if got := ClickIDs(ctxWith("v2:a0.d0.p0", "cjevent=c1&gclid=g1")); !maps.Equal(got, map[string]string{"cjevent": "c1"}) {
+		t.Errorf("ClickIDs = %v, want the affiliate id alone", got)
 	}
 	if got := ClickIDs(context.Background()); got != nil {
 		t.Errorf("no request: ClickIDs = %v", got)

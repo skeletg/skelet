@@ -90,14 +90,19 @@ func AnalyticsRefused(ctx context.Context) bool {
 
 const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
 
-var clickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "awc", "cjevent", "fbc", "fbp"}
+var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp"}
+
+// The affiliate networks' ids, which a merchant may treat as necessary - the storefront sends them only when its setting
+// or the visitor's ads consent allows, and the pipeline holds each network's conversions to the same rule
+var affiliateClickIDKeys = []string{"awc", "cjevent"}
 
 var clickIDValue = regexp.MustCompile(`^[\w.~-]{1,255}$`)
 
-// ClickIDs is nil without ads consent, whatever the header says - and only known keys holding opaque tokens pass, so the header can't write arbitrary data into an order
+// ClickIDs reads the forwarded click ids - ad platforms' only with ads consent, whatever the header says. Only known keys
+// holding opaque tokens pass, so the header can't write arbitrary data into an order
 func ClickIDs(ctx context.Context) map[string]string {
 	c, ok := ConsentFromContext(ctx)
-	if !ok || !c.Ads {
+	if !ok {
 		return nil
 	}
 	r, _ := RequestFromContext(ctx)
@@ -105,8 +110,12 @@ func ClickIDs(ctx context.Context) map[string]string {
 	if err != nil {
 		return nil
 	}
+	keys := affiliateClickIDKeys
+	if c.Ads {
+		keys = append(slices.Clone(adClickIDKeys), affiliateClickIDKeys...)
+	}
 	var out map[string]string
-	for _, k := range clickIDKeys {
+	for _, k := range keys {
 		if v := q.Get(k); clickIDValue.MatchString(v) {
 			if out == nil {
 				out = map[string]string{}
