@@ -489,7 +489,8 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 	if err := checkProtectedOfferLine(cart, lineID, ""); err != nil {
 		return Cart{}, err
 	}
-	if err := verifyLineInCart(ctx, s.repo, lineID, cart.ID); err != nil {
+	line, err := lineInCart(ctx, s.repo, lineID, cart.ID)
+	if err != nil {
 		return Cart{}, err
 	}
 	if s.bus != nil {
@@ -514,6 +515,9 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 			AnonID:     auth.AnonID(ctx),
 			Shopper:    auth.ShopperFromContext(ctx),
 			LineID:     lineID,
+			ProductSku: line.ProductSku,
+			UnitPrice:  line.UnitPrice,
+			Quantity:   line.Quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -734,17 +738,22 @@ func validateQtyBounds(p SimplePricing, qty float64) error {
 }
 
 func verifyLineInCart(ctx context.Context, repo Repository, lineID, cartID uuid.UUID) error {
+	_, err := lineInCart(ctx, repo, lineID, cartID)
+	return err
+}
+
+func lineInCart(ctx context.Context, repo Repository, lineID, cartID uuid.UUID) (CartLine, error) {
 	line, err := repo.GetCartLineByID(ctx, lineID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCartLineNotFound
+			return CartLine{}, ErrCartLineNotFound
 		}
-		return fmt.Errorf("load cart line: %w", err)
+		return CartLine{}, fmt.Errorf("load cart line: %w", err)
 	}
 	if line.CartID != cartID {
-		return ErrCartForbidden // a line from another cart is the same enumeration risk
+		return CartLine{}, ErrCartForbidden // a line from another cart is the same enumeration risk
 	}
-	return nil
+	return line, nil
 }
 
 func loadCartWithLines(ctx context.Context, repo Repository, cartID uuid.UUID) (Cart, error) { // the post-mutation response payload

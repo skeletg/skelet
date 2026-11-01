@@ -232,6 +232,9 @@ type LineRemoved struct { // fires AFTER the removal, async
 	AnonID     string
 	LineID     uuid.UUID
 	Shopper    *auth.Shopper // the visitor as their consent stood, nil for a caller with no banner
+	ProductSku string        // what the line held, for the platforms that report a removal by item
+	UnitPrice  int64
+	Quantity   float64
 }
 
 func (*LineRemoved) Type() string                { return EventLineRemoved }
