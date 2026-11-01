@@ -1,16 +1,17 @@
 ---
 import Base from "../layouts/Base.astro";
+import { CATALOG_SURFACE } from "@skelet/storefront-core/catalog/read";
 import { cacheCatalog } from "../lib/cache";
 import { getSite } from "../lib/channel";
-import { gql } from "../lib/gql";
+import { gql, PUBLIC } from "../lib/gql";
 import { HomeProductsDocument } from "../graphql/product-list.gql";
 import { websiteLd } from "../lib/seo";
 import { HomeView } from "../views/HomeView";
 
 // Tags match the backend's purges (internal/cacheinvalidate) - a product edit purges catalog:browse
-cacheCatalog(Astro.cache, ["catalog:browse"]);
+await cacheCatalog(Astro.cache, CATALOG_SURFACE, ["catalog:browse"]);
 
-const [{ browseProducts }, { channel, origin }] = await Promise.all([gql(HomeProductsDocument), getSite(Astro.url.origin)]);
+const [{ browseProducts }, { channel, origin }] = await Promise.all([gql(HomeProductsDocument, {}, PUBLIC), getSite(Astro.url.origin)]);
 // A product with no URL in this locale has no page to link to
 const products = browseProducts.items.flatMap((p) => (p.url ? [{ ...p, url: p.url }] : []));
 ---

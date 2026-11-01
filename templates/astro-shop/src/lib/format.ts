@@ -1,16 +1,9 @@
-// Pure helpers - no imports, so they unit-test without a backend
+import { formatPrice, type CurrencyInfo } from "@skelet/storefront-core/format";
 
-export type Currency = { code: string; symbol?: string | null; symbolPosition?: string | null; decimals?: number | null };
+export type Currency = CurrencyInfo & { locale?: string };
 
-// Amounts arrive in minor units. The backend's per-currency symbol and position win over the
-// locale's, and with no symbol configured Intl's own currency style answers
-export function money(minor: number, c: Currency, locale = "en"): string {
-  const decimals = c.decimals ?? 2;
-  const n = minor / 10 ** decimals;
-  const digits = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
-  if (!c.symbol) return new Intl.NumberFormat(locale, { style: "currency", currency: c.code || "USD", ...digits }).format(n);
-  const amount = new Intl.NumberFormat(locale, digits).format(n);
-  return c.symbolPosition === "suffix" ? `${amount} ${c.symbol}` : `${c.symbol}${amount}`;
+export function money(minor: number, c: Currency): string {
+  return formatPrice(minor, c, c.locale);
 }
 
 type RichNode = { type?: string; text?: string; children?: RichNode[] };

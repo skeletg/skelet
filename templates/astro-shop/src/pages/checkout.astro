@@ -49,24 +49,22 @@ if (Astro.request.method === "POST") {
     if (intent === "place") {
       await saveDelivery(posted);
       const opt = (name: string) => field(name).trim() || null;
+      const address = {
+        firstName: field("firstName").trim(),
+        lastName: field("lastName").trim(),
+        street1: field("street1").trim(),
+        street2: opt("street2"),
+        city: field("city").trim(),
+        state: opt("state"),
+        postalCode: field("postalCode").trim(),
+        countryCode: field("countryCode"),
+        phone: opt("phone"),
+      };
+      // The backend takes "same as shipping" only when the chosen delivery ships to the shopper - for a pickup it
+      // asks for billing, and the address typed here is it
       await gql(SetDetailsDocument, {
         cartId: id,
-        input: {
-          email: field("email").trim(),
-          phone: opt("phone"),
-          billingSameAsShipping: true,
-          shippingAddress: {
-            firstName: field("firstName").trim(),
-            lastName: field("lastName").trim(),
-            street1: field("street1").trim(),
-            street2: opt("street2"),
-            city: field("city").trim(),
-            state: opt("state"),
-            postalCode: field("postalCode").trim(),
-            countryCode: field("countryCode"),
-            phone: opt("phone"),
-          },
-        },
+        input: { email: field("email").trim(), phone: opt("phone"), billingSameAsShipping: true, shippingAddress: address, billingAddress: address },
       });
       await gql(SetPaymentDocument, { cartId: id, providerSlug: field("payment") });
       const { placeOrder } = await gql(PlaceDocument, { cartId: id, acceptTerms: field("acceptTerms") === "on" });

@@ -8,10 +8,24 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // cache tags look like is decided here, not in a browser
 const gql = vi.fn();
 vi.mock("../lib/gql", async (orig) => ({ ...(await orig<typeof import("../lib/gql")>()), gql }));
+vi.mock("../lib/cart", async (orig) => {
+  const real = await orig<typeof import("../lib/cart")>();
+  return { ...real, forgetCart: vi.fn(real.forgetCart), setFlash: vi.fn(real.setFlash) };
+});
+const cartCookies = await import("../lib/cart");
 // The core's reads the pages make outside the shop's own operations
-const core = vi.hoisted(() => ({ getChannel: vi.fn(), getCart: vi.fn(), getOwnCartId: vi.fn() }));
-vi.mock("@skelet/storefront-core/channel/read", () => ({ getChannel: core.getChannel }));
-vi.mock("@skelet/storefront-core/cart/read", () => ({ CART_COOKIE: "storefront_cart", getCart: core.getCart, getOwnCartId: core.getOwnCartId }));
+const core = vi.hoisted(() => ({ getChannel: vi.fn(), getCart: vi.fn(), readCart: vi.fn(), getOwnCartId: vi.fn() }));
+vi.mock("@skelet/storefront-core/channel/read", () => ({
+  getChannel: core.getChannel,
+  loadChannel: core.getChannel,
+  getStoreName: async () => (await core.getChannel())?.name ?? "",
+}));
+vi.mock("@skelet/storefront-core/cart/read", () => ({
+  CART_COOKIE: "storefront_cart",
+  getCart: core.getCart,
+  readCart: core.readCart,
+  getOwnCartId: core.getOwnCartId,
+}));
 
 const channel = {
   name: "Test Shop",
@@ -63,16 +77,19 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  vi.mocked(cartCookies.forgetCart).mockClear();
+  vi.mocked(cartCookies.setFlash).mockClear();
   gql.mockReset();
   core.getChannel.mockReset().mockResolvedValue(channel);
   core.getCart.mockReset().mockResolvedValue(null);
+  core.readCart.mockReset().mockImplementation(async () => ({ cart: await core.getCart(), unavailable: false }));
   core.getOwnCartId.mockReset().mockResolvedValue(null);
 });
 
-async function render(page: keyof typeof pages, path: string, params: Record<string, string> = {}) {
+async function render(page: keyof typeof pages, path: string, params: Record<string, string> = {}, init?: RequestInit) {
   const mod = await pages[page]();
   const res = await container.renderToResponse(mod.default, {
-    request: new Request(`http://localhost${path}`),
+    request: new Request(`http://localhost${path}`, init),
     params,
     locals: {},
     partial: false,
@@ -158,6 +175,27 @@ describe("cart page", () => {
     const { html } = await render("cart", "/cart");
     expect(html).toContain("Your cart is empty");
     expect(html).toContain('content="noindex, follow"');
+  });
+
+  it("keeps a cart it couldn't read, and says so", async () => {
+    backend({});
+    core.readCart.mockResolvedValueOnce({ cart: null, unavailable: true });
+    const { html } = await render("cart", "/cart");
+    expect(cartCookies.forgetCart).not.toHaveBeenCalled();
+    expect(dom(html).body.textContent).toContain("couldn't load your cart");
+  });
+
+  it("lets a cart the backend no longer has go", async () => {
+    backend({});
+    await render("cart", "/cart");
+    expect(cartCookies.forgetCart).toHaveBeenCalledOnce();
+  });
+
+  it("answers a post it can't read with a message, not a server error", async () => {
+    backend({});
+    const { res } = await render("cart", "/cart", {}, { method: "POST", headers: { "content-type": "multipart/form-data" }, body: "%%%" });
+    expect(res.status).toBe(303);
+    expect(cartCookies.setFlash).toHaveBeenCalledWith(expect.anything(), "That didn't work - please try again.");
   });
 });
 

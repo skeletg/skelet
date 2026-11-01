@@ -2,7 +2,7 @@
   <head>
     <meta charset="utf-8">
     <script>
-      { const d = document.documentElement; d.classList.add("js"); try { const asked = new URLSearchParams(location.search).get("font"); if (asked === "default") localStorage.removeItem("font"); else if (asked) localStorage.setItem("font", asked); const font = localStorage.getItem("font"), theme = localStorage.getItem("theme"); if (font) d.dataset.font = font; if (theme === "light" || theme === "dark") d.dataset.theme = theme; } catch {} }
+      (function(){const fontParam = true; { const d = document.documentElement; d.classList.add("js"); try { const asked = fontParam ? new URLSearchParams(location.search).get("font") : null; if (asked === "default") localStorage.removeItem("font"); else if (asked) localStorage.setItem("font", asked); const font = localStorage.getItem("font"), theme = localStorage.getItem("theme"); if (font) d.dataset.font = font; if (theme === "light" || theme === "dark") d.dataset.theme = theme; } catch {} } })();
     <meta content="width=device-width, initial-scale=1" name="viewport">
     <meta content="light dark" name="color-scheme">
     <link as="font" crossorigin href="/src/assets/fonts/poppins-latin-400.woff2" rel="preload" type="font/woff2">
@@ -74,8 +74,10 @@
     <main class="flex-1" id="main">
       <section class="relative isolate flex min-h-[min(88svh,52rem)] items-center overflow-hidden scheme-dark bg-inverse text-inverse-foreground">
         <img alt class="absolute inset-0 -z-30 h-full w-full object-cover opacity-55" fetchpriority="high" height="720" src="/media/hero-poster.jpg" width="1280">
-        <video aria-hidden="true" autoplay class="absolute inset-0 -z-20 h-full w-full object-cover opacity-55" loop muted playsinline>
+        <video aria-hidden="true" autoplay class="absolute inset-0 -z-20 h-full w-full object-cover opacity-55" id="hero-video" loop muted playsinline>
           <source media="(min-width: 48rem) and (prefers-reduced-motion: no-preference)" src="/media/hero.mp4" type="video/mp4">
+        <button aria-pressed="false" class="absolute bottom-6 right-6 z-10 hidden rounded-full border border-inverse-foreground/30 bg-inverse/60 px-4 py-2 text-sm text-inverse-foreground backdrop-blur-sm motion-reduce:hidden md:js:inline-flex" data-video-toggle="hero-video" type="button">
+          "Pause video"
         <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-r from-inverse via-inverse/75 to-inverse/10">
         <div aria-hidden="true" class="absolute inset-x-0 bottom-0 -z-10 h-40 bg-linear-to-t from-inverse">
         <div class="container-page pb-32 pt-24 sm:pb-40 sm:pt-28">
@@ -232,10 +234,10 @@
               <a class="hover:text-inverse-foreground" href="/#products">
                 "All products"
             <li>
-              <a class="hover:text-inverse-foreground" href="/cart">
+              <a class="hover:text-inverse-foreground" data-astro-prefetch="false" href="/cart">
                 "Cart"
             <li>
-              <a class="hover:text-inverse-foreground" href="/checkout">
+              <a class="hover:text-inverse-foreground" data-astro-prefetch="false" href="/checkout">
                 "Checkout"
         <nav aria-label="Information">
           <h2 class="eyebrow text-inverse-foreground">

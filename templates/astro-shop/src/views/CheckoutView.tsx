@@ -75,7 +75,7 @@ export function CheckoutView({ error, cart, channel, countries, dest, groups, pi
                   <input type="checkbox" name="acceptTerms" required defaultChecked={values.acceptTerms} className="size-5 min-h-0 w-auto accent-primary" />
                   I accept the terms and conditions
                 </label>
-                <Button type="submit" name="intent" value="place" className="w-full text-lg" disabled={payments.length === 0 || groups.some((g) => g.choices.length === 0)}>
+                <Button type="submit" name="intent" value="place" data-once className="w-full text-lg aria-disabled:opacity-60" disabled={payments.length === 0 || groups.some((g) => g.choices.length === 0)}>
                   Place order
                 </Button>
               </div>
@@ -121,7 +121,7 @@ function DeliverySection({ dest, countries, groups, picks, channel }: Pick<Props
       <StepTitle n={1}>Delivery</StepTitle>
       <p className="-mt-2 mb-4 text-sm text-muted-foreground">
         To {country?.name ?? dest.countryCode} {dest.postalCode} ·{" "}
-        <a href="/checkout?step=destination" className="text-foreground underline underline-offset-4">
+        <a href="/checkout?step=destination" data-astro-prefetch="false" className="text-foreground underline underline-offset-4">
           Change
         </a>
       </p>

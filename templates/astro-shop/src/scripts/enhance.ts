@@ -7,6 +7,7 @@
 //   data-autosubmit="<id>"       a control that submits its form on change, through that submit button when named.
 //                                On a number box it waits for the typing, arrows or +/- clicks to settle first
 //   data-step="1" / "-1"         a button that steps its form's number box by the box's own step
+//   data-once                    a submit button whose form posts only once (placing an order)
 import { popBadge } from "./motion";
 
 const SETTLE_MS = 400;
@@ -28,6 +29,12 @@ export function initEnhance(doc: Document = document, win: Window = window): voi
   doc.addEventListener("submit", (e) => {
     const form = e.target as HTMLFormElement;
     const submitter = e.submitter as HTMLButtonElement | null;
+    if (submitter && "once" in submitter.dataset) {
+      if ("sent" in form.dataset) return e.preventDefault();
+      form.dataset.sent = "";
+      submitter.setAttribute("aria-disabled", "true");
+      return;
+    }
     const regions = submitter?.dataset.enhance ?? form.dataset.enhance;
     if (regions === undefined || "native" in form.dataset) return;
     e.preventDefault();
@@ -52,6 +59,13 @@ export function initEnhance(doc: Document = document, win: Window = window): voi
     submit(el.form, el.dataset.autosubmit ? (doc.getElementById(el.dataset.autosubmit) as HTMLButtonElement) : null);
   });
 
+  win.addEventListener("pageshow", () => {
+    for (const form of doc.querySelectorAll<HTMLFormElement>("form[data-sent]")) {
+      delete form.dataset.sent;
+      form.querySelector("[data-once]")?.removeAttribute("aria-disabled");
+    }
+  });
+
   doc.addEventListener("click", (e) => {
     const btn = (e.target as Element).closest<HTMLButtonElement>("button[data-step]");
     const box = btn?.form?.querySelector<HTMLInputElement>("input[type=number]");
@@ -74,9 +88,13 @@ async function send(doc: Document, win: Window, form: HTMLFormElement, submitter
   try {
     res = await fetch(form.action, { method: "POST", body: new FormData(form, submitter) });
   } catch {
-    return native(form, submitter);
+    for (const el of busy) el.removeAttribute("aria-busy");
+    const status = form.querySelector("[data-status]");
+    if (!status) return native(form, submitter);
+    status.textContent = "We couldn't reach the store - check your connection and try again.";
+    return;
   }
-  if (!res.ok) return native(form, submitter);
+  if (!res.ok) return win.location.assign(res.url);
   const next = new DOMParser().parseFromString(await res.text(), "text/html");
   // The shopper changed the box again while this was out - this answer is already stale, so don't swap it in
   // over what they're doing; the newer post (queued, or still settling) brings the page that counts
@@ -106,7 +124,6 @@ async function send(doc: Document, win: Window, form: HTMLFormElement, submitter
   popBadge(doc, win);
 }
 
-// The network failed or the server erred - submit for real and let the browser show what happened
 function native(form: HTMLFormElement, submitter: HTMLButtonElement | null) {
   form.dataset.native = "";
   submit(form, submitter);

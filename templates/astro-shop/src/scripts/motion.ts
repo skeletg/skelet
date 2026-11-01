@@ -5,8 +5,11 @@ import { animate } from "motion/mini";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+const wired = new WeakSet<Document>();
+
 export function initMotion(doc: Document = document, win: Window = window): void {
   popBadge(doc, win);
+  wireVideoToggles(doc);
   if (win.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
   // Only what starts below the fold is hidden, so on-screen content and the LCP image paint untouched
@@ -34,6 +37,20 @@ export function initMotion(doc: Document = document, win: Window = window): void
       { margin: "0px 0px -8% 0px" },
     );
   }
+}
+
+function wireVideoToggles(doc: Document): void {
+  if (wired.has(doc)) return;
+  wired.add(doc);
+  doc.addEventListener("click", (e) => {
+    const btn = (e.target as Element).closest<HTMLButtonElement>("button[data-video-toggle]");
+    const video = btn ? doc.getElementById(btn.dataset.videoToggle ?? "") : null;
+    if (!btn || !(video instanceof HTMLVideoElement)) return;
+    if (video.paused) void video.play().catch(() => {});
+    else video.pause();
+    btn.setAttribute("aria-pressed", String(video.paused));
+    btn.textContent = video.paused ? "Play video" : "Pause video";
+  });
 }
 
 // Set by the cart when a line was just added - pop the badge once, then forget it. Also called after an add

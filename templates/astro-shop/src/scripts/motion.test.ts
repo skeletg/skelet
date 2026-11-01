@@ -62,4 +62,21 @@ describe("initMotion", () => {
     expect(animate).toHaveBeenCalledWith(badge, expect.objectContaining({ transform: expect.any(Array) }), expect.any(Object));
     expect(document.cookie).not.toContain("cart_bump=1");
   });
+
+  it("pauses the hero video on the button, and plays it again", () => {
+    setup(false);
+    document.body.insertAdjacentHTML("beforeend", `<video id="hero-video"></video><button data-video-toggle="hero-video" aria-pressed="false">Pause video</button>`);
+    const video = document.querySelector("video")!;
+    let paused = false;
+    Object.defineProperty(video, "paused", { get: () => paused });
+    video.pause = () => void (paused = true);
+    video.play = async () => void (paused = false);
+    initMotion();
+    initMotion();
+    const btn = document.querySelector<HTMLButtonElement>("[data-video-toggle]")!;
+    btn.click();
+    expect([paused, btn.getAttribute("aria-pressed"), btn.textContent]).toEqual([true, "true", "Play video"]);
+    btn.click();
+    expect([paused, btn.getAttribute("aria-pressed"), btn.textContent]).toEqual([false, "false", "Pause video"]);
+  });
 });

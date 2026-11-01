@@ -10,6 +10,7 @@ describe("money", () => {
   it("honours the backend's symbol, position and decimals", () => {
     expect(money(123456, { code: "RSD", symbol: "din.", symbolPosition: "suffix", decimals: 2 })).toBe("1,234.56 din.");
     expect(money(500, { code: "JPY", symbol: "¥", symbolPosition: "prefix", decimals: 0 })).toBe("¥500");
+    expect(money(123456, { code: "RSD", symbol: "din.", symbolPosition: "suffix", decimals: 2, locale: "sr-Latn" })).toBe("1.234,56 din.");
   });
 });
 

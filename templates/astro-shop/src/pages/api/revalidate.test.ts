@@ -49,11 +49,24 @@ describe("POST /api/revalidate", () => {
     expect(res.status).toBe(400);
   });
 
-  it("re-renders warm paths on its own origin and counts failures", async () => {
-    const fetch = vi.fn(async (url: URL) => new Response("", { status: url.pathname === "/gone" ? 404 : 200 }));
+  it("re-renders warm paths on its own origin, following no redirect, and counts failures", async () => {
+    const status: Record<string, number> = { "/gone": 404, "/moved": 301 };
+    const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => new Response("", { status: status[new URL(url).pathname] ?? 200 }));
     vi.stubGlobal("fetch", fetch);
-    const res = await call({ warm: ["casual-t-shirt", "/gone"] });
-    expect(await res.json()).toMatchObject({ warmed: 1, failed: 1 });
-    expect(fetch.mock.calls.map(([u]) => String(u))).toEqual(["http://shop.test/casual-t-shirt", "http://shop.test/gone"]);
+    const res = await call({ warm: ["casual-t-shirt", "/gone", "/moved", "//evil.example/x"] });
+    expect(await res.json()).toMatchObject({ warmed: 3, failed: 1 });
+    expect(fetch.mock.calls.map(([u]) => u)).toEqual([
+      "http://shop.test/casual-t-shirt",
+      "http://shop.test/gone",
+      "http://shop.test/moved",
+      "http://shop.test//evil.example/x",
+    ]);
+    expect(fetch.mock.calls.every(([, init]) => init?.redirect === "manual")).toBe(true);
+  });
+
+  it("keeps every tag of a large purge", async () => {
+    const tags = Array.from({ length: 200 }, (_, i) => `product:${i}`);
+    await call({ tags });
+    expect(invalidate).toHaveBeenCalledWith({ tags });
   });
 });

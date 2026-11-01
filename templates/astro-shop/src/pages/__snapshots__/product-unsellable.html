@@ -2,7 +2,7 @@
   <head>
     <meta charset="utf-8">
     <script>
-      { const d = document.documentElement; d.classList.add("js"); try { const asked = new URLSearchParams(location.search).get("font"); if (asked === "default") localStorage.removeItem("font"); else if (asked) localStorage.setItem("font", asked); const font = localStorage.getItem("font"), theme = localStorage.getItem("theme"); if (font) d.dataset.font = font; if (theme === "light" || theme === "dark") d.dataset.theme = theme; } catch {} }
+      (function(){const fontParam = true; { const d = document.documentElement; d.classList.add("js"); try { const asked = fontParam ? new URLSearchParams(location.search).get("font") : null; if (asked === "default") localStorage.removeItem("font"); else if (asked) localStorage.setItem("font", asked); const font = localStorage.getItem("font"), theme = localStorage.getItem("theme"); if (font) d.dataset.font = font; if (theme === "light" || theme === "dark") d.dataset.theme = theme; } catch {} } })();
     <meta content="width=device-width, initial-scale=1" name="viewport">
     <meta content="light dark" name="color-scheme">
     <link as="font" crossorigin href="/src/assets/fonts/poppins-latin-400.woff2" rel="preload" type="font/woff2">
@@ -132,10 +132,10 @@
               <a class="hover:text-inverse-foreground" href="/#products">
                 "All products"
             <li>
-              <a class="hover:text-inverse-foreground" href="/cart">
+              <a class="hover:text-inverse-foreground" data-astro-prefetch="false" href="/cart">
                 "Cart"
             <li>
-              <a class="hover:text-inverse-foreground" href="/checkout">
+              <a class="hover:text-inverse-foreground" data-astro-prefetch="false" href="/checkout">
                 "Checkout"
         <nav aria-label="Information">
           <h2 class="eyebrow text-inverse-foreground">

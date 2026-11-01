@@ -1,0 +1,21 @@
+---
+// Reads nothing from the backend - it's the page shown when the backend is down
+import "../styles/global.css";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Something went wrong</title>
+  </head>
+  <body class="grid min-h-dvh place-items-center bg-background p-6 text-foreground">
+    <main class="max-w-md text-center">
+      <h1 class="text-3xl font-bold">Something went wrong on our side</h1>
+      <p class="mt-4 text-muted-foreground">The shop couldn't load this page just now. Please try again in a moment.</p>
+      <a class="mt-8 inline-block underline underline-offset-4" href="/">Back to the shop</a>
+    </main>
+  </body>
+</html>

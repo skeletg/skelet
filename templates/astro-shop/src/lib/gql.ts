@@ -2,7 +2,7 @@
 // id and a signed-in customer's token go with every call. Never imported by browser code
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 
-import { BackendUnavailableError, gqlFetch, GraphQLRequestError } from "@skelet/storefront-core/graphql";
+import { BackendUnavailableError, gqlFetch, GraphQLRequestError, type FetchOptions } from "@skelet/storefront-core/graphql";
 
 export class GqlError extends Error {
   constructor(
@@ -14,6 +14,20 @@ export class GqlError extends Error {
   }
 }
 
+const COPY: Record<string, string> = {
+  addFailed: "We couldn't add that to your cart - please try again.",
+  missingProduct: "That product isn't available.",
+  invalidBundle: "That bundle isn't available as chosen.",
+  invalidOption: "Pick the options this product needs.",
+  invalidSelection: "Pick what you'd like to add.",
+  chooseAtLeastOne: "Choose at least one item.",
+  uploadFailed: "That file didn't upload - please try again.",
+};
+
+export function copyFor(keyOrMessage: string): string {
+  return COPY[keyOrMessage] ?? keyOrMessage;
+}
+
 // What a shopper may read - a resolver's own validation message, never transport or internal detail
 export function shopperMessage(err: unknown, fallback: string): string {
   if (err instanceof GqlError && err.code !== "UNAVAILABLE" && err.code !== "INTERNAL") return err.message;
@@ -21,11 +35,16 @@ export function shopperMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-type Fetch = <TData>(doc: unknown, variables?: unknown) => Promise<{ data: TData }>;
+type Args<TVars> = TVars extends Record<string, never> ? [variables?: TVars, options?: FetchOptions] : [variables: TVars, options?: FetchOptions];
 
-export async function gql<TData, TVars>(doc: TypedDocumentNode<TData, TVars>, variables?: TVars): Promise<TData> {
+// The same rule as gqlFetch's own tuple - TypeScript can't relate the two inside a generic
+const typedFetch = gqlFetch as <D, V>(doc: TypedDocumentNode<D, V>, ...args: Args<V>) => Promise<{ data: D }>;
+
+export const PUBLIC: FetchOptions = { public: true };
+
+export async function gql<TData, TVars>(doc: TypedDocumentNode<TData, TVars>, ...args: Args<TVars>): Promise<TData> {
   try {
-    return (await (gqlFetch as Fetch)<TData>(doc, variables ?? {})).data;
+    return (await typedFetch(doc, ...args)).data;
   } catch (err) {
     if (err instanceof GraphQLRequestError) {
       const first = err.errors[0];

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
 // The few shared primitives - everything renders on the server, none of it hydrates
 
@@ -16,12 +16,8 @@ export function Button({ variant = "solid", className = "", ...rest }: ButtonPro
   return <button className={`${base} ${variants[variant]} ${className}`} {...rest} />;
 }
 
-export function ButtonLink({ href, children, variant = "solid", className = "" }: { href: string; children?: ReactNode; variant?: keyof typeof variants; className?: string }) {
-  return (
-    <a href={href} className={`${base} ${variants[variant]} ${className}`}>
-      {children}
-    </a>
-  );
+export function ButtonLink({ variant = "solid", className = "", ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; variant?: keyof typeof variants }) {
+  return <a {...rest} className={`${base} ${variants[variant]} ${className}`} />;
 }
 
 export function Notice({ children }: { children?: ReactNode }) {

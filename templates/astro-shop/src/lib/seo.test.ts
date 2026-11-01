@@ -52,7 +52,7 @@ describe("breadcrumbLd and websiteLd", () => {
       { name: "Shop", url: "https://a.test/" },
       { name: "Mug", url: "https://a.test/mug" },
     ]);
-    expect(ld.itemListElement.map((i) => i.position)).toEqual([1, 2]);
+    expect((ld.itemListElement as { position: number }[]).map((i) => i.position)).toEqual([1, 2]);
   });
 
   it("points the site at its root", () => {

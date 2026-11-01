@@ -20,12 +20,12 @@ export function SiteFooter({ shop, fontPicker = false }: { shop: string; fontPic
               </a>
             </li>
             <li>
-              <a href="/cart" className="hover:text-inverse-foreground">
+              <a href="/cart" data-astro-prefetch="false" className="hover:text-inverse-foreground">
                 Cart
               </a>
             </li>
             <li>
-              <a href="/checkout" className="hover:text-inverse-foreground">
+              <a href="/checkout" data-astro-prefetch="false" className="hover:text-inverse-foreground">
                 Checkout
               </a>
             </li>

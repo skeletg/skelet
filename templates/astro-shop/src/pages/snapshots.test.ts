@@ -13,8 +13,17 @@ const gql = vi.hoisted(() => vi.fn());
 vi.mock("../lib/gql", async (orig) => ({ ...(await orig<typeof import("../lib/gql")>()), gql }));
 // The core's reads the pages make outside the shop's own operations
 const core = vi.hoisted(() => ({ getChannel: vi.fn(), getCart: vi.fn(), getOwnCartId: vi.fn() }));
-vi.mock("@skelet/storefront-core/channel/read", () => ({ getChannel: core.getChannel }));
-vi.mock("@skelet/storefront-core/cart/read", () => ({ CART_COOKIE: "storefront_cart", getCart: core.getCart, getOwnCartId: core.getOwnCartId }));
+vi.mock("@skelet/storefront-core/channel/read", () => ({
+  getChannel: core.getChannel,
+  loadChannel: core.getChannel,
+  getStoreName: async () => (await core.getChannel())?.name ?? "",
+}));
+vi.mock("@skelet/storefront-core/cart/read", () => ({
+  CART_COOKIE: "storefront_cart",
+  getCart: core.getCart,
+  readCart: async () => ({ cart: await core.getCart(), unavailable: false }),
+  getOwnCartId: core.getOwnCartId,
+}));
 
 const channel = {
   name: "Test Shop",

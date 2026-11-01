@@ -1,3 +1,4 @@
+import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import { parse } from "graphql";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +14,9 @@ beforeAll(async () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-const doc = parse("query Ping { ping }");
+type Ping = { ping: boolean };
+const doc = parse("query Ping { ping }") as TypedDocumentNode<Ping, Record<string, never>>;
+const withVars = doc as unknown as TypedDocumentNode<Ping, { a: number }>;
 
 function stubFetch(res: Response | Error) {
   const fetch = vi.fn(async () => {
@@ -27,7 +30,7 @@ function stubFetch(res: Response | Error) {
 describe("gql", () => {
   it("sends the pinned channel, the operation name and the variables", async () => {
     const fetch = stubFetch(Response.json({ data: { ping: true } }));
-    const data = await gqlMod.gql(doc as never, { a: 1 } as never);
+    const data = await gqlMod.gql(withVars, { a: 1 });
     expect(data).toEqual({ ping: true });
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("http://backend.test/api/front/graphql");
@@ -37,14 +40,14 @@ describe("gql", () => {
 
   it("surfaces the backend's error code", async () => {
     stubFetch(Response.json({ errors: [{ message: "only 2 left", extensions: { code: "CART_INSUFFICIENT_STOCK", class: "CONFLICT" } }] }));
-    await expect(gqlMod.gql(doc as never)).rejects.toMatchObject({ message: "only 2 left", code: "CART_INSUFFICIENT_STOCK" });
+    await expect(gqlMod.gql(doc)).rejects.toMatchObject({ message: "only 2 left", code: "CART_INSUFFICIENT_STOCK" });
   });
 
   it("reports a non-200 or an unreachable backend as UNAVAILABLE", async () => {
     stubFetch(new Response("nope", { status: 502 }));
-    await expect(gqlMod.gql(doc as never)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    await expect(gqlMod.gql(doc)).rejects.toMatchObject({ code: "UNAVAILABLE" });
     stubFetch(new TypeError("ECONNREFUSED"));
-    await expect(gqlMod.gql(doc as never)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    await expect(gqlMod.gql(doc)).rejects.toMatchObject({ code: "UNAVAILABLE" });
   });
 });
 

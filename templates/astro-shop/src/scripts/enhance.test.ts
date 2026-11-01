@@ -8,7 +8,7 @@ const { initEnhance } = await import("./enhance");
 
 const fetchMock = vi.fn();
 const assign = vi.fn();
-const win = { matchMedia: () => ({ matches: false }), location: { assign } } as unknown as Window;
+const win = { matchMedia: () => ({ matches: false }), location: { assign }, addEventListener: vi.fn() } as unknown as Window;
 
 const cartPage = (qty: number, alert = "") => `
   <span data-cart-count hidden></span>
@@ -169,6 +169,49 @@ describe("enhanced forms", () => {
     document.querySelector("form")!.requestSubmit();
     await settle();
     expect(assign).toHaveBeenCalledWith("http://localhost/elsewhere");
+  });
+
+  it("shows an error answer's page without posting the form again", async () => {
+    document.body.innerHTML = cartPage(1);
+    fetchMock.mockResolvedValue({ ok: false, status: 500, url: "http://localhost/cart", text: async () => "" });
+    const form = document.querySelector("form")!;
+    const posted = vi.fn((e: Event) => e.preventDefault());
+    form.addEventListener("submit", posted);
+    form.requestSubmit();
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith("http://localhost/cart");
+    expect(posted).toHaveBeenCalledTimes(1);
+    form.removeEventListener("submit", posted);
+  });
+
+  it("says the store couldn't be reached where the form has a status, and posts nothing again", async () => {
+    document.body.innerHTML = `<form method="post" action="/cart" data-enhance=""><p data-status></p><button type="submit">Add</button></form>`;
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const form = document.querySelector("form")!;
+    form.requestSubmit();
+    await settle();
+    expect(form.querySelector("[data-status]")!.textContent).toMatch(/couldn't reach the store/);
+    expect(form.hasAttribute("data-native")).toBe(false);
+    expect(form.getAttribute("aria-busy")).toBeNull();
+  });
+
+  it("posts a place-order form once, however often it's clicked", () => {
+    document.body.innerHTML = `<form method="post" action="/checkout"><button type="submit" name="intent" value="place" data-once>Place order</button></form>`;
+    const form = document.querySelector("form")!;
+    const button = form.querySelector("button")!;
+    const posted = vi.fn((e: Event) => {
+      const dropped = e.defaultPrevented;
+      e.preventDefault();
+      return dropped;
+    });
+    document.addEventListener("submit", posted);
+    form.requestSubmit(button);
+    form.requestSubmit(button);
+    document.removeEventListener("submit", posted);
+    expect(posted.mock.results.map((r) => r.value)).toEqual([false, true]);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("leaves unmarked forms alone", () => {

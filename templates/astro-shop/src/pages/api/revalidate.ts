@@ -1,36 +1,17 @@
 import type { APIRoute } from "astro";
-import { timingSafeEqual } from "node:crypto";
 
 import { invalidateData } from "@skelet/storefront-astro/data-cache";
+import { readRevalidate, warmURL, warmedRedirect } from "@skelet/storefront-core/revalidate-payload";
 
 // The backend POSTs {tags, paths, warm} here when catalog or config changes (internal/revalidate) - the same
 // contract nextjs-vetrina's route implements. tags/paths evict from the route cache, warm re-renders right away
 
-function secretOk(provided: string | null): boolean {
-  const expected = process.env.STOREFRONT_REVALIDATE_SECRET ?? "";
-  if (!expected || !provided) return false;
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function strings(v: unknown, max: number): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.length > 0).slice(0, max) : [];
-}
-
-const slash = (p: string) => (p.startsWith("/") ? p : `/${p}`);
+const WARM_TIMEOUT_MS = 15_000;
 
 export const POST: APIRoute = async ({ request, cache, url }) => {
-  if (!secretOk(request.headers.get("x-revalidate-secret"))) return Response.json({ error: "unauthorized" }, { status: 401 });
-  let payload: { tags?: unknown; paths?: unknown; warm?: unknown };
-  try {
-    payload = await request.json();
-  } catch {
-    return Response.json({ error: "invalid json" }, { status: 400 });
-  }
-  const tags = strings(payload.tags, 64);
-  const paths = strings(payload.paths, 64).map(slash);
-  const warm = strings(payload.warm, 25).map(slash);
+  const payload = await readRevalidate(request);
+  if (payload instanceof Response) return payload;
+  const { tags, paths, warm } = payload;
 
   if (tags.length > 0) await cache.invalidate({ tags });
   for (const path of paths) await cache.invalidate({ path });
@@ -39,8 +20,13 @@ export const POST: APIRoute = async ({ request, cache, url }) => {
 
   // Each warm is its own request, so it renders after the eviction above and lands back in the cache
   const results = await Promise.allSettled(
-    warm.map((p) => fetch(new URL(p, url.origin), { signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]) })),
+    warm.map(async (p) => {
+      const target = warmURL(url.origin, p);
+      if (!target) return false;
+      const res = await fetch(target, { redirect: "manual", signal: AbortSignal.any([request.signal, AbortSignal.timeout(WARM_TIMEOUT_MS)]) });
+      return res.ok || warmedRedirect(res);
+    }),
   );
-  const warmed = results.filter((r) => r.status === "fulfilled" && r.value.ok).length;
+  const warmed = results.filter((r) => r.status === "fulfilled" && r.value).length;
   return Response.json({ revalidated: true, tags: tags.length, paths: paths.length, warmed, failed: warm.length - warmed });
 };

@@ -1,5 +1,8 @@
 // Pure SEO helpers - absolute URLs and schema.org JSON-LD, unit-tested without a backend
 
+import { currencyDecimals, toMajor, type CurrencyInfo } from "@skelet/storefront-core/format";
+import { breadcrumbJsonLd } from "@skelet/storefront-core/json-ld";
+
 // The channel's public URL is the canonical origin; a dev or preview host falls back to the request's
 export function siteOrigin(publicUrl: string | null | undefined, requestOrigin: string): string {
   try {
@@ -33,8 +36,7 @@ type LdProduct = {
   inStock: boolean;
 };
 
-export function productLd(p: LdProduct, currency: { code: string; decimals?: number | null }, brand: string) {
-  const decimals = currency.decimals ?? 2;
+export function productLd(p: LdProduct, currency: CurrencyInfo, brand: string) {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -49,7 +51,7 @@ export function productLd(p: LdProduct, currency: { code: string; decimals?: num
       url: p.url,
       priceCurrency: currency.code,
       // schema.org wants the major-unit amount as a plain number string, not a formatted price
-      price: (p.price / 10 ** decimals).toFixed(decimals),
+      price: toMajor(p.price, currency).toFixed(currencyDecimals(currency)),
       availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       itemCondition: "https://schema.org/NewCondition",
     },
@@ -57,11 +59,7 @@ export function productLd(p: LdProduct, currency: { code: string; decimals?: num
 }
 
 export function breadcrumbLd(items: { name: string; url: string }[]) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: items.map((it, i) => ({ "@type": "ListItem", position: i + 1, name: it.name, item: it.url })),
-  };
+  return breadcrumbJsonLd(items.map((it) => ({ name: it.name, href: it.url })));
 }
 
 // Meta descriptions read best under ~160 characters, cut on a word

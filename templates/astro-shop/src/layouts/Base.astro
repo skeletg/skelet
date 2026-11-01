@@ -26,13 +26,14 @@ const { transitions = true, full = false, ...seo } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <!-- Before first paint: the js marker, then the shopper's theme and font picks (theme.ts) so neither flashes.
-         ?font=<name> on any URL picks a font for testing, ?font=default drops the pick -->
-    <script is:inline>
+         In dev, ?font=<name> on any URL picks a font for testing and ?font=default drops the pick - a live shop takes
+         no setting a link could plant -->
+    <script is:inline define:vars={{ fontParam: import.meta.env.DEV }}>
       {
         const d = document.documentElement;
         d.classList.add("js");
         try {
-          const asked = new URLSearchParams(location.search).get("font");
+          const asked = fontParam ? new URLSearchParams(location.search).get("font") : null;
           if (asked === "default") localStorage.removeItem("font");
           else if (asked) localStorage.setItem("font", asked);
           const font = localStorage.getItem("font"), theme = localStorage.getItem("theme");

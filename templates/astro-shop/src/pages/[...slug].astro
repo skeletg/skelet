@@ -1,23 +1,24 @@
 ---
 import Base from "../layouts/Base.astro";
+import { PRODUCT_SURFACE } from "@skelet/storefront-core/catalog/read";
 import { cacheCatalog } from "../lib/cache";
 import { getSite } from "../lib/channel";
 import { paragraphs } from "../lib/format";
-import { gql } from "../lib/gql";
+import { gql, PUBLIC } from "../lib/gql";
 import { ProductPageDocument, RouteDocument } from "../graphql/product.gql";
 import { absolute, breadcrumbLd, clip, productLd } from "../lib/seo";
 import { ProductView } from "../views/ProductView";
 
 // Routing is the backend's, as in vetrina: the URL-rewrite resolver decides what a path is
 const path = Astro.params.slug ?? "";
-const { route } = await gql(RouteDocument, { path });
+const { route } = await gql(RouteDocument, { path }, PUBLIC);
 if (route?.redirectTo) return Astro.redirect(route.redirectTo, route.redirectStatusCode === 302 ? 302 : 301);
 
-const product = route?.kind === "PRODUCT" && route.entityId ? (await gql(ProductPageDocument, { id: route.entityId })).product : null;
+const product = route?.kind === "PRODUCT" && route.entityId ? (await gql(ProductPageDocument, { id: route.entityId }, PUBLIC)).product : null;
 // Not cached when missing - a product published a minute from now should appear without waiting out a TTL
 if (!product) return Astro.rewrite("/404");
 // A stock change purges the variant's own id, so each variant's tag is on its parent's page too
-cacheCatalog(Astro.cache, [`product:${product.id}`, ...product.children.map((v) => `product:${v.id}`)]);
+await cacheCatalog(Astro.cache, PRODUCT_SURFACE, [`product:${product.id}`, ...product.children.map((v) => `product:${v.id}`)]);
 
 const { channel, origin } = await getSite(Astro.url.origin);
 const body = paragraphs(product.description);

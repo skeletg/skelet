@@ -2,6 +2,7 @@ import type { HomeProductsQuery } from "../graphql/product-list.gql";
 import type { Channel } from "../lib/channel";
 import { ProductCard } from "../components/ProductCard";
 import { SectionHeading } from "../components/SectionHeading";
+import { PROMISES } from "../lib/promises";
 
 type Product = HomeProductsQuery["browseProducts"]["items"][number];
 
@@ -21,7 +22,7 @@ const promises = [
   "Materials chosen to wear in, not out",
   "Fair prices, with no surprises at checkout",
   "Tracked delivery to your door",
-  "Free returns within 30 days",
+  PROMISES.returns.sentence,
 ];
 
 // Products arrive with a URL each - the page drops the ones with no page in this locale
@@ -58,9 +59,17 @@ function Hero({ shop }: { shop: string }) {
       <img src="/media/hero-poster.jpg" alt="" width="1280" height="720" fetchPriority="high" className="absolute inset-0 -z-30 h-full w-full object-cover opacity-55" />
       {/* Wide screens with motion allowed play the clip over its own first frame; phones and reduced motion keep the
           still, and never download the video */}
-      <video aria-hidden="true" autoPlay muted loop playsInline className="absolute inset-0 -z-20 h-full w-full object-cover opacity-55">
+      <video id="hero-video" aria-hidden="true" autoPlay muted loop playsInline className="absolute inset-0 -z-20 h-full w-full object-cover opacity-55">
         <source src="/media/hero.mp4" type="video/mp4" media="(min-width: 48rem) and (prefers-reduced-motion: no-preference)" />
       </video>
+      <button
+        type="button"
+        data-video-toggle="hero-video"
+        aria-pressed="false"
+        className="absolute bottom-6 right-6 z-10 hidden rounded-full border border-inverse-foreground/30 bg-inverse/60 px-4 py-2 text-sm text-inverse-foreground backdrop-blur-sm motion-reduce:hidden md:js:inline-flex"
+      >
+        Pause video
+      </button>
       <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-r from-inverse via-inverse/75 to-inverse/10"></div>
       <div aria-hidden="true" className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-linear-to-t from-inverse"></div>
 
@@ -88,9 +97,9 @@ function Hero({ shop }: { shop: string }) {
 
 function TrustStrip({ inStock }: { inStock: number }) {
   const trust = [
-    { title: "Free returns", text: "Within 30 days", icon: "M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" },
-    { title: "Secure checkout", text: "No account needed", icon: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" },
-    { title: "Small batches", text: "Shipped with care", icon: "M4 8l8-4 8 4v8l-8 4-8-4V8Zm0 0 8 4 8-4M12 12v8" },
+    { ...PROMISES.returns, icon: "M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" },
+    { ...PROMISES.checkout, icon: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" },
+    { ...PROMISES.batches, icon: "M4 8l8-4 8 4v8l-8 4-8-4V8Zm0 0 8 4 8-4M12 12v8" },
     { title: `${inStock} in stock`, text: "Ready to ship", icon: "M5 12.5l4.5 4.5L19 7.5" },
   ];
   return (

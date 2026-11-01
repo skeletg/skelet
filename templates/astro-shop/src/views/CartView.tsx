@@ -48,7 +48,7 @@ export function CartView({ cart, flash, currency }: Props) {
                 </p>
               )}
               <p className="text-sm text-muted-foreground">Shipping and tax are worked out at checkout.</p>
-              <ButtonLink href="/checkout" className="mt-2 w-full">
+              <ButtonLink href="/checkout" data-astro-prefetch="false" className="mt-2 w-full">
                 Checkout
               </ButtonLink>
             </aside>

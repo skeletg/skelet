@@ -1,4 +1,6 @@
-const strip = ["Free returns within 30 days", "Secure checkout, no account needed", "Small batches, shipped with care"];
+import { PROMISES } from "../lib/promises";
+
+const strip = [PROMISES.returns.sentence, PROMISES.checkout.sentence, PROMISES.batches.sentence];
 const links = [
   { href: "/#products", label: "Shop" },
   { href: "/#story", label: "Our story" },
