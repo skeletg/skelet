@@ -2,6 +2,15 @@
   "plugins": {
     "example": {
       "enabled": false
+    },
+    "tracking-ga4": {
+      "enabled": true
+    },
+    "tracking-meta": {
+      "enabled": true
+    },
+    "tracking-webhook": {
+      "enabled": true
     }
   }
 }

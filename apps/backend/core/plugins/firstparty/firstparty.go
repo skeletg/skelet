@@ -3,3 +3,9 @@
 // Package firstparty compiles the enabled plugins into the binary - each import runs that plugin's init(), which registers with the SDK for the host to replay at boot
 // To add or drop one, edit plugins/plugins.json - `bin/cli plugin enable|disable <slug>` regenerates this file, the only core file an installation ever edits
 package firstparty
+
+import (
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-ga4"
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-meta"
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-webhook"
+)
