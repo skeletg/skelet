@@ -14,7 +14,7 @@ import (
 )
 
 // The number SDKRange gates against, kept honest by api_surface_test.go: api.json records the exported surface and apidiff re-checks it against the last release tag
-const Version = "0.1.1" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the first release baseline, tagged apps/backend/sdk/v0.1.0 when the SDK is published
+const Version = "0.1.2" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the first release baseline, tagged apps/backend/sdk/v0.1.0 when the SDK is published
 
 // A compile-time Go literal rather than a file the host reads at boot - no YAML parsing, no filesystem access, no "where does the manifest live" debate
 // Generate any YAML mirror FROM this struct, never the reverse

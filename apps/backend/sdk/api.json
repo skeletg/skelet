@@ -1,5 +1,5 @@
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": {
     "github.com/skeletg/skelet/apps/backend/sdk": [
       "const ActionChallenge ActionKind = \"challenge\"",
@@ -363,6 +363,7 @@
       "func RequireChannelPermission(context.Context, string, uuid.UUID) error",
       "func RequirePermission(context.Context, string) error",
       "func ResetForTest()",
+      "func ResponseError(*http.Response) error",
       "func TopoSortManifests([]Manifest) []string",
       "func Unavailable(string, ...any) error",
       "func UserErrorWithCode(ErrorKind, string, string, ...any) error",

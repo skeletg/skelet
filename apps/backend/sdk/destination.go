@@ -3,7 +3,10 @@ package sdk
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,6 +123,20 @@ func (e PermanentError) Error() string { return e.Err.Error() }
 func (e PermanentError) Unwrap() error { return e.Err }
 
 func Permanent(err error) error { return PermanentError{Err: err} }
+
+// ResponseError reads a platform's answer: nil for a 2xx, a permanent error for a 4xx a retry can't fix, and a retryable
+// one for a 5xx, a 408 or a 429. The body's first 300 bytes go in the message, for the delivery log
+func ResponseError(res *http.Response) error {
+	if res.StatusCode >= 200 && res.StatusCode < 300 {
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 300))
+	err := fmt.Errorf("%s: %d %s", res.Request.URL.Host, res.StatusCode, strings.TrimSpace(string(body)))
+	if res.StatusCode >= 400 && res.StatusCode < 500 && res.StatusCode != http.StatusRequestTimeout && res.StatusCode != http.StatusTooManyRequests {
+		return Permanent(err)
+	}
+	return err
+}
 
 func IsPermanent(err error) bool {
 	var p PermanentError
