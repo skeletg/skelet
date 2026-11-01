@@ -2,7 +2,9 @@ package consent
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -29,6 +31,50 @@ func (s *Service) SetEventBus(b *events.Bus) { s.bus = b }
 // Records an opt-in or opt-out - rejects unknown kinds with ErrUnknownConsent, opting out of required kinds with ErrConsentRequired and a source outside the Source* constants with ErrUnknownSource
 func (s *Service) SetConsent(ctx context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) (Consent, error) {
 	return s.set(ctx, Change{CustomerID: customerID, Kind: kind, OptedIn: optedIn, Source: source})
+}
+
+// RecordEmailOptIn keeps a guest's marketing opt-in under their address, for every email marketing kind the store defines -
+// the reference (an order number) is what shows where it was given
+func (s *Service) RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, email, source, reference string) error {
+	if !validSource(source) {
+		return ErrUnknownSource
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	for _, d := range AllDefinitions() {
+		if d.Purpose != PurposeMarketing || d.Channel != ChannelEmail {
+			continue
+		}
+		if err := s.repo.RecordEmailOptIn(ctx, EmailOptIn{ChannelID: channelID, Email: email, Kind: d.Slug, Source: source, Reference: reference}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ClaimEmailOptIns gives the customer who proved they own an address the opt-ins a guest gave under it. A choice the account
+// made after the tick stands, which also makes a repeat claim a no-op. Returns how many it applied
+func (s *Service) ClaimEmailOptIns(ctx context.Context, customerID, channelID uuid.UUID, email string) (int, error) {
+	optIns, err := s.repo.ListEmailOptIns(ctx, channelID, strings.ToLower(strings.TrimSpace(email)))
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, o := range optIns {
+		current, err := s.repo.Get(ctx, customerID, o.Kind)
+		if err != nil {
+			return n, err
+		}
+		if current != nil && !current.UpdatedAt.Before(o.CreatedAt) {
+			continue
+		}
+		switch _, err := s.SetConsent(ctx, customerID, o.Kind, true, o.Source); {
+		case err == nil:
+			n++
+		case !errors.Is(err, ErrUnknownConsent): // a kind the store has since removed is skipped
+			return n, err
+		}
+	}
+	return n, nil
 }
 
 // The dashboard's write - the history names the admin who made it, nil when an integration token did

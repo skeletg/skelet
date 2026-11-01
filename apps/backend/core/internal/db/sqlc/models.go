@@ -1444,6 +1444,15 @@ type DownloadGrant struct {
 	CreatedAt     time.Time     `json:"created_at"`
 }
 
+type EmailOptIn struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+	Kind      string    `json:"kind"`
+	Source    string    `json:"source"`
+	Reference string    `json:"reference"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type EventOutbox struct {
 	ID            uuid.UUID       `json:"id"`
 	EventType     string          `json:"event_type"`

@@ -20,6 +20,7 @@ type fakeRepo struct {
 	getErr    error
 	upsertErr error
 	listErr   error
+	optIns    []EmailOptIn
 }
 
 type storeKey struct {
@@ -82,6 +83,21 @@ func (r *fakeRepo) ListEvents(_ context.Context, customerID uuid.UUID, limit int
 	for i := len(r.events) - 1; i >= 0 && int32(len(out)) < limit; i-- {
 		if r.events[i].CustomerID == customerID {
 			out = append(out, r.events[i])
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeRepo) RecordEmailOptIn(_ context.Context, o EmailOptIn) error {
+	r.optIns = append(r.optIns, o)
+	return nil
+}
+
+func (r *fakeRepo) ListEmailOptIns(_ context.Context, channelID uuid.UUID, email string) ([]EmailOptIn, error) {
+	var out []EmailOptIn
+	for _, o := range r.optIns {
+		if o.ChannelID == channelID && o.Email == email {
+			out = append(out, o)
 		}
 	}
 	return out, nil
@@ -402,5 +418,63 @@ func TestEveryChangeLeavesAHistoryEntry(t *testing.T) {
 	}
 	if hist[1].Source != SourceUnsubscribeLink || hist[2].Source != SourceSignupForm {
 		t.Errorf("history order = %s, %s, want newest first", hist[1].Source, hist[2].Source)
+	}
+}
+
+func TestAGuestOptInIsKeptForEmailMarketingOnly(t *testing.T) {
+	repo := newFakeRepo()
+	ch := uuid.New()
+	if err := NewService(repo).RecordEmailOptIn(context.Background(), ch, " Guest@Example.com ", SourceCheckout, "ORD-000123"); err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, o := range repo.optIns {
+		if o.Email != "guest@example.com" || o.Source != SourceCheckout || o.Reference != "ORD-000123" || o.ChannelID != ch {
+			t.Errorf("stored %+v, want the normalized address with its proof", o)
+		}
+		kinds[o.Kind] = true
+	}
+	if !kinds[kindMarketingEmail] || kinds[kindTransactional] {
+		t.Errorf("kinds %v, want email marketing and nothing transactional", kinds)
+	}
+	if err := NewService(repo).RecordEmailOptIn(context.Background(), ch, "a@b.c", "made_up", ""); !errors.Is(err, ErrUnknownSource) {
+		t.Errorf("unknown source = %v, want ErrUnknownSource", err)
+	}
+}
+
+func TestAClaimAppliesAGuestOptInUnlessTheAccountDecidedLater(t *testing.T) {
+	ch, cust := uuid.New(), uuid.New()
+	accountChoice := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) // what fakeRepo.put stamps
+	optIn := func(at time.Time) *fakeRepo {
+		repo := newFakeRepo()
+		repo.optIns = []EmailOptIn{{ChannelID: ch, Email: "guest@example.com", Kind: kindMarketingEmail, Source: SourceCheckout, CreatedAt: at}}
+		return repo
+	}
+	claim := func(repo *fakeRepo) int {
+		n, err := NewService(repo).ClaimEmailOptIns(context.Background(), cust, ch, "Guest@Example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	repo := optIn(accountChoice.Add(-time.Hour))
+	if n := claim(repo); n != 1 || !repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn || repo.stored[storeKey{cust, kindMarketingEmail}].Source != SourceCheckout {
+		t.Fatalf("first claim applied %d: %+v", n, repo.stored)
+	}
+	if n := claim(repo); n != 0 {
+		t.Errorf("a repeat claim applied %d, want none", n)
+	}
+
+	repo = optIn(accountChoice.Add(-time.Hour))
+	repo.put(cust, kindMarketingEmail, false, SourceRegistration)
+	if n := claim(repo); n != 0 || repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn {
+		t.Errorf("an account's later no was overridden by an older tick")
+	}
+
+	repo = optIn(accountChoice.Add(time.Hour))
+	repo.put(cust, kindMarketingEmail, false, SourceRegistration)
+	if n := claim(repo); n != 1 || !repo.stored[storeKey{cust, kindMarketingEmail}].OptedIn {
+		t.Errorf("a tick given after the account's no was not applied")
 	}
 }

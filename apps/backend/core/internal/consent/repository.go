@@ -100,3 +100,24 @@ func toStored(row db.CustomerConsent) StoredConsent {
 		UpdatedAt:  row.UpdatedAt,
 	}
 }
+
+func (r *postgresRepository) RecordEmailOptIn(ctx context.Context, o EmailOptIn) error {
+	if err := r.queries.RecordEmailOptIn(ctx, db.RecordEmailOptInParams{
+		ChannelID: o.ChannelID, Email: o.Email, Kind: o.Kind, Source: o.Source, Reference: o.Reference,
+	}); err != nil {
+		return fmt.Errorf("record email opt-in: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) ListEmailOptIns(ctx context.Context, channelID uuid.UUID, email string) ([]EmailOptIn, error) {
+	rows, err := r.queries.ListEmailOptIns(ctx, db.ListEmailOptInsParams{ChannelID: channelID, Email: email})
+	if err != nil {
+		return nil, fmt.Errorf("list email opt-ins: %w", err)
+	}
+	out := make([]EmailOptIn, len(rows))
+	for i, row := range rows {
+		out[i] = EmailOptIn{ChannelID: row.ChannelID, Email: row.Email, Kind: row.Kind, Source: row.Source, Reference: row.Reference, CreatedAt: row.CreatedAt}
+	}
+	return out, nil
+}
