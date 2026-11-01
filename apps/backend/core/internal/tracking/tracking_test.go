@@ -25,6 +25,7 @@ type fakeStore struct {
 	dests      map[uuid.UUID]Destination
 	deliveries map[uuid.UUID]*Delivery
 	keys       map[string]bool // destination+event id, the table's unique key
+	events     []Event         // what Enqueue was handed, in order
 }
 
 func newFakeStore(ds ...Destination) *fakeStore {
@@ -72,6 +73,7 @@ func (f *fakeStore) Enqueue(_ context.Context, dest uuid.UUID, ev Event) error {
 		return nil
 	}
 	f.keys[key] = true
+	f.events = append(f.events, ev)
 	payload := fmt.Appendf(nil, `{"event_id":%q,"name":%q,"channel_id":%q}`, ev.ID, ev.Name, ev.ChannelID)
 	id := uuid.New()
 	f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}

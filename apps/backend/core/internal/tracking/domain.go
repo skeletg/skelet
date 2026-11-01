@@ -97,6 +97,9 @@ type User struct {
 	AnonID     string     `json:"anon_id,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	Phone      string     `json:"phone,omitempty"`
+	// The email may receive marketing - the account's consent, or a guest's opt-in. Marketing platforms that build a
+	// profile from the address need it; false wherever the event carries no email
+	MarketingOptIn bool `json:"marketing_opt_in,omitempty"`
 }
 
 type Context struct {

@@ -279,6 +279,7 @@
       "field ShopUser.AnonID string \"json:\\\"anon_id,omitempty\\\"\"",
       "field ShopUser.CustomerID *uuid.UUID \"json:\\\"customer_id,omitempty\\\"\"",
       "field ShopUser.Email string \"json:\\\"email,omitempty\\\"\"",
+      "field ShopUser.MarketingOptIn bool \"json:\\\"marketing_opt_in,omitempty\\\"\"",
       "field ShopUser.Phone string \"json:\\\"phone,omitempty\\\"\"",
       "field SyncPaymentRequest.ChannelID uuid.UUID",
       "field SyncPaymentRequest.Config ConfigReader",

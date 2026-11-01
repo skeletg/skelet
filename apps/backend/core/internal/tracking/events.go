@@ -28,14 +28,19 @@ type channelReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
 }
 
+// Satisfied by *consent.Service
+type emailMarketing interface {
+	EmailMarketingAllowed(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, email string) (bool, error)
+}
+
 // Subscribe turns the server's own events into tracking events: purchases, refunds and cancellations off the order
 // outbox, cart adds and removals, storefront sign-ups. An order event uses the consent snapshotted at placement, the
 // rest the consent the visitor had when they acted
-func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader) {
+func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channelReader, marketing emailMarketing) {
 	if bus == nil {
 		return
 	}
-	h := handlers{svc: s, orders: orders, channels: channels}
+	h := handlers{svc: s, orders: orders, channels: channels, marketing: marketing}
 	bus.Subscribe(order.EventPlaced, h.onPlaced)
 	bus.Subscribe(order.EventRefunded, h.onRefunded)
 	bus.Subscribe(order.EventCancelled, h.onCancelled)
@@ -46,9 +51,23 @@ func (s *Service) Subscribe(bus *events.Bus, orders orderReader, channels channe
 }
 
 type handlers struct {
-	svc      *Service
-	orders   orderReader
-	channels channelReader
+	svc       *Service
+	orders    orderReader
+	channels  channelReader
+	marketing emailMarketing // nil: no event says its email may be marketed to
+}
+
+// track sends the event, first noting whether its email may receive marketing - a failed lookup goes back to the
+// outbox rather than sending the event as if the answer were no
+func (h handlers) track(ctx context.Context, ev Event) error {
+	if ev.User.Email != "" && h.marketing != nil {
+		ok, err := h.marketing.EmailMarketingAllowed(ctx, ev.ChannelID, ev.User.CustomerID, ev.User.Email)
+		if err != nil {
+			return fmt.Errorf("email marketing consent: %w", err)
+		}
+		ev.User.MarketingOptIn = ok
+	}
+	return h.svc.Track(ctx, ev)
 }
 
 // A missing order is final; any other failed load goes back to the outbox
@@ -72,7 +91,7 @@ func (h handlers) onPlaced(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	return h.svc.Track(ctx, PurchaseEvent(o))
+	return h.track(ctx, PurchaseEvent(o))
 }
 
 // PurchaseEvent is the order as GA4's purchase - the id is the order's own, so the browser's copy dedupes against it
@@ -105,7 +124,7 @@ func (h handlers) onRefunded(ctx context.Context, e events.Event) error {
 	if err != nil {
 		return fmt.Errorf("load credit memo %s: %w", ev.CreditMemoID, err)
 	}
-	return h.svc.Track(ctx, RefundEvent(o, memo, eventTime(ctx)))
+	return h.track(ctx, RefundEvent(o, memo, eventTime(ctx)))
 }
 
 // RefundEvent is one credit memo - partial refunds each report what they gave back, by item where the memo names lines
@@ -134,7 +153,7 @@ func (h handlers) onCancelled(ctx context.Context, e events.Event) error {
 	if !found {
 		return err
 	}
-	return h.svc.Track(ctx, CancelEvent(o, ev.RefundableFraction, eventTime(ctx)))
+	return h.track(ctx, CancelEvent(o, ev.RefundableFraction, eventTime(ctx)))
 }
 
 // CancelEvent reverses the purchase a cancelled order reported, scaled to the share that never shipped - as a refund,
@@ -232,7 +251,7 @@ func (h handlers) onRegistered(ctx context.Context, e events.Event) error {
 		Source: "server", User: User{CustomerID: &cid, Email: ev.Email},
 	}
 	out.WithShopper(ev.Shopper)
-	return h.svc.Track(ctx, out)
+	return h.track(ctx, out)
 }
 
 // The outbox's enqueue time on a relayed event, so a redelivery keeps the first attempt's time and id

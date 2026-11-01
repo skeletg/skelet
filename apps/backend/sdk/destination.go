@@ -68,6 +68,9 @@ type ShopUser struct {
 	AnonID     string     `json:"anon_id,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	Phone      string     `json:"phone,omitempty"`
+	// The email may receive marketing - the account's consent, or a guest's opt-in. A destination that builds a
+	// marketing profile from the address must not send the event without it
+	MarketingOptIn bool `json:"marketing_opt_in,omitempty"`
 }
 
 type ShopContext struct {

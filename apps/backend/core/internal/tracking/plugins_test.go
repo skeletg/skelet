@@ -20,6 +20,7 @@ func TestTheSDKEventCarriesEveryField(t *testing.T) {
 	ev.Ecommerce.Coupon = "SPRING"
 	ev.Ecommerce.Items[0].ItemBrand, ev.Ecommerce.Items[0].ItemCategory, ev.Ecommerce.Items[0].ItemVariant, ev.Ecommerce.Items[0].Discount = "B", "C", "V", 1
 	ev.Consent.Personalization = true
+	ev.User.MarketingOptIn = true
 	shop, err := ToShopEvent(ev)
 	if err != nil {
 		t.Fatal(err)
