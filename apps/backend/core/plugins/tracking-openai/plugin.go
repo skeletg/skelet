@@ -16,7 +16,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/money"
 	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
@@ -160,9 +159,21 @@ func toEvent(typ string, ev sdk.ShopEvent) event {
 	return out
 }
 
+// ISO 4217 currencies whose minor unit isn't a hundredth - a plugin sees only the SDK, so it carries its own copy
+var isoDecimals = map[string]int{
+	"BIF": 0, "CLP": 0, "DJF": 0, "GNF": 0, "ISK": 0, "JPY": 0, "KMF": 0, "KRW": 0, "PYG": 0,
+	"RWF": 0, "UGX": 0, "UYI": 0, "VND": 0, "VUV": 0, "XAF": 0, "XOF": 0, "XPF": 0,
+	"BHD": 3, "IQD": 3, "JOD": 3, "KWD": 3, "LYD": 3, "OMR": 3, "TND": 3,
+	"CLF": 4, "UYW": 4,
+}
+
 // Minor units by the currency's own decimals - 4200 for 42.00 EUR, 4200 for 4200 JPY
 func minor(v float64, currency string) int64 {
-	return int64(math.Round(v * math.Pow10(money.ISODecimals(currency))))
+	decimals, ok := isoDecimals[strings.ToUpper(currency)]
+	if !ok {
+		decimals = 2
+	}
+	return int64(math.Round(v * math.Pow10(decimals)))
 }
 
 // OpenAI's rule: keep the country code, drop every symbol, a leading + and leading zeros
