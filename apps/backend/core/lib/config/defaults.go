@@ -78,6 +78,8 @@ func init() {
 		{Value: "opt_in", Label: "Ask first (opt-in)"},
 		{Value: "opt_out", Label: "No banner (opt-out)"},
 	}})
+	Register(Definition{Path: "general/privacy/cj_cookie_necessary", Type: TypeBool, Default: "false", Label: "Treat the CJ affiliate cookie as necessary", Description: "Off, CJ's click cookie is set and its conversions sent only with the visitor's advertising consent. On, both happen without it, as some affiliate programmes require. Whether that is lawful where you sell is your call.", Public: true})
+	Register(Definition{Path: "general/privacy/awin_cookie_necessary", Type: TypeBool, Default: "false", Label: "Treat the Awin affiliate cookie as necessary", Description: "Off, Awin's click cookie is set and its conversions sent only with the visitor's advertising consent. On, both happen without it, as some affiliate programmes require. Whether that is lawful where you sell is your call.", Public: true})
 	Register(Definition{Path: "sales/checkout/terms_consent", Type: TypeSelect, Default: "checkbox", Label: "Terms consent at payment", Description: "Checkbox makes the shopper tick that they accept the terms before paying, which many EU markets need, and placement refuses an order sent without it. Notice shows a line saying placing the order accepts them. Off shows neither.", Public: true, Options: []Option{
 		{Value: "checkbox", Label: "Checkbox"},
 		{Value: "notice", Label: "Notice"},

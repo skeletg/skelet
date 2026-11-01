@@ -366,6 +366,8 @@ export async function placeOrderAction(
       savedPaymentMethodId: v.savedPaymentMethodId,
       // The backend holds a checkbox store to the same tick the form asked for
       acceptTerms: v.tos === true,
+      // Kept for a guest under the order's email until they prove they own it - the backend ignores it on a customer's order
+      marketingOptIn: v.marketingOptIn === true,
     });
     orderId = res.data.placeOrder.id;
     needsAction = !!res.data.placeOrder.paymentClientSecret;

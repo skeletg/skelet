@@ -119,6 +119,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	})
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
+	registerEmailOptIns(bus, d.Consent, d.Customer)
 	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
@@ -299,4 +300,39 @@ func paymentEventToOrderStatus(eventName string) string { // maps the payment.* 
 		return order.PaymentVoided
 	}
 	return ""
+}
+
+type emailOptIns interface {
+	RecordEmailOptIn(ctx context.Context, channelID uuid.UUID, email, source, reference string) error
+	ClaimEmailOptIns(ctx context.Context, customerID, channelID uuid.UUID, email string) (int, error)
+}
+
+type verifiedAccounts interface {
+	VerifiedCustomerIDByEmail(ctx context.Context, channelID uuid.UUID, email string) (uuid.UUID, bool, error)
+}
+
+// A guest's checkout opt-in is kept under their address with the order number as proof, and handed to whoever proves they
+// own it - on email verified, like the guest-order claim, for the same reason, or at once when that account already has.
+// All of it is idempotent, so a replay is harmless
+func registerEmailOptIns(bus *events.Bus, optIns emailOptIns, accounts verifiedAccounts) {
+	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
+		evt := e.(*order.OrderPlaced)
+		if !evt.MarketingOptIn {
+			return nil
+		}
+		if err := optIns.RecordEmailOptIn(ctx, evt.ChannelID, evt.Email, consent.SourceCheckout, evt.OrderNumber); err != nil {
+			return err
+		}
+		id, verified, err := accounts.VerifiedCustomerIDByEmail(ctx, evt.ChannelID, evt.Email)
+		if err != nil || !verified {
+			return err
+		}
+		_, err = optIns.ClaimEmailOptIns(ctx, id, evt.ChannelID, evt.Email)
+		return err
+	})
+	bus.Subscribe(customer.EventEmailVerified, func(ctx context.Context, e events.Event) error {
+		evt := e.(*customer.CustomerEmailVerified)
+		_, err := optIns.ClaimEmailOptIns(ctx, evt.CustomerID, evt.ChannelID, evt.Email)
+		return err
+	})
 }

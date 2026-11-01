@@ -213,6 +213,8 @@ extend type Mutation {
     savedPaymentMethodId: ID
     # The shopper ticked "I accept the terms". Required true when the store's sales/checkout/terms_consent is checkbox - placement refuses with TERMS_NOT_ACCEPTED otherwise. Ignored under notice and off.
     acceptTerms: Boolean
+    # A guest ticked "send me offers by email". Kept under the order's email, with the order number as proof, and applied to the account once someone proves they own the address. A signed-in shopper's choice goes through setConsent instead, so it is ignored for them.
+    marketingOptIn: Boolean
   ): Order!
 }
 

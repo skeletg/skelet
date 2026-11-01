@@ -336,6 +336,8 @@ type PlaceOrderInput struct {
 	Shipments []ShipmentInput
 	// none, physical or mixed - a none order takes no shipping address and pays no shipping, and tax follows the billing address
 	FulfillmentNeed string
+	// The shopper ticked the email opt-in at checkout - only a guest's rides the order, a signed-in shopper's goes straight to their consent
+	MarketingOptIn bool
 }
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
@@ -587,6 +589,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              auth.AnonID(ctx),
+			Tracking:            TrackingFromContext(ctx),
 		})
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
@@ -676,15 +679,16 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		// Durable dispatch - OrderPlaced commits with the order and is relayed after commit, so a crash can't lose it
 		if s.outbox != nil {
 			if err := s.outbox.Enqueue(ctx, sqlTx, &OrderPlaced{
-				OrderID:     order.ID,
-				OrderNumber: order.Number,
-				CustomerID:  in.CustomerID,
-				Email:       in.Email,
-				AnonID:      auth.AnonID(ctx),
-				ChannelID:   store.ID,
-				TotalCents:  order.TotalAmount,
-				Currency:    order.CurrencyCode,
-				Tags:        placing.Tags,
+				OrderID:        order.ID,
+				OrderNumber:    order.Number,
+				CustomerID:     in.CustomerID,
+				Email:          in.Email,
+				AnonID:         auth.AnonID(ctx),
+				ChannelID:      store.ID,
+				TotalCents:     order.TotalAmount,
+				Currency:       order.CurrencyCode,
+				Tags:           placing.Tags,
+				MarketingOptIn: in.MarketingOptIn && in.CustomerID == nil,
 			}); err != nil {
 				return fmt.Errorf("enqueue order.placed: %w", err)
 			}
@@ -702,15 +706,16 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 	// Fire-and-forget fallback when there's no outbox
 	if s.outbox == nil && s.bus != nil {
 		s.bus.Publish(ctx, &OrderPlaced{
-			OrderID:     orderID,
-			OrderNumber: orderNumber,
-			CustomerID:  in.CustomerID,
-			Email:       in.Email,
-			AnonID:      auth.AnonID(ctx),
-			ChannelID:   store.ID,
-			TotalCents:  orderTotal,
-			Currency:    orderCurrency,
-			Tags:        placing.Tags,
+			OrderID:        orderID,
+			OrderNumber:    orderNumber,
+			CustomerID:     in.CustomerID,
+			Email:          in.Email,
+			AnonID:         auth.AnonID(ctx),
+			ChannelID:      store.ID,
+			TotalCents:     orderTotal,
+			Currency:       orderCurrency,
+			Tags:           placing.Tags,
+			MarketingOptIn: in.MarketingOptIn && in.CustomerID == nil,
 		})
 	}
 

@@ -165,6 +165,10 @@ func scrubPersonalData(ctx context.Context, q *db.Queries, c Customer) error {
 			_, err := q.DeleteCustomerSignupSubmissions(ctx, db.DeleteCustomerSignupSubmissionsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 			return err
 		}},
+		{"delete email opt-ins", func() error {
+			_, err := q.DeleteEmailOptIns(ctx, db.DeleteEmailOptInsParams{ChannelID: ch, Email: addr})
+			return err
+		}},
 		{"delete web form submissions", func() error {
 			_, err := q.DeleteCustomerWebFormSubmissions(ctx, db.DeleteCustomerWebFormSubmissionsParams{CustomerID: nid, ChannelID: ch, Email: addr})
 			return err

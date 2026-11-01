@@ -311,14 +311,15 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineAdded{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			LineID:     line.ID,
-			ProductSku: input.ProductSku,
-			UnitPrice:  input.UnitPrice,
-			Quantity:   input.Quantity,
+			CartID:           cart.ID,
+			ChannelID:        cart.ChannelID,
+			CustomerID:       cart.CustomerID,
+			AnonID:           auth.AnonID(ctx),
+			AnalyticsRefused: auth.AnalyticsRefused(ctx),
+			LineID:           line.ID,
+			ProductSku:       input.ProductSku,
+			UnitPrice:        input.UnitPrice,
+			Quantity:         input.Quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -468,12 +469,13 @@ func (s *Service) UpdateCartLine(ctx context.Context, cartID, lineID uuid.UUID, 
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineUpdated{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			LineID:     lineID,
-			Quantity:   quantity,
+			CartID:           cart.ID,
+			ChannelID:        cart.ChannelID,
+			CustomerID:       cart.CustomerID,
+			AnonID:           auth.AnonID(ctx),
+			AnalyticsRefused: auth.AnalyticsRefused(ctx),
+			LineID:           lineID,
+			Quantity:         quantity,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -506,11 +508,12 @@ func (s *Service) RemoveFromCart(ctx context.Context, cartID, lineID uuid.UUID, 
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &LineRemoved{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
-			LineID:     lineID,
+			CartID:           cart.ID,
+			ChannelID:        cart.ChannelID,
+			CustomerID:       cart.CustomerID,
+			AnonID:           auth.AnonID(ctx),
+			AnalyticsRefused: auth.AnalyticsRefused(ctx),
+			LineID:           lineID,
 		})
 	}
 	return loadCartWithLines(ctx, s.repo, cart.ID)
@@ -529,10 +532,11 @@ func (s *Service) ClearCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Cleared{
-			CartID:     cart.ID,
-			ChannelID:  cart.ChannelID,
-			CustomerID: cart.CustomerID,
-			AnonID:     auth.AnonID(ctx),
+			CartID:           cart.ID,
+			ChannelID:        cart.ChannelID,
+			CustomerID:       cart.CustomerID,
+			AnonID:           auth.AnonID(ctx),
+			AnalyticsRefused: auth.AnalyticsRefused(ctx),
 		})
 	}
 	return nil

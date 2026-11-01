@@ -156,3 +156,8 @@ DELETE FROM customer_payment_methods WHERE customer_id = $1;
 
 -- name: DeleteCustomerWishlistShares :execrows
 DELETE FROM wishlist_shares WHERE customer_id = $1;
+
+-- name: DeleteEmailOptIns :execrows
+-- A guest's checkout opt-in is stored under the bare address, so it goes by address on the customer's channel
+DELETE FROM email_opt_ins
+WHERE  channel_id = sqlc.arg(channel_id) AND email = sqlc.arg(email)::text;

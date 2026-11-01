@@ -850,7 +850,7 @@ type ComplexityRoot struct {
 		MoveSavedToCart                func(childComplexity int, cartID string, savedItemID string) int
 		MoveToCart                     func(childComplexity int, productID string) int
 		OpenCartOffer                  func(childComplexity int, token string) int
-		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) int
+		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool) int
 		PresignWebFormUpload           func(childComplexity int, formID string, fieldKey string, filename string, contentType string, sizeBytes int32) int
 		RedeemLoyaltyPoints            func(childComplexity int, points int32) int
 		RemoveCoupon                   func(childComplexity int, cartID string, code string) int
@@ -1631,7 +1631,7 @@ type MutationResolver interface {
 	FinalizeOrderPayment(ctx context.Context, orderID string) (bool, error)
 	Reorder(ctx context.Context, orderID string) (*model1.ReorderResult, error)
 	RequestReturn(ctx context.Context, input model.RequestReturnInput) (*model.OrderReturn, error)
-	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) (*model.Order, error)
+	PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool) (*model.Order, error)
 	SavePaymentMethod(ctx context.Context, providerSlug string, token string) (*model1.SavedPaymentMethod, error)
 	DeleteMyPaymentMethod(ctx context.Context, id string) (bool, error)
 	SubmitProductQuestion(ctx context.Context, productID string, question string, authorName *string, authorEmail *string) (bool, error)
@@ -5406,7 +5406,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string), args["acceptTerms"].(*bool)), true
+		return e.ComplexityRoot.Mutation.PlaceOrder(childComplexity, args["cartId"].(*string), args["paymentToken"].(*string), args["savedPaymentMethodId"].(*string), args["acceptTerms"].(*bool), args["marketingOptIn"].(*bool)), true
 	case "Mutation.presignWebFormUpload":
 		if e.ComplexityRoot.Mutation.PresignWebFormUpload == nil {
 			break
@@ -11002,6 +11002,8 @@ extend type Mutation {
     savedPaymentMethodId: ID
     # The shopper ticked "I accept the terms". Required true when the store's sales/checkout/terms_consent is checkbox - placement refuses with TERMS_NOT_ACCEPTED otherwise. Ignored under notice and off.
     acceptTerms: Boolean
+    # A guest ticked "send me offers by email". Kept under the order's email, with the order number as proof, and applied to the account once someone proves they own the address. A signed-in shopper's choice goes through setConsent instead, so it is ignored for them.
+    marketingOptIn: Boolean
   ): Order!
 }
 
@@ -14721,6 +14723,14 @@ func (ec *executionContext) field_Mutation_placeOrder_args(ctx context.Context, 
 		return nil, err
 	}
 	args["acceptTerms"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "marketingOptIn",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["marketingOptIn"] = arg4
 	return args, nil
 }
 
@@ -32069,7 +32079,7 @@ func (ec *executionContext) _Mutation_placeOrder(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string), fc.Args["acceptTerms"].(*bool))
+			return ec.Resolvers.Mutation().PlaceOrder(ctx, fc.Args["cartId"].(*string), fc.Args["paymentToken"].(*string), fc.Args["savedPaymentMethodId"].(*string), fc.Args["acceptTerms"].(*bool), fc.Args["marketingOptIn"].(*bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {

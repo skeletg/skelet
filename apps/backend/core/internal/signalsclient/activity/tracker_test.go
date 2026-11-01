@@ -209,6 +209,44 @@ func TestTracker_GuestCommerceByAnon(t *testing.T) {
 	})
 }
 
+// Admin drafts, headless shops and API clients send no visitor - the order must still land, keyed on the receipt email
+func TestAGuestOrderWithoutAVisitorLandsUnderItsEmail(t *testing.T) {
+	ch := uuid.New()
+	tr, fr := newTracker(order.Order{Number: "1100", ChannelID: ch, Email: "Shopper@Example.com "})
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), OrderNumber: "1100", Email: "shopper@example.com", ChannelID: ch, TotalCents: 1500, Currency: "USD"})
+	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: uuid.New(), ToStatus: "cancelled"})
+	if len(fr.calls) != 2 {
+		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
+	}
+	placed, cancelled := fr.calls[0], fr.calls[1]
+	if !strings.HasPrefix(placed.AnonID, "guest_") || len(placed.AnonID) != len("guest_")+32 || placed.CustomerID != nil {
+		t.Fatalf("order_placed actor = %q (customer %v), want a guest_ email hash", placed.AnonID, placed.CustomerID)
+	}
+	if cancelled.AnonID != placed.AnonID {
+		t.Errorf("cancellation actor %q != placement actor %q - case and spaces in the email must not split one guest", cancelled.AnonID, placed.AnonID)
+	}
+	if strings.Contains(placed.AnonID, "example") {
+		t.Errorf("actor %q leaks the email", placed.AnonID)
+	}
+}
+
+// A replayed order must collapse onto the live write - same dedupe key - and sit at the time it was placed, not the time of the replay
+func TestABackfilledOrderLandsAtItsPlacementTime(t *testing.T) {
+	placed := time.Date(2026, 9, 26, 10, 7, 0, 0, time.UTC)
+	o := order.Order{ID: uuid.New(), Number: "ORD-001005", Email: "guest@example.com", ChannelID: uuid.New(), TotalAmount: 1500, CurrencyCode: "USD", CreatedAt: placed}
+	tr, fr := newTracker(o)
+	if err := tr.BackfillOrder(context.Background(), o); err != nil {
+		t.Fatal(err)
+	}
+	if len(fr.calls) != 1 {
+		t.Fatalf("recorded %d, want the one placement", len(fr.calls))
+	}
+	got := fr.calls[0]
+	if !got.At.Equal(placed) || got.DedupeKey != "act:order_placed:"+o.ID.String() || got.Props["total_cents"] != int64(1500) {
+		t.Errorf("backfill wrote %+v, want order_placed at %v keyed on the order id", got, placed)
+	}
+}
+
 func TestTracker_SkipsUnattributable(t *testing.T) {
 	ch := uuid.New()
 
@@ -497,5 +535,52 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("log %q does not mention %q", buf.String(), want)
 		}
+	}
+}
+
+// Refusing analytics on the banner still counts the purchase, but under the order alone - not the customer, the visitor or the email
+func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.T) {
+	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
+	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &order.Tracking{}}
+	tr, fr := newTracker(o)
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, OrderNumber: "1200", CustomerID: &cid, Email: "a@example.com", AnonID: "lens-1", ChannelID: ch, TotalCents: 900, Currency: "USD"})
+	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: oid, ToStatus: "cancelled"})
+	if len(fr.calls) != 2 {
+		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
+	}
+	for _, c := range fr.calls {
+		if c.CustomerID != nil || c.AnonID != "order_"+oid.String() {
+			t.Errorf("%s recorded under customer %v / %q, want the order alone", c.EventName, c.CustomerID, c.AnonID)
+		}
+	}
+	if fr.calls[0].Props["total_cents"] != int64(900) {
+		t.Errorf("order_placed props %v, want the revenue kept", fr.calls[0].Props)
+	}
+
+	o.Tracking = &order.Tracking{Consent: auth.Consent{Analytics: true}}
+	tr, fr = newTracker(o)
+	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, CustomerID: &cid, ChannelID: ch})
+	if len(fr.calls) != 1 || fr.calls[0].CustomerID == nil || *fr.calls[0].CustomerID != cid {
+		t.Errorf("with analytics consent the order must land on the customer: %+v", fr.calls)
+	}
+}
+
+// A signed-in shopper who refused analytics is still named on their cart events - none of them may reach the profile
+func TestCartActivityWithAnalyticsRefusedIsNotRecorded(t *testing.T) {
+	cid, ch, line := uuid.New(), uuid.New(), uuid.New()
+	tr, fr := newTracker(order.Order{})
+	ctx := context.Background()
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, AnalyticsRefused: true})
+	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, AnalyticsRefused: true})
+	if len(fr.calls) != 0 {
+		t.Fatalf("recorded %d cart activities for a shopper who refused analytics", len(fr.calls))
+	}
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line})
+	if len(fr.calls) != 1 {
+		t.Fatal("cart activity without a refusal must still record")
 	}
 }

@@ -121,3 +121,9 @@ JOIN   web_forms f ON f.id = s.form_id
 WHERE  s.customer_id = sqlc.arg(customer_id)
    OR  (sqlc.arg(email)::text <> '' AND s.channel_id = sqlc.arg(channel_id) AND jsonb_typeof(s.answers) = 'object'
         AND EXISTS (SELECT 1 FROM jsonb_each_text(s.answers) a WHERE lower(btrim(a.value)) = sqlc.arg(email)::text));
+
+-- name: DSAREmailOptIns :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object(
+         'kind', o.kind, 'source', o.source, 'reference', o.reference, 'createdAt', o.created_at) ORDER BY o.created_at, o.kind), '[]')::jsonb AS doc
+FROM   email_opt_ins o
+WHERE  sqlc.arg(email)::text <> '' AND o.channel_id = sqlc.arg(channel_id) AND o.email = sqlc.arg(email)::text;

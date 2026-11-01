@@ -573,6 +573,12 @@ the `/subscribe/confirm/*` signup confirmations, the `/e/*` email pixels and cli
 falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
 host.
 
+`STOREFRONT_COOKIE_DOMAIN` is the domain the ad and affiliate click-id cookies
+(`cje`, `awc`, `_fbc`, `sk_gclid` and the rest) are set on. Left empty, a
+`www.` host sets them on the bare domain and any other host on itself. Set it,
+for example to `shop.example`, when checkout runs on a different subdomain
+from the pages shoppers land on, so a click still counts there.
+
 A purge reaches one storefront process, since the page cache lives in it. Run
 a single replica unless you've configured a shared cache handler; see
 [deploying.md](deploying.md#putting-an-edge-in-front).

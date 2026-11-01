@@ -144,6 +144,7 @@ it("places a fully covered order without asking for a method", async () => {
 
 describe("the checkout email opt-in", () => {
   const optIns = () => mocks.gqlFetch.mock.calls.filter(([, vars]) => vars && "optedIn" in vars).map(([, vars]) => vars);
+  const placed = () => mocks.gqlFetch.mock.calls.filter(([, vars]) => vars && "acceptTerms" in vars).map(([, vars]) => vars);
   const place = async (tick: boolean) => {
     mocks.gqlFetch.mockImplementation(async (_doc: unknown, vars?: Record<string, unknown>) =>
       vars && "cartId" in vars && !("note" in vars) && !("providerSlug" in vars)
@@ -161,11 +162,17 @@ describe("the checkout email opt-in", () => {
     expect(optIns()).toEqual([{ kind: "email_news", optedIn: true }]);
   });
 
-  it("changes nothing when left unticked, or for a guest with nowhere to keep it", async () => {
+  it("changes nothing when left unticked", async () => {
     mocks.signedIn = true;
     await place(false);
+    expect(optIns()).toEqual([]);
+    expect(placed().at(-1)?.marketingOptIn).toBe(false);
+  });
+
+  it("sends a guest's tick with the order, for the backend to keep under their email", async () => {
     mocks.signedIn = false;
     await place(true);
     expect(optIns()).toEqual([]);
+    expect(placed().at(-1)?.marketingOptIn).toBe(true);
   });
 });

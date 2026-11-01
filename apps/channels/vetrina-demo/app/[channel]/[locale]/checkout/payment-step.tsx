@@ -65,7 +65,6 @@ export function PaymentStep({
         checkout={checkout}
         note={note}
         savedCards={savedCards}
-        signedIn={signedIn}
         consent={consent}
         locale={locale}
         currency={currency}
@@ -79,7 +78,6 @@ function PlaceOrderForm({
   checkout,
   note,
   savedCards,
-  signedIn,
   consent,
   locale,
   currency,
@@ -88,7 +86,6 @@ function PlaceOrderForm({
   checkout: CheckoutState;
   note: string;
   savedCards: SavedPaymentMethod[];
-  signedIn: boolean;
   consent: CheckoutSettings["termsConsent"];
   locale: string;
   currency: Currency;
@@ -126,12 +123,10 @@ function PlaceOrderForm({
           />
         </label>
       </details>
-      {signedIn ? (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" name={fields.marketingOptIn.name} className="mt-0.5 size-4 rounded accent-primary" />
-          <span>{t("marketingOptIn")}</span>
-        </label>
-      ) : null}
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" name={fields.marketingOptIn.name} className="mt-0.5 size-4 rounded accent-primary" />
+        <span>{t("marketingOptIn")}</span>
+      </label>
       <Consent consent={consent} field={fields.tos} />
       <button
         type="submit"
