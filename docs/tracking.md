@@ -36,11 +36,16 @@ Until the dashboard pages land, set them up from the command line:
 
 ```bash
 skelet cli tracking kinds                                  # what this build can send to, and each one's settings
-TRACKING_SECRET=<api secret> skelet cli tracking add --channel <id> --kind ga4 --name "GA4" \
+printf '%s' "$GA4_API_SECRET" | skelet cli tracking add --secret-stdin --channel <id> --kind ga4 --name "GA4" \
   --set measurement_id=G-XXXXXXXXXX --set validate=true
 skelet cli tracking test <destination-id>                  # one sample purchase, sent now, with the platform's answer
 skelet cli tracking deliveries <destination-id>            # what was sent, retried or given up on
 ```
+
+Catalogue accounts use the same destination storage and delivery history, with a separate
+worker for large uploads. Their kinds are `catalog_openai` and `catalog_webhook`; shopper
+events never go to them. See [catalogue delivery](catalogue-delivery.md) for the shared
+system and [OpenAI setup](openai-product-feed.md) for SFTP configuration.
 
 ## GA4 and Google Tag Manager
 
