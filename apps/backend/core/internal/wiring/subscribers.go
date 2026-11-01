@@ -147,8 +147,13 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	}
 	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
-	activity.NewTracker(d.SignalsClient, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus)                                  // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	tracker := activity.NewTracker(d.SignalsClient, d.Order)
+	tracker.SetAggregateSwitch(func(ctx context.Context, ch uuid.UUID) bool {
+		on, err := d.Config.GetBool(ctx, "general/privacy/aggregate_counts", config.Scope{Kind: config.ScopeChannel, ChannelID: &ch})
+		return err != nil || on // a setting that won't read keeps its default
+	})
+	tracker.Subscribe(bus)      // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus) // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay

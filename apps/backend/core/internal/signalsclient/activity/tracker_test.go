@@ -538,10 +538,10 @@ func TestARefusedWriteIsLogged(t *testing.T) {
 	}
 }
 
-// Refusing analytics on the banner still counts the purchase, but under the order alone - not the customer, the visitor or the email
-func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.T) {
+// Refusing analytics on the banner still counts the purchase, but as nobody - not the customer, the visitor, the email or even the order
+func TestAnOrderPlacedWithoutAnalyticsConsentCountsAsNobody(t *testing.T) {
 	cid, ch, oid := uuid.New(), uuid.New(), uuid.New()
-	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &order.Tracking{}}
+	o := order.Order{ID: oid, CustomerID: &cid, Number: "1200", ChannelID: ch, Email: "a@example.com", AnonID: "lens-1", Tracking: &auth.Shopper{}}
 	tr, fr := newTracker(o)
 	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, OrderNumber: "1200", CustomerID: &cid, Email: "a@example.com", AnonID: "lens-1", ChannelID: ch, TotalCents: 900, Currency: "USD"})
 	_ = tr.onOrderStatusChanged(context.Background(), &order.OrderStatusChanged{OrderID: oid, ToStatus: "cancelled"})
@@ -549,15 +549,15 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.
 		t.Fatalf("recorded %d, want the placement and the cancellation", len(fr.calls))
 	}
 	for _, c := range fr.calls {
-		if c.CustomerID != nil || c.AnonID != "order_"+oid.String() {
-			t.Errorf("%s recorded under customer %v / %q, want the order alone", c.EventName, c.CustomerID, c.AnonID)
+		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate || strings.Contains(c.DedupeKey, oid.String()) {
+			t.Errorf("%s recorded as %+v, want nobody with a key that doesn't name the order", c.EventName, c)
 		}
 	}
 	if fr.calls[0].Props["total_cents"] != int64(900) {
 		t.Errorf("order_placed props %v, want the revenue kept", fr.calls[0].Props)
 	}
 
-	o.Tracking = &order.Tracking{Consent: auth.Consent{Analytics: true}}
+	o.Tracking = &auth.Shopper{Consent: auth.Consent{Analytics: true}}
 	tr, fr = newTracker(o)
 	_ = tr.onOrderPlaced(context.Background(), &order.OrderPlaced{OrderID: oid, CustomerID: &cid, ChannelID: ch})
 	if len(fr.calls) != 1 || fr.calls[0].CustomerID == nil || *fr.calls[0].CustomerID != cid {
@@ -565,22 +565,37 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.
 	}
 }
 
-// A signed-in shopper who refused analytics is still named on their cart events - none of them may reach the profile
-func TestCartActivityWithAnalyticsRefusedIsNotRecorded(t *testing.T) {
+// A shopper who refused analytics is still named on their cart events - each counts as nobody instead
+func TestCartActivityWithAnalyticsRefusedCountsAsNobody(t *testing.T) {
 	cid, ch, line := uuid.New(), uuid.New(), uuid.New()
 	tr, fr := newTracker(order.Order{})
 	ctx := context.Background()
-	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
-	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
-	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
-	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
-	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, Shopper: &auth.Shopper{}})
-	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, Shopper: &auth.Shopper{}})
-	if len(fr.calls) != 0 {
-		t.Fatalf("recorded %d cart activities for a shopper who refused analytics", len(fr.calls))
+	refused := &auth.Shopper{}
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, AnonID: "lens-1", ChannelID: ch, LineID: line, ProductSku: "SKU-1", Quantity: 1, Shopper: refused})
+	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: refused})
+	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: refused})
+	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: refused})
+	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, Shopper: refused})
+	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, Shopper: refused})
+	if len(fr.calls) != 5 {
+		t.Fatalf("recorded %d, want the five cart changes and no merge", len(fr.calls))
 	}
-	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line})
-	if len(fr.calls) != 1 {
-		t.Fatal("cart activity without a refusal must still record")
+	for _, c := range fr.calls {
+		if c.CustomerID != nil || c.AnonID != "" || c.Source != sourceAggregate || strings.Contains(c.DedupeKey, line.String()) {
+			t.Errorf("%s recorded as %+v, want nobody", c.EventName, c)
+		}
+	}
+	if fr.calls[0].Props["sku"] != "SKU-1" {
+		t.Errorf("the add lost its item: %v", fr.calls[0].Props)
+	}
+
+	tr.SetAggregateSwitch(func(context.Context, uuid.UUID) bool { return false })
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: uuid.New(), Shopper: refused})
+	if len(fr.calls) != 5 {
+		t.Error("with the shop's aggregate counts off, a refusing shopper's activity must not be recorded at all")
+	}
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: uuid.New()})
+	if len(fr.calls) != 6 || fr.calls[5].CustomerID == nil {
+		t.Error("cart activity without a refusal must still land on the customer")
 	}
 }

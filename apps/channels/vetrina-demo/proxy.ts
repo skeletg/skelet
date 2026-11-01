@@ -20,6 +20,7 @@ import { CONSENT_COOKIE, CONSENT_COOKIE_OPTS } from "@/app/lib/consent/cookie";
 import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories";
 import { getPrivacy } from "@/app/lib/consent/mode";
 import { clickCookieWrites } from "@/app/lib/consent/click-ids";
+import { COUNT_PATH, countableView } from "@/app/lib/analytics/aggregate-view";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -78,6 +79,28 @@ function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string)
     );
   } catch {
     // swallow - analytics must never break the response path
+  }
+}
+
+// A visitor without analytics consent still counts, as nobody - the path alone, sent from here so nothing touches their
+// browser. The backend drops it when the shop has aggregate counts off or Signals is disabled
+function reportView(req: NextRequest, event: NextFetchEvent, channelId: string, analytics: boolean) {
+  try {
+    const ua = req.headers.get("user-agent") ?? "";
+    if (!channelId || !countableView(req.method, req.headers, analytics, !ua || BOT_UA.test(ua))) return;
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Channel-Id": channelId };
+    const forwardedFor = clientIP(req.headers);
+    if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor; // for the backend's rate limit, which is all it's used for
+    event.waitUntil(
+      fetch(`${BACKEND_INTERNAL_URL}${COUNT_PATH}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ path: req.nextUrl.pathname }),
+        signal: AbortSignal.timeout(2000),
+      }).catch(() => {}),
+    );
+  } catch {
+    // counting must never break the response path
   }
 }
 
@@ -189,6 +212,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     : undefined;
   const consent = parseConsent(consentWrite ?? rawConsent);
   const analytics = consent?.analytics ?? false;
+  if (isPagePath(pathname)) reportView(req, event, channelId, analytics);
   const clickWrites = clickCookieWrites(
     url.searchParams,
     (name) => req.cookies.get(name)?.value,

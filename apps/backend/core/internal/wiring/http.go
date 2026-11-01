@@ -252,6 +252,9 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		Channels: s.Channel, BackInStock: s.BackInStock, Forms: s.Form,
 		Config: s.Config, Limiter: ingestLimiter, Customers: infra.Config.CustomerKeys.Verifier(),
 	})
+	if bool(s.SignalsEnabled) {
+		mux.Handle(countPath, otelx.WrapHTTP(countHandler(s.SignalsClient, s.Config, s.Channel, ingestLimiter), "signals.count"))
+	}
 	mux.Handle(trackPath, otelx.WrapHTTP(trackHandler(s.Tracking, s.Channel, ingestLimiter, infra.Config.CustomerKeys.Verifier()), "tracking.collect"))
 	// The beacon surface is the suite's, so this is a proxy - one public entry point for a simple
 	// install, and a storefront that would rather skip the hop can point at the tier directly

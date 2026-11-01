@@ -339,7 +339,7 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 	}
 	out := &model.SynapseInsights{
 		Points: make([]*model.InsightPoint, 0, len(ins.GetPoints())), Series: make([]*model.InsightSeries, 0, len(ins.GetSeries())),
-		Total: ins.GetTotal(), Uniques: ins.GetUniques(), PrevTotal: ins.GetPrevTotal(), PrevUniques: ins.GetPrevUniques(),
+		Total: ins.GetTotal(), Uniques: ins.GetUniques(), PrevTotal: ins.GetPrevTotal(), PrevUniques: ins.GetPrevUniques(), Aggregate: ins.GetAggregate(),
 	}
 	for _, p := range ins.GetPoints() {
 		out.Points = append(out.Points, &model.InsightPoint{Bucket: p.GetBucket().AsTime(), Key: p.GetKey(), Value: p.GetValue()})

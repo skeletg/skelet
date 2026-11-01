@@ -34,6 +34,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [permissions.md](permissions.md) | Configuring roles, plus the generated slug reference |
 | [import-export.md](import-export.md) | Bulk data in and out: the resource registry, the job model, and how to add a resource or a format |
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
+| [privacy.md](privacy.md) | Cookie consent, what each order and destination records under which choice, counting visitors who decline analytics, and privacy-notice text |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |
 | [backups.md](backups.md) | What needs backing up, and the tools to do it with |
