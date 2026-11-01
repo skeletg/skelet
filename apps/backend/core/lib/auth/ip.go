@@ -84,7 +84,7 @@ func ConsentFromContext(ctx context.Context) (Consent, bool) {
 
 const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
 
-var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp"}
+var adClickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "fbc", "fbp", "oppref", "obref"}
 
 // The affiliate networks' ids, which a merchant may treat as necessary - the storefront sends them only when its setting
 // or the visitor's ads consent allows, and the pipeline holds each network's conversions to the same rule

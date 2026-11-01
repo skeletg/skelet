@@ -121,8 +121,8 @@ func TestClickIDs(t *testing.T) {
 		r.Header.Set(ClickIDsHeader, clicks)
 		return WithRequest(context.Background(), r)
 	}
-	got := ClickIDs(ctxWith("v2:a0.d1.p0", "cjevent=c1&fbc=fb.1.5.Iw_1&evil=x&gclid="+url.QueryEscape("a;b")))
-	if want := map[string]string{"cjevent": "c1", "fbc": "fb.1.5.Iw_1"}; !maps.Equal(got, want) {
+	got := ClickIDs(ctxWith("v2:a0.d1.p0", "cjevent=c1&fbc=fb.1.5.Iw_1&oppref=op_1&evil=x&gclid="+url.QueryEscape("a;b")))
+	if want := map[string]string{"cjevent": "c1", "fbc": "fb.1.5.Iw_1", "oppref": "op_1"}; !maps.Equal(got, want) {
 		t.Errorf("ClickIDs = %v, want %v", got, want)
 	}
 	for _, consent := range []string{"v2:a1.d0.p1", "", "garbage"} {
