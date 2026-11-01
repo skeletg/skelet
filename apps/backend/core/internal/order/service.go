@@ -587,6 +587,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
 			AnonID:              auth.AnonID(ctx),
+			Tracking:            TrackingFromContext(ctx),
 		})
 		if err != nil {
 			return fmt.Errorf("create order: %w", err)
