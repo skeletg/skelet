@@ -25,7 +25,8 @@ type store interface {
 	Update(ctx context.Context, d Destination) (Destination, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	Enqueue(ctx context.Context, destinationID uuid.UUID, ev Event) error
-	ClaimDue(ctx context.Context, batch, leaseSeconds int32) ([]Delivery, error)
+	EnqueueCatalog(ctx context.Context, destinationID uuid.UUID) error
+	ClaimDue(ctx context.Context, batch, leaseSeconds int32, catalog bool) ([]Delivery, error)
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error
 	MarkDead(ctx context.Context, id uuid.UUID, reason string) error
@@ -67,7 +68,7 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	var errs []error
 	for _, d := range dests {
 		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
+		if !ok || k.Catalog || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
 			continue
 		}
 		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
@@ -167,6 +168,9 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 	if !ok {
 		return Event{}, fmt.Errorf("%w: %q", ErrUnknownKind, d.Kind)
 	}
+	if k.Catalog {
+		return Event{}, fmt.Errorf("use tracking catalog-send for a catalogue destination")
+	}
 	ev := Event{
 		ID: "test-" + uuid.NewString(), Name: Purchase, OccurredAt: time.Now().UTC(), ChannelID: d.ChannelID, Source: "server",
 		Consent:   &auth.Consent{Analytics: true, Ads: true, Personalization: true},
@@ -174,4 +178,22 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
 	}
 	return ev, k.Send(ctx, client, d, ev)
+}
+
+const CatalogSnapshot = "catalog_snapshot"
+
+// Pending refreshes coalesce. Retries read current catalogue data and account credentials.
+func (s *Service) QueueCatalog(ctx context.Context, id uuid.UUID) error {
+	d, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	k, ok := KindFor(d.Kind)
+	if !ok || !k.Catalog {
+		return fmt.Errorf("destination is not a catalogue destination")
+	}
+	if !d.Enabled || (k.Available != nil && !k.Available(ctx, d.ChannelID)) {
+		return fmt.Errorf("catalogue destination is disabled")
+	}
+	return s.store.EnqueueCatalog(ctx, id)
 }

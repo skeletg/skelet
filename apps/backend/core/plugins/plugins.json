@@ -3,6 +3,12 @@
     "example": {
       "enabled": false
     },
+    "feed-openai": {
+      "enabled": true
+    },
+    "feed-webhook": {
+      "enabled": true
+    },
     "tracking-attentive": {
       "enabled": true
     },

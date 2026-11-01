@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -81,7 +82,23 @@ SELECT
   COALESCE(NULLIF(c.meta_description, ''), NULLIF(c.short_description ->> 'plain', ''), NULLIF(c.description ->> 'plain', ''),
     NULLIF(cd.meta_description, ''), NULLIF(cd.short_description ->> 'plain', ''), NULLIF(cd.description ->> 'plain', ''),
     '')::text                                                                             AS description,
-  COALESCE(p.attributes ->> $2::text, '')::text                    AS brand,
+  COALESCE(NULLIF(p.attributes ->> $2::text, ''),
+    (SELECT COALESCE(NULLIF(vc.name, ''), NULLIF(vd.name, ''), v.name)
+     FROM catalog_product_attribute_values pv
+     JOIN catalog_attributes a ON a.id = pv.attribute_id
+     JOIN catalog_attribute_values v ON v.id = pv.attribute_value_id
+     LEFT JOIN catalog_attribute_value_content vc ON vc.value_id = v.id AND vc.locale = $3::text
+     LEFT JOIN catalog_attribute_value_content vd ON vd.value_id = v.id AND vd.locale = $4::text
+     WHERE pv.product_id = p.id AND a.slug = $2::text
+     ORDER BY pv.sort_order, v.id LIMIT 1), '')::text AS brand,
+  COALESCE((SELECT jsonb_object_agg(a.slug, COALESCE(NULLIF(vc.name, ''), NULLIF(vd.name, ''), v.name))
+    FROM catalog_product_configurable_options o
+    JOIN catalog_attributes a ON a.id = o.attribute_id
+    JOIN catalog_product_attribute_values pv ON pv.attribute_id = o.attribute_id AND pv.product_id = p.id
+    JOIN catalog_attribute_values v ON v.id = pv.attribute_value_id
+    LEFT JOIN catalog_attribute_value_content vc ON vc.value_id = v.id AND vc.locale = $3::text
+    LEFT JOIN catalog_attribute_value_content vd ON vd.value_id = v.id AND vd.locale = $4::text
+    WHERE o.product_id = parent.id), '{}'::jsonb)::jsonb AS variant_options,
   COALESCE(
     (SELECT m.s3_key FROM catalog_product_media m
       WHERE m.product_id = p.id AND m.status = 'ready'
@@ -138,6 +155,7 @@ type MerchantFeedProductsRow struct {
 	Title              string             `json:"title"`
 	Description        string             `json:"description"`
 	Brand              string             `json:"brand"`
+	VariantOptions     json.RawMessage    `json:"variant_options"`
 	ImageKey           string             `json:"image_key"`
 	Tracked            bool               `json:"tracked"`
 	Backorderable      bool               `json:"backorderable"`
@@ -180,6 +198,7 @@ func (q *Queries) MerchantFeedProducts(ctx context.Context, arg MerchantFeedProd
 			&i.Title,
 			&i.Description,
 			&i.Brand,
+			&i.VariantOptions,
 			&i.ImageKey,
 			&i.Tracked,
 			&i.Backorderable,

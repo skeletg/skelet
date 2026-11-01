@@ -79,12 +79,21 @@ func (f *fakeStore) Enqueue(_ context.Context, dest uuid.UUID, ev Event) error {
 	f.deliveries[id] = &Delivery{ID: id, DestinationID: dest, EventID: ev.ID, EventName: ev.Name, Payload: payload, Status: "pending"}
 	return nil
 }
-func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32) ([]Delivery, error) {
+func (f *fakeStore) EnqueueCatalog(ctx context.Context, id uuid.UUID) error {
+	for _, d := range f.byDestination(id) {
+		if d.EventName == CatalogSnapshot && d.Status == "pending" {
+			return nil
+		}
+	}
+	return f.Enqueue(ctx, id, Event{ID: uuid.NewString(), Name: CatalogSnapshot})
+}
+
+func (f *fakeStore) ClaimDue(_ context.Context, batch, _ int32, catalog bool) ([]Delivery, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []Delivery
 	for _, d := range f.deliveries {
-		if d.Status == "pending" && !d.NextAttemptAt.After(time.Now()) && len(out) < int(batch) {
+		if d.Status == "pending" && (d.EventName == CatalogSnapshot) == catalog && !d.NextAttemptAt.After(time.Now()) && len(out) < int(batch) {
 			d.Attempts++
 			d.NextAttemptAt = time.Now().Add(time.Hour) // the lease
 			out = append(out, *d)
@@ -355,6 +364,52 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	}
 	if err := svc.Redeliver(ctx, f.ID); err != nil || state(flaky).Status != "pending" {
 		t.Error("a dead letter must go back in the queue on redelivery")
+	}
+}
+
+func TestTheWorkerStopsPendingDeliveriesWhenThePluginIsDisabled(t *testing.T) {
+	ch, dest := uuid.New(), uuid.New()
+	enabled, calls := true, 0
+	registerTestKind(t, Kind{
+		Kind: "t-switchable",
+		Available: func(_ context.Context, channelID uuid.UUID) bool {
+			return enabled && channelID == ch
+		},
+		Send: func(context.Context, *http.Client, Destination, Event) error {
+			calls++
+			if calls == 1 {
+				return errors.New("platform temporarily unavailable")
+			}
+			return nil
+		},
+	})
+	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-switchable", Enabled: true})
+	svc := &Service{store: fs}
+	ctx := context.Background()
+	if err := svc.Track(ctx, Event{ID: "o1", Name: Purchase, ChannelID: ch}); err != nil {
+		t.Fatal(err)
+	}
+	w := NewWorker(svc, http.DefaultClient)
+	w.RunOnce(ctx)
+	delivery := fs.byDestination(dest)[0]
+	if delivery.Status != "pending" || calls != 1 {
+		t.Fatalf("first attempt: %+v, %d calls", delivery, calls)
+	}
+
+	enabled = false
+	_ = fs.set(delivery.ID, func(d *Delivery) { d.NextAttemptAt = time.Time{} })
+	w.RunOnce(ctx)
+	if got := fs.byDestination(dest)[0]; got.Status != "dead" || calls != 1 {
+		t.Fatalf("a disabled plugin sent its pending event: %+v, %d calls", got, calls)
+	}
+
+	enabled = true
+	if err := svc.Redeliver(ctx, delivery.ID); err != nil {
+		t.Fatal(err)
+	}
+	w.RunOnce(ctx)
+	if got := fs.byDestination(dest)[0]; got.Status != "sent" || calls != 2 {
+		t.Errorf("redelivery after enabling the plugin: %+v, %d calls", got, calls)
 	}
 }
 

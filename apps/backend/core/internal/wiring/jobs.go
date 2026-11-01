@@ -39,10 +39,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/signupform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Jobs owns the periodic-job engine - one engine runs every job; schedules are admin-configurable, persisted in scheduled_jobs, and claimed atomically so it's safe on every replica One ordered registration block rather than fx value groups - the jobs aren't owned by their domain packages, they're composition-root closures over several services each with env gates deciding which ones register at all, and a group:"jobs" fan-in would scatter the same closures across modules for no gain in isolation The outbox relay is deliberately NOT a job here - it's a 1s continuous drain, and a cron tick would 10x its event-delivery latency and serialize it
@@ -65,6 +67,7 @@ type jobDeps struct {
 	LinkGraph     *linkgraph.Service
 	Webhook       *webhook.Service
 	Catalog       *catalog.Service
+	Tracking      *tracking.Service
 	Recommend     *recommend.Service
 	MediaLibrary  *medialibrary.Service
 	Subscription  *subscription.Service
@@ -374,6 +377,12 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			}
 			return notifyPluginAsyncFailures(ctx, d.Notification)
 		})
+	for _, reg := range sdk.ProductFeeds() {
+		jobScheduler.RegisterWithTimeout(reg.PluginSlug+".product-feed."+reg.Feed.Kind, "@daily", "Queue the "+reg.Feed.Kind+" catalogue for enabled destination accounts.", time.Minute,
+			func(ctx context.Context) error {
+				return refreshProductFeed(ctx, reg, d.Channel, d.Tracking)
+			})
+	}
 	for _, pj := range pluginhost.ScheduledJobs() { // plugin jobs (sdk.RegisterScheduledJob) drain after core jobs, before Seed, so they get a row + first next_run like any code job
 		jobScheduler.Register(pj.Name, pj.Schedule, pj.Description, scheduler.HandlerFunc(pj.Handler))
 	}

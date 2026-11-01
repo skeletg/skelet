@@ -179,6 +179,18 @@ all out of tree. This is what the SDK gives it.
 - **`sdk.CustomerID` / `sdk.AdminID` / `sdk.RequestChannelID`** - who is asking, for scoping a
   storefront answer and for audit attribution. `AdminID` is attribution only, never a check.
 
+## Product-feed plugins
+
+`p.RegisterProductFeed(sdk.ProductFeed{Kind, Label, Extension, ContentType, Fields,
+NewWriter, Send})` registers a catalogue adapter. Core supplies a paged channel catalogue,
+encrypted destination accounts, scheduling, snapshots and queued retries. A fresh writer
+per export owns formatting, headers, compression and eligibility. `Send` receives the
+completed file and guarded HTTP/SFTP clients, so another provider needs no core query or
+worker changes.
+
+See [catalogue delivery](catalogue-delivery.md) for account setup, the adapter
+contract, signed HTTP receivers and OpenAI SFTP delivery.
+
 ## The frontend halves
 
 A plugin's Go arrives through `go get`. Its UI does not, and shipping TypeScript through a
