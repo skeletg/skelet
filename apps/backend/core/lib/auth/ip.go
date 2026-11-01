@@ -82,6 +82,12 @@ func ConsentFromContext(ctx context.Context) (Consent, bool) {
 	return Consent{}, false
 }
 
+// AnalyticsRefused is a shop visitor who said no to analytics - false for a caller that states no consent, which has no banner
+func AnalyticsRefused(ctx context.Context) bool {
+	c, ok := ConsentFromContext(ctx)
+	return ok && !c.Analytics
+}
+
 const ClickIDsHeader = "X-Click-Ids" // the ad and affiliate click ids the storefront keeps in first-party cookies, as a query string
 
 var clickIDKeys = []string{"gclid", "gbraid", "wbraid", "msclkid", "ttclid", "awc", "cjevent", "fbc", "fbp"}

@@ -564,3 +564,23 @@ func TestAnOrderPlacedWithoutAnalyticsConsentCountsButProfilesNobody(t *testing.
 		t.Errorf("with analytics consent the order must land on the customer: %+v", fr.calls)
 	}
 }
+
+// A signed-in shopper who refused analytics is still named on their cart events - none of them may reach the profile
+func TestCartActivityWithAnalyticsRefusedIsNotRecorded(t *testing.T) {
+	cid, ch, line := uuid.New(), uuid.New(), uuid.New()
+	tr, fr := newTracker(order.Order{})
+	ctx := context.Background()
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
+	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, AnalyticsRefused: true})
+	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, AnalyticsRefused: true})
+	if len(fr.calls) != 0 {
+		t.Fatalf("recorded %d cart activities for a shopper who refused analytics", len(fr.calls))
+	}
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line})
+	if len(fr.calls) != 1 {
+		t.Fatal("cart activity without a refusal must still record")
+	}
+}

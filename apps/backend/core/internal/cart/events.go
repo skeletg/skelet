@@ -114,14 +114,15 @@ func (e *LineAdding) ApplyWebhookResponse(body []byte) (bool, string, error) { /
 }
 
 type LineAdded struct { // fires AFTER the upsert, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string // visitor's lens_aid (guest attribution); empty when unknown
-	LineID     uuid.UUID
-	ProductSku string
-	UnitPrice  int64
-	Quantity   float64
+	CartID           uuid.UUID
+	ChannelID        uuid.UUID
+	CustomerID       *uuid.UUID
+	AnonID           string // visitor's lens_aid (guest attribution); empty when unknown
+	LineID           uuid.UUID
+	ProductSku       string
+	UnitPrice        int64
+	Quantity         float64
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*LineAdded) Type() string                { return EventLineAdded }
@@ -158,14 +159,15 @@ func (e *BundleAdding) ApplyWebhookResponse(body []byte) (bool, string, error) {
 }
 
 type BundleAdded struct { // fires AFTER the upsert, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
-	ProductSku string
-	UnitPrice  int64
-	Quantity   float64
+	CartID           uuid.UUID
+	ChannelID        uuid.UUID
+	CustomerID       *uuid.UUID
+	AnonID           string
+	LineID           uuid.UUID
+	ProductSku       string
+	UnitPrice        int64
+	Quantity         float64
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*BundleAdded) Type() string                { return EventBundleAdded }
@@ -199,12 +201,13 @@ func (e *LineUpdating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 }
 
 type LineUpdated struct { // fires AFTER the quantity is written, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
-	Quantity   float64
+	CartID           uuid.UUID
+	ChannelID        uuid.UUID
+	CustomerID       *uuid.UUID
+	AnonID           string
+	LineID           uuid.UUID
+	Quantity         float64
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*LineUpdated) Type() string                { return EventLineUpdated }
@@ -221,21 +224,23 @@ func (*LineRemoving) Type() string                { return EventLineRemoving }
 func (e *LineRemoving) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type LineRemoved struct { // fires AFTER the removal, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
-	LineID     uuid.UUID
+	CartID           uuid.UUID
+	ChannelID        uuid.UUID
+	CustomerID       *uuid.UUID
+	AnonID           string
+	LineID           uuid.UUID
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*LineRemoved) Type() string                { return EventLineRemoved }
 func (e *LineRemoved) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type Cleared struct { // fires AFTER all lines are removed, async
-	CartID     uuid.UUID
-	ChannelID  uuid.UUID
-	CustomerID *uuid.UUID
-	AnonID     string
+	CartID           uuid.UUID
+	ChannelID        uuid.UUID
+	CustomerID       *uuid.UUID
+	AnonID           string
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*Cleared) Type() string                { return EventCleared }
@@ -252,10 +257,11 @@ func (*Merging) Type() string                { return EventMerging }
 func (e *Merging) EventChannelID() uuid.UUID { return e.ChannelID }
 
 type Merged struct { // fires AFTER the merge commits, async
-	CustomerCartID uuid.UUID
-	GuestCartID    uuid.UUID
-	CustomerID     uuid.UUID
-	ChannelID      uuid.UUID
+	CustomerCartID   uuid.UUID
+	GuestCartID      uuid.UUID
+	CustomerID       uuid.UUID
+	ChannelID        uuid.UUID
+	AnalyticsRefused bool // the shopper refused analytics on the banner, so nothing may profile them from this
 }
 
 func (*Merged) Type() string                { return EventMerged }

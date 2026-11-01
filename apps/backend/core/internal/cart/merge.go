@@ -8,6 +8,8 @@ import (
 	"maps"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Sums by SKU with the guest's unit_price winning, and with no active cart the guest cart is adopted outright - idempotent, so a guest cart already non-active just returns the current active cart
@@ -104,10 +106,11 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 		merged, lookupErr := s.repo.GetCartByID(ctx, resultID) // the tx has committed, and resultID is either the adopted guest cart or the customer's existing one
 		if lookupErr == nil {
 			s.bus.Publish(ctx, &Merged{
-				CustomerCartID: resultID,
-				GuestCartID:    guestCartID,
-				CustomerID:     customerID,
-				ChannelID:      merged.ChannelID,
+				CustomerCartID:   resultID,
+				GuestCartID:      guestCartID,
+				CustomerID:       customerID,
+				ChannelID:        merged.ChannelID,
+				AnalyticsRefused: auth.AnalyticsRefused(ctx),
 			})
 		}
 	}
