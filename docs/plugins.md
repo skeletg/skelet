@@ -188,8 +188,8 @@ per export owns formatting, headers, compression and eligibility. `Send` receive
 completed file and guarded HTTP/SFTP clients, so another provider needs no core query or
 worker changes.
 
-See [catalogue delivery](catalogue-delivery.md) for the contract and signed webhook
-receiver, and [OpenAI setup](openai-product-feed.md) for the SFTP adapter.
+See [catalogue delivery](catalogue-delivery.md) for account setup, the adapter
+contract, signed HTTP receivers and OpenAI SFTP delivery.
 
 ## The frontend halves
 

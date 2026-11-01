@@ -36,7 +36,6 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [settings.md](settings.md) | Every configurable knob, its scope and default |
 | [tracking.md](tracking.md) | Server-side tracking: how events reach GA4, GTM, ad, affiliate and marketing platforms, and setting up a destination |
 | [catalogue-delivery.md](catalogue-delivery.md) | Shared catalogue destinations: account setup, automatic uploads, signed webhooks, retries and provider plugins |
-| [openai-product-feed.md](openai-product-feed.md) | OpenAI catalogue adapter: SFTP setup, eligibility and snapshot downloads |
 | [privacy.md](privacy.md) | Cookie consent, what each order and destination records under which choice, counting visitors who decline analytics, and privacy-notice text |
 | [webhooks.md](webhooks.md) | Subscribing to events: async vs sync, signing, retries, the event catalogue |
 | [remote-providers.md](remote-providers.md) | Writing a remote provider: the signed envelope, limits, per-kind schemas |

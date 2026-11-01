@@ -45,7 +45,7 @@ skelet cli tracking deliveries <destination-id>            # what was sent, retr
 Catalogue accounts use the same destination storage and delivery history, with a separate
 worker for large uploads. Their kinds are `catalog_openai` and `catalog_webhook`; shopper
 events never go to them. See [catalogue delivery](catalogue-delivery.md) for the shared
-system and [OpenAI setup](openai-product-feed.md) for SFTP configuration.
+system, account setup and HTTP/SFTP configuration.
 
 ## GA4 and Google Tag Manager
 
