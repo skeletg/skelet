@@ -570,12 +570,12 @@ func TestCartActivityWithAnalyticsRefusedIsNotRecorded(t *testing.T) {
 	cid, ch, line := uuid.New(), uuid.New(), uuid.New()
 	tr, fr := newTracker(order.Order{})
 	ctx := context.Background()
-	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
-	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
-	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
-	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, AnalyticsRefused: true})
-	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, AnalyticsRefused: true})
-	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, AnalyticsRefused: true})
+	_ = tr.onCartAdd(ctx, &cart.LineAdded{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
+	_ = tr.onCartBundleAdd(ctx, &cart.BundleAdded{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
+	_ = tr.onCartUpdate(ctx, &cart.LineUpdated{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
+	_ = tr.onCartRemove(ctx, &cart.LineRemoved{CustomerID: &cid, ChannelID: ch, LineID: line, Shopper: &auth.Shopper{}})
+	_ = tr.onCartCleared(ctx, &cart.Cleared{CustomerID: &cid, ChannelID: ch, Shopper: &auth.Shopper{}})
+	_ = tr.onCartMerged(ctx, &cart.Merged{CustomerID: cid, ChannelID: ch, Shopper: &auth.Shopper{}})
 	if len(fr.calls) != 0 {
 		t.Fatalf("recorded %d cart activities for a shopper who refused analytics", len(fr.calls))
 	}
