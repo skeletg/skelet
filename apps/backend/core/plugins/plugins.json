@@ -3,6 +3,9 @@
     "example": {
       "enabled": false
     },
+    "tracking-awin": {
+      "enabled": true
+    },
     "tracking-bing": {
       "enabled": true
     },
