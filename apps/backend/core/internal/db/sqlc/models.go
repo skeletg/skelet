@@ -2673,6 +2673,34 @@ type TaxRuleEffect struct {
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
+type TrackingDelivery struct {
+	ID            uuid.UUID       `json:"id"`
+	DestinationID uuid.UUID       `json:"destination_id"`
+	EventID       string          `json:"event_id"`
+	EventName     string          `json:"event_name"`
+	Payload       json.RawMessage `json:"payload"`
+	Status        string          `json:"status"`
+	Attempts      int32           `json:"attempts"`
+	NextAttemptAt time.Time       `json:"next_attempt_at"`
+	LastError     string          `json:"last_error"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type TrackingDestination struct {
+	ID        uuid.UUID       `json:"id"`
+	ChannelID uuid.UUID       `json:"channel_id"`
+	Kind      string          `json:"kind"`
+	Name      string          `json:"name"`
+	Enabled   bool            `json:"enabled"`
+	Purposes  []string        `json:"purposes"`
+	Events    []string        `json:"events"`
+	Config    json.RawMessage `json:"config"`
+	Secret    string          `json:"secret"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type UrlRewrite struct {
 	ID              uuid.UUID      `json:"id"`
 	EntityType      string         `json:"entity_type"`
