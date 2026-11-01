@@ -91,8 +91,8 @@ var subs = map[string]string{
 	"logs":      "[service]",
 	"pnpm":      "<app|package> <pnpm args> | --lockfile",
 	"npm":       "<app|package> <pnpm args> | --lockfile",
-	"add":       "channel <name> [--template <template> | --from <storefront>] [--tracked]",
-	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked]",
+	"add":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
+	"new":       "channel <name> [--template <template> | --from <storefront>] [--tracked] [--workspace]",
 	"rm":        "channel <name> [-y] [--volumes]",
 	"changelog": "(preview) | check | release <version> [date]",
 }

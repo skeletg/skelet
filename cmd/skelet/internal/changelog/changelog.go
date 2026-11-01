@@ -111,6 +111,13 @@ func assemble(root string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+func Latest(root string) string {
+	if versions := listed(root); len(versions) > 0 {
+		return versions[0]
+	}
+	return ""
+}
+
 // listed is the versions CHANGELOG.md lists under Releases, newest first as the index holds them
 func listed(root string) []string {
 	raw, _ := os.ReadFile(filepath.Join(root, index))
