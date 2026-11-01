@@ -1,0 +1,45 @@
+{
+  "data": [
+    {
+      "eventType": "custom",
+      "eventId": "0193a1b2-0000-7000-8000-000000000042",
+      "eventName": "purchase",
+      "eventTime": 1793527200,
+      "adStorageConsent": "G",
+      "userData": {
+        "anonymousId": "visitor-1",
+        "externalId": "2ace597578a210768fa4a2ffacd4a4ee850306ae4d5d321ce42061e036e788d7",
+        "em": "ec81f3ac7b2b19675bab9d54cf416f9f18cff87c97da5cca82c0f0891bc40602",
+        "ph": "c59475d96e9f01d7d18d06cfad84dd02333207f02c0c2c5663ef2782cda0390e",
+        "clientIpAddress": "203.0.113.7",
+        "clientUserAgent": "Mozilla/5.0",
+        "msclkid": "dd4afcccb1c94a4cad9544dd7e5006ab"
+      },
+      "customData": {
+        "transactionId": "ORD-000042",
+        "value": 59,
+        "currency": "EUR",
+        "items": [
+          {
+            "id": "SKU-1",
+            "quantity": 2,
+            "price": 15,
+            "name": "Mug"
+          },
+          {
+            "id": "SKU-2",
+            "quantity": 1,
+            "price": 20,
+            "name": "Tee"
+          }
+        ],
+        "itemIds": [
+          "SKU-1",
+          "SKU-2"
+        ],
+        "pageType": "purchase",
+        "ecommTotalValue": 59
+      }
+    }
+  ]
+}
