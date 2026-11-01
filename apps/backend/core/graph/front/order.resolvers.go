@@ -151,7 +151,7 @@ func (r *mutationResolver) RequestReturn(ctx context.Context, input model.Reques
 }
 
 // Guest and authenticated checkout share this path - the customer claim comes off the auth context, email is required either way, and addresses arrive as address-book IDs or inline payloads (guests use inline, signed-in customers may too for a one-off)
-func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) (*model.Order, error) {
+func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool, marketingOptIn *bool) (*model.Order, error) {
 	c, err := r.checkoutCart(ctx, cartID)
 	if err != nil {
 		return nil, err
@@ -180,6 +180,7 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 	if c.IsOffer() && c.CustomerID == nil { // a guest offer stays a guest order for its recipient, whoever is signed in on the browser that follows the link
 		input.CustomerID = nil
 	}
+	input.MarketingOptIn = marketingOptIn != nil && *marketingOptIn
 	if paymentToken != nil && *paymentToken != "" {
 		input.PaymentToken = paymentToken
 	}
