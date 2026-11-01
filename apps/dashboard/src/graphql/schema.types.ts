@@ -10471,6 +10471,7 @@ export type SynapseFunnelStep = {
 
 export type SynapseInsights = {
   __typename?: 'SynapseInsights';
+  aggregate: Scalars['Int']['output'];
   points: Array<InsightPoint>;
   prevTotal: Scalars['Int']['output'];
   prevUniques: Scalars['Int']['output'];
