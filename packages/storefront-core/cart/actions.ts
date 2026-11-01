@@ -18,7 +18,9 @@ import {
   RequestProductOptionFileUploadDocument,
   UpdateCartLineDocument,
 } from "./mutations.gql";
-import { CART_COOKIE, getOwnCartId, PROMO_PENDING_COOKIE } from "./read";
+import { CART_COOKIE, getOwnCartId } from "./read";
+import { PROMO_PENDING_COOKIE } from "../promo";
+import { cookieOptions } from "../cookie-policy";
 import { couponSchema } from "./schemas";
 import { parseForm, replyReset, type FormResult } from "../forms/schema";
 import { getAccessToken } from "../auth/session";
@@ -55,17 +57,7 @@ function setCartCookie(
   store: CookieJar,
   id: string,
 ) {
-  store.set(CART_COOKIE, id, {
-    path: "/",
-    httpOnly: false,
-    sameSite: "lax",
-    // Match the auth-cookie pattern: in production the cart cookie is Secure-only so it
-    // can't leak over a non-TLS hop
-    secure: process.env.NODE_ENV === "production",
-    // Match the locale cookie - guest carts are sticky for as long as the browser is
-    // around
-    maxAge: 60 * 60 * 24 * 365,
-  });
+  store.set(CART_COOKIE, id, cookieOptions(60 * 60 * 24 * 365));
 }
 
 async function consumePendingPromo(cartId: string): Promise<Cart | null> {
@@ -105,7 +97,7 @@ function formatAddError(err: unknown): string {
     const msg = err.errors[0]?.message ?? err.message;
     return msg.replace(/^add to cart(?: rejected)?:\s*/i, "");
   }
-  return err instanceof Error ? err.message : "addFailed";
+  return "addFailed";
 }
 function addErrorCode(err: unknown): string | undefined {
   if (err instanceof GraphQLRequestError) {
@@ -224,7 +216,7 @@ export async function requestProductOptionFileUploadAction(input: {
     }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "uploadFailed",
+      error: "uploadFailed",
     };
   }
 }
@@ -400,7 +392,6 @@ export async function restoreCartLineAction(
 // cart is set only on success - the form pushes it into the store
 export type CouponActionResult = FormResult & { cart?: Cart | null };
 
-
 export async function applyCoupon(
   _prevState: CouponActionResult | undefined,
   formData: FormData,
@@ -409,6 +400,7 @@ export async function applyCoupon(
   if (submission.status !== "success") return submission.reply();
   const cartId = await ownCartId();
   if (!cartId) return submission.reply({ fieldErrors: { code: ["couponFailed"] } });
+
   try {
     const res = await gqlFetch(ApplyCouponDocument, {
       cartId,

@@ -32,7 +32,6 @@ export function PaymentStep({
   storeCreditBalance,
   signedIn,
   consent,
-  locale,
   currency,
 }: {
   methods: PaymentMethodOption[];
@@ -42,7 +41,6 @@ export function PaymentStep({
   storeCreditBalance: number;
   signedIn: boolean;
   consent: CheckoutSettings["termsConsent"];
-  locale: string;
   currency: Currency;
 }) {
   const t = useTranslations("checkout.payment");
@@ -66,7 +64,6 @@ export function PaymentStep({
         note={note}
         savedCards={savedCards}
         consent={consent}
-        locale={locale}
         currency={currency}
       />
     </div>
@@ -79,7 +76,6 @@ function PlaceOrderForm({
   note,
   savedCards,
   consent,
-  locale,
   currency,
 }: {
   methods: PaymentMethodOption[];
@@ -87,7 +83,6 @@ function PlaceOrderForm({
   note: string;
   savedCards: SavedPaymentMethod[];
   consent: CheckoutSettings["termsConsent"];
-  locale: string;
   currency: Currency;
 }) {
   const t = useTranslations("checkout.payment");
@@ -141,7 +136,6 @@ function PlaceOrderForm({
   return (
     <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-4">
         <CheckoutCartFields />
-      <input type="hidden" name="locale" value={locale} />
       <FormErrors errors={form.errors} />
 
       {covered ? (

@@ -1,7 +1,6 @@
 // Server-side review queries
 
-
-
+import { REVIEW_VOTER_COOKIE } from "./voter-cookie";
 import { perRequest, request } from "../request";
 import { gqlFetch } from "../graphql";
 import {
@@ -9,8 +8,6 @@ import {
   type ProductWithReviewsQuery,
   type ReviewSort,
 } from "./operations.gql";
-
-const REVIEW_VOTER_COOKIE = "rvid";
 
 export type ProductReviews = NonNullable<ProductWithReviewsQuery["product"]>;
 export type ReviewListItem = ProductReviews["reviews"][number];

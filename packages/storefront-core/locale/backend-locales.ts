@@ -1,6 +1,6 @@
 import { print } from "graphql";
 
-import { BACKEND_INTERNAL_URL } from "../backend-url";
+import { FRONT_API_URL } from "../backend-url";
 import { ChannelLocalesDocument, type ChannelLocalesQuery } from "./operations.gql";
 // A channel's locale set, straight from the backend. Single source for the whole app -
 // the proxy, the next-intl request config, and render-time callers all read this
@@ -11,10 +11,6 @@ import { ChannelLocalesDocument, type ChannelLocalesQuery } from "./operations.g
 //
 // Module-level TTL cache rather than react cache() for the same reason - it has to work outside a
 // render. One request a minute per channel per process
-
-const FRONT_API_PATH = process.env.FRONT_API_SLUG
-  ? `/api/front/${process.env.FRONT_API_SLUG}/graphql`
-  : "/api/front/graphql";
 
 // Printed once - the proxy calls this on every request
 const QUERY = print(ChannelLocalesDocument);
@@ -37,7 +33,7 @@ export async function getChannelLocales(channelId: string): Promise<ChannelLocal
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json", "X-Channel-Id": channelId };
-    const r = await fetch(`${BACKEND_INTERNAL_URL}${FRONT_API_PATH}`, {
+    const r = await fetch(FRONT_API_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({ query: QUERY }),

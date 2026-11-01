@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestRequest } from "../testing";
 const mocks = vi.hoisted(() => ({ gqlFetch: vi.fn(), redirect: vi.fn(() => { throw new Error("redirect"); }), refresh: vi.fn(), checkoutCart: vi.fn(), checkout: vi.fn(), settings: vi.fn(), deleteCookie: vi.fn(), methods: vi.fn() }));
 vi.mock("../graphql", () => ({ gqlFetch: mocks.gqlFetch, GraphQLRequestError: class extends Error { constructor(message: string, readonly errors: unknown[]) { super(message); } } }));
-useTestRequest({ redirect: mocks.redirect, refresh: mocks.refresh, revalidate: vi.fn(), cookies: async () => ({ get: (name: string) => name === "storefront_offer" ? { value: JSON.stringify({ cartId: "offer-2", token: "other" }) } : undefined, delete: mocks.deleteCookie }) });
+useTestRequest({ redirect: mocks.redirect, refresh: mocks.refresh, cookies: async () => ({ get: (name: string) => name === "storefront_offer" ? { value: JSON.stringify({ cartId: "offer-2", token: "other" }) } : undefined, delete: mocks.deleteCookie }) });
 vi.mock("../cart/read", () => ({ getCart: async () => ({ id: "cart-1" }), CART_COOKIE: "cart" }));
 vi.mock("../cart/offer", () => ({ getCheckoutCart: mocks.checkoutCart }));
 vi.mock("../config/read", () => ({ getCheckoutSettings: mocks.settings }));

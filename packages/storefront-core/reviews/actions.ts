@@ -5,6 +5,8 @@ import { redirect, request } from "../request";
 import { withLocalePrefix } from "../locale/path";
 import { getCurrentLocale } from "../locale/read";
 import { revalidatePublicPath } from "../revalidate";
+import { cookieOptions } from "../cookie-policy";
+import { REVIEW_VOTER_COOKIE } from "./voter-cookie";
 
 import { getAccessToken } from "../auth/session";
 import { getProduct } from "../catalog/read";
@@ -23,7 +25,6 @@ import {
 
 // Signed anon-voter token `<uuid>.<hmac>` - the HMAC ties it to a secret both sides hold, so copying a UUID can't mint a valid one.
 // httpOnly, 1 year: same browser means same token means one vote, enforced by the unique index on (review_id, voter_token)
-const REVIEW_VOTER_COOKIE = "rvid";
 const REVIEW_VOTER_MAX_AGE = 60 * 60 * 24 * 365;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,22 +42,16 @@ async function ensureVoterToken(): Promise<string> {
   if (looksLikeSignedVoterToken(existing)) return existing!;
   const freshId = crypto.randomUUID();
   const signed = signVoterToken(freshId);
-  store.set(REVIEW_VOTER_COOKIE, signed, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: REVIEW_VOTER_MAX_AGE,
-  });
+  store.set(REVIEW_VOTER_COOKIE, signed, cookieOptions(REVIEW_VOTER_MAX_AGE));
   return signed;
 }
-
 
 export async function requestReviewMediaUploadAction(input: {
   productId: string;
   filename: string;
   mimeType: string;
   sizeBytes: number;
+
 }): Promise<
   | { ok: true; assetId: string; uploadUrl: string; expiresAt: string }
   | { ok: false; error: string }
@@ -105,10 +100,9 @@ export async function voteReviewAction(formData: FormData): Promise<void> {
   } catch {
     // Soft-fail: a transient vote error (e.g. policy locked + no signed-in customer)
     // shouldn't break the page
+    return;
   }
   if (productId) {
-    // The PDP lives only at its pretty URL now (served via the catch-all), so
-    // revalidate that path rather than the removed /products/<id> route
     const { product } = await getProduct(productId);
     if (product) await revalidatePublicPath(productHref(product));
   }

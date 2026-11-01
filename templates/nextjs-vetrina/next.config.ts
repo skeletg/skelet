@@ -102,7 +102,7 @@ const nextConfig: NextConfig = {
 
   // Dev-only: next dev 403s /_next chunks requested from any origin but localhost, which broke
   // browsing over the machine's LAN IP. Private-range origins are safe to allow in dev
-  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*"],
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`)],
 
   // Type errors fail the build - no ignoreBuildErrors bypass, keep it that way
 

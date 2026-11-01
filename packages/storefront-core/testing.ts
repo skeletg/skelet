@@ -2,7 +2,7 @@
 // test channel, the global fetch, and a redirect or notFound that throws. A test overrides only what it looks at, with
 // fakes as partial as it likes - a jar that only reads, say
 
-import { configureStorefront, type CookieJar, type StorefrontRequest } from "./request";
+import { configureStorefront, type CookieJar, type CookieOptions, type StorefrontRequest } from "./request";
 
 export class TestRedirect extends Error {
   constructor(
@@ -19,12 +19,20 @@ export class TestNotFound extends Error {
   }
 }
 
-export function memoryJar(initial: Record<string, string> = {}): CookieJar {
+export function memoryJar(initial: Record<string, string> = {}): CookieJar & { options(name: string): CookieOptions | undefined } {
   const values = new Map(Object.entries(initial));
+  const opts = new Map<string, CookieOptions | undefined>();
   return {
     get: (name) => (values.has(name) ? { value: values.get(name)! } : undefined),
-    set: (name, value) => void values.set(name, value),
-    delete: (name) => void values.delete(name),
+    set: (name, value, options) => {
+      values.set(name, value);
+      opts.set(name, options);
+    },
+    delete: (name) => {
+      values.delete(name);
+      opts.delete(name);
+    },
+    options: (name) => opts.get(name),
   };
 }
 
@@ -44,7 +52,8 @@ export function testRequest(overrides: Overrides = {}): StorefrontRequest {
     notFound: () => {
       throw new TestNotFound();
     },
-    revalidate: () => {},
+    revalidatePublic: async () => {},
+    revalidateAccount: () => {},
     refresh: () => {},
     ...(overrides as Partial<StorefrontRequest>),
   };

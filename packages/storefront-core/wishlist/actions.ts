@@ -1,5 +1,4 @@
-
-import { request } from "../request";
+import { revalidateAccount } from "../revalidate";
 import {
   AddToWishlistDocument,
   MoveToCartDocument,
@@ -9,9 +8,6 @@ import {
 import { getCart } from "../cart/read";
 import type { Cart } from "../cart/types";
 import { gqlFetch, GraphQLRequestError } from "../graphql";
-
-// The wishlist page, in whichever channel and locale it renders - only it lists the saved items
-const WISHLIST_ROUTE = "/[channel]/[locale]/account/wishlist";
 
 export async function toggleWishlistAction(
   productId: string,
@@ -23,8 +19,7 @@ export async function toggleWishlistAction(
     } else {
       await gqlFetch(RemoveFromWishlistDocument, { productId });
     }
-    request().revalidate(WISHLIST_ROUTE, "page");
-    request().revalidate("/[channel]/[locale]/account", "layout");
+    revalidateAccount();
     return { authed: true };
   } catch {
     // UNAUTHENTICATED (guest) or transient failure - client keeps local

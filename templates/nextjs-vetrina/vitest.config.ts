@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Two projects. "unit" is the pure helpers in node - app/lib, app/plugins and components' plain .ts helpers (the slot registry is plain data with no
-// React in it, and it decides what a plugin can put on a page, so it earns a test). "components" renders client
+// Two projects. "unit" is everything in node - the pure helpers, route handlers, and components' plain .ts helpers (the
+// slot registry is plain data with no React in it, and it decides what a plugin can put on a page, so it earns a test). "components" renders client
 // components in jsdom with Testing Library; server actions are mocked per test, so nothing there needs a backend
 export default defineConfig({
   resolve: {
@@ -15,7 +15,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["app/lib/**/*.test.ts", "app/plugins/**/*.test.ts", "app/components/**/*.test.ts"],
+          include: ["app/**/*.test.ts"],
           environment: "node",
         },
       },

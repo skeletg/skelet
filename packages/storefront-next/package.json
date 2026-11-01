@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@skelet/storefront-core": "workspace:*",
-    "graphql": "catalog:"
+    "graphql": "catalog:",
+    "server-only": "^0.0.1"
   },
   "peerDependencies": {
     "next": "catalog:",

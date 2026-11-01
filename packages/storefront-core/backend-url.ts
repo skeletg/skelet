@@ -5,3 +5,7 @@
 // app:8080 explicitly for the container path
 export const BACKEND_INTERNAL_URL =
   process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8080";
+
+export const FRONT_API_URL = `${BACKEND_INTERNAL_URL}${
+  process.env.FRONT_API_SLUG ? `/api/front/${process.env.FRONT_API_SLUG}/graphql` : "/api/front/graphql"
+}`;

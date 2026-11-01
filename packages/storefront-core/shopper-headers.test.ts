@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useTestRequest } from "./testing";
+import { configureStorefront } from "./request";
+import { testRequest } from "./testing";
 
-useTestRequest({ headers: async () => {
+const req = testRequest({ headers: async () => {
     if (inbound instanceof Error) throw inbound;
     return inbound;
   },
@@ -10,6 +11,12 @@ useTestRequest({ headers: async () => {
     const c = jar;
     return { get: (name: string) => (c.has(name) ? { value: c.get(name) } : undefined) };
   } });
+configureStorefront({
+  request: () => req,
+  rethrowControlFlow: (err) => {
+    if ((err as { exit?: boolean }).exit) throw err;
+  },
+});
 let inbound: Headers | Error = new Headers();
 let jar: Map<string, string> | Error = new Map();
 
@@ -38,11 +45,11 @@ describe("shopperHeaders", () => {
   it("sends nothing it doesn't have", async () => {
     expect(await shopperHeaders()).toEqual({});
   });
-  it("forwards nothing outside a request, but never swallows Next's dynamic bailout", async () => {
+  it("forwards nothing outside a request, but never swallows the framework's own exits", async () => {
     inbound = new Error("outside a request scope");
     jar = new Error("outside a request scope");
     expect(await shopperHeaders()).toEqual({});
-    inbound = Object.assign(new Error("dynamic"), { digest: "DYNAMIC_SERVER_USAGE" });
-    await expect(shopperHeaders()).rejects.toThrow("dynamic");
+    inbound = Object.assign(new Error("exit"), { exit: true });
+    await expect(shopperHeaders()).rejects.toThrow("exit");
   });
 });

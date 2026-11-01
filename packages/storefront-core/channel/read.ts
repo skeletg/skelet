@@ -1,19 +1,22 @@
 // Server-side fetcher for the resolved channel (name, currency, logo, support email,
 // etc.)
 
-
-import { perRequest } from "../request";
+import { perRequest, rethrowControlFlow } from "../request";
 import { gqlFetch } from "../graphql";
 import { getStoreNameSetting, surfaceCacheOpts, NAV_SURFACE, NAV_TAG } from "../config/read";
 import { CurrentChannelDocument } from "./operations.gql";
 import type { Channel } from "./types";
 
+export const loadChannel = perRequest(async (): Promise<Channel | null> => {
+  const cacheOpts = await surfaceCacheOpts(NAV_SURFACE, { tags: [NAV_TAG] });
+  return (await gqlFetch(CurrentChannelDocument, {}, cacheOpts)).data.currentChannel;
+});
+
 export const getChannel = perRequest(async (): Promise<Channel | null> => {
   try {
-    const cacheOpts = await surfaceCacheOpts(NAV_SURFACE, { tags: [NAV_TAG] });
-    const res = await gqlFetch(CurrentChannelDocument, {}, cacheOpts);
-    return res.data.currentChannel;
-  } catch {
+    return await loadChannel();
+  } catch (err) {
+    rethrowControlFlow(err);
     // Treat read failures as "no store" - the rest of the page can still render (Header
     // degrades to its hardcoded brand), and the next request will retry
     return null;

@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { useTestRequest } from "../testing";
 
 const mocks = vi.hoisted(() => ({ gqlFetch: vi.fn(), redirect: vi.fn((to: string) => { throw new Error(`redirect:${to}`); }) }));
-useTestRequest({ redirect: mocks.redirect, revalidate: vi.fn(), cookies: async () => ({ get: () => undefined, set: vi.fn(), delete: vi.fn() }) });
+useTestRequest({ redirect: mocks.redirect, cookies: async () => ({ get: () => undefined, set: vi.fn(), delete: vi.fn() }) });
 vi.mock("../revalidate", () => ({ revalidateAccount: vi.fn() }));
 vi.mock("../graphql", () => ({ gqlFetch: mocks.gqlFetch, GraphQLRequestError: class extends Error {} }));
 vi.mock("../locale/read", () => ({

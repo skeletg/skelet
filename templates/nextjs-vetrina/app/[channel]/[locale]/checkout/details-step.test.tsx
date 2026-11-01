@@ -100,7 +100,6 @@ function renderStep(props: {
       phoneSettings={props.phoneSettings ?? ANY_PHONE}
       asks={{ shipping: true, collector: false, billing: "required", phone: "optional" }}
       collectFrom={[]}
-      locale="en"
     />,
   );
 }

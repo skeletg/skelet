@@ -15,8 +15,11 @@ import {
 } from "@skelet/storefront-core/auth/operations.gql";
 import { buildForwardedCookie } from "@skelet/storefront-core/forwarded-cookie";
 import { BEACON } from "@skelet/storefront-core/beacons/paths";
-import { BACKEND_INTERNAL_URL } from "@skelet/storefront-core/backend-url";
-import { PROMO_PENDING_COOKIE } from "@skelet/storefront-core/cart/read";
+import { AID_COOKIE } from "@skelet/storefront-core/analytics/visitor";
+import { BACKEND_INTERNAL_URL, FRONT_API_URL } from "@skelet/storefront-core/backend-url";
+import { cookieOptions } from "@skelet/storefront-core/cookie-policy";
+import { pendingPromo } from "@skelet/storefront-core/promo";
+import { secretEquals } from "@skelet/storefront-core/secret-equal";
 import { CHANNEL_HEADER, WARM_CHANNEL_HEADER, channelForHost, isChannelId } from "@skelet/storefront-core/channel";
 import { internalPath, isChannelTreePath, isLegacyMatched, isPagePath } from "@skelet/storefront-core/channel-routing";
 import { clientIP } from "@skelet/storefront-core/client-ip";
@@ -27,24 +30,18 @@ import { clearRewriteMark, isOwnRewrite, markRewrite } from "@skelet/storefront-
 // session rotated, the visitor id minted, a ?promo= code held for the cart, and a crawler's fetch reported. A template's
 // proxy.ts calls storefrontProxy and keeps only the matcher, which Next reads from that file as written
 
-// Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
-const FRONT_API_PATH = process.env.FRONT_API_SLUG
-  ? `/api/front/${process.env.FRONT_API_SLUG}/graphql`
-  : "/api/front/graphql";
-
 // ?promo=CODE lands in a short-lived cookie for the next cart op to apply - middleware can't apply it itself (needs a cart and an
 // authenticated gqlFetch) applyCoupon clears the cookie; the param is stripped so the address bar stays clean
 const PROMO_QUERY_PARAM = "promo";
 
 // Visitor id for Prism assignment + Lens identity. Minted here so server-side assignment has a stable id on the first paint - no variant
 // flash, even for incognito Functional, not httpOnly: the client SDKs read it, LensTracker reuses the same value
-const AID_COOKIE = "lens_aid";
-const AID_OPTS = {
-  path: "/",
-  httpOnly: false,
-  sameSite: "lax" as const,
-  maxAge: 60 * 60 * 24 * 365,
-};
+const AID_OPTS = cookieOptions(60 * 60 * 24 * 365, false);
+
+const REVALIDATE_SECRET_HEADER = "x-revalidate-secret";
+
+const BEACON_TIMEOUT_MS = 2000;
+const REFRESH_TIMEOUT_MS = 3000;
 
 // --- Bot / crawler beacon --- Crawlers never run the Lens JS, so server-side is the only way to see what they fetch Fire-and-forget to the
 // backend's /t/crawl, which re-classifies authoritatively Goes direct to the in-network backend so it can't re-enter this middleware
@@ -74,7 +71,7 @@ function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string)
         headers: beaconHeaders,
         body: JSON.stringify({ path, ua, ip, ref }),
         // Bounded so a slow backend can't leave sockets hanging on a high-volume crawl
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(BEACON_TIMEOUT_MS),
       }).catch(() => {
         // a tracking hiccup must never affect the crawler's response
       }),
@@ -102,23 +99,28 @@ async function maybeRefreshSession(req: NextRequest, channelId: string): Promise
   if (!isAccessTokenExpiringSoon(access)) return { kind: "noop" }; // still fresh
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json", "X-Channel-Id": channelId };
-    const r = await fetch(`${BACKEND_INTERNAL_URL}${FRONT_API_PATH}`, {
+    const forwardedFor = clientIP(req.headers);
+    if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
+    const r = await fetch(FRONT_API_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({ query: REFRESH_MUTATION, variables: { token: refresh } }),
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
       cache: "no-store",
     });
     // 5xx / network errors are transient - keep the session and try next request.
     if (!r.ok) return { kind: "noop" };
-    const body = (await r.json()) as { data?: CustomerRefreshTokenMutation };
+    const body = (await r.json()) as {
+      data?: CustomerRefreshTokenMutation;
+      errors?: { extensions?: { class?: unknown } }[];
+    };
     const p = body?.data?.customerRefreshToken;
     if (p?.accessToken && p?.refreshToken) {
       return { kind: "refreshed", accessToken: p.accessToken, refreshToken: p.refreshToken };
     }
-    // No tokens back means a genuinely dead refresh token - the backend's rotation grace
-    // window means a concurrent prefetch race lands elsewhere. Safe to clear
-    return { kind: "dead" };
+    // Only the backend calling the token no good ends the session - a rate limit or an outage keeps it for the next try
+    if (body?.errors?.some((e) => e.extensions?.class === "UNAUTHENTICATED")) return { kind: "dead" };
+    return { kind: "noop" };
   } catch {
     // Timeout / network hiccup - transient, keep the session.
     return { kind: "noop" };
@@ -138,19 +140,22 @@ async function channelRewrite(req: NextRequest, channelId: string): Promise<URL 
   return url;
 }
 
-function secretMatches(provided: string | null): boolean {
-  const expected = process.env.STOREFRONT_REVALIDATE_SECRET ?? "";
-  if (!expected || !provided || provided.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
-  return diff === 0;
-}
-
 // The host decides the channel, except for the revalidate route's own warm requests, which name the channel they rebuild
 function requestChannel(req: NextRequest): string {
   const warm = req.headers.get(WARM_CHANNEL_HEADER);
-  if (isChannelId(warm) && secretMatches(req.headers.get("x-revalidate-secret"))) return warm.toLowerCase();
+  if (isChannelId(warm) && secretEquals(req.headers.get(REVALIDATE_SECRET_HEADER), process.env.STOREFRONT_REVALIDATE_SECRET ?? "")) {
+    return warm.toLowerCase();
+  }
   return channelForHost(req.headers.get("host") ?? "");
+}
+
+function forwardedHeaders(req: NextRequest, channelId: string): Headers {
+  const headers = new Headers(req.headers);
+  headers.delete(WARM_CHANNEL_HEADER);
+  headers.delete(REVALIDATE_SECRET_HEADER);
+  if (channelId) headers.set(CHANNEL_HEADER, channelId);
+  else headers.delete(CHANNEL_HEADER);
+  return headers;
 }
 
 export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): Promise<NextResponse> {
@@ -167,11 +172,8 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
 
   // Route handlers and files only need the channel stamped; one arriving on a host no channel claims passes through bare
   if (!isLegacyMatched(pathname)) {
-    const headers = new Headers(req.headers);
-    headers.delete(WARM_CHANNEL_HEADER);
+    const headers = forwardedHeaders(req, channelId);
     clearRewriteMark(headers);
-    if (channelId) headers.set(CHANNEL_HEADER, channelId);
-    else headers.delete(CHANNEL_HEADER);
     return NextResponse.next({ request: { headers } });
   }
   if (!channelId && isPagePath(pathname)) {
@@ -182,7 +184,7 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   reportCrawl(req, event, channelId);
 
   const url = req.nextUrl;
-  const code = url.searchParams.get(PROMO_QUERY_PARAM)?.trim();
+  const code = url.searchParams.get(PROMO_QUERY_PARAM);
 
   // Proactively rotate a near-expiry customer session before render.
   const session = channelId ? await maybeRefreshSession(req, channelId) : ({ kind: "noop" } as const);
@@ -208,17 +210,13 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
     return res;
   };
 
-  if (code) {
+  if (code !== null) {
     // Strip the param so reloads and shares don't re-fire the code
     const cleaned = url.clone();
     cleaned.searchParams.delete(PROMO_QUERY_PARAM);
     const res = NextResponse.redirect(cleaned);
-    res.cookies.set(PROMO_PENDING_COOKIE, code.toUpperCase(), {
-      path: "/",
-      httpOnly: false,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    const held = pendingPromo(code);
+    if (held) res.cookies.set(...held);
     return applyCookies(res);
   }
 
@@ -226,14 +224,14 @@ export async function storefrontProxy(req: NextRequest, event: NextFetchEvent): 
   // first-paint assignment, rotated access token for its gqlFetch calls
   const forward: Record<string, string> = {};
   if (newAid) forward[AID_COOKIE] = newAid;
-  if (session.kind === "refreshed") forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
+  if (session.kind === "refreshed") {
+    forward[ACCESS_TOKEN_COOKIE] = session.accessToken;
+    forward[REFRESH_TOKEN_COOKIE] = session.refreshToken;
+  }
 
   const rewriteTo = channelId ? await channelRewrite(req, channelId) : null;
 
-  const headers = new Headers(req.headers);
-  headers.delete(WARM_CHANNEL_HEADER);
-  if (channelId) headers.set(CHANNEL_HEADER, channelId);
-  else headers.delete(CHANNEL_HEADER);
+  const headers = forwardedHeaders(req, channelId);
   if (rewriteTo) markRewrite(headers);
   else clearRewriteMark(headers);
   if (Object.keys(forward).length > 0) {

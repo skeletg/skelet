@@ -49,36 +49,28 @@ export function priceCurrency(code: string, configured: CurrencyInfo | null | un
   return configured && configured.code === code ? configured : code;
 }
 
-// Two forms: formatPrice(amount, "USD") leaves symbol position to the locale, while formatPrice(amount, {code, symbol, symbolPosition,
-// decimals}) honours the backend's per-currency config regardless of locale - unknown values default to prefix
+// A bare code leaves the symbol to the locale; a CurrencyInfo puts the store's symbol where it says, or the locale's when it has none
 export function formatPrice(
   amountMinor: number,
   currency: string | CurrencyInfo,
+  locale = "en",
 ): string {
-  if (typeof currency === "string") {
-    const code = currency || "USD";
+  const code = (typeof currency === "string" ? currency : currency.code) || "USD";
+  const decimals = currencyDecimals(currency);
+  const major = toMajor(amountMinor, currency);
+  const digits = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+  if (typeof currency === "string" || !currency.symbol) {
     try {
-      return new Intl.NumberFormat("en", {
-        style: "currency",
-        currency: code,
-      }).format(toMajor(amountMinor, code));
+      return new Intl.NumberFormat(locale, { style: "currency", currency: code, ...digits }).format(major);
     } catch {
-      return `${toMajor(amountMinor, code).toFixed(2)} ${code}`;
+      return `${major.toFixed(decimals)} ${code}`;
     }
   }
-  const code = currency.code || "USD";
-  const decimals = currencyDecimals(currency);
-  const symbol = currency.symbol || code;
-  const position = currency.symbolPosition === "suffix" ? "suffix" : "prefix";
-  const major = toMajor(amountMinor, currency);
   let amount: string;
   try {
-    amount = new Intl.NumberFormat("en", {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(major);
+    amount = new Intl.NumberFormat(locale, digits).format(major);
   } catch {
     amount = major.toFixed(decimals);
   }
-  return position === "suffix" ? `${amount} ${symbol}` : `${symbol}${amount}`;
+  return currency.symbolPosition === "suffix" ? `${amount} ${currency.symbol}` : `${currency.symbol}${amount}`;
 }

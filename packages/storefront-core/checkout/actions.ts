@@ -269,7 +269,7 @@ export async function saveDetailsStep(
   }
   if (deliveryDropped) {
     // The address moved the order somewhere a chosen delivery doesn't reach - back to step 1, saying why
-    redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { notice: "delivery-changed" }), String(formData.get("locale") ?? "")));
+    redirect(await withLocalePrefix(checkoutHref(cart?.offer ? cart.id : undefined, { notice: "delivery-changed" }), await getCurrentLocale()));
   }
   request().refresh();
   return submission.reply();
@@ -336,7 +336,6 @@ export async function placeOrderAction(
   const submission = parseForm(formData, paymentStepSchema({ requireMethod, consent: settings.termsConsent }));
   if (submission.status !== "success") return submission.reply();
   const v = submission.value;
-  const locale = String(formData.get("locale") ?? "");
   if (!cartId || !checkout) return submission.reply({ formErrors: ["checkoutCartMissing"] });
   // The list the shopper picked from may be stale (country, offer or store settings changed) or the post forged - only a
   // method this checkout can still pay with may place an order
@@ -378,7 +377,7 @@ export async function placeOrderAction(
   } else {
     if (cookieStore.get(CART_COOKIE)?.value === cartId) cookieStore.delete(CART_COOKIE);
   }
-  request().revalidate("/", "layout");
+  request().refresh();
 
   // A guest offer places a guest order for its recipient, whoever is signed in on this browser
   const signedIn = cookieStore.get(ACCESS_TOKEN_COOKIE) !== undefined && !offer?.isGuest;
@@ -387,11 +386,12 @@ export async function placeOrderAction(
     : `/orders/${orderId}?email=${encodeURIComponent(checkout.email)}&`;
   // A payment action needs a gateway SDK this demo doesn't ship, so nothing finalizes it here: the order is shown as
   // created but unpaid, without the purchase event or thank-you a just-placed order gets
-  redirect(await withLocalePrefix(`${orderPath}${needsAction ? "payment=incomplete" : "just_placed=1"}`, locale));
+  redirect(await withLocalePrefix(`${orderPath}${needsAction ? "payment=incomplete" : "just_placed=1"}`, await getCurrentLocale()));
 }
 
 
 export async function applyCheckoutCouponAction(_prev: FormResult | undefined, formData: FormData): Promise<FormResult> {
+
   const submission = parseForm(formData, couponSchema);
   if (submission.status !== "success") return submission.reply();
   const cart = await submittedCart(formData);

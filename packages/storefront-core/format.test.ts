@@ -15,6 +15,16 @@ describe("formatPrice", () => {
     expect(() => formatPrice(1000, "")).not.toThrow();
   });
 
+  it("writes the digits the channel's language groups them in, the symbol where the store put it", () => {
+    expect(formatPrice(123456, { code: "EUR", symbol: "€", symbolPosition: "suffix", decimals: 2 }, "de")).toBe("1.234,56 €");
+    expect(formatPrice(123456, "EUR", "de")).toBe("1.234,56\u00a0€");
+  });
+
+  it("writes a currency with no symbol configured the locale's way, not as its bare code", () => {
+    expect(formatPrice(1500, { code: "USD", symbol: "", decimals: 2 })).toBe("$15.00");
+    expect(formatPrice(1500, { code: "USD", symbol: null })).toBe("$15.00");
+  });
+
   it("accepts a CurrencyInfo object", () => {
     expect(formatPrice(500, { code: "USD", symbol: "$", decimals: 2 })).toContain("5");
   });

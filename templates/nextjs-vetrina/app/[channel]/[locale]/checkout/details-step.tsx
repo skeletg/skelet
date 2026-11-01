@@ -37,7 +37,6 @@ type Props = {
   asks: DetailsAsks;
   // Where a pickup is collected from - shown above who collects it
   collectFrom: DeliveryPoint[];
-  locale: string;
 };
 
 // A typed-in address starts from what the cart holds when that was typed too, else from the destination the first step
@@ -144,7 +143,6 @@ export function DetailsStep(props: Props) {
   return (
     <form id={form.id} onSubmit={onSubmit} action={formAction} noValidate className="grid gap-5">
         <CheckoutCartFields />
-      <input type="hidden" name="locale" value={props.locale} />
       <FormErrors errors={form.errors} />
 
       {settings.business ? (

@@ -296,7 +296,6 @@ export default async function CheckoutPage({
                 phoneSettings={phoneSettings}
                 asks={asks}
                 collectFrom={collectFrom}
-                locale={locale}
               />
             </StepCard>
 
@@ -309,7 +308,6 @@ export default async function CheckoutPage({
                 storeCreditBalance={customer?.storeCreditBalance ?? 0}
                 signedIn={!!customer}
                 consent={settings.termsConsent}
-                locale={locale}
                 currency={currency}
               />
             </StepCard>

@@ -60,3 +60,21 @@ it("ignores an older identity response after navigation", async () => {
   await act(async () => { finish(null); });
   expect(screen.getByText(customer.email)).toBeInTheDocument();
 });
+
+it("reads once for a return to the tab, and not again while the answer is fresh", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    mocks.load.mockResolvedValue(customer);
+    render(tree());
+    await screen.findByText(customer.email);
+    fireEvent(window, new Event("focus"));
+    fireEvent(document, new Event("visibilitychange"));
+    expect(mocks.load).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 31_000);
+    fireEvent(window, new Event("focus"));
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2));
+  } finally {
+    vi.useRealTimers();
+  }
+});

@@ -1,10 +1,13 @@
-// Guards a returnTo / redirect param down to a same-origin PATH. One shared copy so the
-// rule can't drift between the login/register pages and the auth server actions
+// A browser drops a tab or newline inside a URL and reads a backslash as a slash, so the check resolves it the way a browser would
+const UNSAFE = /[\u0000- \u007f\\]/;
+const HERE = "http://storefront.invalid";
+
 export function safeReturnTo(raw: unknown): string | null {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof value !== "string" || !value) return null;
-  if (!value.startsWith("/")) return null;
-  if (value.startsWith("//")) return null;
-  if (value.includes("\\")) return null;
-  return value;
+  if (typeof value !== "string" || !value.startsWith("/") || UNSAFE.test(value)) return null;
+  try {
+    return new URL(value, HERE).origin === HERE ? value : null;
+  } catch {
+    return null;
+  }
 }

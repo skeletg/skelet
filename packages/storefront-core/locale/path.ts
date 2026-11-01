@@ -10,10 +10,13 @@
 
 import { getCurrentChannelLocales } from "./read";
 
+const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+
 export async function withLocalePrefix(path: string, locale: string): Promise<string> {
   const base = path.startsWith("/") ? path : "/" + path;
+  if (!LOCALE.test(locale)) return base;
   const { codes, defaultLocale } = await getCurrentChannelLocales();
-  if (!locale || locale === defaultLocale) return base;
+  if (locale === defaultLocale) return base;
   if (codes.length > 0 && !codes.includes(locale)) return base;
   // Already prefixed - don't stack another one. The first segment ends at a query or fragment too, so /de?x=1 counts
   const first = base.split(/[/?#]/)[1] ?? "";

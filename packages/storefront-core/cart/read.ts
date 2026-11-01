@@ -1,7 +1,6 @@
 // Cart read helpers
 
-
-import { perRequest, request } from "../request";
+import { perRequest, request, rethrowControlFlow } from "../request";
 import {
   CartByIdDocument,
   FreeShippingThresholdDocument,
@@ -9,7 +8,7 @@ import {
 } from "./queries.gql";
 import { getAccessToken } from "../auth/session";
 import type { Cart } from "./types";
-import { gqlFetch } from "../graphql";
+import { errorClass, gqlFetch } from "../graphql";
 import { surfaceCacheOpts, NAV_SURFACE, NAV_TAG } from "../config/read";
 
 export { cartLineCount } from "./types";
@@ -22,8 +21,7 @@ export type {
 } from "./types";
 
 export const CART_COOKIE = "storefront_cart";
-// A code that arrived before there was a cart to apply it to - the next addition applies it
-export const PROMO_PENDING_COOKIE = "storefront_pending_promo";
+export { PROMO_PENDING_COOKIE } from "../promo";
 
 // The shopper's own cart id: the session's when signed in (the cart cookie is ignored), else the guest cookie's, else
 // null. Never an offer, and a failed backend read throws rather than handing back some other cart
@@ -32,31 +30,34 @@ export async function getOwnCartId(): Promise<string | null> {
   return (await request().cookies()).get(CART_COOKIE)?.value ?? null;
 }
 
-// Returns the shopper's own cart, or null when a guest has none yet or the backend can't read it (cleared, expired,
-// never existed under that ID)
-export const getCart = perRequest(async (): Promise<Cart | null> => {
+// unavailable says the read failed - only a null cart or no cookie means a guest's cart is gone
+export type CartRead = { cart: Cart | null; unavailable: boolean };
+
+export const readCart = perRequest(async (): Promise<CartRead> => {
   // Signed in: the cart hangs off the session, not the cookie, so it's the same cart on
   // every device the customer opens. A failed read is no cart, never the guest cookie's
   if (await getAccessToken()) {
     try {
-      const res = await gqlFetch(MyCartDocument);
-      return res.data.myCart;
-    } catch {
-      return null;
+      return { cart: (await gqlFetch(MyCartDocument)).data.myCart, unavailable: false };
+    } catch (err) {
+      return failedRead(err);
     }
   }
-  const store = await request().cookies();
-  const id = store.get(CART_COOKIE)?.value;
-  if (!id) return null;
+  const id = (await request().cookies()).get(CART_COOKIE)?.value;
+  if (!id) return { cart: null, unavailable: false };
   try {
-    const res = await gqlFetch(CartByIdDocument, { id });
-    return res.data.cart;
-  } catch {
-    // Treat any read failure (404, network blip) as "no cart yet" - the next
-    // add-to-cart will create a fresh one
-    return null;
+    return { cart: (await gqlFetch(CartByIdDocument, { id })).data.cart, unavailable: false };
+  } catch (err) {
+    return failedRead(err);
   }
 });
+
+function failedRead(err: unknown): CartRead {
+  rethrowControlFlow(err);
+  return { cart: null, unavailable: errorClass(err) !== "NOT_FOUND" };
+}
+
+export const getCart = perRequest(async (): Promise<Cart | null> => (await readCart()).cart);
 
 export { formatPrice } from "../format";
 

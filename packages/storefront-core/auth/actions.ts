@@ -106,7 +106,7 @@ export async function registerAction(
     redirect(await withLocalePrefix("/account/login?verify=required", await getCurrentLocale()));
   }
   const merged = await mergeGuestCartIfNeeded();
-  request().revalidate("/", "layout");
+  request().refresh();
   let dest = withFlag(returnTo ?? "/account", "welcome", "1");
   if (!merged) dest = withFlag(dest, CART_MERGE_FLAG, CART_MERGE_FAILED);
   redirect(await withLocalePrefix(dest, await getCurrentLocale()));
@@ -144,7 +144,7 @@ export async function loginAction(
     return replyError(submission, err, "signInFailed", PASSWORD_FIELDS);
   }
   const merged = await mergeGuestCartIfNeeded();
-  request().revalidate("/", "layout");
+  request().refresh();
   const dest = returnTo ?? "/account";
   redirect(await withLocalePrefix(merged ? dest : withFlag(dest, CART_MERGE_FLAG, CART_MERGE_FAILED), await getCurrentLocale()));
 }
@@ -369,6 +369,6 @@ export async function logoutAction() {
     }
   }
   await clearSessionCookies();
-  request().revalidate("/", "layout");
+  request().refresh();
   redirect(await withLocalePrefix("/", await getCurrentLocale()));
 }

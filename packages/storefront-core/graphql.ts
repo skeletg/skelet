@@ -1,24 +1,16 @@
 // Server-side GraphQL client for the storefront
 
-import { request } from "./request";
+import { request, rethrowControlFlow } from "./request";
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import type { DocumentNode } from "graphql";
 import { print } from "graphql";
 
 import { getAccessToken } from "./auth/session";
 import { getCurrentLocale, getCurrentChannelId } from "./locale/read";
-import { rethrowIfDynamicBailout } from "./dynamic-bailout";
 import { shopperHeaders } from "./shopper-headers";
 import { isPublicOp } from "./public-ops";
-import { BACKEND_INTERNAL_URL } from "./backend-url";
+import { FRONT_API_URL } from "./backend-url";
 import { decodeOfferSession, OFFER_COOKIE, OFFER_HEADER } from "./cart/offer-cookie";
-
-// Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
-const FRONT_API_PATH = process.env.FRONT_API_SLUG
-  ? `/api/front/${process.env.FRONT_API_SLUG}/graphql`
-  : '/api/front/graphql';
-
-const BACKEND_URL = BACKEND_INTERNAL_URL;
 
 // The operation name drives the public-op check below, so an unnamed document is
 // treated as private rather than silently sharing a cache entry
@@ -101,9 +93,8 @@ export type GqlResult<T> = {
   data: T;
 };
 
-// Refresh happens in middleware (see middleware.ts), NOT here
-
-type FetchOptions = {
+export type FetchOptions = {
+  public?: boolean;
   extraHeaders?: Record<string, string>;
   // Overrides the cookie-derived `Locale` header for this request
   locale?: string;
@@ -127,7 +118,8 @@ export async function gqlFetch<TData, TVariables>(
   const options = (args[1] as FetchOptions | undefined) ?? {};
   const opName = extractOpName(document); // resolved first so a public op never touches the auth cookie - reading one forces the route dynamic
   const [locale, channelId] = await Promise.all([getCurrentLocale(), getCurrentChannelId()]);
-  const accessToken = isPublicOp(opName) ? null : await getAccessToken();
+  const shared = options.public === true || isPublicOp(opName);
+  const accessToken = shared ? null : await getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Locale: options.locale ?? locale,
@@ -140,12 +132,12 @@ export async function gqlFetch<TData, TVariables>(
   }
   Object.assign(headers, await shopperHeaders());
   // An offer cart answers to its link, not its id - the link's token goes with every private call
-  if (!isPublicOp(opName)) {
+  if (!shared) {
     try {
       const offerToken = decodeOfferSession((await request().cookies()).get(OFFER_COOKIE)?.value)?.token;
       if (offerToken) headers[OFFER_HEADER] = offerToken;
     } catch (err) {
-      rethrowIfDynamicBailout(err);
+      rethrowControlFlow(err);
       // not in a request scope - nothing to forward
     }
   }
@@ -160,7 +152,7 @@ export async function gqlFetch<TData, TVariables>(
   let res: Response;
   try {
     res = await request().fetch(
-      `${BACKEND_URL}${FRONT_API_PATH}`,
+      FRONT_API_URL,
       {
         method: "POST",
         headers,
@@ -175,17 +167,15 @@ export async function gqlFetch<TData, TVariables>(
       hint,
     );
   } catch (err) {
-    rethrowIfDynamicBailout(err);
-    const detail = `GraphQL transport failure calling ${BACKEND_URL} (${opName || "op"}): ${err instanceof Error ? err.message : String(err)}`;
-     
+    rethrowControlFlow(err);
+    const detail = `GraphQL transport failure calling ${FRONT_API_URL} (${opName || "op"}): ${err instanceof Error ? err.message : String(err)}`;
     console.error(detail);
     throw new BackendUnavailableError(detail);
   }
 
   if (!res.ok) {
     // Body deliberately not read into the message - pages render err.message to the shopper
-    const detail = `GraphQL HTTP ${res.status} ${res.statusText} from ${BACKEND_URL} (${opName || "op"})`;
-     
+    const detail = `GraphQL HTTP ${res.status} ${res.statusText} from ${FRONT_API_URL} (${opName || "op"})`;
     console.error(detail);
     throw new BackendUnavailableError(detail);
   }
@@ -195,7 +185,7 @@ export async function gqlFetch<TData, TVariables>(
     errors?: GraphQLError[];
   };
   if (body.errors?.length) {
-    // Auth failures (UNAUTHENTICATED) are not retried here - the middleware keeps the
+    // Auth failures (UNAUTHENTICATED) are not retried here - the adapter's proxy keeps the
     // access token fresh before render
     throw new GraphQLRequestError(
       body.errors.map((e) => e.message).join("; "),

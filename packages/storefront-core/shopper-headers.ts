@@ -1,8 +1,6 @@
-
-import { request } from "./request";
+import { request, rethrowControlFlow } from "./request";
 import { AID_COOKIE } from "./analytics/visitor";
 import { clientIP } from "./client-ip";
-import { rethrowIfDynamicBailout } from "./dynamic-bailout";
 
 // Who a server-side call to the backend is made for. Without these the backend sees this Next server instead of the
 // shopper: every visitor shares one per-IP rate-limit bucket (brute-force pooling, cross-user lockout), and guest
@@ -18,7 +16,7 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     const crawl = inbound.get("x-skelet-crawl");
     if (crawl) out["X-Skelet-Crawl"] = crawl;
   } catch (err) {
-    rethrowIfDynamicBailout(err);
+    rethrowControlFlow(err);
     // not in a request scope - nothing to forward
   }
   // The visitor's anon id (the Lens cookie), so guest commerce attributes to the same visitor as their browsing and
@@ -27,7 +25,7 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     const aid = (await request().cookies()).get(AID_COOKIE)?.value;
     if (aid) out["X-Anon-Id"] = aid;
   } catch (err) {
-    rethrowIfDynamicBailout(err);
+    rethrowControlFlow(err);
   }
   return out;
 }

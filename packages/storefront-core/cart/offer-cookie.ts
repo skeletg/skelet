@@ -1,5 +1,8 @@
 // The offer a browser holds - an offer cart is opened through its emailed link, and the link's token rides every
-// call for it (X-Cart-Offer). No imports, so gqlFetch and route handlers can share it without a cycle
+// call for it (X-Cart-Offer). Nothing imported but the cookie policy, so gqlFetch and route handlers can share it without
+// a cycle
+
+import { SECURE_COOKIES } from "../cookie-policy";
 
 // httpOnly - the token is what opens the offer, so client JS never reads it
 export const OFFER_COOKIE = "storefront_offer";
@@ -34,7 +37,7 @@ export function offerCookieOptions(maxAgeSeconds: number) {
     path: "/",
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: SECURE_COOKIES,
     maxAge: Math.max(60, Math.floor(maxAgeSeconds)),
   };
 }

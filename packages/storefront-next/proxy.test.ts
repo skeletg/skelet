@@ -4,17 +4,21 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const CHANNEL = "56d051bc-0131-4476-bc0b-121d80290684";
 let storefrontProxy: typeof import("./proxy").storefrontProxy;
 
+const WARM = "11111111-2222-4333-8444-555555555555";
+
 beforeAll(async () => {
   vi.stubEnv("STOREFRONT_CHANNEL_ID", CHANNEL);
+  vi.stubEnv("STOREFRONT_REVALIDATE_SECRET", "s3cret-value");
   ({ storefrontProxy } = await import("./proxy"));
 });
 
 afterEach(() => vi.unstubAllGlobals());
 
-// The backend's answer for the channel's languages, the one call a page request makes
-function backend() {
-  const fetchMock = vi.fn(async () =>
-    Response.json({
+// The backend's answer for the channel's languages, the one call a page request makes - and, when given, its answer to a
+// session refresh
+function backend(refresh?: () => Response) {
+  const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+    refresh && String(init?.body ?? "").includes("customerRefreshToken") ? refresh() : Response.json({
       data: {
         currentChannel: {
           defaultLocale: "en",
@@ -77,5 +81,73 @@ describe("storefrontProxy", () => {
     expect(res.headers.get("x-middleware-request-x-storefront-channel")).toBe(CHANNEL);
     expect(res.headers.get("x-middleware-request-x-storefront-rewrite")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("holds nothing for a ?promo= that's no code, and still cleans the address", async () => {
+    backend();
+    const res = await storefrontProxy(req("/products?promo=two%20words"), event);
+    expect(res.status).toBe(307);
+    expect(res.cookies.get("storefront_pending_promo")).toBeUndefined();
+  });
+
+  it("stamps its own channel over one a client sent, and passes on neither warm header", async () => {
+    backend();
+    const res = await storefrontProxy(
+      req("/cart", { "x-storefront-channel": WARM, "x-storefront-warm-channel": WARM, "x-revalidate-secret": "guess" }),
+      event,
+    );
+    expect(res.headers.get("x-middleware-request-x-storefront-channel")).toBe(CHANNEL);
+    expect(res.headers.get("x-middleware-request-x-storefront-warm-channel")).toBeNull();
+    expect(res.headers.get("x-middleware-request-x-revalidate-secret")).toBeNull();
+  });
+
+  it("warms the channel a request names only beside the revalidate secret, which the render never sees", async () => {
+    backend();
+    const res = await storefrontProxy(req("/cart", { "x-storefront-warm-channel": WARM, "x-revalidate-secret": "s3cret-value" }), event);
+    expect(new URL(res.headers.get("x-middleware-rewrite")!).pathname).toBe(`/${WARM}/en/cart`);
+    expect(res.headers.get("x-middleware-request-x-revalidate-secret")).toBeNull();
+  });
+
+  it("reports a crawler's page fetch to the backend, naming the crawler's address", async () => {
+    const fetchMock = backend();
+    const waitUntil = vi.fn();
+    await storefrontProxy(req("/cart", { "user-agent": "Googlebot/2.1", "x-forwarded-for": "66.249.66.1" }), { waitUntil } as never);
+    expect(waitUntil).toHaveBeenCalledOnce();
+    const beacon = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/t/crawl"));
+    expect((beacon?.[1]?.headers as Record<string, string>)["X-Forwarded-For"]).toBe("66.249.66.1");
+  });
+});
+
+describe("session refresh", () => {
+  const signedIn = (headers: Record<string, string> = {}) => req("/cart", { cookie: "storefront_refresh_token=old-refresh", ...headers });
+
+  it("rotates a session about to expire - for the browser and for this very render", async () => {
+    const fetchMock = backend(() => Response.json({ data: { customerRefreshToken: { accessToken: "new-access", refreshToken: "new-refresh" } } }));
+    const res = await storefrontProxy(signedIn({ "x-forwarded-for": "203.0.113.7" }), event);
+    expect(res.cookies.get("storefront_access_token")?.value).toBe("new-access");
+    expect(res.cookies.get("storefront_refresh_token")?.value).toBe("new-refresh");
+    const forwarded = res.headers.get("x-middleware-request-cookie") ?? "";
+    expect(forwarded).toContain("storefront_access_token=new-access");
+    expect(forwarded).toContain("storefront_refresh_token=new-refresh");
+    const call = fetchMock.mock.calls.find(([, init]) => String(init?.body ?? "").includes("customerRefreshToken"));
+    expect((call?.[1]?.headers as Record<string, string>)["X-Forwarded-For"]).toBe("203.0.113.7");
+  });
+
+  it("ends the session only when the backend says the token is no good", async () => {
+    backend(() => Response.json({ errors: [{ message: "invalid refresh token", extensions: { class: "UNAUTHENTICATED" } }] }));
+    const res = await storefrontProxy(signedIn(), event);
+    expect(res.cookies.get("storefront_refresh_token")?.value).toBe("");
+    expect(res.cookies.get("storefront_access_token")?.value).toBe("");
+  });
+
+  it.each([
+    ["a rate limit", () => Response.json({ errors: [{ message: "slow down", extensions: { class: "TOO_MANY_REQUESTS" } }] })],
+    ["an outage reported as an error", () => Response.json({ errors: [{ message: "x", extensions: { class: "UNAVAILABLE" } }] })],
+    ["a 502", () => new Response("bad gateway", { status: 502 })],
+  ])("keeps the session through %s", async (_label, answer) => {
+    backend(answer);
+    const res = await storefrontProxy(signedIn(), event);
+    expect(res.cookies.get("storefront_refresh_token")).toBeUndefined();
+    expect(res.cookies.get("storefront_access_token")).toBeUndefined();
   });
 });

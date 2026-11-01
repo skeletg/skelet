@@ -6,12 +6,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { APIContext, MiddlewareHandler } from "astro";
 
-import { channelForHost } from "@skelet/storefront-core/channel";
+import { HOST_ROUTED, channelForHost } from "@skelet/storefront-core/channel";
 import { configureStorefront, type CookieJar, type StorefrontRequest } from "@skelet/storefront-core/request";
 
 import { cachedFetch } from "./data-cache";
 
-// The core's exits, thrown through the page and turned into a response here
 class Redirect extends Error {
   constructor(readonly to: string) {
     super(`redirect to ${to}`);
@@ -22,6 +21,10 @@ class NotFound extends Error {
   constructor() {
     super("not found");
   }
+}
+
+export function isAdapterExit(err: unknown): boolean {
+  return err instanceof Redirect || err instanceof NotFound;
 }
 
 type Scope = { request: StorefrontRequest; memo: Map<unknown, Map<string, unknown>> };
@@ -48,6 +51,9 @@ configureStorefront({
       if (!byArgs.has(key)) byArgs.set(key, fn(...args));
       return byArgs.get(key) as R;
     },
+  rethrowControlFlow: (err) => {
+    if (isAdapterExit(err)) throw err;
+  },
 });
 
 function astroRequest(context: APIContext): StorefrontRequest {
@@ -73,8 +79,8 @@ function astroRequest(context: APIContext): StorefrontRequest {
     notFound: () => {
       throw new NotFound();
     },
-    // Astro's route cache is the template's, keyed by tags it sets itself - the core's paths name Next's routes
-    revalidate: () => {},
+    revalidatePublic: async () => {},
+    revalidateAccount: () => {},
     // A plain form post already renders the page afresh - post, redirect, get
     refresh: () => {},
   };
@@ -82,11 +88,15 @@ function astroRequest(context: APIContext): StorefrontRequest {
 
 export const storefront: MiddlewareHandler = (context, next) =>
   scope.run({ request: astroRequest(context), memo: new Map() }, async () => {
+    let res: Response;
     try {
-      return await next();
+      res = await next();
     } catch (err) {
       if (err instanceof Redirect) return context.redirect(err.to, 303);
       if (err instanceof NotFound) return context.rewrite("/404");
       throw err;
     }
+    // Astro's route cache keys on a host only when allowedDomains trusts it, so a host-routed page says it varies
+    if (HOST_ROUTED) res.headers.append("Vary", "Host");
+    return res;
   });

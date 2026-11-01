@@ -61,6 +61,14 @@ describe("proxyToBackend", () => {
     expect(res.headers.get("location")).toBe("https://brand.example/landing");
   });
 
+  it("refuses a path that leaves the backend's same-origin links once its dot segments resolve", async () => {
+    const before = seen.length;
+    for (const path of ["/t/%2e%2e/api/admin/graphql", "/media/t/%2E%2E/%2e%2e/metrics", "/api/front/graphql"]) {
+      expect((await proxyToBackend(new Request(`https://shop.test${path}`), backend)).status, path).toBe(404);
+    }
+    expect(seen.length).toBe(before);
+  });
+
   it("answers 502 when the backend is unreachable", async () => {
     const res = await proxyToBackend(new Request("https://shop.test/media/t/w96/a.jpg"), "http://127.0.0.1:1");
     expect(res.status).toBe(502);

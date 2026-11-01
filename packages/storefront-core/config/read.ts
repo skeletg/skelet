@@ -360,6 +360,11 @@ const getSurfaceSettings = perRequest(async (key: string): Promise<{ enabled: bo
   }
 });
 
+export async function surfaceTTL(key: string): Promise<number> {
+  const settings = await getSurfaceSettings(key);
+  return settings.enabled ? settings.ttl : DISABLED_TTL_SECONDS;
+}
+
 // The one decision point for storefront data caching, and the dev/prod switch: dev only names the surface, so every fetch
 // is no-store yet a purge still drops the backend's copy. token makes a surface anonymous-only, keyExtra overrides the
 // default [store, locale] key dimensions

@@ -1,4 +1,4 @@
-
+import { REVIEW_VOTER_COOKIE } from "./voter-cookie";
 import { request } from "../request";
 import { gqlFetch } from "../graphql";
 import {
@@ -8,8 +8,6 @@ import {
   type ReviewsPageQuery,
   type ReviewSort,
 } from "./operations.gql";
-
-const REVIEW_VOTER_COOKIE = "rvid";
 
 export type ReviewEligibility = NonNullable<
   MyReviewStateQuery["product"]

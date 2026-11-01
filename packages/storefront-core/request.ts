@@ -34,8 +34,8 @@ export interface StorefrontRequest {
   fetch(url: string, init: RequestInit, cache?: CacheHint): Promise<Response>;
   redirect(to: string, mode?: "push" | "replace"): never;
   notFound(): never;
-  // Drop what the framework rendered and cached for a path - nothing to do where nothing is cached
-  revalidate(path: string, scope?: "page" | "layout"): void;
+  revalidatePublic(path: string): Promise<void>;
+  revalidateAccount(): void;
   // Re-render the current page for the shopper after an action changed what it shows
   refresh(): void;
 }
@@ -46,19 +46,29 @@ export type StorefrontAdapter = {
   request: () => StorefrontRequest;
   // The framework's per-request memo, where it has one - perRequest falls back to none
   cache?: Memo;
+  rethrowControlFlow?: (err: unknown) => void;
 };
 
-// Kept on globalThis, not in this module: a bundler or a dev server can load this file more than once - a server bundle
-// layer, a module graph rebuilt after a dependency change - and every copy has to find the one adapter
+// A bundler or dev server can load this file more than once - each copy keeps its own adapter, and one nobody configured finds the last one configured anywhere
 const ADAPTER = Symbol.for("@skelet/storefront-core/adapter");
 const registry = globalThis as { [ADAPTER]?: StorefrontAdapter };
+let own: StorefrontAdapter | undefined;
 
 export function configureStorefront(a: StorefrontAdapter): void {
+  own = a;
   registry[ADAPTER] = a;
 }
 
+function current(): StorefrontAdapter | undefined {
+  return own ?? registry[ADAPTER];
+}
+
+export function rethrowControlFlow(err: unknown): void {
+  current()?.rethrowControlFlow?.(err);
+}
+
 export function request(): StorefrontRequest {
-  const adapter = registry[ADAPTER];
+  const adapter = current();
   if (!adapter) {
     throw new Error(
       "No storefront adapter is configured - reach the storefront's reads and actions through an adapter package " +
@@ -79,9 +89,12 @@ export function notFound(): never {
 
 // perRequest is fn memoized for one request, so a page and its layout asking the same thing fetch it once
 export function perRequest<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
-  let memo: ((...args: A) => R) | undefined;
+  const wrapped = new WeakMap<Memo, (...args: A) => R>();
   return (...args) => {
-    memo ??= registry[ADAPTER]?.cache ? registry[ADAPTER].cache(fn) : fn;
-    return memo(...args);
+    const memo = current()?.cache;
+    if (!memo) return fn(...args);
+    let w = wrapped.get(memo);
+    if (!w) wrapped.set(memo, (w = memo(fn)));
+    return w(...args);
   };
 }

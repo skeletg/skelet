@@ -40,6 +40,8 @@ const PINNED = (process.env.STOREFRONT_CHANNEL_ID ?? "").trim().toLowerCase();
 export const PINNED_CHANNEL_ID = isChannelId(PINNED) ? PINNED : "";
 const HOSTS = parseChannelHosts(process.env.STOREFRONT_CHANNEL_HOSTS ?? "");
 
+export const HOST_ROUTED = HOSTS.size > 0;
+
 // A mapped host wins, the pin answers every other host, and with neither the host serves no channel
 export function channelForHost(
   host: string,

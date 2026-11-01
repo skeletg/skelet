@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   gqlFetch: vi.fn(),
   token: null as string | null,
   jar: new Map<string, string>(),
+  opts: new Map<string, unknown>(),
 }));
 vi.mock("../graphql", () => ({
   gqlFetch: mocks.gqlFetch,
@@ -12,7 +13,10 @@ vi.mock("../graphql", () => ({
 }));
 useTestRequest({ cookies: async () => ({
     get: (name: string) => (mocks.jar.has(name) ? { value: mocks.jar.get(name) } : undefined),
-    set: (name: string, value: string) => void mocks.jar.set(name, value),
+    set: (name: string, value: string, options?: unknown) => {
+      mocks.jar.set(name, value);
+      mocks.opts.set(name, options);
+    },
     delete: (name: string) => void mocks.jar.delete(name),
   }) });
 vi.mock("../auth/session", () => ({ getAccessToken: async () => mocks.token }));
@@ -96,6 +100,7 @@ describe("a guest", () => {
     await expect(add()).resolves.toMatchObject({ ok: true });
     expect(sent(AddToCartDocument)).toEqual([{ cartId: "new-guest", sku: "SKU-1", quantity: 1 }]);
     expect(mocks.jar.get("storefront_cart")).toBe("new-guest");
+    expect(mocks.opts.get("storefront_cart")).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
   });
 
   it("doesn't replace a cart the backend failed to probe", async () => {
@@ -104,5 +109,11 @@ describe("a guest", () => {
     await expect(add()).resolves.toMatchObject({ ok: false });
     expect(sent(CreateGuestCartDocument)).toEqual([]);
     expect(mocks.jar.get("storefront_cart")).toBe("guest-cart");
+  });
+
+  it("tells the shopper the add failed, not what this server's socket said", async () => {
+    mocks.jar.set("storefront_cart", "guest-cart");
+    mocks.gqlFetch.mockRejectedValueOnce(new TypeError("fetch failed: connect ECONNREFUSED 172.18.0.4:8080"));
+    await expect(add()).resolves.toMatchObject({ ok: false, error: "addFailed" });
   });
 });

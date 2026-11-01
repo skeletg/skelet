@@ -12,8 +12,7 @@ import {
   sessionCookieOptions,
 } from "./cookies";
 
-// Re-exported so existing importers (masquerade route, checkout actions) keep their `from "./session"`
-// path; the definitions now live in session-cookies.ts so the Edge middleware can share them
+// Re-exported for the reads and actions that import them from here
 export { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, MASQUERADE_COOKIE };
 
 export async function getAccessToken(): Promise<string | null> {
@@ -33,7 +32,7 @@ export async function setSessionCookies(
   const store = await request().cookies();
   const opts = sessionCookieOptions();
   // Access token is short-lived (15 min in the seed config) but we give the cookie a longer life so the browser keeps presenting it until
-  // the middleware proactively refreshes - the backend will reject any stale JWT regardless of cookie age
+  // the proxy proactively refreshes - the backend will reject any stale JWT regardless of cookie age
   store.set(ACCESS_TOKEN_COOKIE, accessToken, {
     ...opts,
     maxAge: ACCESS_TOKEN_MAX_AGE,
