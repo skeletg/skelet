@@ -5,6 +5,7 @@
 package firstparty
 
 import (
+	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-attentive"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-awin"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-bing"
 	_ "github.com/skeletg/skelet/apps/backend/core/plugins/tracking-cj"

@@ -3,6 +3,9 @@
     "example": {
       "enabled": false
     },
+    "tracking-attentive": {
+      "enabled": true
+    },
     "tracking-awin": {
       "enabled": true
     },
