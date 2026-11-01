@@ -165,6 +165,6 @@ confuse it with. Write the repo-root form when a page compares apps, the way
 `workflows/ci.yml` and `workflows/security.yml` run the same gates you run
 locally, deriving their app matrices from `apps/channels/`, `templates/` and
 `packages/` so a new shop or package is covered without touching a workflow. `workflows/release.yml` publishes a release,
-CLI binaries included, when its tag is pushed. `renovate.json5` configures dependency
-bumps and needs no per-app entry either - Renovate scans the repo for manifests
-itself, so the same rule holds there.
+CLI binaries included, when its tag is pushed in Skelet's own repository - a project's tags publish nothing.
+`renovate.json5` configures dependency bumps and needs no per-app entry either - Renovate scans the repo for manifests
+itself, so the same rule holds there. A project keeps it to its own `apps/channels/` ([workflow.md](workflow.md#taking-a-new-release)).

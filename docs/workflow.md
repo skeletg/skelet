@@ -332,6 +332,13 @@ break things. Migrations run when the app boots, so `skelet up` afterwards is th
 whole upgrade. Your own remote, once you add one, is `origin`; `upstream` stays
 Skelet's.
 
+Leave the core's dependency bumps to the releases. The `.github/renovate.json5` you
+inherit covers the whole tree, so Renovate turned on in a project would bump the backend,
+the dashboard and the shared packages that the next release bumps too, and each merge
+would conflict in their manifests and the lockfile. Keep it to your own shops with
+`includePaths: ["apps/channels/**"]`, or leave it off. The release workflow you inherit
+does nothing outside Skelet's own repository, so tagging your project publishes nothing.
+
 ### Adding your own storefront
 
 One directory per shop under `apps/channels/<name>/`; the directory name
@@ -370,7 +377,8 @@ By hand:
 That's the whole list. Everything else follows the directory: `skelet up`,
 `skelet pnpm`, `skelet gen` and `skelet release` all discover storefronts from
 `apps/channels/` and `templates/`, CI installs and checks the whole workspace in one job and derives its image
-builds, each smoke-run, the same way, and Renovate finds your `package.json` and `Dockerfile` on its own.
+builds, each smoke-run, the same way, and Renovate - kept to `apps/channels/` as above - finds your `package.json`
+and `Dockerfile` on its own.
 A shop that lands in the tree is gated like the demo without touching a workflow
 or a config file.
 
