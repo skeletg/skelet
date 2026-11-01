@@ -3,12 +3,14 @@ package wiring
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -16,6 +18,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Service) *tracking.Service {
@@ -23,8 +26,11 @@ func newTrackingService(q *db.Queries, cipher *secrets.Cipher, cfg *config.Servi
 	if cipher != nil {
 		sealer = cipher
 	}
+	pluginKinds.Do(func() { tracking.RegisterPluginKinds(sdk.Destinations(), plugin.Enabled) })
 	return tracking.NewService(q, sealer, cfg)
 }
+
+var pluginKinds sync.Once // the kinds are process-wide, and a second registration of one would panic
 
 // The same SSRF-safe transport webhooks use - a destination's endpoint (a server-side GTM container, say) is typed by an admin
 func newTrackingWorker(svc *tracking.Service, allow AllowPrivateTargets) *tracking.Worker {

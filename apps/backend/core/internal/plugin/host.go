@@ -110,6 +110,15 @@ func Install() {
 	sdk.Install(h)
 }
 
+// Enabled is IsPluginEnabled on the installed host - true before Install, when no plugin can be switched off yet
+func Enabled(ctx context.Context, slug string, channelID uuid.UUID) bool {
+	h := installedHost.Load()
+	if h == nil {
+		return true
+	}
+	return h.IsPluginEnabled(ctx, slug, channelID)
+}
+
 // Wires the runtime config service, after which plugins can read their namespaced config - calling it twice is a programming error, since the second call would silently swap config
 func SetConfigService(svc *config.Service) {
 	h := installedHost.Load()

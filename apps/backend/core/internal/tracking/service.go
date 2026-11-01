@@ -64,7 +64,7 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	var errs []error
 	for _, d := range dests {
 		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
+		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
 			continue
 		}
 		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
