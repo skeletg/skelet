@@ -41,6 +41,7 @@ func (r *postgresRepository) Create(ctx context.Context, in StartInput) (Subscri
 		CurrentPeriodEnd:   in.CurrentPeriodEnd,
 		NextBillingAt:      in.NextBillingAt,
 		ChannelID:          sqlnull.UUID(in.ChannelID),
+		BillingAnchor:      in.BillingAnchor,
 	})
 	if err != nil {
 		return Subscription{}, fmt.Errorf("create subscription: %w", err)
@@ -113,12 +114,13 @@ func (r *postgresRepository) ListDue(ctx context.Context, now time.Time, limit i
 	return toSubscriptions(rows), nil
 }
 
-func (r *postgresRepository) AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next time.Time) (Subscription, error) {
+func (r *postgresRepository) AdvancePeriod(ctx context.Context, id uuid.UUID, start, end, next, anchor time.Time) (Subscription, error) {
 	row, err := r.queries.AdvanceSubscriptionPeriod(ctx, db.AdvanceSubscriptionPeriodParams{
 		ID:                 id,
 		CurrentPeriodStart: start,
 		CurrentPeriodEnd:   end,
 		NextBillingAt:      next,
+		BillingAnchor:      anchor,
 	})
 	if err != nil {
 		return Subscription{}, fmt.Errorf("advance subscription period: %w", err)
@@ -201,6 +203,7 @@ func toSubscription(row db.Subscription) Subscription {
 		CurrentPeriodStart: row.CurrentPeriodStart,
 		CurrentPeriodEnd:   row.CurrentPeriodEnd,
 		NextBillingAt:      row.NextBillingAt,
+		BillingAnchor:      row.BillingAnchor,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

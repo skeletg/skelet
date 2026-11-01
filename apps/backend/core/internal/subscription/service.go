@@ -46,25 +46,47 @@ func NewService(repo Repository, txMgr *txrunner.Manager) *Service {
 // Optional - without it, start-on-purchase is disabled
 func (s *Service) SetOrderLookup(o OrderSubscriptionLookup) { s.orders = o }
 
-// Advances from t by one billing interval - calendar-aware through AddDate, so month and year intervals land on the same day-of-month and handle month-length and leap-year rollovers the way Go's time does
-func nextBillingTime(t time.Time, unit string, count int32) time.Time {
+// The first billing boundary after `after` on the schedule anchored at anchor. Month and year boundaries are the anchor
+// plus whole intervals, clamped to the month's last day, rather than the previous boundary plus one: chaining lost the
+// day for good the first time a short month clamped it - Jan 31 + 1 month is Mar 3 in Go, so a subscription started on
+// the 29th-31st skipped a month and drifted. Counted from the anchor, a short month moves only its own boundary:
+// Jan 31, Feb 28, Mar 31. Days and weeks have no month to fall off, so they still add to the previous boundary
+func nextBoundary(anchor, after time.Time, unit string, count int32) time.Time {
 	n := int(count)
 	if n <= 0 {
 		n = 1
 	}
 	switch unit {
 	case "day":
-		return t.AddDate(0, 0, n)
+		return after.AddDate(0, 0, n)
 	case "week":
-		return t.AddDate(0, 0, 7*n)
-	case "month":
-		return t.AddDate(0, n, 0)
+		return after.AddDate(0, 0, 7*n)
 	case "year":
-		return t.AddDate(n, 0, 0)
-	default:
-		// An unknown unit falls back to a month, so a misconfigured row still makes forward progress rather than billing every tick forever
-		return t.AddDate(0, 1, 0)
+		n *= 12
 	}
+	// UTC both sides, so the day of the month means the same thing whatever zone the values arrived in. An unknown
+	// unit falls through as a month, so a misconfigured row still makes progress rather than billing every tick
+	anchor, after = anchor.UTC(), after.UTC()
+	if after.Before(anchor) {
+		return anchor // a trial ends on the anchor - the first renewal is the anchor itself
+	}
+	ay, am, _ := anchor.Date()
+	by, bm, _ := after.Date()
+	k := ((by-ay)*12 + int(bm-am)) / n
+	for {
+		if b := addMonthsClamped(anchor, k*n); b.After(after) {
+			return b
+		}
+		k++
+	}
+}
+
+// t moved by whole months, keeping its day unless the target month is shorter, in which case its last day
+func addMonthsClamped(t time.Time, months int) time.Time {
+	y, m, d := t.Date()
+	first := time.Date(y, m+time.Month(months), 1, 0, 0, 0, 0, t.Location())
+	last := first.AddDate(0, 1, -1).Day()
+	return time.Date(first.Year(), first.Month(), min(d, last), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
 }
 
 // Bills every active subscription due as of now and returns how many advanced - each runs in its own row-locked transaction, so concurrent schedulers and customer actions can't double-bill or race period advancement
@@ -115,7 +137,7 @@ func (s *Service) billOne(ctx context.Context, id uuid.UUID, now time.Time) erro
 				minted = append(minted, p)
 			}
 		}
-		if _, err := r.AdvancePeriod(ctx, sub.ID, start, end, next); err != nil {
+		if _, err := r.AdvancePeriod(ctx, sub.ID, start, end, next, sub.BillingAnchor); err != nil {
 			return err
 		}
 		billedSub = sub
@@ -142,7 +164,7 @@ func planBilling(sub Subscription, now time.Time, existingInvoices int64) (perio
 	start, end, next := sub.CurrentPeriodStart, sub.CurrentPeriodEnd, sub.NextBillingAt
 	for !next.After(now) && len(periods) < maxCatchUpPeriods {
 		ps := end
-		pe := nextBillingTime(ps, sub.IntervalUnit, sub.IntervalCount)
+		pe := nextBoundary(sub.BillingAnchor, ps, sub.IntervalUnit, sub.IntervalCount)
 		seq++
 		periods = append(periods, plannedPeriod{PeriodStart: ps, PeriodEnd: pe, Sequence: seq})
 		start, end, next = ps, pe, pe
@@ -189,7 +211,7 @@ func (s *Service) Pause(ctx context.Context, id uuid.UUID) (Subscription, error)
 	return out, err
 }
 
-// Reactivates a paused subscription - the time spent paused is never billed: a billing date that passed while paused restarts the period now, so the next scheduler pass mints one fresh period
+// Reactivates a paused subscription - the time spent paused is never billed: a billing date that passed while paused restarts the period now, anchor included, so the next scheduler pass mints one fresh period and later ones count from today
 func (s *Service) Resume(ctx context.Context, id uuid.UUID) (Subscription, error) {
 	sub, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -202,7 +224,7 @@ func (s *Service) Resume(ctx context.Context, id uuid.UUID) (Subscription, error
 	var out Subscription
 	err = s.inTx(ctx, func(r Repository) error {
 		if !sub.NextBillingAt.After(now) {
-			if _, err := r.AdvancePeriod(ctx, id, now, now, now); err != nil {
+			if _, err := r.AdvancePeriod(ctx, id, now, now, now, now); err != nil {
 				return err
 			}
 		}

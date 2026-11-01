@@ -30,7 +30,7 @@ which is why core ships no patches. Plugins register theirs through the SDK.
 
 The server applies pending patches as it boots, after core's and the
 plugins' schema, so a normal deploy needs nothing from you. Run it by hand
-after 'bin/cli plugin migrate up' if you have applied plugin schema separately.`,
+after 'skelet cli plugin migrate up' if you have applied plugin schema separately.`,
 }
 
 var dataPatchUpCmd = &cobra.Command{

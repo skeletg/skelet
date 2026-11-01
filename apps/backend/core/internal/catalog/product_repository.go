@@ -381,6 +381,13 @@ type ProductPageFilter struct {
 	Published *bool
 	// Attribute value ids to require, ANDed across their attributes
 	AttributeValueIDs []uuid.UUID
+	CategoryIDs       []uuid.UUID
+	CollectionIDs     []uuid.UUID
+	// Decimal text as typed, in each product's own currency - "" leaves that side open
+	PriceMin, PriceMax string
+	// nil = either, true = in stock, false = out of stock
+	InStock       *bool
+	FlatInventory bool
 	// One of the keys the list can sort by; anything else falls back to updatedAt
 	SortKey  string
 	SortDesc bool
@@ -401,16 +408,21 @@ func (r *postgresRepository) ListProductIDsPaged(ctx context.Context, f ProductP
 		sortKey = "updatedAt"
 	}
 	params := db.ListProductsPagedAdminParams{
-		Locale:       f.Locale,
-		AllChannels:  f.ChannelID == nil,
-		Search:       f.Search,
-		Kinds:        f.Kinds,
-		TypeSlugs:    f.TypeSlugs,
-		AttrValueIds: f.AttributeValueIDs,
-		SortKey:      sortKey,
-		SortDesc:     f.SortDesc,
-		Lim:          f.Limit,
-		Off:          f.Offset,
+		Locale:        f.Locale,
+		AllChannels:   f.ChannelID == nil,
+		Search:        f.Search,
+		Kinds:         f.Kinds,
+		TypeSlugs:     f.TypeSlugs,
+		AttrValueIds:  f.AttributeValueIDs,
+		CategoryIds:   f.CategoryIDs,
+		CollectionIds: f.CollectionIDs,
+		PriceMin:      f.PriceMin,
+		PriceMax:      f.PriceMax,
+		FlatInventory: f.FlatInventory,
+		SortKey:       sortKey,
+		SortDesc:      f.SortDesc,
+		Lim:           f.Limit,
+		Off:           f.Offset,
 	}
 	if f.ChannelID != nil {
 		params.ChannelID = *f.ChannelID
@@ -427,6 +439,18 @@ func (r *postgresRepository) ListProductIDsPaged(ctx context.Context, f ProductP
 	}
 	if params.AttrValueIds == nil {
 		params.AttrValueIds = []uuid.UUID{}
+	}
+	if params.CategoryIds == nil {
+		params.CategoryIds = []uuid.UUID{}
+	}
+	if params.CollectionIds == nil {
+		params.CollectionIds = []uuid.UUID{}
+	}
+	if f.InStock != nil {
+		params.Stock = "out"
+		if *f.InStock {
+			params.Stock = "in"
+		}
 	}
 	rows, err := r.queries.ListProductsPagedAdmin(ctx, params)
 	if err != nil {

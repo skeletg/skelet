@@ -1,0 +1,30 @@
+{
+  "name": "@skelet/storefront-core",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conform-to/zod": "^1.21.1",
+    "@graphql-typed-document-node/core": "catalog:",
+    "graphql": "catalog:",
+    "libphonenumber-js": "^1.13.14",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^7.3.1",
+    "@graphql-codegen/near-operation-file-preset": "^5.2.2",
+    "@graphql-codegen/typed-document-node": "^7.1.0",
+    "@graphql-codegen/typescript": "^6.1.0",
+    "@graphql-codegen/typescript-operations": "^6.1.6",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

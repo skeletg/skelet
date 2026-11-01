@@ -10,7 +10,7 @@ import (
 
 type ctxKey struct{} // unexported so other packages can't smuggle their own logger in by accident - the only way in is Into(ctx, l)
 
-// Builds the root logger - JSON in production for log shippers, text in development for readability in the `bin/logs app` tail, with the level from LOG_LEVEL defaulting to info
+// Builds the root logger - JSON in production for log shippers, text in development for readability in the `skelet logs app` tail, with the level from LOG_LEVEL defaulting to info
 func Setup(env string) *slog.Logger {
 	level := parseLevel(os.Getenv("LOG_LEVEL"))
 	opts := &slog.HandlerOptions{

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@apollo/client/react'
-import { AlertCircleIcon } from 'lucide-react'
+import { AlertCircleIcon, PackageIcon } from 'lucide-react'
 import { DataTable, DataTableColumnHeader, imageColumn } from '@/components/data-table'
 import type { ColumnDef, ColumnFiltersState, PaginationState } from '@/components/data-table/tanstack'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -20,6 +20,14 @@ import { useDebounced } from '@/shared/hooks/useDebounced'
 import type { ProductKind } from '@/graphql/schema.types'
 import { ProductPickerPagedDocument, ProductTypesDocument, type ProductPickerPagedQuery } from './Catalog.gql'
 import { productLabel } from './category-products'
+import {
+  AttributeFiltersMenu,
+  productFilterColumns,
+  productFilterDefs,
+  productFilterHiddenColumns,
+  productFilterVariables,
+  useProductFilterOptions,
+} from './product-filters'
 import { PickerStateContext, usePickerState, type PickerState } from './product-picker-context'
 
 // The one "pick products" surface in the catalog - a server-paged, filterable table with ticks
@@ -50,6 +58,8 @@ export type ProductPickerProps<T> = {
   attributeValueIds?: string[]
   withAttributes?: boolean
   sidebar?: ReactNode
+  // Edge-to-edge regions that pad themselves, for a host with no padding of its own
+  inset?: boolean
   columns?: ColumnDef<PickerProduct>[]
   extra?: PickExtra<T>
   showPrice?: boolean
@@ -90,14 +100,23 @@ export function ProductPickerDialog<T = null>({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('flex max-h-[85vh] flex-col gap-4', picker.sidebar ? 'sm:max-w-6xl' : 'sm:max-w-4xl')}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+      {/* A fixed height, so narrowing to a handful of rows doesn't shrink the dialog under the pointer */}
+      <DialogContent
+        className={cn(
+          'flex h-[min(88vh,56rem)] flex-col gap-0 overflow-hidden p-0',
+          picker.sidebar ? 'sm:max-w-6xl' : 'sm:max-w-5xl',
+        )}
+      >
+        <DialogHeader className="gap-1 border-b px-5 py-4 pr-12">
+          <DialogTitle className="flex items-center gap-2">
+            <PackageIcon className="size-5 text-muted-foreground" />
+            {title}
+          </DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {/* Content unmounts on close, so the picks and filters start fresh each time */}
         {open ? (
-          <ProductPicker<T> {...picker} onCancel={() => onOpenChange(false)} onDone={() => onOpenChange(false)} />
+          <ProductPicker<T> {...picker} inset onCancel={() => onOpenChange(false)} onDone={() => onOpenChange(false)} />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -114,6 +133,7 @@ export function ProductPicker<T = null>({
   attributeValueIds,
   withAttributes = false,
   sidebar,
+  inset = false,
   columns: infoColumns,
   extra,
   showPrice = false,
@@ -148,6 +168,10 @@ export function ProductPicker<T = null>({
   const publishedFilter = filterValues('publishedStatus')
   const kindFilter = kinds ?? (filterValues('kind').length ? (filterValues('kind') as ProductKind[]) : null)
   const typeFilter = productTypeSlugs ?? (filterValues('productType').length ? filterValues('productType') : null)
+  const filterOptions = useProductFilterOptions()
+  const chosen = productFilterVariables(columnFilters)
+  // The host's fixed values and the admin's own both have to hold
+  const valueIds = [...(attributeValueIds ?? []), ...(chosen.attributeValueIds ?? [])]
 
   const { data, previousData, loading, error: loadError } = useQuery(ProductPickerPagedDocument, {
     variables: {
@@ -158,7 +182,8 @@ export function ProductPicker<T = null>({
       productTypeSlugs: typeFilter,
       // Both ticked is the same as neither
       published: publishedFilter.length === 1 ? publishedFilter[0] === 'published' : null,
-      attributeValueIds: attributeValueIds?.length ? attributeValueIds : null,
+      ...chosen,
+      attributeValueIds: valueIds.length ? valueIds : null,
       withAttributes,
     },
     notifyOnNetworkStatusChange: true,
@@ -290,8 +315,9 @@ export function ProductPicker<T = null>({
       ),
       // Filter-only - the toolbar binds each filter to a column
       { id: 'publishedStatus', enableHiding: false, header: () => null, cell: () => null },
+      ...productFilterColumns<PickerProduct>(filterOptions),
     ],
-    [fixedType, showKind, infoColumns, showPrice, extraColumns],
+    [fixedType, showKind, infoColumns, showPrice, extraColumns, filterOptions],
   )
 
   async function confirm() {
@@ -326,10 +352,12 @@ export function ProductPicker<T = null>({
 
   return (
     <PickerStateContext.Provider value={state}>
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className={cn('grid min-h-0 flex-1 gap-4', sidebar && 'md:grid-cols-[220px_1fr]')}>
-        {sidebar ? <aside className="min-h-0 overflow-y-auto text-sm">{sidebar}</aside> : null}
-        <div className="min-h-0 overflow-y-auto">
+    <div className={cn('flex min-h-0 flex-1 flex-col', !inset && 'gap-3')}>
+      <div className={cn('grid min-h-0 flex-1', !inset && 'gap-4', sidebar && 'md:grid-cols-[220px_1fr]')}>
+        {sidebar ? (
+          <aside className={cn('min-h-0 overflow-y-auto text-sm', inset && 'border-r bg-muted/30 p-4')}>{sidebar}</aside>
+        ) : null}
+        <div className={cn('min-h-0 overflow-y-auto', inset && 'px-5 pb-2')}>
           <DataTable
             columns={columns}
             data={rows}
@@ -338,7 +366,7 @@ export function ProductPicker<T = null>({
             getRowId={(row) => row.id}
             searchPlaceholder="Search by name or SKU…"
             pageSize={PAGE_SIZE}
-            initialColumnVisibility={{ publishedStatus: false }}
+            initialColumnVisibility={{ publishedStatus: false, ...productFilterHiddenColumns(filterOptions) }}
             onRowClick={(row) => {
               if (!isTaken(row.id)) toggle(row.id, !picked.has(row.id))
             }}
@@ -364,23 +392,26 @@ export function ProductPicker<T = null>({
                   { label: 'Unpublished', value: 'unpublished' },
                 ],
               },
+              ...productFilterDefs(filterOptions),
             ]}
+            toolbarSlot={(table) => <AttributeFiltersMenu table={table} configs={filterOptions.attributes} />}
           />
         </div>
       </div>
 
       {error ? (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className={cn(inset && 'mx-5 mb-3 w-auto')}>
           <AlertCircleIcon className="size-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{picked.size} selected</span>
+      <div className={cn('flex flex-wrap items-center justify-between gap-3 border-t', inset ? 'px-5 py-3' : 'pt-3')}>
+        <div className="flex min-w-0 items-center gap-3 text-sm text-muted-foreground">
+          {picked.size > 0 ? <PickedThumbs picks={[...picked.values()]} /> : null}
+          <span>{picked.size === 0 ? 'Nothing selected yet' : `${picked.size} selected`}</span>
           {picked.size > 0 ? (
-            <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setPicked(new Map())}>
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setPicked(new Map())}>
               Clear
             </Button>
           ) : null}
@@ -396,6 +427,41 @@ export function ProductPicker<T = null>({
       </div>
     </div>
     </PickerStateContext.Provider>
+  )
+}
+
+const SHOWN_THUMBS = 5
+
+// The picks span pages and searches, so the footer is the one place they all show
+function PickedThumbs<T>({ picks }: { picks: ProductPick<T>[] }) {
+  const more = picks.length - SHOWN_THUMBS
+  return (
+    <div className="flex shrink-0 items-center -space-x-2">
+      {picks.slice(0, SHOWN_THUMBS).map(({ product }) => {
+        const img = product.thumbnail ?? product.displayImage
+        const ready = !!img?.url && (!img.status || img.status === 'READY')
+        return ready ? (
+          <img
+            key={product.id}
+            src={img.url}
+            alt={productLabel(product)}
+            title={productLabel(product)}
+            className="size-8 rounded-md border object-cover ring-2 ring-background"
+          />
+        ) : (
+          <span
+            key={product.id}
+            title={productLabel(product)}
+            className="size-8 rounded-md border bg-muted ring-2 ring-background"
+          />
+        )
+      })}
+      {more > 0 ? (
+        <span className="grid size-8 place-items-center rounded-md border bg-muted text-xs font-medium ring-2 ring-background">
+          +{more}
+        </span>
+      ) : null}
+    </div>
   )
 }
 

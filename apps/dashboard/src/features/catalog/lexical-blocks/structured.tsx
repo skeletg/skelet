@@ -6,7 +6,7 @@
 // node class
 //
 // SYNC: The SerializedStructuredBlockNode + per-variant data shapes
-// below are mirrored in apps/channels/vetrina-demo/app/lib/lexical-render.tsx
+// below are mirrored in packages/storefront-core/lexical.ts
 // (StructuredBlock and the {ProsCons,ComparisonTable,Tabs,
 // Testimonials,VideoEmbed,SpecsTable,ImageText}Data types)
 // Renaming a field or adding a new blockType variant here without

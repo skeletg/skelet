@@ -25,7 +25,7 @@ cards, loyalty, a blog and a block-based CMS. Plus **Signals**, a built-in
 analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse for
 email, Prism for experiments - writing to its own database.
 
-The rest is plugins: Go compiled into the binary, added with `./skelet cli plugin add`,
+The rest is plugins: Go compiled into the binary, added with `skelet cli plugin add`,
 each one its own versioned module - payment gateways, whole business domains with their own
 tables and admin screens, or a small integration. See [docs/plugins.md](docs/plugins.md).
 
@@ -35,20 +35,30 @@ and a scheduled-jobs engine with retries and alerting.
 
 ## Quickstart
 
-You need Docker. Nothing else - the frontend toolchain runs in containers too.
+You need Docker and git. Nothing else - the frontend toolchain runs in containers too.
 
 ```bash
-git clone git@github.com:skeletg/skelet.git
-cd skelet
-./skelet setup                       # picks apps, writes env, starts containers, migrates
-./skelet up                          # backend + your selected apps + sidecars
-./skelet cli admin create-superuser  # your first login
+curl -fsSL https://github.com/skeletg/skelet/releases/latest/download/install.sh | sh
+skelet new my-shop                 # fetches the latest release, picks apps, offers your storefront, writes env, starts containers
+cd my-shop
+skelet up                          # backend + your selected apps + sidecars
+skelet cli admin create-superuser  # your first login
 ```
+
+Your storefront is a copy of a template under `templates/` - `nextjs-vetrina` (Next.js) or `astro-shop`
+(Astro) - that's yours to change. Setup offers one when the project has none; `skelet new my-shop
+--template astro-shop` makes it without asking, and `skelet add channel <name>` makes more later.
+
+The installer checks `skelet` against the release's checksums and puts it in `~/.local/bin`
+(`SKELET_INSTALL_DIR` picks another directory); it runs on macOS, Linux and WSL. Rather clone
+by hand? `git clone https://github.com/skeletg/skelet.git`, then `skelet setup` inside it - in a
+project, `skelet` runs that project's own code. With Go and nothing installed,
+`go -C cmd/skelet run . setup` does the same.
 
 Open <http://localhost:5173> and sign in. GraphQL playgrounds are at
 `:8080/playground/{admin,front}`.
 
-`./skelet` is the front door - run it bare to list every command, `./skelet help <command>`
+`skelet` is the front door - run it bare to list every command, `skelet help <command>`
 to explain one. The scripts under `bin/` are what it runs.
 
 ## Architecture
@@ -72,7 +82,7 @@ toggle.
 
 **Schemas are the contract.** gqlgen generates resolvers from `.graphqls`, sqlc generates
 the data layer from `.sql` (there are no hand-written DB calls), graphql-codegen generates
-the frontends' types. `./skelet gen` runs all of it, and `./skelet check codegen` fails when
+the frontends' types. `skelet gen` runs all of it, and `skelet check codegen` fails when
 the committed output has drifted from its source.
 
 ## Documentation

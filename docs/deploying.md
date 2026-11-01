@@ -14,17 +14,23 @@ dev stack.
 
 ```bash
 cp env/small.env.example env/small.env
-cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - ./skelet setup fills them
+cp env/small-nextjs-vetrina.env.example env/small-nextjs-vetrina.env
+cp .env.example .env    # session and link keys, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD - skelet setup fills them
 docker compose -f docker-compose.small.yml up -d
 ```
+
+Each storefront runs under a compose profile of its own name, so the demo one
+also needs `COMPOSE_PROFILES=bundled,nextjs-vetrina` in `.env`. `skelet setup`
+with the small or prod target does all of this for the storefronts you pick: it
+copies only their env files, turns their profiles on, and points
+`STOREFRONT_REVALIDATE_URL` and the edge at the one it serves.
 
 `docker-compose.prod.yml` is the full shape: the tiers split into their own
 containers (worker, media, signals, ingest), pgbouncer per database, three split
 Valkeys (primary, cache, rate limits), ClickHouse for the spine, and the optional
 NATS profile. Same env contract - secrets in the root `.env`, everything else in `env/prod.env`, plus an optional
 `env/prod-signals.env` for what only the Signals process reads (the retention
-archive's bucket, `CORE_FRONT_API_URL`). `./skelet release`
+archive's bucket, `CORE_FRONT_API_URL`). `skelet release`
 builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
 worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
 ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
@@ -93,7 +99,7 @@ beside the dev stack, but the in-network ports don't move):
 
 | Host | Upstream | Why it exists |
 |---|---|---|
-| apex, e.g. `shop.example.com` | `vetrina-demo:3000` | the storefront - every channel's host can point at the same upstream |
+| apex, e.g. `shop.example.com` | `<storefront>:3000`, its compose service | the storefront - every channel's host can point at the same upstream |
 | `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
 | `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with your payment provider. Skip this host and captures never settle |
 
@@ -104,7 +110,7 @@ the hop once that tier is scaled out, and `/media/t/*` at `media:8083` likewise.
 HSTS belongs here and nowhere else. The backend and the dashboard's nginx each
 ship their own copy of the CSP and Permissions-Policy so a deployment without an
 edge still gets them, but they deliberately omit HSTS - asserting it over plain
-HTTP would pin a browser to HTTPS for a year. `./skelet check contracts` fails when
+HTTP would pin a browser to HTTPS for a year. `skelet check contracts` fails when
 those copies drift apart.
 
 **The bundled option.** `deploy/caddy/Caddyfile` has all of the above plus
@@ -117,9 +123,11 @@ cp env/prod-caddy.env.example env/prod-caddy.env   # domains + ACME email
 docker compose -f docker-compose.small.yml --profile edge up -d
 ```
 
-The vhost map is the one thing no tool can discover, so that file is meant to be
-edited - the storefront upstream in particular names the demo service rather than
-deriving your shop's.
+The vhost map is meant to be edited, all but the apex's upstream: that one reads
+`STOREFRONT_UPSTREAM` from `env/prod-caddy.env`, which `skelet setup` points at
+the storefront you run, and falls back to `nextjs-vetrina:3000`. A shop of your
+own needs a service in the prod or small file first - the template's block,
+renamed along with its profile.
 
 **More than one channel.** One storefront image and one container serve every
 channel: add each channel's host to `STOREFRONT_CHANNEL_HOSTS` in the

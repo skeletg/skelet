@@ -1,0 +1,11 @@
+---
+import Base from "../layouts/Base.astro";
+import { OrderPlacedView } from "../views/OrderPlacedView";
+
+// The number is only echoed back - the order itself isn't read, so this page reveals nothing
+const number = Astro.url.searchParams.get("n")?.slice(0, 40);
+---
+
+<Base title="Thank you" noindex transitions={false}>
+  <OrderPlacedView number={number} />
+</Base>

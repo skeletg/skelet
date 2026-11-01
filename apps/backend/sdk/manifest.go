@@ -127,7 +127,7 @@ func validateManifestStatic(m Manifest) error {
 	if strings.TrimSpace(m.Slug) == "" {
 		return fmt.Errorf("manifest: empty slug")
 	}
-	// The slug is interpolated into route patterns and config paths, and `bin/cli plugin new` already refuses anything
+	// The slug is interpolated into route patterns and config paths, and `skelet cli plugin new` already refuses anything
 	// else - registration accepted it, so a hand-written manifest could produce a broken namespace with no clear error
 	if !slugPattern.MatchString(m.Slug) {
 		return fmt.Errorf("manifest: slug %q must be lowercase letters, digits and dashes, starting with a letter (2-40 chars)", m.Slug)

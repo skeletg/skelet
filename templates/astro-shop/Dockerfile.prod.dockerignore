@@ -1,0 +1,18 @@
+# The prod build context is the repo root - this keeps it to what the image copies, and keeps out any host install,
+# whose native packages a musl image can't run
+*
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!packages/
+!templates/astro-shop/
+**/node_modules
+**/.next
+**/dist
+**/.astro
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+**/*.log
+**/.DS_Store
+**/.env*
+!**/.env*.example

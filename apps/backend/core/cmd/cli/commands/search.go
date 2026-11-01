@@ -144,7 +144,7 @@ func newSearchServices() (*searchServices, error) {
 		return nil, fmt.Errorf("opensearch client: %w", err)
 	}
 	registry := search.NewIndexRegistry()
-	// Same slugs the server registers, so `bin/cli search reindex products` and the
+	// Same slugs the server registers, so `skelet cli search reindex products` and the
 	// admin action address the same thing
 	_ = registry.Register(search.RegisteredIndex{Slug: "products", Lifecycle: newRankedProductIndexer(client, catalogSvc, channelSvc, queries, txMgr, configSvc)})
 	_ = registry.Register(search.RegisteredIndex{Slug: "blog", Lifecycle: search.NewBlogPostIndexer(client, blogSvc, channelSvc, configSvc)})

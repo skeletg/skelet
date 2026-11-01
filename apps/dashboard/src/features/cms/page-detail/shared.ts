@@ -1,5 +1,6 @@
+import { formatDateTime } from '@/lib/format'
 import { type SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { type CmsAttributeRowFragment } from '../Cms.gql'
+import { type CmsAttributeRowFragment, type CmsPageRowFragment } from '../Cms.gql'
 import { type FieldValue } from '../DynamicFieldRenderer'
 
 export type PageTypeAttr = { isRequired: boolean; attribute: CmsAttributeRowFragment }
@@ -45,4 +46,18 @@ export function workflowLabel(state: string): string {
     default:
       return state
   }
+}
+
+export type PublishPage = Pick<CmsPageRowFragment, 'id' | 'isPublished' | 'scheduledAt' | 'workflowState' | 'assignedTo' | 'channelListings'>
+
+// Live on a channel takes both the page's own flag and that channel's listing, so the label reads the two together
+export function publishStatus(page: PublishPage): { label: string; dot: string } {
+  const live = page.channelListings.filter((l) => l.isPublished).length
+  if (page.isPublished) {
+    return live > 0
+      ? { label: `Live on ${live} channel${live === 1 ? '' : 's'}`, dot: 'bg-success' }
+      : { label: 'Published, on no channel', dot: 'bg-warning' }
+  }
+  if (page.scheduledAt) return { label: `Scheduled for ${formatDateTime(page.scheduledAt)}`, dot: 'bg-info' }
+  return { label: 'Unpublished', dot: 'bg-muted-foreground/50' }
 }

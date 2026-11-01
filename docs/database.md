@@ -22,14 +22,14 @@ between them: the rest wait, then find it recorded. ClickHouse has no locks, so 
 spine's run holds one on the Signals Postgres instead. The media tier doesn't migrate -
 it only reads focal points, and centres its crops until the server has.
 
-The bookkeeping is dbmate's own `schema_migrations` table, so `./skelet db migrate status`
+The bookkeeping is dbmate's own `schema_migrations` table, so `skelet db migrate status`
 and `rollback` read the same history the boot writes. The runner resets the session after
 each file, before recording it, so the `SET`s a dump-style baseline opens with never
 outlive it - that's what lets a boot migrate through PgBouncer's transaction pooling.
 
 A migration that fails rolls back and stops the process, with the error in its log. In
 prod the container restarts and tries again; in dev Air rebuilds on your next save, or
-`./skelet restart app` retries straight away. `skelet migrate`
+`skelet restart app` retries straight away. `skelet migrate`
 runs the commerce step by hand, for a deploy that wants the database migrated before
 anything starts.
 
@@ -78,7 +78,7 @@ uninstall can find them.
 
 ## Adding a migration
 
-`./skelet db migrate new <what>` (add `--signals` for the suite's stream) makes
+`skelet db migrate new <what>` (add `--signals` for the suite's stream) makes
 `<timestamp>_<what>.sql` with its two halves:
 
 ```sql
@@ -90,15 +90,15 @@ ALTER TABLE public.orders DROP COLUMN gift_note;
 ```
 
 Fill both in and leave the baselines alone. The app applies it the next time it starts
-or rebuilds - `./skelet gen`, which regenerates sqlc from it, usually sets that off, and
-`./skelet restart app` does it on demand. Air doesn't watch `.sql` files, so saving a
+or rebuilds - `skelet gen`, which regenerates sqlc from it, usually sets that off, and
+`skelet restart app` does it on demand. Air doesn't watch `.sql` files, so saving a
 half-written migration doesn't apply it, and a file whose up half is still empty is
 skipped rather than recorded, so the template `new` writes waits for you. The boot records
 a checksum of each file it applies and refuses to start if one changes afterwards - comments
-included - so to change a migration that's already been applied, `./skelet db migrate rollback`
+included - so to change a migration that's already been applied, `skelet db migrate rollback`
 it first and restart. In prod the fix is almost always to restore the file and put the change
 in a new migration instead.
-`./skelet db migrate up` still applies one straight away, `status` lists them, and sqlc
+`skelet db migrate up` still applies one straight away, `status` lists them, and sqlc
 reads only the up halves.
 
 Every migration runs in a single transaction, and the boot refuses
@@ -131,12 +131,12 @@ everyone with an existing database has to re-pin afterwards.
    fails if a regenerated dump brings it back
 5. Rebuild a second scratch database from the new files and diff a full
    `pg_dump` of both - they must be byte-identical
-6. `./skelet gen sqlc generate` must produce no drift, since `sqlc.yaml` reads the
+6. `skelet gen sqlc generate` must produce no drift, since `sqlc.yaml` reads the
    migration directories as its schema source
 7. Re-pin every existing database: delete the squashed versions from
    `schema_migrations` and insert the new baseline versions, leaving the rows of
-   whatever sits on top alone. Then `./skelet db migrate up`. Drop the e2e databases
-   so `./skelet test e2e --fresh` rebuilds them
+   whatever sits on top alone. Then `skelet db migrate up`. Drop the e2e databases
+   so `skelet test e2e --fresh` rebuilds them
 
 The signals stream needs one extra step. `email_sends` is RANGE-partitioned by
 month, so a dump freezes whichever months existed when it was taken. Drop every

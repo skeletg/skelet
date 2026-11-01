@@ -5,7 +5,6 @@
 
 # Explicit bins/configs that must stay LF + executable in containers.
 *.sh        text eol=lf
-bin/*       text eol=lf
 *.yml       text eol=lf
 *.yaml      text eol=lf
 *.toml      text eol=lf

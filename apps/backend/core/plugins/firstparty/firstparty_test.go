@@ -34,12 +34,12 @@ func TestEveryEnabledPluginRegisters(t *testing.T) {
 		p := set.ImportPath(slug)
 		want = append(want, slug)
 		if !imported[p] {
-			t.Errorf("plugins.json enables %q but firstparty.go does not import %s - run bin/codegen", slug, p)
+			t.Errorf("plugins.json enables %q but firstparty.go does not import %s - run skelet gen", slug, p)
 		}
 		delete(imported, p)
 	}
 	for extra := range imported {
-		t.Errorf("firstparty.go imports %s, which plugins.json does not enable - run bin/codegen", extra)
+		t.Errorf("firstparty.go imports %s, which plugins.json does not enable - run skelet gen", extra)
 	}
 
 	pluginhost.Install()

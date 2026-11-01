@@ -53,6 +53,11 @@ function describeValue(raw: unknown, filter: DataTableFilter | undefined): strin
   }
   if (typeof raw === 'string') return raw
   if (typeof raw === 'boolean') return raw ? 'yes' : 'no'
+  if (raw && typeof raw === 'object' && ('min' in raw || 'max' in raw)) {
+    const { min, max } = raw as { min?: number; max?: number }
+    if (min !== undefined && max !== undefined) return `${min}–${max}`
+    return min !== undefined ? `≥ ${min}` : `≤ ${max}`
+  }
   return 'set'
 }
 

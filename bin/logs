@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -e
-cd "$(dirname "$(dirname "$0")")"
-. bin/_lib
-docker compose logs -f "$@"

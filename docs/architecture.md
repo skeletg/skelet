@@ -75,7 +75,9 @@ skelet/
 │   │   ├── codegen.ts               ← graphql-codegen; reads live backend schema
 │   │   ├── vite.config.ts           ← dev proxy /api → :8080
 │   │   └── package.json
-│   └── channels/vetrina-demo/       ← Next.js 16 (App Router, RSC) demo storefront
+│   └── channels/                    ← the project's own storefronts, each forked from a template
+├── templates/
+│   └── nextjs-vetrina/              ← Next.js 16 (App Router, RSC) demo storefront
 │       ├── app/
 │       │   ├── [locale]/            ← every page lives under the locale segment
 │       │   │   ├── layout.tsx       ← the root layout - reads no cookie, so routes
@@ -89,20 +91,29 @@ skelet/
 │       │   │                          dotted paths, so they never get the locale rewrite
 │       │   ├── api/                 ← route handlers (e.g. hud-debug)
 │       │   ├── components/          ← server + client components, no vendored UI kit
-│       │   ├── lib/
-│       │   │   ├── graphql.ts       ← server-side gqlFetch (BACKEND_INTERNAL_URL)
-│       │   │   ├── auth.ts          ← JWT cookie handling, getAccessToken
-│       │   │   ├── locale/, channel/  ← active channel/locale resolution
-│       │   │   ├── *.graphql        ← operation docs (codegen input)
-│       │   │   └── *.gql.ts         ← codegen output
-│       │   └── graphql/schema.types.ts ← codegen baseline (DO NOT EDIT)
-│       ├── codegen.ts               ← graphql-codegen; hits /api/front/graphql
+│       │   └── lib/                 ← design helpers only: the Lexical renderer, cn, view transitions
 │       ├── next.config.ts
 │       └── package.json
-├── bin/                             ← all dev operations
+├── packages/                        ← shared TypeScript, as source - no build step
+│   ├── storefront-core/             ← a storefront's logic, no framework in it
+│   │   ├── request.ts               ← what the logic asks of a request; an adapter answers
+│   │   ├── graphql.ts               ← server-side gqlFetch (BACKEND_INTERNAL_URL)
+│   │   ├── auth/                    ← JWT cookie handling, getAccessToken
+│   │   ├── locale/, channel/        ← active channel/locale resolution
+│   │   ├── cart/, checkout/, …      ← reads and actions, one directory per domain
+│   │   ├── *.graphql                ← operation docs (codegen input), beside their module
+│   │   ├── *.gql.ts                 ← codegen output
+│   │   ├── graphql/schema.types.ts  ← codegen baseline (DO NOT EDIT)
+│   │   └── codegen.ts               ← graphql-codegen; hits /api/front/graphql
+│   ├── storefront-react/            ← client hooks with no framework beyond React
+│   ├── storefront-next/             ← the Next adapter: setup.ts, "use server" wrappers, read re-exports
+│   └── storefront-astro/            ← the Astro adapter: middleware opening the request scope, a data cache
+├── cmd/skelet/                      ← the skelet CLI, every dev operation
 ├── env/                             ← *.env.example committed; *.env gitignored (docs/env.md documents every var)
 ├── .gitattributes                   ← LF normalization, prevents Windows CRLF
 ├── .gitignore                       ← excludes air binaries + dashboard build
+├── pnpm-workspace.yaml              ← the storefront workspace and the versions it shares
+├── pnpm-lock.yaml                   ← its one lockfile
 ├── docker-compose.yml               ← the dev stack
 └── docker-compose.prod.yml          ← the prod stack
 ```
@@ -141,7 +152,7 @@ layout keeps them apart because they carry different promises:
 - `signalsapi/` is the wire contract: the vocabulary both modules share, with the
   code generated from `proto/` under `signalsapi/v1/`, checked for breaking changes
   against `main` - the deployed core that a new Signals has to keep answering.
-  `bin/contract-check` runs it in CI against `origin/main` and fails when that ref
+  `skelet check contracts` runs it in CI against `origin/main` and fails when that ref
   is missing, rather than passing with nothing to compare. Until `main` carries the
   proto, it compares against `develop` instead.
 - `lib/` is the infrastructure the Signals module builds on: `apperr`, `auth`,
@@ -195,15 +206,15 @@ for is live catalog data for the builder's products block, over core's public
 storefront API. `internal/boot` is the suite's composition root, the way `wiring`
 is core's.
 
-All three apps run in containers via `./skelet up` (Go + Postgres + Valkey
+All three apps run in containers via `skelet up` (Go + Postgres + Valkey
 + Garage + Vite + Next.js, plus whichever optional dev tools you picked). The dashboard container's Vite
 dev server proxies `/api/*` to the in-network backend
 (`API_PROXY=http://app:8080`); host `apps/dashboard/node_modules` is
-still installed for host-side tooling (`./skelet test`'s tsc, ESLint, the
+still installed for host-side tooling (`skelet test`'s tsc, ESLint, the
 IDE). Codegen flows backend → frontends: editing `*.graphqls`
-or any `*.graphql` doc requires `./skelet gen` so dashboard TS bindings
+or any `*.graphql` doc requires `skelet gen` so dashboard TS bindings
 stay in sync; the storefront has its own codegen step
-(`./skelet pnpm <name> run codegen`).
+(`skelet pnpm <name> run codegen`).
 
 ## Stack
 
@@ -218,11 +229,11 @@ stay in sync; the storefront has its own codegen step
   primitives are hand-written against the design tokens in `app/globals.css`,
   and interaction that would normally pull a library in (carousels, drawers,
   the search modal) is CSS scroll-snap and `<dialog>`. No Apollo either: a
-  thin server-side `gqlFetch` in `app/lib/graphql.ts` POSTs to
+  thin server-side `gqlFetch` in `packages/storefront-core/graphql.ts` POSTs to
   `/api/front/graphql`, `cache: "no-store"` by default and `force-cache` with
   `next: { tags, revalidate }` when the caller opts into ISR. **Caveat:** Next.js 16 has breaking changes vs.
   the version in your training data - read
-  `apps/channels/vetrina-demo/node_modules/next/dist/docs/` before writing code,
+  `templates/nextjs-vetrina/node_modules/next/dist/docs/` before writing code,
   and heed the deprecation notices.
 
 ### Datastores and sidecars
@@ -252,7 +263,7 @@ not the GraphQL layer.
 
 Storefront introspection cannot see admin operations. The dashboard at
 `apps/dashboard/` talks to admin only; the storefront at
-`apps/channels/vetrina-demo/` talks to front only.
+`templates/nextjs-vetrina/` talks to front only.
 
 Dev playgrounds: `/playground/admin` and `/playground/front`
 (`APP_ENV=development` only).

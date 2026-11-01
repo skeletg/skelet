@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { useStore } from '@tanstack/react-form'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
@@ -17,12 +16,14 @@ export function SelectionsCard({
   pageId,
   selectAttrs,
   selections,
+  locale,
   canManage,
   onSave,
 }: {
   pageId: string
   selectAttrs: PageTypeAttr[]
   selections: { attributeId: string; valueId: string }[]
+  locale?: string
   canManage: boolean
   onSave: (attributeId: string, valueIds: string[]) => Promise<unknown>
 }) {
@@ -68,9 +69,6 @@ export function SelectionsCard({
             <Label className="flex items-center gap-1">
               {a.content?.name ?? a.slug}
               {(pta.isRequired || a.isRequiredDefault) && <span className="text-destructive">*</span>}
-              <Badge variant="outline" className="ml-1 text-xs">
-                {a.inputType.toLowerCase()}
-              </Badge>
             </Label>
             {a.values.length === 0 ? (
               <p className="text-xs text-muted-foreground">No options defined for this attribute.</p>
@@ -80,7 +78,7 @@ export function SelectionsCard({
                   <li key={v.id} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
                     <Checkbox id={`v-${v.id}`} checked={current.has(v.id)} onCheckedChange={() => toggle(a, v.id)} />
                     <Label htmlFor={`v-${v.id}`} className="flex-1 cursor-pointer text-sm font-normal">
-                      {v.slug}
+                      {v.allContent?.find((c) => c.locale === locale)?.name || v.allContent?.[0]?.name || v.slug}
                     </Label>
                   </li>
                 ))}

@@ -1,0 +1,60 @@
+# A hand-kept override: an anchor of its own, a service, and no volumes section
+x-logging: &logging
+  driver: json-file
+
+services:
+  app:
+    logging: *logging
+    environment:
+      - DEBUG=1
+# trailing note at column 0
+  shop:
+    profiles: ["shop"]
+    user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
+    build:
+      context: .
+      dockerfile: apps/channels/shop/Dockerfile
+      # Same uid story as the dashboard's install
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
+    ports:
+      - "3001:3000"
+    volumes:
+      # Same volume trick as the dashboard (plus SWC's native binary)
+      - ./apps/channels/shop:/var/www/storefront
+      - shop-node-modules:/var/www/storefront/node_modules
+      - shop-next-cache:/var/www/storefront/.next
+    environment:
+      - HOME=/tmp
+      # Server-side fetches use the in-network URL, the browser can't reach it -
+      # client code falls back to NEXT_PUBLIC_BACKEND_URL (host port)
+      - BACKEND_INTERNAL_URL=http://app:8080
+      # In-network for codegen inside the container - the config defaults to the host port Its OWN variable: the root .env sets GRAPHQL_CODEGEN_URL to the admin endpoint when ADMIN_API_SLUG moves it, which would otherwise point this front-surface codegen at the admin schema
+      - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
+      # The dashboard's origin, named in this storefront's frame-ancestors CSP and checked on every
+      # preview postMessage - pairs with the dashboard's VITE_STOREFRONT_ORIGIN
+      - NEXT_PUBLIC_DASHBOARD_ORIGIN=${NEXT_PUBLIC_DASHBOARD_ORIGIN:-http://localhost:5173}
+      # Empty keeps /api/front/graphql - mirrors the backend FRONT_API_SLUG
+      - FRONT_API_SLUG=${FRONT_API_SLUG:-}
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+      # A storefront is pinned to one channel in every environment - the default is the uuid
+      # the baseline migration seeds, override in the root .env if your channels differ
+      - STOREFRONT_CHANNEL_ID=${STOREFRONT_CHANNEL_ID:-56d051bc-0131-4476-bc0b-121d80290684}
+      # Must match env/go.env's STOREFRONT_REVALIDATE_SECRET - ./skelet setup copies it into the root .env
+      - STOREFRONT_REVALIDATE_SECRET=${STOREFRONT_REVALIDATE_SECRET:-dev-revalidate-secret-change-me}
+      # The review-vote key core verifies with - ./skelet setup copies env/go.env's into the root .env
+      - REVIEW_VOTER_TOKEN_SECRET=${REVIEW_VOTER_TOKEN_SECRET:-}
+      # Same polling reason as the dashboard
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging: *logging
+
+
+volumes:
+  shop-node-modules:
+  shop-next-cache:

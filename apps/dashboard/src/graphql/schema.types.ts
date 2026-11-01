@@ -8892,10 +8892,15 @@ export type QueryProductsByIdsArgs = {
 
 export type QueryProductsPagedArgs = {
   attributeValueIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  categoryIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   channelId?: InputMaybe<Scalars['ID']['input']>;
+  collectionIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  inStock?: InputMaybe<Scalars['Boolean']['input']>;
   kinds?: InputMaybe<Array<ProductKind>>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+  priceMax?: InputMaybe<Scalars['String']['input']>;
+  priceMin?: InputMaybe<Scalars['String']['input']>;
   productTypeSlugs?: InputMaybe<Array<Scalars['String']['input']>>;
   published?: InputMaybe<Scalars['Boolean']['input']>;
   search?: InputMaybe<Scalars['String']['input']>;

@@ -1,5 +1,5 @@
 // Package blockkit is the shared CMS page-layout engine - the typed block tree a page's body stores, its validation, and safe HTML rendering.
-// SYNC SENTINEL: the block `type` strings are a contract with the dashboard palette and the storefront renderer, and bin/contract-check fails the build when they drift
+// SYNC SENTINEL: the block `type` strings are a contract with the dashboard palette and the storefront renderer, and skelet check contracts fails the build when they drift
 package blockkit
 
 import (

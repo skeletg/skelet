@@ -10,13 +10,14 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
-Entries waiting for the next release are in [changelog/unreleased/](changelog/unreleased/) - `./skelet changelog` shows them assembled.
+Entries waiting for the next release are in [changelog/unreleased/](changelog/unreleased/) - `skelet changelog` shows them assembled.
 
 ## Releases
 
+- [0.3.0](changelog/0.3.0.md) - 2026-11-01
 - [0.2.3](changelog/0.2.3.md) - 2026-10-27
 - [0.2.2](changelog/0.2.2.md) - 2026-10-18
 - [0.2.1](changelog/0.2.1.md) - 2026-10-18
 - [0.2.0](changelog/0.2.0.md) - 2026-10-18
 
-[Unreleased]: https://github.com/skeletg/skelet/compare/v0.2.3...develop
+[Unreleased]: https://github.com/skeletg/skelet/compare/v0.3.0...develop

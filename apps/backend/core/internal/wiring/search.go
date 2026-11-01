@@ -56,7 +56,7 @@ type searchDeps struct {
 }
 
 func newSearchTier(d searchDeps) SearchTier {
-	// Best-effort client - an unreachable cluster leaves the indexers non-nil, writes log and continue, reads return empty until `bin/cli search reindex`
+	// Best-effort client - an unreachable cluster leaves the indexers non-nil, writes log and continue, reads return empty until `skelet cli search reindex`
 	registry := search.NewIndexRegistry()
 	var productIndexer *search.ProductIndexer
 	var blogPostIndexer *search.BlogPostIndexer
@@ -156,7 +156,7 @@ func newSearchTier(d searchDeps) SearchTier {
 	}
 }
 
-// All subscriptions are async and best-effort - a failed reindex logs and continues so the mutation that triggered it still succeeds, and operators recover from indexer downtime with `bin/cli search reindex`
+// All subscriptions are async and best-effort - a failed reindex logs and continues so the mutation that triggered it still succeeds, and operators recover from indexer downtime with `skelet cli search reindex`
 type productIndex interface {
 	Upsert(ctx context.Context, productID uuid.UUID) error
 	Delete(ctx context.Context, productID uuid.UUID) error

@@ -7,7 +7,7 @@ const AUTH_FILE = 'e2e/.auth/admin.json'
 // Browser-level coverage for the workspace shell - tab dragging, split panes and roaming workspaces
 // are all pointer gestures and cross-device state, none of which jsdom can speak to
 //
-// Needs the dev stack up (`./skelet up`): the dashboard on 5173 and the admin API on 8080, seeded
+// Needs the dev stack up (`skelet up`): the dashboard on 5173 and the admin API on 8080, seeded
 // with the dev admin. Deliberately NOT part of `pnpm test`, which CI runs without a backend
 export default defineConfig({
   testDir: './e2e',

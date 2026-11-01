@@ -20,8 +20,8 @@ func newLifecycleDB(t *testing.T) (*Service, *sql.DB, func(status string, qty fl
 	svc := NewService(NewRepository(db.New(conn)), txrunner.New(conn))
 	insert := func(status string, qty float64, next time.Time) uuid.UUID {
 		var id uuid.UUID
-		if err := conn.QueryRow(`INSERT INTO subscriptions (product_id, status, interval_unit, price, currency_code, quantity, current_period_start, current_period_end, next_billing_at)
-			VALUES ($1, $2, 'month', 1250, 'USD', $3, $4::timestamptz - interval '1 month', $4, $4) RETURNING id`, uuid.New(), status, qty, next).Scan(&id); err != nil {
+		if err := conn.QueryRow(`INSERT INTO subscriptions (product_id, status, interval_unit, price, currency_code, quantity, current_period_start, current_period_end, next_billing_at, billing_anchor)
+			VALUES ($1, $2, 'month', 1250, 'USD', $3, $4::timestamptz - interval '1 month', $4, $4, $4) RETURNING id`, uuid.New(), status, qty, next).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM subscriptions WHERE id = $1`, id) })

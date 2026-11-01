@@ -9,35 +9,60 @@ func date(y int, m time.Month, d int) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-func TestNextBillingTime(t *testing.T) {
+// The boundary after `after`, counted from the anchor - a short month clamps only its own boundary, and the next one
+// is back on the anchor's day
+func TestNextBoundary(t *testing.T) {
+	at := func(y int, m time.Month, d, h int) time.Time { return time.Date(y, m, d, h, 30, 0, 0, time.UTC) }
 	cases := []struct {
-		name  string
-		from  time.Time
-		unit  string
-		count int32
-		want  time.Time
+		name          string
+		anchor, after time.Time
+		unit          string
+		count         int32
+		want          time.Time
 	}{
-		{"daily", date(2026, 1, 1), "day", 1, date(2026, 1, 2)},
-		{"every 3 days", date(2026, 1, 1), "day", 3, date(2026, 1, 4)},
-		{"weekly", date(2026, 1, 1), "week", 1, date(2026, 1, 8)},
-		{"biweekly", date(2026, 1, 1), "week", 2, date(2026, 1, 15)},
-		{"monthly", date(2026, 1, 15), "month", 1, date(2026, 2, 15)},
-		{"quarterly", date(2026, 1, 15), "month", 3, date(2026, 4, 15)},
-		{"yearly", date(2026, 1, 1), "year", 1, date(2027, 1, 1)},
-		// Go's AddDate normalizes overflow: Jan 31 + 1mo → Mar 3 (no Feb 31)
-		{"month-end rollover", date(2026, 1, 31), "month", 1, date(2026, 3, 3)},
-		// 2028 is a leap year - Feb 29 exists
-		{"leap day", date(2028, 1, 29), "month", 1, date(2028, 2, 29)},
-		{"zero count defaults to 1", date(2026, 1, 1), "month", 0, date(2026, 2, 1)},
-		{"unknown unit falls back to month", date(2026, 1, 1), "fortnight", 1, date(2026, 2, 1)},
+		{"daily", date(2026, 1, 1), date(2026, 1, 1), "day", 1, date(2026, 1, 2)},
+		{"every 3 days", date(2026, 1, 1), date(2026, 1, 1), "day", 3, date(2026, 1, 4)},
+		{"weekly", date(2026, 1, 1), date(2026, 1, 1), "week", 1, date(2026, 1, 8)},
+		{"biweekly", date(2026, 1, 1), date(2026, 1, 1), "week", 2, date(2026, 1, 15)},
+		{"monthly", date(2026, 1, 15), date(2026, 1, 15), "month", 1, date(2026, 2, 15)},
+		{"quarterly", date(2026, 1, 15), date(2026, 1, 15), "month", 3, date(2026, 4, 15)},
+		{"yearly", date(2026, 1, 1), date(2026, 1, 1), "year", 1, date(2027, 1, 1)},
+		{"the 31st clamps to February's end", date(2026, 1, 31), date(2026, 1, 31), "month", 1, date(2026, 2, 28)},
+		{"and comes back to the 31st", date(2026, 1, 31), date(2026, 2, 28), "month", 1, date(2026, 3, 31)},
+		{"a 30-day month after a 31st", date(2026, 1, 31), date(2026, 3, 31), "month", 1, date(2026, 4, 30)},
+		{"a leap February keeps the 29th", date(2028, 1, 31), date(2028, 1, 31), "month", 1, date(2028, 2, 29)},
+		{"quarterly from Nov 30 into February", date(2025, 11, 30), date(2025, 11, 30), "month", 3, date(2026, 2, 28)},
+		{"quarterly back to the 30th", date(2025, 11, 30), date(2026, 2, 28), "month", 3, date(2026, 5, 30)},
+		{"yearly from a leap day", date(2028, 2, 29), date(2028, 2, 29), "year", 1, date(2029, 2, 28)},
+		{"yearly back to a leap day", date(2028, 2, 29), date(2031, 2, 28), "year", 1, date(2032, 2, 29)},
+		{"the time of day stays", at(2026, 1, 31, 14), at(2026, 1, 31, 14), "month", 1, at(2026, 2, 28, 14)},
+		{"before the anchor, the anchor - a trial's first renewal", date(2026, 3, 10), date(2026, 3, 1), "month", 1, date(2026, 3, 10)},
+		{"zero count defaults to 1", date(2026, 1, 1), date(2026, 1, 1), "month", 0, date(2026, 2, 1)},
+		{"unknown unit falls back to month", date(2026, 1, 1), date(2026, 1, 1), "fortnight", 1, date(2026, 2, 1)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := nextBillingTime(c.from, c.unit, c.count)
-			if !got.Equal(c.want) {
-				t.Fatalf("nextBillingTime(%v, %q, %d) = %v, want %v", c.from, c.unit, c.count, got, c.want)
+			if got := nextBoundary(c.anchor, c.after, c.unit, c.count); !got.Equal(c.want) {
+				t.Fatalf("nextBoundary(%v, %v, %q, %d) = %v, want %v", c.anchor, c.after, c.unit, c.count, got, c.want)
 			}
 		})
+	}
+}
+
+// Forty years of a subscription started on the 31st: one boundary every calendar month, each on the 31st or the
+// month's last day - chaining from the previous boundary drifted to the 3rd after the first February and lost a month
+func TestMonthlyBoundariesNeverDrift(t *testing.T) {
+	anchor := date(1986, 1, 31)
+	b := anchor
+	for i := 1; i <= 40*12; i++ {
+		b = nextBoundary(anchor, b, "month", 1)
+		want := addMonthsClamped(anchor, i)
+		if !b.Equal(want) || b.Day() != min(31, want.AddDate(0, 1, -want.Day()).Day()) {
+			t.Fatalf("boundary %d = %v, want %v", i, b, want)
+		}
+	}
+	if !b.Equal(date(2026, 1, 31)) {
+		t.Fatalf("after 480 months the schedule is on %v, want 2026-01-31", b)
 	}
 }
 
@@ -48,6 +73,36 @@ func monthlySub() Subscription {
 		CurrentPeriodStart: date(2026, 1, 1),
 		CurrentPeriodEnd:   date(2026, 2, 1),
 		NextBillingAt:      date(2026, 2, 1),
+		BillingAnchor:      date(2026, 1, 1),
+	}
+}
+
+// Catching up across a month end mints one period per month, each ending on the 31st or the month's last day
+func TestPlanBilling_MonthEndAnchor(t *testing.T) {
+	sub := Subscription{
+		IntervalUnit:       "month",
+		IntervalCount:      1,
+		CurrentPeriodStart: date(2026, 1, 31),
+		CurrentPeriodEnd:   date(2026, 2, 28),
+		NextBillingAt:      date(2026, 2, 28),
+		BillingAnchor:      date(2026, 1, 31),
+	}
+	periods, _, end, next := planBilling(sub, date(2026, 5, 1), 1)
+	want := [][2]time.Time{
+		{date(2026, 2, 28), date(2026, 3, 31)},
+		{date(2026, 3, 31), date(2026, 4, 30)},
+		{date(2026, 4, 30), date(2026, 5, 31)},
+	}
+	if len(periods) != len(want) {
+		t.Fatalf("minted %d periods, want %d", len(periods), len(want))
+	}
+	for i, p := range periods {
+		if !p.PeriodStart.Equal(want[i][0]) || !p.PeriodEnd.Equal(want[i][1]) || p.Sequence != int32(i+2) {
+			t.Fatalf("period %d = [%v, %v] #%d, want [%v, %v] #%d", i, p.PeriodStart, p.PeriodEnd, p.Sequence, want[i][0], want[i][1], i+2)
+		}
+	}
+	if !end.Equal(date(2026, 5, 31)) || !next.Equal(date(2026, 5, 31)) {
+		t.Fatalf("current period ends %v, next billing %v - want both May 31", end, next)
 	}
 }
 

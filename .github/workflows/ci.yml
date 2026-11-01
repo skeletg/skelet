@@ -1,5 +1,5 @@
 # Backend + frontend test gate - the service containers are here so the env-gated integration suites run on every push, not only when someone exports the DSNs
-# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by bin/pin-check - the queue round-trip embeds nats-server and needs no service
+# Mirrors dev on postgres 18, clickhouse 26.7.5 and migrate v4.19.1, held together by skelet check pins - the queue round-trip embeds nats-server and needs no service
 name: CI
 
 on:
@@ -96,7 +96,7 @@ jobs:
         working-directory: apps/backend/core
         # -race, because the bus dispatches to detached goroutines and the outbox relay runs eight concurrent workers
         # -timeout past go's 10m default - CI builds its databases fresh, but -race is a different animal
-        # internal/e2e sits out, as in bin/test - bin/test-e2e gives it its own databases and a Signals process
+        # internal/e2e sits out, as in skelet test - skelet test e2e gives it its own databases and a Signals process
         run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
       # The Signals module is its own go.mod, replacing core's by relative path - a change in a core
       # package the suite imports has to fail here, not on the suite's image build
@@ -113,6 +113,12 @@ jobs:
       - name: Test (sdk)
         working-directory: apps/backend/sdk
         run: go test ./... -count=1 -race
+      # The skelet CLI is stdlib-only and imports none of the backend - its route tests read bin/ from the checkout
+      - name: Vet + test (skelet CLI)
+        working-directory: cmd/skelet
+        run: |
+          go vet ./...
+          go test ./... -count=1 -race
       # The containers build with -tags vips (libvips webp rendering) - this step
       # is the only CI coverage that file gets, since the untagged runs skip it
       - name: Install libvips
@@ -124,71 +130,75 @@ jobs:
           go build -tags vips ./...
           go test -tags vips ./internal/media/... ./internal/mediahttp/... -count=1 -race
 
-  # The app set is a directory listing, not a constant - a fork that swaps the demo
-  # storefront for its own gets the same gates without editing the matrices below
   discover:
-    name: Discover apps
+    name: Discover images
     runs-on: ubuntu-latest
     outputs:
-      frontends: ${{ steps.list.outputs.frontends }}
       images: ${{ steps.list.outputs.images }}
     steps:
       - uses: actions/checkout@v4
       - id: list
         run: |
-          front='{"app":"dashboard","dir":"apps/dashboard"}'
           # Both Go images build from apps/backend as a whole, since the modules replace each other by relative path
           images='{"image":"backend","context":"apps/backend","file":"apps/backend/core/Dockerfile.prod"},{"image":"signals","context":"apps/backend","file":"apps/backend/signals/Dockerfile.prod"},{"image":"dashboard","context":"apps/dashboard"}'
-          for d in apps/channels/*/; do
-            [ -f "$d/package.json" ] || continue
-            n=$(basename "$d")
-            front="$front,{\"app\":\"$n\",\"dir\":\"apps/channels/$n\"}"
-            images="$images,{\"image\":\"$n\",\"context\":\"apps/channels/$n\"}"
+          for d in apps/channels/*/ templates/*/; do
+            d=${d%/}
+            [ -f "$d/package.json" ] && [ -f "$d/Dockerfile.prod" ] || continue
+            images="$images,{\"image\":\"$(basename "$d")\",\"context\":\".\",\"file\":\"$d/Dockerfile.prod\",\"smoke\":true}"
           done
-          echo "frontends={\"include\":[$front]}" >> "$GITHUB_OUTPUT"
           echo "images={\"include\":[$images]}" >> "$GITHUB_OUTPUT"
-          echo "frontends: [$front]"
           echo "images: [$images]"
 
-  frontend:
-    name: ${{ matrix.app }} typecheck + tests
-    needs: discover
+  # One install of the whole storefront workspace, then every member's checks - a member without the script is skipped
+  workspace:
+    name: Storefront workspace typecheck + tests + builds
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.frontends) }}
     steps:
       - uses: actions/checkout@v4
-      # Version from the app's packageManager field - there's no root package.json for the
-      # action's default to read. Before setup-node, whose pnpm cache needs pnpm on PATH
       - uses: pnpm/action-setup@v6
         with:
-          package_json_file: ${{ matrix.dir }}/package.json
-      # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
-      # which stay literal because a Dockerfile has to build on its own
+          package_json_file: packages/storefront-core/package.json
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install
-        working-directory: ${{ matrix.dir }}
         run: pnpm install --frozen-lockfile
       - name: Typecheck
-        working-directory: ${{ matrix.dir }}
-        run: pnpm run typecheck
-      # eslint stays out - it has accepted findings and bin/lint treats it as non-blocking
+        run: pnpm -r --if-present run typecheck
+      # eslint stays out - it has accepted findings and skelet lint treats it as non-blocking
       - name: Test
-        working-directory: ${{ matrix.dir }}
-        run: pnpm test
-      # Production build - catches what typecheck+tests can't (vite chunking, next's prerender pass). Needs no live backend: every
-      # storefront route is dynamic (gqlFetch reads cookies/headers), so next build fetches nothing at build time
+        run: pnpm -r --if-present run test
       - name: Build
-        working-directory: ${{ matrix.dir }}
+        run: pnpm -r --if-present run build
+
+  dashboard:
+    name: dashboard typecheck + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/dashboard/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: apps/dashboard/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
         run: pnpm run build
 
-  # The prod images are how this actually deploys, so a Dockerfile that stops building must fail the PR, not the release evening.
-  # Build only - no push, no tags The dashboard's workspace shell is pointer gestures and cross-device state - dragging tabs between panes, splits, workspaces roaming through the preferences store.
+  # The dashboard's workspace shell is pointer gestures and cross-device state, which no unit test reaches
   e2e:
     name: Dashboard end-to-end (real browser, real stack)
     runs-on: ubuntu-latest
@@ -205,9 +215,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: apps/dashboard/pnpm-lock.yaml
-      # bin/setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
+      # skelet setup writes these from the templates on a dev machine; CI has no interactive setup. The templates
       # leave the customer session pair and the config key blank, and the server refuses to boot without
-      # them, so they're generated here the way bin/setup does it - the public half derived from the seed
+      # them, so they're generated here the way skelet setup does it - the public half derived from the seed
       - name: Environment files
         run: |
           cp env/go.env.example env/go.env
@@ -220,7 +230,7 @@ jobs:
             -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" \
             -e "s|^CONFIG_ENCRYPTION_KEY=.*|CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '\n')|" env/go.env
           sed -i -e "s|^CUSTOMER_JWT_PUBLIC_KEY=.*|CUSTOMER_JWT_PUBLIC_KEY=$pub|" env/signals.env
-      # The dev containers run as SKELET_UID, which only bin/_lib exports - left at compose's 1000, Air can't write to the runner's checkout
+      # The dev containers run as SKELET_UID, which the CLI sets and this job's raw compose doesn't - left at compose's 1000, Air can't write to the runner's checkout
       - name: Container user
         run: |
           echo "SKELET_UID=$(id -u)" >> "$GITHUB_ENV"
@@ -263,6 +273,7 @@ jobs:
         if: failure()
         run: docker compose --profile dashboard --profile signals logs --tail 200
 
+  # A Dockerfile that stops building fails the PR, not the release evening - built, never pushed, and a storefront's started
   docker:
     name: Docker image (${{ matrix.image }})
     needs: discover
@@ -279,8 +290,26 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file || format('{0}/Dockerfile.prod', matrix.context) }}
           push: false
+          load: ${{ matrix.smoke == true }}
+          tags: ci/${{ matrix.image }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Smoke run
+        if: matrix.smoke
+        env:
+          IMAGE: ci/${{ matrix.image }}
+        run: |
+          docker run -d --name smoke -p 127.0.0.1:3000:3000 \
+            -e STOREFRONT_CHANNEL_ID=00000000-0000-4000-8000-000000000000 -e BACKEND_INTERNAL_URL=http://127.0.0.1:9 "$IMAGE"
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/healthz && [ "$(docker inspect -f '{{.State.Health.Status}}' smoke)" = healthy ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker inspect -f '{{json .State.Health}}' smoke
+          docker logs smoke
+          exit 1
 
   lint:
     name: Backend lint (gofmt + golangci)
@@ -296,20 +325,20 @@ jobs:
             apps/backend/sdk/go.sum
       - name: gofmt
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             unformatted=$(cd "$mod" && gofmt -l .)
             if [ -n "$unformatted" ]; then
               echo "gofmt would reformat in $mod:" && echo "$unformatted" && exit 1
             fi
           done
-      # same pin as bin/lint - the two must agree or CI and local disagree
+      # same pin as skelet lint - the two must agree or CI and local disagree
       - name: golangci-lint
         run: |
-          for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
+          for mod in apps/backend/core apps/backend/signals apps/backend/sdk cmd/skelet; do
             echo "==> $mod"
             (cd "$mod" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...) || exit 1
           done
-      # The pre-commit hook runs the whole of bin/codegen, but two of its steps need a live backend, so CI covers the part that needs
+      # The pre-commit hook runs the whole of skelet gen, but two of its steps need a live backend, so CI covers the part that needs
       # nothing but Go - it also fails when a plugin directory exists that plugins.json has not decided on
       - name: Plugin set matches plugins.json
         working-directory: apps/backend/core
@@ -317,11 +346,12 @@ jobs:
           go run ./cmd/plugingen
           git diff --exit-code plugins/firstparty
 
-  # The same command the pre-commit hook runs, so "bin/check passes" means the same
-  # thing locally and here. Greps, plus buf's compatibility check of the proto against main, which
-  # needs main's history and runs on the host Go here (in the app container on a workstation)
+  # The same command the pre-commit hook runs, so "skelet check passes" means the same thing locally
+  # and here. Greps, plus buf's compatibility check of the proto against main, which needs main's
+  # history and runs on the host Go here (in the app container on a workstation). go run is the way
+  # in with no CLI installed, and it reaches the checkout's own build whatever the front door is
   gates:
-    name: bin/check (pins, structure, contracts)
+    name: skelet check (pins, structure, contracts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -331,9 +361,9 @@ jobs:
         with:
           go-version-file: apps/backend/core/go.mod
           cache-dependency-path: apps/backend/core/go.sum
-      - run: bin/check
+      - run: go -C cmd/skelet run . check
 
-  # The backend half of bin/codegen --check (the TS half needs a running server) - regenerates in place and fails on any diff
+  # The backend half of skelet check codegen (the TS half needs a running server) - regenerates in place and fails on any diff
   codegen:
     name: Codegen drift (backend half)
     runs-on: ubuntu-latest
@@ -350,5 +380,5 @@ jobs:
         run: |
           cp env/go.env.example env/go.env
           cp env/db.env.example env/db.env
-      - name: bin/codegen --check --no-frontend
-        run: bin/codegen --check --no-frontend
+      - name: skelet check codegen --no-frontend
+        run: go -C cmd/skelet run . check codegen --no-frontend

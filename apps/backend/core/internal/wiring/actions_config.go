@@ -10,7 +10,7 @@ import (
 )
 
 // The Tools-page surface over the config service - the Tools registry is core's, config is plumbing
-// Mirrors `bin/cli config orphans / prune`
+// Mirrors `skelet cli config orphans / prune`
 func registerConfigActions(svc *config.Service) {
 	adminaction.Register(adminaction.Definition{
 		Slug:                    "config.orphans",
