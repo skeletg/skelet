@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.0",
   "packages": {
     "github.com/skeletg/skelet/apps/backend/sdk": [
       "const ActionChallenge ActionKind = \"challenge\"",

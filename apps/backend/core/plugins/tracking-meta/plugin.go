@@ -41,7 +41,7 @@ var eventNames = map[string]string{
 }
 
 func init() {
-	p := sdk.RegisterPlugin(sdk.Manifest{Slug: Slug, Name: "Meta Conversions API", Version: "0.1.0", SDKRange: "^0.1.2"})
+	p := sdk.RegisterPlugin(sdk.Manifest{Slug: Slug, Name: "Meta Conversions API", Version: "0.1.0", SDKRange: "^0.1.0"})
 	defaults := make([]string, 0, len(eventNames))
 	for name := range eventNames {
 		defaults = append(defaults, name)

@@ -8,5 +8,4 @@
     for Meta.
   - Set them up with `skelet cli tracking add` and check one with `skelet cli tracking test`. The
     dashboard pages come later.
-- **Plugins can add their own tracking destinations** through the SDK's `RegisterDestination`
-  (SDK 0.1.2).
+- **Plugins can add their own tracking destinations** through the SDK's `RegisterDestination`.

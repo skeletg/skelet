@@ -21,7 +21,7 @@ const (
 )
 
 func init() {
-	p := sdk.RegisterPlugin(sdk.Manifest{Slug: Slug, Name: "Google Analytics 4 (server-side)", Version: "0.1.0", SDKRange: "^0.1.2"})
+	p := sdk.RegisterPlugin(sdk.Manifest{Slug: Slug, Name: "Google Analytics 4 (server-side)", Version: "0.1.0", SDKRange: "^0.1.0"})
 	p.RegisterDestination(sdk.Destination{
 		Kind:     Kind,
 		Label:    "Google Analytics 4",
