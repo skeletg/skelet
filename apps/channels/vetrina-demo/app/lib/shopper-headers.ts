@@ -6,6 +6,7 @@ import { AID_COOKIE } from "@/app/lib/analytics/visitor";
 import { clientIP } from "@/app/lib/client-ip";
 import { CONSENT_COOKIE } from "@/app/lib/consent/cookie";
 import { parseConsent, serializeConsent } from "@/app/lib/consent/categories";
+import { clickIdsHeader } from "@/app/lib/consent/click-ids";
 import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 
 // Who a server-side call to the backend is made for. Without these the backend sees this Next server instead of the
@@ -34,6 +35,9 @@ export async function shopperHeaders(): Promise<Record<string, string>> {
     if (consent) out["X-Consent"] = serializeConsent(consent);
     const aid = store.get(AID_COOKIE)?.value;
     if (aid && consent?.analytics) out["X-Anon-Id"] = aid;
+    // Ad click ids for a purchase sent server to server - only with ads consent, for the same withdrawal reason
+    const clicks = consent?.ads ? clickIdsHeader((name) => store.get(name)?.value) : "";
+    if (clicks) out["X-Click-Ids"] = clicks;
   } catch (err) {
     rethrowIfDynamicBailout(err);
   }
