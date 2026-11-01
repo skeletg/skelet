@@ -163,9 +163,8 @@ export default async function ProductPage(
             value: toMajor(product.defaultPrice, money),
             items: [
               {
-                item_id: product.id,
+                item_id: product.sku, // the SKU everywhere, as the server's cart and purchase events have it
                 item_name: heading,
-                item_sku: product.sku,
                 price: toMajor(product.defaultPrice, money),
                 currency: product.defaultCurrencyCode,
               },
