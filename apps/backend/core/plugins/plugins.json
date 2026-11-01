@@ -6,6 +6,9 @@
     "tracking-bing": {
       "enabled": true
     },
+    "tracking-cj": {
+      "enabled": true
+    },
     "tracking-ga4": {
       "enabled": true
     },
