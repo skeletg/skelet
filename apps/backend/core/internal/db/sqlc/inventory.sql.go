@@ -830,6 +830,95 @@ func (q *Queries) ListChannelLocations(ctx context.Context, channelID uuid.UUID)
 	return items, nil
 }
 
+const listChannelLowStockLevels = `-- name: ListChannelLowStockLevels :many
+SELECT
+    inv_items.id                  AS inventory_item_id,
+    inv_items.product_id          AS product_id,
+    inv_items.low_stock_threshold AS low_stock_threshold,
+    inv_items.backorderable       AS backorderable,
+    inv_levels.location_id        AS location_id,
+    inv_levels.quantity           AS quantity,
+    inv_levels.updated_at         AS level_updated_at,
+    products.url                  AS product_slug,
+    products.sku                  AS product_sku,
+    products.quantity_decimals    AS quantity_decimals,
+    products.quantity_step        AS quantity_step,
+    locs.slug                     AS location_slug,
+    locs.name                     AS location_name
+FROM inventory_channel_locations icl
+JOIN inventory_levels inv_levels ON inv_levels.location_id = icl.location_id
+JOIN inventory_items inv_items ON inv_items.id = inv_levels.inventory_item_id
+JOIN catalog_products products ON products.id = inv_items.product_id
+JOIN inventory_locations locs ON locs.id = inv_levels.location_id
+WHERE icl.channel_id = $1
+  AND inv_items.tracked = TRUE
+  AND inv_items.low_stock_threshold > 0
+  AND inv_levels.quantity <= inv_items.low_stock_threshold
+ORDER BY (inv_items.low_stock_threshold - inv_levels.quantity) DESC,
+         products.url ASC,
+         locs.slug ASC
+LIMIT $2
+`
+
+type ListChannelLowStockLevelsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Lim       int32     `json:"lim"`
+}
+
+type ListChannelLowStockLevelsRow struct {
+	InventoryItemID   uuid.UUID `json:"inventory_item_id"`
+	ProductID         uuid.UUID `json:"product_id"`
+	LowStockThreshold float64   `json:"low_stock_threshold"`
+	Backorderable     bool      `json:"backorderable"`
+	LocationID        uuid.UUID `json:"location_id"`
+	Quantity          float64   `json:"quantity"`
+	LevelUpdatedAt    time.Time `json:"level_updated_at"`
+	ProductSlug       string    `json:"product_slug"`
+	ProductSku        string    `json:"product_sku"`
+	QuantityDecimals  int16     `json:"quantity_decimals"`
+	QuantityStep      float64   `json:"quantity_step"`
+	LocationSlug      string    `json:"location_slug"`
+	LocationName      string    `json:"location_name"`
+}
+
+// The located arm of ListLowStockLevels, kept to the warehouses that serve one channel - an item stocked nowhere has no channel to belong to
+func (q *Queries) ListChannelLowStockLevels(ctx context.Context, arg ListChannelLowStockLevelsParams) ([]ListChannelLowStockLevelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChannelLowStockLevels, arg.ChannelID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChannelLowStockLevelsRow{}
+	for rows.Next() {
+		var i ListChannelLowStockLevelsRow
+		if err := rows.Scan(
+			&i.InventoryItemID,
+			&i.ProductID,
+			&i.LowStockThreshold,
+			&i.Backorderable,
+			&i.LocationID,
+			&i.Quantity,
+			&i.LevelUpdatedAt,
+			&i.ProductSlug,
+			&i.ProductSku,
+			&i.QuantityDecimals,
+			&i.QuantityStep,
+			&i.LocationSlug,
+			&i.LocationName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFilteredInventoryLocations = `-- name: ListFilteredInventoryLocations :many
 SELECT id, slug, name, is_active, metadata, created_at, updated_at, line1, line2, city, region, postal_code, country_code, latitude, longitude, type, timezone, hours, email, phone, contact_name, external_reference, pickup_enabled, pickup_instructions, storefront_visible FROM inventory_locations
 WHERE ($1::text = ''

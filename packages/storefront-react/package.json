@@ -1,11 +1,23 @@
 {
   "name": "@skelet/storefront-react",
   "version": "0.0.0",
-  "private": true,
+  "description": "The client-side React a Skelet storefront shares across frameworks: compare, consent, experiments and the action-form hook",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skeletg/skelet.git",
+    "directory": "packages/storefront-react"
+  },
+  "homepage": "https://github.com/skeletg/skelet/tree/main/packages/storefront-react#readme",
   "packageManager": "pnpm@12.6.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "node ../publish.mjs build",
+    "prepack": "node ../publish.mjs build"
   },
   "dependencies": {
     "@conform-to/react": "^1.21.1",
@@ -21,5 +33,15 @@
     "@types/react": "catalog:",
     "react": "catalog:",
     "typescript": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      },
+      "./package.json": "./package.json"
+    }
   }
 }

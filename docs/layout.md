@@ -52,7 +52,9 @@ shop in `apps/channels/`, so merging a skelet release never collides with it.
 ### `packages/`
 
 TypeScript every storefront shares, as source - Next and Vite compile workspace
-packages themselves, so there's no build step. `storefront-core` is a
+packages themselves, so there's no build step here. Each release also publishes
+them to npm, compiled, for a shop outside a Skelet checkout - see
+[releasing](releasing.md#the-storefront-packages-on-npm). `storefront-core` is a
 storefront's logic with no framework in it - the GraphQL client and operations,
 auth, cart, checkout, channel and locale - and a template builds its design on
 it through an adapter: `storefront-next` for Next, `storefront-astro` for Astro.

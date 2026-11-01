@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/google/uuid"
 	"github.com/rs/cors"
 
 	"go.uber.org/fx"
@@ -25,12 +26,14 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
+	"github.com/skeletg/skelet/apps/backend/core/internal/agenttools"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/core/internal/mcpserver"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mediahttp"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
@@ -53,7 +56,7 @@ type RootHandler struct{ http.Handler } // the fully wrapped HTTP entrypoint - e
 
 var HTTP = fx.Module("http", fx.Provide(newRootHandler)) // the GraphQL endpoints, the public HTTP routes and the outer middleware chain
 
-func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, g GQL) RootHandler {
+func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, g GQL, tools *agenttools.Service) RootHandler {
 	// Resolved once: a slug typo must surface here, not as a dashboard that 404s
 	adminPath, frontPath, pathErr := APIPaths(os.Getenv)
 	if pathErr != nil {
@@ -244,6 +247,19 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle("/api/admin/data/jobs/", otelx.WrapHTTP(adminAuth(dataDownloadHandler(s.DataJob, s.Admin)), "data.download"))
 	// SVG can't use the GraphQL presign path - see media_svg_http.go for why the bytes come here first
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
+
+	if EnvBool("MCP_ENABLED", true) {
+		mcpHandler := mcpserver.NewHandler(mcpserver.Config{
+			Tools: agenttools.Definitions(),
+			Source: func(ctx context.Context, cid uuid.UUID, days int) mcpserver.ToolSet {
+				return tools.ToolSet(ctx, cid, days)
+			},
+			Channels: s.Channel,
+			Limiter:  ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MCP_RATE_LIMIT_PER_MIN", 120), time.Minute),
+			Reporter: tel.Reporter,
+		})
+		mux.Handle(mcpPath(adminPath), otelx.WrapHTTP(devDebug(maxBody(1<<20)(adminAuth(locale.Middleware()(mcpHandler)))), "mcp.admin"))
+	}
 
 	// One limiter for the whole /t surface, so a bucket means the same thing whichever tier answers
 	ingestLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute)

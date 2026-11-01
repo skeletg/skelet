@@ -430,11 +430,11 @@ func (r *queryResolver) PromotionAnalytics(ctx context.Context, start *time.Time
 		return nil, err
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	channels, err := r.promotionAnalyticsChannels(ctx)
+	scope, err := r.promotionAnalyticsScope(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.promotionAnalyticsByRule(ctx, s, e, channels)
+	rows, err := r.PromotionSvc.AnalyticsByRule(ctx, s, e, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -461,11 +461,11 @@ func (r *queryResolver) PromotionAnalyticsTotals(ctx context.Context, start *tim
 		return nil, err
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	channels, err := r.promotionAnalyticsChannels(ctx)
+	scope, err := r.promotionAnalyticsScope(ctx)
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.promotionAnalyticsTotals(ctx, s, e, channels)
+	row, err := r.PromotionSvc.AnalyticsTotals(ctx, s, e, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -492,11 +492,11 @@ func (r *queryResolver) PromotionAnalyticsDaily(ctx context.Context, start *time
 		rid = &id
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	channels, err := r.promotionAnalyticsChannels(ctx)
+	scope, err := r.promotionAnalyticsScope(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.promotionAnalyticsDaily(ctx, s, e, rid, channels)
+	rows, err := r.PromotionSvc.AnalyticsDaily(ctx, s, e, rid, scope)
 	if err != nil {
 		return nil, err
 	}

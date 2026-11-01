@@ -1613,16 +1613,27 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 // One row per (tracked item, location) cell at or below the item's low_stock_threshold, for the dashboard reorder list
 // Sorted most-urgent first, so the limit keeps the worst cases - clamped to [1, 1000] with 200 as the unset default
 func (s *Service) ListLowStockLevels(ctx context.Context, limit int32) ([]LowStockLevel, error) {
-	if limit <= 0 {
-		limit = 200
-	}
-	if limit > 1000 {
-		limit = 1000
-	}
+	limit = lowStockLimit(limit)
 	if s.flatModeEnabled(ctx) {
 		return s.repo.ListLowStockItemsFlat(ctx, limit)
 	}
 	return s.repo.ListLowStockLevels(ctx, limit)
+}
+
+// Flat mode keeps one count per item with no warehouse, so every channel reads the same list
+func (s *Service) ListChannelLowStockLevels(ctx context.Context, channelID uuid.UUID, limit int32) ([]LowStockLevel, error) {
+	limit = lowStockLimit(limit)
+	if s.flatModeEnabled(ctx) {
+		return s.repo.ListLowStockItemsFlat(ctx, limit)
+	}
+	return s.repo.ListChannelLowStockLevels(ctx, channelID, limit)
+}
+
+func lowStockLimit(limit int32) int32 {
+	if limit <= 0 {
+		return 200
+	}
+	return min(limit, 1000)
 }
 
 // ==================== Mode migration ====================

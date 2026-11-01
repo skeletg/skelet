@@ -16,6 +16,7 @@ func TestRateLimitDefaultsToOff(t *testing.T) { // rate limiting is OFF unless a
 		"MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN",
 		"TOKEN_RATE_LIMIT_PER_MIN",
 		"INGEST_RATE_LIMIT_PER_MIN",
+		"MCP_RATE_LIMIT_PER_MIN",
 	} {
 		t.Setenv(key, "42") // a surface knob alone must not switch the layer on
 		if got := RateLimitPerMin(key, 100); got != 0 {
