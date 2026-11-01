@@ -1,0 +1,38 @@
+{
+  "client_id": "visitor-1",
+  "consent": {
+    "ad_personalization": "DENIED",
+    "ad_user_data": "GRANTED"
+  },
+  "events": [
+    {
+      "name": "purchase",
+      "params": {
+        "currency": "EUR",
+        "event_id": "0193a1b2-0000-7000-8000-000000000042",
+        "items": [
+          {
+            "item_id": "SKU-1",
+            "item_name": "Mug",
+            "price": 15,
+            "quantity": 2
+          },
+          {
+            "item_id": "SKU-2",
+            "item_name": "Tee",
+            "price": 20,
+            "quantity": 1
+          }
+        ],
+        "page_location": "https://shop.example/checkout",
+        "shipping": 4.9,
+        "tax": 9,
+        "transaction_id": "ORD-000042",
+        "value": 45
+      }
+    }
+  ],
+  "ip_override": "203.0.113.7",
+  "timestamp_micros": 1793527200000000,
+  "user_id": "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"
+}
