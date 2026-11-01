@@ -24,6 +24,9 @@
     "tracking-meta": {
       "enabled": true
     },
+    "tracking-openai": {
+      "enabled": true
+    },
     "tracking-webhook": {
       "enabled": true
     }
