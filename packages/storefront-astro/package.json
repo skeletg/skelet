@@ -1,11 +1,23 @@
 {
   "name": "@skelet/storefront-astro",
   "version": "0.0.0",
-  "private": true,
+  "description": "The Astro adapter over @skelet/storefront-core - a middleware that opens the request scope core reads from",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skeletg/skelet.git",
+    "directory": "packages/storefront-astro"
+  },
+  "homepage": "https://github.com/skeletg/skelet/tree/main/packages/storefront-astro#readme",
   "packageManager": "pnpm@12.6.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build": "node ../publish.mjs build",
+    "prepack": "node ../publish.mjs build",
     "test": "vitest run"
   },
   "dependencies": {
@@ -19,5 +31,15 @@
     "astro": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      },
+      "./package.json": "./package.json"
+    }
   }
 }

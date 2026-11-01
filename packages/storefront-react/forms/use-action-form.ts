@@ -7,6 +7,18 @@ import type { z } from "zod";
 
 import { parseForm, type FormResult } from "@skelet/storefront-core/forms/schema";
 
+// Spelled out because the inferred type reaches into @conform-to/dom, which a published declaration can't name
+type Conform<S extends z.ZodObject> = ReturnType<typeof useForm<z.input<S>, z.output<S>>>;
+
+export type ActionForm<S extends z.ZodObject, R extends FormResult> = {
+  form: Conform<S>[0];
+  fields: Conform<S>[1];
+  formAction: (formData: FormData) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  pending: boolean;
+  lastResult: R | undefined;
+};
+
 // useActionState + Conform's useForm wired the one way every storefront form uses them: the server action returns a
 // SubmissionResult, the same schema validates on the client first (on submit, then live as the shopper fixes a field),
 // and the submitted values survive a failed round trip because the result carries them back. An action with
@@ -23,7 +35,7 @@ export function useActionForm<
   action: (prev: R | undefined, formData: FormData) => Promise<R>,
   schema: S,
   options: { defaultValue?: DefaultValue<z.input<S>> } = {},
-) {
+): ActionForm<S, R> {
   const [lastResult, formAction, pending] = useActionState(action, undefined);
   const [form, fields] = useForm<z.input<S>, z.output<S>>({
     lastResult,
