@@ -43,7 +43,9 @@ func (f *fakeStore) ListEnabled(_ context.Context, ch uuid.UUID) ([]Destination,
 	}
 	return out, nil
 }
-func (f *fakeStore) List(ctx context.Context, ch uuid.UUID) ([]Destination, error) { return f.ListEnabled(ctx, ch) }
+func (f *fakeStore) List(ctx context.Context, ch uuid.UUID) ([]Destination, error) {
+	return f.ListEnabled(ctx, ch)
+}
 func (f *fakeStore) Get(_ context.Context, id uuid.UUID) (Destination, error) {
 	d, ok := f.dests[id]
 	if !ok {
@@ -105,8 +107,10 @@ func (f *fakeStore) MarkDead(_ context.Context, id uuid.UUID, reason string) err
 func (f *fakeStore) Retry(_ context.Context, id uuid.UUID) error {
 	return f.set(id, func(d *Delivery) { d.Status, d.Attempts, d.NextAttemptAt = "pending", 0, time.Time{} })
 }
-func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, int32) ([]Delivery, error) { return nil, nil }
-func (f *fakeStore) Prune(context.Context, time.Time) (int64, error)                     { return 0, nil }
+func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, int32) ([]Delivery, error) {
+	return nil, nil
+}
+func (f *fakeStore) Prune(context.Context, time.Time) (int64, error) { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {
 	var out []Delivery
@@ -201,7 +205,7 @@ func TestTrackQueuesOnlyWhereConsentAndTheEventListAllow(t *testing.T) {
 	for _, ev := range []Event{
 		{ID: "o1", Name: Purchase, ChannelID: ch, Consent: consentOf("v2:a1.d0.p0")},
 		{ID: "v1", Name: ViewItem, ChannelID: ch, Consent: consentOf("v2:a1.d1.p1")},
-		{ID: "n1", Name: Purchase, ChannelID: ch}, // no banner applied
+		{ID: "n1", Name: Purchase, ChannelID: ch},                                    // no banner applied
 		{ID: "o1", Name: Purchase, ChannelID: ch, Consent: consentOf("v2:a1.d0.p0")}, // a replay
 	} {
 		if err := svc.Track(ctx, ev); err != nil {
