@@ -143,8 +143,8 @@ mutation RequestReturn($input: RequestReturnInput!) {
 }
 
 # Everything placeOrder reads comes from the cart - the steps below saved it
-mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: ID, $acceptTerms: Boolean) {
-  placeOrder(cartId: $cartId, paymentToken: $paymentToken, savedPaymentMethodId: $savedPaymentMethodId, acceptTerms: $acceptTerms) {
+mutation PlaceOrder($cartId: ID, $paymentToken: String, $savedPaymentMethodId: ID, $acceptTerms: Boolean, $marketingOptIn: Boolean) {
+  placeOrder(cartId: $cartId, paymentToken: $paymentToken, savedPaymentMethodId: $savedPaymentMethodId, acceptTerms: $acceptTerms, marketingOptIn: $marketingOptIn) {
     id
     number
     total
