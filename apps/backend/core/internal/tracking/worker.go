@@ -116,6 +116,9 @@ func (w *Worker) deliver(ctx context.Context, item Delivery, d Destination) {
 	case !ok:
 		w.dead(ctx, item, d, "kind "+d.Kind+" is not in this build")
 		return
+	case k.Available != nil && !k.Available(ctx, d.ChannelID):
+		w.dead(ctx, item, d, "plugin disabled on this channel")
+		return
 	}
 	var ev Event
 	if err := json.Unmarshal(item.Payload, &ev); err != nil {

@@ -358,6 +358,52 @@ func TestTheWorkerRetriesDeadLettersAndKeepsSecretsOutOfTheLog(t *testing.T) {
 	}
 }
 
+func TestTheWorkerStopsPendingDeliveriesWhenThePluginIsDisabled(t *testing.T) {
+	ch, dest := uuid.New(), uuid.New()
+	enabled, calls := true, 0
+	registerTestKind(t, Kind{
+		Kind: "t-switchable",
+		Available: func(_ context.Context, channelID uuid.UUID) bool {
+			return enabled && channelID == ch
+		},
+		Send: func(context.Context, *http.Client, Destination, Event) error {
+			calls++
+			if calls == 1 {
+				return errors.New("platform temporarily unavailable")
+			}
+			return nil
+		},
+	})
+	fs := newFakeStore(Destination{ID: dest, ChannelID: ch, Kind: "t-switchable", Enabled: true})
+	svc := &Service{store: fs}
+	ctx := context.Background()
+	if err := svc.Track(ctx, Event{ID: "o1", Name: Purchase, ChannelID: ch}); err != nil {
+		t.Fatal(err)
+	}
+	w := NewWorker(svc, http.DefaultClient)
+	w.RunOnce(ctx)
+	delivery := fs.byDestination(dest)[0]
+	if delivery.Status != "pending" || calls != 1 {
+		t.Fatalf("first attempt: %+v, %d calls", delivery, calls)
+	}
+
+	enabled = false
+	_ = fs.set(delivery.ID, func(d *Delivery) { d.NextAttemptAt = time.Time{} })
+	w.RunOnce(ctx)
+	if got := fs.byDestination(dest)[0]; got.Status != "dead" || calls != 1 {
+		t.Fatalf("a disabled plugin sent its pending event: %+v, %d calls", got, calls)
+	}
+
+	enabled = true
+	if err := svc.Redeliver(ctx, delivery.ID); err != nil {
+		t.Fatal(err)
+	}
+	w.RunOnce(ctx)
+	if got := fs.byDestination(dest)[0]; got.Status != "sent" || calls != 2 {
+		t.Errorf("redelivery after enabling the plugin: %+v, %d calls", got, calls)
+	}
+}
+
 func TestDecimalFollowsTheCurrency(t *testing.T) {
 	for _, tc := range []struct {
 		minor    int64
