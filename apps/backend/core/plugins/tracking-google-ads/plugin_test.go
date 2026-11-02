@@ -66,11 +66,14 @@ func google(t *testing.T, ingestStatus int) (*http.Client, *[]byte, *http.Reques
 		}
 		_, _ = io.WriteString(w, `{"access_token":"ya29.test","expires_in":3600}`)
 	})
-	mux.HandleFunc("/v1/events:ingest", func(w http.ResponseWriter, r *http.Request) {
+	record := func(w http.ResponseWriter, r *http.Request) {
 		ingest = *r
 		body, _ = io.ReadAll(r.Body)
 		w.WriteHeader(ingestStatus)
-	})
+	}
+	mux.HandleFunc("/v1/events:ingest", record)
+	mux.HandleFunc("/v1/audienceMembers:ingest", record)
+	mux.HandleFunc("/v1/audienceMembers:remove", record)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	prev := apiHost
@@ -212,5 +215,108 @@ func TestRefusalsAreClassified(t *testing.T) {
 	view.Name = "view_item"
 	if err := Send(context.Background(), client, config(creds), view); err != nil {
 		t.Errorf("only purchases are conversions: %v", err)
+	}
+}
+
+// A refund restates the purchase: the same transaction and conversion action, at what the order is now worth
+func TestARefundRestatesTheOrdersValue(t *testing.T) {
+	client, body, req, _, creds := google(t, http.StatusOK)
+	ev := purchase()
+	ev.ID, ev.Name = "refund:memo-1", "refund"
+	after := 19.45
+	ev.Ecommerce = &sdk.ShopEcommerce{Currency: "EUR", Value: 10, TransactionID: "ORD-000042", ValueAfter: &after}
+	if err := Send(context.Background(), client, config(creds), ev); err != nil {
+		t.Fatal(err)
+	}
+	var sent request
+	_ = json.Unmarshal(*body, &sent)
+	e := sent.Events[0]
+	if req.URL.Path != "/v1/events:ingest" || e.TransactionID != "ORD-000042" || e.ConversionValue != 19.45 || e.Currency != "EUR" || sent.Destinations[0].ProductDestinationID != "987654321" {
+		t.Errorf("restatement %+v to %s", sent, req.URL.Path)
+	}
+
+	*body, req.URL = nil, nil
+	ev.Ecommerce.ValueAfter = nil
+	if err := Send(context.Background(), client, config(creds), ev); err != nil || *body != nil {
+		t.Errorf("a refund without the order's remaining worth was sent: %v", err)
+	}
+	zero := 0.0
+	ev.Ecommerce.ValueAfter = &zero
+	if err := Send(context.Background(), client, config(creds), ev); err != nil || !strings.Contains(string(*body), `"conversionValue":0`) {
+		t.Errorf("a full refund should restate to 0: %v %s", err, *body)
+	}
+}
+
+func audienceConfig(creds string) sdk.DestinationConfig {
+	return sdk.DestinationConfig{ID: uuid.New(), Secret: creds, Config: map[string]string{"customer_id": "1234567890", "user_list_id": "555", "terms_accepted": "true"}}
+}
+
+func optedIn(ev sdk.ShopEvent) sdk.ShopEvent {
+	cust := uuid.MustParse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")
+	ev.User.CustomerID, ev.User.MarketingOptIn = &cust, true
+	ev.Consent = &sdk.ShopConsent{Ads: true, Personalization: true}
+	return ev
+}
+
+// An account holder who opted into marketing joins the list, in the shape of Google's audienceMembers:ingest
+func TestACustomerWhoOptedInJoinsTheList(t *testing.T) {
+	client, body, req, _, creds := google(t, http.StatusOK)
+	if err := SendAudience(context.Background(), client, audienceConfig(creds), optedIn(purchase())); err != nil {
+		t.Fatal(err)
+	}
+	if req.URL.Path != "/v1/audienceMembers:ingest" {
+		t.Fatalf("sent to %s", req.URL.Path)
+	}
+	var sent any
+	_ = json.Unmarshal(*body, &sent)
+	got, _ := json.MarshalIndent(sent, "", "  ")
+	const golden = "testdata/audience-join.request.json"
+	if *update {
+		_ = os.WriteFile(golden, append(got, '\n'), 0o644)
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil || strings.TrimSpace(string(want)) != string(got) {
+		t.Errorf("request body drifted from %s (run with -update after checking it):\n%s", golden, got)
+	}
+}
+
+func TestOnlyOptedInAccountHoldersJoin(t *testing.T) {
+	client, body, _, _, creds := google(t, http.StatusOK)
+	guest := optedIn(purchase())
+	guest.User.CustomerID = nil
+	noOptIn := optedIn(purchase())
+	noOptIn.User.MarketingOptIn = false
+	view := optedIn(purchase())
+	view.Name = "view_item"
+	for name, ev := range map[string]sdk.ShopEvent{"a guest": guest, "no marketing opt-in": noOptIn, "a product view": view} {
+		*body = nil
+		if err := SendAudience(context.Background(), client, audienceConfig(creds), ev); err != nil || *body != nil {
+			t.Errorf("%s was uploaded: %v", name, err)
+		}
+	}
+	d := audienceConfig(creds)
+	d.Config["terms_accepted"] = ""
+	if err := SendAudience(context.Background(), client, d, optedIn(purchase())); !sdk.IsPermanent(err) {
+		t.Errorf("an upload without the Customer Match terms accepted should fail for good: %v", err)
+	}
+}
+
+// An opt-out, deletion or erasure takes the person off - no consent, no terms, just the hashed identifiers
+func TestAnOptOutLeavesTheList(t *testing.T) {
+	client, body, req, _, creds := google(t, http.StatusOK)
+	out := sdk.ShopEvent{ID: "optout:1", Name: "marketing_opt_out", OccurredAt: time.Now(), User: sdk.ShopUser{Email: "Cloudy.SanFrancisco+x@gmail.com"}}
+	d := audienceConfig(creds)
+	d.Config["terms_accepted"] = "" // leaving never waits on the terms
+	if err := SendAudience(context.Background(), client, d, out); err != nil {
+		t.Fatal(err)
+	}
+	var sent audienceRequest
+	_ = json.Unmarshal(*body, &sent)
+	if req.URL.Path != "/v1/audienceMembers:remove" || sent.Terms != nil || sent.Members[0].Consent != nil || sent.Members[0].UserData.UserIdentifiers[0].EmailAddress != hash("cloudysanfrancisco@gmail.com") {
+		t.Errorf("removal %s %s", req.URL.Path, *body)
+	}
+	*body = nil
+	if err := SendAudience(context.Background(), client, d, sdk.ShopEvent{Name: "marketing_opt_out"}); err != nil || *body != nil {
+		t.Errorf("an opt-out with nothing to match was sent: %v", err)
 	}
 }

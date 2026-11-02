@@ -1,7 +1,10 @@
-// Package trackinggoogleads sends purchases to Google Ads as conversions, server to server, through Google's Data
-// Manager API. The click ids the storefront kept with ads consent (gclid, gbraid, wbraid) attribute each order to its
-// ad click, and the shopper's hashed email and phone recover the ones whose click id is gone - Google's enhanced
-// conversions. No Google script runs in the browser for it
+// Package trackinggoogleads speaks to Google Ads through Google's Data Manager API, server to server - no Google script
+// runs in the browser. Two kinds:
+//   - google_ads: purchases as conversions. The click ids the storefront kept with ads consent (gclid, gbraid, wbraid)
+//     attribute each order to its ad click, and the shopper's hashed email and phone recover the ones whose click id
+//     is gone - enhanced conversions. A refund or cancellation restates the order's value
+//   - google_ads_audience: Customer Match. A customer with an account who opted into marketing joins a list when they
+//     buy or sign up, and leaves it when they opt out or their account is deleted or erased
 package trackinggoogleads
 
 import (
@@ -29,10 +32,11 @@ import (
 )
 
 const (
-	Slug   = "tracking-google-ads"
-	Kind   = "google_ads"
-	scope  = "https://www.googleapis.com/auth/datamanager"
-	maxAge = 90 * 24 * time.Hour // a click id is good for 90 days
+	Slug         = "tracking-google-ads"
+	Kind         = "google_ads"
+	AudienceKind = "google_ads_audience"
+	scope        = "https://www.googleapis.com/auth/datamanager"
+	maxAge       = 90 * 24 * time.Hour // a click id is good for 90 days
 )
 
 var (
@@ -46,46 +50,116 @@ func init() {
 		Kind:          Kind,
 		Label:         "Google Ads conversions",
 		Purposes:      []sdk.DestinationPurpose{sdk.PurposeAds},
-		DefaultEvents: []string{"purchase"},
+		DefaultEvents: []string{"purchase", "refund"},
 		Fields: []sdk.DestinationField{
-			{Key: "customer_id", Label: "Google Ads customer ID", Help: "The account the conversions belong to, digits only (123-456-7890 becomes 1234567890)", Required: true},
+			customerField,
 			{Key: "conversion_action_id", Label: "Conversion action ID", Help: "A conversion action whose source is Website (Import from clicks)", Required: true},
-			{Key: "login_customer_id", Label: "Manager account ID", Help: "Only when the credentials reach the account through a manager account - empty uses the account itself"},
-			{Key: "credentials", Label: "Google credentials JSON", Help: "A service account key, or an authorized-user file with a refresh token. Its account needs access to the Google Ads account, and the Data Manager API enabled in its Cloud project", Required: true, Secret: true},
-			{Key: "validate_only", Label: "Validate only", Help: "true has Google check each conversion and record nothing - for setting up"},
+			loginField, credentialsField, validateField,
 		},
 		Send: Send,
 	})
+	p.RegisterDestination(sdk.Destination{
+		Kind:  AudienceKind,
+		Label: "Google Ads Customer Match",
+		// Joining is ad personalization with the shopper's data, so both; leaving needs neither - see marketing_opt_out
+		Purposes:      []sdk.DestinationPurpose{sdk.PurposeAds, sdk.PurposePersonalization},
+		DefaultEvents: []string{"purchase", "sign_up", optOut},
+		Fields: []sdk.DestinationField{
+			customerField,
+			{Key: "user_list_id", Label: "Customer list ID", Help: "A Customer Match list (Tools > Shared library > Audience manager > Your data segments > Customer list)", Required: true},
+			{Key: "terms_accepted", Label: "Customer Match terms accepted", Help: "true once the account has accepted Google's Customer Match terms (support.google.com/adspolicy/answer/6299717) - nothing is uploaded until then", Required: true},
+			loginField, credentialsField, validateField,
+		},
+		Send: SendAudience,
+	})
 }
 
+const optOut = "marketing_opt_out"
+
+var (
+	customerField    = sdk.DestinationField{Key: "customer_id", Label: "Google Ads customer ID", Help: "The account, digits only (123-456-7890 becomes 1234567890)", Required: true}
+	loginField       = sdk.DestinationField{Key: "login_customer_id", Label: "Manager account ID", Help: "Only when the credentials reach the account through a manager account - empty uses the account itself"}
+	credentialsField = sdk.DestinationField{Key: "credentials", Label: "Google credentials JSON", Help: "A service account key, or an authorized-user file with a refresh token. Its account needs access to the Google Ads account, and the Data Manager API enabled in its Cloud project", Required: true, Secret: true}
+	validateField    = sdk.DestinationField{Key: "validate_only", Label: "Validate only", Help: "true has Google check each request and record nothing - for setting up"}
+)
+
 func Send(ctx context.Context, client *http.Client, d sdk.DestinationConfig, ev sdk.ShopEvent) error {
-	if ev.Name != "purchase" || ev.Ecommerce == nil {
+	if ev.Ecommerce == nil || (ev.Name != "purchase" && ev.Name != "refund") {
 		return nil
 	}
 	if time.Since(ev.OccurredAt) > maxAge {
 		return sdk.Permanent(fmt.Errorf("%s is older than a Google click id's 90 days", ev.ID))
 	}
-	customer := digits(d.Config["customer_id"])
-	action := strings.TrimSpace(d.Config["conversion_action_id"])
-	if customer == "" || action == "" {
-		return sdk.Permanent(errors.New("google ads: customer_id and conversion_action_id are required"))
+	dest, err := target(d, "conversion_action_id")
+	if err != nil {
+		return err
 	}
 	e, ok := toEvent(ev)
 	if !ok {
-		return nil // no click id and no email or phone - Google could match it to nobody
+		return nil // no click id and no email or phone - Google could match it to nobody, and a refund has no conversion to restate
+	}
+	if ev.Name == "refund" {
+		// A restatement: the same transaction id and conversion action, with the value the order is now worth. The Data
+		// Manager API has no retraction, so a full refund restates to 0 and the conversion still counts once
+		if ev.Ecommerce.ValueAfter == nil {
+			return nil
+		}
+		e.ConversionValue = *ev.Ecommerce.ValueAfter
+	}
+	return post(ctx, client, d, "/v1/events:ingest", request{
+		Destinations: []destination{dest}, Encoding: "HEX", Events: []event{e}, ValidateOnly: d.Config["validate_only"] == "true",
+	})
+}
+
+// The account, its login account and the product destination - a conversion action or a customer list
+func target(d sdk.DestinationConfig, idField string) (destination, error) {
+	customer := digits(d.Config["customer_id"])
+	id := strings.TrimSpace(d.Config[idField])
+	if customer == "" || id == "" {
+		return destination{}, sdk.Permanent(fmt.Errorf("google ads: customer_id and %s are required", idField))
 	}
 	login := digits(d.Config["login_customer_id"])
 	if login == "" {
 		login = customer
 	}
-	body := request{
-		Destinations: []destination{{
-			OperatingAccount: account{Type: "GOOGLE_ADS", ID: customer}, LoginAccount: account{Type: "GOOGLE_ADS", ID: login}, ProductDestinationID: action,
-		}},
-		Encoding:     "HEX",
-		Events:       []event{e},
-		ValidateOnly: d.Config["validate_only"] == "true",
+	return destination{OperatingAccount: account{Type: "GOOGLE_ADS", ID: customer}, LoginAccount: account{Type: "GOOGLE_ADS", ID: login}, ProductDestinationID: id}, nil
+}
+
+// SendAudience keeps a Customer Match list in step: a purchase or sign-up by an account holder who opted into
+// marketing adds them, an opt-out takes them off. Guests never join - nothing would tell the list when they leave
+func SendAudience(ctx context.Context, client *http.Client, d sdk.DestinationConfig, ev sdk.ShopEvent) error {
+	join := (ev.Name == "purchase" || ev.Name == "sign_up") && ev.User.CustomerID != nil && ev.User.MarketingOptIn
+	if !join && ev.Name != optOut {
+		return nil
 	}
+	who := identifiers(ev.User)
+	if len(who) == 0 {
+		return nil
+	}
+	dest, err := target(d, "user_list_id")
+	if err != nil {
+		return err
+	}
+	validate := d.Config["validate_only"] == "true"
+	if !join {
+		return post(ctx, client, d, "/v1/audienceMembers:remove", audienceRequest{
+			Destinations: []destination{dest}, Members: []member{{UserData: &userData{UserIdentifiers: who}}}, Encoding: "HEX", ValidateOnly: validate,
+		})
+	}
+	if d.Config["terms_accepted"] != "true" {
+		return sdk.Permanent(errors.New("google ads: confirm the account accepted the Customer Match terms (terms_accepted=true) before uploading anyone"))
+	}
+	c := consent{AdUserData: "CONSENT_DENIED", AdPersonalization: "CONSENT_DENIED"}
+	if ev.Consent != nil {
+		c = consent{AdUserData: status(ev.Consent.Ads), AdPersonalization: status(ev.Consent.Personalization)}
+	}
+	return post(ctx, client, d, "/v1/audienceMembers:ingest", audienceRequest{
+		Destinations: []destination{dest}, Members: []member{{UserData: &userData{UserIdentifiers: who}, Consent: &c}}, Encoding: "HEX",
+		Terms: &terms{Status: "ACCEPTED"}, ValidateOnly: validate,
+	})
+}
+
+func post(ctx context.Context, client *http.Client, d sdk.DestinationConfig, path string, body any) error {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return sdk.Permanent(err)
@@ -94,7 +168,7 @@ func Send(ctx context.Context, client *http.Client, d sdk.DestinationConfig, ev 
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiHost+"/v1/events:ingest", bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiHost+path, bytes.NewReader(raw))
 	if err != nil {
 		return sdk.Permanent(err)
 	}
@@ -157,6 +231,24 @@ type identifier struct {
 	PhoneNumber  string `json:"phoneNumber,omitempty"`
 }
 
+// audienceMembers:ingest and :remove - https://developers.google.com/data-manager/api/reference/rest/v1/audienceMembers/ingest
+type audienceRequest struct {
+	Destinations []destination `json:"destinations"`
+	Members      []member      `json:"audienceMembers"`
+	Encoding     string        `json:"encoding"`
+	Terms        *terms        `json:"termsOfService,omitempty"`
+	ValidateOnly bool          `json:"validateOnly,omitempty"`
+}
+
+type member struct {
+	UserData *userData `json:"userData"`
+	Consent  *consent  `json:"consent,omitempty"`
+}
+
+type terms struct {
+	Status string `json:"customerMatchTermsOfServiceStatus"`
+}
+
 type consent struct {
 	AdUserData        string `json:"adUserData"`
 	AdPersonalization string `json:"adPersonalization"`
@@ -179,14 +271,7 @@ func toEvent(ev sdk.ShopEvent) (event, bool) {
 	if ids != (adIdentifiers{}) {
 		out.AdIdentifiers = &ids
 	}
-	var who []identifier
-	if em := normalizeEmail(ev.User.Email); em != "" {
-		who = append(who, identifier{EmailAddress: hash(em)})
-	}
-	if ph := phoneDigits(ev.User.Phone); ph != "" {
-		who = append(who, identifier{PhoneNumber: hash("+" + ph)})
-	}
-	if len(who) > 0 {
+	if who := identifiers(ev.User); len(who) > 0 {
 		out.UserData = &userData{UserIdentifiers: who}
 	}
 	if ev.Consent != nil {
@@ -195,6 +280,18 @@ func toEvent(ev sdk.ShopEvent) (event, bool) {
 		out.Consent = consent{AdUserData: "CONSENT_DENIED", AdPersonalization: "CONSENT_DENIED"}
 	}
 	return out, out.AdIdentifiers != nil || out.UserData != nil
+}
+
+// The shopper's email and phone, normalised and hashed as Google specifies
+func identifiers(u sdk.ShopUser) []identifier {
+	var who []identifier
+	if em := normalizeEmail(u.Email); em != "" {
+		who = append(who, identifier{EmailAddress: hash(em)})
+	}
+	if ph := phoneDigits(u.Phone); ph != "" {
+		who = append(who, identifier{PhoneNumber: hash("+" + ph)})
+	}
+	return who
 }
 
 func status(granted bool) string {
