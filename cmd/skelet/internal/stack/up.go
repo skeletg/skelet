@@ -17,7 +17,7 @@ import (
 )
 
 const UpAbout = `Starts the dev stack, and is safe to re-run: compose only touches what changed. --lean leaves out
-the sidecars (OpenSearch, the Signals process and its ClickHouse) and the dev tools .skelet-tools picks;
+the sidecars (OpenSearch, the Signals process and its ClickHouse) and the dev tools .env picks;
 your apps still start. Any other argument goes to docker compose up - skelet up mailpit starts one tool.
 
 Before starting it syncs env/signals.env from env/go.env and points the env files at the dev tools you
@@ -99,10 +99,8 @@ func needsDevEnv(root string) int {
 	}
 	fmt.Fprintf(os.Stderr, "skelet up needs %s, which this clone doesn't have.\n", strings.Join(missing, " "))
 	target := "dev"
-	if p, err := profile.Load(filepath.Join(root, profile.File)); err == nil {
-		if t, _ := p.Get("SKELET_TARGET"); t != "" {
-			target = t
-		}
+	if t := profile.Current(root)[profile.TargetKey]; t != "" {
+		target = t
 	}
 	if target != "dev" {
 		fmt.Fprintf(os.Stderr, "This clone is set up for the '%s' target - skelet up runs the DEV stack.\n", target)
@@ -203,7 +201,7 @@ func syncToolEnv(root, picked string) error {
 // when they ran in Docker - it holds the port, which reads as a host dev server that won't start
 func hostFrontends(root string, lib compose.Lib) {
 	fmt.Println()
-	fmt.Println("Frontends are not in Docker (no .skelet-apps) - run them on the host:")
+	fmt.Println("Frontends are not in Docker (none in .env's COMPOSE_PROFILES) - run them on the host:")
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
 		fmt.Println("    skelet serve dashboard        → http://localhost:5173")
 	}
@@ -215,13 +213,13 @@ func hostFrontends(root string, lib compose.Lib) {
 	fmt.Println("To run them in Docker instead, run skelet setup --docker-apps <names>")
 	// Every frontend this checkout could run, since a shop skelet add made leaves a container holding its port too
 	for _, f := range leftovers(root, lib, fronts) {
-		fmt.Printf("    stopping the %s container - not listed in .skelet-apps, and it holds the port\n", f)
+		fmt.Printf("    stopping the %s container - not in .env's COMPOSE_PROFILES, and it holds the port\n", f)
 		_ = compose.Command(root, lib.Env(), "--profile", f, "stop", f).Run()
 	}
 }
 
 // leftovers is which of fronts this project has a running container for. Asked with each one's profile, since a
-// frontend that isn't in .skelet-apps is outside the profiles compose would otherwise look at
+// frontend not in .env's COMPOSE_PROFILES is outside the profiles compose would otherwise look at
 func leftovers(root string, lib compose.Lib, fronts []string) []string {
 	args := []string{}
 	for _, f := range fronts {

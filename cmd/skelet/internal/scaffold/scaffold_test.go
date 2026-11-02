@@ -302,9 +302,19 @@ func TestRecoverable(t *testing.T) {
 
 func TestDeselect(t *testing.T) {
 	root := t.TempDir()
-	put(t, root, ".skelet-apps", "dashboard,,eu-shop,shop\n", 0o644)
-	if err := deselect(root, "shop"); err != nil || file(t, root, ".skelet-apps") != "dashboard,eu-shop\n" {
-		t.Errorf("%v %q", err, file(t, root, ".skelet-apps"))
+	put(t, root, ".env", "SESSION_KEY=x\nSKELET_APPS=dashboard,eu-shop,shop\nCOMPOSE_PROFILES=search,dashboard,,eu-shop,shop,mailpit\n", 0o600)
+	if err := deselect(root, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if got := file(t, root, ".env"); got != "SESSION_KEY=x\nSKELET_APPS=dashboard,eu-shop\nCOMPOSE_PROFILES=search,dashboard,eu-shop,mailpit\n" {
+		t.Errorf(".env:\n%s", got)
+	}
+	empty := t.TempDir()
+	if err := deselect(empty, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(empty, ".env")); err == nil {
+		t.Error("a clone with no .env shouldn't get one from rm channel")
 	}
 }
 
@@ -505,7 +515,7 @@ func TestAddFromATemplate(t *testing.T) {
 // --tracked from a template puts the fork beside it in all three files, its image and Dockerfile its own
 func TestTrackedFromATemplate(t *testing.T) {
 	root := templateClone(t)
-	put(t, root, profile.File, profile.TargetKey+"=prod\n", 0o644)
+	put(t, root, ".env", profile.EnvTarget+"=prod\n", 0o600)
 	if out, code := run(t, "add", root, "channel", "shop", "--tracked"); code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
@@ -524,7 +534,7 @@ func TestTrackedFromATemplate(t *testing.T) {
 			t.Errorf("%s lost the template's own service", f)
 		}
 	}
-	if exists(root, ".env") {
+	if strings.Contains(file(t, root, ".env"), "VITE_STOREFRONT_ORIGIN") {
 		t.Error("a server's .env got a localhost preview origin")
 	}
 	// A storefront in the tracked file doesn't take over as the default source - the template still is

@@ -541,7 +541,7 @@ func forkFromHead(root string, m move, to string) error {
 }
 
 func previewOrigin(root string, port int) {
-	if p, _ := profile.Load(filepath.Join(root, profile.File)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
+	if t := profile.Current(root)[profile.TargetKey]; t != "" && t != "dev" {
 		return
 	}
 	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
@@ -574,11 +574,10 @@ func summary(root string, tracked bool, src, name string, dev, small int) {
 		wrote = fmt.Sprintf("docker-compose{,.prod,.small}.yml   service + volumes, dev :%d, small :%d", dev, small)
 		deploy = "The edge serves it once STOREFRONT_UPSTREAM in env/prod-caddy.env names it - skelet setup does that for the storefront you deploy."
 	}
-	// The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
+	// The suggestion adds the new shop to what this clone runs now rather than replacing it - .env's SKELET_APPS,
 	// else every app the tree holds, which is what setup picks when it has no answer on record
 	selected := "dashboard"
-	p, _ := profile.Load(filepath.Join(root, profile.File))
-	if v, ok := p.Get(profile.AppsKey); ok {
+	if v, ok := profile.Current(root).Get(profile.AppsKey); ok {
 		selected = v
 	} else {
 		for _, n := range storefronts.Names(root) {

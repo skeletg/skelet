@@ -15,7 +15,9 @@ import (
 	"syscall"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
+	"github.com/skeletg/skelet/cmd/skelet/internal/envfile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
@@ -319,28 +321,31 @@ func diskUsage(dir string) string {
 	return fmt.Sprintf("%.0f%s", math.Ceil(v), units[i])
 }
 
-// deselect takes the storefront out of .skelet-apps - left in, compose warns about a profile that matches no service
-// on every command. Comma-separated fields, not a substring: a hyphen is a word boundary, so pattern-matching shop
-// out of eu-shop,dashboard would leave eu-dashboard
+// deselect drops the storefront from .env's app lists by whole entry, so shop leaves eu-shop - left in, compose warns on every command
 func deselect(root, name string) error {
-	path := filepath.Join(root, ".skelet-apps")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	was := strings.Join(strings.Fields(string(raw)), "")
-	var kept []string
-	for a := range strings.SplitSeq(was, ",") {
-		if a != name && a != "" {
-			kept = append(kept, a)
+	env := profile.EnvPath(root)
+	dropped := false
+	for _, key := range []string{profile.EnvProfiles, profile.EnvApps} {
+		v, _, err := envfile.Get(env, key)
+		if err != nil {
+			return err
 		}
+		var kept []string
+		for item := range strings.SplitSeq(v, ",") {
+			if item = strings.TrimSpace(item); item != "" && item != name {
+				kept = append(kept, item)
+			}
+		}
+		if strings.Join(kept, ",") == v {
+			continue
+		}
+		if err := envfile.Set(env, key, strings.Join(kept, ",")); err != nil {
+			return err
+		}
+		dropped = true
 	}
-	if strings.Join(kept, ",") == was {
-		return nil
+	if dropped {
+		fmt.Printf("    .env (dropped %s)\n", name)
 	}
-	if err := os.WriteFile(path, []byte(strings.Join(kept, ",")+"\n"), 0o644); err != nil {
-		return err
-	}
-	fmt.Printf("    .skelet-apps (dropped %s)\n", name)
 	return nil
 }

@@ -78,7 +78,7 @@ func TestReleaseShipsTheSelection(t *testing.T) {
 		put(t, root, dir+"/Dockerfile.prod", "FROM x\n")
 		put(t, root, dir+"/package.json", "{}")
 	}
-	put(t, root, ".skelet-profile", "SKELET_APPS_SELECTED=eu-shop\n")
+	put(t, root, ".env", "SKELET_APPS=eu-shop\n")
 	t.Setenv("REGISTRY", "reg.example")
 	d := verbtest.NewDocker(t, "")
 	out, code := d.Run("release", root, "v9")
