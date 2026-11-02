@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
+import { MIXPANEL_API_HOSTS } from "@/app/lib/analytics/mixpanel";
 import { VIDEO_EMBED_ORIGINS } from "@/app/lib/video-embed";
 
 // App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
@@ -21,8 +22,11 @@ const scriptSrc =
 
 // Browser uploads go straight to object storage, a host of its own - UPLOAD_ORIGINS names it at build,
 // and dev adds the local Garage and API ports
+// Mixpanel's ingestion hosts take session replay when a shop turns it on; the library itself is bundled, so script-src
+// stays first-party
 const connectSrc = [
   "connect-src 'self'",
+  ...MIXPANEL_API_HOSTS,
   process.env.UPLOAD_ORIGINS?.trim(),
   process.env.NODE_ENV === "production" ? "" : "http://localhost:*",
 ]

@@ -21,6 +21,7 @@ import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories
 import { getPrivacy } from "@/app/lib/consent/mode";
 import { clickCookieWrites } from "@/app/lib/consent/click-ids";
 import { COUNT_PATH, countableView } from "@/app/lib/analytics/aggregate-view";
+import { isMixpanelCookie } from "@/app/lib/analytics/mixpanel";
 import { SESSION_COOKIE, SESSION_TTL, SIGNED_OUT_COOKIE, sessionWrite } from "@/app/lib/analytics/session";
 
 
@@ -239,6 +240,10 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
     else if (priorAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
     if (signedOut) res.cookies.set(SIGNED_OUT_COOKIE, "", { path: "/", maxAge: 0 });
+    // Withdrawn where the replay script wasn't running to clear it - nothing of Mixpanel's outlives the choice
+    if (!analytics) {
+      for (const c of req.cookies.getAll()) if (isMixpanelCookie(c.name)) res.cookies.set(c.name, "", { path: "/", maxAge: 0 });
+    }
     for (const w of clickWrites) res.cookies.set(w.name, w.value, w.options);
     if (sessionValue !== undefined) {
       res.cookies.set(SESSION_COOKIE, sessionValue, {

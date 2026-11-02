@@ -191,9 +191,15 @@ export const getBranding = cache(async (): Promise<Branding> => {
   }
 });
 
-// The optional web GTM container - read through the same cached public config as branding (Next dedupes the fetch), so
-// the layout stays static and a dashboard save refreshes it through the config tag. Empty id: no container
-export const getGtmConfig = cache(async (): Promise<{ id: string; origin: string }> => {
+// The optional browser tags - a web GTM container and Mixpanel's session replay - read through the same cached public
+// config as branding (Next dedupes the fetch), so the layout stays static and a dashboard save refreshes them through
+// the config tag. An empty id or token loads nothing
+export type TagConfig = {
+  gtm: { id: string; origin: string };
+  mixpanel: { token: string; region: string; percent: number };
+};
+
+export const getTagConfig = cache(async (): Promise<TagConfig> => {
   try {
     const res = await gqlFetch(PublicConfigDocument, {}, {
       cache: "force-cache",
@@ -204,9 +210,16 @@ export const getGtmConfig = cache(async (): Promise<{ id: string; origin: string
     });
     const data = res.data as PublicConfigQuery;
     const pick = (path: string) => data.publicConfig.find((c) => c.path === path)?.value.trim() ?? "";
-    return { id: pick("general/analytics/gtm_container_id"), origin: pick("general/analytics/gtm_script_origin") };
+    return {
+      gtm: { id: pick("general/analytics/gtm_container_id"), origin: pick("general/analytics/gtm_script_origin") },
+      mixpanel: {
+        token: pick("general/analytics/mixpanel_replay_token"),
+        region: pick("general/analytics/mixpanel_region"),
+        percent: Number(pick("general/analytics/mixpanel_replay_percent") || "0"),
+      },
+    };
   } catch {
-    return { id: "", origin: "" };
+    return { gtm: { id: "", origin: "" }, mixpanel: { token: "", region: "", percent: 0 } };
   }
 });
 
