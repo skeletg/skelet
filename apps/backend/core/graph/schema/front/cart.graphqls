@@ -516,6 +516,8 @@ extend type Mutation {
   removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
   clearCart(cartId: ID!):                                                                             Cart!
   mergeGuestCart(guestCartId: ID!):                                                                   Cart!
+  # Opens a checkout link a shopper's AI agent made over the storefront MCP endpoint, copying the agent's cart into the shopper's own: the signed-in customer's cart, else the guest cart cartId names, else a new guest cart. Returns that cart. Opening the same link into the same cart again adds nothing. Refused with CART_HANDOFF_INVALID or CART_HANDOFF_EXPIRED
+  redeemCartHandoff(token: String!, cartId: ID):                                                     Cart!
   # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
   applyCoupon(cartId: ID!, code: String!): Cart!
   # Remove a specific code from the cart.

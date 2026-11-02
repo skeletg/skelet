@@ -360,6 +360,26 @@ func (r *mutationResolver) MergeGuestCart(ctx context.Context, guestCartID strin
 	return r.fullCartModel(ctx, c), nil
 }
 
+func (r *mutationResolver) RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.Cart, error) {
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return nil, storeRequired()
+	}
+	var into *uuid.UUID
+	if cartID != nil && *cartID != "" {
+		id, err := uuid.Parse(*cartID)
+		if err != nil {
+			return nil, invalidID("cart")
+		}
+		into = &id
+	}
+	c, err := r.CartSvc.RedeemHandoff(ctx, token, sv.ID, channel.OptionalCustomerID(ctx), into)
+	if err != nil {
+		return nil, err
+	}
+	return r.fullCartModel(ctx, c), nil
+}
+
 // The v2 engine allows many codes per cart, so calling this again with a different code stacks rather than replaces
 func (r *mutationResolver) ApplyCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error) {
 	if r.PromotionSvc == nil {

@@ -1085,6 +1085,7 @@ export type Mutation = {
   openCartOffer: CartOfferOpening;
   placeOrder: Order;
   presignWebFormUpload: WebFormUploadTicket;
+  redeemCartHandoff: Cart;
   redeemLoyaltyPoints: LoyaltyRedeemResult;
   removeCoupon: Cart;
   removeFromCart: Cart;
@@ -1257,6 +1258,12 @@ export type MutationPresignWebFormUploadArgs = {
   filename: Scalars['String']['input'];
   formId: Scalars['ID']['input'];
   sizeBytes: Scalars['Int']['input'];
+};
+
+
+export type MutationRedeemCartHandoffArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
+  token: Scalars['String']['input'];
 };
 
 

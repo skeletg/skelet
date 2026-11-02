@@ -560,6 +560,9 @@ type Cart struct {
 	OfferCreatedBy         uuid.NullUUID         `json:"offer_created_by"`
 	OrderID                uuid.NullUUID         `json:"order_id"`
 	OfferLinkToken         string                `json:"offer_link_token"`
+	Source                 string                `json:"source"`
+	HandoffToken           string                `json:"handoff_token"`
+	HandoffExpiresAt       sql.NullTime          `json:"handoff_expires_at"`
 }
 
 type CartAppliedCode struct {
@@ -569,6 +572,12 @@ type CartAppliedCode struct {
 	CodeID            uuid.NullUUID  `json:"code_id"`
 	AppliedAt         time.Time      `json:"applied_at"`
 	InvalidatedReason sql.NullString `json:"invalidated_reason"`
+}
+
+type CartHandoffRedemption struct {
+	AgentCartID uuid.UUID `json:"agent_cart_id"`
+	CartID      uuid.UUID `json:"cart_id"`
+	RedeemedAt  time.Time `json:"redeemed_at"`
 }
 
 type CartLine struct {

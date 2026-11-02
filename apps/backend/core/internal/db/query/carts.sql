@@ -23,6 +23,22 @@ SELECT * FROM carts WHERE id = $1 LIMIT 1;
 -- name: GetCartByOfferToken :one
 SELECT * FROM carts WHERE kind = 'offer' AND offer_link_token = $1 LIMIT 1;
 
+-- name: CreateAgentCart :one
+INSERT INTO carts (channel_id, source) VALUES ($1, 'agent') RETURNING *;
+
+-- name: StartCartHandoff :one
+-- Closing the cart is the serialization point - a second start finds it no longer active and reads back the link the first minted
+UPDATE carts SET status = 'handed_off', handoff_expires_at = sqlc.arg(expires_at), updated_at = NOW(),
+    handoff_token = translate(rtrim(encode(public.gen_random_bytes(16), 'base64'), '='), '+/', '-_')
+WHERE id = sqlc.arg(id) AND status = 'active' AND source = 'agent' AND kind = 'shopper'
+RETURNING *;
+
+-- name: GetCartByHandoffToken :one
+SELECT * FROM carts WHERE source = 'agent' AND handoff_token = $1 AND handoff_token <> '' LIMIT 1;
+
+-- name: RecordCartHandoffRedemption :execrows
+INSERT INTO cart_handoff_redemptions (agent_cart_id, cart_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;
+
 -- name: ListCarts :many
 -- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
 SELECT

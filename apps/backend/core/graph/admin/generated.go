@@ -31454,7 +31454,7 @@ type AdminCart {
   customerName:  String       # null for guest carts
   channelId:     ID!
   currencyCode:  String!      # the channel's currency
-  status:        String!      # active | converted | merged
+  status:        String!      # active | converted | merged | handed_off
   kind:          CartKind!
   email:         String!      # the cart's own email - a guest offer's recipient, or what a guest typed at checkout
   # Set on an offer only

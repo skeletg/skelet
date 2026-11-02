@@ -14,10 +14,16 @@ export async function generateMetadata({
   return { title: t("title") };
 }
 
+const HANDOFF_NOTICES = ["expired", "invalid", "failed"] as const;
+const isHandoffNotice = (v: unknown): v is (typeof HANDOFF_NOTICES)[number] =>
+  HANDOFF_NOTICES.includes(v as (typeof HANDOFF_NOTICES)[number]);
+
 export default async function CartPage({
   params,
+  searchParams,
 }: PageProps<"/[channel]/[locale]/cart">) {
   const { locale } = await params;
+  const { handoff } = await searchParams;
   const t = await getTranslations({ locale, namespace: "cart" });
   const [cart, freeShipThreshold] = await Promise.all([
     getCart(),
@@ -43,6 +49,7 @@ export default async function CartPage({
     <CartView
       freeShipThreshold={freeShipThreshold}
       recommendations={recommendationsNode}
+      notice={isHandoffNotice(handoff) ? t(`handoff.${handoff}`) : undefined}
     />
   );
 }

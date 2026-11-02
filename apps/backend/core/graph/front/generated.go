@@ -852,6 +852,7 @@ type ComplexityRoot struct {
 		OpenCartOffer                  func(childComplexity int, token string) int
 		PlaceOrder                     func(childComplexity int, cartID *string, paymentToken *string, savedPaymentMethodID *string, acceptTerms *bool) int
 		PresignWebFormUpload           func(childComplexity int, formID string, fieldKey string, filename string, contentType string, sizeBytes int32) int
+		RedeemCartHandoff              func(childComplexity int, token string, cartID *string) int
 		RedeemLoyaltyPoints            func(childComplexity int, points int32) int
 		RemoveCoupon                   func(childComplexity int, cartID string, code string) int
 		RemoveFromCart                 func(childComplexity int, cartID string, lineID string) int
@@ -1598,6 +1599,7 @@ type MutationResolver interface {
 	RemoveSavedItem(ctx context.Context, cartID string, savedItemID string) (*model1.Cart, error)
 	ClearCart(ctx context.Context, cartID string) (*model1.Cart, error)
 	MergeGuestCart(ctx context.Context, guestCartID string) (*model1.Cart, error)
+	RedeemCartHandoff(ctx context.Context, token string, cartID *string) (*model1.Cart, error)
 	ApplyCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error)
 	RemoveCoupon(ctx context.Context, cartID string, code string) (*model1.Cart, error)
 	SetCartDestination(ctx context.Context, cartID string, countryCode string, regionCode *string, postalCode string) (*model1.Cart, error)
@@ -5418,6 +5420,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.PresignWebFormUpload(childComplexity, args["formId"].(string), args["fieldKey"].(string), args["filename"].(string), args["contentType"].(string), args["sizeBytes"].(int32)), true
+	case "Mutation.redeemCartHandoff":
+		if e.ComplexityRoot.Mutation.RedeemCartHandoff == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_redeemCartHandoff_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RedeemCartHandoff(childComplexity, args["token"].(string), args["cartId"].(*string)), true
 	case "Mutation.redeemLoyaltyPoints":
 		if e.ComplexityRoot.Mutation.RedeemLoyaltyPoints == nil {
 			break
@@ -9720,6 +9733,8 @@ extend type Mutation {
   removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
   clearCart(cartId: ID!):                                                                             Cart!
   mergeGuestCart(guestCartId: ID!):                                                                   Cart!
+  # Opens a checkout link a shopper's AI agent made over the storefront MCP endpoint, copying the agent's cart into the shopper's own: the signed-in customer's cart, else the guest cart cartId names, else a new guest cart. Returns that cart. Opening the same link into the same cart again adds nothing. Refused with CART_HANDOFF_INVALID or CART_HANDOFF_EXPIRED
+  redeemCartHandoff(token: String!, cartId: ID):                                                     Cart!
   # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
   applyCoupon(cartId: ID!, code: String!): Cart!
   # Remove a specific code from the cart.
@@ -14767,6 +14782,28 @@ func (ec *executionContext) field_Mutation_presignWebFormUpload_args(ctx context
 		return nil, err
 	}
 	args["sizeBytes"] = arg4
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_redeemCartHandoff_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "token",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["token"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg1
 	return args, nil
 }
 
@@ -30622,6 +30659,50 @@ func (ec *executionContext) fieldContext_Mutation_mergeGuestCart(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_mergeGuestCart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_redeemCartHandoff(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_redeemCartHandoff(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RedeemCartHandoff(ctx, fc.Args["token"].(string), fc.Args["cartId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_redeemCartHandoff(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_redeemCartHandoff_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -53437,6 +53518,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "mergeGuestCart":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_mergeGuestCart(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "redeemCartHandoff":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_redeemCartHandoff(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
