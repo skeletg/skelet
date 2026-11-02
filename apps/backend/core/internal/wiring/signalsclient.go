@@ -31,7 +31,11 @@ func newSignalsClient(lc fx.Lifecycle, cfg Config, enabled SignalsEnabled, adm *
 	if addr != "" && !cfg.SignalsServiceKeys.Configured() {
 		return nil, errors.New("SIGNALS_GRPC_ADDR is set but SIGNALS_SERVICE_SECRET is not - core signs every call on the contract with it, and the suite verifies with the same value")
 	}
-	c, err := signalsclient.New(addr, cfg.SignalsServiceKeys, signalsTokenTTL, adm)
+	tr, err := signalsclient.TransportFromEnv(os.Getenv)
+	if err != nil && addr != "" {
+		return nil, err
+	}
+	c, err := signalsclient.New(addr, tr, cfg.SignalsServiceKeys, signalsTokenTTL, adm)
 	if err != nil {
 		return nil, err
 	}

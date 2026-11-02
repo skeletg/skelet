@@ -21,9 +21,9 @@ var pluginInstallCmd = &cobra.Command{
 	Long: `Fetches a plugin's source and installs it as plugins/<slug>/, so a plugin
 can live in its own repository without forking this one.
 
-  bin/cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-  bin/cli plugin install git@github.com:acme/plugins.git --dir fraud --slug fraud
-  bin/cli plugin install ../local-checkout/my-plugin
+  skelet cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
+  skelet cli plugin install git@github.com:acme/plugins.git --dir fraud --slug fraud
+  skelet cli plugin install ../local-checkout/my-plugin
 
 What it does, in order:
 
@@ -39,10 +39,10 @@ What it does, in order:
 A failed smoke build parks the plugin back out of the build (plugins/_<slug>)
 so the tree keeps compiling - inspect, fix, then plugin enable.
 
-A plugin shipping graphql/ needs bin/codegen before it builds, so the smoke
+A plugin shipping graphql/ needs skelet gen before it builds, so the smoke
 build is skipped for those - the checklist at the end says what is left.
 
-Local-dir sources must be visible to this process - bin/cli runs in the app
+Local-dir sources must be visible to this process - skelet cli runs in the app
 container, which mounts the repo, so keep the source inside it or install by
 URL.
 
@@ -92,7 +92,7 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if bad := internalImports(staged); len(bad) > 0 {
-		fmt.Printf("WARNING: imports of core internals - the plugin contract is SDK-only, and bin/lint's depguard will refuse these unless allow-listed:\n")
+		fmt.Printf("WARNING: imports of core internals - the plugin contract is SDK-only, and skelet lint's depguard will refuse these unless allow-listed:\n")
 		for _, imp := range bad {
 			fmt.Printf("  %s\n", imp)
 		}
@@ -145,7 +145,7 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 			if parkErr := setPluginState(slug, false); parkErr != nil {
 				return fmt.Errorf("smoke build failed AND parking failed (%w) - remove %s by hand:\n%s", parkErr, dest, out)
 			}
-			return fmt.Errorf("smoke build failed - parked as plugins/_%s, fix and run: bin/cli plugin enable %s\n%s", slug, slug, out)
+			return fmt.Errorf("smoke build failed - parked as plugins/_%s, fix and run: skelet cli plugin enable %s\n%s", slug, slug, out)
 		}
 	}
 
@@ -160,19 +160,19 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 			fmt.Printf("     %s\n", l)
 		}
 	}
-	printStep("Audit it: bin/cli plugin list shows the manifest, but capabilities",
+	printStep("Audit it: skelet cli plugin list shows the manifest, but capabilities",
 		"are a disclosure, not a sandbox - read the code")
 	if hasGraphql {
-		printStep("bin/codegen - it ships graphql/, which must merge into the schema",
+		printStep("skelet gen - it ships graphql/, which must merge into the schema",
 			"before anything builds")
 		printStep("If it adds PUBLIC queries or mutations, the authz tripwires will name them:",
 			"add reviewed entries to graph/admin/authz_coverage_test.go,",
 			"graph/front/authz_coverage_test.go and graph/front/schema_exposure_test.go")
 	} else {
-		printStep("bin/codegen - regenerates the docs/config references it registers")
+		printStep("skelet gen - regenerates the docs/config references it registers")
 	}
 	if _, err := os.Stat(filepath.Join(dest, "migrations")); err == nil {
-		printStep(fmt.Sprintf("bin/cli plugin migrate up %s - it ships migrations", slug))
+		printStep(fmt.Sprintf("skelet cli plugin migrate up %s - it ships migrations", slug))
 	}
 	printStep("Rebuild")
 	return nil

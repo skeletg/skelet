@@ -8,27 +8,27 @@ import { dynamicFieldDiff, type PageTypeAttr } from '../page-detail/shared'
 // CMS page detail - its sections each stage their own form (shared/saving/useSectionForm), so the
 // field lists live here one section at a time
 
-// ---------- Basics: the slug, noindex and the non-translated attribute values ----------
+// ---------- Basics: the slug and the non-translated attribute values ----------
+// Search indexing is the SEO panel's alone - a second copy here staged its own value and the two saves overwrote each other
 
 export const pageBasicsSchema = z
   .object({
     slug: contentSlug().describe(
       'URL slug of the page - a change leaves a redirect behind. Lowercase letters, numbers, dots, underscores and hyphens',
     ),
-    seoNoindex: z.boolean().describe('Ask search engines not to index the page'),
     // Shaped per input type by DynamicFieldRenderer
     data: z
       .record(z.string(), z.unknown())
       .describe("Values of the page type's non-translatable attributes, keyed by attribute slug"),
   })
-  .describe("A CMS page's slug, noindex flag and non-translatable field values")
+  .describe("A CMS page's slug and non-translatable field values")
 
 export type PageBasicsValues = z.infer<typeof pageBasicsSchema>
 
-export const PAGE_BASICS_LABELS: Record<keyof PageBasicsValues, string> = { slug: 'Slug', seoNoindex: 'Noindex', data: 'Fields' }
+export const PAGE_BASICS_LABELS: Record<keyof PageBasicsValues, string> = { slug: 'Slug', data: 'Fields' }
 
-export function toPageBasicsValues(page: { slug: string; seoNoindex: boolean; data?: unknown }): PageBasicsValues {
-  return { slug: page.slug, seoNoindex: page.seoNoindex, data: (page.data as Record<string, FieldValue> | null) ?? {} }
+export function toPageBasicsValues(page: { slug: string; data?: unknown }): PageBasicsValues {
+  return { slug: page.slug, data: (page.data as Record<string, FieldValue> | null) ?? {} }
 }
 
 export function toPageBasicsInput(before: PageBasicsValues, v: PageBasicsValues, id: string) {
@@ -36,17 +36,13 @@ export function toPageBasicsInput(before: PageBasicsValues, v: PageBasicsValues,
     id,
     // The service turns a changed slug into a redirect - send it only when it changed
     slug: v.slug !== before.slug ? v.slug.trim() : null,
-    seoNoindex: v.seoNoindex,
     data: v.data as Record<string, FieldValue>,
   }
 }
 
 export function pageBasicsDiff(scalarAttrs: PageTypeAttr[]) {
   return (original: PageBasicsValues, draft: PageBasicsValues): SectionDiffEntry[] => [
-    ...fieldDiff(original, draft, [
-      { label: PAGE_BASICS_LABELS.slug, value: (v) => v.slug },
-      { label: PAGE_BASICS_LABELS.seoNoindex, value: (v) => v.seoNoindex },
-    ]),
+    ...fieldDiff(original, draft, [{ label: PAGE_BASICS_LABELS.slug, value: (v) => v.slug }]),
     ...dynamicFieldDiff(scalarAttrs, original.data as Record<string, FieldValue>, draft.data as Record<string, FieldValue>),
   ]
 }

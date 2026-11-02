@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useId } from 'react'
-import { AlertTriangleIcon, CheckCircle2Icon, ImageIcon, XCircleIcon } from 'lucide-react'
+import { AlertTriangleIcon, CheckCircle2Icon, ChevronDownIcon, ImageIcon, XCircleIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import { type CmsBlock } from './page-blocks'
 import { buildSchemaFromSpec, type SchemaSpec, type SchemaType } from './schema-jsonld'
 import { firstBlockImage, runSeoLint, truncate, type LintLevel } from './seo-analysis'
 import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
+import { cn } from '@/lib/utils'
 
 // Absolute URL for the raw-JSON dump - matches how the storefront resolves it at render
 function absUrl(pathOrUrl: string): string {
@@ -262,10 +263,32 @@ export function SeoPanel({
   const effectiveTitle = (metaTitle || title).trim()
   const fallbackImage = firstBlockImage(blocks)
   const socialImage = resolvedOg || fallbackImage
-  const lint = runSeoLint({ title, metaTitle, metaDescription, slug, seoNoindex, blocks })
+  const lint = runSeoLint({ title, metaTitle, metaDescription, slug, seoNoindex: noindex, blocks })
+  const fails = lint.filter((r) => r.level === 'fail').length
+  const warns = lint.filter((r) => r.level === 'warn').length
+  const summary =
+    fails + warns === 0
+      ? 'All checks pass'
+      : [fails && `${fails} problem${fails === 1 ? '' : 's'}`, warns && `${warns} warning${warns === 1 ? '' : 's'}`].filter(Boolean).join(', ')
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className="grid gap-5 rounded-md border border-dashed p-3">
+    <div className="rounded-md border">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+      >
+        <LintIcon level={fails ? 'fail' : warns ? 'warn' : 'pass'} />
+        <span className="font-medium">Previews, indexing and structured data</span>
+        <span className="text-muted-foreground">· {summary}</span>
+        <ChevronDownIcon className={cn('ml-auto size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      {/* Only rendered while open - the staged settings live in this component's state, not the inputs, so folding
+          it keeps them, and a folded panel no longer fetches its preview image */}
+      {open && (
+      <div className="grid gap-5 border-t p-3">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Search result preview</Label>
@@ -430,6 +453,8 @@ export function SeoPanel({
           ))}
         </ul>
       </div>
+      </div>
+      )}
     </div>
   )
 }

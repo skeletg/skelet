@@ -18,7 +18,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. ./skelet up
+        1. skelet up
         2. In the dashboard, go to ...
         3. ...
     validations:
@@ -33,7 +33,7 @@ body:
         - Dashboard
         - Storefront
         - Plugin SDK
-        - Setup, deployment or ./skelet
+        - Setup, deployment or the skelet CLI
         - Not sure
     validations:
       required: true
@@ -48,5 +48,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: Relevant output from `./skelet logs <service>`. Remove any secrets or customer data first.
+      description: Relevant output from `skelet logs <service>`. Remove any secrets or customer data first.
       render: text

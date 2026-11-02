@@ -11,6 +11,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
+const DefaultWindowDays = 30 // the look-back a tool uses when the caller names none
+
 type Tool struct {
 	Name        string
 	Description string

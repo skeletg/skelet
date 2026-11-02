@@ -97,7 +97,6 @@ function RelationshipField({
     <div className="grid gap-1.5">
       <Label className="flex items-center gap-1">
         {attribute.content?.name ?? attribute.slug}
-        <code className="ml-1 text-xs font-normal text-muted-foreground">{attribute.slug}</code>
         {target && (
           <Badge variant="outline" className="text-xs">→ {target}</Badge>
         )}

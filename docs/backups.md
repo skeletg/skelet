@@ -20,7 +20,7 @@ reason. So skelet leaves it to tools built for the job.
 | Object storage | Media, and Lens replay blobs | Bucket replication or versioning, or a snapshot of `STORAGE_DIR` on the filesystem driver |
 
 What you don't need to back up: OpenSearch, which is rebuilt from Postgres with
-`./skelet cli search reindex`, and Valkey, which is caches and sessions.
+`skelet cli search reindex`, and Valkey, which is caches and sessions.
 
 ## Postgres
 
@@ -62,13 +62,13 @@ from further back will have a stale roster, which core's roster-push job repairs
 on its next tick. A suite restored from further *forward* than core can reference
 customers core no longer has, which is the direction to avoid.
 
-After any restore: `./skelet cli search reindex` to rebuild OpenSearch, and check
+After any restore: `skelet cli search reindex` to rebuild OpenSearch, and check
 that scheduled jobs aren't all overdue on the health page.
 
 ## Local snapshots
 
-For development, `./skelet db export` dumps to the gitignored `backups/`
-directory and `./skelet db import` restores one. These write local files and
+For development, `skelet db export` dumps to the gitignored `backups/`
+directory and `skelet db import` restores one. These write local files and
 touch no bucket. They're a dev convenience, not a backup strategy.
 
 ## The BACKUP_* variables

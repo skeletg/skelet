@@ -47,7 +47,6 @@ export function DynamicField({
       <Label htmlFor={fieldId} className="flex items-center gap-1">
         {label}
         {isRequired && <span className="text-destructive">*</span>}
-        <code className="ml-1 text-xs font-normal text-muted-foreground">{attribute.slug}</code>
       </Label>
       <FieldInput
         id={fieldId}

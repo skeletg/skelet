@@ -148,7 +148,7 @@ func (h *Harness) EnablePickup(t TB, locationID uuid.UUID, instructions string) 
 }
 
 // SyncChannelRoster runs the channel-roster push the scheduler job runs, so the suite serves this
-// harness's channels - over the contract, to the Signals process bin/test-e2e started
+// harness's channels - over the contract, to the Signals process skelet test e2e started
 func (h *Harness) SyncChannelRoster(t TB) {
 	t.Helper()
 	if err := roster.PushChannels(h.Ctx, h.D.Channel, h.D.Config, h.D.SignalsClient); err != nil {

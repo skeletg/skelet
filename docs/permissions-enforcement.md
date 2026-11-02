@@ -421,5 +421,5 @@ resource and uses `RequireGlobalPermission` / `RequirePermission`.
 5. In nested field resolvers that iterate per-channel children: filter
    with `FilterByChannel`.
 6. Add a row to the "What's enforced today" list in this doc.
-7. Run `./skelet go test ./graph/admin/ -run TestEveryAdminResolverIsGated`. It fails
+7. Run `skelet go test ./graph/admin/ -run TestEveryAdminResolverIsGated`. It fails
    on any entry point you left ungated, which is the whole check in one line.

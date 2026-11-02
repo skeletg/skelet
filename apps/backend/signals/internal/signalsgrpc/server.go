@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -73,7 +74,8 @@ type Deps struct {
 	// Killed admin sessions, so a token minted before a logout is refused - nil skips the check
 	Revocations auth.Revocations
 	// Dev turns on reflection, which lets grpcurl introspect a running server
-	Dev bool
+	Dev   bool
+	Creds credentials.TransportCredentials // nil serves plaintext
 }
 
 // PreviewContacts is the roster read a preview rendered as a real customer makes
@@ -85,11 +87,15 @@ type PreviewContact = previewContact
 // NewServer wires the interceptors, the health service and every suite handler onto one gRPC server
 func NewServer(d Deps) *grpc.Server {
 	// Recovery outermost, so a panic in auth is caught too - the stats handler continues the trace core started
-	srv := grpc.NewServer(
+	opts := []grpc.ServerOption{
 		otelx.GRPCServer(),
 		grpc.ChainUnaryInterceptor(recoverUnary(), auth.ServiceUnaryInterceptor(signalsapi.Audience, d.ServiceKeys, d.Revocations)),
 		grpc.ChainStreamInterceptor(recoverStream(), auth.ServiceStreamInterceptor(signalsapi.Audience, d.ServiceKeys, d.Revocations)),
-	)
+	}
+	if d.Creds != nil {
+		opts = append(opts, grpc.Creds(d.Creds))
+	}
+	srv := grpc.NewServer(opts...)
 	signalsv1.RegisterPrismServiceServer(srv, &prismServer{svc: d.Experiment})
 	signalsv1.RegisterLensServiceServer(srv, &lensServer{svc: d.Lens})
 	signalsv1.RegisterDestinationServiceServer(srv, &destinationServer{svc: d.Destination})

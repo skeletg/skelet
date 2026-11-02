@@ -1,6 +1,6 @@
 # Environment variables
 
-**You should not need to read this to get started.** `./skelet setup` asks what you
+**You should not need to read this to get started.** `skelet setup` asks what you
 want and writes these files for you, secrets included - see
 [docs/workflow.md](workflow.md#first-run). Come here when you want to
 change something afterwards, or to understand a variable the wizard did not ask
@@ -17,13 +17,13 @@ most a one-line hint. Everything that needs a paragraph lives here.
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
 | `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
-| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `skelet up` writes it and copies `CUSTOMER_JWT_PUBLIC_KEY` / `EMAIL_LINK_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env`, and generates its own `SIGNALS_ENCRYPTION_KEY` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
 | `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
-| `prod-vetrina-demo.env.example` | `prod-vetrina-demo.env` | the storefront container |
+| `prod-nextjs-vetrina.env.example` | `prod-nextjs-vetrina.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
-| `small-vetrina-demo.env.example` | `small-vetrina-demo.env` | its storefront container |
+| `small-nextjs-vetrina.env.example` | `small-nextjs-vetrina.env` | its storefront container |
 | `prod-caddy.env.example` | `prod-caddy.env` | the opt-in Caddy edge (`--profile edge`), in both prod and small |
 
 The two `small.*` files belong to `docker-compose.small.yml`, the
@@ -69,10 +69,19 @@ One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
 
+It also says what the clone is for, which `skelet setup` writes and every
+`skelet` command reads - there's no separate settings file:
+
+| Variable | Holds |
+| --- | --- |
+| `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
+| `SKELET_APPS` | the frontends this clone runs, wherever they run |
+| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled` and the storefront it serves |
+
 ### Dev host ports
 
 The dev stack publishes its datastores on `127.0.0.1` only, and nothing on
-the host dials them - `./skelet psql` goes through `docker compose exec`. So
+the host dials them - `skelet psql` goes through `docker compose exec`. So
 each one can move when something else already holds its port, most often a
 local Postgres on 5432:
 
@@ -87,7 +96,7 @@ local Postgres on 5432:
 | `SIGNALS_HOST_PORT` | 8090 | Signals health |
 | `GARAGE_ADMIN_HOST_PORT` | 9903 | Garage admin API |
 
-`./skelet up` (and so `./skelet setup`) probes every port it's about to
+`skelet up` (and so `skelet setup`) probes every port it's about to
 publish before it starts anything. On a terminal it asks, port by port,
 whether you've stopped the other thing - it checks again, and asks again if
 you haven't - or offers to move a datastore to a free port and writes the
@@ -96,7 +105,7 @@ exits. The app-facing ports (8080, 5173, 3000, 9900, 9902) stay
 fixed, because they're part of the origins and CSP the apps are built
 around, so for those the only answer is to free them.
 
-`./skelet up` also builds on every run (`docker compose up --build`). When
+`skelet up` also builds on every run (`docker compose up --build`). When
 nothing changed that's a cache hit, and it's what keeps an image from an
 older checkout from running on after a pull changed its Dockerfile or
 `go.mod` - the project name is pinned, so another clone's image counts.
@@ -114,7 +123,7 @@ silent default in production is worse than a refusal to start.
 | Var | Notes |
 |---|---|
 | `ADMIN_JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs admin sessions, and only core holds it. See [Session and link keys](#session-and-link-keys). |
-| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in the root `.env` - `./skelet setup` generates it, or `./skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
+| `CUSTOMER_JWT_PRIVATE_KEY` / `CUSTOMER_JWT_PUBLIC_KEY` | An Ed25519 pair, base64, in the root `.env` - `skelet setup` generates it, or `skelet cli keys customer` prints one. Core signs customer sessions with the private key; the Signals processes get the public key and can check a session but never mint one. |
 | `EMAIL_LINK_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs the unsubscribe, open and click links, shared by core and the Signals processes. |
 | `REVIEW_VOTER_TOKEN_SECRET` | `openssl rand -hex 32`, in the root `.env`. Signs anonymous review votes, shared by core and the storefront. |
 | `SIGNALS_SERVICE_SECRET` | `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value - core and the Signals processes alone. |
@@ -170,12 +179,25 @@ minutes, so the previous value can go once both sides run the new one.
 
 ### The Signals connection
 
-Core calls the suite over gRPC in plaintext. Every call carries a short-lived
-bearer token and customer data, so keep the link on a network nothing else can
-see: one compose network on one host is that by default. When core and Signals
-run on different machines, encrypt the network underneath - a WireGuard or
-Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
-than leaving the traffic on a shared or public network.
+Core calls the suite over gRPC, and every call carries a short-lived bearer
+token and customer data, so the link has to stay private. It's plaintext by
+default, which is fine on one compose network on one host. When core and Signals
+run on different machines, either encrypt the network underneath - a WireGuard
+or Tailscale overlay between the hosts, or a service mesh on Kubernetes - or put
+TLS on the contract itself:
+
+| Variable | File | What it does |
+| --- | --- | --- |
+| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | `env/prod-signals.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
+| `SIGNALS_GRPC_TLS` | `env/prod.env` | `true` makes core dial with TLS and check the suite's certificate |
+| `SIGNALS_GRPC_TLS_CA` | `env/prod.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
+
+The certificate has to name the host in `SIGNALS_GRPC_ADDR` (`signals` in
+compose, or the name your replicas share), and the files have to be in the
+containers: mount the certificate and key read-only into `signals`, and the CA
+into `app`, `worker` and `media`. Switch both ends together - a plaintext core
+can't reach a TLS suite, or the other way round. Core still signs every call, so
+there's no client certificate to manage.
 
 `SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
 resolves it and spreads calls across every address it answers with.
@@ -326,7 +348,7 @@ Signals processes refuse to boot without `SIGNALS_CH_URL`. Sessions, replay
 snapshots, rollups and everything Pulse owns stay in the Signals Postgres.
 
 In dev the server and its schema come up inside the `signals` compose profile,
-so `./skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `./skelet doctor`
+so `skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `skelet doctor`
 fails if the suite is on and either the container or `signals.analytics_events`
 is missing.
 
@@ -393,7 +415,7 @@ origin. So in production set `UPLOAD_ORIGINS` in the root `.env` to the host
 uploads go to - the S3 presign host (on AWS, `https://<bucket>.s3.<region>.amazonaws.com`),
 or `STORAGE_UPLOAD_URL` on the filesystem driver. Space-separate several.
 The dashboard and Caddy read it when they start; the storefront bakes it in
-at build, so `./skelet release` passes it through. Without it uploads fail
+at build, so `skelet release` passes it through. Without it uploads fail
 with a CSP error in the browser console. Dev needs nothing - its local hosts
 are already allowed.
 
@@ -430,7 +452,7 @@ directory.
   core does (below).
 - `STORAGE_SIGNING_KEY` - signs the upload URLs the way S3 signs a presigned
   PUT: one key, one content type, one exact size, fifteen minutes. It lives
-  in the root `.env`, `./skelet setup` generates it, and production refuses
+  in the root `.env`, `skelet setup` generates it, and production refuses
   to boot without a strong one. Dev falls back to a fixed key.
 
 Every process that touches files reads the directory, so in the prod shape
@@ -459,7 +481,7 @@ unless `LENS_STORAGE_DIR` gives them their own, which keeps them off the
 public `/files/` route - the filesystem twin of `LENS_S3_BUCKET`. The database
 backup archive stays S3-only.
 
-In dev, `./skelet up` points all of it at the Garage sidecar, so leave it
+In dev, `skelet up` points all of it at the Garage sidecar, so leave it
 blank in `go.env`.
 
 Self-hosting object storage on the same box is fine for small single-server
@@ -515,7 +537,7 @@ services; production logs a warning while Lens shares the public bucket.
 
 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev an unset
 `SMTP_HOST` prints emails to stdout; with the optional `mailpit` dev tool picked,
-`./skelet up` points these at it. Two processes send through them: `app` its own transactional
+`skelet up` points these at it. Two processes send through them: `app` its own transactional
 mail, and `signals` every campaign and flow mail - both read the same file, so
 one relay serves the install.
 
@@ -661,7 +683,7 @@ maintenance gate still answers it. Empty means the crawler gets whatever an
 anonymous visitor gets.
 
 `SEO_CRAWL_ALLOWED_ORIGINS` is OPTIONAL, a comma-separated list of extra
-origins the link-map crawl may start at, like `http://vetrina:3000` when the
+origins the link-map crawl may start at, like `http://nextjs-vetrina:3000` when the
 storefront is reached on its compose address. Without it a crawl only starts
 at the channel's public URL or `STOREFRONT_URL` - the crawl reads whatever
 answers and carries the bypass token, so it can't be pointed anywhere else.
@@ -673,7 +695,7 @@ compose.
 ## Observability and logs
 
 `SENTRY_DSN` and the OTel vars are optional - blank means logs to stdout.
-With the optional `grafana` dev tool picked, `./skelet up` points them at
+With the optional `grafana` dev tool picked, `skelet up` points them at
 `http://grafana:4318`. `APP_VERSION` is the
 release tag for Sentry and OTel; CI should inject the git sha.
 
@@ -723,6 +745,7 @@ Once it's on, each surface has its own per-minute budget:
 | `MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN` | 120 | `/media/t/*` |
 | `TOKEN_RATE_LIMIT_PER_MIN` | 60 | download, unsubscribe, signup confirmation, email open/click |
 | `INGEST_RATE_LIMIT_PER_MIN` | 300 | `/t/*` beacons, per endpoint |
+| `MCP_RATE_LIMIT_PER_MIN` | 120 | MCP tool calls, per integration token or admin ([mcp.md](mcp.md)) |
 | `SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR` | 3 | signup-form confirmation emails, per address (an hourly budget, unlike the rest) |
 | `PAYMENT_METHOD_SAVE_RATE_LIMIT_PER_HOUR` | 5 | saved-card attempts per customer, failures included (an hourly budget) - each is a gateway vault call, the card-testing surface |
 
@@ -753,6 +776,7 @@ All default to true.
 |---|---|
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
+| `MCP_ENABLED` | no MCP endpoint for AI agents ([mcp.md](mcp.md)). It doesn't use the store's own AI provider, so `AI_ENABLED` doesn't switch it off |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web
 events. A bad path is logged, not fatal - geo just doesn't appear.
@@ -761,9 +785,9 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 ## Image tags
 
-`APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_DEMO_IMAGE` are set in the
+`APP_IMAGE`, `DASHBOARD_IMAGE` and `NEXTJS_VETRINA_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
-env. `./skelet release` prints the values after a push.
+env. `skelet release` prints the values after a push.
 
 ---
 
