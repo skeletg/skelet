@@ -30,6 +30,7 @@ import {
   getRefreshToken,
   setSessionCookies,
 } from "@/app/lib/auth/session";
+import { SIGNED_OUT_COOKIE } from "@/app/lib/analytics/session";
 import { CART_COOKIE } from "@/app/lib/cart/read";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "@/app/lib/cart/merge-flag";
 import { GraphQLRequestError, gqlFetch } from "@/app/lib/graphql";
@@ -373,6 +374,8 @@ export async function logoutAction() {
     }
   }
   await clearSessionCookies();
+  // The next person on this device starts as a new visitor - analytics would otherwise join them to this account
+  (await cookies()).set(SIGNED_OUT_COOKIE, "1", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
   revalidatePath("/", "layout");
   redirect(await withLocalePrefix("/", await getCurrentLocale()));
 }

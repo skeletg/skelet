@@ -21,7 +21,7 @@ import { parseConsent, resolveConsentCookie } from "@/app/lib/consent/categories
 import { getPrivacy } from "@/app/lib/consent/mode";
 import { clickCookieWrites } from "@/app/lib/consent/click-ids";
 import { COUNT_PATH, countableView } from "@/app/lib/analytics/aggregate-view";
-import { SESSION_COOKIE, SESSION_TTL, sessionWrite } from "@/app/lib/analytics/session";
+import { SESSION_COOKIE, SESSION_TTL, SIGNED_OUT_COOKIE, sessionWrite } from "@/app/lib/analytics/session";
 
 
 // Mirrors the backend's FRONT_API_SLUG - empty keeps /api/front/graphql, so this is inert unless set
@@ -222,8 +222,11 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     req.headers.get("host") ?? "",
     process.env.NODE_ENV === "production",
   );
-  const sessionValue = sessionWrite(req.cookies.get(SESSION_COOKIE)?.value, analytics, Date.now());
-  const existingAid = req.cookies.get(AID_COOKIE)?.value;
+  const signedOut = req.cookies.has(SIGNED_OUT_COOKIE);
+  const priorSession = req.cookies.get(SESSION_COOKIE)?.value;
+  const sessionValue = sessionWrite(signedOut && analytics ? undefined : priorSession, analytics, Date.now());
+  const priorAid = req.cookies.get(AID_COOKIE)?.value;
+  const existingAid = signedOut ? undefined : priorAid;
   const newAid = analytics && !existingAid ? crypto.randomUUID() : undefined;
 
   // Writes applied to whatever response we return (persist to the browser).
@@ -234,7 +237,8 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
       res.cookies.set(CONSENT_COOKIE, consentWrite, consentWrite ? CONSENT_COOKIE_OPTS : { ...CONSENT_COOKIE_OPTS, maxAge: 0 });
     }
     if (analytics) res.cookies.set(AID_COOKIE, newAid ?? existingAid!, AID_OPTS);
-    else if (existingAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
+    else if (priorAid) res.cookies.set(AID_COOKIE, "", { ...AID_OPTS, maxAge: 0 });
+    if (signedOut) res.cookies.set(SIGNED_OUT_COOKIE, "", { path: "/", maxAge: 0 });
     for (const w of clickWrites) res.cookies.set(w.name, w.value, w.options);
     if (sessionValue !== undefined) {
       res.cookies.set(SESSION_COOKIE, sessionValue, {

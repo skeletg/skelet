@@ -17,3 +17,8 @@ export function sessionWrite(current: string | undefined, analytics: boolean, no
   if (!analytics) return current ? "" : undefined;
   return validSession(current) ? current : String(Math.floor(nowMs / 1000));
 }
+
+// Sign-out leaves this note, and the proxy's next request starts a new visitor id and session, so whoever uses the
+// device next isn't joined to the account that just left. The proxy owns those cookies; an action writing them too
+// would race it on the same response
+export const SIGNED_OUT_COOKIE = "sk_signed_out";
