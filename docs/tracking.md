@@ -32,6 +32,7 @@ skelet cli plugin enable tracking-ga4                      # compiles it in; res
 |---|---|---|---|
 | `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
 | `google_ads` | `tracking-google-ads` | Google Ads conversions, Data Manager API | ads |
+| `google_ads_audience` | `tracking-google-ads` | Google Ads Customer Match list | ads and personalization, plus the account's marketing opt-in; removals need none |
 | `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
 | `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
 | `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
@@ -83,6 +84,10 @@ Manager API - Google's route for imported conversions. It carries:
 
 A purchase with no click id, email or phone isn't sent: Google could match it to nobody.
 
+**Refunds and cancellations restate the conversion.** Each one sends the order's transaction id again with what the
+order is still worth after every refund so far, and Google Ads replaces the conversion's value. The Data Manager API
+has no retraction, so a fully refunded order's value goes to 0 but it still counts as one conversion.
+
 Setting one up:
 
 1. In Google Ads, create a conversion action whose source is **Website (Import from clicks)** and note its ID.
@@ -101,9 +106,26 @@ skelet cli tracking test <destination-id>
 Set `login_customer_id` when the credentials reach the account through a manager account. Remove `validate_only` once
 the test is accepted.
 
-**Remarketing is not browser-based.** Remarketing to anonymous visitors - showing ads to someone who viewed a product
-and left - needs Google's browser tag and its cookies, which the shop doesn't load. The planned route is **Customer
-Match**: uploading the hashed emails of customers who opted into marketing, so Google can reach them on Search,
-YouTube, Gmail and Shopping, exclude them from new-customer campaigns, and use them as a signal for Performance Max. It
-reaches known customers only, and needs an Ads account with a good policy and payment history. View-through
-conversions and Consent Mode's modelled conversions also depend on a browser tag, so they aren't available.
+**Remarketing goes through Customer Match**, not a browser tag - remarketing to anonymous visitors (someone who viewed
+a product and left) needs Google's browser tag and cookies, which the shop doesn't load. The `google_ads_audience`
+destination keeps a Customer Match list of your customers instead:
+
+- **Who joins:** a customer with an account who opted into email marketing, when they buy or sign up while allowing
+  advertising and personalization cookies. Guests never join: nothing would tell the list when they leave.
+- **Who leaves:** anyone who turns email marketing off, or whose account is deleted or erased. Removal is sent whatever
+  their cookie choice.
+- **What is sent:** only the email and phone, normalised and SHA-256 hashed, with the consent behind it.
+- **The list fills from new events.** Customers who opted in before the destination was set up join on their next
+  purchase.
+
+Setting it up:
+
+1. In Google Ads, accept the Customer Match terms and create a customer list (Tools > Shared library > Audience
+   manager > Your data segments > Customer list). Note its ID.
+2. Use the same credentials as the conversions destination, and add it with `--kind google_ads_audience`,
+   `--set user_list_id=<id>` and `--set terms_accepted=true`. Nothing is uploaded until `terms_accepted` is true.
+
+Customer Match needs an Ads account with a good policy and payment history, and a list targets only once enough
+members match Google accounts. Your privacy notice should say that customers who opt into marketing may be shown ads
+on Google through Customer Match. View-through conversions and Consent Mode's modelled conversions depend on a
+browser tag, so they aren't available.
