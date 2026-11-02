@@ -31,7 +31,6 @@ skelet cli plugin enable tracking-ga4                      # compiles it in; res
 | Kind | Plugin | Platform | Needs |
 |---|---|---|---|
 | `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
-| `mixpanel` | `tracking-mixpanel` | Mixpanel Import API | analytics |
 | `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
 | `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
 | `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
@@ -51,32 +50,10 @@ skelet cli tracking test <destination-id>                  # one sample purchase
 skelet cli tracking deliveries <destination-id>            # what was sent, retried or given up on
 ```
 
-## Mixpanel
-
-**No Mixpanel script is needed.** The `mixpanel` destination sends events through Mixpanel's Import API with a
-service account, to the host that matches the project's data residency (`region`: `us`, `eu` or `in`). Identity
-follows Mixpanel's simplified ID merge:
-
-- `$device_id` is the storefront's visitor id, which exists only with analytics consent.
-- `$user_id` is the customer id once the shopper is signed in. An event carrying both joins the anonymous history
-  to the customer, so Mixpanel works out `distinct_id` itself.
-- An event with neither goes nowhere. Visitors who decline analytics are counted as nobody in Signals instead
-  (see [privacy.md](privacy.md)); nothing about them reaches Mixpanel.
-- `$insert_id` is derived from the event id, so a retry counts once. Email and phone are never sent.
-
-**Session replay and heatmaps** need Mixpanel's browser library, and are off until you set
-`general/analytics/mixpanel_replay_token` to the project token (with `mixpanel_region` and
-`mixpanel_replay_percent`). The storefront then records a share of visits:
-
-- only for visitors who allowed analytics. Before a choice, after a refusal, or after a withdrawal, nothing loads and
-  nothing is sent. A withdrawal stops the recording, and the next request deletes Mixpanel's cookie
-- with every typed input masked, and no events: no clicks, page views or `$opt_in`. Heatmaps come from the recordings
-- from the bundle, not Mixpanel's CDN. The only third-party hosts are Mixpanel's ingestion hosts, in the CSP's `connect-src`
-- joined to the customer on sign-in, the same `$user_id` the server sends. Anonymous recordings keep the library's own
-  device id, because Mixpanel offers no supported way to give it ours
+## Signing out
 
 **Signing out starts a new visitor.** The next request after a sign-out gets a new visitor id and analytics session,
-and replay resets its device, so on a shared computer the next person isn't joined to the account that left.
+so on a shared computer the next person isn't joined to the account that left.
 
 ## GA4 and Google Tag Manager
 
