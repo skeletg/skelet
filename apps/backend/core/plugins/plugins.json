@@ -18,6 +18,9 @@
     "tracking-ga4": {
       "enabled": false
     },
+    "tracking-google-ads": {
+      "enabled": false
+    },
     "tracking-klaviyo": {
       "enabled": false
     },
