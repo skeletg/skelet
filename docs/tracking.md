@@ -31,6 +31,7 @@ skelet cli plugin enable tracking-ga4                      # compiles it in; res
 | Kind | Plugin | Platform | Needs |
 |---|---|---|---|
 | `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
+| `google_ads` | `tracking-google-ads` | Google Ads conversions, Data Manager API | ads |
 | `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
 | `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
 | `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
@@ -65,17 +66,44 @@ cart changes and orders reach GA4 through the Measurement Protocol. Each event c
 **Server-side GTM:** set the `ga4` destination's endpoint to your server-side GTM container's URL. The container's GA4
 client receives the same Measurement Protocol requests and fans them out to whatever tags you run there.
 
-**A web GTM container** is optional: set `general/analytics/gtm_container_id`. The storefront then loads it:
+**No Google script runs in the browser.** That keeps every page as fast as it can be, and means each event reaches
+Google once. A web GTM container isn't offered: everything a browser tag would send already goes server to server,
+and a GA4 tag beside the `ga4` destination would count every event twice, since GA4 doesn't dedupe between the two.
 
-- only after the visitor allows a cookie category, with Consent Mode v2 set to denied by default and updated from
-  their choice. Withdrawing every category reloads the page without the container, since Google's tags still send
-  cookieless pings under "denied"
-- after the page has loaded and gone idle
-- from your own domain if `general/analytics/gtm_script_origin` names your server-side container
+## Google Ads
 
-Shop events are pushed to its `dataLayer` in GA4's ecommerce shape with an `event_id`, behind an `ecommerce: null`
-reset.
+**Conversions go server to server** through the `google_ads` destination, which sends each purchase to Google's Data
+Manager API - Google's route for imported conversions. It carries:
 
-> **Don't count twice.** GA4 doesn't dedupe between the Measurement Protocol and a browser tag. Use either the `ga4`
-> destination or a GA4 tag in your web container, not both. The ad platforms (Meta, Microsoft, OpenAI) do dedupe on
-> the event id, so their browser pixels and destinations can run side by side.
+- the ad click: `gclid`, `gbraid` or `wbraid`, which the storefront keeps for 90 days with advertising consent
+- the order number, the order value with tax and shipping, and the currency
+- the shopper's email and phone, normalised and SHA-256 hashed as Google specifies - enhanced conversions, which
+  match an order whose click id is gone
+- the visitor's consent, as `adUserData` and `adPersonalization`
+
+A purchase with no click id, email or phone isn't sent: Google could match it to nobody.
+
+Setting one up:
+
+1. In Google Ads, create a conversion action whose source is **Website (Import from clicks)** and note its ID.
+2. In a Google Cloud project, enable the **Data Manager API**. Create a service account and download its key, or use
+   an OAuth client's refresh token (an `authorized_user` credentials file).
+3. Give that account access to the Google Ads account, or to a manager account above it.
+4. Add the destination, checking it first with `validate_only`, which records nothing:
+
+```bash
+skelet cli plugin enable tracking-google-ads             # compiles it in; restart the backend
+TRACKING_SECRET="$(cat service-account.json)" skelet cli tracking add --channel <id> --kind google_ads \
+  --name "Google Ads" --set customer_id=1234567890 --set conversion_action_id=<id> --set validate_only=true
+skelet cli tracking test <destination-id>
+```
+
+Set `login_customer_id` when the credentials reach the account through a manager account. Remove `validate_only` once
+the test is accepted.
+
+**Remarketing is not browser-based.** Remarketing to anonymous visitors - showing ads to someone who viewed a product
+and left - needs Google's browser tag and its cookies, which the shop doesn't load. The planned route is **Customer
+Match**: uploading the hashed emails of customers who opted into marketing, so Google can reach them on Search,
+YouTube, Gmail and Shopping, exclude them from new-customer campaigns, and use them as a signal for Performance Max. It
+reaches known customers only, and needs an Ads account with a good policy and payment history. View-through
+conversions and Consent Mode's modelled conversions also depend on a browser tag, so they aren't available.
