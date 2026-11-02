@@ -53,12 +53,7 @@ func Run(root string, args []string) int {
 	}
 	r := run{root: root, registry: registry, tag: tag, platform: platform, dotenv: dotenv}
 
-	prof, err := profile.Load(filepath.Join(root, profile.File))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "skelet release:", err)
-		return 1
-	}
-	selected, chosen := prof.Apps()
+	selected, chosen := profile.Current(root).Apps()
 	ships := func(app string) bool { return !chosen || slices.Contains(selected, app) }
 
 	// Both Go images build from apps/backend as a whole - the modules replace each other by relative path

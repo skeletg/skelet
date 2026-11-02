@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
@@ -21,8 +20,8 @@ import (
 
 const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--docker-apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
 
-const About = `The guided first run, and safe to re-run - each run defaults to the last one's answers, kept in
-.skelet-profile. It asks which frontends this clone runs and whether in Docker or on the host, the
+const About = `The guided first run, and safe to re-run - each run defaults to how the clone is set up now,
+read from .env and the env files. It asks which frontends this clone runs and whether in Docker or on the host, the
 target (dev, small or prod), the suites, the search engine, the payment gateways, whether to hide
 the admin API and which dev tools to run. Then it writes that target's env files with generated
 secrets - a value that isn't a placeholder is never replaced - the root .env, plugins.json and the
@@ -54,13 +53,12 @@ func Run(root string, args []string) int {
 	}
 	sys.HandleInterrupts()
 
-	from := filepath.Join(root, profile.File)
+	prof, from := current(root, c), ".env"
 	if f.profile != "" {
 		from = f.profile
-	}
-	prof, err := profile.Load(from)
-	if err != nil {
-		return fail(err)
+		if prof, err = profile.Load(from); err != nil {
+			return fail(err)
+		}
 	}
 	ask := prompter{on: !f.yes && sys.IsTerminal(os.Stdin.Fd()), in: bufio.NewReader(os.Stdin), out: os.Stderr}
 	if visual(f) {

@@ -148,9 +148,9 @@ func TestDevWritesWhatTheBackendAccepts(t *testing.T) {
 			t.Errorf("%s: %v, mode %v - want 0600", f, err, fi.Mode().Perm())
 		}
 	}
-	prof, _ := profile.Load(filepath.Join(root, profile.File))
+	prof := profile.Current(root)
 	if prof[kTarget] != "dev" || prof[kApps] != "dashboard" || prof[kDocker] != "dashboard" {
-		t.Errorf("profile: %v", prof)
+		t.Errorf("the clone's .env records %v", prof)
 	}
 }
 
@@ -399,11 +399,10 @@ func TestParseFlags(t *testing.T) {
 
 func quiet() prompter { return prompter{in: bufio.NewReader(strings.NewReader("")), out: io.Discard} }
 
-// A profile from before the placement question has no SKELET_DOCKER_APPS - a --yes run used to empty .skelet-apps then,
-// moving every containerized app to a host that may not have Node
+// A replayed profile with no SKELET_DOCKER_APPS keeps the placement .env has, not none
 func TestYesKeepsTheDockerPlacementTheProfileDoesntRecord(t *testing.T) {
 	root := fixture(t)
-	mkfile(t, root, ".skelet-apps", "dashboard\n")
+	mkfile(t, root, ".env", "COMPOSE_PROFILES=search,dashboard\n")
 	c, _ := scan(root)
 	a, err := answer(root, c, flags{yes: true}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
 	if err != nil || !reflect.DeepEqual(a.dockerApps, []string{"dashboard"}) {
@@ -421,14 +420,13 @@ func TestProfileAnswers(t *testing.T) {
 		t.Errorf("answers %+v, %v", a, err)
 	}
 	for k, v := range map[string]string{kTarget: "staging", kSignals: "yes", kSearch: "elastic", kSlug: "true"} {
-		if _, err := answer(root, c, flags{yes: true}, profile.Profile{k: v}, "p", quiet(), io.Discard); err == nil {
-			t.Errorf("%s=%s accepted", k, v)
+		if _, err := answer(root, c, flags{yes: true}, profile.Profile{k: v}, ".env", quiet(), io.Discard); err == nil || !strings.HasPrefix(err.Error(), ".env says "+k) {
+			t.Errorf("%s=%s: %v", k, v, err)
 		}
 	}
 }
 
-// --profile replays a file without touching it - the answers land in .skelet-profile, where the next run reads them
-func TestRunReplaysAProfileIntoSkeletProfile(t *testing.T) {
+func TestRunReplaysAProfileIntoTheEnv(t *testing.T) {
 	root := fixture(t)
 	replay := filepath.Join(t.TempDir(), "shop.profile")
 	body := "SKELET_TARGET=prod\nSKELET_APPS_SELECTED=dashboard\nSKELET_DOCKER_APPS=dashboard\n"
@@ -441,9 +439,8 @@ func TestRunReplaysAProfileIntoSkeletProfile(t *testing.T) {
 	if raw, _ := os.ReadFile(replay); string(raw) != body {
 		t.Error("the replayed file was rewritten")
 	}
-	saved, _ := profile.Load(filepath.Join(root, profile.File))
-	if saved[kTarget] != "prod" || saved[kApps] != "dashboard" {
-		t.Errorf(".skelet-profile: %v", saved)
+	if saved := profile.Current(root); saved[kTarget] != "prod" || saved[kApps] != "dashboard" {
+		t.Errorf(".env records %v", saved)
 	}
 	if code := Run(root, []string{"--apps", "nope"}); code != 2 {
 		t.Errorf("a bad flag: exit %d, want 2", code)
@@ -550,7 +547,7 @@ func TestRunMakesTheShop(t *testing.T) {
 	root := fixture(t)
 	var made []string
 	forkShop = func(root, name, template string) int {
-		if _, err := os.Stat(filepath.Join(root, ".skelet-apps")); err != nil {
+		if _, ok := profile.Current(root).Get(kDocker); !ok {
 			t.Error("the shop was made before the selection was written")
 		}
 		made = append(made, name+" from "+template)
@@ -563,7 +560,7 @@ func TestRunMakesTheShop(t *testing.T) {
 	if !slices.Equal(made, []string{"mine from "}) {
 		t.Errorf("made %q", made)
 	}
-	if raw, _ := os.ReadFile(filepath.Join(root, ".skelet-profile")); !strings.Contains(string(raw), "SKELET_APPS_SELECTED=dashboard,mine") {
+	if raw, _ := os.ReadFile(filepath.Join(root, ".env")); !strings.Contains(string(raw), "SKELET_APPS=dashboard,mine") {
 		t.Errorf("profile:\n%s", raw)
 	}
 	// A copy that fails stops setup there
@@ -601,5 +598,26 @@ func TestShopNamePromptGivesUp(t *testing.T) {
 	a, out = answerWith(tpl("shop", "my-shop", "store"), "\nn\nn\nn\ny\n1\n")
 	if a.shop != "" || a.shopTemplate != "" || strings.Count(out, "won't do") != 3 || !strings.Contains(out, "No shop made") {
 		t.Errorf("didn't give up: %+v\n%s", a, out)
+	}
+}
+
+func TestCurrentReadsTheAnswersOffTheFiles(t *testing.T) {
+	root := fixture(t)
+	mkfile(t, root, ".env", "SKELET_TARGET=dev\nSKELET_APPS=dashboard\nCOMPOSE_PROFILES=search,dashboard,mailpit\nOPENSEARCH_URL=\nADMIN_API_SLUG=admin-abc\n")
+	mkfile(t, root, "env/go.env", "SIGNALS_ENABLED=off\nAI_ENABLED=true\n")
+	mkfile(t, root, plugins.File, `{"plugins": {"payment-stub": {"enabled": true}, "example": {"enabled": true}}}`)
+	c, _ := scan(root)
+	got := current(root, c)
+	for k, want := range map[string]string{
+		kTarget: "dev", kApps: "dashboard", kDocker: "dashboard", kTools: "mailpit",
+		kSignals: "false", kAI: "true", kSearch: "postgres", kSlug: "1", kGates: "payment-stub",
+	} {
+		if got[k] != want {
+			t.Errorf("%s = %q, want %q", k, got[k], want)
+		}
+	}
+	fresh := t.TempDir()
+	if p := current(fresh, catalog{}); len(p) != 0 {
+		t.Errorf("a clone with nothing set up yet should have no answers on record, got %v", p)
 	}
 }

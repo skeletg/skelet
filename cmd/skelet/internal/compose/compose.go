@@ -1,16 +1,15 @@
-// Package compose gives every docker compose call the CLI makes the same setup: the profiles that follow .skelet-apps,
-// .skelet-tools and SIGNALS_ENABLED, the locale, and the uid containers run as
+// Package compose gives every docker compose call the CLI makes the same setup: the profiles that follow .env and
+// SIGNALS_ENABLED, the locale, and the uid containers run as
 package compose
 
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -18,12 +17,10 @@ import (
 type Lib struct {
 	root     string
 	Profiles string
-	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .skelet-tools.
-	// Picked is .skelet-tools whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
+	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .env's.
+	// Picked is .env's whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
 	Apps, Tools, Picked string
 }
-
-var signalsOff = regexp.MustCompile(`(?im)^[ \t]*SIGNALS_ENABLED[ \t]*=[ \t]*(false|0|f|no|off)[ \t]*$`)
 
 // Load works the profiles out. Set-but-empty and unset differ: SKELET_SIDECARS= is --lean, while an unset one means
 // the search sidecar; an inherited COMPOSE_PROFILES, even an empty one, wins over all of it
@@ -33,7 +30,10 @@ func Load(root string) Lib { return load(root, false) }
 func LoadLean(root string) Lib { return load(root, true) }
 
 func load(root string, lean bool) Lib {
-	l := Lib{root: root, Apps: squeeze(root, ".skelet-apps"), Picked: squeeze(root, ".skelet-tools")}
+	cur := profile.Current(root)
+	docker, _ := cur.List(profile.DockerKey)
+	tools, _ := cur.List(profile.ToolsKey)
+	l := Lib{root: root, Apps: strings.Join(docker, ","), Picked: strings.Join(tools, ",")}
 	l.Tools = l.Picked
 	if v, ok := os.LookupEnv("SKELET_TOOLS"); ok {
 		l.Tools = v
@@ -53,7 +53,7 @@ func load(root string, lean bool) Lib {
 	}
 	// The Signals process follows core's switch, and unset means on - as the backend reads it. A sidecar, so --lean
 	// drops it with the others
-	if goEnv, _ := os.ReadFile(filepath.Join(root, "env", "go.env")); sidecars != "" && !signalsOff.Match(goEnv) {
+	if sidecars != "" && profile.SignalsOn(root) {
 		p = append(p, "signals")
 	}
 	l.Profiles = strings.Join(p, ",")
@@ -61,12 +61,6 @@ func load(root string, lean bool) Lib {
 		l.Profiles = v
 	}
 	return l
-}
-
-// squeeze is a selection file with every space and newline taken out, or empty when there's no file
-func squeeze(root, name string) string {
-	raw, _ := os.ReadFile(filepath.Join(root, name))
-	return strings.Join(strings.Fields(string(raw)), "")
 }
 
 // Env is the environment for a compose command that creates no containers

@@ -126,7 +126,7 @@ esac`)
 func TestUpMakesMountpoints(t *testing.T) {
 	unset(t, "COMPOSE_PROFILES", "SKELET_SIDECARS", "SKELET_TOOLS")
 	root := devClone(t)
-	put(t, root, map[string]string{".skelet-apps": "dashboard,vetrina\n", "templates/vetrina/package.json": "{}"})
+	put(t, root, map[string]string{".env": "COMPOSE_PROFILES=search,dashboard,vetrina\n", "templates/vetrina/package.json": "{}"})
 	d := verbtest.NewDocker(t, `case "$*" in `+config(freePort(t))+` esac`)
 	if _, code := d.Run("up", root); code != 0 {
 		t.Fatalf("exit %d", code)
@@ -154,7 +154,7 @@ func TestUpMakesMountpoints(t *testing.T) {
 func TestUpLean(t *testing.T) {
 	unset(t, "COMPOSE_PROFILES", "SKELET_SIDECARS", "SKELET_TOOLS")
 	root := devClone(t)
-	put(t, root, map[string]string{".skelet-apps": "dashboard\n", ".skelet-tools": "mailpit\n"})
+	put(t, root, map[string]string{".env": "COMPOSE_PROFILES=search,dashboard,mailpit\n"})
 	d := verbtest.NewDocker(t, `case "$*" in `+config(freePort(t))+` esac`)
 	out, code := d.Run("up", root, "--lean")
 	calls := strings.Join(d.Calls(), "\n")
@@ -176,7 +176,7 @@ func TestUpRefusals(t *testing.T) {
 	for _, prof := range []string{"", "SKELET_TARGET=small\n"} {
 		root := t.TempDir()
 		if prof != "" {
-			put(t, root, map[string]string{".skelet-profile": prof})
+			put(t, root, map[string]string{".env": prof})
 		}
 		d := verbtest.NewDocker(t, "")
 		if _, code := d.Run("up", root); code != 1 || len(d.Calls()) != 0 {

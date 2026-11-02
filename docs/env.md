@@ -69,6 +69,15 @@ One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
 
+It also says what the clone is for, which `skelet setup` writes and every
+`skelet` command reads - there's no separate settings file:
+
+| Variable | Holds |
+| --- | --- |
+| `SKELET_TARGET` | `dev`, `small` or `prod` - which stack this clone runs |
+| `SKELET_APPS` | the frontends this clone runs, wherever they run |
+| `COMPOSE_PROFILES` | what compose starts. On dev: the apps in Docker, the dev tools and the sidecars `skelet up` adds, so a bare `docker compose up` starts the same stack. On a server: `bundled` and the storefront it serves |
+
 ### Dev host ports
 
 The dev stack publishes its datastores on `127.0.0.1` only, and nothing on

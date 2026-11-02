@@ -1,4 +1,4 @@
-# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
+# Setup files skelet moves into .env on its first run
 .skelet-apps
 .skelet-tools
 .skelet-profile
