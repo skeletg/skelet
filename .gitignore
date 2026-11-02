@@ -59,6 +59,10 @@ packages/.packs/
 # commit these - they contain real customer data.
 *.dump
 
+# TLS certificates and private keys, like the Signals contract's - they belong on the server
+/certs/
+*.pem
+
 # Local DB backups (skelet db export output)
 backups/
 
