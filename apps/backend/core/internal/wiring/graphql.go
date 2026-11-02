@@ -105,6 +105,8 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		PrefsSvc:          s.AdminPrefs,
 		Queries:           infra.Queries,
 		WebhookSvc:        s.Webhook,
+		TrackingSvc:       s.Tracking,
+		TrackingClient:    trackingHTTPClient(s.AllowPrivateTargets),
 		RemoteProviderSvc: s.RemoteProvider,
 		CatalogSvc:        s.Catalog,
 		RecommendSvc:      s.Recommend,

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
@@ -84,6 +86,8 @@ type Resolver struct {
 	PrefsSvc          *adminprefs.Service
 	Queries           *db.Queries
 	WebhookSvc        *webhook.Service
+	TrackingSvc       *tracking.Service
+	TrackingClient    *http.Client // the SSRF-safe client test sends go out on, as the worker's deliveries do
 	RemoteProviderSvc *remoteprovider.Service
 	CatalogSvc        *catalog.Service
 	RecommendSvc      *recommend.Service
