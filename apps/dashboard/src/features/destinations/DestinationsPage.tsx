@@ -225,7 +225,7 @@ export function DestinationsPage() {
     return (
       <DetailPageLayout>
         <DetailPageHeader
-          title="Event destinations"
+          title="Signals event export"
           meta="Pick a channel in the header switcher first."
         />
       </DetailPageLayout>
@@ -235,8 +235,14 @@ export function DestinationsPage() {
   return (
     <DetailPageLayout>
       <DetailPageHeader
-        title="Event destinations"
-        meta="Forward analytics events to external systems - generic signed webhooks, GA4 Measurement Protocol, or Meta Conversions API. A sweep runs every minute and delivers at-least-once in ingest order; delivery problems surface per destination until a sweep succeeds again."
+        title="Signals event export"
+        meta={
+          <>
+            Forwards Signals' own events - email campaigns, flows, transactional and system events - and syncs segments to a webhook. Shop
+            events (views, carts, purchases) to GA4, Meta, Google Ads and the rest are set up under{' '}
+            <Link to="/tracking" className="underline underline-offset-4">Tracking</Link>, which can import these.
+          </>
+        }
       />
       <DetailPageBody>
         <DetailPageSection>
