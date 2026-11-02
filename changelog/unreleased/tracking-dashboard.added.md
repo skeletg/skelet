@@ -6,6 +6,6 @@
 - **Settings → Privacy** brings the cookie consent mode and exceptions together with which
   destinations each consent category feeds.
 - **Import from Signals** copies the old Signals GA4, Meta and webhook destinations, switched off
-  until their secrets are entered again. The old page is now Signals event export, for Signals' own
-  email and flow events.
+  until their secrets are entered again. Their event filters don't carry over, and an imported
+  webhook receives one event per POST signed with `X-Webhook-Signature-256`.
 - New permissions `tracking.view` and `tracking.manage`.
