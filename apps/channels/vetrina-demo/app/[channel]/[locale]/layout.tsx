@@ -16,7 +16,6 @@ import { CartHydrator } from "@/app/components/CartHydrator";
 import { LensGate } from "@/app/components/LensGate";
 import { PageViewBeacon } from "@/app/components/PageViewBeacon";
 import { GtmLoader } from "@/app/components/GtmLoader";
-import { MixpanelReplay } from "@/app/components/MixpanelReplay";
 import { CustomerProvider } from "@/app/lib/customer/client";
 import { CartMergeNotice } from "@/app/components/CartMergeNotice";
 import { CartStoreProvider } from "@/app/lib/cart/store";
@@ -29,7 +28,7 @@ import { ChannelProvider } from "@/app/components/ChannelProvider";
 import { JsonLd } from "@/app/components/JsonLd";
 import { getChannel, getStoreName } from "@/app/lib/channel/read";
 import { organizationJsonLd, webSiteJsonLd } from "@/app/lib/json-ld";
-import { getBranding, getSignalsEnabled, getTagConfig } from "@/app/lib/config/read";
+import { getBranding, getGtmConfig, getSignalsEnabled } from "@/app/lib/config/read";
 import { getCurrentChannelLocales, getCurrentLocale } from "@/app/lib/locale/read";
 import { BUILD_PROBE_CHANNEL } from "@/app/lib/channel";
 import { htmlLangTag } from "@/app/lib/locale/lang";
@@ -100,7 +99,7 @@ export default async function RootLayout({
   // Makes the locale available to every server component below WITHOUT reading a request, which is
   // what lets these pages stay statically rendered
   setRequestLocale(requested);
-  const [channel, storeName, branding, locale, presentment, signalsEnabled, siteUrl, tags] = await Promise.all([
+  const [channel, storeName, branding, locale, presentment, signalsEnabled, siteUrl, gtm] = await Promise.all([
     getChannel(),
     getStoreName(),
     getBranding(),
@@ -108,7 +107,7 @@ export default async function RootLayout({
     getPresentmentOptions(),
     getSignalsEnabled(),
     getSiteUrl(),
-    getTagConfig(),
+    getGtmConfig(),
   ]);
   // The palette is already funnelled through two custom properties, so overriding them here is the
   // whole of theming: --primary is the solid fill buttons use, --signal the accent on links, eyebrows
@@ -167,8 +166,7 @@ export default async function RootLayout({
               <CookieConsentBanner />
               <LensGate signalsEnabled={signalsEnabled} channelId={channel?.id ?? ""} />
               <PageViewBeacon />
-              {tags.gtm.id && <GtmLoader containerId={tags.gtm.id} origin={tags.gtm.origin} />}
-              {tags.mixpanel.token && <MixpanelReplay {...tags.mixpanel} />}
+              {gtm.id && <GtmLoader containerId={gtm.id} origin={gtm.origin} />}
               {/* Shown regardless of marketing consent - the form is how the store earns it */}
               {signalsEnabled && <SignupForms channelId={channel?.id ?? ""} />}
               </CustomerProvider>
