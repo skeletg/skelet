@@ -6,7 +6,7 @@ const NONE = { analytics: false, ads: false, personalization: false };
 
 function fakePage() {
   const scripts: string[] = [];
-  const w = { dataLayer: undefined as unknown[] | undefined, addEventListener: () => {}, requestIdleCallback: (cb: () => void) => cb() } as unknown as Window & { dataLayer: unknown[] };
+  const w = { dataLayer: undefined as unknown[] | undefined, location: { reload: () => {} }, addEventListener: () => {}, requestIdleCallback: (cb: () => void) => cb() } as unknown as Window & { dataLayer: unknown[] };
   const doc = {
     readyState: "complete",
     createElement: () => ({}) as HTMLScriptElement,
@@ -44,5 +44,16 @@ describe("the web GTM container", () => {
     expect(scriptURL("GTM-ABC123", "https://tags.shop.example/")).toBe("https://tags.shop.example/gtm.js?id=GTM-ABC123");
     expect(scriptURL("GTM-ABC123", "http://tags.shop.example")).toBe("https://www.googletagmanager.com/gtm.js?id=GTM-ABC123");
     expect(scriptURL("GTM-ABC123", "javascript:alert(1)")).toBe("https://www.googletagmanager.com/gtm.js?id=GTM-ABC123");
+  });
+
+  it("reloads the page without the container when every category is withdrawn", () => {
+    const { w, doc } = fakePage();
+    let reloads = 0;
+    Object.assign(w, { location: { reload: () => reloads++ } });
+    syncGtm(w, doc, "GTM-ABC123", "", { ...NONE, ads: true });
+    expect(syncGtm(w, doc, "GTM-ABC123", "", { ...NONE, analytics: true })).toBe(true);
+    expect(reloads).toBe(0);
+    expect(syncGtm(w, doc, "GTM-ABC123", "", NONE)).toBe(false);
+    expect(reloads).toBe(1);
   });
 });

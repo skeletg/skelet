@@ -53,8 +53,12 @@ function gtag(w: DataLayerWindow, ...args: unknown[]) {
 export function syncGtm(w: DataLayerWindow, doc: Document, id: string, origin: string, c: Consent): boolean {
   const granted = c.analytics || c.ads || c.personalization;
   if (w.skeletGtm) {
-    gtag(w, "consent", "update", consentSignals(c)); // a withdrawal reaches a container that can't be unloaded
-    return true;
+    // A loaded container can't be unloaded, and Google's tags still send cookieless pings under "denied" - so withdrawing
+    // every category also reloads the page without it. The denied update goes first, so its tags stop at once
+    gtag(w, "consent", "update", consentSignals(c));
+    if (granted) return true;
+    w.location.reload();
+    return false;
   }
   if (!granted || !validContainer(id)) return false;
   w.skeletGtm = true;
