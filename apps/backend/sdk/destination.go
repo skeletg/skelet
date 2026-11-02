@@ -50,6 +50,9 @@ type ShopEcommerce struct {
 	Shipping      float64    `json:"shipping,omitempty"`
 	Coupon        string     `json:"coupon,omitempty"`
 	Items         []ShopItem `json:"items,omitempty"`
+	// On a refund or cancellation: what the order is worth after it, tax and shipping in, after every refund so far.
+	// For a platform that restates a conversion's value rather than subtracting a refund. Nil elsewhere
+	ValueAfter *float64 `json:"value_after,omitempty"`
 }
 
 type ShopItem struct {

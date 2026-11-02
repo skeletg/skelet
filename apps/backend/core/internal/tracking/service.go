@@ -67,7 +67,7 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 	var errs []error
 	for _, d := range dests {
 		k, ok := KindFor(d.Kind)
-		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || !Allowed(s.purposes(ctx, d, k), ev.Consent) {
+		if !ok || !wants(d, k, ev.Name) || (k.Available != nil && !k.Available(ctx, ev.ChannelID)) || (!removal(k, ev.Name) && !Allowed(s.purposes(ctx, d, k), ev.Consent)) {
 			continue
 		}
 		if err := s.store.Enqueue(ctx, d.ID, ev); err != nil {
@@ -75,6 +75,12 @@ func (s *Service) Track(ctx context.Context, ev Event) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// An opt-out reaches the kinds built to act on it - those that name it by default - with no consent check. Anything
+// else, such as a webhook taking every event, still needs the visitor's consent for it
+func removal(k Kind, name string) bool {
+	return name == MarketingOptOut && slices.Contains(k.DefaultEvents, name)
 }
 
 func wants(d Destination, k Kind, name string) bool {
