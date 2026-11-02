@@ -179,12 +179,25 @@ minutes, so the previous value can go once both sides run the new one.
 
 ### The Signals connection
 
-Core calls the suite over gRPC in plaintext. Every call carries a short-lived
-bearer token and customer data, so keep the link on a network nothing else can
-see: one compose network on one host is that by default. When core and Signals
-run on different machines, encrypt the network underneath - a WireGuard or
-Tailscale overlay between the hosts, or a service mesh on Kubernetes - rather
-than leaving the traffic on a shared or public network.
+Core calls the suite over gRPC, and every call carries a short-lived bearer
+token and customer data, so the link has to stay private. It's plaintext by
+default, which is fine on one compose network on one host. When core and Signals
+run on different machines, either encrypt the network underneath - a WireGuard
+or Tailscale overlay between the hosts, or a service mesh on Kubernetes - or put
+TLS on the contract itself:
+
+| Variable | File | What it does |
+| --- | --- | --- |
+| `SIGNALS_GRPC_TLS_CERT`, `SIGNALS_GRPC_TLS_KEY` | `env/prod-signals.env` | The suite's certificate and key, both PEM. Set both and the contract serves TLS only. A renewed pair is picked up on the next connection with no restart, and one that doesn't load leaves the previous pair serving |
+| `SIGNALS_GRPC_TLS` | `env/prod.env` | `true` makes core dial with TLS and check the suite's certificate |
+| `SIGNALS_GRPC_TLS_CA` | `env/prod.env` | A PEM bundle core trusts instead of the system roots, for a private CA. Needs `SIGNALS_GRPC_TLS=true` |
+
+The certificate has to name the host in `SIGNALS_GRPC_ADDR` (`signals` in
+compose, or the name your replicas share), and the files have to be in the
+containers: mount the certificate and key read-only into `signals`, and the CA
+into `app`, `worker` and `media`. Switch both ends together - a plaintext core
+can't reach a TLS suite, or the other way round. Core still signs every call, so
+there's no client certificate to manage.
 
 `SIGNALS_GRPC_ADDR` can name several replicas behind one DNS name: core
 resolves it and spreads calls across every address it answers with.
