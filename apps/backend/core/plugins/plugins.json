@@ -24,9 +24,6 @@
     "tracking-meta": {
       "enabled": false
     },
-    "tracking-mixpanel": {
-      "enabled": false
-    },
     "tracking-openai": {
       "enabled": false
     },
