@@ -6,7 +6,6 @@ import { withLocalePrefix } from "@/app/lib/locale/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { BackButton } from "@/app/components/BackButton";
 import { OrderDetailView } from "@/app/components/OrderDetailView";
-import { getResolvedConsent } from "@/app/lib/consent/read";
 import { displayName } from "@/app/lib/display";
 import { formatPrice, toMajor } from "@/app/lib/format";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
@@ -50,7 +49,6 @@ export default async function OrderDetailPage({
     notFound();
   }
 
-  const consent = justPlaced ? await getResolvedConsent() : null;
 
   const returnableByLine = new Map(
     order.returnableLines.map((rl) => [rl.orderLineId, rl.quantity]),
@@ -66,9 +64,8 @@ export default async function OrderDetailPage({
 
   return (
     <div className="max-w-3xl">
-      {justPlaced && consent && (
+      {justPlaced && (
         <AnalyticsEvent
-          enabled={consent.analytics}
           event="purchase"
           eventId={order.id}
           stripParam="just_placed"
