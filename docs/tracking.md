@@ -42,7 +42,47 @@ skelet cli plugin enable tracking-ga4                      # compiles it in; res
 | `attentive` | `tracking-attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
 | `webhook` | `tracking-webhook` | Your own endpoint, signed JSON | analytics |
 
-Until the dashboard pages land, set them up from the command line:
+### Setting up in the dashboard
+
+**Marketing → Tracking** lists every platform with where it stands on the selected channel: on, off, failing,
+waiting for its secret, not set up, its plugin switched off on the channel, or not in this build - with the
+`skelet cli plugin enable <slug>` command that adds it. Admins need `tracking.view` to see it and `tracking.manage`
+to change it.
+
+Setting a platform up is guided:
+
+1. **What you need** - what it sends, which values to collect from the platform and links into its own UI. Each
+   field says where to find its value.
+2. **Consent** - the cookie categories every event needs.
+3. **Settings and events** - saved switched off, in the platform's test mode where it has one (GA4's validate,
+   Google Ads' and OpenAI's validate-only, Awin's test flag; Meta's test event code is pasted in).
+4. **Send a test** - one sample purchase, with the platform's answer shown as it came back, credentials redacted.
+5. **Turn it on** - leaves test mode and switches it on in one save.
+
+A destination's page keeps its settings behind the one reviewed Save, with **Send test**, the on/off switch and
+**Delete** acting at once, and a **delivery log** of what was sent, what is retrying and what gave up, with Retry on
+the failed ones. The log shows the event and the platform's answer, never the event's contents, which hold the
+shopper's email, IP and click ids. Credentials are write-only: stored encrypted and never shown again.
+
+**Settings → Privacy** holds the cookie consent mode, the anonymous counts switch and the affiliate exceptions, and
+shows which destinations each consent category feeds.
+
+### Importing from Signals
+
+The older Signals event destinations (now **Marketing → Signals event export**) forward Signals' own events - email
+campaigns, flows, transactional and system events. **Import from Signals** on the Tracking page copies their GA4, Meta
+and webhook ones here after a preview:
+
+- each arrives switched off and asks for its secret again - Signals never hands one over
+- their event filters don't carry over; the platform's default shop events apply
+- a webhook changes format: one event per POST, signed with `X-Webhook-Signature-256`, where Signals posted batches
+  signed with `X-Destination-Signature` - update the receiver before turning it on
+- the Signals destination keeps running until you switch it off there, so switch one of the two off once the new one
+  works, or events go twice. Importing the same one again does nothing
+
+### From the command line
+
+The same, for scripts:
 
 ```bash
 skelet cli tracking kinds                                  # what this build can send to, and each one's settings
