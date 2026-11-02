@@ -64,8 +64,19 @@ follows Mixpanel's simplified ID merge:
   (see [privacy.md](privacy.md)); nothing about them reaches Mixpanel.
 - `$insert_id` is derived from the event id, so a retry counts once. Email and phone are never sent.
 
-If you also load Mixpanel's browser library, for session replay say, don't let it send events: they would be counted
-twice and under a different device id.
+**Session replay and heatmaps** need Mixpanel's browser library, and are off until you set
+`general/analytics/mixpanel_replay_token` to the project token (with `mixpanel_region` and
+`mixpanel_replay_percent`). The storefront then records a share of visits:
+
+- only for visitors who allowed analytics. Before a choice, after a refusal, or after a withdrawal, nothing loads and
+  nothing is sent. A withdrawal stops the recording, and the next request deletes Mixpanel's cookie
+- with every typed input masked, and no events: no clicks, page views or `$opt_in`. Heatmaps come from the recordings
+- from the bundle, not Mixpanel's CDN. The only third-party hosts are Mixpanel's ingestion hosts, in the CSP's `connect-src`
+- joined to the customer on sign-in, the same `$user_id` the server sends. Anonymous recordings keep the library's own
+  device id, because Mixpanel offers no supported way to give it ours
+
+**Signing out starts a new visitor.** The next request after a sign-out gets a new visitor id and analytics session,
+and replay resets its device, so on a shared computer the next person isn't joined to the account that left.
 
 ## GA4 and Google Tag Manager
 
@@ -80,7 +91,8 @@ client receives the same Measurement Protocol requests and fans them out to what
 **A web GTM container** is optional: set `general/analytics/gtm_container_id`. The storefront then loads it:
 
 - only after the visitor allows a cookie category, with Consent Mode v2 set to denied by default and updated from
-  their choice
+  their choice. Withdrawing every category reloads the page without the container, since Google's tags still send
+  cookieless pings under "denied"
 - after the page has loaded and gone idle
 - from your own domain if `general/analytics/gtm_script_origin` names your server-side container
 
