@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -162,6 +163,7 @@ func (w *Worker) dead(ctx context.Context, item Delivery, d Destination, reason 
 func redact(s string, d *Destination) string {
 	if d.Secret != "" {
 		s = strings.ReplaceAll(s, d.Secret, "[redacted]")
+		s = strings.ReplaceAll(s, url.QueryEscape(d.Secret), "[redacted]") // as it appears inside a request URL
 	}
 	for k, v := range d.Config {
 		lk := strings.ToLower(k)

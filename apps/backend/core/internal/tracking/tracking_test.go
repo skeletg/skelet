@@ -107,13 +107,39 @@ func (f *fakeStore) Reschedule(_ context.Context, id uuid.UUID, at time.Time, re
 func (f *fakeStore) MarkDead(_ context.Context, id uuid.UUID, reason string) error {
 	return f.set(id, func(d *Delivery) { d.Status, d.LastError = "dead", reason })
 }
-func (f *fakeStore) Retry(_ context.Context, id uuid.UUID) error {
-	return f.set(id, func(d *Delivery) { d.Status, d.Attempts, d.NextAttemptAt = "pending", 0, time.Time{} })
+func (f *fakeStore) Retry(_ context.Context, id uuid.UUID) (bool, error) {
+	f.mu.Lock()
+	d, ok := f.deliveries[id]
+	dead := ok && d.Status == "dead"
+	f.mu.Unlock()
+	if !dead {
+		return false, nil
+	}
+	return true, f.set(id, func(d *Delivery) { d.Status, d.Attempts, d.NextAttemptAt = "pending", 0, time.Time{} })
 }
-func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, int32) ([]Delivery, error) {
+func (f *fakeStore) GetDelivery(_ context.Context, id uuid.UUID) (Delivery, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if d, ok := f.deliveries[id]; ok {
+		return *d, nil
+	}
+	return Delivery{}, errors.New("no such delivery")
+}
+func (f *fakeStore) ListDeliveries(context.Context, uuid.UUID, string, int32) ([]Delivery, error) {
 	return nil, nil
 }
-func (f *fakeStore) Prune(context.Context, time.Time) (int64, error) { return 0, nil }
+func (f *fakeStore) Import(_ context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error) {
+	for _, existing := range f.dests {
+		if existing.ImportedFrom != nil && *existing.ImportedFrom == legacyID {
+			return Destination{}, false, nil
+		}
+	}
+	d.ID, d.Enabled, d.Secret, d.ImportedFrom = uuid.New(), false, "", &legacyID
+	f.dests[d.ID] = d
+	return d, true, nil
+}
+func (f *fakeStore) Health(context.Context, uuid.UUID) (map[uuid.UUID]Health, error) { return nil, nil }
+func (f *fakeStore) Prune(context.Context, time.Time) (int64, error)                 { return 0, nil }
 
 func (f *fakeStore) byDestination(id uuid.UUID) []Delivery {
 	var out []Delivery

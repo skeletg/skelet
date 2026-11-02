@@ -29,8 +29,11 @@ type store interface {
 	MarkSent(ctx context.Context, id uuid.UUID) error
 	Reschedule(ctx context.Context, id uuid.UUID, at time.Time, reason string) error
 	MarkDead(ctx context.Context, id uuid.UUID, reason string) error
-	Retry(ctx context.Context, id uuid.UUID) error
-	ListDeliveries(ctx context.Context, destinationID uuid.UUID, limit int32) ([]Delivery, error)
+	Retry(ctx context.Context, id uuid.UUID) (bool, error)
+	GetDelivery(ctx context.Context, id uuid.UUID) (Delivery, error)
+	ListDeliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error)
+	Import(ctx context.Context, d Destination, legacyID uuid.UUID) (Destination, bool, error)
+	Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error)
 	Prune(ctx context.Context, before time.Time) (int64, error)
 }
 
@@ -52,6 +55,8 @@ var (
 	ErrUnknownKind  = errors.New("unknown tracking destination kind")
 	ErrNameMissing  = errors.New("a tracking destination needs a name")
 	ErrFieldMissing = errors.New("a required setting is missing")
+	ErrNeedsSecret  = errors.New("enter the destination's secret before turning it on")
+	ErrNotDead      = errors.New("only a delivery that gave up can be retried")
 )
 
 // Track hands one event to every enabled destination on its channel that wants it and that the visitor's consent allows.
@@ -123,24 +128,65 @@ func (s *Service) Update(ctx context.Context, d Destination) (Destination, error
 	if err != nil {
 		return Destination{}, err
 	}
-	d.Kind, d.ChannelID = current.Kind, current.ChannelID
+	d.Kind, d.ChannelID, d.ImportedFrom = current.Kind, current.ChannelID, current.ImportedFrom
 	if err := validate(d, false); err != nil {
 		return Destination{}, err
 	}
+	if d.Enabled && d.Secret == "" && NeedsSecret(current) {
+		return Destination{}, ErrNeedsSecret // an imported row would fail every delivery until its secret is entered
+	}
 	return s.store.Update(ctx, d)
+}
+
+// NeedsSecret reports a destination whose kind requires a secret it doesn't have - an imported one, until the admin
+// enters it
+func NeedsSecret(d Destination) bool {
+	k, ok := KindFor(d.Kind)
+	if !ok || d.Secret != "" {
+		return false
+	}
+	for _, f := range k.Fields {
+		if f.Secret && f.Required {
+			return true
+		}
+	}
+	return false
+}
+
+// Import copies a destination from elsewhere (an old Signals one) - always disabled and without its secret, which the
+// admin enters before turning it on. imported is false when the same source was imported before
+func (s *Service) Import(ctx context.Context, d Destination, legacyID uuid.UUID) (out Destination, imported bool, err error) {
+	if err := validate(d, false); err != nil {
+		return Destination{}, false, err
+	}
+	return s.store.Import(ctx, d, legacyID)
+}
+
+// Health is each destination of a channel with its last success, last failure and failures in the past day
+func (s *Service) Health(ctx context.Context, channelID uuid.UUID) (map[uuid.UUID]Health, error) {
+	return s.store.Health(ctx, channelID)
+}
+
+func (s *Service) Delivery(ctx context.Context, id uuid.UUID) (Delivery, error) {
+	return s.store.GetDelivery(ctx, id)
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.store.Delete(ctx, id)
 }
 
-func (s *Service) Deliveries(ctx context.Context, destinationID uuid.UUID, limit int32) ([]Delivery, error) {
-	return s.store.ListDeliveries(ctx, destinationID, limit)
+// Deliveries is a destination's log, newest first - an empty status lists every row
+func (s *Service) Deliveries(ctx context.Context, destinationID uuid.UUID, status string, limit int32) ([]Delivery, error) {
+	return s.store.ListDeliveries(ctx, destinationID, status, limit)
 }
 
 // Redeliver puts a dead letter back in the queue for a fresh round of attempts
 func (s *Service) Redeliver(ctx context.Context, deliveryID uuid.UUID) error {
-	return s.store.Retry(ctx, deliveryID)
+	ok, err := s.store.Retry(ctx, deliveryID)
+	if err == nil && !ok {
+		return ErrNotDead
+	}
+	return err
 }
 
 // A new destination needs every required field, its secret included; an update may leave the secret empty to keep it
@@ -179,5 +225,9 @@ func (s *Service) SendTest(ctx context.Context, client *http.Client, id uuid.UUI
 		User:      User{AnonID: "test-visitor", Email: "test@example.com"},
 		Ecommerce: &Ecommerce{Currency: "EUR", Value: 10, TransactionID: "TEST-1", Items: []Item{{ItemID: "TEST-SKU", ItemName: "Test item", Price: 10, Quantity: 1}}},
 	}
-	return ev, k.Send(ctx, client, d, ev)
+	if err := k.Send(ctx, client, d, ev); err != nil {
+		// The platform's answer goes back to an admin screen - a transport error can quote the request URL, secret and all
+		return ev, errors.New(redact(err.Error(), &d))
+	}
+	return ev, nil
 }
