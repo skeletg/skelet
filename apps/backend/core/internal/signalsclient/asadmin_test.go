@@ -39,7 +39,7 @@ func minted(t *testing.T, ctx context.Context) *auth.ServiceClaims {
 
 func TestAsAdminCarriesTheAdminsStanding(t *testing.T) {
 	mk := func(g Grants) *Client {
-		c, err := New("127.0.0.1:1", auth.MustServiceKeys("test-secret"), time.Minute, g)
+		c, err := New("127.0.0.1:1", Transport{}, auth.MustServiceKeys("test-secret"), time.Minute, g)
 		if err != nil {
 			t.Fatal(err)
 		}
