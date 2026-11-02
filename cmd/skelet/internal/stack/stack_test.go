@@ -17,7 +17,10 @@ func TestMain(m *testing.M) {
 // profiles the selection files pick - the arguments the scripts passed, profiles included
 func TestPassthroughs(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, ".skelet-apps"), []byte("dashboard\n"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".skelet"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".skelet", "profile"), []byte("SKELET_DOCKER_APPS=dashboard\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("COMPOSE_PROFILES", "")

@@ -185,7 +185,7 @@ func typescript(root string, check bool) int {
 		fmt.Println("    Skipping dashboard + storefront codegen.")
 		return 0
 	}
-	// Keyed on the source being here, not on .skelet-apps - an app run on the host still wants its bindings fresh
+	// Keyed on the source being here, not on which apps run in Docker - an app run on the host still wants its bindings fresh
 	if _, err := os.Stat(filepath.Join(root, "apps", "dashboard", "package.json")); err == nil {
 		url := os.Getenv("GRAPHQL_CODEGEN_URL")
 		if url == "" {

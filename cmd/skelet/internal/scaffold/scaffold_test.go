@@ -302,9 +302,19 @@ func TestRecoverable(t *testing.T) {
 
 func TestDeselect(t *testing.T) {
 	root := t.TempDir()
-	put(t, root, ".skelet-apps", "dashboard,,eu-shop,shop\n", 0o644)
-	if err := deselect(root, "shop"); err != nil || file(t, root, ".skelet-apps") != "dashboard,eu-shop\n" {
-		t.Errorf("%v %q", err, file(t, root, ".skelet-apps"))
+	put(t, root, profile.File, "SKELET_TARGET=dev\nSKELET_APPS_SELECTED=dashboard,eu-shop,shop\nSKELET_DOCKER_APPS=dashboard,,eu-shop,shop\n", 0o644)
+	if err := deselect(root, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := file(t, root, profile.File), "SKELET_TARGET=dev\nSKELET_APPS_SELECTED=dashboard,eu-shop\nSKELET_DOCKER_APPS=dashboard,eu-shop\n"; !strings.HasSuffix(got, want) {
+		t.Errorf("profile:\n%s", got)
+	}
+	empty := t.TempDir()
+	if err := deselect(empty, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(profile.Path(empty)); err == nil {
+		t.Error("a clone with no profile shouldn't get one from rm channel")
 	}
 }
 

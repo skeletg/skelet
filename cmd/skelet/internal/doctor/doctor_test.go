@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 )
 
 // The host tools doctor calls, as scripts answering from FAKE_* variables. A tool left out of the map is missing:
@@ -83,9 +84,7 @@ func healthy(t *testing.T) string {
 	put(t, root, "env/go.env", "SIGNALS_ENABLED=true\nAI_ENABLED=true\n")
 	put(t, root, "env/db.env", "")
 	put(t, root, "env/signals.env", "")
-	put(t, root, ".skelet-profile", "SKELET_TARGET=dev\nSKELET_SIGNALS=true\nSKELET_AI=true\nSKELET_SEARCH=opensearch\nSKELET_GATEWAYS=\n")
-	put(t, root, ".skelet-apps", "dashboard\n")
-	put(t, root, ".skelet-tools", "\n")
+	put(t, root, ".skelet/profile", "SKELET_TARGET=dev\nSKELET_SIGNALS=true\nSKELET_AI=true\nSKELET_SEARCH=opensearch\nSKELET_GATEWAYS=\nSKELET_DOCKER_APPS=dashboard\nSKELET_TOOLS_SELECTED=\n")
 	put(t, root, "apps/dashboard/package.json", `{"packageManager": "pnpm@12.6.0"}`)
 	put(t, root, "apps/backend/core/plugins/example/plugin.go", "package example\nfunc init() { sdk.RegisterPlugin(nil) }\n")
 	put(t, root, "apps/backend/core/plugins/plugins.json", "{\n  \"plugins\": {\n    \"example\": {\n      \"enabled\": true\n    }\n  }\n}\n")
@@ -169,15 +168,15 @@ func TestProblemsAreReported(t *testing.T) {
 		{"a missing env file", func(t *testing.T, root string) { _ = os.Remove(filepath.Join(root, "env/db.env")) }, 1,
 			[]string{"FAIL  env/db.env missing - run skelet setup"}},
 		{"an optional env file", func(t *testing.T, root string) {
-			put(t, root, ".skelet-profile", "SKELET_TARGET=small\n")
+			put(t, root, ".skelet/profile", "SKELET_TARGET=small\nSKELET_DOCKER_APPS=dashboard\n")
 			put(t, root, "env/small.env", "")
 			put(t, root, "docker-compose.small.yml", "services:\n  app:\n    env_file:\n      - path: env/small.env\n      - path: env/small-extra.env\n        required: false\n")
 		}, 0, []string{"env files (small target)", "warn  env/small-extra.env missing - optional"}},
 		{"profile against env drift", func(t *testing.T, root string) {
-			put(t, root, ".skelet-profile", "SKELET_TARGET=dev\nSKELET_SIGNALS=false\nSKELET_AI=true\n")
+			put(t, root, ".skelet/profile", "SKELET_TARGET=dev\nSKELET_SIGNALS=false\nSKELET_AI=true\nSKELET_DOCKER_APPS=dashboard\n")
 		}, 0, []string{"warn  SIGNALS_ENABLED is true in env/go.env but the profile says false"}},
 		{"an older profile", func(t *testing.T, root string) {
-			put(t, root, ".skelet-profile", "SKELET_TARGET=dev\nSKELET_B2B=true\n")
+			put(t, root, ".skelet/profile", "SKELET_TARGET=dev\nSKELET_B2B=true\nSKELET_DOCKER_APPS=dashboard\n")
 		}, 0,
 			[]string{"ok    target=dev signals=(unset) ai=(unset) search=(unset)"}},
 		{"an unset interpolation", func(t *testing.T, root string) { put(t, root, ".env", "") }, 0,
@@ -188,14 +187,14 @@ func TestProblemsAreReported(t *testing.T) {
 			[]string{"FAIL  clickhouse is up but signals.analytics_events is missing"}},
 		{"signals off skips the suite checks", func(t *testing.T, root string) {
 			put(t, root, "env/go.env", "SIGNALS_ENABLED=off\nAI_ENABLED=true\n")
-			put(t, root, ".skelet-profile", "SKELET_TARGET=dev\n")
+			put(t, root, ".skelet/profile", "SKELET_TARGET=dev\nSKELET_DOCKER_APPS=dashboard\n")
 			t.Setenv("FAKE_RUNNING", "app db")
 		}, 0, nil},
 		// A selection naming a storefront that isn't here starts nothing, and says so
 		{"an app selection naming a storefront that's gone", func(t *testing.T, root string) {
-			put(t, root, ".skelet-apps", "dashboard,vetrina-demo\n")
+			inDocker(t, root, "dashboard,vetrina-demo")
 			put(t, root, "templates/vetrina/package.json", "{}")
-		}, 0, []string{`warn  .skelet-apps names "vetrina-demo", which isn't an app here - storefronts: vetrina`}},
+		}, 0, []string{`warn  .skelet/profile runs "vetrina-demo" in Docker, which isn't an app here - storefronts: vetrina`}},
 		{"an override on the old storefront mount", func(t *testing.T, root string) {
 			put(t, root, "docker-compose.override.yml", "services:\n  shop-eu:\n    volumes:\n      - ./apps/channels/shop:/var/www/storefront\n")
 		}, 0, []string{"warn  docker-compose.override.yml mounts a storefront at /var/www/storefront"}},
@@ -221,7 +220,7 @@ func TestProblemsAreReported(t *testing.T) {
 		{"an old go that fetches", func(t *testing.T, _ string) { t.Setenv("FAKE_GO", "1.26.3") }, 0,
 			[]string{"ok    go 1.26.3 - fetches 1.27.3"}},
 		{"a host app with the wrong pnpm", func(t *testing.T, root string) {
-			put(t, root, ".skelet-apps", "\n")
+			inDocker(t, root, "")
 			put(t, root, ".nvmrc", "24\n")
 			t.Setenv("FAKE_PNPM", "11.0.0")
 			t.Setenv("FAKE_NODE", "22.3.0")
@@ -231,7 +230,7 @@ func TestProblemsAreReported(t *testing.T) {
 			"warn  apps/dashboard not installed",
 		}},
 		{"a host app with an npm tree", func(t *testing.T, root string) {
-			put(t, root, ".skelet-apps", "\n")
+			inDocker(t, root, "")
 			put(t, root, "apps/dashboard/node_modules/react/index.js", "")
 		}, 1, []string{"ok    pnpm 12.6.0", "FAIL  apps/dashboard/node_modules is an npm install"}},
 		{"a port another stack holds", func(t *testing.T, _ string) {
@@ -363,5 +362,12 @@ func TestSkeletOnThePath(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("PATH=%s: %q, want %q", dir, out.String(), want)
 		}
+	}
+}
+
+func inDocker(t *testing.T, root, apps string) {
+	t.Helper()
+	if err := profile.Update(profile.Path(root), func(p profile.Profile) { p[profile.DockerKey] = apps }); err != nil {
+		t.Fatal(err)
 	}
 }

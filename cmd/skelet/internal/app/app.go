@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/cmd/skelet/internal/checkout"
 	"github.com/skeletg/skelet/cmd/skelet/internal/global"
 	"github.com/skeletg/skelet/cmd/skelet/internal/hooks"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/route"
 )
 
@@ -35,6 +36,12 @@ func Main(cfg Config, args []string) int {
 		return 0
 	}
 	hooks.Upgrade(root, os.Stderr)
+	switch moved, err := profile.Migrate(root); {
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "skelet: couldn't move this clone's setup into %s: %v\n", profile.File, err)
+	case moved:
+		fmt.Fprintf(os.Stderr, "skelet: moved .skelet-profile, .skelet-apps and .skelet-tools into %s\n", profile.File)
+	}
 	return run(root, route.Resolve(root, args))
 }
 

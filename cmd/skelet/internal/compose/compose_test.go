@@ -18,17 +18,17 @@ var libCases = []struct {
 	wantApps, wantTools string
 }{
 	{name: "bare", profiles: "search,signals"},
-	{name: "selected", apps: new("dashboard,vetrina-demo\n"), tools: new("mailpit,grafana\n"), profiles: "search,dashboard,vetrina-demo,mailpit,grafana,signals", wantApps: "dashboard,vetrina-demo", wantTools: "mailpit,grafana"},
-	{name: "lean", env: map[string]string{"SKELET_SIDECARS": "", "SKELET_TOOLS": ""}, apps: new("dashboard\n"), tools: new("mailpit\n"), profiles: "dashboard", wantApps: "dashboard"},
+	{name: "selected", apps: new("dashboard,vetrina-demo"), tools: new("mailpit,grafana"), profiles: "search,dashboard,vetrina-demo,mailpit,grafana,signals", wantApps: "dashboard,vetrina-demo", wantTools: "mailpit,grafana"},
+	{name: "lean", env: map[string]string{"SKELET_SIDECARS": "", "SKELET_TOOLS": ""}, apps: new("dashboard"), tools: new("mailpit"), profiles: "dashboard", wantApps: "dashboard"},
 	{name: "signals off", goEnv: new("SIGNALS_ENABLED=false\n"), profiles: "search"},
 	{name: "signals off, loosely written", goEnv: new("  signals_enabled =  Off  \n"), profiles: "search"},
 	{name: "signals off, commented out", goEnv: new("# SIGNALS_ENABLED=false\n"), profiles: "search,signals"},
 	{name: "signals off on any line", goEnv: new("SIGNALS_ENABLED=true\nSIGNALS_ENABLED=no\n"), profiles: "search"},
 	{name: "inherited", env: map[string]string{"COMPOSE_PROFILES": "mine"}, profiles: "mine"},
 	{name: "inherited empty", env: map[string]string{"COMPOSE_PROFILES": ""}, profiles: ""},
-	{name: "tools from env", env: map[string]string{"SKELET_TOOLS": "grafana"}, tools: new("mailpit\n"), profiles: "search,grafana,signals", wantTools: "grafana"},
-	{name: "whitespace", apps: new(" dashboard ,\n vetrina-demo \n"), profiles: "search,dashboard,vetrina-demo,signals", wantApps: "dashboard,vetrina-demo"},
-	{name: "empty apps file", apps: new(""), profiles: "search,signals"},
+	{name: "tools from env", env: map[string]string{"SKELET_TOOLS": "grafana"}, tools: new("mailpit"), profiles: "search,grafana,signals", wantTools: "grafana"},
+	{name: "whitespace", apps: new(" dashboard , vetrina-demo "), profiles: "search,dashboard,vetrina-demo,signals", wantApps: "dashboard,vetrina-demo"},
+	{name: "no apps in Docker", apps: new(""), profiles: "search,signals"},
 	{name: "custom sidecars", env: map[string]string{"SKELET_SIDECARS": "search,extra"}, profiles: "search,extra,signals"},
 }
 
@@ -36,7 +36,13 @@ func TestLoadMatchesLib(t *testing.T) {
 	for _, c := range libCases {
 		t.Run(c.name, func(t *testing.T) {
 			root := t.TempDir()
-			for name, body := range map[string]*string{".skelet-apps": c.apps, ".skelet-tools": c.tools, "env/go.env": c.goEnv} {
+			prof := ""
+			for key, v := range map[string]*string{"SKELET_DOCKER_APPS": c.apps, "SKELET_TOOLS_SELECTED": c.tools} {
+				if v != nil {
+					prof += key + "=" + *v + "\n"
+				}
+			}
+			for name, body := range map[string]*string{".skelet/profile": &prof, "env/go.env": c.goEnv} {
 				if body == nil {
 					continue
 				}

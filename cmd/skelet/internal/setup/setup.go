@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/gitx"
@@ -22,11 +21,11 @@ import (
 const Flags = "[--yes] [--all | --backend-only | --apps LIST|none] [--docker-apps LIST|none] [--tools LIST|none] [--keep-code] [--profile FILE]"
 
 const About = `The guided first run, and safe to re-run - each run defaults to the last one's answers, kept in
-.skelet-profile. It asks which frontends this clone runs and whether in Docker or on the host, the
+.skelet/profile. It asks which frontends this clone runs and whether in Docker or on the host, the
 target (dev, small or prod), the suites, the search engine, the payment gateways, whether to hide
 the admin API and which dev tools to run. Then it writes that target's env files with generated
-secrets - a value that isn't a placeholder is never replaced - the root .env, plugins.json and the
-selection files. For dev it boots the stack, migrates, installs the host apps and offers a first
+secrets - a value that isn't a placeholder is never replaced - the root .env and
+plugins.json. For dev it boots the stack, migrates, installs the host apps and offers a first
 admin login.
 
   --all, --backend-only, --apps LIST|none   which frontends this clone runs - the backend always does. A
@@ -54,7 +53,7 @@ func Run(root string, args []string) int {
 	}
 	sys.HandleInterrupts()
 
-	from := filepath.Join(root, profile.File)
+	from := profile.Path(root)
 	if f.profile != "" {
 		from = f.profile
 	}

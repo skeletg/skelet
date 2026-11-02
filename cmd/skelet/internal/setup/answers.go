@@ -49,8 +49,8 @@ const (
 	kGates   = "SKELET_GATEWAYS"
 	kSlug    = "SKELET_ADMIN_SLUG"
 	kApps    = profile.AppsKey
-	kDocker  = "SKELET_DOCKER_APPS"
-	kTools   = "SKELET_TOOLS_SELECTED"
+	kDocker  = profile.DockerKey
+	kTools   = profile.ToolsKey
 )
 
 // The profile's keys, in the order setup writes them
@@ -472,8 +472,9 @@ func known(v string, apps []string, out io.Writer) []string {
 }
 
 func placement(root string) []string {
-	raw, _ := os.ReadFile(filepath.Join(root, ".skelet-apps"))
-	return split(strings.Join(strings.Fields(string(raw)), ""))
+	own, _ := profile.Load(profile.Path(root))
+	docker, _ := own.List(kDocker)
+	return docker
 }
 
 func orNone(list []string, none string) string {

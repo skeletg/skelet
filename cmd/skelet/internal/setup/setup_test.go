@@ -399,11 +399,11 @@ func TestParseFlags(t *testing.T) {
 
 func quiet() prompter { return prompter{in: bufio.NewReader(strings.NewReader("")), out: io.Discard} }
 
-// A profile from before the placement question has no SKELET_DOCKER_APPS - a --yes run used to empty .skelet-apps then,
-// moving every containerized app to a host that may not have Node
+// A replayed profile with no SKELET_DOCKER_APPS keeps the placement this clone's own profile has - emptying it would
+// move every containerized app to a host that may not have Node
 func TestYesKeepsTheDockerPlacementTheProfileDoesntRecord(t *testing.T) {
 	root := fixture(t)
-	mkfile(t, root, ".skelet-apps", "dashboard\n")
+	mkfile(t, root, profile.File, kDocker+"=dashboard\n")
 	c, _ := scan(root)
 	a, err := answer(root, c, flags{yes: true}, profile.Profile{kTarget: "dev"}, "p", quiet(), io.Discard)
 	if err != nil || !reflect.DeepEqual(a.dockerApps, []string{"dashboard"}) {
@@ -427,7 +427,7 @@ func TestProfileAnswers(t *testing.T) {
 	}
 }
 
-// --profile replays a file without touching it - the answers land in .skelet-profile, where the next run reads them
+// --profile replays a file without touching it - the answers land in .skelet/profile, where the next run reads them
 func TestRunReplaysAProfileIntoSkeletProfile(t *testing.T) {
 	root := fixture(t)
 	replay := filepath.Join(t.TempDir(), "shop.profile")
@@ -550,8 +550,8 @@ func TestRunMakesTheShop(t *testing.T) {
 	root := fixture(t)
 	var made []string
 	forkShop = func(root, name, template string) int {
-		if _, err := os.Stat(filepath.Join(root, ".skelet-apps")); err != nil {
-			t.Error("the shop was made before the selection was written")
+		if _, err := os.Stat(profile.Path(root)); err != nil {
+			t.Error("the shop was made before the profile was written")
 		}
 		made = append(made, name+" from "+template)
 		return 0
@@ -563,7 +563,7 @@ func TestRunMakesTheShop(t *testing.T) {
 	if !slices.Equal(made, []string{"mine from "}) {
 		t.Errorf("made %q", made)
 	}
-	if raw, _ := os.ReadFile(filepath.Join(root, ".skelet-profile")); !strings.Contains(string(raw), "SKELET_APPS_SELECTED=dashboard,mine") {
+	if raw, _ := os.ReadFile(profile.Path(root)); !strings.Contains(string(raw), "SKELET_APPS_SELECTED=dashboard,mine") {
 		t.Errorf("profile:\n%s", raw)
 	}
 	// A copy that fails stops setup there

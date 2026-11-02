@@ -54,16 +54,16 @@ func checkout(root string, out io.Writer, p probes) int {
 
 	r.section("app selection")
 	inDocker := ""
-	if raw, err := os.ReadFile(filepath.Join(root, ".skelet-apps")); err == nil {
-		inDocker = strings.Join(strings.Fields(string(raw)), "")
-		r.pass("in Docker: %s (.skelet-apps; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"))
+	if docker, ok := prof.List(profile.DockerKey); ok {
+		inDocker = strings.Join(docker, ",")
+		r.pass("in Docker: %s (%s; change with skelet setup --docker-apps ...)", or(inDocker, "none - the frontends run on the host"), profile.File)
 	} else {
 		r.pass("none in Docker - the frontends run on the host (skelet setup --docker-apps ... to containerize)")
 	}
 	// A name no storefront goes by - one renamed or removed - starts nothing, quietly
 	for app := range strings.SplitSeq(inDocker, ",") {
 		if app != "" && app != "dashboard" && !slices.Contains(storefronts.Names(root), app) {
-			r.note(".skelet-apps names %q, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", app, or(strings.Join(storefronts.Names(root), ", "), "none"))
+			r.note("%s runs %q in Docker, which isn't an app here - storefronts: %s (skelet setup --docker-apps ...)", profile.File, app, or(strings.Join(storefronts.Names(root), ", "), "none"))
 		}
 	}
 	// Storefronts mount the whole workspace at /var/www/skelet - a service of your own on the /var/www/storefront mount
@@ -158,8 +158,8 @@ var interpolation = regexp.MustCompile(`\$\{([A-Z][A-Z0-9_]*)\}`)
 
 func shape(r *report, root string, prof profile.Profile, files []string) {
 	r.section("shape")
-	if !exists(filepath.Join(root, profile.File)) {
-		r.note("no .skelet-profile - run skelet setup to record what this clone is meant to be")
+	if !exists(profile.Path(root)) {
+		r.note("no %s - run skelet setup to record what this clone is meant to be", profile.File)
 	} else {
 		get := func(k string) string {
 			if v, ok := prof.Get(k); ok {
@@ -329,7 +329,7 @@ func ports(r *report, root string, lib compose.Lib, p probes) []string {
 		case lib.Apps == "":
 			r.pass("%s not in Docker - run it on the host (skelet serve %s)", name, name)
 		default:
-			r.note("%s has no published port (not running, or not in .skelet-apps)", name)
+			r.note("%s has no published port (not running, or not one of the Docker apps in %s)", name, profile.File)
 		}
 	}
 	// Only ports this project publishes count as ours. Probing localhost alone can't tell this stack from another

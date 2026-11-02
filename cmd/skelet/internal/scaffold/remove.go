@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/cmd/skelet/internal/compose"
 	"github.com/skeletg/skelet/cmd/skelet/internal/pnpm"
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/storefronts"
 )
 
@@ -319,28 +321,27 @@ func diskUsage(dir string) string {
 	return fmt.Sprintf("%.0f%s", math.Ceil(v), units[i])
 }
 
-// deselect takes the storefront out of .skelet-apps - left in, compose warns about a profile that matches no service
-// on every command. Comma-separated fields, not a substring: a hyphen is a word boundary, so pattern-matching shop
-// out of eu-shop,dashboard would leave eu-dashboard
+// deselect takes the storefront out of the profile's app lists - left in Docker's, compose warns about a profile that
+// matches no service on every command. Whole entries, not a substring, so dropping shop leaves eu-shop alone
 func deselect(root, name string) error {
-	path := filepath.Join(root, ".skelet-apps")
-	raw, err := os.ReadFile(path)
+	path := profile.Path(root)
+	p, err := profile.Load(path)
 	if err != nil {
-		return nil
-	}
-	was := strings.Join(strings.Fields(string(raw)), "")
-	var kept []string
-	for a := range strings.SplitSeq(was, ",") {
-		if a != name && a != "" {
-			kept = append(kept, a)
-		}
-	}
-	if strings.Join(kept, ",") == was {
-		return nil
-	}
-	if err := os.WriteFile(path, []byte(strings.Join(kept, ",")+"\n"), 0o644); err != nil {
 		return err
 	}
-	fmt.Printf("    .skelet-apps (dropped %s)\n", name)
+	drop := map[string]string{}
+	for _, key := range []string{profile.DockerKey, profile.AppsKey} {
+		items, _ := p.List(key)
+		if kept := slices.DeleteFunc(slices.Clone(items), func(a string) bool { return a == name }); len(kept) != len(items) {
+			drop[key] = strings.Join(kept, ",")
+		}
+	}
+	if len(drop) == 0 {
+		return nil
+	}
+	if err := profile.Update(path, func(p profile.Profile) { maps.Copy(p, drop) }); err != nil {
+		return err
+	}
+	fmt.Printf("    %s (dropped %s)\n", profile.File, name)
 	return nil
 }

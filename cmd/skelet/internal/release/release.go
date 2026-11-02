@@ -53,7 +53,7 @@ func Run(root string, args []string) int {
 	}
 	r := run{root: root, registry: registry, tag: tag, platform: platform, dotenv: dotenv}
 
-	prof, err := profile.Load(filepath.Join(root, profile.File))
+	prof, err := profile.Load(profile.Path(root))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "skelet release:", err)
 		return 1

@@ -1,10 +1,11 @@
-# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
+# Where a checkout from before .skelet/profile kept its setup answers - still written by an older one
 .skelet-apps
 .skelet-tools
 .skelet-profile
 # Per-clone compose additions (custom storefront services) - see README
 docker-compose.override.yml
-# The front door's builds of cmd/skelet, one per source change, and a stray `go build` in the module
+# Everything Skelet keeps per clone: the setup answers (.skelet/profile), the front door's builds of cmd/skelet
+# and its scratch space - and below it, a stray `go build` in the module
 .skelet/
 cmd/skelet/skelet
 

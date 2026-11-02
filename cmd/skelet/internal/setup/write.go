@@ -24,24 +24,17 @@ type written struct {
 	adminSlug      string
 }
 
-// Write turns answers into files: the selection files, the profile, the target's env files with their secrets, the
+// Write turns answers into files: the profile, the target's env files with their secrets, the
 // root .env's knobs and plugins.json. It starts nothing and asks nothing. Anything already holding a real value is
 // left alone, so a second run with the same answers changes no file
 func Write(root string, a answers, c catalog, rnd io.Reader, out io.Writer) (written, error) {
 	var w written
 	path := func(rel string) string { return filepath.Join(root, rel) }
 
-	if err := writeLine(path(".skelet-apps"), join(a.dockerApps)); err != nil {
-		return w, err
-	}
 	fmt.Fprintf(out, "==> Apps: %s\n", orNone(a.apps, "backend only"))
-	fmt.Fprintf(out, "    in Docker: %s  (saved to .skelet-apps)\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
-	if err := writeLine(path(".skelet-tools"), join(a.tools)); err != nil {
-		return w, err
-	}
-	fmt.Fprintf(out, "==> Dev tools: %s  (saved to .skelet-tools; start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
-
-	if err := profile.Write(path(profile.File), a.profile(), profileKeys); err != nil {
+	fmt.Fprintf(out, "    in Docker: %s\n", orNone(a.dockerApps, "none - they run on the host with `skelet serve <app>`"))
+	fmt.Fprintf(out, "==> Dev tools: %s  (start one ad hoc with skelet up <name>)\n", orNone(a.tools, "none"))
+	if err := profile.Write(profile.Path(root), a.profile(), profileKeys); err != nil {
 		return w, err
 	}
 	fmt.Fprintf(out, "==> Profile: %s, signals=%t ai=%t, search=%s  (saved to %s)\n", a.target, a.signals, a.ai, a.search, profile.File)
@@ -230,14 +223,6 @@ func fromTemplate(root, file, tmpl string) (bool, error) {
 		return false, fmt.Errorf("%s needs its template: %w", file, err)
 	}
 	return true, envfile.WriteAtomic(filepath.Join(root, file), raw, 0o600)
-}
-
-func writeLine(path, line string) error {
-	data := line + "\n"
-	if old, err := os.ReadFile(path); err == nil && string(old) == data {
-		return nil
-	}
-	return envfile.WriteAtomic(path, []byte(data), 0o644)
 }
 
 // A value setup may overwrite - anything else is the operator's

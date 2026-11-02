@@ -1,5 +1,5 @@
-// Package compose gives every docker compose call the CLI makes the same setup: the profiles that follow .skelet-apps,
-// .skelet-tools and SIGNALS_ENABLED, the locale, and the uid containers run as
+// Package compose gives every docker compose call the CLI makes the same setup: the profiles that follow the apps and
+// dev tools in .skelet/profile and SIGNALS_ENABLED, the locale, and the uid containers run as
 package compose
 
 import (
@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/skeletg/skelet/cmd/skelet/internal/profile"
 	"github.com/skeletg/skelet/cmd/skelet/internal/sys"
 )
 
@@ -18,8 +19,8 @@ import (
 type Lib struct {
 	root     string
 	Profiles string
-	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else .skelet-tools.
-	// Picked is .skelet-tools whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
+	// Apps is what runs in Docker, Tools the dev tools in effect - SKELET_TOOLS when set, even empty, else the profile's.
+	// Picked is the profile's whatever is in effect, so a --lean run doesn't unwire the tools it leaves out
 	Apps, Tools, Picked string
 }
 
@@ -33,7 +34,8 @@ func Load(root string) Lib { return load(root, false) }
 func LoadLean(root string) Lib { return load(root, true) }
 
 func load(root string, lean bool) Lib {
-	l := Lib{root: root, Apps: squeeze(root, ".skelet-apps"), Picked: squeeze(root, ".skelet-tools")}
+	prof, _ := profile.Load(profile.Path(root))
+	l := Lib{root: root, Apps: joined(prof, profile.DockerKey), Picked: joined(prof, profile.ToolsKey)}
 	l.Tools = l.Picked
 	if v, ok := os.LookupEnv("SKELET_TOOLS"); ok {
 		l.Tools = v
@@ -64,9 +66,9 @@ func load(root string, lean bool) Lib {
 }
 
 // squeeze is a selection file with every space and newline taken out, or empty when there's no file
-func squeeze(root, name string) string {
-	raw, _ := os.ReadFile(filepath.Join(root, name))
-	return strings.Join(strings.Fields(string(raw)), "")
+func joined(p profile.Profile, key string) string {
+	items, _ := p.List(key)
+	return strings.Join(items, ",")
 }
 
 // Env is the environment for a compose command that creates no containers

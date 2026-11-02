@@ -242,8 +242,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Dashboard + storefronts sit behind profiles so a clone can run headless - .skelet-apps, which
-  # skelet setup writes, lists the ones that run in Docker; no file = none, and the rest run on the host
+  # Dashboard + storefronts sit behind profiles so a clone can run headless - SKELET_DOCKER_APPS in
+  # .skelet/profile, which skelet setup writes, lists the ones that run in Docker; the rest run on the host
   dashboard:
     profiles: ["dashboard"]
     # Same uid story as the app service
@@ -479,7 +479,7 @@ services:
     logging: *logging
 
   # Optional dev tools below - nothing in the stack needs them. Each sits behind a profile of its own name,
-  # picked in skelet setup (saved to .skelet-tools) or started ad hoc with `skelet up <name>`
+  # picked in skelet setup (saved to .skelet/profile) or started ad hoc with `skelet up <name>`
 
   # SMTP catcher - anything mailed lands in the web UI on :8025
   mailpit:

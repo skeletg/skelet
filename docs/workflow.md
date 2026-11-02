@@ -103,8 +103,8 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 
 None of these are needed, and nothing in the apps knows about them. Each is a compose
 profile of its own name: pick them in `skelet setup` (or `--tools LIST|none`), which
-saves the list to git-ignored `.skelet-tools`, or start one for a single session with
-`skelet up <name>`.
+saves the list to your profile (`SKELET_TOOLS_SELECTED` in `.skelet/profile`), or start one for a
+single session with `skelet up <name>`.
 
 - `mailpit` - SMTP catcher; SMTP at `:1025`, web UI at <http://localhost:8025>.
   Without it, mail prints to the app log.
@@ -116,11 +116,11 @@ saves the list to git-ignored `.skelet-tools`, or start one for a single session
   container's stdout into Loki.
 - `garage-webui` - Garage's web console at <http://localhost:9901>.
 
-`skelet up` wires the env files to match `.skelet-tools`: picking `mailpit` points
+`skelet up` wires the env files to match the profile's tools: picking `mailpit` points
 `SMTP_HOST` at it, picking `grafana` points the `OTEL_*` vars at it, and dropping either
 blanks them again. Values you set to something else (a real relay, your own collector)
-are left alone. A tool started ad hoc with `skelet up <name>` is not wired - add it to
-`.skelet-tools` for that.
+are left alone. A tool started ad hoc with `skelet up <name>` is not wired - pick it in
+`skelet setup` for that.
 
 ### Looking at another channel
 
@@ -152,7 +152,7 @@ lockfile, reinstalling and restarting its dev server when either changes (`watch
 Dockerfile's CMD). What still needs you is a Dockerfile change - `skelet up` rebuilds the
 images. A new migration doesn't: the app applies it the next time it rebuilds or restarts.
 
-Where the frontends run is your choice, recorded in `.skelet-apps`. Listed
+Where the frontends run is your choice, recorded in your profile as `SKELET_DOCKER_APPS`. Listed
 there, `skelet up` starts them in Docker on <http://localhost:5173> and
 <http://localhost:3000>; left out, they stay on the host and `skelet serve
 dashboard` runs one - the default, because the dev server and the gates then
@@ -221,7 +221,7 @@ found in a template first:
 | Question | Writes |
 | --- | --- |
 | Which apps | `SKELET_APPS_SELECTED` in the profile, plus sparse-checkout of the rest |
-| Where the frontends run | `.skelet-apps` - empty means the host, which is the default |
+| Where the frontends run | `SKELET_DOCKER_APPS` in the profile - empty means the host, which is the default |
 | Deployment target - dev / small / prod | materializes only that target's env files |
 | Suites - Signals, AI | `SIGNALS_ENABLED` / `AI_ENABLED` |
 | Search tier | `OPENSEARCH_URL` in the root `.env` |
@@ -230,14 +230,17 @@ found in a template first:
 
 Secrets are generated, never prompted, and an existing non-placeholder value is left alone -
 so re-running is safe and never rotates a key. Setup is part of the Go CLI, so generating them
-needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. The answers land in git-ignored
-`.skelet-profile`, which becomes the defaults next time and which `skelet doctor` reads back to
-tell you what this clone is meant to be.
+needs nothing on the host - no OpenSSL. The env files it creates are readable by you alone. The answers land in
+`.skelet/profile`, which becomes the defaults next time and which `skelet doctor` reads back to
+tell you what this clone is meant to be. `.skelet/` is git-ignored and holds everything Skelet keeps per
+clone: that profile, plus the CLI's build (`bin/`) and scratch space (`tmp/`), both safe to delete. A clone
+set up before it kept `.skelet-profile`, `.skelet-apps` and `.skelet-tools` in its root instead, and the
+first `skelet` run after updating moves them in.
 
 Non-interactive: `skelet setup --yes` takes the defaults; `skelet setup --profile <file>` replays a
 saved profile, which is what CI and a second clone want. The file is only read - the answers are
-saved to this clone's `.skelet-profile` like any other run's. Where the profile has no answer for
-where the frontends run, `.skelet-apps` keeps what it holds rather than being emptied.
+saved to this clone's `.skelet/profile` like any other run's. Where the replayed file has no answer
+for where the frontends run, the clone keeps the placement its own profile has rather than emptying it.
 
 ## Which apps run
 
@@ -252,8 +255,8 @@ keeps the source without running it.
 
 Where they run is a second, independent answer, and the default is the host - there
 the dev server and the gates share one `node_modules`, so a lint run checks the tree
-vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
-so an empty file means every frontend runs on the host with `skelet serve <app>`.
+vite is actually serving. `SKELET_DOCKER_APPS` lists only the ones you asked to containerize,
+so an empty list means every frontend runs on the host with `skelet serve <app>`.
 
 When the project has no storefront of its own yet, setup offers one: pick a template and a
 name, and it's copied into `apps/channels/<name>` the way `skelet add channel` copies one,
@@ -264,7 +267,7 @@ make it without asking - and since `skelet new` hands setup its flags, `skelet n
 Non-interactive variants: `skelet setup --all` (templates too), `--backend-only`, or
 `skelet setup --apps dashboard,nextjs-vetrina` (comma list), with `--docker-apps LIST|none` for the placement and
 `--tools LIST|none` for the optional dev tools.
-Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
+Both answers are saved per-clone in `.skelet/profile`; re-run
 `skelet setup --apps ...` then `skelet down && skelet up` to change them. Selecting an app
 again restores its source.
 

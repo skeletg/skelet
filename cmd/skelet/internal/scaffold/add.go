@@ -541,7 +541,7 @@ func forkFromHead(root string, m move, to string) error {
 }
 
 func previewOrigin(root string, port int) {
-	if p, _ := profile.Load(filepath.Join(root, profile.File)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
+	if p, _ := profile.Load(profile.Path(root)); p[profile.TargetKey] != "" && p[profile.TargetKey] != "dev" {
 		return
 	}
 	env, origin := filepath.Join(root, ".env"), "http://localhost:"+strconv.Itoa(port)
@@ -577,7 +577,7 @@ func summary(root string, tracked bool, src, name string, dev, small int) {
 	// The suggestion adds the new shop to what this clone runs now rather than replacing it - the profile's selection,
 	// else every app the tree holds, which is what setup picks when it has no answer on record
 	selected := "dashboard"
-	p, _ := profile.Load(filepath.Join(root, profile.File))
+	p, _ := profile.Load(profile.Path(root))
 	if v, ok := p.Get(profile.AppsKey); ok {
 		selected = v
 	} else {

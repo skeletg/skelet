@@ -21,7 +21,7 @@ $(touch pwned)
 
 func TestLoadParsesWithoutRunning(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, File)
+	p := filepath.Join(dir, "profile")
 	if err := os.WriteFile(p, []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}
