@@ -1,7 +1,11 @@
-- **Shop events can be sent server to server to Google Analytics 4, Meta, Microsoft Advertising, CJ,
-  Awin, Klaviyo, Attentive, OpenAI Ads and your own webhook.**
+- **Shop events can be sent server to server to Google Analytics 4, Mixpanel, Meta, Microsoft
+  Advertising, CJ, Awin, Klaviyo, Attentive, OpenAI Ads and your own webhook.** Every destination is in
+  development: none has run against a production account yet, so each is off until enabled with
+  `skelet cli plugin enable <slug>`.
   - GA4 uses the Measurement Protocol, sent to Google, its EU endpoint or your server-side Google
     Tag Manager container, with a validate-only mode for setting up.
+  - Mixpanel uses the Import API, with the visitor id as `$device_id` and the customer as `$user_id`,
+    so a sign-in joins the anonymous history.
   - Meta uses the Conversions API. Email and phone are hashed as Meta requires, and the event id is
     shared with the browser pixel so nothing counts twice.
   - Microsoft Advertising uses the UET Conversions API, and OpenAI Ads its Conversions API. OpenAI's
@@ -11,7 +15,7 @@
   - Klaviyo and Attentive need the personalization category. They never receive an email that
     hasn't opted into marketing, and never a phone number.
   - The webhook posts each event as JSON, signed like the store's webhooks.
-  - Each needs the visitor's matching cookie choice: analytics for GA4 and the webhook, advertising
+  - Each needs the visitor's matching cookie choice: analytics for GA4, Mixpanel and the webhook, advertising
     for the ad and affiliate platforms, personalization for Klaviyo and Attentive.
   - Set them up with `skelet cli tracking add` and check one with `skelet cli tracking test`. The
     dashboard pages come later.

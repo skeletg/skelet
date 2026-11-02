@@ -20,17 +20,26 @@ once.
 
 ## Destinations
 
-| Kind | Platform | Needs |
-|---|---|---|
-| `ga4` | Google Analytics 4, Measurement Protocol | analytics |
-| `meta_capi` | Meta Conversions API | ads |
-| `bing_uet` | Microsoft Advertising, UET Conversions API | ads |
-| `openai` | OpenAI Ads Conversions API | ads |
-| `cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
-| `awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
-| `klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
-| `attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
-| `webhook` | Your own endpoint, signed JSON | analytics |
+**Every destination is in development.** Each is built from its vendor's documentation and tested against recorded
+requests, but none has yet run against a production account. They are off by default and compiled into no build
+until enabled. Verify one against a real account before relying on it in production:
+
+```bash
+skelet cli plugin enable tracking-ga4                      # compiles it in; restart the backend
+```
+
+| Kind | Plugin | Platform | Needs |
+|---|---|---|---|
+| `ga4` | `tracking-ga4` | Google Analytics 4, Measurement Protocol | analytics |
+| `mixpanel` | `tracking-mixpanel` | Mixpanel Import API | analytics |
+| `meta_capi` | `tracking-meta` | Meta Conversions API | ads |
+| `bing_uet` | `tracking-bing` | Microsoft Advertising, UET Conversions API | ads |
+| `openai` | `tracking-openai` | OpenAI Ads Conversions API | ads |
+| `cj` | `tracking-cj` | CJ Affiliate, server-to-server postback | ads, or none with `general/privacy/cj_cookie_necessary` |
+| `awin` | `tracking-awin` | Awin Conversion API | ads, or none with `general/privacy/awin_cookie_necessary` |
+| `klaviyo` | `tracking-klaviyo` | Klaviyo Events API | personalization, plus the email's marketing opt-in |
+| `attentive` | `tracking-attentive` | Attentive eCommerce events | personalization, plus the email's marketing opt-in |
+| `webhook` | `tracking-webhook` | Your own endpoint, signed JSON | analytics |
 
 Until the dashboard pages land, set them up from the command line:
 
@@ -41,6 +50,22 @@ TRACKING_SECRET=<api secret> skelet cli tracking add --channel <id> --kind ga4 -
 skelet cli tracking test <destination-id>                  # one sample purchase, sent now, with the platform's answer
 skelet cli tracking deliveries <destination-id>            # what was sent, retried or given up on
 ```
+
+## Mixpanel
+
+**No Mixpanel script is needed.** The `mixpanel` destination sends events through Mixpanel's Import API with a
+service account, to the host that matches the project's data residency (`region`: `us`, `eu` or `in`). Identity
+follows Mixpanel's simplified ID merge:
+
+- `$device_id` is the storefront's visitor id, which exists only with analytics consent.
+- `$user_id` is the customer id once the shopper is signed in. An event carrying both joins the anonymous history
+  to the customer, so Mixpanel works out `distinct_id` itself.
+- An event with neither goes nowhere. Visitors who decline analytics are counted as nobody in Signals instead
+  (see [privacy.md](privacy.md)); nothing about them reaches Mixpanel.
+- `$insert_id` is derived from the event id, so a retry counts once. Email and phone are never sent.
+
+If you also load Mixpanel's browser library, for session replay say, don't let it send events: they would be counted
+twice and under a different device id.
 
 ## GA4 and Google Tag Manager
 
