@@ -10,7 +10,6 @@ type ClickId = {
   param: string; // the landing-page query parameter
   cookie: string;
   maxAge: number;
-  browser?: boolean; // Meta's pixel reads its own cookies, so those stay readable from script
   affiliate?: boolean; // the merchant may make it necessary, per network
 };
 
@@ -24,8 +23,8 @@ export const CLICK_IDS: ClickId[] = [
   // CJ's spec (docs.cj.com/docs/http-cookie): 13 months from the last click. HttpOnly, which the spec leaves off only so
   // CJ's own browser tag can read it - this one is sent server to server
   { key: "cjevent", param: "cjevent", cookie: "cje", maxAge: 395 * DAY, affiliate: true },
-  { key: "fbc", param: "fbclid", cookie: "_fbc", maxAge: 90 * DAY, browser: true },
-  { key: "fbp", param: "", cookie: "_fbp", maxAge: 90 * DAY, browser: true },
+  { key: "fbc", param: "fbclid", cookie: "_fbc", maxAge: 90 * DAY },
+  { key: "fbp", param: "", cookie: "_fbp", maxAge: 90 * DAY },
 ];
 
 // Click ids are opaque tokens - anything else is someone writing into our cookies through a link
@@ -63,7 +62,7 @@ export function clickCookieWrites(
   const write = (c: ClickId, value: string): CookieWrite => ({
     name: c.cookie,
     value,
-    options: { path: "/", httpOnly: !c.browser, sameSite: "lax", secure, maxAge: value ? c.maxAge : 0, ...(domain && { domain }) },
+    options: { path: "/", httpOnly: true, sameSite: "lax", secure, maxAge: value ? c.maxAge : 0, ...(domain && { domain }) },
   });
   const out: CookieWrite[] = [];
   for (const c of CLICK_IDS) {

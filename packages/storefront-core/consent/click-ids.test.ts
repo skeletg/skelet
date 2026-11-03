@@ -36,7 +36,7 @@ describe("click id cookies", () => {
     const first = byName(writes("fbclid=Iw_1", {}, true));
     expect(first._fbp.value).toMatch(/^fb\.1\.1700000000000\.\d+$/);
     expect(first._fbc.value).toBe("fb.1.1700000000000.Iw_1");
-    expect(first._fbc.options.httpOnly).toBe(false);
+    expect(first._fbc.options.httpOnly).toBe(true);
     expect(byName(writes("fbclid=Iw_1", { _fbp: "x", _fbc: "fb.1.5.Iw_1" }, true))).toEqual({});
   });
 
