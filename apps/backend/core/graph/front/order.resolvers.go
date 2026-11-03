@@ -185,10 +185,11 @@ func (r *mutationResolver) PlaceOrder(ctx context.Context, cartID *string, payme
 	}
 	input := r.placeOrderInput(ctx, v, paymentOK)
 	input.CustomerID = channel.OptionalCustomerID(ctx)
+	// Only a guest's tick rides the order - on a guest offer the one signed in isn't the recipient whose address it goes under
+	input.MarketingOptIn = marketingOptIn != nil && *marketingOptIn && input.CustomerID == nil
 	if c.IsOffer() && c.CustomerID == nil { // a guest offer stays a guest order for its recipient, whoever is signed in on the browser that follows the link
 		input.CustomerID = nil
 	}
-	input.MarketingOptIn = marketingOptIn != nil && *marketingOptIn
 	if paymentToken != nil && *paymentToken != "" {
 		input.PaymentToken = paymentToken
 	}
