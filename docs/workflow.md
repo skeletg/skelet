@@ -59,6 +59,7 @@ It can only see what Go and vitest can trace. A test that depends on the date, o
 | `skelet cli integration list` | List API integrations |
 | `skelet cli config list/get/set/reset/orphans/prune` | Config registry management |
 | `skelet cli customer group list` | List customer groups |
+| `skelet cli signals backfill-orders` | Replay past orders into Signals at their placement time - safe to re-run |
 
 ## Docker setup
 
