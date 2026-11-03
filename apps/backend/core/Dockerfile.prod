@@ -2,7 +2,7 @@
 # Build from apps/backend, not core/, since core replaces the SDK by relative path: docker build -f apps/backend/core/Dockerfile.prod -t skelet-app:prod apps/backend
 
 # alpine3.24 pinned explicitly - the runtime stage installs the vips these binaries link against, so the two alpines must stay in lockstep
-# The golang tag tracks go.mod's toolchain line - bin/pin-check holds the two together
+# The golang tag tracks go.mod's toolchain line - skelet check pins holds the two together
 FROM golang:1.27.3-alpine3.24 AS build
 WORKDIR /src
 # build-base/pkgconf/vips-dev - cgo headers for the -tags vips binaries

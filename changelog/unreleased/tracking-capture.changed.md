@@ -3,5 +3,4 @@
 - **The backend now sees the shopper's own browser.** The storefront forwards their user agent, so
   session lists and bot checks show the shopper's browser instead of the storefront server.
 - **A signed-in shopper who refused analytics no longer has cart activity on their Signals
-  profile.** A guest's checkout opt-in for an address whose account is already verified now
-  applies straight away.
+  profile.**

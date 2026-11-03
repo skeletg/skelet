@@ -3,7 +3,7 @@
 // both a node class and a "FAQ" entry in the Custom Blocks dropdown
 //
 // SYNC: The SerializedFAQBlockNode shape below is mirrored in
-// apps/channels/vetrina-demo/app/lib/lexical-render.tsx (FAQBlock type)
+// packages/storefront-core/lexical.ts (FAQBlock type)
 // Renaming a field here without updating the channel breaks blog
 // post rendering
 

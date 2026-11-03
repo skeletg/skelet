@@ -1475,6 +1475,49 @@ type lineBudget struct {
 	items  map[uuid.UUID]float64
 }
 
+// What each line may put back: a whole line spreads its quantity over its items by ratio, a component line puts its own
+// units on its one item. Order returns never mix the two on one bundle line
+func restockBudgets(ctx context.Context, r Repository, lines []RestockLineQty, ratios map[uuid.UUID]map[uuid.UUID]float64) (map[uuid.UUID]*lineBudget, error) {
+	out := make(map[uuid.UUID]*lineBudget, len(lines))
+	for _, l := range lines {
+		if l.ProductID == nil {
+			whole := newLineBudget(l.Quantity, ratios[l.OrderLineID])
+			if b, ok := out[l.OrderLineID]; ok {
+				b.add(whole)
+			} else {
+				out[l.OrderLineID] = whole
+			}
+			continue
+		}
+		item, err := r.GetItemByProductID(ctx, *l.ProductID)
+		if errors.Is(err, ErrItemNotFound) {
+			continue // an untracked component has no stock to restore
+		}
+		if err != nil {
+			return nil, err
+		}
+		b, ok := out[l.OrderLineID]
+		if !ok {
+			b = &lineBudget{items: map[uuid.UUID]float64{}}
+			out[l.OrderLineID] = b
+		}
+		if b.items != nil {
+			b.items[item.ID] += l.Quantity
+		}
+	}
+	return out, nil
+}
+
+func (b *lineBudget) add(o *lineBudget) {
+	if b.items == nil || o.items == nil {
+		b.shared += o.shared
+		return
+	}
+	for item, q := range o.items {
+		b.items[item] += q
+	}
+}
+
 func newLineBudget(qty float64, ratios map[uuid.UUID]float64) *lineBudget {
 	if ratios == nil {
 		return &lineBudget{shared: qty}
@@ -1504,6 +1547,7 @@ func (b *lineBudget) spend(item uuid.UUID, q float64) {
 type RestockLineQty struct {
 	OrderLineID uuid.UUID
 	Quantity    float64
+	ProductID   *uuid.UUID // one component of a bundle line - only its item is restocked, Quantity in its units
 }
 
 // Adds a return's quantities back at the cells the goods shipped from - read from the order's positive order_fulfilled deltas plus the net order_deducted balance (deduct-at-placement's equivalent) - re-incrementing up to that ledger ceiling per cell, so a return can't inflate stock beyond what the order actually took; the RMA flow upstream is what caps requests at shipped quantities
@@ -1514,10 +1558,6 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 	}
 	marker := returnID.String()
 	type cell struct{ item, loc uuid.UUID }
-	want := make(map[uuid.UUID]float64, len(lines))
-	for _, l := range lines {
-		want[l.OrderLineID] += l.Quantity
-	}
 	oid := orderID
 	restocked := make(map[uuid.UUID]float64)
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
@@ -1567,8 +1607,11 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 			// Nothing was ever fulfilled, so nothing to restock
 			return nil
 		}
-		for lineID, qty := range want {
-			left := newLineBudget(qty, ratios[lineID])
+		budgets, err := restockBudgets(ctx, r, lines, ratios)
+		if err != nil {
+			return err
+		}
+		for lineID, left := range budgets {
 			for c, shipped := range shippedFrom[lineID] {
 				remaining := left.of(c.item)
 				if remaining <= 0 {
@@ -1613,16 +1656,27 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 // One row per (tracked item, location) cell at or below the item's low_stock_threshold, for the dashboard reorder list
 // Sorted most-urgent first, so the limit keeps the worst cases - clamped to [1, 1000] with 200 as the unset default
 func (s *Service) ListLowStockLevels(ctx context.Context, limit int32) ([]LowStockLevel, error) {
-	if limit <= 0 {
-		limit = 200
-	}
-	if limit > 1000 {
-		limit = 1000
-	}
+	limit = lowStockLimit(limit)
 	if s.flatModeEnabled(ctx) {
 		return s.repo.ListLowStockItemsFlat(ctx, limit)
 	}
 	return s.repo.ListLowStockLevels(ctx, limit)
+}
+
+// Flat mode keeps one count per item with no warehouse, so every channel reads the same list
+func (s *Service) ListChannelLowStockLevels(ctx context.Context, channelID uuid.UUID, limit int32) ([]LowStockLevel, error) {
+	limit = lowStockLimit(limit)
+	if s.flatModeEnabled(ctx) {
+		return s.repo.ListLowStockItemsFlat(ctx, limit)
+	}
+	return s.repo.ListChannelLowStockLevels(ctx, channelID, limit)
+}
+
+func lowStockLimit(limit int32) int32 {
+	if limit <= 0 {
+		return 200
+	}
+	return min(limit, 1000)
 }
 
 // ==================== Mode migration ====================

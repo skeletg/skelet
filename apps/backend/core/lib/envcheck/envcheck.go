@@ -96,7 +96,7 @@ func strongSecret(getenv Getenv, name string) []string {
 func ed25519Key(getenv Getenv, name string) []string {
 	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(getenv(name)))
 	if err != nil || len(b) != 32 {
-		return []string{name + " must be base64 of a 32-byte Ed25519 key - `./skelet setup` generates the pair"}
+		return []string{name + " must be base64 of a 32-byte Ed25519 key - `skelet setup` generates the pair"}
 	}
 	return nil
 }

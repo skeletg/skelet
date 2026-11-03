@@ -39,3 +39,12 @@ func Format(minor int64, decimals int) string {
 	cut := len(digits) - decimals
 	return sign + digits[:cut] + "." + digits[cut:]
 }
+
+// "JPY 1200", "USD 12.34" - the code's ISO exponent, for text read by people or a model
+func FormatCode(minor int64, code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" {
+		return Format(minor, 2)
+	}
+	return code + " " + Format(minor, ISODecimals(code))
+}

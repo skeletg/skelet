@@ -1,4 +1,4 @@
-# Per-clone app and dev-tool selection written by skelet setup (compose profiles).
+# Setup files skelet moves into .env on its first run
 .skelet-apps
 .skelet-tools
 .skelet-profile
@@ -51,15 +51,23 @@ apps/dashboard/node_modules/
 apps/dashboard/dist/
 apps/dashboard/.vite/
 
+# The storefront packages' npm build and the tarballs packages/publish.mjs packs
+packages/*/dist/
+packages/.packs/
+
 # Ad-hoc database dumps (pg_dump output parked in the repo root). Never
 # commit these - they contain real customer data.
 *.dump
 
-# Local DB backups (bin/db-export output)
+# TLS certificates and private keys, like the Signals contract's - they belong on the server
+/certs/
+*.pem
+
+# Local DB backups (skelet db export output)
 backups/
 
 # Editor state is per-person - a SQLTools connection to the dev database is a tool
-# preference, and bin/psql reaches both databases for everyone regardless of editor.
+# preference, and skelet psql reaches both databases for everyone regardless of editor.
 .vscode/
 
 # Editor/OS backup files. Also catches env/*.env.bak, which would

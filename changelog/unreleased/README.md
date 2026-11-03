@@ -24,6 +24,6 @@ A change that fits two sections gets two files. A `<slug>.summary.md` holds a pl
 paragraph instead, printed at the top of the release before any section - for a release
 that deserves a sentence or two on what it's about.
 
-`./skelet changelog` shows what the next release will say, `./skelet check` fails on a
-badly named or formatted fragment, and `./skelet changelog release <version>` writes the
+`skelet changelog` shows what the next release will say, `skelet check` fails on a
+badly named or formatted fragment, and `skelet changelog release <version>` writes the
 release - see [docs/releasing.md](../../docs/releasing.md).

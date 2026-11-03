@@ -168,6 +168,8 @@ models:
         resolver: true
       groupedMembers:
         resolver: true
+      kitComponents:
+        resolver: true
       # Channel-filtered on every path
       categories:
         resolver: true

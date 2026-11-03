@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# dbmate on the dev DB: up | rollback | status | new <name>
-set -e
-cd "$(dirname "$(dirname "$0")")"
-
-docker compose exec app sh -c \
-    'dbmate --no-dump-schema --migrations-dir internal/db/migrations "$@"' \
-    -- "$@"

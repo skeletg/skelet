@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tracking"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"

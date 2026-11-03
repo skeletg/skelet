@@ -19,7 +19,9 @@ type BundleOption {
   title:      String!
   # Every locale's title for admin views.
   content:    [BundleOptionContent!]!
-  # The menu of SIMPLE products that can fill this option.
+  # Fills the option from a category on every read - null when it has no rule
+  rule:       BundleOptionRule
+  # The menu of products that can fill this option, the rule's after the hand-picked ones
   selections: [BundleSelection!]!
   createdAt:  Time!
   updatedAt:  Time!
@@ -36,6 +38,27 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Made by the option's rule, not stored - change the rule to change it
+  fromRule:  Boolean!
+  # Whole percent off this component's price - an add-on deal
+  discountPercent:  Int!
+  # The customer sets how many go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
+}
+
+# Every SIMPLE product in the category holding all the attribute values, each a selection of quantity per bundle
+type BundleOptionRule {
+  categoryId:        ID!
+  attributeValueIds: [ID!]!
+  quantity:          Float!
+}
+
+input BundleOptionRuleInput {
+  optionId:          ID!
+  # Null drops the rule
+  categoryId:        ID
+  attributeValueIds: [ID!]
+  quantity:          Float
 }
 
 input AddBundleOptionInput {
@@ -68,6 +91,8 @@ input AddBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
 }
 
 input UpdateBundleSelectionInput {
@@ -75,6 +100,30 @@ input UpdateBundleSelectionInput {
   quantity:  Float
   isDefault: Boolean
   sortOrder: Int
+  discountPercent:  Int
+  customerQuantity: Boolean
+}
+
+# One staged edit for setBundleStructure - set tempId plus exactly one of the rest. Any option or selection id may be a
+# real one from this bundle, or the tempId an earlier add in the same call gave what it created
+input BundleStructureOpInput {
+  tempId:          ID
+  addOption:       AddBundleOptionInput
+  updateOption:    UpdateBundleOptionInput
+  deleteOption:    ID
+  upsertContent:   BundleOptionContentInput
+  deleteContent:   BundleOptionContentInput
+  addSelection:    AddBundleSelectionInput
+  updateSelection: UpdateBundleSelectionInput
+  deleteSelection: ID
+  setRule:         BundleOptionRuleInput
+}
+
+input BundleOptionContentInput {
+  optionId: ID!
+  locale:   String!
+  # Required by upsertContent, ignored by deleteContent
+  title:    String
 }
 
 # ==================== Grouped structure ====================
@@ -138,6 +187,9 @@ extend type Mutation {
   addBundleSelection(input: AddBundleSelectionInput!): Product!
   updateBundleSelection(input: UpdateBundleSelectionInput!): Product!
   deleteBundleSelection(id: ID!): Product!
+  # Applies a whole staged edit of the bundle's options, translations and selections in order, in one transaction -
+  # every op lands or none does
+  setBundleStructure(productId: ID!, ops: [BundleStructureOpInput!]!): Product!
 
   # ---------- Grouped structure ---------- A grouped product (kind=GROUPED) holds a list of SIMPLE member products that the storefront renders side-by-side.
   # Each member is added to the cart individually - the grouped parent is never directly purchasable.

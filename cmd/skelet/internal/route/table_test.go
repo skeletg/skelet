@@ -1,48 +1,22 @@
 package route
 
-import (
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"testing"
-)
+import "testing"
 
-const repoRoot = "../../../.."
-
-// The front door and bin/ agree in both directions, and bin/repo-check can count the routes by grepping this file
-func TestTableAndBinAgree(t *testing.T) {
-	routed := map[string]bool{}
-	scripts := 0
+// Every route has a handler and a help text, no two answer the same command line, and the table holds every verb -
+// a floor, so a refactor that drops routes fails here rather than in someone's terminal
+func TestTable(t *testing.T) {
+	seen := map[string]bool{}
 	for _, r := range routes {
-		if r.Go != nil {
-			if r.Script != "" || r.About == "" {
-				t.Errorf("%s is a Go verb, so it takes About and no Script", r.Verb)
-			}
-			continue
+		key := r.Verb + " " + r.Sub + " " + r.Flag
+		if r.Go == nil || r.About == "" {
+			t.Errorf("%q has no handler or no About", key)
 		}
-		scripts++
-		routed[r.Script] = true
-		fi, err := os.Stat(filepath.Join(repoRoot, "bin", r.Script))
-		if err != nil || fi.Mode()&0o111 == 0 {
-			t.Errorf("%s %s routes to bin/%s, which is missing or not executable", r.Verb, r.Sub, r.Script)
+		if seen[key] {
+			t.Errorf("%q is routed twice", key)
 		}
+		seen[key] = true
 	}
-	entries, err := os.ReadDir(filepath.Join(repoRoot, "bin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), "_") && !routed[e.Name()] {
-			t.Errorf("bin/%s has no verb", e.Name())
-		}
-	}
-
-	src, err := os.ReadFile("table.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n := len(regexp.MustCompile(`Script: "[a-z][a-z0-9-]*"`).FindAll(src, -1)); n != scripts {
-		t.Errorf("bin/repo-check's grep finds %d routes in table.go, the table holds %d - keep one Script: per route", n, scripts)
+	if len(routes) < 40 {
+		t.Errorf("only %d routes - the table lost some", len(routes))
 	}
 }

@@ -142,8 +142,13 @@ type Product {
   configurableOptions: [Attribute!]!
   # Empty unless kind == BUNDLE.
   bundleOptions:       [BundleOption!]!
+  # How this bundle is priced on the request's store: SUM adds up the picks, FIXED charges price whatever is picked, SUM_MINUS_PERCENT takes bundleDiscountPercent off the sum. Other kinds read SUM
+  bundlePricing:         BundlePricing!
+  bundleDiscountPercent: Int!
   # Empty unless kind == GROUPED.
   groupedMembers:      [GroupedMember!]!
+  # Empty unless kind == KIT - what is in the box, per kit. A component this store doesn't sell on its own has no url.
+  kitComponents:       [KitItem!]!
   # Customer-facing custom options (engraving, gift wrap, add-ons, …).
   # Pass the customer's picks to addConfiguredToCart. Empty when none.
   options:             [ProductCustomOption!]!
@@ -180,6 +185,12 @@ type PromotionalDisplay {
   pillBgColor:     String!
 }
 
+enum BundlePricing {
+  SUM
+  FIXED
+  SUM_MINUS_PERCENT
+}
+
 enum BundleInputType {
   RADIO
   DROPDOWN
@@ -193,6 +204,9 @@ type BundleOption {
   inputType:  BundleInputType!
   isRequired: Boolean!
   sortOrder:  Int!
+  # How many picks a checkbox/multiselect option takes. 0 is no explicit minimum (a required option still needs one), null no maximum. Single-select ignores both. Add-to-cart enforces them
+  minSelections: Int!
+  maxSelections: Int
   title:      String!
   selections: [BundleSelection!]!
 }
@@ -204,6 +218,10 @@ type BundleSelection {
   quantity:  Float!
   isDefault: Boolean!
   sortOrder: Int!
+  # Whole percent off this pick's price - the cart charges it already discounted
+  discountPercent:  Int!
+  # The customer sets how many of it go in each bundle, quantity being where it starts
+  customerQuantity: Boolean!
 }
 
 # One member SIMPLE product attached to a GROUPED parent. The customer sees each member rendered with its own image/name/qty input on the PDP and can adjust how many of each to add at once.
@@ -212,6 +230,17 @@ type GroupedMember {
   member:          Product!
   defaultQuantity: Float!
   sortOrder:       Int!
+}
+
+# One item in a KIT's fixed contents - quantity is how many come in one kit. Display only, so no price: url is empty when
+# this store doesn't sell the item on its own.
+type KitItem {
+  id:        ID!
+  sku:       String!
+  name:      String
+  url:       String!
+  quantity:  Float!
+  sortOrder: Int!
 }
 
 # A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent"), resolved to this channel's surcharge - an option whose fixed surcharge has no amount in this channel's currency is left out.

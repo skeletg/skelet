@@ -1,0 +1,449 @@
+"use client";
+
+// BUNDLE PDP shell
+
+import { useMemo, useState, useActionState } from "react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/app/components/LocaleLink";
+
+import { addBundleToCart } from "@skelet/storefront-next/cart/actions";
+import { displayName } from "@skelet/storefront-core/display";
+import { productHref } from "@skelet/storefront-core/entity-href";
+import { formatPrice } from "@skelet/storefront-core/format";
+import type {
+  BundleOption,
+  BundleSelection,
+  ProductDetail,
+} from "@skelet/storefront-next/catalog/read";
+import { deriveQtyBounds } from "@/app/components/qty";
+import { bundlePrice, isSingleSelect, pickBounds } from "@skelet/storefront-core/catalog/bundle";
+import { RequiredFlag } from "./RequiredFlag";
+import { MissingOptionLinks } from "./MissingOptionLinks";
+import { jumpToOption } from "./focus-intent";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
+import {
+  AttributeList,
+  ChoiceIndicator,
+  Description,
+  optionCardClass,
+  optionAnchorId,
+  SelectionHint,
+  StockBadge,
+} from "./parts";
+import { PdpBuyBox, PdpMetaRow, PdpQty, PdpShell } from "./pdp-shell";
+
+type Picks = Record<string, Set<string>>; // optionId → selectionIds
+
+function initialPicks(options: BundleOption[]): Picks {
+  const picks: Picks = {};
+  for (const opt of options) {
+    const defaults = opt.selections.filter((s) => s.isDefault).map((s) => s.id);
+    if (isSingleSelect(opt.inputType)) {
+      picks[opt.id] = new Set(defaults.slice(0, 1));
+    } else {
+      picks[opt.id] = new Set(defaults);
+    }
+  }
+  return picks;
+}
+
+export function BundlePDP({ product }: { product: ProductDetail }) {
+  const [addState, formAction] = useActionState(addBundleToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
+  const options = useMemo(
+    () =>
+      [...product.bundleOptions].sort((a, b) => a.sortOrder - b.sortOrder),
+    [product.bundleOptions],
+  );
+
+  const [picks, setPicks] = useState<Picks>(() => initialPicks(options));
+  // selectionId -> the variant picked for a configurable selection
+  const [variants, setVariants] = useState<Record<string, string>>({});
+  // selectionId -> how many per bundle, for a selection whose amount the customer sets
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
+
+  const togglePick = (option: BundleOption, selectionId: string) => {
+    setPicks((prev) => {
+      const next: Picks = {};
+      for (const k of Object.keys(prev)) {
+        next[k] = new Set(prev[k]);
+      }
+      const bucket = next[option.id] ?? new Set<string>();
+      if (isSingleSelect(option.inputType)) {
+        // Tapping the already-picked one in a required slot is a no-op (you can't
+        // un-pick a required radio); in an optional slot it clears the choice
+        if (bucket.has(selectionId) && option.isRequired) return prev;
+        bucket.clear();
+        if (!prev[option.id]?.has(selectionId)) bucket.add(selectionId);
+      } else if (bucket.has(selectionId)) {
+        bucket.delete(selectionId);
+      } else {
+        const { max } = pickBounds(option);
+        // The cart refuses more than the maximum, so a further tick does nothing rather than failing at add
+        if (max !== null && bucket.size >= max) return prev;
+        bucket.add(selectionId);
+      }
+      next[option.id] = bucket;
+      return next;
+    });
+  };
+
+  const chosen: Array<{
+    option: BundleOption;
+    selection: BundleSelection;
+  }> = [];
+  for (const opt of options) {
+    for (const sel of opt.selections) {
+      if (picks[opt.id]?.has(sel.id)) chosen.push({ option: opt, selection: sel });
+    }
+  }
+  const totalItemsPerBundle = chosen.reduce(
+    (n, c) => n + (c.selection.customerQuantity ? (amounts[c.selection.id] ?? c.selection.quantity) : c.selection.quantity),
+    0,
+  );
+  // The cart prices a bundle from the sum of its picked selections - mirror that here so the headline tracks the picks
+  // instead of showing the wrapper's own price (0 for dynamically priced bundles)
+  // A configurable pick is priced, and charged, as the variant chosen for it
+  const variantOf = (sel: BundleSelection) => sel.product.children?.find((v) => v.id === variants[sel.id]);
+  const isConfigurable = (sel: BundleSelection) => (sel.product.children?.length ?? 0) > 0;
+  const amountOf = (sel: BundleSelection) => (sel.customerQuantity ? (amounts[sel.id] ?? sel.quantity) : sel.quantity);
+  // The cart's per-pick price: the variant's for a configurable, less the pick's own deal rounded half up
+  const unitOf = (sel: BundleSelection) => {
+    const list = isConfigurable(sel) ? (variantOf(sel)?.price ?? 0) : (sel.product.price ?? sel.product.defaultPrice);
+    return list - Math.floor((list * (sel.discountPercent ?? 0) + 50) / 100);
+  };
+  const pickedSum = chosen.reduce((n, c) => n + unitOf(c.selection) * amountOf(c.selection), 0);
+  const bundleTotal = bundlePrice(product, pickedSum);
+  // An option is unfinished below its minimum, or while a configurable picked in it has no variant yet
+  const unsatisfiedRequired = options.filter(
+    (o) =>
+      (picks[o.id]?.size ?? 0) < pickBounds(o).min ||
+      o.selections.some((sel) => picks[o.id]?.has(sel.id) && isConfigurable(sel) && !variantOf(sel)),
+  );
+  const missingRequired = unsatisfiedRequired.map((o) => o.title);
+  const missingRequiredIds = unsatisfiedRequired.map((o) => o.id);
+  const missingRequiredItems = unsatisfiedRequired.map((o) => ({
+    id: o.id,
+    label: o.title,
+  }));
+  const qtyBounds = deriveQtyBounds(product);
+  // Bumped each time the shopper tries to add before picking every required option
+  const [attemptSeq, setAttemptSeq] = useState(0);
+  const attempted = attemptSeq > 0;
+
+  const heading = displayName(product.name, product.sku);
+
+  return (
+    <PdpShell product={product} heading={heading}>
+      <PdpMetaRow product={product} />
+
+      <PdpBuyBox>
+        <p className="text-2xl font-bold tracking-tight">
+          {formatPrice(bundleTotal, product.defaultCurrencyCode)}
+          {chosen.length > 0 && bundleTotal < pickedSum ? (
+            <span className="ml-2 align-middle text-lg font-normal text-muted-foreground line-through">
+              {formatPrice(pickedSum, product.defaultCurrencyCode)}
+            </span>
+          ) : null}
+          {product.bundlePricing === "SUM_MINUS_PERCENT" && product.bundleDiscountPercent > 0 ? (
+            <span className="ml-2 inline-block -translate-y-1 rounded-sm bg-signal px-2.5 py-0.5 align-middle font-mono text-xs font-semibold uppercase tracking-wider text-white">
+              {t("bundleSave", { percent: product.bundleDiscountPercent })}
+            </span>
+          ) : null}
+          {chosen.length === 0 && product.defaultPrice > 0
+            ? ` ${t("from", { price: formatPrice(product.defaultPrice, product.defaultCurrencyCode) })}`
+            : null}
+        </p>
+
+        <StockBadge
+          inStock={product.inStock}
+          salableQuantity={product.salableQuantity}
+        />
+
+        <section className="mt-8 space-y-6">
+          {options.map((opt) => (
+            <RequiredFlag
+              key={opt.id}
+              active={attempted && missingRequiredIds.includes(opt.id)}
+              attemptSeq={attemptSeq}
+              anchorId={optionAnchorId(opt.id)}
+            >
+              {(invalid) => (
+                <BundleOptionPanel
+                  option={opt}
+                  picked={picks[opt.id] ?? new Set()}
+                  onToggle={(sid) => togglePick(opt, sid)}
+                  variants={variants}
+                  onVariant={(sid, vid) => setVariants((prev) => ({ ...prev, [sid]: vid }))}
+                  amounts={amounts}
+                  onAmount={(sid, n) => setAmounts((prev) => ({ ...prev, [sid]: n }))}
+                  invalid={invalid}
+                />
+              )}
+            </RequiredFlag>
+          ))}
+        </section>
+
+        <StickyBuyRow className="mt-6">
+          <form action={formAction} className="flex items-center gap-3">
+          <input type="hidden" name="productSku" value={product.sku} />
+          <input
+            type="hidden"
+            name="selections"
+            value={JSON.stringify(
+              options.map((o) => ({
+                optionId: o.id,
+                selectionIds: Array.from(picks[o.id] ?? []),
+              })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="variants"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => isConfigurable(c.selection) && variants[c.selection.id])
+                .map((c) => ({ selectionId: c.selection.id, variantId: variants[c.selection.id] })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="quantities"
+            value={JSON.stringify(
+              chosen
+                .filter((c) => c.selection.customerQuantity)
+                .map((c) => ({ selectionId: c.selection.id, quantity: amountOf(c.selection) })),
+            )}
+          />
+          <PdpQty bounds={qtyBounds} disabled={missingRequired.length > 0} />
+          <AddToCartButton
+            stickyPrice={formatPrice(bundleTotal, product.defaultCurrencyCode)}
+            blocked={missingRequired.length > 0}
+            onBlockedClick={() => {
+              setAttemptSeq((n) => n + 1);
+              const first = missingRequiredItems[0]?.id;
+              if (first) jumpToOption(first);
+            }}
+            className="flex-1"
+          >
+            {missingRequired.length > 0 ? t("pickRequired") : t("addBundle")}
+          </AddToCartButton>
+        </form>
+        </StickyBuyRow>
+        <AddToCartFeedback state={addState} />
+        {attempted && missingRequired.length > 0 ? (
+          <SelectionHint key={attemptSeq}>
+            {t.rich("pickRequiredOptions", {
+              count: missingRequired.length,
+              links: () => <MissingOptionLinks items={missingRequiredItems} />,
+            })}
+          </SelectionHint>
+        ) : null}
+
+        <section className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("yourBundle")}
+          </h2>
+          {missingRequired.length > 0 ? (
+            <p className="mt-2 text-muted-foreground">
+              {t.rich("pickOneFor", {
+                count: missingRequired.length,
+                names: () => (
+                  <span className="text-foreground">
+                    {missingRequired.join(", ")}
+                  </span>
+                ),
+              })}
+            </p>
+          ) : chosen.length === 0 ? (
+            <p className="mt-2 text-muted-foreground">{t("nothingPicked")}</p>
+          ) : (
+            <>
+              <ul className="mt-2 space-y-1">
+                {chosen.map(({ option, selection }) => (
+                  <li key={selection.id} className="flex items-baseline gap-2">
+                    <span className="text-muted-foreground">{option.title}:</span>
+                    <span className="text-foreground">
+                      {displayName(selection.product.name, selection.product.sku)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ×{selection.quantity}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {t("perBundle", { count: totalItemsPerBundle })}
+              </p>
+            </>
+          )}
+        </section>
+
+      </PdpBuyBox>
+
+      <Description
+        label={tp("summary")}
+        value={product.shortDescription}
+        className="mt-6"
+      />
+
+      <Description
+        label={tp("description")}
+        value={product.description}
+        className="mt-8"
+      />
+
+      <AttributeList values={product.attributeValues} className="mt-8" />
+    </PdpShell>
+  );
+}
+
+function BundleOptionPanel({
+  option,
+  picked,
+  onToggle,
+  variants,
+  onVariant,
+  amounts,
+  onAmount,
+  invalid = false,
+}: {
+  option: BundleOption;
+  picked: Set<string>;
+  onToggle: (selectionId: string) => void;
+  variants: Record<string, string>;
+  onVariant: (selectionId: string, variantId: string) => void;
+  amounts: Record<string, number>;
+  onAmount: (selectionId: string, amount: number) => void;
+  invalid?: boolean;
+}) {
+  const sorted = [...option.selections].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+  const multi = !isSingleSelect(option.inputType);
+  const tc = useTranslations("common");
+  const t = useTranslations("product.pdp");
+  const { min, max } = pickBounds(option);
+  const full = multi && max !== null && picked.size >= max;
+  const limit = !multi
+    ? null
+    : max !== null && min === max
+      ? t("pickExactly", { count: max })
+      : max !== null && min > 0
+        ? t("pickBetween", { min, max })
+        : max !== null
+          ? t("pickUpTo", { count: max })
+          : min > 1
+            ? t("pickAtLeast", { count: min })
+            : null;
+
+  return (
+    <fieldset>
+      <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {option.title}
+        {option.isRequired ? (
+          <span className="ml-1 text-red-500">*</span>
+        ) : (
+          <span className="ml-1 normal-case text-muted-foreground">(optional)</span>
+        )}
+        {limit ? (
+          <span className="ml-2 normal-case font-normal text-muted-foreground">
+            {limit} · {t("picked", { count: picked.size })}
+          </span>
+        ) : null}
+      </legend>
+      <ul className="mt-2 space-y-2">
+        {sorted.map((sel) => {
+          const isPicked = picked.has(sel.id);
+          const locked = full && !isPicked;
+          return (
+            <li key={sel.id}>
+              <label className={`${optionCardClass(isPicked, invalid)} ${locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+                <input
+                  type={multi ? "checkbox" : "radio"}
+                  name={`bundle-${option.id}`}
+                  checked={isPicked}
+                  disabled={locked}
+                  onChange={() => onToggle(sel.id)}
+                  className="sr-only"
+                />
+                <ChoiceIndicator checked={isPicked} multi={multi} />
+                <div className="size-12 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted">
+                  {sel.product.mainImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={sel.product.mainImage.url}
+                      alt={sel.product.mainImage.altText || sel.product.sku}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={productHref(sel.product)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm font-medium hover:underline"
+                  >
+                    {displayName(sel.product.name, sel.product.sku)}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    {sel.product.sku} ·{" "}
+                    {sel.product.inStock ? tc("inStock") : tc("outOfStock")}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-medium tabular-nums">
+                  {formatPrice(
+                    sel.product.price ?? sel.product.defaultPrice,
+                    sel.product.defaultCurrencyCode,
+                  )}
+                  {sel.discountPercent ? (
+                    <span className="ml-1 text-xs font-semibold text-signal">−{sel.discountPercent}%</span>
+                  ) : null}
+                  {sel.quantity !== 1 ? (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ×{sel.quantity}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+              {isPicked && sel.customerQuantity ? (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  {t("howMany")}
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    className="w-20 rounded-lg border border-border bg-background px-2 py-1 tabular-nums"
+                    value={amounts[sel.id] ?? sel.quantity}
+                    onChange={(e) => onAmount(sel.id, Math.max(1, Math.round(Number(e.target.value) || 1)))}
+                  />
+                </label>
+              ) : null}
+              {isPicked && (sel.product.children?.length ?? 0) > 0 ? (
+                <select
+                  className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  aria-label={t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  value={variants[sel.id] ?? ""}
+                  onChange={(e) => onVariant(sel.id, e.target.value)}
+                >
+                  <option value="" disabled>
+                    {t("chooseVariant", { name: displayName(sel.product.name, sel.product.sku) })}
+                  </option>
+                  {(sel.product.children ?? []).map((v) => (
+                    <option key={v.id} value={v.id} disabled={!v.inStock}>
+                      {displayName(v.name, v.sku)} · {formatPrice(v.price, sel.product.defaultCurrencyCode)}
+                      {v.inStock ? "" : ` · ${tc("outOfStock")}`}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </fieldset>
+  );
+}

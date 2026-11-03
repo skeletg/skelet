@@ -247,6 +247,10 @@ func toOrderReturnModel(ret order.OrderReturn) *model.OrderReturn {
 			Reason:          l.Reason,
 			RefundUnitCents: int32(l.RefundUnitCents),
 		}
+		if l.ComponentID != nil {
+			id := l.ComponentID.String()
+			lines[i].ComponentID = &id
+		}
 	}
 	m := &model.OrderReturn{
 		ID:           ret.ID.String(),

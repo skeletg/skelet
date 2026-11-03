@@ -122,7 +122,7 @@ func shipmentItems(o Order, f Fulfillment) []shippingpkg.RateItem {
 	out := make([]shippingpkg.RateItem, 0, len(f.Lines))
 	for _, fl := range f.Lines {
 		if l, ok := byID[fl.OrderLineID]; ok {
-			out = append(out, shippingpkg.RateItem{SKU: l.ProductSku, Quantity: fl.Quantity, UnitPriceCents: l.UnitPrice})
+			out = append(out, shippingpkg.LineItems(shippingpkg.RateItem{SKU: l.ProductSku, Quantity: fl.Quantity, UnitPriceCents: l.UnitPrice}, l.Quantity, orderLineParts(l))...)
 		}
 	}
 	return out
