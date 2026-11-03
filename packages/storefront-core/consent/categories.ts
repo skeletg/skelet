@@ -20,8 +20,8 @@ export function parseConsent(raw: string | undefined | null): Consent | null {
   return { analytics: m[1] === "1", ads: m[2] === "1", personalization: m[3] === "1" };
 }
 
-export function serializeConsent(c: Consent): string {
-  return `v2:a${+c.analytics}.d${+c.ads}.p${+c.personalization}`;
+export function serializeConsent(c: Consent, prefix: "v2" | "auto" = "v2"): string {
+  return `${prefix}:a${+c.analytics}.d${+c.ads}.p${+c.personalization}`;
 }
 
 // The store's general/privacy/cookie_consent - opt_in asks first (EU/UK), opt_out asks nobody and lets them switch off (US)
@@ -33,7 +33,7 @@ export type ConsentMode = "opt_in" | "opt_out";
 export function resolveConsentCookie(raw: string | undefined, mode: ConsentMode, gpc: boolean): string | undefined {
   const current = parseConsent(raw);
   if (mode === "opt_in") return raw?.startsWith("auto:") ? "" : undefined;
-  if (!current) return "auto:" + serializeConsent({ ...ALL_GRANTED, ads: !gpc }).slice("v2:".length);
-  if (gpc && current.ads) return (raw!.startsWith("auto:") ? "auto:" : "v2:") + serializeConsent({ ...current, ads: false }).slice("v2:".length);
+  if (!current) return serializeConsent({ ...ALL_GRANTED, ads: !gpc }, "auto");
+  if (gpc && current.ads) return serializeConsent({ ...current, ads: false }, raw!.startsWith("auto:") ? "auto" : "v2");
   return undefined;
 }
